@@ -589,7 +589,7 @@ public class LogicalModelService {
          dataModel.removeLogicalModel(name);
       }
 
-      String path = dataSource + "/" + name;
+      String path = isExtended ? dataSource + "/" + parent + "/" + name : dataSource + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
          path, null);
       dependencyHandler.deleteDependencies(entry);

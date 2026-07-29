@@ -331,9 +331,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       node.children.forEach(child => this.refreshTreeSelectStatus(child));
    }
 
-   private refreshLeafNodeSelectStatus(node: TreeNodeModel) {
-      const childData: PhysicalModelTreeNodeModel = <PhysicalModelTreeNodeModel> node.data;
-      let findTable = this.physicalModel.tables
+   private findMatchingTable(childData: PhysicalModelTreeNodeModel): PhysicalTableModel {
+      return this.physicalModel.tables
          .find((table) => {
             if(!table.alias) {
                return this.getTablePath(table) == childData.path;
@@ -343,6 +342,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                   this.databaseName + "/" + (table.alias || table.name) == childData.path;
             }
          });
+   }
+
+   private refreshLeafNodeSelectStatus(node: TreeNodeModel) {
+      const childData: PhysicalModelTreeNodeModel = <PhysicalModelTreeNodeModel> node.data;
+      let findTable = this.findMatchingTable(childData);
 
       if(findTable) {
          childData.selected = true;
@@ -1355,8 +1359,12 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    keepSelectedNodes(node: TreeNodeModel) {
       if(node.leaf) {
          const childData: PhysicalModelTreeNodeModel = <PhysicalModelTreeNodeModel> node.data;
-         childData.selected = this.physicalModel.tables
-            .some(table => table.path == childData.path);
+         const findTable = this.findMatchingTable(childData);
+         childData.selected = !!findTable;
+
+         if(findTable) {
+            childData.baseTable = findTable.baseTable;
+         }
       }
       else {
          if(node.children && node.children.length > 0) {

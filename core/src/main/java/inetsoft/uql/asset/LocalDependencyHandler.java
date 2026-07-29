@@ -694,8 +694,13 @@ public class LocalDependencyHandler implements DependencyHandler {
          return;
       }
 
+      // an extended model is identified by "datasource/base model/extended model" so that it is
+      // not confused with a base model of the same name
+      XLogicalModel baseModel = lmodel.getBaseModel();
+      String modelPath = baseModel == null ? lmodel.getDataSource() + "/" + lmodel.getName() :
+         lmodel.getDataSource() + "/" + baseModel.getName() + "/" + lmodel.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
-         lmodel.getDataSource() + "/" + lmodel.getName(),null);
+         modelPath, null);
       String view = getAssetId(lmodel.getDataSource() + "/" + lmodel.getPartition(),
          AssetEntry.Type.PARTITION);
       updateModelDependencies(lmodel, entry, add);

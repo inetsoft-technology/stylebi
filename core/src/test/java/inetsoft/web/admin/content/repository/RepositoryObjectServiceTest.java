@@ -49,6 +49,7 @@ import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
@@ -235,6 +236,82 @@ class RepositoryObjectServiceTest {
       verify(dependencyHandler, never()).deleteDependenciesKey(any());
    }
 
+   /*
+    * Bug #75816: the extended (child) logical model / physical view branch of deleteNodes() did no
+    * dependency cleanup at all, so the #75783 fix stopped one level short.
+    *
+    * An extended object is identified by the three-segment "datasource/base name/extended name"
+    * path -- the form used everywhere else the dependency index names one, e.g.
+    * LocalDependencyHandler.getModelPath() when a backup schedule task references it, and
+    * PhysicalModelManagerService.removeModel() in the portal. The flat "datasource/name" form used
+    * for base objects cannot be used here: an extended name may collide with a base object's name,
+    * in which case the cleanup would strip the *base* object's dependency information instead.
+    */
+   @Test
+   void deleteExtendedLogicalModelRemovesDependencyEdgeAndKey() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(EXTENDED_NAME)
+         .path(DATA_SOURCE + "^" + LOGICAL_MODEL_NAME + "^" + EXTENDED_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(logicalModel).removeLogicalModel(EXTENDED_NAME);
+      String expected = identifier(
+         AssetEntry.Type.LOGIC_MODEL, LOGICAL_MODEL_NAME + "/" + EXTENDED_NAME);
+      assertEquals(expected, capturedDeletedDependency());
+      assertEquals(expected, capturedDeletedDependencyKey());
+   }
+
+   @Test
+   void deleteExtendedPhysicalViewRemovesDependencyEdgeAndKey() throws Exception {
+      XPartition physicalView = mock(XPartition.class);
+      when(dataModel.getPartition(PHYSICAL_VIEW_NAME)).thenReturn(physicalView);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(EXTENDED_NAME)
+         .path(DATA_SOURCE + "^" + PHYSICAL_VIEW_NAME + "^" + EXTENDED_NAME)
+         .type(RepositoryEntry.PARTITION)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(physicalView).removePartition(EXTENDED_NAME);
+      String expected = identifier(
+         AssetEntry.Type.PARTITION, PHYSICAL_VIEW_NAME + "/" + EXTENDED_NAME);
+      assertEquals(expected, capturedDeletedDependency());
+      assertEquals(expected, capturedDeletedDependencyKey());
+   }
+
+   /*
+    * The data model folder is not part of the dependency path: node.path() carries it as a
+    * "datasource^__^folder" prefix, but the identifier stays "datasource/base name/extended name".
+    */
+   @Test
+   void deleteExtendedLogicalModelInFolderIgnoresTheFolderSegment() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(EXTENDED_NAME)
+         .path(DATA_SOURCE + XUtil.DATAMODEL_FOLDER_SPLITER + MODEL_FOLDER + "^" +
+                  LOGICAL_MODEL_NAME + "^" + EXTENDED_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(logicalModel).removeLogicalModel(EXTENDED_NAME);
+      String expected = identifier(
+         AssetEntry.Type.LOGIC_MODEL, LOGICAL_MODEL_NAME + "/" + EXTENDED_NAME);
+      assertEquals(expected, capturedDeletedDependency());
+      assertEquals(expected, capturedDeletedDependencyKey());
+   }
+
    private String identifier(AssetEntry.Type type, String name) {
       return new AssetEntry(AssetRepository.QUERY_SCOPE, type, DATA_SOURCE + "/" + name, null)
          .toIdentifier();
@@ -265,4 +342,6 @@ class RepositoryObjectServiceTest {
    private static final String VPM_NAME = "vpm";
    private static final String PHYSICAL_VIEW_NAME = "physicalView";
    private static final String LOGICAL_MODEL_NAME = "logicalModel";
+   private static final String EXTENDED_NAME = "additionalConnection";
+   private static final String MODEL_FOLDER = "modelFolder";
 }

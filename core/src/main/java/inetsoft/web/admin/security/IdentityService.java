@@ -1228,6 +1228,24 @@ public class IdentityService {
       }
    }
 
+   /**
+    * Carries a user's EM favorites over to their copy in another organization, so an
+    * organization clone or rename does not leave the copied user with no favorites.
+    *
+    * @param fromID  the identity of the user in the source organization.
+    * @param toID    the identity of the user's copy in the target organization.
+    * @param replace {@code true} when the source organization is being replaced/renamed, so
+    *                the favorites are moved rather than copied.
+    */
+   public void copyUserFavorites(IdentityID fromID, IdentityID toID, boolean replace) {
+      if(replace) {
+         favoritesService.moveFavorites(fromID.convertToKey(), toID.convertToKey());
+      }
+      else {
+         favoritesService.copyFavorites(fromID.convertToKey(), toID.convertToKey());
+      }
+   }
+
    public void clearDataSourceMetadata() throws Exception {
       String[] dsNames = xRepository.getDataSourceNames();
 
