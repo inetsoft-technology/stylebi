@@ -207,6 +207,61 @@ public class WsMergeService {
                   // worksheet persist/reload path gates on isAggregate(), silently dropping a
                   // genuinely non-empty AggregateInfo by the time the worksheet reloads.
                   condMirror.setAggregate(condHasAggr);
+
+                  // Qualify condMirror's own AGGREGATE refs against the table it mirrors, exactly
+                  // as ensureBaseHasPrevMirror does for prevMirror -- condMirror missed this and it
+                  // is the same bug: AssetQuery.createAssetQuery (via AssetQuerySandbox#
+                  // refreshColumnSelection, every viewsheet open) re-derives this mirror's columns
+                  // from the mirrored table's raw outputs (outer-attribute qualified) and
+                  // AggregateInfo#validate() drops any aggregate whose ref doesn't resolve against
+                  // them. srcBound's aggregate refs point at bare/aliased names (e.g. "order_count"
+                  // aliasing "id", "avg_order_value" aliasing "amount_total") that the raw
+                  // re-derivation never produces, so they were silently dropped -- collapsing the
+                  // chart to just its group ("Aggregate not found: <alias>").
+                  //
+                  // Unlike prevMirror (whose aggregates were on already-base-named columns),
+                  // condMirror's aggregate outputs are ALIASED: qualifying the aliased column
+                  // itself would yield "base.order_count" (getOuterAttribute uses the alias as the
+                  // name), which still won't match the raw re-derivation. Qualify the aggregate's
+                  // UNDERLYING column instead ("base.id") and re-apply the output alias, so the ref
+                  // resolves against the re-derived raw column while keeping its output name.
+                  if(condHasAggr) {
+                     AggregateInfo condAggr = condMirror.getAggregateInfo();
+                     ColumnSelection condPub = condMirror.getColumnSelection(true);
+                     ColumnSelection condPriv = condMirror.getColumnSelection(false);
+                     String condBase = stackOn.getName();
+
+                     for(int ai = 0; ai < condAggr.getAggregateCount(); ai++) {
+                        AggregateRef aref = condAggr.getAggregate(ai);
+                        DataRef aggColRef = aref.getDataRef();
+
+                        if(aggColRef == null) {
+                           continue;
+                        }
+
+                        String outputName = aggColRef.getName();
+                        String alias = (aggColRef instanceof ColumnRef)
+                           ? ((ColumnRef) aggColRef).getAlias() : null;
+                        // Qualify the underlying column (raw name), not the aliased wrapper, so the
+                        // result is "base.<rawName>" matching what the re-derivation produces.
+                        DataRef underlying = (aggColRef instanceof ColumnRef)
+                           ? ((ColumnRef) aggColRef).getDataRef() : aggColRef;
+                        ColumnRef qualifiedRef =
+                           new ColumnRef(AssetUtil.getOuterAttribute(condBase, underlying));
+
+                        if(alias != null) {
+                           qualifiedRef.setAlias(alias);
+                        }
+
+                        aref.setDataRef(qualifiedRef);
+                        replaceColumnByName(condPub, outputName, qualifiedRef);
+                        replaceColumnByName(condPriv, outputName, qualifiedRef);
+                     }
+
+                     condMirror.setColumnSelection(condPub, true);
+                     condMirror.setColumnSelection(condPriv, false);
+                  }
+
                   condMirror.setProperty(PROP_WIZ_MERGED, "true");
                   dashWS.addAssembly(condMirror);
                   wsRenameMap.put(srcBound.getName(), condMirrorName);
