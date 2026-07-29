@@ -1541,24 +1541,193 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
-    * A combo bar+point chart (plain {@code grow} hint, no gantt flag) must NOT animate its
-    * point overlay — the milestone fade is strictly gated on the gantt flag.
+    * A multi-style bar+point chart carries the plain {@code grow} hint (hasBarVO wins over
+    * hasPointVO when the hint is chosen), so the point branch is never taken.  The point measure
+    * must still get the standalone point animation — staggered largest-first, starting with the
+    * bars rather than queued behind them (Redmine #75640).
     */
    @Test
-   void combo_barPoint_noGanttFlag_pointsNotAnimated() throws Exception {
+   void combo_barPoint_pointsAnimateWithBars() throws Exception {
+      Document doc = newDocument();
+      Element bar0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "0", "col", "0", "orient", "v"),
+                                   0, 0, 50, 200);
+      Element bar1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "1", "col", "0", "orient", "v"),
+                                   100, 0, 50, 200);
+      Element small = addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
+                                    Map.of("row", "0", "col", "2", "size", "4"),
+                                    20, 20, 8, 8);
+      Element large = addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
+                                    Map.of("row", "1", "col", "2", "size", "14"),
+                                    120, 20, 28, 28);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+
+      String largeStyle = firstChildStyle(large);
+      assertNotNull(largeStyle, "combo chart point measure must receive an animation style");
+      assertTrue(largeStyle.contains("inetsoft-point-fade"),
+                 "combo chart points must use the standalone point fade keyframe");
+
+      // Largest-first stagger, same as a standalone point chart.
+      double largeDelay = parseDelay(largeStyle);
+      double smallDelay = parseDelay(firstChildStyle(small));
+      assertEquals(0.0, largeDelay, 0.01, "largest point must start immediately");
+      assertTrue(smallDelay > largeDelay, "smaller point must follow the larger one");
+
+      // The points must animate alongside the bars, not after them.
+      double lastBarDelay = Math.max(parseDelay(firstChildStyle(bar0)),
+                                     parseDelay(firstChildStyle(bar1)));
+      assertTrue(largeDelay < lastBarDelay,
+                 "combo chart points must start before the last bar, not after all bars finish");
+   }
+
+   /**
+    * A multi-style bar+line chart also carries the plain {@code grow} hint, so its line series
+    * never reach injectLineAnimation.  The line must draw on starting with the bars (unlike the
+    * Pareto line, which is a summary of the bars and waits for them).
+    */
+   @Test
+   void combo_barLine_lineDrawsWithBars() throws Exception {
+      Document doc = newDocument();
+      Element bar0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "0", "col", "0", "orient", "v"),
+                                   0, 0, 50, 200);
+      Element bar1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "1", "col", "0", "orient", "v"),
+                                   100, 0, 50, 200);
+
+      // Line annotation group: outer g → inner g → path (LineVO's rendering structure).
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-series", "1");
+      lineAnnot.setAttribute("data-color", "60,105,138");
+      Element lineInner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", "M 0 100 L 100 50 L 200 80");
+      linePath.setAttribute("fill", "none");
+      lineInner.appendChild(linePath);
+      lineAnnot.appendChild(lineInner);
+      doc.getDocumentElement().appendChild(lineAnnot);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+
+      String lineStyle = linePath.getAttribute("style");
+      assertTrue(lineStyle.contains("inetsoft-line-draw"),
+                 "combo chart line must receive the draw-on animation");
+      assertEquals(0.0, parseDelay(lineStyle), 0.01,
+                   "the only line series must start drawing immediately, with the first bar");
+
+      double lastBarDelay = Math.max(parseDelay(firstChildStyle(bar0)),
+                                     parseDelay(firstChildStyle(bar1)));
+      assertTrue(parseDelay(lineStyle) < lastBarDelay,
+                 "combo chart line must not wait for all bars to finish");
+   }
+
+   /**
+    * The Pareto cumulative-% line is flagged with {@code data-pareto} and keeps its
+    * after-the-bars timing — it summarizes the bars, so it must not draw alongside them.
+    */
+   @Test
+   void pareto_lineDrawsAfterBars() throws Exception {
+      Document doc = newDocument();
+      Element bar0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "0", "col", "0", "orient", "v"),
+                                   0, 0, 50, 200);
+      Element bar1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "1", "col", "0", "orient", "v"),
+                                   100, 0, 50, 200);
+
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-series", "1");
+      lineAnnot.setAttribute("data-color", "60,105,138");
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_PARETO, "true");
+      Element lineInner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", "M 0 100 L 100 50 L 200 20");
+      linePath.setAttribute("fill", "none");
+      lineInner.appendChild(linePath);
+      lineAnnot.appendChild(lineInner);
+      doc.getDocumentElement().appendChild(lineAnnot);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+
+      double lastBarDelay = Math.max(parseDelay(firstChildStyle(bar0)),
+                                     parseDelay(firstChildStyle(bar1)));
+      assertTrue(parseDelay(linePath.getAttribute("style"))
+                    >= lastBarDelay + AnimationConstants.DURATION - 0.01,
+                 "the Pareto line must draw only after the last bar finishes");
+   }
+
+   /**
+    * Both bar-branch line helpers use the same draw-on/wipe keyframes and can run in one
+    * injection (a Pareto line plus an unrelated multi-style line measure), so the keyframes must
+    * be emitted exactly once.  A bar chart with no lines at all must not carry them.
+    */
+   @Test
+   void combo_lineKeyframesEmittedOnce() throws Exception {
       Document doc = newDocument();
       addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
                     Map.of("row", "0", "col", "0", "orient", "v"),
                     0, 0, 50, 200);
-      Element point = addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
-                                    Map.of("row", "0", "col", "0", "size", "9"),
-                                    20, 20, 10, 10);
+      addLineAnnot(doc, "1", "60,105,138", "M 0 100 L 100 50 L 200 20", true);   // Pareto
+      addLineAnnot(doc, "2", "200,100,50", "M 0 90 L 100 60 L 200 70", false);   // multi-style
 
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
 
-      String pointStyle = firstChildStyle(point);
-      assertTrue(pointStyle == null || pointStyle.isEmpty(),
-                 "combo chart point overlay must not receive a fade without the gantt flag");
+      assertEquals(1, countOccurrences(allStyleContent(doc.getDocumentElement()),
+                                       "@keyframes inetsoft-line-draw"),
+                   "the shared line keyframes must be emitted exactly once");
+
+      // A plain bar chart references no line keyframes, so it must not be given any.
+      Document barOnly = newDocument();
+      addAnnotGroup(barOnly, SVGSupport.ANNOTATION_BAR,
+                    Map.of("row", "0", "col", "0", "orient", "v"),
+                    0, 0, 50, 200);
+      SVGAnimationDOMInjector.injectAnimation(barOnly.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+
+      assertEquals(0, countOccurrences(allStyleContent(barOnly.getDocumentElement()),
+                                       "@keyframes inetsoft-line-draw"),
+                   "a bar chart with no line series must not carry line keyframes");
+   }
+
+   /**
+    * Adds a LineVO-shaped annotation group (outer g → inner g → path) to the SVG root.
+    *
+    * @return the line's {@code <path>} element
+    */
+   private static Element addLineAnnot(Document doc, String series, String color, String d,
+                                       boolean pareto)
+   {
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-series", series);
+      lineAnnot.setAttribute("data-color", color);
+
+      if(pareto) {
+         lineAnnot.setAttribute("data-" + SVGSupport.ATTR_PARETO, "true");
+      }
+
+      Element lineInner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", d);
+      linePath.setAttribute("fill", "none");
+      lineInner.appendChild(linePath);
+      lineAnnot.appendChild(lineInner);
+      doc.getDocumentElement().appendChild(lineAnnot);
+      return linePath;
+   }
+
+   /** Number of non-overlapping occurrences of {@code needle} in {@code haystack}. */
+   private static int countOccurrences(String haystack, String needle) {
+      int count = 0;
+
+      for(int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
+         count++;
+      }
+
+      return count;
    }
 
    // -------------------------------------------------------------------------
