@@ -368,13 +368,19 @@ public class RepositoryObjectService {
 
                            if(logicalModel != null) {
                               logicalModel.removeLogicalModel(extendModel);
+                              removeDataModelDependencies(
+                                 datasource + "/" + baseModel + "/" + extendModel,
+                                 AssetEntry.Type.LOGIC_MODEL, true);
                            }
                         }
                         else if(node.type() == RepositoryEntry.PARTITION) {
-                           XPartition physicalView = dataModel.getPartition(extendedModelPath[1]);
+                           XPartition physicalView = dataModel.getPartition(baseModel);
 
                            if(physicalView != null) {
-                              physicalView.removePartition(extendedModelPath[2]);
+                              physicalView.removePartition(extendModel);
+                              removeDataModelDependencies(
+                                 datasource + "/" + baseModel + "/" + extendModel,
+                                 AssetEntry.Type.PARTITION, true);
                            }
                         }
                      }
