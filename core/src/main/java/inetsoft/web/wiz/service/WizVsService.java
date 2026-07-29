@@ -62,13 +62,13 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.web.vswizard.handler.SyncInfoHandler;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import inetsoft.web.vswizard.handler.SyncInfoHandler;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -1288,6 +1288,13 @@ public class WizVsService {
             // etc.) onto the freshly-bound assembly. syncSource is the chart being refined (named via
             // model.getAssemblyName()), falling back to the displaced assembly. Reuses the wizard's
             // per-type sync, bypassing its table-name gate (the rebuild renamed the source table).
+            //
+            // NOTE: syncMode reaches here only on the createViewsheet (skipExecution=false) path — it is
+            // set from the /viewsheet/autoBinding request (autoBinding() -> autoBindingInternal(.., false)),
+            // never from the changeType skipExecution=true path. So the skipExecution-only displaced-primary
+            // removal below (see "remove the displaced primary before persisting") never runs together with a
+            // sync, and cannot orphan existingTarget or delete the wrong primary. If a future caller ever sets
+            // syncConfigs on a skipExecution path, revisit that interaction.
             VSAssembly syncSource = resolveSyncSource(syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
 
             if(syncSource != null && syncInfoHandler != null) {
