@@ -136,17 +136,29 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          String rootRole = Organization.getRootRoleName(principal);
          String rootOrgRole = Organization.getRootOrgRoleName(principal);
          Role role = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
-         Permission rootRolePer = provider.getPermission(type, rootRole);
-         Permission rootOrgRolePer = provider.getPermission(type, rootOrgRole);
+         Permission orgRoleRootPer;
 
-         // "Roles" and "Organization Roles" are two independent grantable nodes in the EM
-         // security tree (see UserTreeService), so a grant on either root must be honored
-         // here — checking only one caused admins granted on the "Roles" root to be denied
-         // access to org-scoped roles, since only "Organization Roles" was consulted before.
-         if((role == null ||
+         if(role != null && role.getOrganizationID() != null) {
+            orgRoleRootPer = provider.getPermission(type, rootOrgRole);
+
+            // "Organization Roles" is only exposed as a grantable node in the EM tree when
+            // multi-tenant mode is on (see UserTreeService/SecurityTreeServer); when nobody
+            // has ever configured a grant on it (no Permission object at all -- not merely
+            // "doesn't grant this action"), fall back to the "Roles" root, the only node an
+            // admin has ever had the option to grant on. Once "Organization Roles" is
+            // actually in use, its grants take precedence and the roots stay independent
+            // (Bug #75574).
+            if(orgRoleRootPer == null) {
+               orgRoleRootPer = provider.getPermission(type, rootRole);
+            }
+         }
+         else {
+            orgRoleRootPer = provider.getPermission(type, rootRole);
+         }
+
+         if(orgRoleRootPer != null && (role == null ||
             Tool.equals(role.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID())) &&
-            ((rootRolePer != null && checker.checkPermission(identity, rootRolePer, action, true)) ||
-             (rootOrgRolePer != null && checker.checkPermission(identity, rootOrgRolePer, action, true))))
+            checker.checkPermission(identity, orgRoleRootPer, action, true))
          {
             return true;
          }
