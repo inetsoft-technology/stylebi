@@ -415,13 +415,7 @@ public abstract class AbstractEditableAuthenticationProvider
                      String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
 
                      if(dataSpace.exists(null, clone.getJarPath())) {
-                        try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
-                           int index = newJarPath.lastIndexOf('/');
-                           String folder = (index >= 0) ? newJarPath.substring(0, index) : null;
-                           String fileName = (index >= 0) ? newJarPath.substring(index + 1) : newJarPath;
-
-                           dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
-                        }
+                        copyThemeJar(dataSpace, oldJarPath, newJarPath);
                      }
 
                      clone.setJarPath(newJarPath);
@@ -439,12 +433,13 @@ public abstract class AbstractEditableAuthenticationProvider
                      // the jar directly so the theme doesn't 404.
                      if(!dataSpace.exists(null, newJarPath)) {
                         if(dataSpace.exists(null, oldJarPath)) {
-                           try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
-                              int index = newJarPath.lastIndexOf('/');
-                              String folder = (index >= 0) ? newJarPath.substring(0, index) : null;
-                              String fileName = (index >= 0) ? newJarPath.substring(index + 1) : newJarPath;
+                           copyThemeJar(dataSpace, oldJarPath, newJarPath);
 
-                              dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
+                           if(replace) {
+                              // This is a rename, so fromOrgId is going away — clean up the
+                              // stray copy left at the old path instead of leaving it
+                              // permanently orphaned under the now-defunct org.
+                              dataSpace.delete(oldJarPath, "");
                            }
                         }
                         else {
@@ -509,6 +504,19 @@ public abstract class AbstractEditableAuthenticationProvider
 
       manager.setCustomThemes(themes);
       return newOrgThemeId;
+   }
+
+   /**
+    * Copies a theme jar from one data space path to another.
+    */
+   private void copyThemeJar(DataSpace dataSpace, String oldPath, String newPath) throws IOException {
+      try(InputStream in = dataSpace.getInputStream(null, oldPath)) {
+         int index = newPath.lastIndexOf('/');
+         String folder = (index >= 0) ? newPath.substring(0, index) : null;
+         String fileName = (index >= 0) ? newPath.substring(index + 1) : newPath;
+
+         dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
+      }
    }
 
    protected void clearScopedProperties(String oldOrgId) {

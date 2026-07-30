@@ -466,6 +466,137 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
+   // [Path D2a] theme with orgID==fromOrgId, replace=true, new jar path already exists →
+   //           the earlier copyDataSpace() rename succeeded; no fallback copy is attempted
+   @Test
+   void copyThemes_matchingTheme_replaceTrue_newJarExists_noFallbackCopy() throws Exception {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme1");
+      theme.setOrgID("fromOrg");
+      theme.setJarPath("portal/fromOrg/theme/theme1.jar");
+      theme.setOrganizations(new ArrayList<>());
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+         when(mockDs.exists(null, "portal/toOrg/theme/theme1.jar")).thenReturn(true);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         verify(mockDs, never()).getInputStream(any(), any());
+         verify(mockDs, never()).withOutputStream(any(), any(), any(DataSpace.OutputStreamOperation.class));
+         verify(mockDs, never()).delete(any(), any());
+      }
+   }
+
+   // [Path D2b] theme with orgID==fromOrgId, replace=true, new jar path missing but old jar
+   //           still present (the copyDataSpace() rename silently failed) → the jar is copied
+   //           to the new path directly and the stray copy at the old, now-defunct org path
+   //           is deleted
+   @Test
+   void copyThemes_matchingTheme_replaceTrue_newJarMissing_fallbackCopiesAndDeletesOldJar() throws Exception {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme1");
+      theme.setOrgID("fromOrg");
+      theme.setJarPath("portal/fromOrg/theme/theme1.jar");
+      theme.setOrganizations(new ArrayList<>());
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+         when(mockDs.exists(null, "portal/toOrg/theme/theme1.jar")).thenReturn(false);
+         when(mockDs.exists(null, "portal/fromOrg/theme/theme1.jar")).thenReturn(true);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         verify(mockDs).getInputStream(null, "portal/fromOrg/theme/theme1.jar");
+         verify(mockDs).withOutputStream(eq("portal/toOrg/theme"), eq("theme1.jar"),
+                                          any(DataSpace.OutputStreamOperation.class));
+         verify(mockDs).delete("portal/fromOrg/theme/theme1.jar", "");
+      }
+   }
+
+   // [Path D2c] theme with orgID==fromOrgId, replace=false (org copy, not rename) → the jar is
+   //           still copied to the new org's path if missing, but the old path is left intact
+   //           since replace=false means the source org is not going away
+   @Test
+   void copyThemes_matchingTheme_replaceFalse_newJarMissing_fallbackCopiesWithoutDeletingOldJar() throws Exception {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme1");
+      theme.setOrgID("fromOrg");
+      theme.setJarPath("portal/fromOrg/theme/theme1.jar");
+      theme.setOrganizations(new ArrayList<>());
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+         when(mockDs.exists(null, "portal/toOrg/theme/theme1.jar")).thenReturn(false);
+         when(mockDs.exists(null, "portal/fromOrg/theme/theme1.jar")).thenReturn(true);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", false);
+
+         verify(mockDs).withOutputStream(eq("portal/toOrg/theme"), eq("theme1.jar"),
+                                          any(DataSpace.OutputStreamOperation.class));
+         verify(mockDs, never()).delete(any(), any());
+      }
+   }
+
+   // [Path D2d] theme with orgID==fromOrgId, replace=true, jar missing from both the old and
+   //           new paths → a warning is logged and no exception escapes; jarPath is still
+   //           re-scoped to the new org
+   @Test
+   void copyThemes_matchingTheme_replaceTrue_jarMissingBothPaths_noExceptionNoCopy() throws Exception {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme1");
+      theme.setOrgID("fromOrg");
+      theme.setJarPath("portal/fromOrg/theme/theme1.jar");
+      theme.setOrganizations(new ArrayList<>());
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+         when(mockDs.exists(any(), any())).thenReturn(false);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         assertDoesNotThrow(() -> provider.callCopyThemes("fromOrg", "toOrg", true));
+
+         verify(mockDs, never()).getInputStream(any(), any());
+         verify(mockDs, never()).withOutputStream(any(), any(), any(DataSpace.OutputStreamOperation.class));
+         verify(mockDs, never()).delete(any(), any());
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         CustomTheme migrated = captor.getValue().iterator().next();
+         assertEquals("portal/toOrg/theme/theme1.jar", migrated.getJarPath(),
+                      "jar path is still re-scoped even though the jar could not be located");
+      }
+   }
+
    // [Path D3 — #75784] same org id with replace=true → the id must still be regenerated,
    //           otherwise the clone would equal the original, collapse in the set and be dropped
    //           by the deferred removal
