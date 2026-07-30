@@ -154,9 +154,25 @@ public class WizDashboardEvent {
          this.label = label;
       }
 
+      /** When true, bind this filter PRE-aggregation: to the raw source table(s) carrying the
+       *  column (a WHERE evaluated before any group-by), so it filters an aggregated chart's
+       *  underlying rows and the aggregate re-computes over the subset. Enables filtering by an
+       *  orthogonal column that never survives to the chart's final table (e.g. order `state` on a
+       *  revenue-by-quarter chart). Default false = bind to the chart's final table (post-agg),
+       *  the original behavior. The caller (wiz) is responsible for only setting this for
+       *  structurally-safe charts (a simple per-group aggregate) — see WizDashboardFilterBuilder. */
+      public boolean isPreAggregation() {
+         return preAggregation;
+      }
+
+      public void setPreAggregation(boolean preAggregation) {
+         this.preAggregation = preAggregation;
+      }
+
       private String field;
       private String dataType;
       private String label;
+      private boolean preAggregation;
    }
 
    /** A single chart-scoped filter, identified by which saved chart it targets. This list is

@@ -112,7 +112,13 @@ import java.util.List;
  */
 @Component
 public class WizDashboardFilterBuilder {
-   public record FilterRequest(String field, String dataType, String label) {}
+   public record FilterRequest(String field, String dataType, String label, boolean preAggregation) {
+      /** Compatibility constructor defaulting to post-aggregation (the original binding) -- used by
+       *  the per-chart path and by tests that predate the pre-aggregation flag. */
+      public FilterRequest(String field, String dataType, String label) {
+         this(field, dataType, label, false);
+      }
+   }
 
    public record FilterResult(List<String> applied, List<String> skipped,
                                List<FilterControlPlacement> placements) {
@@ -164,8 +170,19 @@ public class WizDashboardFilterBuilder {
       List<String> chartTableNames = mergedChartTableNames(vs);
 
       for(FilterRequest req : requests) {
-         List<String> tables =
-            AddFilterService.findColumnMatchingChartTables(baseWorksheet, chartTableNames, req.field());
+         // Post-aggregation (default): bind to each chart's FINAL bound table -- the control
+         // filters the already-aggregated display rows (see the class Javadoc). Pre-aggregation:
+         // bind to the RAW source table(s) carrying the column (findColumnMatchingRootTables) so
+         // the selection applies as a WHERE before any group-by, filtering the underlying rows and
+         // letting the aggregate re-compute over the subset -- the only way to filter by an
+         // orthogonal column that never survives to a chart's final table (e.g. order `state` on a
+         // revenue-by-quarter chart). The caller only sets preAggregation for structurally-safe
+         // charts (a simple per-group aggregate); a global-aggregate/normalization/window chart
+         // would have its cross-row aggregate collapsed by a subset WHERE, which is exactly why the
+         // default stays post-aggregation.
+         List<String> tables = req.preAggregation()
+            ? AddFilterService.findColumnMatchingRootTables(baseWorksheet, req.field())
+            : AddFilterService.findColumnMatchingChartTables(baseWorksheet, chartTableNames, req.field());
 
          if(tables.isEmpty()) {
             skipped.add(req.field());

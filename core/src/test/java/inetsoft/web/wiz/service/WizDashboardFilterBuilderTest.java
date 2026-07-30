@@ -113,6 +113,43 @@ class WizDashboardFilterBuilderTest {
    }
 
    @Test
+   void preAggregationFilterBindsToTheRawSourceTableNotTheChartsFinalTable() {
+      // A column (order `state`) present on the RAW source but NOT on the chart's aggregated final
+      // table. Post-aggregation (default) can't reach it -> skipped. Pre-aggregation binds to the
+      // raw source (a WHERE before the group-by) so the aggregate re-computes over the subset.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO_RAW", "date_order", "amount_total", "state"));
+      // The chart's own final (aggregated) table: carries only the grouped dim + measure, no state.
+      ws.addAssembly(physicalTable(ws, "SO_REVENUE_BY_QTR", "Quarter(date_order)", "total_revenue"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "RevenueChart");
+      boundToTable(chart, "SO_REVENUE_BY_QTR");
+      vs.addAssembly(chart);
+
+      // Post-aggregation (default): state isn't on the chart's final table -> skipped, nothing added.
+      WizDashboardFilterBuilder.FilterResult post = builder.build(
+         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("state", "string", "Status")),
+         WizDashboardService.CANVAS_MARGIN);
+      assertEquals(List.of("state"), post.skipped(), "post-agg can't reach a column not on the final table");
+      assertTrue(post.applied().isEmpty());
+
+      // Pre-aggregation: binds to the raw source table that carries state.
+      WizDashboardFilterBuilder.FilterResult pre = builder.build(
+         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("state", "string", "Status", true)),
+         WizDashboardService.CANVAS_MARGIN);
+      assertEquals(List.of("state"), pre.applied());
+      assertTrue(pre.skipped().isEmpty());
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(List.of("SO_RAW"), control.getTableNames(),
+         "pre-aggregation must bind to the raw source table carrying the column");
+   }
+
+   @Test
    void buildReturnsThePlacementOfEachAppliedControl() {
       Worksheet ws = new Worksheet();
       ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
