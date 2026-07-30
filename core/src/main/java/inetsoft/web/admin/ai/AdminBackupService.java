@@ -18,12 +18,15 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.setup.StorageService;
+import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
+import inetsoft.storage.BlobTransaction;
 import inetsoft.util.FileSystemService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
 
 /*
  * This service depends on the live, Spring-managed `StorageService` bean
@@ -34,30 +37,32 @@ import java.io.IOException;
  * risk contending with those already-open engines (e.g. file/db locks held by local or embedded
  * backends).
  *
- * NOTE: Tier-2 backups produced here are stored server-side, on local disk, with no retention
- * policy. Hardening (retention/expiry, replication to the configured external storage provider,
- * access control on the backup directory) is a follow-up, not in scope for this task.
+ * NOTE: Tier-2 backups produced here are stored server-side, on local disk, then published to
+ * cluster-visible BlobStorage so a restore routed to a different node can still find them. There
+ * is no retention policy yet. Hardening (retention/expiry, replication to the configured external
+ * storage provider, access control on the backup directory) is a follow-up, not in scope for this
+ * task.
  */
 @Service
 public class AdminBackupService {
    /**
-    * Production constructor. Wires the live, Spring-managed {@link StorageService} bean (see
-    * class-level comment above) and resolves a stable, writable server-side directory for
-    * Tier-2 backup artifacts.
+    * Production constructor. {@code StorageService.backup(File)} necessarily writes a local file, so
+    * the ZIP is published to cluster-visible {@link BlobStorage} afterwards: a backup that exists
+    * only on the producing node is unusable once the load balancer routes {@code restore} elsewhere.
     */
    @Autowired
-   public AdminBackupService(StorageService storage) {
-      this(storage, resolveBackupDir());
+   public AdminBackupService(StorageService storage, BlobStorageManager blobStorageManager) {
+      this(storage, blobStorageManager, resolveBackupDir());
    }
 
-   /**
-    * Test seam: allows tests to point the service at an arbitrary {@link StorageService} and
-    * directory (e.g. a JUnit {@code @TempDir}) without going through Spring or
-    * {@link FileSystemService}.
-    */
-   AdminBackupService(StorageService storage, File backupDir) {
+   /** Test seam: arbitrary {@link StorageService}, blob manager and staging directory. */
+   AdminBackupService(StorageService storage, BlobStorageManager blobStorageManager,
+                      File backupDir)
+   {
       this.storage = storage;
+      this.blobStorageManager = blobStorageManager;
       this.backupDir = backupDir;
+      ensureBackupDir(backupDir);
    }
 
    private static File resolveBackupDir() {
@@ -68,12 +73,16 @@ public class AdminBackupService {
             "Unable to resolve the Tier-2 backup directory under the cache directory");
       }
 
+      ensureBackupDir(dir);
+      return dir;
+   }
+
+   /** Creates {@code dir} if it does not already exist, failing loud if it cannot be created. */
+   private static void ensureBackupDir(File dir) {
       if(!dir.exists() && !dir.mkdirs() && !dir.exists()) {
          throw new IllegalStateException(
             "Unable to create Tier-2 backup directory: " + dir.getAbsolutePath());
       }
-
-      return dir;
    }
 
    /**
@@ -94,6 +103,17 @@ public class AdminBackupService {
       // though transactionId was already checked above.
       File file = resolveWithinBackupDir(name, "transactionId", "transaction id");
       storage.backup(file);
+
+      // No write(path, InputStream) exists; publish through a transaction, per AutoSaveUtils.
+      try(BlobTransaction<Serializable> tx = blobs().beginTransaction();
+          OutputStream out = tx.newStream(blobPath(name), null);
+          InputStream in = new FileInputStream(file))
+      {
+         in.transferTo(out);
+         out.flush();
+         tx.commit();
+      }
+
       return name;
    }
 
@@ -108,7 +128,23 @@ public class AdminBackupService {
     */
    public void restore(String backupRef) throws Exception {
       requireSafePathSegment(backupRef, "backupRef", "backup reference");
-      storage.restore(resolve(backupRef));
+      File file = resolve(backupRef);
+
+      if(!file.exists()) {
+         String path = blobPath(backupRef);
+         BlobStorage<Serializable> blobs = blobs();
+
+         if(!blobs.exists(path)) {
+            throw new FileNotFoundException(
+               "Admin backup not found locally or in shared storage: " + backupRef);
+         }
+
+         try(InputStream in = blobs.getInputStream(path)) {
+            Files.copy(in, file.toPath());
+         }
+      }
+
+      storage.restore(file);
    }
 
    /**
@@ -160,6 +196,18 @@ public class AdminBackupService {
       }
    }
 
+   private BlobStorage<Serializable> blobs() {
+      return blobStorageManager.getStorage(BLOB_STORE_ID, false);
+   }
+
+   /** Namespaced so admin backups cannot collide with other blob data. */
+   private static String blobPath(String name) {
+      return "admin-backups/" + name;
+   }
+
+   private static final String BLOB_STORE_ID = "adminChatBackups";
+
    private final StorageService storage;
+   private final BlobStorageManager blobStorageManager;
    private final File backupDir;
 }

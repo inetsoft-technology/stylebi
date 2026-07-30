@@ -18,18 +18,25 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.setup.StorageService;
+import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
+import inetsoft.storage.BlobTransaction;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.KeyValueConfig;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * {@code new StorageService(dir)} loads (or, absent a config file, defaults to) a "mapdb"
@@ -57,7 +64,8 @@ class AdminBackupServiceTest {
       StorageService storage = newTestStorageService(dir);
 
       try {
-         AdminBackupService service = new AdminBackupService(storage, dir.toFile());
+         AdminBackupService service =
+            new AdminBackupService(storage, newMockBlobStorageManager(), dir.toFile());
          String path = "known.txt";
 
          storage.write(path, writeContent(dir, "payload-original.txt", "original-content"));
@@ -85,7 +93,7 @@ class AdminBackupServiceTest {
 
    @Test
    void backupRejectsTransactionIdWithPathTraversal(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                                                    () -> service.backup("../../etc/passwd"));
@@ -94,14 +102,14 @@ class AdminBackupServiceTest {
 
    @Test
    void backupRejectsTransactionIdWithSlash(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
 
       assertThrows(IllegalArgumentException.class, () -> service.backup("chg/1"));
    }
 
    @Test
    void backupRejectsNullOrBlankTransactionId(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
 
       assertThrows(IllegalArgumentException.class, () -> service.backup(null));
       assertThrows(IllegalArgumentException.class, () -> service.backup("   "));
@@ -109,7 +117,7 @@ class AdminBackupServiceTest {
 
    @Test
    void restoreRejectsBackupRefWithPathTraversal(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
 
       IllegalArgumentException ex = assertThrows(
          IllegalArgumentException.class,
@@ -119,7 +127,7 @@ class AdminBackupServiceTest {
 
    @Test
    void restoreRejectsNullOrBlankBackupRef(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
 
       assertThrows(IllegalArgumentException.class, () -> service.restore(null));
       assertThrows(IllegalArgumentException.class, () -> service.restore(""));
@@ -127,11 +135,27 @@ class AdminBackupServiceTest {
 
    @Test
    void resolveRejectsBackupRefWithPathTraversalOrSlash(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
 
       assertThrows(IllegalArgumentException.class, () -> service.resolve("../escape.zip"));
       assertThrows(IllegalArgumentException.class, () -> service.resolve("sub/dir.zip"));
       assertThrows(IllegalArgumentException.class, () -> service.resolve("sub\\dir.zip"));
+   }
+
+   /**
+    * {@code AdminBackupService.backup} always publishes through {@link BlobStorageManager}
+    * (see {@code AdminBackupServiceClusterTest}), even in this test's real-{@code StorageService}
+    * round trip, so a working (mocked) manager is needed here too even though this test's focus
+    * is the local ZIP round trip, not cluster publication.
+    */
+   private static BlobStorageManager newMockBlobStorageManager() throws java.io.IOException {
+      BlobStorage<Serializable> blobs = mock(BlobStorage.class);
+      BlobStorageManager manager = mock(BlobStorageManager.class);
+      when(manager.<Serializable>getStorage(anyString(), anyBoolean())).thenReturn(blobs);
+      BlobTransaction<Serializable> tx = mock(BlobTransaction.class);
+      when(blobs.beginTransaction()).thenReturn(tx);
+      when(tx.newStream(anyString(), any())).thenReturn(new ByteArrayOutputStream());
+      return manager;
    }
 
    private static StorageService newTestStorageService(Path dir) throws Exception {
