@@ -140,22 +140,13 @@ class AutoSaveServiceOrgLifecycleTest {
                   + "(suspected incorrect) behavior for confirmation, not the desired one");
    }
 
-   // ── scenario 6g: migrateAutoSaveFiles() scopes to the explicit storageOrgId bucket regardless
-   //    of the acting principal's own org or ambient OrganizationContextHolder state (Bug #75827
-   //    fix: the method no longer resolves its bucket via getStorage(principal)/runInOrgScope,
-   //    which was fragile -- OrganizationManager.getCurrentOrgID(Principal) prefers the
-   //    principal's own org id/curr_org_id property over any OrganizationContextHolder override) ──
+   // ── scenario 6g: migrateAutoSaveFiles() scopes strictly to the explicit storageOrgId bucket --
+   //    it takes no Principal at all, so there's no ambient principal/org context to fall back to ──
 
    @Test
    void migrateAutoSaveFiles_explicitStorageOrgId_scopesToTargetBucket() throws Exception {
       String sourceOrgId = "sixg_source_org";
       String targetOrgId = "sixg_target_org";
-      String actorOrgId = "sixg_unrelated_actor_org";
-
-      // acting principal's OWN org is unrelated to both source/target -- proves resolution comes
-      // from the explicit storageOrgId argument, not from the principal's own identity
-      Principal principal = new SRPrincipal(new IdentityID("sixg_actor", actorOrgId),
-                                            new IdentityID[0], new String[0], actorOrgId, 1L);
 
       // simulates the state right after 6a/6b's bucket-level copyStorages("__autoSave", copy=true):
       // the raw file already lives in the TARGET org's bucket, still filename-tagged with the
@@ -167,7 +158,7 @@ class AutoSaveServiceOrgLifecycleTest {
       Organization oorg = new Organization(sourceOrgId);
       Organization norg = new Organization(targetOrgId);
 
-      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal, targetOrgId);
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, targetOrgId);
 
       String newUserKey = new IdentityID("sixg_user", targetOrgId).convertToKey();
       String expectedNewFileName = "8^VIEWSHEET^" + newUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
@@ -180,7 +171,7 @@ class AutoSaveServiceOrgLifecycleTest {
       assertTrue(targetBucket.exists(expectedNewFileName),
                 "migrateAutoSaveFiles() must rename the file (within the target org's own bucket) "
                 + "to carry the target org's identity string, using the explicit storageOrgId "
-                + "argument despite the acting principal's own org being unrelated to source/target");
+                + "argument");
    }
 
    // ── Issue #75827 (confirmed root cause of the reported "autosave file missing after org
@@ -195,9 +186,6 @@ class AutoSaveServiceOrgLifecycleTest {
       String sourceOrgId = "recyclepfx_source_org";
       String targetOrgId = "recyclepfx_target_org";
 
-      Principal principal = new SRPrincipal(new IdentityID("recyclepfx_actor", targetOrgId),
-                                            new IdentityID[0], new String[0], targetOrgId, 1L);
-
       String oldUserKey = new IdentityID("recyclepfx_user", sourceOrgId).convertToKey();
       String recycledFileName =
          AutoSaveUtils.RECYCLE_PREFIX + "8^WORKSHEET^" + oldUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
@@ -206,7 +194,7 @@ class AutoSaveServiceOrgLifecycleTest {
       Organization oorg = new Organization(sourceOrgId);
       Organization norg = new Organization(targetOrgId);
 
-      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal, targetOrgId);
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, targetOrgId);
 
       String newUserKey = new IdentityID("recyclepfx_user", targetOrgId).convertToKey();
       String expectedNewFileName = AutoSaveUtils.RECYCLE_PREFIX +
