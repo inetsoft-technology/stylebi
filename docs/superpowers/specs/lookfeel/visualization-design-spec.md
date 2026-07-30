@@ -605,6 +605,27 @@ Density modes should map to explicit values rather than to a single shared targe
 - the first implementation pass should source the default density from an EM property setting rather than a new EM UI control
 - most density change should come from row height and padding rather than aggressive type reduction
 
+## Corner Radius Defaults
+
+Modern-mode rounding defaults, seeded at object creation and reverted when the gate is off. Server-side
+values, not browser tokens — they resolve identically in the live model and in export. See
+[visualization-phase6b-implementation-plan.md](visualization-phase6b-implementation-plan.md).
+
+| Value | Constant | Unit | Applies to |
+|---|---|---|---|
+| `12` | `VSObjectChromeDefaults.cardCornerRadius()` | px | object-card corners: chart, table, crosstab, calc table, embedded table, selection list/tree/container |
+| `0.3` | seeded onto `PlotDescriptor.barCornerRadius` | fraction of bar width (`[0, 0.5]`) | bar marks: bar, pareto, waterfall, gantt, interval |
+
+Outputs, inputs, range slider, tab, group container, shapes and annotations stay square. Tree-chart node
+rounding (`PlotDescriptor.nodeCornerRadius`, also `0.3`) predates this phase and is ungated. Calendar
+is not part of the seeded set: `CalendarVSAssemblyInfo.initDefaultFormat()` overrides the base class and
+clones a static template that already hardcodes `roundCorner = 10`, so it keeps its own pre-existing
+10 px radius in both gate states.
+
+Bars round the end that is **not** anchored to a fixed reference: standard bar and pareto keep square
+base corners because they sit on the zero baseline, while waterfall, gantt and interval round both ends
+because they have no zero anchor. This is the test for any future bar-like chart type.
+
 ## Surface Guidance By Area
 
 ### Tables And Grids
