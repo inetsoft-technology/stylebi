@@ -28,6 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -108,6 +109,33 @@ class AdminBackupServiceClusterTest {
       // Silently succeeding here would leave an operator believing a rollback path exists.
       assertTrue(assertThrows(Exception.class,
          () -> service.restore("admin-missing-1.zip")).getMessage().contains("admin-missing-1.zip"));
+   }
+
+   @Test
+   void aFailedBlobFetchLeavesNoPartialFileForTheNextRestoreToConsume(@TempDir Path dir)
+      throws Exception
+   {
+      // The corrupt-ZIP trap: without an atomic fetch, a failed transfer leaves a truncated file,
+      // and the next restore takes the "already local" branch and feeds it to storage.restore.
+      StorageService storage = mock(StorageService.class);
+      BlobStorage<Serializable> blobs = mock(BlobStorage.class);
+      BlobStorageManager manager = mock(BlobStorageManager.class);
+      when(manager.<Serializable>getStorage(anyString(), anyBoolean())).thenReturn(blobs);
+      when(blobs.exists(anyString())).thenReturn(true);
+      when(blobs.getInputStream(anyString())).thenAnswer(inv -> new InputStream() {
+         @Override
+         public int read() throws IOException {
+            throw new IOException("blob stream died mid-transfer");
+         }
+      });
+
+      AdminBackupService service = new AdminBackupService(storage, manager, dir.toFile());
+
+      assertThrows(IOException.class, () -> service.restore("admin-chg-1-123.zip"));
+      // Nothing may be left behind - neither the target nor a stray .part file.
+      assertEquals(0, dir.toFile().listFiles().length,
+                   "a failed fetch must leave no partial file behind");
+      verify(storage, never()).restore(any(File.class));
    }
 
    @Test

@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 /*
  * This service depends on the live, Spring-managed `StorageService` bean
@@ -105,13 +106,24 @@ public class AdminBackupService {
       storage.backup(file);
 
       // No write(path, InputStream) exists; publish through a transaction, per AutoSaveUtils.
-      try(BlobTransaction<Serializable> tx = blobs().beginTransaction();
-          OutputStream out = tx.newStream(blobPath(name), null);
-          InputStream in = new FileInputStream(file))
-      {
-         in.transferTo(out);
-         out.flush();
-         tx.commit();
+      try {
+         try(BlobTransaction<Serializable> tx = blobs().beginTransaction();
+             OutputStream out = tx.newStream(blobPath(name), null);
+             InputStream in = new FileInputStream(file))
+         {
+            in.transferTo(out);
+            out.flush();
+            tx.commit();
+         }
+      }
+      catch(Exception e) {
+         // The local ZIP from storage.backup(file) above still exists on disk even though
+         // publish failed; an operator needs to know which transaction/backup name to look for
+         // there (see the class-level "no retention policy" note) rather than seeing a bare
+         // IOException with no context.
+         throw new IOException(
+            "Failed to publish Tier-2 backup '" + name + "' for transaction '" + transactionId +
+            "' to shared storage", e);
       }
 
       return name;
@@ -139,8 +151,24 @@ public class AdminBackupService {
                "Admin backup not found locally or in shared storage: " + backupRef);
          }
 
-         try(InputStream in = blobs.getInputStream(path)) {
-            Files.copy(in, file.toPath());
+         // Fetch to a temp file and move it into place atomically. Copying straight to `file` would
+         // leave a truncated ZIP behind if the transfer failed partway, and the next restore would
+         // see file.exists(), skip this fetch, and feed that corrupt ZIP to storage.restore.
+         // Prefixed with a literal so File.createTempFile's 3-character minimum prefix length is
+         // met even for a very short (but still valid, per requireSafePathSegment) backupRef.
+         File temp = File.createTempFile("restore-" + backupRef, ".part", backupDir);
+
+         try {
+            try(InputStream in = blobs.getInputStream(path)) {
+               Files.copy(in, temp.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE);
+         }
+         finally {
+            // No-op once the move succeeded; on any failure this removes the partial fetch so a
+            // retry re-fetches instead of consuming it.
+            Files.deleteIfExists(temp.toPath());
          }
       }
 
