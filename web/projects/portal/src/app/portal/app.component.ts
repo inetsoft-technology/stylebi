@@ -48,6 +48,7 @@ import { HistoryBarService } from "./services/history-bar.service";
 import { PortalModelService } from "./services/portal-model.service";
 import { PortalTabsService } from "./services/portal-tabs.service";
 import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
 
 const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
 const REFRESH_CREATION_PERMISSION_URI = "../api/portal/refresh-creation-permissions";
@@ -115,8 +116,10 @@ export class PortalAppComponent implements OnInit, OnDestroy {
                private firstDayOfWeekService: FirstDayOfWeekService,
                private bodyTitle: Title,
                private logoutService: LogoutService,
-               private gettingStartedService: GettingStartedService)
+               private gettingStartedService: GettingStartedService,
+               chartPaletteService: ChartPaletteService)
    {
+      chartPaletteService.ensureLoaded(); // warm the chart-series palette before any picker opens
       this.aiAssistantService.loadCurrentUser();
       ngbDatepickerConfig.minDate = { year: 1900, month: 1, day: 1 };
       ngbDatepickerConfig.maxDate = { year: 2099, month: 12, day: 31 };

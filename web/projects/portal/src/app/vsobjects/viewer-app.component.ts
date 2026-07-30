@@ -230,6 +230,7 @@ import { EnterClickDirective } from "../widget/directive/enter-click.directive";
 import { DefaultFocusDirective } from "../widget/directive/default-focus.directive";
 import { OutOfZoneDirective } from "../widget/directive/out-of-zone.directive";
 import { PagingControlComponent } from "../widget/scroll/paging-control.component";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -585,9 +586,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private currentUserService: CurrentUserService,
                private chartConfigService: ChartConfigService,
                private heartbeatWorkerService: HeartbeatWorkerService,
-               private keepAwakeService: KeepAwakeService)
+               private keepAwakeService: KeepAwakeService,
+               chartPaletteService: ChartPaletteService)
    {
       super(viewsheetClient, zone, true);
+      chartPaletteService.ensureLoaded(); // warm the chart-series palette before any picker opens
       tooltipConfig.tooltipClass = "top-tooltip";
       GuiTool.isTouchDevice().then(
          (value: boolean) => {

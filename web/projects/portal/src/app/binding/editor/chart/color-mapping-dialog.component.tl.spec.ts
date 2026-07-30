@@ -37,6 +37,8 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ColorMap } from "../../../common/data/color-map";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ColorMappingDialogModel } from "../../data/chart/color-mapping-dialog-model";
+import { ChartPaletteService } from "../../../widget/color-picker/chart-palette.service";
+import { DefaultPalette } from "../../../widget/color-picker/default-palette";
 import { ColorMappingDialog } from "./color-mapping-dialog.component";
 
 function createModel(overrides: Partial<ColorMappingDialogModel> = {}): ColorMappingDialogModel {
@@ -64,7 +66,8 @@ function createModel(overrides: Partial<ColorMappingDialogModel> = {}): ColorMap
 }
 
 function createDialog(model = createModel()): ColorMappingDialog {
-   const dialog = new ColorMappingDialog({} as NgbModal);
+   const dialog = new ColorMappingDialog(
+      {} as NgbModal, { chartPalette: DefaultPalette.chart } as ChartPaletteService);
    dialog.model = model;
    dialog.field = TestUtils.createMockAestheticInfo("orderdate");
    dialog.field.dataInfo = TestUtils.createMockChartDimensionRef("orderdate");
