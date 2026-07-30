@@ -103,6 +103,16 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          r -> new GroupedThread(r, "IgniteMapEvents"));
 
       if(!config.isClientMode()) {
+         try {
+            checkCacheModeConsistency();
+         }
+         catch(RuntimeException e) {
+            // the node already joined discovery above; leave cleanly instead of lingering as a
+            // zombie member of the cluster it just failed to validate against.
+            ignite.close();
+            throw e;
+         }
+
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
       }
@@ -494,6 +504,35 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          CacheMode.PARTITIONED : CacheMode.REPLICATED;
    }
 
+   /**
+    * Fails fast if this node's minReplicas-derived cache mode disagrees with a node already
+    * running in the cluster, rather than letting a later cache creation throw a cache mode
+    * mismatch exception. This can happen if minReplicas is changed and applied as a rolling
+    * update instead of restarting the entire cluster, since the cache mode is decided locally
+    * by each node at startup and is never renegotiated once the cluster is running.
+    */
+   private void checkCacheModeConsistency() {
+      CacheMode localCacheMode = getDefaultCacheMode();
+      UUID localNodeId = ignite.cluster().localNode().id();
+
+      for(ClusterNode node : ignite.cluster().forServers().nodes()) {
+         if(node.id().equals(localNodeId)) {
+            continue;
+         }
+
+         String remoteCacheMode = node.attribute(CACHE_MODE_ATTR);
+
+         if(remoteCacheMode != null && !remoteCacheMode.equals(localCacheMode.name())) {
+            throw new IllegalStateException(
+               "This node computed Ignite cache mode " + localCacheMode + " from the " +
+               "configured minReplicas, but node " + getNodeName(node) + " in the cluster is " +
+               "already running with cache mode " + remoteCacheMode + ". minReplicas was " +
+               "changed across a threshold that alters the cluster cache mode; applying that " +
+               "change requires restarting every node in the cluster, not a rolling update.");
+         }
+      }
+   }
+
    private void initLockTimer() {
       timer.schedule(new TimerTask() {
          @Override
@@ -530,6 +569,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       attrMap.put("inetsoft.host.ip", System.getProperty("inetsoft.host.ip"));
       attrMap.put("inetsoft.host.port", System.getProperty("inetsoft.host.port"));
       attrMap.put("inetsoft.host.outbound.port", System.getProperty("inetsoft.host.outbound.port"));
+      attrMap.put(CACHE_MODE_ATTR, getDefaultCacheMode().name());
       config.setUserAttributes(attrMap);
    }
 
@@ -1899,6 +1939,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final String MESSAGE_TOPIC = IgniteCluster.class.getName() + ".messageTopic";
    private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";
    private static final String RW_MAP_NAME = IgniteCluster.class.getName() + ".rwMap";
+   private static final String CACHE_MODE_ATTR = "inetsoft.cluster.cacheMode";
    private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node -> {
       // select any node when config has cloud runner, because the separate scheduler server do not exist.
       if(InetsoftConfig.getInstance().getCloudRunner() != null) {
