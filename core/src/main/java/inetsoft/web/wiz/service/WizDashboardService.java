@@ -548,19 +548,21 @@ public class WizDashboardService {
     *  the single-column stack path and the grid path's row advance. */
    private static final int DASHBOARD_ROW_HEIGHT = 420;
 
-   /** Reserved row height for the top filter bar, in pixels — matches the compact pixel size
-    *  {@link WizDashboardFilterBuilder} gives its selection/range controls, not a full chart
-    *  tile's height. */
-   static final int FILTER_BAR_ROW_HEIGHT = 120;
+   /** Reserved row height for the top filter bar, in pixels — sized so the compact filter toolbar
+    *  band clears the first chart with a small gap (the chart is pushed to
+    *  FILTER_BAR_ROW_HEIGHT + CANVAS_MARGIN + merge offset ≈ 76+24+24 = 124, just below the band's
+    *  bottom at 92). Not a full chart tile's height. */
+   static final int FILTER_BAR_ROW_HEIGHT = 76;
 
    /** Top y (px) of the filter toolbar band -- a small inset above the controls (which sit at
     *  CANVAS_MARGIN=24). */
    private static final int FILTER_BAND_TOP = 12;
 
-   /** Filter toolbar band height (px): wraps the 100px controls (at y=24) with a little padding,
-    *  so the band bottom (its divider) lands at 12+124=136 -- above the first chart row (which the
-    *  reserved FILTER_BAR_ROW_HEIGHT + margin + merge offset pushes to ~168), leaving a clean gap. */
-   private static final int FILTER_BAND_HEIGHT = 124;
+   /** Filter toolbar band height (px): wraps the compact 60px controls (at y=24) with a little
+    *  padding, so the band bottom (its divider) lands at 12+80=92 -- above the first chart row
+    *  (which the reserved FILTER_BAR_ROW_HEIGHT + margin + merge offset pushes to ~124), leaving a
+    *  clean gap without the band looking oversized. */
+   private static final int FILTER_BAND_HEIGHT = 80;
 
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width
@@ -592,10 +594,9 @@ public class WizDashboardService {
     *  grows to make room. See {@link #closeBand}/{@link GridLayoutResult} for the exact scoping
     *  (deliberately NOT "every tile in the band," which would shift unrelated charts stacked
     *  anywhere below an unrelated filtered one in the common single-column dashboard shape).
-    *  Matches {@link #FILTER_BAR_ROW_HEIGHT}
-    *  exactly: {@link WizDashboardFilterBuilder#buildPerChart} sizes its control with the SAME
-    *  {@code FILTER_CONTROL_HEIGHT} (100px) the shared filter bar uses -- there is no smaller
-    *  "compact" control variant -- so the same 20px margin applies here too. */
+    *  {@link WizDashboardFilterBuilder#buildPerChart} sizes its control to this full height (its
+    *  own selection list can show several category checkboxes), independent of the deliberately
+    *  more compact shared filter bar ({@link WizDashboardFilterBuilder}'s FILTER_CONTROL_HEIGHT). */
    private static final int PER_CHART_FILTER_ROW_HEIGHT = 120;
 
    /**

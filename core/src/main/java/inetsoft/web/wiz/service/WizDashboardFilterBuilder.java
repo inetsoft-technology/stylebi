@@ -412,7 +412,9 @@ public class WizDashboardFilterBuilder {
    private static final int FILTER_BAR_Y = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_CONTROL_WIDTH = 200;
 
-   /** Control height, in pixels — leaves a small margin under
-    *  {@link WizDashboardService#FILTER_BAR_ROW_HEIGHT} (120px), the reserved row above charts. */
-   private static final int FILTER_CONTROL_HEIGHT = 100;
+   /** Shared-bar control height, in pixels — compact: a range slider (the usual shared filter) or
+    *  a short selection list needs far less than a chart tile, and the toolbar band
+    *  ({@link WizDashboardService#FILTER_BAND_HEIGHT}) wraps it snugly, so this stays small to keep
+    *  the top bar from looking oversized. */
+   private static final int FILTER_CONTROL_HEIGHT = 60;
 }
