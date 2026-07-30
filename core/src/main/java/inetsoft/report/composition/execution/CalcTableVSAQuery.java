@@ -174,7 +174,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          if(datas.size() > 0) {
             for(int i = 0; i < datas.size(); i++) {
                CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-               VSLayoutTool.createCalcLens(cassemblys.get(i), null, box.getVariableTable(),
+               VSLayoutTool.createCalcLens(cassemblys.get(i), datas.get(i), box.getVariableTable(),
                                            (crosstabs != null && crosstabs.size() > 0));
                // copy back
                cassemblyChild.setTable(cassemblyChild.getBaseTable());
