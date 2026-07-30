@@ -199,16 +199,20 @@ public class WizDashboardService {
             }
          }
 
-         // Records each grid tile's own (x, topY) origin and pixel size -- topY is the very top
-         // of the tile's reserved space (where a per-chart filter sits, if it has one), NOT the
-         // chart's own (possibly filter-shifted) y. Also records each merged chart's own table
-         // name. Both are looked up after this loop when placing per-chart filters.
-         java.util.Map<String, java.awt.Rectangle> tileBounds = new java.util.HashMap<>();
+         // Records each merged chart's own table name and assembly name, looked up after this loop
+         // when placing per-chart filters (a filter binds to its chart's table, and is positioned
+         // against its chart's actual post-merge geometry).
          java.util.Map<String, String> identifierToTableName = new java.util.HashMap<>();
          java.util.Map<String, String> identifierToAssemblyName = new java.util.HashMap<>();
 
-         List<TilePlacement> placements =
+         // headerHeights[i] is the header space (if any) reserved at THIS tile's own top, per
+         // GridLayoutResult's contract: it is a BAND-WIDE amount, not a per-tile one -- a tile
+         // with no per-chart filter of its own can still have headerHeights[i] > 0 if it shares a
+         // band with one, so every chart in the band starts at the same Y (see computeGridLayout).
+         GridLayoutResult gridResult =
             grid ? computeGridLayout(spans, rowSpans, hasPerChartFilter, layoutColumns) : null;
+         List<TilePlacement> placements = grid ? gridResult.placements() : null;
+         int[] headerHeights = grid ? gridResult.headerHeights() : null;
 
          int cumulativeY = topOffset;   // stack path only
 
@@ -234,11 +238,11 @@ public class WizDashboardService {
 
                x = placement.x() + CANVAS_MARGIN;
                tileTopY = placement.y() + topOffset + CANVAS_MARGIN;
-               // The chart itself starts BELOW the reserved filter strip, if this tile has one --
-               // the tile's own reserved footprint (computed via computeGridLayout above) already
-               // accounts for that extra height, so this only affects where the CHART renders
-               // within it, not how much space the tile as a whole takes.
-               y = tileTopY + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+               // The chart itself starts BELOW the reserved header strip, if this tile's BAND has
+               // one -- the tile's own reserved footprint (computed via computeGridLayout above)
+               // already accounts for that extra height, so this only affects where the CHART
+               // renders within it, not how much space the tile as a whole takes.
+               y = tileTopY + headerHeights[i];
             }
             else {
                x = CANVAS_MARGIN;
@@ -250,13 +254,12 @@ public class WizDashboardService {
             // otherwise a tile's computed (spanCols, spanRows) only ever reserved grid drop-
             // position spacing and never resized the chart itself. The stack path has no
             // per-visualization span data, so it passes null and preserves the chart's saved size.
-            // placement.height() includes the +PER_CHART_FILTER_ROW_HEIGHT reservation (and any
-            // stretch growth) -- subtract the filter reservation back out here so the CHART itself
-            // (not its tile's filter header strip) gets resized; any stretch growth survives this
-            // subtraction since it was added on top of the same base natural+filter height.
+            // placement.height() includes the band's header reservation (and any stretch growth)
+            // -- subtract the header height back out here so the CHART itself (not its tile's
+            // header strip) gets resized; any stretch growth survives this subtraction since it
+            // was added on top of the same base natural+header height.
             java.awt.Dimension pixelSize = grid ?
-               new java.awt.Dimension(placement.width(),
-                  placement.height() - (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0)) :
+               new java.awt.Dimension(placement.width(), placement.height() - headerHeights[i]) :
                null;
 
             try {
@@ -264,10 +267,6 @@ public class WizDashboardService {
                   runtimeId, entries.get(i), x, y, 1.0f, pixelSize, principal);
 
                if(grid) {
-                  int tileHeight = pixelSize.height + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
-                  tileBounds.put(identifiers.get(i),
-                     new java.awt.Rectangle(x, tileTopY, pixelSize.width, tileHeight));
-
                   if(mergedInfo.tableName() != null) {
                      identifierToTableName.put(identifiers.get(i), mergedInfo.tableName());
                   }
@@ -327,16 +326,33 @@ public class WizDashboardService {
 
             if(hasPerChartFilters) {
                for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
-                  java.awt.Rectangle bounds = tileBounds.get(spec.getIdentifier());
                   String tableName = identifierToTableName.get(spec.getIdentifier());
+                  String chartName = identifierToAssemblyName.get(spec.getIdentifier());
+                  inetsoft.uql.viewsheet.VSAssembly chartAssembly =
+                     chartName != null ? vs.getAssembly(chartName) : null;
 
-                  if(bounds == null || tableName == null) {
+                  if(tableName == null || chartAssembly == null) {
                      perChartFiltersSkipped.add(spec.getField());
                      continue;
                   }
 
-                  WizDashboardFilterBuilder.FilterControlPlacement placement =
-                     applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
+                  // Place the filter against the chart's ACTUAL post-merge geometry, not the
+                  // pre-merge tile bounds: AddVisualizationService#addVisualization applies its
+                  // own margin offset to each merged chart (observed +CANVAS_MARGIN on both axes),
+                  // so the tile's computed x/y no longer match where the chart really landed.
+                  // Reading the chart's own pixel offset/size and placing the control flush above
+                  // it (same x, same width, filter-bottom == chart-top) is what actually makes the
+                  // two line up as one enclosing card (see WizDashboardFilterBuilder#
+                  // applyGroupedCardStyle) regardless of that merge offset.
+                  java.awt.Point chartPos = chartAssembly.getPixelOffset();
+                  java.awt.Dimension chartSize = chartAssembly.getPixelSize();
+                  int filterX = chartPos.x;
+                  int filterWidth = chartSize.width;
+                  int filterY = chartPos.y - PER_CHART_FILTER_ROW_HEIGHT;
+
+                  WizDashboardFilterBuilder.FilterControlPlacement placement = applyPerChartFilter(
+                     vs, baseWs, spec, filterX, filterY, filterWidth, PER_CHART_FILTER_ROW_HEIGHT,
+                     tableName, chartName);
 
                   if(placement != null) {
                      perChartFiltersApplied.add(spec.getField());
@@ -472,11 +488,11 @@ public class WizDashboardService {
     */
    WizDashboardFilterBuilder.FilterControlPlacement applyPerChartFilter(
       Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
-      int x, int y, String chartTableName)
+      int x, int y, int width, int height, String chartTableName, String chartAssemblyName)
    {
       WizDashboardFilterBuilder.FilterRequest req =
          new WizDashboardFilterBuilder.FilterRequest(spec.getField(), spec.getDataType(), spec.getLabel());
-      return filterBuilder.buildPerChart(vs, baseWs, x, y, req, chartTableName);
+      return filterBuilder.buildPerChart(vs, baseWs, x, y, width, height, req, chartTableName, chartAssemblyName);
    }
 
    /** Vertical row stride between successive merged visualizations, in pixels — used by both
@@ -511,13 +527,17 @@ public class WizDashboardService {
    private static final int MAX_TILE_WIDTH = 900;
    private static final int MAX_TILE_HEIGHT = 600;
 
-   /** Extra row height reserved, in pixels, for a tile that has a per-chart filter -- additive
-    *  to (never counted against) {@link #MAX_TILE_HEIGHT}, so the chart's own rendered size is
-    *  untouched; only the tile grows to make room for the filter control above it. Matches
-    *  {@link #FILTER_BAR_ROW_HEIGHT} exactly: {@link WizDashboardFilterBuilder#buildPerChart}
-    *  sizes its control with the SAME {@code FILTER_CONTROL_HEIGHT} (100px) the shared filter
-    *  bar uses -- there is no smaller "compact" control variant -- so the same 20px margin
-    *  applies here too. */
+   /** Extra header height reserved, in pixels, above a chart that owns a per-chart filter, OR
+    *  above a chart that shares a band with a genuinely side-by-side sibling (another
+    *  first-tile-in-its-column) that does -- additive to (never counted against)
+    *  {@link #MAX_TILE_HEIGHT}, so the chart's own rendered size is untouched; only the tile
+    *  grows to make room. See {@link #closeBand}/{@link GridLayoutResult} for the exact scoping
+    *  (deliberately NOT "every tile in the band," which would shift unrelated charts stacked
+    *  anywhere below an unrelated filtered one in the common single-column dashboard shape).
+    *  Matches {@link #FILTER_BAR_ROW_HEIGHT}
+    *  exactly: {@link WizDashboardFilterBuilder#buildPerChart} sizes its control with the SAME
+    *  {@code FILTER_CONTROL_HEIGHT} (100px) the shared filter bar uses -- there is no smaller
+    *  "compact" control variant -- so the same 20px margin applies here too. */
    private static final int PER_CHART_FILTER_ROW_HEIGHT = 120;
 
    /**
@@ -537,9 +557,35 @@ public class WizDashboardService {
     * may be larger than the tile's own natural {@link #tilePixelSize} height if the stretch pass
     * grew it to match a taller neighbor sharing its band -- see the design spec's Stretch pass
     * section (docs/superpowers/specs/2026-07-25-dashboard-2d-grid-packing-design.md, in the
-    * stylebi-wiz repo). Package-private for unit testing.
+    * stylebi-wiz repo). {@code y} already reflects any band-wide per-chart-filter header shift
+    * (see {@link GridLayoutResult#headerHeights()}) -- it is NOT the tile's natural band-relative
+    * position when the band contains a filter. Package-private for unit testing.
     */
    record TilePlacement(int x, int y, int width, int height) {}
+
+   /**
+    * Return type of {@link #computeGridLayout}: every tile's placement, plus a PARALLEL
+    * {@code headerHeights} array (same index as {@code spanCols}/{@code spanRows}/{@code placements})
+    * recording how much header space, in pixels, is reserved at the TOP of each tile.
+    *
+    * <p>Every tile that personally owns a per-chart filter always reserves
+    * {@link #PER_CHART_FILTER_ROW_HEIGHT} for itself. On top of that, when TWO OR MORE columns in
+    * the SAME band are genuinely side-by-side siblings (each is the FIRST tile placed in its own
+    * column) and at least one of those first-tiles owns a filter, EVERY other first-tile in that
+    * band reserves the same header height too -- even if it has no filter of its own -- so the
+    * row's tops visually align (a filterless sibling just gets blank space where its neighbor's
+    * control renders). See {@link #closeBand} for where this is computed.
+    *
+    * <p>Deliberately scoped to FIRST-tiles only, not "every tile sharing a band": a band can
+    * legitimately span the entire dashboard height in the common single-column (everything
+    * stacked vertically, nothing ever fits beside anything) case, where there is only ever ONE
+    * column and thus nothing to visually align against -- an earlier version of this reservation
+    * applied to the whole band and, in that shape, shifted every chart in the dashboard down
+    * whenever ANY one of them, however far down the stack, happened to own a filter. {@code
+    * headerHeights[i] == 0} for a tile that neither owns a filter nor shares a band with a
+    * misaligned filtered sibling (the overwhelmingly common case).
+    */
+   record GridLayoutResult(List<TilePlacement> placements, int[] headerHeights) {}
 
    /**
     * Tracks one open column within the CURRENT (still-open) band during
@@ -578,11 +624,12 @@ public class WizDashboardService {
     *
     * <p>Package-private for unit testing.
     */
-   static List<TilePlacement> computeGridLayout(
+   static GridLayoutResult computeGridLayout(
       int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter, int layoutColumns)
    {
       int n = spanCols.length;
       TilePlacement[] result = new TilePlacement[n];
+      int[] headerHeights = new int[n];
       int availableRowWidth = layoutColumns * DASHBOARD_COL_WIDTH + (layoutColumns - 1) * TILE_GUTTER;
 
       int cumulativeY = 0;
@@ -592,7 +639,14 @@ public class WizDashboardService {
       for(int k = 0; k < n; k++) {
          java.awt.Dimension natural = tilePixelSize(spanCols[k], spanRows[k]);
          int tileWidth = natural.width;
+         // Every tile always reserves its OWN filter height directly, regardless of stack
+         // position -- this part is unconditional, exactly like the tile's own natural size.
          int tileHeight = natural.height + (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+
+         if(hasPerChartFilter[k]) {
+            headerHeights[k] = PER_CHART_FILTER_ROW_HEIGHT;
+         }
+
          int neededWidthForNewColumn =
             rowWidthUsed == 0 ? tileWidth : rowWidthUsed + TILE_GUTTER + tileWidth;
 
@@ -623,9 +677,8 @@ public class WizDashboardService {
             continue;
          }
 
-         closeBand(band, result);
-         int bandHeight = band.stream().mapToInt(c -> c.columnY).max().orElse(0);
-         cumulativeY += bandHeight + TILE_GUTTER;
+         int closedBandHeight = closeBand(band, result, headerHeights, hasPerChartFilter);
+         cumulativeY += closedBandHeight + TILE_GUTTER;
          band = new ArrayList<>();
          rowWidthUsed = 0;
 
@@ -637,17 +690,60 @@ public class WizDashboardService {
          rowWidthUsed = tileWidth;
       }
 
-      closeBand(band, result);
+      closeBand(band, result, headerHeights, hasPerChartFilter);
 
-      return java.util.Arrays.asList(result);
+      return new GridLayoutResult(java.util.Arrays.asList(result), headerHeights);
    }
 
    /**
-    * Stretch pass: for every column in the closing band shorter than the band's tallest column,
-    * grows the LAST tile placed in that column so its rendered height closes the gap. Never
-    * shrinks a tile.
+    * Closes a band in three passes and returns its final height:
+    * <ol>
+    *   <li><b>Row-alignment pass</b> (new): if two or more columns exist in this band (i.e. there
+    *       is an actual side-by-side row to keep aligned) and at least one column's FIRST tile
+    *       owns a per-chart filter, every OTHER column's first tile reserves the same
+    *       {@link #PER_CHART_FILTER_ROW_HEIGHT} too -- grown directly into that tile's own height
+    *       (and {@code columnY}), with every tile stacked below it in the SAME column shifted
+    *       down by the same amount to make room. A column whose first tile already owns a filter
+    *       is skipped (it already reserved this in the main loop -- doing it again would double
+    *       it). With only one column in the band (the common single-column-stack dashboard shape)
+    *       this pass is a no-op: there is no sibling to align against.</li>
+    *   <li><b>Stretch pass</b> (unchanged, but now runs against the row-alignment pass's
+    *       already-updated {@code columnY} values): for every column shorter than the band's
+    *       tallest column, grows the LAST tile placed in that column so its rendered height
+    *       closes the gap. Never shrinks a tile.</li>
+    * </ol>
     */
-   private static void closeBand(List<Column> band, TilePlacement[] result) {
+   private static int closeBand(
+      List<Column> band, TilePlacement[] result, int[] headerHeights, boolean[] hasPerChartFilter)
+   {
+      if(band.size() > 1) {
+         boolean anyFirstTileHasFilter = band.stream()
+            .anyMatch(c -> hasPerChartFilter[c.tileIndices.get(0)]);
+
+         if(anyFirstTileHasFilter) {
+            for(Column column : band) {
+               int firstIndex = column.tileIndices.get(0);
+
+               if(hasPerChartFilter[firstIndex]) {
+                  continue;   // already reserved its own header height above
+               }
+
+               TilePlacement firstTile = result[firstIndex];
+               result[firstIndex] = new TilePlacement(firstTile.x(), firstTile.y(),
+                  firstTile.width(), firstTile.height() + PER_CHART_FILTER_ROW_HEIGHT);
+               headerHeights[firstIndex] = PER_CHART_FILTER_ROW_HEIGHT;
+               column.columnY += PER_CHART_FILTER_ROW_HEIGHT;
+
+               for(int i = 1; i < column.tileIndices.size(); i++) {
+                  int idx = column.tileIndices.get(i);
+                  TilePlacement old = result[idx];
+                  result[idx] = new TilePlacement(
+                     old.x(), old.y() + PER_CHART_FILTER_ROW_HEIGHT, old.width(), old.height());
+               }
+            }
+         }
+      }
+
       int bandHeight = band.stream().mapToInt(c -> c.columnY).max().orElse(0);
 
       for(Column column : band) {
@@ -660,6 +756,8 @@ public class WizDashboardService {
                new TilePlacement(old.x(), old.y(), old.width(), old.height() + shortfall);
          }
       }
+
+      return bandHeight;
    }
 
    /** Compact tile size forced on every chart in the Mobile tier, ignoring its own type-based
@@ -739,7 +837,8 @@ public class WizDashboardService {
       layout.setFitToWidth(false);
 
       boolean[] noPerChartFilters = new boolean[assemblyNames.length];
-      List<TilePlacement> placements = computeGridLayout(spanCols, spanRows, noPerChartFilters, layoutColumns);
+      List<TilePlacement> placements =
+         computeGridLayout(spanCols, spanRows, noPerChartFilters, layoutColumns).placements();
       List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
 
       for(int i = 0; i < assemblyNames.length; i++) {
