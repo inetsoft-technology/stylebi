@@ -84,8 +84,11 @@ public class AdminChangePlanService {
          requireHashSafe("property", name.key());
          requireHashSafe("value", proposed);
 
+         String currentValue = SreeEnv.getProperty(name.key(), false, false);
+         requireHashSafe("currentValue", currentValue);
+
          changes.add(new PlanChange(name.key(), name.orgId(),
-            SreeEnv.getProperty(name.key(), false, false), proposed,
+            currentValue, proposed,
             risk.risk(), risk.snapshotScope(), risk.recognized(),
             entry == null ? null : entry.description()));
       }
@@ -109,8 +112,8 @@ public class AdminChangePlanService {
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)
-            .append(String.valueOf(change.currentValue())).append(SEP)
-            .append(String.valueOf(change.proposedValue())).append(SEP)
+            .append(canonical(change.currentValue())).append(SEP)
+            .append(canonical(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
       }
@@ -132,6 +135,19 @@ public class AdminChangePlanService {
    }
 
    /**
+    * Renders a nullable field for the canonical form.
+    *
+    * <p>{@code String.valueOf} would map a genuine {@code null} and the literal string
+    * {@code "null"} onto identical bytes, so a plan whose property is unset would hash the same as
+    * one whose property is literally set to {@code "null"} - and drift between the two would go
+    * undetected. {@link #requireHashSafe} guarantees no real field contains a control character,
+    * which makes one a marker that cannot collide with any legitimate value.
+    */
+   private static String canonical(String value) {
+      return value == null ? NULL_MARKER : value;
+   }
+
+   /**
     * Rejects a field that could forge a record boundary in the canonical form.
     *
     * <p>{@link #hash} joins fields with {@link #SEP}. If a value could contain that separator it
@@ -139,6 +155,10 @@ public class AdminChangePlanService {
     * which would defeat the review gate. Control characters are not legitimate in a StyleBI
     * property name or value, so rejecting them enforces what the canonical form assumes rather
     * than merely documenting it.
+    *
+    * <p>This is a blanket rule: if a future catalog entry legitimately needs a multiline or
+    * otherwise control-bearing string value, that is a catalog-authoring decision to revisit then,
+    * not a defect in this guard today.
     */
    private static void requireHashSafe(String fieldName, String value) {
       if(value == null) {
@@ -155,6 +175,8 @@ public class AdminChangePlanService {
 
    /** Unit separator: cannot occur in a property name or value, so fields cannot run together. */
    private static final char SEP = '\u001f';
+   /** Marks a null field in the canonical form; cannot collide with a real value, see {@link #canonical}. */
+   private static final String NULL_MARKER = "\u0001";
    private final AdminPropertyCatalog catalog;
    private final AdminRiskClassifier classifier;
 }

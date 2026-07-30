@@ -35,6 +35,9 @@ import static org.mockito.Mockito.*;
  */
 @Tag("core")
 class AdminChangePlanServiceTest {
+   /** U+001F, built from a Java escape sequence rather than pasted as a raw control byte. */
+   private static final String SEPARATOR_ESCAPE = "\u001f";
+
    private final AdminPropertyCatalog catalog = new AdminPropertyCatalog();
    private final AdminChangePlanService service =
       new AdminChangePlanService(catalog, new AdminRiskClassifier(catalog));
@@ -235,5 +238,26 @@ class AdminChangePlanServiceTest {
       // Guard against over-rejecting: normal values, whitespace and punctuation must still pass.
       sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false)).thenReturn("old");
       assertDoesNotThrow(() -> service.resolve(request("t", "mail.smtp.host", " smtp.example.com ")));
+   }
+
+   @Test
+   void rejectsAStoredCurrentValueContainingAControlCharacter() {
+      // currentValue is read from SreeEnv, not supplied by the caller, so it needs its own guard:
+      // a control character already present in stored config would otherwise forge a field
+      // boundary in the canonical form just as a hostile request value would.
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false))
+         .thenReturn("stored" + SEPARATOR_ESCAPE + "value");
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "mail.smtp.host", "new.example.com")))
+            .getMessage().startsWith("currentValue:"));
+   }
+
+   @Test
+   void hashDistinguishesAnUnsetValueFromTheLiteralStringNull() {
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false)).thenReturn(null);
+      String unsetHash = service.resolve(request("t", "mail.smtp.host", "x")).planHash();
+
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false)).thenReturn("null");
+      assertNotEquals(unsetHash, service.resolve(request("t", "mail.smtp.host", "x")).planHash());
    }
 }
