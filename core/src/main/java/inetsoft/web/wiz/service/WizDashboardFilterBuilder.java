@@ -23,9 +23,11 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.Point;
 import java.util.ArrayList;
@@ -145,13 +147,19 @@ public class WizDashboardFilterBuilder {
     * method has no way to distinguish "genuinely no matching table" from "caller loaded the
     * wrong worksheet" — getting the load right in the caller matters.</p>
     *
+    * <p>{@code startX} is the x-pixel the first control is placed at (subsequent controls tile to
+    * its right). Callers pass the merged charts' actual left edge so the bar lines up with the
+    * columns below it, rather than the raw canvas margin — the chart merge offsets each chart by
+    * +CANVAS_MARGIN, so the two would otherwise be misaligned (same offset the per-chart filters
+    * correct for).
+    *
     * @return which fields bound to &gt;=1 table (applied) vs none (skipped).
     */
-   public FilterResult build(Viewsheet vs, Worksheet baseWorksheet, List<FilterRequest> requests) {
+   public FilterResult build(Viewsheet vs, Worksheet baseWorksheet, List<FilterRequest> requests, int startX) {
       List<String> applied = new ArrayList<>();
       List<String> skipped = new ArrayList<>();
       List<FilterControlPlacement> placements = new ArrayList<>();
-      int x = FILTER_BAR_X;
+      int x = startX;
       int y = FILTER_BAR_Y;
       List<String> chartTableNames = mergedChartTableNames(vs);
 
@@ -187,6 +195,51 @@ public class WizDashboardFilterBuilder {
       }
 
       return new FilterResult(applied, skipped, placements);
+   }
+
+   /**
+    * Adds a full-width "filter toolbar" band behind the shared filter bar so its controls read as
+    * a distinct toolbar region rather than looking attached to the first chart below: a subtly
+    * tinted background rectangle spanning the chart area's width ({@code x}..{@code x+width}), and
+    * a thin gray divider bar along its bottom edge. Both are plain {@link RectangleVSAssembly}s
+    * styled purely via a background fill — the same VSCompositeFormat render path already proven to
+    * render for the selection controls — and MUST be added before the controls (this method is
+    * called first) so the controls layer on top of the band.
+    *
+    * <p>Returns the two rectangles' placements so the caller can carry them into the adaptive
+    * layout tiers, exactly as it already carries the filter controls' placements (otherwise an
+    * assembly with no per-tier layout entry is hidden when that tier is selected).
+    */
+   public List<FilterControlPlacement> buildFilterBarBand(Viewsheet vs, int x, int y, int width, int height) {
+      List<FilterControlPlacement> placements = new ArrayList<>();
+      placements.add(addFillRectangle(vs, "wizFilterBarBand", x, y, width, height, BAND_BACKGROUND));
+      placements.add(addFillRectangle(vs, "wizFilterBarDivider",
+         x, y + height - DIVIDER_THICKNESS, width, DIVIDER_THICKNESS, DIVIDER_COLOR));
+      return placements;
+   }
+
+   /**
+    * Creates a borderless {@link RectangleVSAssembly} rendered as a solid fill of {@code fill} at
+    * the given pixel bounds and adds it to {@code vs}. Uses setBackgroundValue (the persist-safe
+    * "...Value" setter that survives save/reload, like the card styling) plus the plain setter for
+    * any pre-persist read, and NO_BORDER line style so only the fill shows.
+    */
+   private static FilterControlPlacement addFillRectangle(
+      Viewsheet vs, String name, int x, int y, int width, int height, Color fill)
+   {
+      RectangleVSAssembly rect = new RectangleVSAssembly(vs, name);
+      rect.initDefaultFormat();
+      RectangleVSAssemblyInfo info = (RectangleVSAssemblyInfo) rect.getVSAssemblyInfo();
+      Point pos = new Point(x, y);
+      Dimension size = new Dimension(width, height);
+      info.setPixelOffset(pos);
+      info.setPixelSize(size);
+      info.setLineStyleValue(StyleConstants.NO_BORDER);
+      VSFormat fmt = info.getFormat().getUserDefinedFormat();
+      fmt.setBackground(fill);
+      fmt.setBackgroundValue(String.format("#%02x%02x%02x", fill.getRed(), fill.getGreen(), fill.getBlue()));
+      vs.addAssembly(rect);
+      return new FilterControlPlacement(rect.getName(), pos, size);
    }
 
    /**
@@ -309,6 +362,17 @@ public class WizDashboardFilterBuilder {
    /** Shared card border color -- a clearly-visible-but-neutral gray that outlines the grouped
     *  filter+chart without drawing attention away from the chart content itself. */
    private static final Color CARD_BORDER_COLOR = new Color(158, 166, 178);
+
+   /** Filter-toolbar band fill -- a light blue-gray tint, subtly darker than the dashboard canvas,
+    *  so the shared filter bar reads as its own toolbar region. */
+   private static final Color BAND_BACKGROUND = new Color(235, 238, 243);
+
+   /** Filter-toolbar bottom divider color -- matches {@link #CARD_BORDER_COLOR} for consistency
+    *  with the per-chart cards. */
+   private static final Color DIVIDER_COLOR = new Color(158, 166, 178);
+
+   /** Divider bar thickness, in pixels. */
+   private static final int DIVIDER_THICKNESS = 2;
 
    /**
     * Collects each merged chart's own final bound table name (its {@code SourceInfo.source},

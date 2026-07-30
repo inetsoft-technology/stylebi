@@ -310,6 +310,7 @@ public class WizDashboardService {
          // would reproduce the same every-filter-skipped symptom this fix targets) — so the
          // filter builder sees the actual merged root tables.
          WizDashboardFilterBuilder.FilterResult filterResult = null;
+         List<WizDashboardFilterBuilder.FilterControlPlacement> bandPlacements = new ArrayList<>();
          List<String> perChartFiltersApplied = new ArrayList<>();
          List<String> perChartFiltersSkipped = new ArrayList<>();
          boolean hasPerChartFilters = grid && event.getPerChartFilters() != null &&
@@ -321,7 +322,20 @@ public class WizDashboardService {
                vs.getBaseEntry(), principal, false, AssetContent.ALL);
 
             if(hasFilters) {
-               filterResult = applyFilters(vs, baseWs, event.getFilters());
+               // Align the shared filter bar to the merged charts' actual left edge and span a
+               // toolbar band across their full width -- both derived from the charts' real
+               // post-merge geometry (addVisualization offsets each chart by +CANVAS_MARGIN, so the
+               // raw canvas margin no longer matches where the columns landed). The band is added
+               // BEFORE the controls so they layer on top of it.
+               java.awt.Rectangle chartsBox = mergedChartsBoundingBox(vs, identifierToAssemblyName.values());
+               int barLeftX = chartsBox != null ? chartsBox.x : CANVAS_MARGIN;
+
+               if(chartsBox != null) {
+                  bandPlacements = filterBuilder.buildFilterBarBand(
+                     vs, chartsBox.x, FILTER_BAND_TOP, chartsBox.width, FILTER_BAND_HEIGHT);
+               }
+
+               filterResult = applyFilters(vs, baseWs, event.getFilters(), barLeftX);
             }
 
             if(hasPerChartFilters) {
@@ -390,6 +404,11 @@ public class WizDashboardService {
             if(filterResult != null) {
                filterPlacements.addAll(filterResult.placements());
             }
+
+            // Carry the toolbar band + divider rectangles into every adaptive tier too (same as the
+            // filter controls above) -- an assembly with no per-tier layout entry is hidden when
+            // that tier is selected, at their base position (the existing documented scope limit).
+            filterPlacements.addAll(bandPlacements);
 
             String[] assemblyNamesInOrder = identifiers.stream()
                .map(identifierToAssemblyName::get)
@@ -472,12 +491,42 @@ public class WizDashboardService {
     * {@link WizDashboardFilterBuilder}, independent of the live-engine-only compose+save path.
     */
    WizDashboardFilterBuilder.FilterResult applyFilters(Viewsheet vs, Worksheet baseWs,
-                                                        List<WizDashboardEvent.FilterSpec> specs)
+                                                        List<WizDashboardEvent.FilterSpec> specs, int startX)
    {
       List<WizDashboardFilterBuilder.FilterRequest> reqs = specs.stream()
          .map(f -> new WizDashboardFilterBuilder.FilterRequest(f.getField(), f.getDataType(), f.getLabel()))
          .collect(java.util.stream.Collectors.toList());
-      return filterBuilder.build(vs, baseWs, reqs);
+      return filterBuilder.build(vs, baseWs, reqs, startX);
+   }
+
+   /**
+    * The bounding box (in pixels) enclosing every merged chart's ACTUAL post-merge position/size,
+    * or {@code null} if none resolve. Used to align + span the shared filter toolbar to the real
+    * chart columns (addVisualization offsets each chart, so pre-merge tile bounds don't match).
+    */
+   private static java.awt.Rectangle mergedChartsBoundingBox(
+      Viewsheet vs, java.util.Collection<String> chartAssemblyNames)
+   {
+      int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+      boolean any = false;
+
+      for(String name : chartAssemblyNames) {
+         inetsoft.uql.viewsheet.VSAssembly a = name != null ? vs.getAssembly(name) : null;
+
+         if(a == null) {
+            continue;
+         }
+
+         java.awt.Point p = a.getPixelOffset();
+         java.awt.Dimension d = a.getPixelSize();
+         minX = Math.min(minX, p.x);
+         minY = Math.min(minY, p.y);
+         maxX = Math.max(maxX, p.x + d.width);
+         maxY = Math.max(maxY, p.y + d.height);
+         any = true;
+      }
+
+      return any ? new java.awt.Rectangle(minX, minY, maxX - minX, maxY - minY) : null;
    }
 
    /**
@@ -503,6 +552,15 @@ public class WizDashboardService {
     *  {@link WizDashboardFilterBuilder} gives its selection/range controls, not a full chart
     *  tile's height. */
    static final int FILTER_BAR_ROW_HEIGHT = 120;
+
+   /** Top y (px) of the filter toolbar band -- a small inset above the controls (which sit at
+    *  CANVAS_MARGIN=24). */
+   private static final int FILTER_BAND_TOP = 12;
+
+   /** Filter toolbar band height (px): wraps the 100px controls (at y=24) with a little padding,
+    *  so the band bottom (its divider) lands at 12+124=136 -- above the first chart row (which the
+    *  reserved FILTER_BAR_ROW_HEIGHT + margin + merge offset pushes to ~168), leaving a clean gap. */
+   private static final int FILTER_BAND_HEIGHT = 124;
 
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width

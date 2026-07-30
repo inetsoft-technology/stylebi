@@ -232,21 +232,21 @@ class WizDashboardServiceGridTest {
       WizDashboardFilterBuilder filterBuilder = mock(WizDashboardFilterBuilder.class);
       WizDashboardFilterBuilder.FilterResult expected =
          new WizDashboardFilterBuilder.FilterResult(List.of("Region"), List.of("MissingField"));
-      when(filterBuilder.build(any(), any(), any())).thenReturn(expected);
+      when(filterBuilder.build(any(), any(), any(), eq(48))).thenReturn(expected);
 
       WizDashboardService svc = serviceWith(filterBuilder);
       Viewsheet vs = mock(Viewsheet.class);
       Worksheet baseWs = mock(Worksheet.class);
       WizDashboardEvent.FilterSpec spec = filterSpec("Region", "string", "Region");
 
-      WizDashboardFilterBuilder.FilterResult actual = svc.applyFilters(vs, baseWs, List.of(spec));
+      WizDashboardFilterBuilder.FilterResult actual = svc.applyFilters(vs, baseWs, List.of(spec), 48);
 
       assertSame(expected, actual);
 
       @SuppressWarnings("unchecked")
       ArgumentCaptor<List<WizDashboardFilterBuilder.FilterRequest>> captor =
          ArgumentCaptor.forClass(List.class);
-      verify(filterBuilder).build(eq(vs), eq(baseWs), captor.capture());
+      verify(filterBuilder).build(eq(vs), eq(baseWs), captor.capture(), eq(48));
       assertEquals(List.of(new WizDashboardFilterBuilder.FilterRequest("Region", "string", "Region")),
          captor.getValue());
    }

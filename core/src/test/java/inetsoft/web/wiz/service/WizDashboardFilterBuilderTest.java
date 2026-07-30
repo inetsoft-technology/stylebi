@@ -98,7 +98,8 @@ class WizDashboardFilterBuilderTest {
       vs.addAssembly(chart);
 
       WizDashboardFilterBuilder.FilterResult result = builder.build(
-         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")));
+         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")),
+         WizDashboardService.CANVAS_MARGIN);
 
       assertEquals(List.of("category_name"), result.applied());
       assertTrue(result.skipped().isEmpty());
@@ -122,7 +123,8 @@ class WizDashboardFilterBuilderTest {
       vs.addAssembly(chart);
 
       WizDashboardFilterBuilder.FilterResult result = builder.build(
-         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")));
+         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")),
+         WizDashboardService.CANVAS_MARGIN);
 
       assertEquals(1, result.placements().size());
       assertNotNull(result.placements().get(0).assemblyName());
@@ -140,16 +142,45 @@ class WizDashboardFilterBuilderTest {
       boundToTable(chart, "CHART_FINAL");
       vs.addAssembly(chart);
 
-      builder.build(vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")));
+      builder.build(vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")),
+         WizDashboardService.CANVAS_MARGIN);
 
       AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
          .filter(a -> a instanceof AbstractSelectionVSAssembly)
          .map(a -> (AbstractSelectionVSAssembly) a)
          .findFirst().orElseThrow();
       assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().x,
-         "must not sit flush against the canvas's left edge");
+         "must sit at the passed startX (the merged charts' left edge)");
       assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().y,
          "must not sit flush against the canvas's top edge");
+   }
+
+   @Test
+   void buildFilterBarBandAddsATintedBandAndAThinDividerSpanningTheGivenWidth() {
+      Viewsheet vs = new Viewsheet();
+
+      List<WizDashboardFilterBuilder.FilterControlPlacement> placements =
+         builder.buildFilterBarBand(vs, 48, 12, 1800, 124);
+
+      // Two rectangles: the band (full height) and a thin divider along its bottom edge.
+      assertEquals(2, placements.size());
+      assertEquals(new java.awt.Point(48, 12), placements.get(0).position());
+      assertEquals(new java.awt.Dimension(1800, 124), placements.get(0).size(), "band spans the given width x height");
+      assertEquals(new java.awt.Point(48, 12 + 124 - 2), placements.get(1).position(),
+         "divider sits along the band's bottom edge");
+      assertEquals(new java.awt.Dimension(1800, 2), placements.get(1).size(), "divider is a 2px-tall full-width bar");
+
+      // Both are borderless rectangles rendered as a solid background fill.
+      long rectangles = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof RectangleVSAssembly).count();
+      assertEquals(2, rectangles);
+
+      for(inetsoft.uql.asset.Assembly a : vs.getAssemblies()) {
+         if(a instanceof RectangleVSAssembly rect) {
+            inetsoft.uql.viewsheet.VSFormat fmt = rect.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
+            assertNotNull(fmt.getBackground(), "rectangle must carry a fill background so it renders");
+         }
+      }
    }
 
    @Test
