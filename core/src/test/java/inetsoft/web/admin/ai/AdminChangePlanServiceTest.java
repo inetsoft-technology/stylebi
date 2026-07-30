@@ -206,4 +206,34 @@ class AdminChangePlanServiceTest {
       assertEquals("whatever", change.proposedValue());
       assertNull(change.description());
    }
+
+   @Test
+   void rejectsAProposedValueContainingTheRecordSeparator() {
+      // Without this, a value carrying the separator could forge field boundaries and make two
+      // materially different plans hash identically - defeating the gate the hash exists to be.
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "mail.smtp.host", "abc\u001fdef")))
+            .getMessage().startsWith("value:"));
+   }
+
+   @Test
+   void rejectsAnUncataloguedValueContainingAControlCharacter() {
+      // The uncatalogued path bypasses canonicalizeValue entirely, so it needs its own guard.
+      assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "some.unknown.prop", "x\u0000y")));
+   }
+
+   @Test
+   void rejectsATaskContainingAControlCharacter() {
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("bad\u0000task", "max.rows", "500")))
+            .getMessage().startsWith("task:"));
+   }
+
+   @Test
+   void stillAcceptsOrdinaryValues() {
+      // Guard against over-rejecting: normal values, whitespace and punctuation must still pass.
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false)).thenReturn("old");
+      assertDoesNotThrow(() -> service.resolve(request("t", "mail.smtp.host", " smtp.example.com ")));
+   }
 }

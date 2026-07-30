@@ -57,6 +57,8 @@ public class AdminChangePlanService {
          throw new IllegalArgumentException("task: a non-empty description is required");
       }
 
+      requireHashSafe("task", req.getTask());
+
       if(req.getChanges() == null || req.getChanges().isEmpty()) {
          throw new IllegalArgumentException("changes: at least one change is required");
       }
@@ -78,6 +80,9 @@ public class AdminChangePlanService {
          String proposed = entry == null
             ? requested.getValue() : catalog.canonicalizeValue(entry, requested.getValue());
          AdminRiskClassifier.RiskClassification risk = classifier.classify(name);
+
+         requireHashSafe("property", name.key());
+         requireHashSafe("value", proposed);
 
          changes.add(new PlanChange(name.key(), name.orgId(),
             SreeEnv.getProperty(name.key(), false, false), proposed,
@@ -123,6 +128,28 @@ public class AdminChangePlanService {
       }
       catch(NoSuchAlgorithmException e) {
          throw new IllegalStateException("SHA-256 is required to hash an admin change plan", e);
+      }
+   }
+
+   /**
+    * Rejects a field that could forge a record boundary in the canonical form.
+    *
+    * <p>{@link #hash} joins fields with {@link #SEP}. If a value could contain that separator it
+    * could embed extra field boundaries and make two materially different plans hash identically,
+    * which would defeat the review gate. Control characters are not legitimate in a StyleBI
+    * property name or value, so rejecting them enforces what the canonical form assumes rather
+    * than merely documenting it.
+    */
+   private static void requireHashSafe(String fieldName, String value) {
+      if(value == null) {
+         return;
+      }
+
+      for(int i = 0; i < value.length(); i++) {
+         if(Character.isISOControl(value.charAt(i))) {
+            throw new IllegalArgumentException(
+               fieldName + ": must not contain control characters");
+         }
       }
    }
 
