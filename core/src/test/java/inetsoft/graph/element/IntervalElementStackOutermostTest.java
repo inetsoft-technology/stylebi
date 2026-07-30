@@ -24,10 +24,17 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.geometry.IntervalGeometry;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.LinearScale;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +51,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * These flags are used by BarVO and GraphBuilder to apply rounded corners to the correct
  * ends of each stacked bar, and to support the roundAllCorners mode.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class IntervalElementStackOutermostTest {
 
    /**

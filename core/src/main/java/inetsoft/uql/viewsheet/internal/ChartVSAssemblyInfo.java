@@ -91,6 +91,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // Existing charts loaded from XML default to false for backward compatibility.
       getChartDescriptor().getLegendsDescriptor().setRoundCorners(true);
 
+      if(VSObjectChromeDefaults.isModern()) {
+         PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
+         plotDesc.setBarCornerRadius(0.3);
+         plotDesc.setModernCornerSeed(true);
+         plotDesc.setSmoothLines(true);
+         plotDesc.setModernSmoothSeed(true);
+      }
+
       VSCompositeFormat tFormat = new VSCompositeFormat();
       tFormat.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.TITLE);
       tFormat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
