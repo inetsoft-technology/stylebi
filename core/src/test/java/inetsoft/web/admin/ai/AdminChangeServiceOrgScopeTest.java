@@ -19,10 +19,12 @@ package inetsoft.web.admin.ai;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.properties.PropertyChangeSideEffects;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -50,8 +52,10 @@ import static org.mockito.Mockito.*;
 class AdminChangeServiceOrgScopeTest {
    @Mock private PropertyChangeSideEffects sideEffects;
    @Mock private Principal principal;
+   @Mock private Audit audit;
    private MockedStatic<SreeEnv> sreeEnv;
    private MockedStatic<Tool> toolStatic;
+   private MockedStatic<Audit> auditStatic;
    private AdminChangeService service;
 
    @BeforeEach
@@ -64,6 +68,10 @@ class AdminChangeServiceOrgScopeTest {
       // fix under test. Mirrors AdminChangeServiceTest's mocking of Tool for the same reason.
       toolStatic = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT));
       toolStatic.when(Tool::getHost).thenReturn("host-1");
+      // Mocks Audit.getInstance() so tests can capture the AdminChangeRecord writeAudit builds,
+      // mirroring AdminChangeServiceTest's Audit mocking pattern.
+      auditStatic = mockStatic(Audit.class, withSettings().strictness(Strictness.LENIENT));
+      auditStatic.when(Audit::getInstance).thenReturn(audit);
       service = new AdminChangeService(sideEffects);
    }
 
@@ -71,6 +79,7 @@ class AdminChangeServiceOrgScopeTest {
    void tearDown() {
       sreeEnv.close();
       toolStatic.close();
+      auditStatic.close();
    }
 
    private AdminChangeRequest request(String property, String value) {
@@ -139,13 +148,16 @@ class AdminChangeServiceOrgScopeTest {
    }
 
    @Test
-   void acceptsAReviewOutcomeForTheAuditRecord() {
+   void carriesTheReviewOutcomeOntoTheAuditRecord() {
       sreeEnv.when(() -> SreeEnv.getProperty("query.runtime.maxrow", false, false))
          .thenReturn("100", "500");
       AdminChangeRequest req = request("query.runtime.maxrow", "500");
       req.setReviewOutcome("approved by admin-reviewer");
 
-      assertEquals("approved by admin-reviewer", req.getReviewOutcome());
-      assertDoesNotThrow(() -> service.applyChange(req, principal));
+      service.applyChange(req, principal);
+
+      ArgumentCaptor<AdminChangeRecord> cap = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(audit).auditAdminChange(cap.capture(), eq(principal));
+      assertEquals("approved by admin-reviewer", cap.getValue().getReviewOutcome());
    }
 }
