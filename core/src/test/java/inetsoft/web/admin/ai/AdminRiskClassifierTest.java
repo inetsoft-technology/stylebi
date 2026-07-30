@@ -1,16 +1,30 @@
 /*
- * This software is licensed under the AGPL license, see LICENSE.txt
- * and http://www.fsf.org/licensing/licenses/agpl-3.0.html for details.
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
- * Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package inetsoft.web.admin.ai;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * risk and snapshotScope are independent axes. risk is blast radius (drives agent signoff);
@@ -83,5 +97,26 @@ class AdminRiskClassifierTest {
       {
          assertEquals("high", classify(property).risk(), property);
       }
+   }
+
+   @Test
+   void escalatesScopeToStorageWhenANamespaceRuleOverridesACatalogLowRisk() {
+      // No seeded entry is BOTH low risk AND in a high-risk namespace, so without a stub this
+      // branch is unreachable in tests: deleting the escalation logic would still pass everything
+      // else here. The disagreement itself is the signal - a catalog entry that calls a mail.*
+      // property low risk is probably under-specified, so back it up defensively.
+      AdminPropertyCatalog stub = mock(AdminPropertyCatalog.class);
+      AdminPropertyName name = AdminPropertyName.parse("mail.future.setting");
+      CatalogEntry lowRiskInHighRiskNamespace = new CatalogEntry(
+         "mail.future.setting", List.of(), "string", List.of(), null, null,
+         "Synthetic entry: catalogued low risk inside the high-risk mail. namespace.",
+         "low", "value");
+      when(stub.getEntry(name)).thenReturn(lowRiskInHighRiskNamespace);
+
+      AdminRiskClassifier.RiskClassification result = new AdminRiskClassifier(stub).classify(name);
+
+      assertEquals("high", result.risk());
+      assertEquals("storage", result.snapshotScope());
+      assertTrue(result.recognized());
    }
 }
