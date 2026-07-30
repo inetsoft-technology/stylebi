@@ -285,10 +285,58 @@ class AdminChangesetApplyServiceTest {
       ApplyResult applied = service.apply(
          request("t", "max.rows", "500", "mail.smtp.host", "new"), principal);
 
-      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, applied.status());
+      // NOTE (deviation from the reviewer's literal instruction - see task-6-report.md
+      // "Post-review follow-up" section): a thrown apply carries no before/after evidence, so
+      // per the SAME review's Finding 1 rule ("must NOT be silently reported as rolled back ...
+      // so the final status becomes rollback-failed"), this scenario cannot be "rolled-back"
+      // either - mail.smtp.host's true state is unknown even though max.rows was cleanly undone.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, applied.status());
+      assertEquals(1, applied.rollbackFailures().size());
+      assertEquals("mail.smtp.host", applied.rollbackFailures().get(0).property());
       ApplyOutcome failed = applied.results().get(1);
       assertEquals(AdminChangeRecord.STATUS_FAILED, failed.status());
       assertTrue(failed.error().contains("boom"));
+      verify(changeService).applyChange(argThat(
+         r -> AdminChangeRecord.ACTION_ROLLBACK.equals(r.getAction())
+            && "query.runtime.maxrow".equals(r.getProperty())
+            && "100".equals(r.getValue())), eq(principal));
+   }
+
+   @Test
+   void undoesAChangeThatMovedStateEvenThoughItReportedFailed() throws Exception {
+      // Path A: SreeEnv.save() succeeded and then a side-effect hook threw, so the property IS
+      // changed while the status says failed. Keying the undo set on VERIFIED alone would leave it
+      // applied and still report "rolled-back".
+      stub("query.runtime.maxrow", "100");
+      stub("mail.smtp.host", "old");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("query.runtime.maxrow", "100", "500",
+                            AdminChangeRecord.STATUS_FAILED, "side effect exploded"))
+         .thenReturn(result("query.runtime.maxrow", "500", "100",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyResult applied = service.apply(request("t", "max.rows", "500"), principal);
+
+      verify(changeService).applyChange(argThat(
+         r -> AdminChangeRecord.ACTION_ROLLBACK.equals(r.getAction())
+            && "query.runtime.maxrow".equals(r.getProperty())
+            && "100".equals(r.getValue())), eq(principal));
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, applied.status());
+   }
+
+   @Test
+   void reportsRollbackFailedWhenAnApplyThrewAndTheStateIsUnknown() throws Exception {
+      // Path B: the outcome is unknown - there is no before/after to undo from - so claiming
+      // "rolled-back" would be a false assurance.
+      stub("query.runtime.maxrow", "100");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenThrow(new IllegalStateException("audit exploded after save"));
+
+      ApplyResult applied = service.apply(request("t", "max.rows", "500"), principal);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, applied.status());
+      assertEquals(1, applied.rollbackFailures().size());
+      assertEquals("query.runtime.maxrow", applied.rollbackFailures().get(0).property());
    }
 
    @Test

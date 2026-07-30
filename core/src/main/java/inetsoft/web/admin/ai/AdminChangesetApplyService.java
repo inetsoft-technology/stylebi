@@ -18,12 +18,15 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.util.audit.AdminChangeRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Applies a whole changeset, all-or-nothing, and audits every attempt.
@@ -89,34 +92,51 @@ public class AdminChangesetApplyService {
       List<ApplyOutcome> results = new ArrayList<>();
       List<PlanChange> undoable = new ArrayList<>();
       List<String> undoableBefore = new ArrayList<>();
+      // A thrown apply carries no before/after evidence, so its remaining state is unknown - it
+      // can never be silently reported as "rolled back". See the loop below.
+      List<RollbackFailure> unknownStateFailures = new ArrayList<>();
       boolean failed = false;
 
       for(PlanChange change : plan.changes()) {
-         AdminChangeResult applied;
-
+         // The bookkeeping below lives INSIDE the try: an unexpected null/malformed result would
+         // otherwise NPE out of apply() with earlier changes left applied and no rollback
+         // attempted - exactly the failure mode this method exists to prevent.
          try {
-            applied = changeService.applyChange(
+            AdminChangeResult applied = changeService.applyChange(
                request(txId, plan.task(), change, AdminChangeRecord.ACTION_APPLY,
                        change.proposedValue(), backupRef, req.getReviewOutcome()),
                user);
+
+            results.add(new ApplyOutcome(change.property(), applied.getBeforeValue(),
+                                         applied.getAfterValue(), applied.getStatus(),
+                                         applied.getError()));
+
+            boolean verified = AdminChangeRecord.STATUS_VERIFIED.equals(applied.getStatus());
+            // Path A (AdminChangeService): SreeEnv.save() can succeed and then a side-effect hook
+            // can throw, so a change comes back with status "failed" even though before != after
+            // - the write took effect. Status alone is not a reliable signal of whether the
+            // server actually moved, so anything demonstrably moved is undoable regardless of
+            // status, in addition to anything verified.
+            boolean moved = !Objects.equals(applied.getBeforeValue(), applied.getAfterValue());
+
+            if(verified || moved) {
+               undoable.add(change);
+               undoableBefore.add(applied.getBeforeValue());
+            }
+
+            if(!verified) {
+               failed = true;
+               break;
+            }
          }
          catch(Exception e) {
-            // A throw is a failed change, not a reason to abandon the rollback.
+            // A throw is a failed change, not a reason to abandon the rollback - but unlike a
+            // reported failure, it carries no before/after evidence, so this property's state is
+            // unknown and must never be reported as rolled back.
             results.add(new ApplyOutcome(change.property(), null, null,
                                          AdminChangeRecord.STATUS_FAILED, messageOf(e)));
-            failed = true;
-            break;
-         }
-
-         results.add(new ApplyOutcome(change.property(), applied.getBeforeValue(),
-                                      applied.getAfterValue(), applied.getStatus(),
-                                      applied.getError()));
-
-         if(AdminChangeRecord.STATUS_VERIFIED.equals(applied.getStatus())) {
-            undoable.add(change);
-            undoableBefore.add(applied.getBeforeValue());
-         }
-         else {
+            unknownStateFailures.add(new RollbackFailure(change.property(),
+               "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
             failed = true;
             break;
          }
@@ -127,16 +147,20 @@ public class AdminChangesetApplyService {
                                 Collections.unmodifiableList(results), null);
       }
 
-      List<RollbackFailure> failures =
-         rollback(txId, plan.task(), undoable, undoableBefore, backupRef,
-                  req.getReviewOutcome(), user);
+      List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+      failures.addAll(rollback(txId, plan.task(), undoable, undoableBefore, backupRef,
+                               req.getReviewOutcome(), user));
 
-      return failures.isEmpty()
-         ? new ApplyResult(txId, STATUS_ROLLED_BACK, backupRef,
-                           Collections.unmodifiableList(results), null)
-         : new ApplyResult(txId, STATUS_ROLLBACK_FAILED, backupRef,
-                           Collections.unmodifiableList(results),
-                           Collections.unmodifiableList(failures));
+      if(failures.isEmpty()) {
+         return new ApplyResult(txId, STATUS_ROLLED_BACK, backupRef,
+                                Collections.unmodifiableList(results), null);
+      }
+
+      LOG.error("Admin changeset {} rollback failed; properties still changed: {}", txId,
+               failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
+      return new ApplyResult(txId, STATUS_ROLLBACK_FAILED, backupRef,
+                             Collections.unmodifiableList(results),
+                             Collections.unmodifiableList(failures));
    }
 
    /** Undoes verified changes newest-first, attempting all of them and collecting any failures. */
@@ -196,6 +220,7 @@ public class AdminChangesetApplyService {
    public static final String STATUS_APPLIED = "applied";
    public static final String STATUS_ROLLED_BACK = "rolled-back";
    public static final String STATUS_ROLLBACK_FAILED = "rollback-failed";
+   private static final Logger LOG = LoggerFactory.getLogger(AdminChangesetApplyService.class);
    private static final SecureRandom RANDOM = new SecureRandom();
    private final AdminChangePlanService planService;
    private final AdminChangeService changeService;

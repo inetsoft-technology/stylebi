@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.properties.PropertyChangeSideEffects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.security.Principal;
@@ -103,7 +105,17 @@ public class AdminChangeService {
       finally {
          result.setStatus(status);
          result.setError(error);
-         writeAudit(req, principal, before, result.getAfterValue(), status, error);
+
+         try {
+            writeAudit(req, principal, before, result.getAfterValue(), status, error);
+         }
+         catch(Exception auditFailure) {
+            // An audit write must never replace the real outcome: propagating from finally would
+            // discard the before/after evidence the caller needs to decide whether the server
+            // state moved, turning a recoverable failure into an unrecoverable one.
+            LOG.error("Failed to write admin change audit record for transaction {}",
+                      req.getTransactionId(), auditFailure);
+         }
       }
 
       return result;
@@ -164,5 +176,6 @@ public class AdminChangeService {
       Audit.getInstance().auditAdminChange(record, principal);
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(AdminChangeService.class);
    private final PropertyChangeSideEffects sideEffects;
 }
