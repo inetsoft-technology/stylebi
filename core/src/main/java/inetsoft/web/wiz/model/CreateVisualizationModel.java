@@ -113,6 +113,19 @@ public class CreateVisualizationModel {
    }
 
    /**
+    * When true, createViewsheetInternal syncs the source chart's configs (resolved via
+    * getAssemblyName()) onto the newly-built assembly — reusing the wizard's SyncInfoHandler.
+    * Gated so a fresh creation never inherits an unrelated chart's configs.
+    */
+   public boolean isSyncConfigs() {
+      return syncConfigs;
+   }
+
+   public void setSyncConfigs(boolean syncConfigs) {
+      this.syncConfigs = syncConfigs;
+   }
+
+   /**
     * Which existing chart this call addresses, by name (see
     * {@code WizVsService.createViewsheetInternal}). Null — the default and every pre-existing
     * caller — means the viewsheet's current PRIMARY assembly, i.e. the chart created or copied most
@@ -168,4 +181,5 @@ public class CreateVisualizationModel {
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
    private boolean copy;
+   private boolean syncConfigs;
 }

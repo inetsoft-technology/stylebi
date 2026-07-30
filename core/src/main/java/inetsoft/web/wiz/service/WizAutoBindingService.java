@@ -321,6 +321,7 @@ public class WizAutoBindingService {
             vsModel.setSampleMaxRows(request.getSampleMaxRows());
             vsModel.setCopy(request.isCopy());
             vsModel.setAssemblyName(request.getAssemblyName());
+            vsModel.setSyncConfigs(request.isSyncConfigs());
 
             WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {

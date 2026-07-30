@@ -60,22 +60,39 @@ public class SyncInfoHandler {
          return;
       }
 
+      syncConfigs(tempInfo, source, target);
+   }
+
+   /**
+    * Sync the source assembly's configs onto target, dispatching by type — WITHOUT the table-name
+    * gate that shouldSyncInfo (used by syncInfo) applies. Used when re-binding a chart against a
+    * REBUILT worksheet: the table name changes, but the configs must still carry over. Same-type
+    * only (configs are type-specific); cross-type is a no-op.
+    */
+   public void syncConfigs(VSTemporaryInfo tempInfo, VSAssembly source, VSAssembly target) {
+      if(source == null || target == null) {
+         return;
+      }
+
       syncScript(source, target);
 
-      if(source instanceof ChartVSAssembly) {
+      if(source instanceof ChartVSAssembly && target instanceof ChartVSAssembly) {
          chartHandler.syncChart(tempInfo, (ChartVSAssembly) source, (ChartVSAssembly) target,
                                 true, true);
       }
-      else if(source instanceof TableVSAssembly) {
+      else if(source instanceof TableVSAssembly && target instanceof TableVSAssembly) {
          tableHandler.syncTable((TableVSAssembly) source, (TableVSAssembly) target);
       }
-      else if(source instanceof CrosstabVSAssembly) {
+      else if(source instanceof CrosstabVSAssembly && target instanceof CrosstabVSAssembly) {
          crostabHandler.syncCrosstab((CrosstabVSAssembly) source, (CrosstabVSAssembly) target);
       }
-      else if(source instanceof OutputVSAssembly) {
+      else if(source instanceof OutputVSAssembly && target instanceof OutputVSAssembly) {
          VSAssemblyInfo info = source.getVSAssemblyInfo();
          FormatInfo formatInfo = info.getFormatInfo();
-         target.setFormatInfo(formatInfo.clone());
+
+         if(formatInfo != null) {
+            target.setFormatInfo(formatInfo.clone());
+         }
       }
    }
 

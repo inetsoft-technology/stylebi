@@ -110,7 +110,7 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       targetAssemblyInfo.setEnabledValue(fromAssemblyInfo.getEnabledValue());
 
       // Title
-      if(tempInfo.getDescription() == null) {
+      if(tempInfo == null || tempInfo.getDescription() == null) {
          targetAssemblyInfo.setTitleValue(fromChart.getTitleValue());
          targetAssemblyInfo.setTitleVisibleValue(fromChart.getChartInfo().isTitleVisible());
       }
@@ -170,9 +170,15 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       String script = fromAssemblyInfo.getScript();
 
       if(!StringUtils.isEmpty(script)) {
-         VSWizardOriginalModel originalModel = tempInfo.getOriginalModel();
+         // tempInfo is null on the rebuild config-sync path (WizVsService.syncConfigs(null, ..)); guard the
+         // deref so a scripted source chart doesn't NPE here and abort the whole per-chart sync via the
+         // caller's catch. updateScript only rewrites viewsheet['<originalName>'] references, so with no
+         // original name there is nothing to rename -- copy the script verbatim (updateScript would NPE on
+         // a null oname via String.replaceAll(null, ..)).
+         VSWizardOriginalModel originalModel = tempInfo != null ? tempInfo.getOriginalModel() : null;
          String originalName = originalModel != null ? originalModel.getOriginalName() : null;
-         targetAssemblyInfo.setScript(updateScript(script, originalName, targetChart.getName()));
+         targetAssemblyInfo.setScript(
+            originalName != null ? updateScript(script, originalName, targetChart.getName()) : script);
       }
 
       targetAssemblyInfo.setScriptEnabled(fromAssemblyInfo.isScriptEnabled());
