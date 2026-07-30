@@ -64,7 +64,7 @@ class AdminChangeServiceTest {
    }
 
    @Test void appliesVerifiesAndAudits() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100")          // before
              .thenReturn("500");         // after read-back
       AdminChangeResult res = service.applyChange(req("max.rows", "500"), principal);
@@ -86,7 +86,7 @@ class AdminChangeServiceTest {
    }
 
    @Test void reportsFailedWhenReadBackMismatches() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100").thenReturn("100");   // never took
       AdminChangeResult res = service.applyChange(req("max.rows", "500"), principal);
       assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
@@ -102,7 +102,7 @@ class AdminChangeServiceTest {
    }
 
    @Test void nullValueRemovesProperty() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100").thenReturn(null);
       AdminChangeResult res = service.applyChange(req("max.rows", null), principal);
       assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
@@ -201,7 +201,7 @@ class AdminChangeServiceTest {
    }
 
    @Test void invokesEditSideEffectsWhenSettingAValue() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100").thenReturn("500");
       service.applyChange(req("max.rows", "500"), principal);
 
@@ -211,7 +211,7 @@ class AdminChangeServiceTest {
    }
 
    @Test void invokesRemoveSideEffectsWhenRemovingAValue() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100").thenReturn(null);
       service.applyChange(req("max.rows", null), principal);
 
@@ -225,7 +225,7 @@ class AdminChangeServiceTest {
    // -- matching PropertiesController.deleteProperty's ordering exactly, within the
    // successful-apply path
    @Test void ordersRemoveSideEffectsAroundRemoveAndSave() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100").thenReturn(null);
       service.applyChange(req("max.rows", null), principal);
 
@@ -237,7 +237,7 @@ class AdminChangeServiceTest {
    }
 
    @Test void alwaysAuditsWhenSaveThrows() throws Exception {
-      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
              .thenReturn("100")          // before
              .thenReturn("100");         // best-effort after read in catch block
       sreeEnv.when(SreeEnv::save).thenThrow(new RuntimeException("disk full"));

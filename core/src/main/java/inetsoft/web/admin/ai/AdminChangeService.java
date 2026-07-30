@@ -49,29 +49,38 @@ public class AdminChangeService {
       String before = null;
       String status = AdminChangeRecord.STATUS_FAILED;
       String error = null;
+      AdminPropertyName name = null;
 
       try {
-         before = SreeEnv.getProperty(req.getProperty());
+         // orgScope=false: SreeEnv.getProperty(name) is ORG-SCOPED and would resolve to
+         // inetsoft.org.{currentOrg}.{name} when that key exists, while setProperty/remove write
+         // the literal key. Mixing them reads one key and writes another, so the read-back verify
+         // fails and the caller's rollback writes the override's value into the global key. The
+         // three-argument form applies only fixPropertyNameCase, matching setProperty and remove.
+         name = AdminPropertyName.parse(req.getProperty());
+         before = SreeEnv.getProperty(name.key(), false, false);
          result.setBeforeValue(before);
 
          if(desired == null) {
-            sideEffects.applyPreRemoveSideEffects(req.getProperty());
-            SreeEnv.remove(req.getProperty());
+            // Side-effect hooks match exact literals (e.g. "security.exposedefaultorgtoall"), so
+            // they must receive the base name; an org-qualified name would silently never fire.
+            sideEffects.applyPreRemoveSideEffects(name.baseName());
+            SreeEnv.remove(name.key());
          }
          else {
-            SreeEnv.setProperty(req.getProperty(), desired);
+            SreeEnv.setProperty(name.key(), desired);
          }
 
          SreeEnv.save();
 
          if(desired == null) {
-            sideEffects.applyPostRemoveSideEffects(req.getProperty());
+            sideEffects.applyPostRemoveSideEffects(name.baseName());
          }
          else {
-            sideEffects.applyEditSideEffects(req.getProperty());
+            sideEffects.applyEditSideEffects(name.baseName());
          }
 
-         String after = SreeEnv.getProperty(req.getProperty());
+         String after = SreeEnv.getProperty(name.key(), false, false);
          result.setAfterValue(after);
          status = Objects.equals(after, desired)
             ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -81,7 +90,11 @@ public class AdminChangeService {
          status = AdminChangeRecord.STATUS_FAILED;
 
          try {
-            result.setAfterValue(SreeEnv.getProperty(req.getProperty()));
+            // name is null only when AdminPropertyName.parse itself threw (e.g. a blank
+            // property), in which case there is no resolved key and the raw, unparsed string
+            // is the only fallback available.
+            String key = name != null ? name.key() : req.getProperty();
+            result.setAfterValue(SreeEnv.getProperty(key, false, false));
          }
          catch(Exception ignore) {
             // leave afterValue as-is; still audit below
@@ -142,9 +155,9 @@ public class AdminChangeService {
       record.setRiskLevel(req.getRiskLevel());
       record.setSnapshotScope(req.getSnapshotScope());
       record.setBackupRef(req.getBackupRef());
-      // reviewOutcome and userSessionID are intentionally left unpopulated in Plan 1;
-      // they are reserved for the Plan 2 broker. (organizationId IS populated downstream,
-      // by DefaultAudit, not left blank like these two.)
+      record.setReviewOutcome(req.getReviewOutcome());
+      // userSessionID is intentionally left unpopulated; organizationId IS populated downstream by
+      // DefaultAudit.
       record.setUserName(principal == null ? null : principal.getName());
       record.setActionTimestamp(new Timestamp(System.currentTimeMillis()));
       record.setServerHostName(Tool.getHost());
