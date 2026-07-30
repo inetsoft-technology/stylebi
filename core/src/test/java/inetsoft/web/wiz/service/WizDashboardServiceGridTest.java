@@ -71,7 +71,7 @@ class WizDashboardServiceGridTest {
       boolean[] noFilters = new boolean[4];
 
       List<WizDashboardService.TilePlacement> placements =
-         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2);
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2).placements();
 
       // A opens column 0 (x=0). B fits as a new column (640+24+640=1304<=1304) at x=664.
       // C doesn't fit as a new column (1304+24+640=1968>1304) -> stacks under A (column 0's
@@ -97,7 +97,7 @@ class WizDashboardServiceGridTest {
       boolean[] noFilters = new boolean[4];
 
       List<WizDashboardService.TilePlacement> placements =
-         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 3);
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 3).placements();
 
       assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));
       // Columns 1 and 2 both stretch from 420 to 864 to match column 0's stacked height
@@ -108,26 +108,76 @@ class WizDashboardServiceGridTest {
    }
 
    @Test
-   void computeGridLayoutIncludesPerChartFilterHeightWhenStackingAndStretching() {
+   void computeGridLayoutGivesAStackedTileItsOwnFilterHeightWithoutAffectingItsColumnSiblingsWhenItIsNotAFirstTile() {
       // Same shape as computeGridLayoutStacksAShorterTileBesideATallOneAndStretchesTheShorterSide,
-      // but C (the tile that stacks under A) has a per-chart filter, adding 120px to its height
-      // used for packing/stretch purposes -- exactly like the old gridOrigin used to.
+      // but C (which STACKS under A -- it is not the first tile of its column) has a per-chart
+      // filter. Since C is not competing for "row" position with any sibling column's first tile,
+      // this is just C's own reservation (matching the original, pre-alignment-feature numbers) --
+      // A is untouched (it's the first tile of ITS OWN column, and NEITHER first-tile of ANY
+      // column in this band owns a filter, so there's nothing to align).
       int[] spans =    { 1, 1, 1, 2 };
       int[] rowSpans = { 1, 2, 1, 1 };
       boolean[] hasFilter = { false, false, true, false };
 
-      List<WizDashboardService.TilePlacement> placements =
+      WizDashboardService.GridLayoutResult result =
          WizDashboardService.computeGridLayout(spans, rowSpans, hasFilter, 2);
+      List<WizDashboardService.TilePlacement> placements = result.placements();
 
-      // A: column 0 opens at columnY=420. C stacks under A: y=420+24=444, height=420+120=540,
-      // column 0's columnY becomes 444+540=984. B (column 1) stays at columnY=600 until D closes
-      // the band: bandHeight=max(984, 600)=984, so column 1 (B, the only/last tile in it)
-      // stretches from 600 to 984. Column 0's last tile is C, already at the band height (984) ->
-      // no further stretch for C.
-      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));     // A
-      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 984), placements.get(1));   // B, stretched
-      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 540), placements.get(2));   // C, filter height included
-      assertEquals(new WizDashboardService.TilePlacement(0, 1008, 900, 420), placements.get(3));  // D
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));     // A -- untouched
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 984), placements.get(1));   // B -- stretched to match column 0
+      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 540), placements.get(2));   // C -- its own filter height
+      assertEquals(new WizDashboardService.TilePlacement(0, 1008, 900, 420), placements.get(3));  // D -- fresh band
+
+      assertEquals(0, result.headerHeights()[0], "A owns no filter and has no misaligned sibling");
+      assertEquals(0, result.headerHeights()[1], "B owns no filter and has no misaligned sibling");
+      assertEquals(120, result.headerHeights()[2], "C owns the filter directly");
+      assertEquals(0, result.headerHeights()[3]);
+   }
+
+   @Test
+   void computeGridLayoutDoesNotShiftAnUnrelatedFirstTileWhenAFilterIsBuriedDeepInASingleColumnStack() {
+      // REGRESSION for a real bug found via live testing: when EVERY tile stacks into ONE never-
+      // closing column (the common shape for a board whose charts don't share a width -- nothing
+      // ever fits beside anything, so the whole dashboard is structurally one band), a filter
+      // owned by a chart buried deep in the stack must NOT shift the totally unrelated chart at
+      // the very top of the stack down. There is only one column, so there is no sibling column
+      // to visually align against -- the row-alignment pass must stay a no-op here.
+      int[] spans =    { 1, 1, 1 };
+      int[] rowSpans = { 1, 1, 1 };
+      boolean[] hasFilter = { false, false, true };   // only the LAST (deepest-stacked) tile owns one
+
+      WizDashboardService.GridLayoutResult result =
+         WizDashboardService.computeGridLayout(spans, rowSpans, hasFilter, 1);
+      List<WizDashboardService.TilePlacement> placements = result.placements();
+
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0),
+         "the first tile must be completely unaffected by a filter buried deeper in the same column");
+      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 420), placements.get(1));
+      assertEquals(new WizDashboardService.TilePlacement(0, 888, 640, 540), placements.get(2));
+
+      assertEquals(0, result.headerHeights()[0]);
+      assertEquals(0, result.headerHeights()[1]);
+      assertEquals(120, result.headerHeights()[2]);
+   }
+
+   @Test
+   void computeGridLayoutAlignsTwoSideBySideFirstTilesWhenOneOwnsAFilterAndTheOtherDoesNot() {
+      // The actual motivating scenario: two columns, each opened by its own first tile (genuinely
+      // side-by-side siblings) -- A owns a filter, B does not. B must reserve the SAME header
+      // height so both charts' own content starts at the same Y (visual row alignment), even
+      // though B has no filter control of its own there (just blank space).
+      int[] spans =    { 1, 1 };
+      int[] rowSpans = { 1, 1 };
+      boolean[] hasFilter = { true, false };
+
+      WizDashboardService.GridLayoutResult result =
+         WizDashboardService.computeGridLayout(spans, rowSpans, hasFilter, 2);
+      List<WizDashboardService.TilePlacement> placements = result.placements();
+
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 540), placements.get(0));     // A -- 420 + its own 120
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 540), placements.get(1));   // B -- 420 + alignment top-up
+      assertEquals(120, result.headerHeights()[0], "A owns the filter");
+      assertEquals(120, result.headerHeights()[1], "B has no filter but aligns with its side-by-side sibling A");
    }
 
    @Test
@@ -137,9 +187,22 @@ class WizDashboardServiceGridTest {
       boolean[] noFilters = new boolean[1];
 
       List<WizDashboardService.TilePlacement> placements =
-         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2);
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2).placements();
 
       assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));
+   }
+
+   @Test
+   void computeGridLayoutGivesEveryTileZeroHeaderHeightWhenNoTileHasAFilter() {
+      int[] spans =    { 1, 1 };
+      int[] rowSpans = { 1, 1 };
+      boolean[] noFilters = new boolean[2];
+
+      WizDashboardService.GridLayoutResult result =
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2);
+
+      assertEquals(0, result.headerHeights()[0]);
+      assertEquals(0, result.headerHeights()[1]);
    }
 
    // --- Task 3: composeDashboard's filter-bar invocation seam ---------------------------------
@@ -194,7 +257,8 @@ class WizDashboardServiceGridTest {
       WizDashboardFilterBuilder.FilterControlPlacement expectedPlacement =
          new WizDashboardFilterBuilder.FilterControlPlacement("Selection1",
             new java.awt.Point(100, 200), new java.awt.Dimension(200, 100));
-      when(filterBuilder.buildPerChart(any(), any(), eq(100), eq(200), any(), eq("CHART_TABLE")))
+      when(filterBuilder.buildPerChart(any(), any(), eq(100), eq(200), eq(640), eq(120), any(),
+         eq("CHART_TABLE"), eq("Chart1")))
          .thenReturn(expectedPlacement);
 
       WizDashboardService svc = serviceWith(filterBuilder);
@@ -207,12 +271,12 @@ class WizDashboardServiceGridTest {
       spec.setLabel("Standalone");
 
       WizDashboardFilterBuilder.FilterControlPlacement placement =
-         svc.applyPerChartFilter(vs, baseWs, spec, 100, 200, "CHART_TABLE");
+         svc.applyPerChartFilter(vs, baseWs, spec, 100, 200, 640, 120, "CHART_TABLE", "Chart1");
 
       assertSame(expectedPlacement, placement);
-      verify(filterBuilder).buildPerChart(eq(vs), eq(baseWs), eq(100), eq(200),
+      verify(filterBuilder).buildPerChart(eq(vs), eq(baseWs), eq(100), eq(200), eq(640), eq(120),
          eq(new WizDashboardFilterBuilder.FilterRequest("Standalone", "string", "Standalone")),
-         eq("CHART_TABLE"));
+         eq("CHART_TABLE"), eq("Chart1"));
    }
 
    // --- Task 5: buildAlternateLayouts (Mobile/Wide/Ultrawide adaptive layouts) ----------------

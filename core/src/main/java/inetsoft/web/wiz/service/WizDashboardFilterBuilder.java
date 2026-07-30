@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.service;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
@@ -24,6 +25,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import org.springframework.stereotype.Component;
 
+import java.awt.Color;
+import java.awt.Insets;
 import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
@@ -188,16 +191,27 @@ public class WizDashboardFilterBuilder {
 
    /**
     * Builds ONE selection/range control scoped to exactly one chart's own table, positioned at
-    * the given fixed point (the top of that chart's own tile). Unlike {@link #build}, there is
-    * no multi-table candidate search — the single {@code chartTableName} IS the candidate, so
-    * binding is unambiguous by construction (no residual name-collision risk across charts).
+    * the given fixed point (the top of that chart's own tile) and sized to {@code width} ×
+    * {@code height} — the caller passes the CHART's own width and the reserved header height so
+    * the control spans the full width of, and sits flush against the top of, the chart it
+    * filters. Unlike {@link #build}, there is no multi-table candidate search — the single
+    * {@code chartTableName} IS the candidate, so binding is unambiguous by construction (no
+    * residual name-collision risk across charts).
+    *
+    * <p>When {@code chartAssemblyName} resolves to a real assembly on {@code vs}, the control and
+    * that chart are styled as one visually-grouped "card" (matching background, a shared border
+    * enclosing the pair with no seam where they abut) via {@link #applyGroupedCardStyle} —
+    * otherwise the two would render as independent, visually disconnected floating elements. A
+    * {@code null}/unresolvable name (e.g. a caller that hasn't tracked the assembly name) just
+    * skips the styling, not the filter itself.
     *
     * @return the placement (assembly name/position/size) of the created control, if the field
     *         was found on the chart's table and a control was added; {@code null} if skipped
     *         (field not present on this chart's own table).
     */
    public FilterControlPlacement buildPerChart(Viewsheet vs, Worksheet baseWorksheet, int x, int y,
-                                                FilterRequest request, String chartTableName)
+                                                int width, int height, FilterRequest request,
+                                                String chartTableName, String chartAssemblyName)
    {
       List<String> tables = AddFilterService.findColumnMatchingChartTables(
          baseWorksheet, List.of(chartTableName), request.field());
@@ -214,13 +228,87 @@ public class WizDashboardFilterBuilder {
       }
 
       Point pos = new Point(x, y);
-      java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT);
+      java.awt.Dimension size = new java.awt.Dimension(width, height);
       control.setTableNames(tables);
       control.setPixelOffset(pos);
       control.setPixelSize(size);
       vs.addAssembly(control);
+
+      VSAssembly chartAssembly = chartAssemblyName != null ? vs.getAssembly(chartAssemblyName) : null;
+
+      if(chartAssembly != null) {
+         applyGroupedCardStyle(control, chartAssembly);
+      }
+
       return new FilterControlPlacement(control.getName(), pos, size);
    }
+
+   /**
+    * Styles a per-chart filter control and the ONE chart it filters so they read as a single
+    * visually-grouped card, instead of two independent floating assemblies with no visual
+    * relationship — matching background fill on both, and a border drawn around the OUTER edge
+    * of the pair only (the control's bottom edge and the chart's top edge, which abut directly,
+    * are left borderless so there's no doubled seam line between them).
+    *
+    * <p>Deliberately direct-format styling rather than a real {@link Assembly} grouping construct
+    * (e.g. a group container) — StyleBI's actual grouping mechanism carries real structural
+    * invariants (child position sync, z-index recompute, tab-membership, dependency-cycle
+    * checks) that a live rendering feedback loop is needed to get right; two independently
+    * positioned assemblies with matching format achieve the same visual effect with no new
+    * invariants to maintain.
+    */
+   private static void applyGroupedCardStyle(VSAssembly filterControl, VSAssembly chartAssembly) {
+      String backgroundHex = toHex(CARD_BACKGROUND);
+      BorderColors borderColors = new BorderColors(CARD_BORDER_COLOR, CARD_BORDER_COLOR,
+         CARD_BORDER_COLOR, CARD_BORDER_COLOR);
+
+      VSFormat filterFormat = filterControl.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
+      applyCardFormat(filterFormat, backgroundHex, borderColors, new Insets(
+         // Insets(top, left, bottom, right) -- no bottom border: the chart's own top edge (also
+         // borderless, below) abuts it directly.
+         StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+         StyleConstants.NO_BORDER, StyleConstants.THIN_LINE));
+
+      VSFormat chartFormat = chartAssembly.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
+      applyCardFormat(chartFormat, backgroundHex, borderColors, new Insets(
+         // No top border -- abuts the filter control's borderless bottom edge directly.
+         StyleConstants.NO_BORDER, StyleConstants.THIN_LINE,
+         StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
+   }
+
+   /**
+    * Sets background/border-colors/borders via BOTH the plain setters AND the "...Value" variants.
+    * {@link VSCompositeFormat}'s effective getters (what actually renders) fall back to the
+    * user-defined layer when {@code isXxxDefined() || isXxxValueDefined()} — confirmed live
+    * (reloading a saved dashboard directly from the repository) that the plain setters' "xxxDefined"
+    * boolean does NOT survive a save/reload round-trip even though the value itself does, while the
+    * "...Value" setters (the pattern used throughout the codebase, e.g. {@code ChartVSAssemblyInfo},
+    * {@code TableDataVSAssemblyInfo}, for exactly this kind of persisted format) flip
+    * "isXxxValueDefined" instead. Calling both covers persistence (the Value variants) and any
+    * immediate/pre-refresh read of the plain RValue-based getters.
+    */
+   private static void applyCardFormat(
+      VSFormat format, String backgroundHex, BorderColors borderColors, Insets borders)
+   {
+      format.setBackground(CARD_BACKGROUND);
+      format.setBackgroundValue(backgroundHex);
+      format.setBorderColors(borderColors);
+      format.setBorderColorsValue(borderColors);
+      format.setBorders(borders);
+      format.setBordersValue(borders);
+   }
+
+   private static String toHex(Color c) {
+      return String.format("#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
+   }
+
+   /** Shared card background for a per-chart filter + its chart -- a light, low-contrast tint so
+    *  the grouping reads clearly without competing with the chart's own colors. */
+   private static final Color CARD_BACKGROUND = new Color(244, 246, 249);
+
+   /** Shared card border color -- a clearly-visible-but-neutral gray that outlines the grouped
+    *  filter+chart without drawing attention away from the chart content itself. */
+   private static final Color CARD_BORDER_COLOR = new Color(158, 166, 178);
 
    /**
     * Collects each merged chart's own final bound table name (its {@code SourceInfo.source},

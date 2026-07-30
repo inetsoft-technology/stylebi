@@ -162,11 +162,13 @@ class WizDashboardFilterBuilderTest {
 
       Viewsheet vs = new Viewsheet();
 
-      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 100, 200,
-         new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL");
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 100, 200, 640, 120,
+         new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL", null);
 
       assertNotNull(placement);
       assertEquals(new java.awt.Point(100, 200), placement.position());
+      assertEquals(new java.awt.Dimension(640, 120), placement.size(),
+         "the control must span the chart's width and the reserved header height");
 
       AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
          .filter(a -> a instanceof AbstractSelectionVSAssembly)
@@ -176,6 +178,8 @@ class WizDashboardFilterBuilderTest {
          "must bind only to the specified chart table, never any other table exposing the same column");
       assertEquals(100, control.getPixelOffset().x);
       assertEquals(200, control.getPixelOffset().y);
+      assertEquals(640, control.getPixelSize().width);
+      assertEquals(120, control.getPixelSize().height);
    }
 
    @Test
@@ -185,11 +189,63 @@ class WizDashboardFilterBuilderTest {
 
       Viewsheet vs = new Viewsheet();
 
-      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 0, 0,
-         new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL");
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 0, 0, 640, 120,
+         new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL", null);
 
       assertNull(placement);
       assertEquals(0, vs.getAssemblies().length, "no control should be added when the field isn't on the table");
+   }
+
+   @Test
+   void buildPerChartWithAnUnresolvableChartAssemblyNameStillCreatesTheControl() {
+      // A null/unresolvable chartAssemblyName must never block the filter control itself from
+      // being created -- only the visual-grouping styling is skipped.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 0, 0, 640, 120,
+         new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category"),
+         "CHART_FINAL", "NoSuchAssembly");
+
+      assertNotNull(placement);
+      assertEquals(1, vs.getAssemblies().length);
+   }
+
+   @Test
+   void buildPerChartStylesTheControlAndItsChartAsOneGroupedCardWhenTheChartResolves() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "RadarChart");
+      boundToTable(chart, "CHART_FINAL");
+      vs.addAssembly(chart);
+
+      builder.buildPerChart(vs, ws, 100, 200, 640, 120,
+         new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category"),
+         "CHART_FINAL", "RadarChart");
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+
+      inetsoft.uql.viewsheet.VSFormat controlFormat = control.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
+      inetsoft.uql.viewsheet.VSFormat chartFormat = chart.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
+
+      assertNotNull(controlFormat.getBackground());
+      assertEquals(controlFormat.getBackground(), chartFormat.getBackground(),
+         "control and chart must share the same card background so they read as one unit");
+
+      // The control's bottom border and the chart's top border abut directly -- both must be
+      // borderless there so there's no doubled seam line between them.
+      assertEquals(inetsoft.report.StyleConstants.NO_BORDER, controlFormat.getBorders().bottom);
+      assertEquals(inetsoft.report.StyleConstants.NO_BORDER, chartFormat.getBorders().top);
+      // The OUTER edges of the pair are bordered.
+      assertEquals(inetsoft.report.StyleConstants.THIN_LINE, controlFormat.getBorders().top);
+      assertEquals(inetsoft.report.StyleConstants.THIN_LINE, chartFormat.getBorders().bottom);
    }
 
    // ChartVSAssembly.setTableName(String) silently no-ops when getSourceInfo() is still null (it
