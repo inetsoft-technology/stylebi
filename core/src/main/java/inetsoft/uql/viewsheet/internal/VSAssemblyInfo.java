@@ -1163,7 +1163,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          ? VSObjectChromeDefaults.objectBorderColor() : DEFAULT_BORDER_COLOR;
       BorderColors bcolors = new BorderColors(defBorderColor, defBorderColor,
                                               defBorderColor, defBorderColor);
-      int borderRadius = 0;
+      int borderRadius = VSObjectChromeDefaults.isModern() && isCornerSeedTarget()
+         ? VSObjectChromeDefaults.cardCornerRadius() : 0;
       boolean table = this instanceof TableDataVSAssemblyInfo;
       CSSDictionary cssDictionary = CSSDictionary.getDictionary();
       CSSStyle style = cssDictionary.getStyle(new CSSParameter("TableStyle", null, null,
@@ -1220,6 +1221,20 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       setCSSDefaults();
+   }
+
+   /**
+    * Whether this assembly type takes the modern card-corner seed. Data and selection surfaces read as
+    * cards; outputs, inputs, tabs, containers, shapes and annotations do not. An explicit positive list,
+    * not a base-class check — TimeSliderVSAssemblyInfo extends SelectionVSAssemblyInfo and must stay out.
+    * Calendar is absent by design: it overrides initDefaultFormat and carries its own radius.
+    */
+   private boolean isCornerSeedTarget() {
+      return this instanceof TableDataVSAssemblyInfo    // table, crosstab, calc table, embedded table
+         || this instanceof ChartVSAssemblyInfo
+         || this instanceof SelectionListVSAssemblyInfo
+         || this instanceof SelectionTreeVSAssemblyInfo
+         || this instanceof CurrentSelectionVSAssemblyInfo;
    }
 
    /**

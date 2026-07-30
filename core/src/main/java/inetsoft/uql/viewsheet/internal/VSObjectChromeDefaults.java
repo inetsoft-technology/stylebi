@@ -65,6 +65,21 @@ public final class VSObjectChromeDefaults {
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
+   /** Object-card corner radius default, in pixels. Matches the annotation-rectangle radius. */
+   public static int cardCornerRadius() {
+      return CARD_CORNER_RADIUS;
+   }
+
+   /**
+    * Gate-strip a DEFAULT-tier corner radius: when the value is our seed and the gate is off, the
+    * object reverts to square. Keyed on exact equality with the seed so a format.css TableStyle radius
+    * written to the same tier survives. Callers must pass only DEFAULT-tier values; VSCompositeFormat
+    * additionally exempts tab formats, whose default tier can hold a laundered user radius.
+    */
+   public static int resolveSeededCorner(int radius) {
+      return radius == CARD_CORNER_RADIUS && !isModern() ? 0 : radius;
+   }
+
    /**
     * Dark-mode light text color as a CSS hex string, or null when not in dark mode. For object text
     * whose default is a fixed dark color (black) and would be dark-on-dark otherwise; callers apply it
@@ -109,4 +124,7 @@ public final class VSObjectChromeDefaults {
    private static final Color CARD_BG_DARK = new Color(0x252428);
    // dark object text = strong light neutral (matches table body / calendar text)
    private static final Color TEXT_FG_DARK = new Color(0xE6E0E9);
+
+   // modern object-card corner radius, px; = the annotation-rectangle radius
+   private static final int CARD_CORNER_RADIUS = 12;
 }

@@ -17,9 +17,17 @@
  */
 package inetsoft.web.binding.controller;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,6 +35,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for the smoothLines defaulting/reset matrix applied when a chart's type changes.
  * Covers the Area↔Line, Circular↔Line, and Area↔Circular transitions.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class ChangeChartTypeServiceSmoothLinesTransitionTest {
    private static PlotDescriptor descWith(boolean smoothLines) {
       PlotDescriptor pd = new PlotDescriptor();
@@ -40,7 +53,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void barToArea_setsSmoothLinesTrue() {
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_BAR, GraphTypes.CHART_AREA, pd);
+         GraphTypes.CHART_BAR, GraphTypes.CHART_AREA, pd, false);
       assertTrue(pd.isSmoothLines(),
          "first transition into Area should default smoothLines on");
    }
@@ -49,7 +62,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void lineToStackedArea_setsSmoothLinesTrue() {
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_LINE, GraphTypes.CHART_AREA_STACK, pd);
+         GraphTypes.CHART_LINE, GraphTypes.CHART_AREA_STACK, pd, false);
       assertTrue(pd.isSmoothLines(),
          "first transition into stacked Area should default smoothLines on");
    }
@@ -58,7 +71,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void barToCircular_setsSmoothLinesTrue() {
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_BAR, GraphTypes.CHART_CIRCULAR, pd);
+         GraphTypes.CHART_BAR, GraphTypes.CHART_CIRCULAR, pd, false);
       assertTrue(pd.isSmoothLines(),
          "first transition into Circular should default smoothLines on");
    }
@@ -67,7 +80,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void networkToCircular_setsSmoothLinesTrue() {
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_NETWORK, GraphTypes.CHART_CIRCULAR, pd);
+         GraphTypes.CHART_NETWORK, GraphTypes.CHART_CIRCULAR, pd, false);
       assertTrue(pd.isSmoothLines(),
          "Network → Circular is a first-into-circular transition; defaults on");
    }
@@ -78,7 +91,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void areaToLine_resetsSmoothLinesFalse() {
       PlotDescriptor pd = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_AREA, GraphTypes.CHART_LINE, pd);
+         GraphTypes.CHART_AREA, GraphTypes.CHART_LINE, pd, false);
       assertFalse(pd.isSmoothLines(),
          "Area → Line must clear smoothLines so the line chart isn't silently smooth");
    }
@@ -87,7 +100,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void stackedAreaToStackedLine_resetsSmoothLinesFalse() {
       PlotDescriptor pd = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_AREA_STACK, GraphTypes.CHART_LINE_STACK, pd);
+         GraphTypes.CHART_AREA_STACK, GraphTypes.CHART_LINE_STACK, pd, false);
       assertFalse(pd.isSmoothLines());
    }
 
@@ -95,7 +108,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void circularToLine_resetsSmoothLinesFalse() {
       PlotDescriptor pd = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE, pd);
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE, pd, false);
       assertFalse(pd.isSmoothLines(),
          "Circular → Line must clear smoothLines so the line chart isn't silently smooth");
    }
@@ -104,7 +117,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void circularToStackedLine_resetsSmoothLinesFalse() {
       PlotDescriptor pd = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE_STACK, pd);
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE_STACK, pd, false);
       assertFalse(pd.isSmoothLines());
    }
 
@@ -114,13 +127,13 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void areaToArea_preservesUserSetting() {
       PlotDescriptor offToOff = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK, offToOff);
+         GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK, offToOff, false);
       assertFalse(offToOff.isSmoothLines(),
          "Area → Area is not a first-into transition; user's off setting must persist");
 
       PlotDescriptor onToOn = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK, onToOn);
+         GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK, onToOn, false);
       assertTrue(onToOn.isSmoothLines(),
          "Area → Area is not a first-into transition; user's on setting must persist");
    }
@@ -129,7 +142,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void circularToCircular_preservesUserSetting() {
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_CIRCULAR, pd);
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_CIRCULAR, pd, false);
       assertFalse(pd.isSmoothLines(),
          "same-type transition must not toggle smoothLines");
    }
@@ -139,7 +152,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
       // Both branches happen to overlap here: area→circular is first-into-circular.
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_AREA, GraphTypes.CHART_CIRCULAR, pd);
+         GraphTypes.CHART_AREA, GraphTypes.CHART_CIRCULAR, pd, false);
       assertTrue(pd.isSmoothLines());
    }
 
@@ -147,7 +160,7 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void circularToArea_setsSmoothLinesTrue() {
       PlotDescriptor pd = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_AREA, pd);
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_AREA, pd, false);
       assertTrue(pd.isSmoothLines(),
          "Circular → Area is a first-into-area transition; defaults on");
    }
@@ -156,13 +169,13 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    void barToLine_doesNotTouchSmoothLines() {
       PlotDescriptor on = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, on);
+         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, on, false);
       assertTrue(on.isSmoothLines(),
          "Bar → Line is neither a default-on nor a reset transition");
 
       PlotDescriptor off = descWith(false);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, off);
+         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, off, false);
       assertFalse(off.isSmoothLines());
    }
 
@@ -173,9 +186,79 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
       // exposes the field for these types).
       PlotDescriptor pd = descWith(true);
       ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_NETWORK, pd);
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_NETWORK, pd, false);
       assertTrue(pd.isSmoothLines(),
          "no reset is wired for Circular → Network because the flag has no rendering "
          + "effect on Network and the checkbox is hidden");
+   }
+
+   // --- Gated transitions ---
+
+   @Test
+   void areaToLine_underGate_setsSmoothLinesTrue() {
+      PlotDescriptor pd = descWith(true);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_AREA, GraphTypes.CHART_LINE, pd, true);
+      assertTrue(pd.isSmoothLinesValue(), "under the gate a line chart stays smooth");
+      assertTrue(pd.isModernSmoothSeed(), "and the value is gate-owned");
+   }
+
+   @Test
+   void barToLine_underGate_setsSmoothLinesTrue() {
+      // a saved bar chart switched to Line has no marker, so the transition must SET, not merely skip
+      PlotDescriptor pd = descWith(false);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, pd, true);
+      assertTrue(pd.isSmoothLinesValue());
+      assertTrue(pd.isModernSmoothSeed());
+   }
+
+   @Test
+   void circularToLine_underGate_setsSmoothLinesTrue() {
+      PlotDescriptor pd = descWith(true);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE_STACK, pd, true);
+      assertTrue(pd.isSmoothLinesValue());
+      assertTrue(pd.isModernSmoothSeed());
+   }
+
+   @Test
+   void areaToLine_gateOff_stillResetsFalse() {
+      // the gate-off path must be byte-identical to pre-phase behavior
+      PlotDescriptor pd = descWith(true);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_AREA, GraphTypes.CHART_LINE, pd, false);
+      assertFalse(pd.isSmoothLinesValue());
+   }
+
+   @Test
+   void barToArea_underGate_stillSetsSmoothLinesTrue() {
+      // area/circular were already smooth by default, ungated; the gate must not change that branch
+      PlotDescriptor pd = descWith(false);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_BAR, GraphTypes.CHART_AREA, pd, true);
+      assertTrue(pd.isSmoothLinesValue());
+      assertFalse(pd.isModernSmoothSeed(),
+                  "area/circular stay ungated — they were already smooth by default");
+   }
+
+   @Test
+   void lineToLine_underGate_preservesUserSetting() {
+      // a stack-measures toggle re-runs the matrix with an unchanged type; it must not overwrite
+      // an explicit user choice
+      PlotDescriptor pd = descWith(false);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_LINE, GraphTypes.CHART_LINE, pd, true);
+      assertFalse(pd.isSmoothLinesValue());
+      assertFalse(pd.isModernSmoothSeed());
+   }
+
+   @Test
+   void lineToLineStack_underGate_preservesUserSetting() {
+      PlotDescriptor pd = descWith(false);
+      ChangeChartTypeService.applySmoothLinesTransition(
+         GraphTypes.CHART_LINE, GraphTypes.CHART_LINE_STACK, pd, true);
+      assertFalse(pd.isSmoothLinesValue());
+      assertFalse(pd.isModernSmoothSeed());
    }
 }

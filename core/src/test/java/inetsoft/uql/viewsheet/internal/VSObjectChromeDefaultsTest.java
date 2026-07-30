@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
@@ -35,7 +36,7 @@ import java.awt.Color;
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -204,5 +205,100 @@ class VSObjectChromeDefaultsTest {
          VSCompositeFormat fmt = new VSCompositeFormat();
          assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt));
       });
+   }
+
+   @Test
+   void cardCornerRadiusConstant() {
+      assertEquals(12, VSObjectChromeDefaults.cardCornerRadius());
+   }
+
+   @Test
+   void resolveSeededCornerKeepsSeedUnderGate() {
+      withGate("true", () -> assertEquals(12, VSObjectChromeDefaults.resolveSeededCorner(12)));
+   }
+
+   @Test
+   void resolveSeededCornerStripsSeedGateOff() {
+      withGate("false", () -> assertEquals(0, VSObjectChromeDefaults.resolveSeededCorner(12)));
+   }
+
+   @Test
+   void resolveSeededCornerPreservesNonSeedValues() {
+      // only the exact seed is gate-owned; any other value is a customer/legacy radius
+      withGate("false", () -> {
+         assertEquals(8, VSObjectChromeDefaults.resolveSeededCorner(8));
+         assertEquals(16, VSObjectChromeDefaults.resolveSeededCorner(16));
+         assertEquals(0, VSObjectChromeDefaults.resolveSeededCorner(0));
+      });
+      withGate("true", () -> assertEquals(8, VSObjectChromeDefaults.resolveSeededCorner(8)));
+   }
+
+   private int seededRadius(VSAssemblyInfo info) {
+      info.initDefaultFormat();
+      return info.getFormat().getRoundCorner();
+   }
+
+   @Test
+   void cardCornerSeededForDataAndSelectionTypesUnderGate() {
+      withGate("true", () -> {
+         assertEquals(12, seededRadius(new ChartVSAssemblyInfo()), "chart");
+         assertEquals(12, seededRadius(new TableVSAssemblyInfo()), "table");
+         assertEquals(12, seededRadius(new CrosstabVSAssemblyInfo()), "crosstab");
+         assertEquals(12, seededRadius(new CalcTableVSAssemblyInfo()), "calc table");
+         assertEquals(12, seededRadius(new EmbeddedTableVSAssemblyInfo()), "embedded table");
+         assertEquals(12, seededRadius(new SelectionListVSAssemblyInfo()), "selection list");
+         assertEquals(12, seededRadius(new SelectionTreeVSAssemblyInfo()), "selection tree");
+         assertEquals(12, seededRadius(new CurrentSelectionVSAssemblyInfo()), "current selection");
+      });
+   }
+
+   @Test
+   void calendarKeepsItsOwnRadiusInBothGateStates() {
+      // CalendarVSAssemblyInfo:88 overrides initDefaultFormat and clones a static template whose
+      // object format hardcodes roundCorner=10 (:1420), so the seed never reaches it. 10 survives the
+      // gate strip because that keys on exact equality with 12.
+      withGate("true", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
+      withGate("false", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
+   }
+
+   @Test
+   void cardCornerNotSeededForExcludedTypesUnderGate() {
+      withGate("true", () -> {
+         assertEquals(0, seededRadius(new GaugeVSAssemblyInfo()), "gauge stays square");
+         assertEquals(0, seededRadius(new TextVSAssemblyInfo()), "text stays square");
+         assertEquals(0, seededRadius(new ComboBoxVSAssemblyInfo()), "inputs stay square");
+         assertEquals(0, seededRadius(new TimeSliderVSAssemblyInfo()), "range slider stays square");
+         assertEquals(0, seededRadius(new RectangleVSAssemblyInfo()), "shapes own their radius");
+         // TabVSAssemblyInfo:65 unconditionally sets its own roundCorner of 4; the point is that it is
+         // not overwritten by the 12px seed. 4 survives because the strip keys on exact equality with 12.
+         assertEquals(4, seededRadius(new TabVSAssemblyInfo()), "tab keeps its own radius, not the seed");
+      });
+   }
+
+   @Test
+   void cardCornerNotSeededGateOff() {
+      withGate("false", () -> {
+         assertEquals(0, seededRadius(new ChartVSAssemblyInfo()), "chart");
+         assertEquals(0, seededRadius(new TableVSAssemblyInfo()), "table");
+         assertEquals(0, seededRadius(new SelectionListVSAssemblyInfo()), "selection list");
+         assertEquals(0, seededRadius(new CurrentSelectionVSAssemblyInfo()), "current selection");
+      });
+   }
+
+   @Test
+   void cardCornerSeedRevertsWhenGateTurnedOff() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      withGate("true", () -> info.initDefaultFormat());
+      withGate("true", () -> assertEquals(12, info.getFormat().getRoundCorner(), "rounded while on"));
+      withGate("false", () -> assertEquals(0, info.getFormat().getRoundCorner(), "square once off"));
+   }
+
+   @Test
+   void cardCornerUserRadiusSurvivesGateOff() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      withGate("true", () -> info.initDefaultFormat());
+      info.getFormat().getUserDefinedFormat().setRoundCornerValue(6);
+      withGate("false", () -> assertEquals(6, info.getFormat().getRoundCorner(),
+                                           "a user radius is not gate-stripped"));
    }
 }
