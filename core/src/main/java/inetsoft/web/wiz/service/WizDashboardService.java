@@ -494,7 +494,8 @@ public class WizDashboardService {
                                                         List<WizDashboardEvent.FilterSpec> specs, int startX)
    {
       List<WizDashboardFilterBuilder.FilterRequest> reqs = specs.stream()
-         .map(f -> new WizDashboardFilterBuilder.FilterRequest(f.getField(), f.getDataType(), f.getLabel()))
+         .map(f -> new WizDashboardFilterBuilder.FilterRequest(
+            f.getField(), f.getDataType(), f.getLabel(), f.isPreAggregation()))
          .collect(java.util.stream.Collectors.toList());
       return filterBuilder.build(vs, baseWs, reqs, startX);
    }
