@@ -107,9 +107,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             checkCacheModeConsistency();
          }
          catch(RuntimeException e) {
-            // the node already joined discovery above; leave cleanly instead of lingering as a
-            // zombie member of the cluster it just failed to validate against.
-            ignite.close();
+            // the node already joined discovery and opened the file transfer socket above;
+            // reuse the full close() so nothing (Ignite instance, socket, executors) is left
+            // running instead of lingering as a zombie member of the cluster it just failed to
+            // validate against.
+            close();
             throw e;
          }
 
