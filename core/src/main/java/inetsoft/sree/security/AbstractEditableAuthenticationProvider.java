@@ -239,6 +239,13 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.save();
       }
 
+      PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
+
+      if(welcomePage != null) {
+         manager.setWelcomePage(newOrgID, (PortalWelcomePage) welcomePage.clone());
+         manager.save();
+      }
+
       // edit org update members has been process in the IdentityService#updateOrganizationMembers
       if(editedNewOrganization != null && replace) {
          newOrg.setMembers(editedNewOrganization.getMembers());
@@ -285,6 +292,7 @@ public abstract class AbstractEditableAuthenticationProvider
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
+         manager.removeWelcomePage(fromOrgId);
          manager.save();
          RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
 
