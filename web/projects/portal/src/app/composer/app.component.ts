@@ -31,6 +31,7 @@ import { DragService } from "../widget/services/drag.service";
 import { ComposerMainComponent } from "./gui/composer-main.component";
 import { ResizeHandlerService } from "./gui/resize-handler.service";
 import { ComposerRecentService } from "./gui/composer-recent.service";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
 
 const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
 
@@ -67,8 +68,10 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
                private modalService: NgbModal,
                private firstDayOfWeekService: FirstDayOfWeekService,
                private composerRecentService: ComposerRecentService,
-               private http: HttpClient)
+               private http: HttpClient,
+               chartPaletteService: ChartPaletteService)
    {
+      chartPaletteService.ensureLoaded(); // warm the chart-series palette before any picker opens
       titleService.setTitle("_#(js:Visual Composer)");
       // Need to set a default min and max date otherwise the range is only 20 years.
       ngbDatepickerConfig.minDate = {year: 1900, month: 1, day: 1};

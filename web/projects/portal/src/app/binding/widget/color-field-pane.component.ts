@@ -25,7 +25,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
 import { ColorPane } from "../../widget/color-picker/cp-color-pane.component";
 import { ColorPalette } from "../../widget/color-picker/color-classes";
-import { DefaultPalette } from "../../widget/color-picker/default-palette";
+import { ChartPaletteService } from "../../widget/color-picker/chart-palette.service";
 
 @Component({
     selector: "color-field-pane",
@@ -36,9 +36,13 @@ import { DefaultPalette } from "../../widget/color-picker/default-palette";
 export class ColorFieldPane {
    @Input() selectedColor: string = "#518db9";
    @Input() clearEnabled: boolean = false;
+   @Input() palette: ColorPalette;
    @Output() colorChanged: EventEmitter<string> = new EventEmitter<string>();
    @Output() colorCleared: EventEmitter<string> = new EventEmitter<string>();
-   palette: ColorPalette = DefaultPalette.chart;
+
+   constructor(chartPaletteService: ChartPaletteService) {
+      this.palette = chartPaletteService.chartPalette;
+   }
 
    selectColor(c: string) {
       this.selectedColor = c;

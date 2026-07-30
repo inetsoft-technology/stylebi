@@ -25,6 +25,8 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ValueLabelModel } from "../../data/value-label-model";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { ChartPaletteService } from "../../../widget/color-picker/chart-palette.service";
+import { ColorPalette } from "../../../widget/color-picker/color-classes";
 import { NgStyle } from "@angular/common";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.directive";
@@ -47,8 +49,10 @@ export class ColorMappingDialog implements OnInit {
    _truncatedDimensionData: ValueLabelModel[];
    private _currentColorMaps: ColorMap[] = [];
    private initialColorMap: ColorMap[] = [];
+   palette: ColorPalette;
 
-   constructor(private modalService: NgbModal) {
+   constructor(private modalService: NgbModal, chartPaletteService: ChartPaletteService) {
+      this.palette = chartPaletteService.chartPalette;
    }
 
    get truncatedDimensionData(): ValueLabelModel[] {
