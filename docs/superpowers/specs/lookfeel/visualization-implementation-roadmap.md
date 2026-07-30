@@ -603,6 +603,154 @@ resolvers and should share the modern-mode selection mechanism and neutral palet
 - a modern, gated, export-consistent object title-bar default applied product-wide, with user title
   formats preserved
 
+## Phase 6B: Corner Rounding Defaults (server-side)
+
+Numbered `6B` to keep it with its Phase 6A sibling and avoid renumbering Phases 7–10. See
+[visualization-phase6b-implementation-plan.md](./visualization-phase6b-implementation-plan.md) for the
+grounded, code-verified plan (file:line anchors, decisions D1–D8).
+
+### Goal
+
+Make **corner rounding a default of modern mode** rather than a per-chart opt-in, on two surfaces: bar
+marks (`PlotDescriptor.barCornerRadius` → `0.3`, a fraction of bar width) and assembly cards
+(`VSFormat.roundCorner` → `12` px on the DEFAULT tier).
+
+### Why it is its own pass
+
+- Rounding itself is **already fully implemented** on both surfaces — `IntervalElement`/`BarVO`/
+  `ChartRegion`/`drawRoundedBar()` for bars, `[style.border-radius.px]` plus the export painters for
+  cards. This phase changes **defaults only**; it builds no renderer.
+- It is a **geometry** default, so it does not belong in Phase 6A (chrome color) or Phase 8 (data
+  color), but the card half extends the same `VSObjectChromeDefaults` resolver 6A introduced and shares
+  its `viewsheet.modernObjectChrome` toggle.
+- Both values are **server-owned and export-visible**, like Phases 5/6/6A — no browser-CSS half.
+
+### Departure from the Phase 3/5/6 resolver pattern
+
+Those phases resolve at display time, so gate-off is byte-identical but the gate also re-themes every
+saved sheet. Rounding is an **authoring default** instead: it is seeded at creation
+(`VSAssemblyInfo.setDefaultFormat` / `ChartVSAssemblyInfo.setDefaultFormat`) so saved sheets never change
+silhouette, and the **read is gate-aware** so gate-off still reverts objects created while the gate was
+on. The gate therefore remains a true escape hatch rather than a one-way door.
+
+| | Existing objects | Objects created under the gate |
+|---|---|---|
+| Gate ON | unchanged (square) | rounded |
+| Gate OFF | unchanged (square) | revert to square |
+| User set a value | honored | honored, in both gate states |
+
+Both surfaces share the Phase 6A gate, `VSObjectChromeDefaults.isModern()`, so rounding turns on and off
+as one unit. Only the *storage* of the seed marker differs: the card radius rides the existing
+USER/CSS/DEFAULT tier system and needs no new state, while `PlotDescriptor` has no tiers and takes one
+new `modernCornerSeed` boolean.
+
+### Tasks
+
+- extend `VSObjectChromeDefaults` with `cardCornerRadius()` (`12`) and `resolveSeededCorner(int)`
+- seed the card radius at `VSAssemblyInfo.setDefaultFormat()` behind an explicit assembly allowlist:
+  chart, table/crosstab/calc-table/embedded-table, selection list/tree/container, calendar. Outputs,
+  inputs, range slider, tab, group container, shapes, annotations and embedded viewsheets stay square
+- gate-strip **only the DEFAULT tier** at `VSCompositeFormat.getRoundCorner()` /
+  `getRoundCornerValue()`, the single funnel every live and export consumer already uses — so USER and
+  `format.css` radii survive the gate in both directions, with no new serialized field and no change to
+  `VSFormat`'s binary `writeData()`
+- seed `barCornerRadius = 0.3` at `ChartVSAssemblyInfo.setDefaultFormat()` behind a new
+  `PlotDescriptor.modernCornerSeed` flag, with a gate-aware `getBarCornerRadius()` so every existing
+  reader picks up the gate unedited; guard `ChartPlotOptionsPaneModel` so opening Plot Options and
+  pressing OK does not silently materialize the seed
+- leave `nodeCornerRadius` alone: it already defaults to `0.3` for new charts and `0` for saved ones,
+  ungated. Gating it would make new tree charts square in non-modern orgs — a regression
+- leave `barRoundAllCorners` at `false`: waterfall, gantt and interval already force all-corners in
+  `GraphGenerator` (they have no zero anchor), and the UI already hides the checkbox for them. Standard
+  bar and pareto sit on the zero baseline and must keep square base corners. The plan records the
+  anchoring rule as the test for future bar-like types
+
+### Dependencies / sequencing
+
+Depends on Phase 6A only for `VSObjectChromeDefaults` and its toggle, both of which exist. Independent
+of Phase 6 Part A (CSS), Phase 7 and Phase 8. Can ship immediately after 6A.
+
+### Known limitation
+
+The **chart** card follows the gate in every rasterizing export format, and always did — `VSChart`
+extends `VSFloatable`, which passes `format.getRoundCorner()` to `ExportUtil.drawBackground`/`drawBorders`.
+No exporter change was required.
+
+**Table and crosstab** cards are the exception: written as native Excel cells and cell-by-cell PDF
+drawing, so a rounded outer frame cannot be expressed and exports square. Inherent to the output
+formats; documented rather than fixed.
+
+### Output
+
+- new charts and data/selection cards that read as modern out of the box, with saved sheets untouched,
+  user and `format.css` overrides preserved, and the whole phase reversible by turning the gate off
+
+## Phase 6C: Smooth Lines Default (server-side)
+
+See [visualization-phase6c-implementation-plan.md](./visualization-phase6c-implementation-plan.md) for the
+grounded plan (decisions D1–D7, file:line anchors, one open decision).
+
+### Goal
+
+Make **line charts smooth under modern mode**, on both paths by which a chart becomes a line chart: when
+created, and when an existing chart is switched to Line. Reuses Phase 6B's seed + gate-aware-read mechanism
+unchanged.
+
+### Why it is a separate pass from 6B
+
+6B is complete and fully reviewed; folding a third value into it would invalidate that review. 6C depends on
+6B only for the established pattern and its marker field.
+
+### Scoping correction: area and circular are already smooth
+
+`PlotDescriptor.smoothLines` defaults to `false`, but two **ungated** hooks already set it `true` —
+`VSWizardBindingHandler:866-874` (wizard creates area / area-stack / circular) and
+`ChangeChartTypeService.applySmoothLinesTransition:320-333` (switching *to* area or circular). So the only
+family a modern default changes is **line**, and doing so directly contradicts that same matrix's
+`→ line sets false` rule, which exists to un-smooth when the user picks a line chart. Area and circular are
+deliberately left alone — gating them would make new area charts straight in non-modern orgs, a regression.
+
+### Accepted trade-off
+
+Smoothing a line chart draws a curve through the sampled points, so the path passes through values that were
+never measured and can overshoot local extrema. That is the most likely reason the existing code splits
+exactly at the line/area boundary. Raised with the initiative owner, who chose to proceed; recorded as a
+deliberate decision. Exposure is limited by the per-chart checkbox and by the gate reverting it wholesale.
+
+### Tasks
+
+- **repair `ChangeChartTypeServiceSmoothLinesTransitionTest` first** — its 14 tests cover exactly the matrix
+  this phase modifies, and it has never executed (no `@Tag("core")` against `core/pom.xml`'s
+  `<groups>core</groups>`, and no Spring context although its helper constructs a `PlotDescriptor`, which
+  reaches `SreeEnv`). Changing an un-executed transition matrix is the riskiest possible order of operations
+- add a marker for `smoothLines` and make `isSmoothLines()` gate-aware, with a raw accessor for
+  serialization and `equalsContent()`; field default stays `false` so saved sheets are untouched
+- seed `smoothLines = true` at `ChartVSAssemblyInfo.setDefaultFormat()` under the gate. The chart type is not
+  yet known there, so the seed is type-agnostic — inert for every family except line/area/circular, and it
+  covers the wizard path with no hook change
+- make `applySmoothLinesTransition` gate-aware: under the gate, `→ line` **sets** `true` rather than clearing
+  it. It must set rather than merely skip the reset, because the requirement covers a *saved* chart being
+  switched to Line, which has no marker to preserve
+- clear the marker in `setSmoothLines()` — `ChartProcessor:242-243` pairs the gate-aware getter with the raw
+  setter, the identical asymmetry that shipped as a defect in 6B and was fixed there
+- guard the Plot Options checkbox round-trip so a no-op dialog save cannot clear the marker, mirroring 6B
+
+### Marker model
+
+`smoothLines` gets its own flag, `modernSmoothSeed`, rather than sharing 6B's `modernCornerSeed`. Bar radius
+and smooth lines apply to disjoint chart families and are never edited together, so a shared marker would let
+an edit to one silently change whether the other still tracks the gate. `modernCornerSeed` therefore keeps
+its 6B name and scope unchanged.
+
+### Dependencies / sequencing
+
+Depends on 6B for the mechanism and the marker field. Independent of Phases 7–10.
+
+### Output
+
+- line charts that read as modern on creation and on type change, with area and circular untouched, saved
+  sheets unaffected, and the whole phase reversible by turning the gate off
+
 ## Phase 7: KPI And Embedded Controls
 
 ### Goal
