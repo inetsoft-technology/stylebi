@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,8 +39,9 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
 class AdminAiControllerTest {
-   @Mock private AdminChangeService changeService;
    @Mock private AdminBackupService backupService;
+   @Mock private AdminChangePlanService planService;
+   @Mock private AdminChangesetApplyService applyService;
    @Mock private OrganizationManager orgManager;
    @Mock private Principal principal;
    private AdminAiController controller;
@@ -47,7 +49,7 @@ class AdminAiControllerTest {
 
    @BeforeEach
    void setup() {
-      controller = new AdminAiController(changeService, backupService);
+      controller = new AdminAiController(backupService, planService, applyService);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
@@ -74,22 +76,9 @@ class AdminAiControllerTest {
    // bearer-token gate (CSRF backstop on the /api/wiz/** prefix)
    // -------------------------------------------------------------------------
 
-   @Test void changeThrowsForbiddenWithoutBearerToken() {
+   @Test void backupThrowsForbiddenWithoutBearerToken() {
       // A session-authenticated site admin (e.g. a cross-site request riding their session
       // cookie) must still be rejected: /api/wiz/** is CSRF-exempt.
-      RequestContextHolder.setRequestAttributes(
-         new ServletRequestAttributes(new MockHttpServletRequest()));
-      AdminChangeRequest req = new AdminChangeRequest();
-      req.setProperty("max.rows");
-
-      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> controller.change(req, principal));
-
-      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-      verifyNoInteractions(changeService);
-   }
-
-   @Test void backupThrowsForbiddenWithoutBearerToken() {
       RequestContextHolder.setRequestAttributes(
          new ServletRequestAttributes(new MockHttpServletRequest()));
 
@@ -111,21 +100,31 @@ class AdminAiControllerTest {
       verifyNoInteractions(backupService);
    }
 
+   @Test void previewThrowsForbiddenWithoutBearerToken() {
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.preview(new PlanRequest(), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(planService);
+   }
+
+   @Test void applyThrowsForbiddenWithoutBearerToken() {
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.apply(new ApplyRequest(), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(applyService);
+   }
+
    // -------------------------------------------------------------------------
    // site-admin gate (#5)
    // -------------------------------------------------------------------------
-
-   @Test void changeThrowsForbiddenForNonSiteAdmin() {
-      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
-      AdminChangeRequest req = new AdminChangeRequest();
-      req.setProperty("max.rows");
-
-      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> controller.change(req, principal));
-
-      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-      verifyNoInteractions(changeService);
-   }
 
    @Test void backupThrowsForbiddenForNonSiteAdmin() {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
@@ -147,22 +146,29 @@ class AdminAiControllerTest {
       verifyNoInteractions(backupService);
    }
 
+   @Test void previewThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.preview(new PlanRequest(), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(planService);
+   }
+
+   @Test void applyThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.apply(new ApplyRequest(), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(applyService);
+   }
+
    // -------------------------------------------------------------------------
    // delegation (site-admin path)
    // -------------------------------------------------------------------------
-
-   @Test void changeDelegatesToService() {
-      AdminChangeRequest req = new AdminChangeRequest();
-      req.setProperty("max.rows");
-      AdminChangeResult expected = new AdminChangeResult();
-      expected.setStatus("verified");
-      when(changeService.applyChange(req, principal)).thenReturn(expected);
-
-      AdminChangeResult actual = controller.change(req, principal);
-
-      assertEquals("verified", actual.getStatus());
-      verify(changeService).applyChange(req, principal);
-   }
 
    @Test void backupDelegatesToService() throws Exception {
       when(backupService.backup("chg-1")).thenReturn("admin-chg-1-123.zip");
@@ -180,6 +186,33 @@ class AdminAiControllerTest {
 
       assertEquals("restored", actual.get("status"));
       verify(backupService).restore("admin-chg-1-123.zip");
+   }
+
+   @Test void previewDelegatesToService() {
+      PlanRequest req = new PlanRequest();
+      req.setTask("raise max rows");
+      ResolvedPlan expected =
+         new ResolvedPlan("raise max rows", List.of(), false, false, "hash123");
+      when(planService.resolve(req)).thenReturn(expected);
+
+      ResolvedPlan actual = controller.preview(req, principal);
+
+      assertEquals(expected, actual);
+      verify(planService).resolve(req);
+   }
+
+   @Test void applyDelegatesToService() throws Exception {
+      ApplyRequest req = new ApplyRequest();
+      req.setTask("raise max rows");
+      req.setPlanHash("hash123");
+      ApplyResult expected = new ApplyResult(
+         "chg-1", AdminChangesetApplyService.STATUS_APPLIED, null, List.of(), null);
+      when(applyService.apply(req, principal)).thenReturn(expected);
+
+      ApplyResult actual = controller.apply(req, principal);
+
+      assertEquals(expected, actual);
+      verify(applyService).apply(req, principal);
    }
 
    // -------------------------------------------------------------------------
@@ -212,5 +245,32 @@ class AdminAiControllerTest {
 
       assertNotNull(annotation, "handleIllegalArgument must be annotated @ResponseStatus");
       assertEquals(HttpStatus.BAD_REQUEST, annotation.value());
+   }
+
+   // -------------------------------------------------------------------------
+   // error contract: a stale/missing planHash maps to 409, distinct from validation's 400 and
+   // an unhandled failure's 500 (see AdminAiController.handlePlanHashMismatch javadoc)
+   // -------------------------------------------------------------------------
+
+   @Test void handlePlanHashMismatchReturnsConflictStatusWithCurrentPlan() {
+      ResolvedPlan current = new ResolvedPlan("raise max rows", List.of(), false, false, "hash456");
+      AdminChangesetApplyService.PlanHashMismatchException ex =
+         new AdminChangesetApplyService.PlanHashMismatchException(current);
+
+      Map<String, Object> actual = controller.handlePlanHashMismatch(ex);
+
+      assertEquals("conflict", actual.get("status"));
+      assertEquals(ex.getMessage(), actual.get("error"));
+      assertSame(current, actual.get("plan"));
+   }
+
+   @Test void handlePlanHashMismatchIsAnnotatedConflict() throws NoSuchMethodException {
+      ResponseStatus annotation = AdminAiController.class
+         .getMethod("handlePlanHashMismatch",
+                    AdminChangesetApplyService.PlanHashMismatchException.class)
+         .getAnnotation(ResponseStatus.class);
+
+      assertNotNull(annotation, "handlePlanHashMismatch must be annotated @ResponseStatus");
+      assertEquals(HttpStatus.CONFLICT, annotation.value());
    }
 }
