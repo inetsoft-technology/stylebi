@@ -262,7 +262,7 @@ public abstract class AbstractEditableAuthenticationProvider
             // (still keyed by the source org's user ids), so migrate the files in place there --
             // not in fromOrganization's bucket. Pass newOrgID explicitly rather than relying on
             // the ambient principal/org context to resolve the right bucket.
-            identityService.updateAutoSaveFiles(fromOrganization, newOrg, newOrgID);
+            identityService.updateAutoSaveFilesInBucket(fromOrganization, newOrg, newOrgID);
          }
          catch(Exception e) {
             LOG.warn("Unable to migrate Auto Save Files: "+ e);
