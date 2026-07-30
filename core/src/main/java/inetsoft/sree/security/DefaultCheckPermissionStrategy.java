@@ -351,6 +351,15 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          if(targetInOrgRoleScope) {
             Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization), orgID);
 
+            // "Organization Roles" is only exposed as a grantable node in the EM tree when
+            // multi-tenant mode is on; when nobody has ever configured a grant on it (no
+            // Permission object at all), fall back to the "Roles" root -- the only node an
+            // admin has ever had the option to grant on in non-multi-tenant mode. Mirrors the
+            // fallback at the dedicated root-check block above (Bug #75795).
+            if(rolePerm == null) {
+               rolePerm = provider.getPermission(type, new IdentityID("Roles", organization), orgID);
+            }
+
             if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
                return true;
             }
@@ -789,6 +798,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
                Tool.equals(currentRole.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID()))
             {
                perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+
+               // "Organization Roles" is only exposed as a grantable node when multi-tenant
+               // mode is on; when nobody has ever configured a grant on it, fall back to the
+               // "Roles" root -- the only node an admin has ever had the option to grant on
+               // in non-multi-tenant mode (Bug #75795).
+               if(perm == null) {
+                  perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+               }
             }
             else if(currentRole == null || currentRole.getOrganizationID() == null) {
                perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
