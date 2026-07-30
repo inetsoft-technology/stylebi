@@ -17,8 +17,17 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Document;
 
 import java.io.PrintWriter;
@@ -32,6 +41,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * new PlotDescriptors default to 0.3, but parseXML must override to 0.0
  * when the attribute is missing so saved (legacy) tree charts stay sharp.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class PlotDescriptorXmlTest {
    @Test
    void nodeCornerRadius_roundTripPreservesValue() throws Exception {
@@ -103,6 +117,171 @@ class PlotDescriptorXmlTest {
       PlotDescriptor pd = new PlotDescriptor();
       pd.setTreeLayout("BOGUS");
       assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, pd.getTreeLayout());
+   }
+
+   @Test
+   void barCornerRadius_newInstanceStillDefaultsToZero() {
+      // the 0.3 value arrives only via the gated seed, never from the field initializer
+      assertEquals(0.0, new PlotDescriptor().getBarCornerRadiusValue(), 1e-9);
+      assertFalse(new PlotDescriptor().isModernCornerSeed());
+   }
+
+   @Test
+   void modernCornerSeed_roundTripsTrue() throws Exception {
+      PlotDescriptor written = new PlotDescriptor();
+      written.setBarCornerRadius(0.3);
+      written.setModernCornerSeed(true);
+
+      PlotDescriptor parsed = roundTrip(written);
+
+      assertTrue(parsed.isModernCornerSeed());
+      assertEquals(0.3, parsed.getBarCornerRadiusValue(), 1e-9);
+   }
+
+   @Test
+   void modernCornerSeed_legacyXmlWithoutAttributeIsFalse() throws Exception {
+      Document doc = Tool.parseXML(new StringReader("<plotDescriptor/>"));
+      PlotDescriptor parsed = new PlotDescriptor();
+      parsed.parseXML(doc.getDocumentElement());
+
+      assertFalse(parsed.isModernCornerSeed(),
+                  "charts saved before this phase must not look gate-seeded");
+      assertEquals(0.0, parsed.getBarCornerRadiusValue(), 1e-9);
+   }
+
+   @Test
+   void modernCornerSeed_participatesInEqualsContent() {
+      PlotDescriptor a = new PlotDescriptor();
+      a.setBarCornerRadius(0.3);
+      a.setModernCornerSeed(true);
+
+      PlotDescriptor b = new PlotDescriptor();
+      b.setBarCornerRadius(0.3);
+      b.setModernCornerSeed(false);
+
+      assertFalse(a.equalsContent(b), "a seeded descriptor differs from a user-authored one");
+   }
+
+   @Test
+   void barCornerRadius_seededValueStrippedGateOff() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setBarCornerRadius(0.3);
+      pd.setModernCornerSeed(true);
+
+      withGate("true", () -> assertEquals(0.3, pd.getBarCornerRadius(), 1e-9));
+      withGate("false", () -> assertEquals(0.0, pd.getBarCornerRadius(), 1e-9,
+                                          "a gate-seeded radius reverts to square"));
+      // the raw value is never gate-dependent
+      withGate("false", () -> assertEquals(0.3, pd.getBarCornerRadiusValue(), 1e-9));
+   }
+
+   @Test
+   void barCornerRadius_userValueSurvivesGateOff() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setBarCornerRadius(0.25);
+      pd.setModernCornerSeed(false);
+
+      withGate("false", () -> assertEquals(0.25, pd.getBarCornerRadius(), 1e-9,
+                                          "a user-set radius is not gate-stripped"));
+   }
+
+   @Test
+   void setBarCornerRadius_clearsModernCornerSeed() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setBarCornerRadius(0.3);
+      pd.setModernCornerSeed(true);
+
+      pd.setBarCornerRadius(0.4);
+
+      assertFalse(pd.isModernCornerSeed(), "an explicit write makes the radius user-authored");
+      assertEquals(0.4, pd.getBarCornerRadiusValue(), 1e-9);
+   }
+
+   @Test
+   void smoothLines_newInstanceStillDefaultsToFalse() {
+      assertFalse(new PlotDescriptor().isSmoothLinesValue());
+      assertFalse(new PlotDescriptor().isModernSmoothSeed());
+   }
+
+   @Test
+   void modernSmoothSeed_roundTripsTrue() throws Exception {
+      PlotDescriptor written = new PlotDescriptor();
+      written.setSmoothLines(true);
+      written.setModernSmoothSeed(true);
+
+      PlotDescriptor parsed = roundTrip(written);
+
+      assertTrue(parsed.isModernSmoothSeed());
+      assertTrue(parsed.isSmoothLinesValue());
+   }
+
+   @Test
+   void modernSmoothSeed_legacyXmlWithoutAttributeIsFalse() throws Exception {
+      Document doc = Tool.parseXML(new StringReader("<plotDescriptor/>"));
+      PlotDescriptor parsed = new PlotDescriptor();
+      parsed.parseXML(doc.getDocumentElement());
+
+      assertFalse(parsed.isModernSmoothSeed(),
+                  "charts saved before this phase must not look gate-seeded");
+      assertFalse(parsed.isSmoothLinesValue());
+   }
+
+   @Test
+   void smoothLines_seededValueStrippedGateOff() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setSmoothLines(true);
+      pd.setModernSmoothSeed(true);
+
+      withGate("true", () -> assertTrue(pd.isSmoothLines()));
+      withGate("false", () -> assertFalse(pd.isSmoothLines(),
+                                         "a gate-seeded smooth reverts to straight"));
+      // the raw value is never gate-dependent
+      withGate("false", () -> assertTrue(pd.isSmoothLinesValue()));
+   }
+
+   @Test
+   void smoothLines_userValueSurvivesGateOff() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setSmoothLines(true);   // clears the marker — this is a user-authored value
+
+      withGate("false", () -> assertTrue(pd.isSmoothLines(),
+                                        "a user-set smooth is not gate-stripped"));
+   }
+
+   @Test
+   void setSmoothLines_clearsModernSmoothSeed() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setSmoothLines(true);
+      pd.setModernSmoothSeed(true);
+
+      pd.setSmoothLines(false);
+
+      assertFalse(pd.isModernSmoothSeed(), "an explicit write makes the value user-authored");
+      assertFalse(pd.isSmoothLinesValue());
+   }
+
+   @Test
+   void modernSmoothSeed_participatesInEqualsContent() {
+      PlotDescriptor a = new PlotDescriptor();
+      a.setSmoothLines(true);
+      a.setModernSmoothSeed(true);
+
+      PlotDescriptor b = new PlotDescriptor();
+      b.setSmoothLines(true);
+
+      assertFalse(a.equalsContent(b), "a seeded descriptor differs from a user-authored one");
+   }
+
+   private void withGate(String value, Runnable body) {
+      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+
+      try {
+         SreeEnv.setProperty("viewsheet.modernVisualization", value);
+         body.run();
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+      }
    }
 
    private static PlotDescriptor roundTrip(PlotDescriptor source) throws Exception {

@@ -17,13 +17,25 @@
  */
 package inetsoft.web.graph.model.dialog;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.*;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SreeHome()
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class ChartPlotOptionsPaneModelTest {
 
    private ChartPlotOptionsPaneModel modelFor(int chartType) {
@@ -409,5 +421,147 @@ class ChartPlotOptionsPaneModelTest {
          assertEquals(value, target.getTreeLayout(),
             "updateChartPlotOptionsPaneModel should write the model value back");
       }
+   }
+
+   // --- modernCornerSeed preservation on no-op save ---
+
+   // PlotDescriptor.getBarCornerRadius() is gate-aware (VSDensityDefaults.isModern()), which
+   // defaults to false outside this block; a seeded 0.3 only resolves to the client here.
+   private void withGate(String value, Runnable body) {
+      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+
+      try {
+         SreeEnv.setProperty("viewsheet.modernVisualization", value);
+         body.run();
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+      }
+   }
+
+   private PlotDescriptor seededPlot() {
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarCornerRadius(0.3);
+      plotDesc.setModernCornerSeed(true);
+      return plotDesc;
+   }
+
+   private ChartPlotOptionsPaneModel roundTripDialog(VSChartInfo info, PlotDescriptor plotDesc) {
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+      return model;
+   }
+
+   @Test
+   void noOpSavePreservesModernCornerSeed() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      PlotDescriptor plotDesc = seededPlot();
+
+      roundTripDialog(info, plotDesc);
+
+      assertTrue(plotDesc.isModernCornerSeed(),
+                 "opening the dialog and pressing OK must not un-gate the chart");
+      assertEquals(0.3, plotDesc.getBarCornerRadiusValue(), 1e-9);
+   }
+
+   @Test
+   void noOpSavePreservesModernCornerSeedUnderGate() {
+      withGate("true", () -> {
+         VSChartInfo info = new VSChartInfo();
+         info.setChartType(GraphTypes.CHART_BAR);
+         PlotDescriptor plotDesc = seededPlot();
+
+         roundTripDialog(info, plotDesc);
+
+         assertTrue(plotDesc.isModernCornerSeed(),
+                    "a no-op OK under the gate must not un-gate the chart");
+         assertEquals(0.3, plotDesc.getBarCornerRadiusValue(), 1e-9);
+         assertEquals(0.3, plotDesc.getBarCornerRadius(), 1e-9,
+                      "the effective radius is still the seeded 0.3");
+      });
+   }
+
+   @Test
+   void editedRadiusClearsModernCornerSeed() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      PlotDescriptor plotDesc = seededPlot();
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarCornerRadius(0.15);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isModernCornerSeed(), "a real edit makes the value user-authored");
+      assertEquals(0.15, plotDesc.getBarCornerRadiusValue(), 1e-9);
+   }
+
+   @Test
+   void clearingRadiusToZeroClearsModernCornerSeed() {
+      withGate("true", () -> {
+         VSChartInfo info = new VSChartInfo();
+         info.setChartType(GraphTypes.CHART_BAR);
+         PlotDescriptor plotDesc = seededPlot();
+
+         ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+         model.setBarCornerRadius(null);
+         model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+         assertFalse(plotDesc.isModernCornerSeed(), "explicitly switching rounding off is a user choice");
+         assertEquals(0.0, plotDesc.getBarCornerRadiusValue(), 1e-9);
+      });
+   }
+
+   @Test
+   void seededRadiusIsSentToTheClient() {
+      withGate("true", () -> {
+         VSChartInfo info = new VSChartInfo();
+         info.setChartType(GraphTypes.CHART_BAR);
+
+         ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, seededPlot());
+
+         assertNotNull(model.getBarCornerRadius());
+         // .doubleValue() avoids an ambiguous overload between assertEquals(double,double,double)
+         // and assertEquals(Object,Object) — the getter returns a boxed Double
+         assertEquals(0.3, model.getBarCornerRadius().doubleValue(), 1e-9);
+      });
+   }
+
+   // --- modernSmoothSeed preservation on no-op save ---
+
+   @Test
+   void noOpSavePreservesModernSmoothSeed() {
+      withGate("true", () -> {
+         VSChartInfo info = new VSChartInfo();
+         info.setChartType(GraphTypes.CHART_LINE);
+         PlotDescriptor plotDesc = new PlotDescriptor();
+         plotDesc.setSmoothLines(true);
+         plotDesc.setModernSmoothSeed(true);
+
+         ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+         model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+         assertTrue(plotDesc.isModernSmoothSeed(),
+                    "a no-op OK must not un-gate smooth lines");
+         assertTrue(plotDesc.isSmoothLinesValue());
+      });
+   }
+
+   @Test
+   void uncheckingSmoothLinesClearsModernSmoothSeed() {
+      withGate("true", () -> {
+         VSChartInfo info = new VSChartInfo();
+         info.setChartType(GraphTypes.CHART_LINE);
+         PlotDescriptor plotDesc = new PlotDescriptor();
+         plotDesc.setSmoothLines(true);
+         plotDesc.setModernSmoothSeed(true);
+
+         ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+         model.setSmoothLines(false);
+         model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+         assertFalse(plotDesc.isModernSmoothSeed(), "a real edit makes the value user-authored");
+         assertFalse(plotDesc.isSmoothLinesValue());
+      });
    }
 }

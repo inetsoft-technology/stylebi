@@ -898,5 +898,33 @@
   </div>
 </div>
 
+<div class="section">
+  <div class="section-title">Corner Radius Defaults (Phase 6B)</div>
+  <p class="section-note">Modern-mode rounding defaults, seeded at object creation and reverted when the gate is off. Card radius is absolute pixels; bar radius is a fraction of bar width, so it scales with the mark. Server-side values, not browser tokens — they resolve identically in the live model and in export.</p>
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--surface-default); border:1px solid var(--border-default); border-radius:12px;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Object card corner</div>
+        <div class="swatch-hex">12px</div>
+        <div class="swatch-use">VSObjectChromeDefaults.cardCornerRadius() — chart, table, crosstab, calc table, embedded table, selection list/tree/container</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="display:flex; align-items:flex-end; justify-content:center; gap:8px; background:var(--surface-subtle);">
+        <div style="width:28px; height:40px; background:var(--text-muted); border-radius:8px 8px 0 0;"></div>
+        <div style="width:28px; height:72px; background:var(--text-muted); border-radius:8px 8px 0 0;"></div>
+        <div style="width:28px; height:56px; background:var(--text-muted); border-radius:8px 8px 0 0;"></div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">Bar mark corner</div>
+        <div class="swatch-hex">0.3 &times; bar width</div>
+        <div class="swatch-use">seeded onto PlotDescriptor.barCornerRadius — bar, pareto, waterfall, gantt, interval; value end only</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
