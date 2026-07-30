@@ -455,12 +455,34 @@ public final class AutoSaveUtils {
       }
    }
 
-   public static void migrateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
+   /**
+    * Migrate the auto save files that already reside in the given organization's own blob
+    * storage bucket, rewriting each file's embedded user-org key (and, for viewsheets/worksheets,
+    * its content) from {@code oorg} to {@code norg}.
+    * <p>
+    * The bucket operated on is selected explicitly via {@code storageOrgId} rather than derived
+    * from the calling thread's ambient organization context. This matters because
+    * {@link #getStorage(Principal)} resolves its bucket via
+    * {@code OrganizationManager.getCurrentOrgID(Principal)}, which -- for a non-null principal --
+    * always prefers the principal's own current org id over any org id set on the
+    * {@code OrganizationContextHolder} (e.g. via {@code OrganizationManager.runInOrgScope()}).
+    * A caller migrating auto save files as part of an org copy/rename is typically still
+    * authenticated under the *source* org, so relying on ambient context silently operates on the
+    * wrong bucket depending on call order relative to the underlying blob-bucket copy.
+    *
+    * @param storageOrgId the id of the organization whose bucket currently holds the files to be
+    *                      migrated in place (the source org's bucket when called before the raw
+    *                      bucket copy, or the target org's bucket when called after it).
+    */
+   public static void migrateAutoSaveFiles(Organization oorg, Organization norg, Principal principal,
+                                           String storageOrgId)
+   {
       if(oorg.getId().equals(norg.getId())) {
          return;
       }
 
-      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal);
+      BlobStorage<Metadata> blobStorage = getStorageForOrg(storageOrgId);
+      List<String> list = blobStorage.paths().collect(Collectors.toList());
 
       if(list.isEmpty()) {
          return;
@@ -489,11 +511,24 @@ public final class AutoSaveUtils {
 
          userID.setOrgID(norg.getId());
          attrs[2] = userID.convertToKey();
-         String newFilePath = String.join("^", attrs);
-         AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
+         // getName() above stripped the recycle prefix to split out the name fields; re-apply it
+         // here so a recycled (discarded) draft doesn't turn into an active autosave file after
+         // migration -- otherwise it silently drops off the EM "Auto Saved Files" recycle view,
+         // which only lists paths still carrying the RECYCLE_PREFIX.
+         String newFilePath = file.startsWith(AutoSaveUtils.RECYCLE_PREFIX) ?
+            AutoSaveUtils.RECYCLE_PREFIX + String.join("^", attrs) : String.join("^", attrs);
+
+         try {
+            blobStorage.rename(file, newFilePath);
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to write auto save file to recycle bin {}", file, e);
+            continue;
+         }
+
          Document document = null;
 
-         try(InputStream in = AutoSaveUtils.getInputStream(newFilePath, principal)) {
+         try(InputStream in = getBlobInputStream(blobStorage, newFilePath)) {
             AssetEntry assetEntry = AutoSaveUtils.createAssetEntry(
                file.startsWith(AutoSaveUtils.RECYCLE_PREFIX) ?
                   file.substring(AutoSaveUtils.RECYCLE_PREFIX.length()) : file);
@@ -513,13 +548,25 @@ public final class AutoSaveUtils {
          }
 
          if(document != null) {
-            migrateProcessingInstructionAndWrite(document, norg, newFilePath, principal);
+            migrateProcessingInstructionAndWrite(blobStorage, document, norg, newFilePath);
          }
       }
    }
 
-   private static void migrateProcessingInstructionAndWrite(Document document, Organization norg,
-                                                            String newFilePath, Principal principal)
+   private static InputStream getBlobInputStream(BlobStorage<Metadata> blobStorage, String file)
+      throws IOException
+   {
+      try {
+         return blobStorage.getInputStream(file);
+      }
+      catch(FileNotFoundException | NoSuchFileException ignore) {
+         return null;
+      }
+   }
+
+   private static void migrateProcessingInstructionAndWrite(BlobStorage<Metadata> blobStorage,
+                                                            Document document, Organization norg,
+                                                            String newFilePath)
    {
       if(document == null) {
          return;
@@ -576,7 +623,20 @@ public final class AutoSaveUtils {
       }
 
       XMLTool.writeAssets(document, bout, className, identifier);
-      AutoSaveUtils.writeAutoSaveFile(bout.toByteArray(), newFilePath, principal);
+      writeBlobFile(blobStorage, bout.toByteArray(), newFilePath);
+   }
+
+   private static void writeBlobFile(BlobStorage<Metadata> blobStorage, byte[] data, String file) {
+      try(BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
+          OutputStream out = tx.newStream(file, null))
+      {
+         out.write(data);
+         out.flush();
+         tx.commit();
+      }
+      catch(IOException ex) {
+         LOG.error("Failed to write to the blob storage: {}", file, ex);
+      }
    }
 
    public static void writeAutoSaveFile(byte[] data, String file, Principal principal) {

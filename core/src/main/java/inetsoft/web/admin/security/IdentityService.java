@@ -2694,7 +2694,18 @@ public class IdentityService {
    }
 
    public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
-      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
+      updateAutoSaveFiles(oorg, norg, principal, oorg.getId());
+   }
+
+   /**
+    * @param storageOrgId the id of the organization whose blob bucket currently holds the auto
+    *                      save files to migrate in place -- see
+    *                      {@link AutoSaveUtils#migrateAutoSaveFiles(Organization, Organization, Principal, String)}.
+    */
+   public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal,
+                                   String storageOrgId)
+   {
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal, storageOrgId);
    }
 
    public void updateTaskSaveFiles(Organization oorganization, Organization norganization) {

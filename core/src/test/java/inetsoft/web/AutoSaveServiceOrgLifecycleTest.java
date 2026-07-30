@@ -140,17 +140,20 @@ class AutoSaveServiceOrgLifecycleTest {
                   + "(suspected incorrect) behavior for confirmation, not the desired one");
    }
 
-   // ── scenario 6g: migrateAutoSaveFiles() under runInOrgScope(newOrgID,...) correctly scopes to the
-   //    new org's bucket -- confirmed correct, not a bug (see matrix doc for the 6g correction) ──
+   // ── scenario 6g: migrateAutoSaveFiles() scopes to the explicit storageOrgId bucket regardless
+   //    of the acting principal's own org or ambient OrganizationContextHolder state (Bug #75827
+   //    fix: the method no longer resolves its bucket via getStorage(principal)/runInOrgScope,
+   //    which was fragile -- OrganizationManager.getCurrentOrgID(Principal) prefers the
+   //    principal's own org id/curr_org_id property over any OrganizationContextHolder override) ──
 
    @Test
-   void migrateAutoSaveFiles_runInOrgScope_correctlyScopesToNewOrgBucket() throws Exception {
+   void migrateAutoSaveFiles_explicitStorageOrgId_scopesToTargetBucket() throws Exception {
       String sourceOrgId = "sixg_source_org";
       String targetOrgId = "sixg_target_org";
       String actorOrgId = "sixg_unrelated_actor_org";
 
       // acting principal's OWN org is unrelated to both source/target -- proves resolution comes
-      // from OrganizationContextHolder (set by runInOrgScope), not from the principal's own identity
+      // from the explicit storageOrgId argument, not from the principal's own identity
       Principal principal = new SRPrincipal(new IdentityID("sixg_actor", actorOrgId),
                                             new IdentityID[0], new String[0], actorOrgId, 1L);
 
@@ -164,10 +167,7 @@ class AutoSaveServiceOrgLifecycleTest {
       Organization oorg = new Organization(sourceOrgId);
       Organization norg = new Organization(targetOrgId);
 
-      OrganizationManager.runInOrgScope(targetOrgId, () -> {
-         AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
-         return null;
-      });
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal, targetOrgId);
 
       String newUserKey = new IdentityID("sixg_user", targetOrgId).convertToKey();
       String expectedNewFileName = "8^VIEWSHEET^" + newUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
@@ -179,9 +179,48 @@ class AutoSaveServiceOrgLifecycleTest {
                  "the old, source-org-tagged filename must be renamed away within the target bucket");
       assertTrue(targetBucket.exists(expectedNewFileName),
                 "migrateAutoSaveFiles() must rename the file (within the target org's own bucket) "
-                + "to carry the target org's identity string, proving runInOrgScope(newOrgID, ...) "
-                + "correctly scoped getStorage(principal) to the target org despite the acting "
-                + "principal's own org being unrelated to source/target");
+                + "to carry the target org's identity string, using the explicit storageOrgId "
+                + "argument despite the acting principal's own org being unrelated to source/target");
+   }
+
+   // ── Issue #75827 (confirmed root cause of the reported "autosave file missing after org
+   //    clone" bug): migrateAutoSaveFiles() strips the "recycle/" prefix via getName() to split
+   //    out the name fields, then rebuilds the migrated filename from those fields WITHOUT
+   //    re-applying the prefix -- so a recycled (discarded) draft silently turns into an ACTIVE
+   //    autosave file after migration. addRecycleAutoSaved() only lists paths that still start
+   //    with RECYCLE_PREFIX, so the migrated file drops off the EM "Auto Saved Files" tree ──
+
+   @Test
+   void migrateAutoSaveFiles_recycledDraft_keepsRecyclePrefixAfterMigration() throws Exception {
+      String sourceOrgId = "recyclepfx_source_org";
+      String targetOrgId = "recyclepfx_target_org";
+
+      Principal principal = new SRPrincipal(new IdentityID("recyclepfx_actor", targetOrgId),
+                                            new IdentityID[0], new String[0], targetOrgId, 1L);
+
+      String oldUserKey = new IdentityID("recyclepfx_user", sourceOrgId).convertToKey();
+      String recycledFileName =
+         AutoSaveUtils.RECYCLE_PREFIX + "8^WORKSHEET^" + oldUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
+      seedAutoSaveBlob(targetOrgId, recycledFileName, "not-real-xml-content".getBytes());
+
+      Organization oorg = new Organization(sourceOrgId);
+      Organization norg = new Organization(targetOrgId);
+
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal, targetOrgId);
+
+      String newUserKey = new IdentityID("recyclepfx_user", targetOrgId).convertToKey();
+      String expectedNewFileName = AutoSaveUtils.RECYCLE_PREFIX +
+         "8^WORKSHEET^" + newUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
+
+      BlobStorage<AutoSaveUtils.Metadata> targetBucket =
+         blobStorageManager.getStorage(targetOrgId.toLowerCase() + "__autoSave", false);
+
+      assertFalse(targetBucket.exists(recycledFileName),
+                 "the old, source-org-tagged filename must be renamed away");
+      assertTrue(targetBucket.exists(expectedNewFileName),
+                "migrateAutoSaveFiles() must preserve the RECYCLE_PREFIX on the migrated filename "
+                + "-- otherwise the recycled draft becomes an active autosave file and silently "
+                + "drops off the EM \"Auto Saved Files\" recycle-bin tree (Issue #75827)");
    }
 
    // ── scenario 6h: removeExpiredAutoSaveFiles() only ever inspects the default org's bucket -- a
