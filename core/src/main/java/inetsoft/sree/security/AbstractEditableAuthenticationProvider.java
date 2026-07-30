@@ -427,7 +427,35 @@ public abstract class AbstractEditableAuthenticationProvider
                      clone.setJarPath(newJarPath);
                   }
                   else {
-                     clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                     String oldJarPath = clone.getJarPath();
+                     String newJarPath = oldJarPath.replace(fromOrgId, toOrgId);
+
+                     // The org's data space folder (including its theme jar) is expected
+                     // to have already been relocated by the earlier copyDataSpace() call.
+                     // That rename can silently fail (DataSpace.rename() swallows
+                     // FileNotFoundException/IOException without propagating), which would
+                     // otherwise leave this theme's jarPath pointing at a file that was
+                     // never actually moved. Verify the new path and, if missing, copy
+                     // the jar directly so the theme doesn't 404.
+                     if(!dataSpace.exists(null, newJarPath)) {
+                        if(dataSpace.exists(null, oldJarPath)) {
+                           try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
+                              int index = newJarPath.lastIndexOf('/');
+                              String folder = (index >= 0) ? newJarPath.substring(0, index) : null;
+                              String fileName = (index >= 0) ? newJarPath.substring(index + 1) : newJarPath;
+
+                              dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
+                           }
+                        }
+                        else {
+                           LOG.warn(
+                              "Theme jar for organization {} not found at either the old path {} " +
+                              "or the new path {} during rename to {}",
+                              theme.getId(), oldJarPath, newJarPath, toOrgId);
+                        }
+                     }
+
+                     clone.setJarPath(newJarPath);
                   }
                }
 
