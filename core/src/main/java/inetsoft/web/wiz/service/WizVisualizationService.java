@@ -168,8 +168,53 @@ public class WizVisualizationService {
 
       VSAssembly assembly = (VSAssembly) rawAssembly;
 
-      // ── Step 3: Resolve target folder path ───────────────────────────────────
-      String targetFolderPath = event.getTargetFolderPath();
+      // ── Step 3a: Resolve the update target, if this save is an in-place update ───
+      // A non-empty existingIdentifier turns this save into an UPDATE of an already-saved
+      // visualization: the asset keeps its identifier, so boards, links and thumbnails that
+      // reference it keep resolving. Without it every save mints a fresh UUID entry, which is why
+      // continuing a saved chart in chat could only ever produce a SECOND visualization.
+      AssetEntry updateTargetEntry = null;
+      AssetEntry updateTargetWsEntry = null;
+
+      if(!Tool.isEmptyString(event.getExistingIdentifier())) {
+         updateTargetEntry = AssetEntry.createAssetEntry(event.getExistingIdentifier());
+
+         // Only standalone saved visualizations may be overwritten — never a chat session viewsheet
+         // under VISUALIZATION_ROOT_FOLDER_PATH, which the live conversation is still rendering.
+         if(updateTargetEntry == null || updateTargetEntry.getPath() == null ||
+            !updateTargetEntry.getPath().startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))
+         {
+            throw new IllegalArgumentException(
+               "existingIdentifier is not a saved visualization in the managed components folder: " +
+               event.getExistingIdentifier());
+         }
+
+         // permission=true: the identifier arrives straight from the request body, so the READ
+         // check must actually run. The load doubles as an existence check — an update must fail
+         // loudly rather than silently resurrect a deleted asset as a new one.
+         Viewsheet updateTargetVs = (Viewsheet) assetRepository.getSheet(
+            updateTargetEntry, principal, true, AssetContent.ALL);
+
+         if(updateTargetVs == null) {
+            throw new IllegalArgumentException(
+               "Visualization to update no longer exists: " + event.getExistingIdentifier());
+         }
+
+         AssetEntry existingWsEntry = updateTargetVs.getBaseEntry();
+
+         // Rewrite the worksheet the asset already points at instead of minting a new one, so
+         // repeated updates don't leave a trail of orphaned worksheets behind.
+         if(existingWsEntry != null && existingWsEntry.isWorksheet()) {
+            updateTargetWsEntry = existingWsEntry;
+         }
+      }
+
+      // ── Step 3b: Resolve target folder path ───────────────────────────────────
+      // An update stays exactly where it is: taking the folder from the existing entry means a
+      // stale/absent targetFolderPath in the request can never silently relocate the asset.
+      String targetFolderPath = updateTargetEntry != null
+         ? updateTargetEntry.getParentPath()
+         : event.getTargetFolderPath();
 
       if(Tool.isEmptyString(targetFolderPath)) {
          targetFolderPath = VISUALIZATION_COMPONENTS_FOLDER_PATH;
@@ -184,7 +229,8 @@ public class WizVisualizationService {
       String alias = !Tool.isEmptyString(event.getDisplayName())
          ? event.getDisplayName()
          : event.getAssemblyName();
-      AssetEntry newWsEntry = saveWorksheet(sourceVs, assembly, targetFolderPath, alias, principal);
+      AssetEntry newWsEntry = saveWorksheet(
+         sourceVs, assembly, targetFolderPath, alias, updateTargetWsEntry, principal);
 
       // ── Step 5: Build new single-assembly ViewSheet ───────────────────────────
       Viewsheet newVs = new Viewsheet();
@@ -224,11 +270,20 @@ public class WizVisualizationService {
          targetFolderPath, null);
       ensureFolder(targetFolder, principal);
 
-      // ── Step 7: Create new AssetEntry and set WIZ properties ─────────────────
+      // ── Step 7: Resolve the AssetEntry to write and set WIZ properties ───────
+      // On an update this is the existing entry (same path ⇒ same identifier); otherwise a fresh
+      // UUID entry under the target folder.
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      String newPath = targetFolderPath + "/" + UUID.randomUUID();
-      AssetEntry newVsEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, newPath, pId);
+      AssetEntry newVsEntry;
+
+      if(updateTargetEntry != null) {
+         newVsEntry = updateTargetEntry;
+      }
+      else {
+         String newPath = targetFolderPath + "/" + UUID.randomUUID();
+         newVsEntry = new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, newPath, pId);
+      }
 
       // Set a human-readable alias so the viewsheet is identifiable in the repository.
       if(!Tool.isEmptyString(alias)) {
@@ -252,7 +307,10 @@ public class WizVisualizationService {
          viewsheetService.setViewsheet(newVs, newVsEntry, principal, true, true);
       }
       catch(Exception e) {
-         if(newWsEntry != null) {
+         // Only a worksheet this call CREATED may be cleaned up. On an update the worksheet is the
+         // live asset's own, already-referenced worksheet — removing it would destroy the very
+         // visualization the user was updating.
+         if(newWsEntry != null && updateTargetWsEntry == null) {
             try {
                assetRepository.removeSheet(newWsEntry, principal, true);
             }
@@ -563,10 +621,15 @@ public class WizVisualizationService {
     * given assembly, and persists the trimmed clone under
     * {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH}/{targetSubFolder}/{uuid}.
     *
+    * @param existingWsEntry when non-null, the trimmed clone overwrites THIS entry instead of a new
+    *                        UUID one — the worksheet an updated visualization already points at, so
+    *                        repeated updates don't accumulate orphaned worksheets
+    *
     * @return the saved Worksheet's AssetEntry, or {@code null} if no worksheet was found
     */
    private AssetEntry saveWorksheet(Viewsheet sourceVs, VSAssembly assembly,
-                                     String targetFolderPath, String alias, Principal principal)
+                                     String targetFolderPath, String alias,
+                                     AssetEntry existingWsEntry, Principal principal)
       throws Exception
    {
       AssetEntry sourceWsEntry = sourceVs.getBaseEntry();
@@ -610,17 +673,22 @@ public class WizVisualizationService {
 
       newWs.setPrimaryAssembly(rootTable);
 
-      // Resolve worksheet target folder — mirrors the viewsheet folder under a parallel root
-      String wsFolderPath = resolveWorksheetFolderPath(targetFolderPath);
-      AssetEntry wsFolder = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, wsFolderPath, null);
-      ensureFolder(wsFolder, principal);
+      // An update rewrites the worksheet already referenced by the visualization's baseEntry, so
+      // neither a new entry nor its folder needs to be resolved.
+      AssetEntry newWsEntry = existingWsEntry;
 
-      // Persist
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      String wsPath = wsFolderPath + "/" + UUID.randomUUID();
-      AssetEntry newWsEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, wsPath, pId);
+      if(newWsEntry == null) {
+         // Resolve worksheet target folder — mirrors the viewsheet folder under a parallel root
+         String wsFolderPath = resolveWorksheetFolderPath(targetFolderPath);
+         AssetEntry wsFolder = new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, wsFolderPath, null);
+         ensureFolder(wsFolder, principal);
+
+         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+         String wsPath = wsFolderPath + "/" + UUID.randomUUID();
+         newWsEntry = new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, wsPath, pId);
+      }
 
       if(!Tool.isEmptyString(alias)) {
          newWsEntry.setAlias(alias);

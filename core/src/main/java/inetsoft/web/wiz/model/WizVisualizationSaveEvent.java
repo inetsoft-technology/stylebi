@@ -74,10 +74,24 @@ public class WizVisualizationSaveEvent {
       this.sourceViewsheetRuntimeId = sourceViewsheetRuntimeId;
    }
 
+   /**
+    * Identifier of an already-saved visualization to overwrite in place, so the asset keeps the
+    * identifier that boards and links already reference. Empty/null creates a new asset, which is
+    * the original behavior. Mirrors {@code WizDashboardEvent.existingIdentifier}.
+    */
+   public String getExistingIdentifier() {
+      return existingIdentifier;
+   }
+
+   public void setExistingIdentifier(String existingIdentifier) {
+      this.existingIdentifier = existingIdentifier;
+   }
+
    private String sourceViewsheetIdentifier;
    private String assemblyName;
    private String conversationId;
    private String targetFolderPath;
    private String displayName;
    private String sourceViewsheetRuntimeId;
+   private String existingIdentifier;
 }
