@@ -112,9 +112,11 @@ class LegacyJavaShimTest {
    }
 
    /**
-    * The Java number parsers accept forms JavaScript's Number() grammar rejects,
-    * so the literal is matched before parsing -- otherwise these would coerce to
-    * real values instead of being left alone. (#75807)
+    * The Java number parsers accept forms that would silently coerce to a real
+    * value instead of being left alone, so the literal is matched before
+    * parsing. Number() rejects all of these except signed Infinity, which is
+    * excluded by choice -- a data-derived "Infinity" is a nonsense constructor
+    * argument. (#75807)
     */
    @Test
    void javaOnlyNumericFormsDoNotCoerce() throws Exception {
@@ -131,6 +133,7 @@ class LegacyJavaShimTest {
       assertThrows(Exception.class, () -> eval("java.awt.Color('66051f').getRed()"));
 
       // ...and the NaN/Infinity words, which reached a float parameter.
+      // Number() does accept signed Infinity; it is left alone here by choice.
       assertThrows(Exception.class, () -> eval("java.awt.BasicStroke('NaN').getLineWidth()"));
       assertThrows(Exception.class,
                    () -> eval("java.awt.BasicStroke('Infinity').getLineWidth()"));

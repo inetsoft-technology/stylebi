@@ -30,7 +30,8 @@ import java.util.regex.Pattern;
  * class as a function ({@code java.awt.Color(0xaed581)}) instantiates it.
  */
 public final class JavaClassProxy implements ProxyObject, ProxyExecutable, ProxyInstantiable {
-   // the JavaScript numeric literal grammar accepted by toNumber().
+   // the numeric literal forms toNumber() accepts -- JS Number()'s grammar,
+   // less the NaN/Infinity words (see toNumber).
    private static final Pattern HEX_LITERAL = Pattern.compile("0[xX][0-9a-fA-F]+");
    private static final Pattern DECIMAL_LITERAL =
       Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
@@ -158,7 +159,9 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
     * to {@code 0} and an unparseable string is not mapped to {@code NaN};
     * both return <tt>null</tt> so the argument is left alone and the caller
     * reports GraalVM's original argument-mismatch error rather than silently
-    * constructing from a nonsense value.
+    * constructing from a nonsense value. The {@code NaN} and {@code Infinity}
+    * words are left alone for the same reason, even though {@code ToNumber}
+    * does accept signed {@code Infinity}.
     *
     * @return the parsed number, or <tt>null</tt> if the string is not numeric.
     */
@@ -168,9 +171,12 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
       // the literal grammar is matched before parsing because the Java parsers
       // accept forms JS Number() rejects, and each would otherwise silently
       // coerce a non-number: a sign after the 0x prefix ("0x-5" is -5 to
-      // Long.parseLong, which permits a sign for any radix), the NaN/Infinity
-      // words, and the d/f width suffixes ("12F"). An empty string matches
-      // neither pattern, so it is left alone as documented.
+      // Long.parseLong, which permits a sign for any radix), and the d/f width
+      // suffixes ("12F"). The NaN and Infinity words are excluded as well --
+      // Number() does accept signed Infinity as a literal, but a data-derived
+      // "Infinity" is a nonsense constructor argument, so it follows the
+      // leave-it-alone rule rather than building from a non-finite value. An
+      // empty string matches neither pattern, so it is also left alone.
       try {
          // JS treats a leading zero as decimal ("010" is 10), so only an
          // explicit 0x/0X prefix is a radix change -- matching Rhino, which
