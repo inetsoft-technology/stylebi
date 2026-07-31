@@ -139,6 +139,15 @@ public class RepletRegistryService {
             checkPermission(oldPath, ResourceType.REPORT, ResourceAction.DELETE, principal);
          }
 
+         int oldParentIdx = oldPath.lastIndexOf('/');
+         String oldParentPath = oldParentIdx < 0 ? "/" : oldPath.substring(0, oldParentIdx);
+         int newParentIdx = newPath.lastIndexOf('/');
+         String newParentPath = newParentIdx < 0 ? "/" : newPath.substring(0, newParentIdx);
+
+         if(!Tool.equals(oldParentPath, newParentPath)) {
+            checkPermission(newParentPath, ResourceType.REPORT, ResourceAction.WRITE, principal);
+         }
+
          if(SUtil.isDuplicatedRepositoryPath(newPath, newUser)) {
             throw new DuplicateNameException();
          }

@@ -239,6 +239,13 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.save();
       }
 
+      PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
+
+      if(welcomePage != null) {
+         manager.setWelcomePage(newOrgID, (PortalWelcomePage) welcomePage.clone());
+         manager.save();
+      }
+
       // edit org update members has been process in the IdentityService#updateOrganizationMembers
       if(editedNewOrganization != null && replace) {
          newOrg.setMembers(editedNewOrganization.getMembers());
@@ -258,11 +265,11 @@ public abstract class AbstractEditableAuthenticationProvider
 
       if(!replace) {
          try {
-            OrganizationManager.runInOrgScope(newOrgID, () -> {
-               identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
-
-               return null;
-            });
+            // copyStorages() already raw-copied the __autoSave bucket into newOrg's own bucket
+            // (still keyed by the source org's user ids), so migrate the files in place there --
+            // not in fromOrganization's bucket. Pass newOrgID explicitly rather than relying on
+            // the ambient principal/org context to resolve the right bucket.
+            identityService.updateAutoSaveFilesInBucket(fromOrganization, newOrg, newOrgID);
          }
          catch(Exception e) {
             LOG.warn("Unable to migrate Auto Save Files: "+ e);
@@ -285,6 +292,7 @@ public abstract class AbstractEditableAuthenticationProvider
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
+         manager.removeWelcomePage(fromOrgId);
          manager.save();
          RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
 
@@ -415,19 +423,42 @@ public abstract class AbstractEditableAuthenticationProvider
                      String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
 
                      if(dataSpace.exists(null, clone.getJarPath())) {
-                        try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
-                           int index = newJarPath.lastIndexOf('/');
-                           String folder = (index >= 0) ? newJarPath.substring(0, index) : null;
-                           String fileName = (index >= 0) ? newJarPath.substring(index + 1) : newJarPath;
-
-                           dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
-                        }
+                        copyThemeJar(dataSpace, oldJarPath, newJarPath);
                      }
 
                      clone.setJarPath(newJarPath);
                   }
                   else {
-                     clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                     String oldJarPath = clone.getJarPath();
+                     String newJarPath = oldJarPath.replace(fromOrgId, toOrgId);
+
+                     // The org's data space folder (including its theme jar) is expected
+                     // to have already been relocated by the earlier copyDataSpace() call.
+                     // That rename can silently fail (DataSpace.rename() swallows
+                     // FileNotFoundException/IOException without propagating), which would
+                     // otherwise leave this theme's jarPath pointing at a file that was
+                     // never actually moved. Verify the new path and, if missing, copy
+                     // the jar directly so the theme doesn't 404.
+                     if(!dataSpace.exists(null, newJarPath)) {
+                        if(dataSpace.exists(null, oldJarPath)) {
+                           copyThemeJar(dataSpace, oldJarPath, newJarPath);
+
+                           if(replace) {
+                              // This is a rename, so fromOrgId is going away — clean up the
+                              // stray copy left at the old path instead of leaving it
+                              // permanently orphaned under the now-defunct org.
+                              dataSpace.delete(oldJarPath, "");
+                           }
+                        }
+                        else {
+                           LOG.warn(
+                              "Theme jar for organization {} not found at either the old path {} " +
+                              "or the new path {} during rename to {}",
+                              theme.getId(), oldJarPath, newJarPath, toOrgId);
+                        }
+                     }
+
+                     clone.setJarPath(newJarPath);
                   }
                }
 
@@ -481,6 +512,19 @@ public abstract class AbstractEditableAuthenticationProvider
 
       manager.setCustomThemes(themes);
       return newOrgThemeId;
+   }
+
+   /**
+    * Copies a theme jar from one data space path to another.
+    */
+   private void copyThemeJar(DataSpace dataSpace, String oldPath, String newPath) throws IOException {
+      try(InputStream in = dataSpace.getInputStream(null, oldPath)) {
+         int index = newPath.lastIndexOf('/');
+         String folder = (index >= 0) ? newPath.substring(0, index) : null;
+         String fileName = (index >= 0) ? newPath.substring(index + 1) : newPath;
+
+         dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
+      }
    }
 
    protected void clearScopedProperties(String oldOrgId) {
