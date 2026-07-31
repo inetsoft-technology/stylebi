@@ -123,14 +123,18 @@ class WizDashboardServiceGridTest {
          WizDashboardService.computeGridLayout(spans, rowSpans, hasFilter, 2);
       List<WizDashboardService.TilePlacement> placements = result.placements();
 
+      // Derived from the constant, not hardcoded: the reserved per-chart filter height is tuned
+      // (it shrank once its control became a dropdown), and literals here silently rot when it is.
+      final int filterH = WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT;
+
       assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));     // A -- untouched
-      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 984), placements.get(1));   // B -- stretched to match column 0
-      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 540), placements.get(2));   // C -- its own filter height
-      assertEquals(new WizDashboardService.TilePlacement(0, 1008, 900, 420), placements.get(3));  // D -- fresh band
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 864 + filterH), placements.get(1));   // B -- stretched to match column 0
+      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 420 + filterH), placements.get(2));   // C -- its own filter height
+      assertEquals(new WizDashboardService.TilePlacement(0, 888 + filterH, 900, 420), placements.get(3));   // D -- fresh band
 
       assertEquals(0, result.headerHeights()[0], "A owns no filter and has no misaligned sibling");
       assertEquals(0, result.headerHeights()[1], "B owns no filter and has no misaligned sibling");
-      assertEquals(120, result.headerHeights()[2], "C owns the filter directly");
+      assertEquals(filterH, result.headerHeights()[2], "C owns the filter directly");
       assertEquals(0, result.headerHeights()[3]);
    }
 
@@ -153,11 +157,12 @@ class WizDashboardServiceGridTest {
       assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0),
          "the first tile must be completely unaffected by a filter buried deeper in the same column");
       assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 420), placements.get(1));
-      assertEquals(new WizDashboardService.TilePlacement(0, 888, 640, 540), placements.get(2));
+      assertEquals(new WizDashboardService.TilePlacement(0, 888, 640,
+         420 + WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT), placements.get(2));
 
       assertEquals(0, result.headerHeights()[0]);
       assertEquals(0, result.headerHeights()[1]);
-      assertEquals(120, result.headerHeights()[2]);
+      assertEquals(WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT, result.headerHeights()[2]);
    }
 
    @Test
@@ -174,10 +179,12 @@ class WizDashboardServiceGridTest {
          WizDashboardService.computeGridLayout(spans, rowSpans, hasFilter, 2);
       List<WizDashboardService.TilePlacement> placements = result.placements();
 
-      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 540), placements.get(0));     // A -- 420 + its own 120
-      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 540), placements.get(1));   // B -- 420 + alignment top-up
-      assertEquals(120, result.headerHeights()[0], "A owns the filter");
-      assertEquals(120, result.headerHeights()[1], "B has no filter but aligns with its side-by-side sibling A");
+      final int filterH = WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT;
+
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420 + filterH), placements.get(0));     // A -- 420 + its own filter row
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 420 + filterH), placements.get(1));   // B -- 420 + alignment top-up
+      assertEquals(filterH, result.headerHeights()[0], "A owns the filter");
+      assertEquals(filterH, result.headerHeights()[1], "B has no filter but aligns with its side-by-side sibling A");
    }
 
    @Test

@@ -24,6 +24,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -292,6 +293,24 @@ public class WizDashboardFilterBuilder {
 
       ColumnRef colRef = AddFilterService.buildColumnRef(request.field(), request.dataType());
       AbstractSelectionVSAssembly control = createControlForType(vs, request.dataType(), colRef);
+
+      // A per-chart control lives INSIDE its chart's tile, so a multi-row checkbox list steals
+      // that height from the chart itself (four such filters cost ~480px on a five-chart board).
+      // Dropdown mode collapses it to a single title row -- SelectionListVSAssemblyInfo#getSizeScale
+      // pins the Y scale to 1 in that mode, so it cannot stretch back open. Applied HERE rather than
+      // in createControlForType because that factory delegates to AddFilterService, whose own
+      // interactive add-filter flow must keep StyleBI's default list rendering. A TimeSliderVSAssembly
+      // (date/numeric) has no show type and is already single-row, so it is deliberately untouched.
+      if(control instanceof SelectionListVSAssembly list) {
+         list.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+         // A dropdown draws ONLY its title row and ignores the rest of the assembly's pixel height
+         // (default AssetUtil.defh = 20). Anything reserved beyond what the row draws shows up as a
+         // GAP between the filter and its chart, breaking the single-enclosing-card look
+         // applyGroupedCardStyle builds. Pin the row to the caller's reserved height so the two agree
+         // by construction instead of relying on two constants happening to match. The DESIGN value
+         // (not the runtime one) is set because a composed dashboard is saved and reopened.
+         list.getSelectionListInfo().setTitleHeightValue(height);
+      }
 
       if(request.label() != null && control instanceof TitledVSAssembly titled) {
          titled.setTitleValue(request.label());

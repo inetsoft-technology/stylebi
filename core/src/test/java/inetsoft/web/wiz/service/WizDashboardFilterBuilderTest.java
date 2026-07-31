@@ -28,6 +28,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +62,80 @@ class WizDashboardFilterBuilderTest {
       Viewsheet vs = new Viewsheet();
       assertTrue(builder.createControlForType(vs, "date", column("OrderDate", "date")) instanceof TimeSliderVSAssembly);
       assertTrue(builder.createControlForType(vs, "integer", column("Qty", "integer")) instanceof TimeSliderVSAssembly);
+   }
+
+   @Test
+   void theSharedFilterFactoryStaysInListModeForOtherCallers() {
+      // createControlForType delegates to AddFilterService.createFilterAssembly, which the
+      // non-dashboard add-filter flow also uses. Dashboard compaction must NOT leak into it.
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly a =
+         (SelectionListVSAssembly) builder.createControlForType(vs, "string", column("Region", "string"));
+      assertEquals(SelectionVSAssemblyInfo.LIST_SHOW_TYPE, a.getSelectionListInfo().getShowType(),
+         "the shared factory must keep StyleBI's default list rendering");
+   }
+
+   @Test
+   void perChartCategoricalFilterRendersAsADropdownNotATallList() {
+      // A per-chart filter sits INSIDE its chart's tile, so a multi-row checkbox list steals
+      // height from the chart itself. Dropdown mode collapses it to a single title row
+      // (SelectionListVSAssemblyInfo#getSizeScale pins the Y scale to 1 in that mode).
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 100, 200, 640, 40,
+         new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category"), "CHART_FINAL", null);
+
+      assertNotNull(placement);
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE, control.getSelectionListInfo().getShowType(),
+         "a per-chart categorical filter must render as a dropdown, not a multi-row list");
+   }
+
+   @Test
+   void perChartDropdownTitleRowFillsTheReservedHeightSoNoGapShowsAboveTheChart() {
+      // A dropdown draws ONLY its title row (default AssetUtil.defh = 20), ignoring the rest of the
+      // assembly's pixel height. Reserving more than the row draws leaves the difference as a visible
+      // gap between the filter and the chart it belongs to, breaking the single-enclosing-card look
+      // applyGroupedCardStyle creates. Pin the title row to the reserved height so the two agree by
+      // construction rather than by two magic numbers happening to match.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+
+      builder.buildPerChart(vs, ws, 100, 200, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category"), "CHART_FINAL", null);
+
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+      // The DESIGN value is the one that survives save/reopen, which is how a composed dashboard is used.
+      assertEquals(28, control.getSelectionListInfo().getTitleHeightValue(),
+         "the dropdown's title row must fill the reserved height exactly, or the leftover shows as a gap");
+   }
+
+   @Test
+   void perChartRangeSliderIsLeftAloneByTheDropdownTreatment() {
+      // TimeSlider has no show type -- it is already a single-row control. The dropdown
+      // treatment must not touch it (or throw when it is the control that was created).
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "order_qty"));
+
+      Viewsheet vs = new Viewsheet();
+
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 0, 0, 640, 40,
+         new WizDashboardFilterBuilder.FilterRequest("order_qty", "integer", "Qty"), "CHART_FINAL", null);
+
+      assertNotNull(placement);
+      assertTrue(java.util.Arrays.stream(vs.getAssemblies()).anyMatch(a -> a instanceof TimeSliderVSAssembly),
+         "a numeric per-chart filter must still be a range slider");
    }
 
    @Test

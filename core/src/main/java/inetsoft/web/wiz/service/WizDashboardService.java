@@ -595,10 +595,15 @@ public class WizDashboardService {
     *  grows to make room. See {@link #closeBand}/{@link GridLayoutResult} for the exact scoping
     *  (deliberately NOT "every tile in the band," which would shift unrelated charts stacked
     *  anywhere below an unrelated filtered one in the common single-column dashboard shape).
-    *  {@link WizDashboardFilterBuilder#buildPerChart} sizes its control to this full height (its
-    *  own selection list can show several category checkboxes), independent of the deliberately
-    *  more compact shared filter bar ({@link WizDashboardFilterBuilder}'s FILTER_CONTROL_HEIGHT). */
-   private static final int PER_CHART_FILTER_ROW_HEIGHT = 120;
+    *  {@link WizDashboardFilterBuilder#buildPerChart} sizes its control to this height and renders
+    *  it as a DROPDOWN (one title row) rather than an open checkbox list, so this only has to cover
+    *  a single collapsed control -- not several visible category rows. It was 120 while those
+    *  controls rendered as open lists, which cost ~480px of pure filter chrome on a board with four
+    *  per-chart filters; the shared filter bar stays separately sized by
+    *  {@link WizDashboardFilterBuilder}'s FILTER_CONTROL_HEIGHT.
+    *  Package-private (matching {@link #FILTER_BAR_ROW_HEIGHT}) so the grid tests assert geometry
+    *  against the constant instead of a literal that silently rots when this is tuned. */
+   static final int PER_CHART_FILTER_ROW_HEIGHT = 28;
 
    /**
     * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}
