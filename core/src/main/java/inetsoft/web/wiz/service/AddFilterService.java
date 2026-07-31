@@ -283,7 +283,17 @@ public class AddFilterService {
          }
 
          for(AssemblyRef ref : dependeds) {
-            pending.push(ref.getEntry().getName());
+            // Null-guarded deliberately: ArrayDeque REJECTS null elements with a
+            // NullPointerException (it is not a null-permitting Collection), so an AssemblyRef with
+            // no entry -- or an entry with no name -- would abort the entire dashboard compose here
+            // rather than merely failing to resolve one filter. A ref we cannot name is a ref we
+            // cannot walk into, which is exactly the "resolves nothing -> request is skipped"
+            // outcome this lookup already produces for a dangling reference below.
+            String dep = ref.getEntry() != null ? ref.getEntry().getName() : null;
+
+            if(dep != null) {
+               pending.push(dep);
+            }
          }
       }
 
