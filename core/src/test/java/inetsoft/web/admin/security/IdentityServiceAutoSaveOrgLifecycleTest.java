@@ -48,9 +48,16 @@ package inetsoft.web.admin.security;
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.RepletRegistryManager;
+import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.security.AuthorizationChain;
+import inetsoft.sree.security.EditableAuthenticationProvider;
 import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.sree.web.dashboard.DashboardManager;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
@@ -59,9 +66,13 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.IndexedStorage;
+import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleBin;
+import inetsoft.web.admin.favorites.FavoritesService;
+import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.LoggerFactory;
@@ -72,6 +83,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -196,6 +208,69 @@ class IdentityServiceAutoSaveOrgLifecycleTest {
       service.updateTaskSaveFiles(same1, same2);
 
       verifyNoInteractions(externalStorageService);
+   }
+
+   // ── delete scenario (Redmine #75842): the org-delete branch of syncIdentity() must clear all
+   //    four PortalThemesManager org-keyed maps, not just cssEntries -- otherwise a subsequently
+   //    created org that reuses the same org ID string (e.g. accepting the same default clone
+   //    name after the original was deleted) inherits the deleted org's stale Logo/Favicon/
+   //    Welcome Page/Login Banner settings. ──
+
+   @Test
+   void delete_syncIdentity_organizationDelete_clearsAllPortalThemesManagerBrandingEntries()
+      throws Exception
+   {
+      String orgId = "branding_delete_org";
+
+      PortalThemesManager portalThemesManager = mock(PortalThemesManager.class);
+      ReflectionTestUtils.setField(service, "portalThemesManager", portalThemesManager);
+
+      AuthorizationChain authorizationChain = mock(AuthorizationChain.class);
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getAuthorizationProvider()).thenReturn(authorizationChain);
+      ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
+
+      ReflectionTestUtils.setField(service, "dashboardRegistryManager",
+                                    mock(DashboardRegistryManager.class));
+      ReflectionTestUtils.setField(service, "dataCycleManager", mock(DataCycleManager.class));
+      ReflectionTestUtils.setField(service, "themeService", mock(IdentityThemeService.class));
+      ReflectionTestUtils.setField(service, "favoritesService", mock(FavoritesService.class));
+      ReflectionTestUtils.setField(service, "dataSourceRegistry", mock(DataSourceRegistry.class));
+      ReflectionTestUtils.setField(service, "repletRegistryManager",
+                                    mock(RepletRegistryManager.class));
+      ReflectionTestUtils.setField(service, "logManager", mock(LogManager.class));
+
+      // stub out real IdentityService methods unrelated to this scenario -- same rationale as
+      // OrgLifecycleScopedPropertiesIntegrationTest's stubbing of sibling collaborators: this
+      // test only cares about the PortalThemesManager cleanup added for this bug fix.
+      doNothing().when(service).removeOrgProperties(anyString());
+      doNothing().when(service).removeOrgScopedDataSpaceElements(any());
+      doNothing().when(service).updateRepletRegistry(any(), any());
+      doNothing().when(service).clearDataSourceMetadata();
+      doNothing().when(service).removeStorages(anyString());
+
+      EditableAuthenticationProvider eprovider = mock(EditableAuthenticationProvider.class);
+      Organization org = new Organization(orgId);
+      when(eprovider.getOrganization(orgId)).thenReturn(org);
+
+      invokeSyncIdentity(eprovider, org, null);
+
+      verify(portalThemesManager).removeCSSEntry(orgId);
+      verify(portalThemesManager).removeLogoEntry(orgId);
+      verify(portalThemesManager).removeFaviconEntry(orgId);
+      verify(portalThemesManager).removeWelcomePage(orgId);
+   }
+
+   private void invokeSyncIdentity(EditableAuthenticationProvider eprovider,
+                                    inetsoft.uql.util.Identity identity,
+                                    inetsoft.sree.security.IdentityID oID)
+      throws Exception
+   {
+      Method m = IdentityService.class.getDeclaredMethod(
+         "syncIdentity", EditableAuthenticationProvider.class,
+         inetsoft.uql.util.Identity.class, inetsoft.sree.security.IdentityID.class);
+      m.setAccessible(true);
+      m.invoke(service, eprovider, identity, oID);
    }
 
    // ── fixture helpers ──

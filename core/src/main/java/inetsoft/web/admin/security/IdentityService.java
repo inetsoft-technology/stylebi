@@ -625,6 +625,9 @@ public class IdentityService {
                updateRepletRegistry(orgID, null);
                themeService.removeTheme(orgID);
                themesManager.removeCSSEntry(orgID);
+               themesManager.removeLogoEntry(orgID);
+               themesManager.removeFaviconEntry(orgID);
+               themesManager.removeWelcomePage(orgID);
                CSSDictionary.resetDictionaryCache();
                themesManager.save();
                removeStorages(orgID);
