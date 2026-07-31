@@ -115,8 +115,11 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
             const tipName = this.dataTipService.dataTipName;
             const tipAlpha = this.dataTipService.dataTipAlpha;
             const popShowing = this.popService.hasPopUpComponentShowing();
-            const scrollLeft = this.dataTipService.viewerOffset.scrollLeft;
-            const scrollTop = this.dataTipService.viewerOffset.scrollTop;
+            // Read viewerOffset (which may measure the DOM) once and reuse it below as
+            // viewerRect, instead of invoking it again for the cache check.
+            const viewerRect = this.dataTipService.viewerOffset;
+            const scrollLeft = viewerRect.scrollLeft;
+            const scrollTop = viewerRect.scrollTop;
 
             // Skip expensive DOM reads and style writes when all inputs are unchanged.
             // Scroll position is included so a scroll (which doesn't change tipX/tipY)
@@ -167,7 +170,6 @@ export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
                }
             }
 
-            const viewerRect = this.dataTipService.viewerOffset;
             const viewportSize = [viewerRect.width, viewerRect.height];
             let topOffset: number = DataTipService.DATA_TIP_OFFSET;
             let leftOffset: number = DataTipService.DATA_TIP_OFFSET;
