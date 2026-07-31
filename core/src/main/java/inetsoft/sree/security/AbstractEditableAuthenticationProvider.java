@@ -239,6 +239,46 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.save();
       }
 
+      String logo = manager.getLogoEntries().get(fromOrgId);
+
+      if(logo != null) {
+         String logoName = logo.substring(logo.lastIndexOf('/') + 1);
+         String odir = "portal/" + fromOrgId;
+         String dir = "portal/" + newOrgID;
+
+         try(InputStream in = dataSpace.getInputStream(odir, logoName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, logoName, out -> Tool.copyTo(in, out));
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+
+         manager.addLogoEntry(newOrgID, dir + "/" + logoName);
+         manager.save();
+      }
+
+      String favicon = manager.getFaviconEntries().get(fromOrgId);
+
+      if(favicon != null) {
+         String faviconName = favicon.substring(favicon.lastIndexOf('/') + 1);
+         String odir = "portal/" + fromOrgId;
+         String dir = "portal/" + newOrgID;
+
+         try(InputStream in = dataSpace.getInputStream(odir, faviconName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, faviconName, out -> Tool.copyTo(in, out));
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+
+         manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
+         manager.save();
+      }
+
       PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
 
       if(welcomePage != null) {
@@ -292,6 +332,8 @@ public abstract class AbstractEditableAuthenticationProvider
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
+         manager.removeLogoEntry(fromOrgId);
+         manager.removeFaviconEntry(fromOrgId);
          manager.removeWelcomePage(fromOrgId);
          manager.save();
          RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
