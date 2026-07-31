@@ -25,6 +25,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
+import inetsoft.uql.asset.internal.AssetUtil;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -197,8 +200,32 @@ public class WizDashboardFilterBuilder {
             titled.setTitleValue(req.label());
          }
 
-         Point pos = new Point(x, y);
-         java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT);
+         // KNOWN UNFIXED: a shared-bar range slider renders with NO visible title -- a numeric slider
+         // shows a bare "6..216" with nothing telling the user it filters partner_id. The label IS
+         // applied above (setTitleValue). These explanations have each been RULED OUT by test, so do
+         // NOT retry them:
+         //   - the DESIGN title-visible value (getTitleVisibleValue) is already true by default;
+         //   - the RUNTIME flag (isTitleVisible) is already true by default;
+         //   - the title height is already AssetUtil.defh (20), not zero.
+         // Explicit setTitleVisibleValue(true) and setTitleVisible(true) calls were both tried against
+         // a live dashboard and changed nothing, and a test asserting either passes with AND without
+         // them -- so any such "fix" here is vacuous. TitleInfo's no-arg constructor does leave
+         // titleVisible as a valueless DynamicValue2 (vs TitleInfo(String) seeding "true"), which
+         // looked like the cause but is not: both getters still report true.
+         // Remaining hypothesis: the client-side TimeSlider component renders no title area at all,
+         // which has to be investigated in the Angular viewer, not here.
+
+         // Caption above the control, so a user can tell what the control filters -- a bare "6..216"
+         // range slider is otherwise unreadable. Its placement is returned alongside the control's:
+         // an assembly with no per-tier layout entry is hidden when that tier is selected.
+         if(req.label() != null) {
+            placements.add(addCaption(vs, "wizFilterLabel_" + control.getName(),
+                                      x, y, FILTER_CONTROL_WIDTH, FILTER_LABEL_HEIGHT, req.label()));
+         }
+
+         Point pos = new Point(x, y + FILTER_LABEL_HEIGHT);
+         java.awt.Dimension size =
+            new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT);
          control.setTableNames(tables);
          control.setPixelOffset(pos);
          // Explicit compact size: SelectionList/TimeSlider's own default pixel size is not
@@ -209,7 +236,7 @@ public class WizDashboardFilterBuilder {
          vs.addAssembly(control);
          applied.add(req.field());
          placements.add(new FilterControlPlacement(control.getName(), pos, size));
-         x += FILTER_CONTROL_WIDTH;
+         x += FILTER_CONTROL_WIDTH + FILTER_CONTROL_GAP;
       }
 
       return new FilterResult(applied, skipped, placements);
@@ -242,6 +269,30 @@ public class WizDashboardFilterBuilder {
     * "...Value" setter that survives save/reload, like the card styling) plus the plain setter for
     * any pre-persist read, and NO_BORDER line style so only the fill shows.
     */
+   /**
+    * Adds a small static text caption at (x, y) reading {@code label} -- the stand-in for the title a
+    * standalone range slider refuses to render (see FILTER_LABEL_HEIGHT). Deliberately a plain
+    * TextVSAssembly rather than a styled one: it must read as a field caption, not compete with the
+    * control below it.
+    */
+   private static FilterControlPlacement addCaption(
+      Viewsheet vs, String name, int x, int y, int width, int height, String label)
+   {
+      TextVSAssembly text = new TextVSAssembly(vs, name);
+      text.initDefaultFormat();
+      TextVSAssemblyInfo info = (TextVSAssemblyInfo) text.getVSAssemblyInfo();
+      Point pos = new Point(x, y);
+      Dimension size = new Dimension(width, height);
+      info.setPixelOffset(pos);
+      info.setPixelSize(size);
+      info.setValue(label);
+      // setValue alone is the RUNTIME value; the design value is what survives the composed
+      // dashboard being saved and reopened (the same distinction that bit the title work).
+      info.setTextValue(label);
+      vs.addAssembly(text);
+      return new FilterControlPlacement(text.getName(), pos, size);
+   }
+
    private static FilterControlPlacement addFillRectangle(
       Viewsheet vs, String name, int x, int y, int width, int height, Color fill)
    {
@@ -467,6 +518,25 @@ public class WizDashboardFilterBuilder {
    private static final int FILTER_BAR_X = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_BAR_Y = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_CONTROL_WIDTH = 200;
+   /**
+    * Horizontal gap between adjacent shared-bar controls, in pixels. Without it the stride equalled
+    * the control width exactly, so controls butted edge-to-edge and read as one continuous widget --
+    * two range sliders side by side looked like a single double-ended slider, and it was not obvious
+    * where one filter ended and the next began.
+    */
+   private static final int FILTER_CONTROL_GAP = 16;
+   /**
+    * Height of the caption drawn above each shared-bar control, in pixels.
+    *
+    * A range slider will NOT draw its own title: vs-range-slider.component.html gates the whole
+    * title header on {@code @if (isInSelectionContainer())}, which is true only inside a
+    * VSSelectionContainer or for an adhoc filter -- so a standalone bar control renders no title
+    * area no matter what the server sets (design AND runtime titleVisible are already true and the
+    * title height is already AssetUtil.defh; all three were ruled out by test). Rather than widen
+    * that shared component's behaviour for every standalone slider in the product, draw our own
+    * caption beside the control.
+    */
+   private static final int FILTER_LABEL_HEIGHT = 16;
 
    /** Shared-bar control height, in pixels — compact: a range slider (the usual shared filter) or
     *  a short selection list needs far less than a chart tile, and the toolbar band
