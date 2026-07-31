@@ -3676,6 +3676,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.updateScrollViewport();
       this.showHints();
+      this.dataTipService.notifyScrolled();
    }
 
    private showHints() {

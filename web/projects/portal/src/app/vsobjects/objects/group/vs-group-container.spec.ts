@@ -19,6 +19,7 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
+import { Subject } from "rxjs";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ContextProvider } from "../../context-provider.service";
@@ -37,7 +38,7 @@ describe("VS Group Container Unit Test", () => {
       model = TestUtils.createMockVSGroupContainerModel("Group1");
       viewsheetClient = { sendEvent: vi.fn() };
       viewsheetClient.runtimeId = "Viewsheet1";
-      dataTipService = { isDataTip: vi.fn() };
+      dataTipService = { isDataTip: vi.fn(), scrolled: new Subject<void>() };
       const contextProvider = {};
 
       TestBed.configureTestingModule({

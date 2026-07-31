@@ -15,7 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Directive, DoCheck, ElementRef, Input, Renderer2, NgZone } from "@angular/core";
+import {
+   Directive, DoCheck, ElementRef, Input, Renderer2, NgZone, ChangeDetectorRef,
+   OnInit, OnDestroy
+} from "@angular/core";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { PopComponentService } from "./pop-component.service";
 import { DataTipService } from "./data-tip.service";
 import { GuiTool } from "../../../common/util/gui-tool";
@@ -25,7 +30,7 @@ import { DebounceService } from "../../../widget/services/debounce.service";
     selector: "[VSDataTip]",
     standalone: true
 })
-export class VSDataTipDirective implements DoCheck {
+export class VSDataTipDirective implements DoCheck, OnInit, OnDestroy {
    @Input() public dataTipName: string;
    @Input() public popContainerName: string; // this is shared with VSPopComponentDirective
    @Input() public popZIndex: number = 0;
@@ -40,14 +45,38 @@ export class VSDataTipDirective implements DoCheck {
    private lastRenderedTipName: string | undefined;
    private lastRenderedTipAlpha: number | undefined;
    private lastRenderedPopShowing: boolean | undefined;
+   private lastRenderedScrollLeft: number | undefined;
+   private lastRenderedScrollTop: number | undefined;
+   private destroy$ = new Subject<void>();
 
    constructor(private popService: PopComponentService,
                private dataTipService: DataTipService,
                private debounceService: DebounceService,
                private zone: NgZone,
                private elementRef: ElementRef,
-               private renderer: Renderer2)
+               private renderer: Renderer2,
+               private changeRef: ChangeDetectorRef)
    {
+   }
+
+   ngOnInit(): void {
+      // Data tip components on OnPush hosts (e.g. crosstab, table, calc table) don't
+      // re-run ngDoCheck on scroll unless their view is explicitly marked for check.
+      // Only mark the instance that's actually showing as the current tip, otherwise
+      // every VSDataTip host in the viewsheet would be marked dirty on every scroll.
+      this.dataTipService.scrolled
+         .pipe(takeUntil(this.destroy$))
+         .subscribe(() => {
+            if(this.isCurrentDataTip()) {
+               this.changeRef.markForCheck();
+            }
+         });
+   }
+
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.unsubscribe();
+      this.removeOutsideClickListener();
    }
 
    private isCurrentDataTip(): boolean {
@@ -86,11 +115,16 @@ export class VSDataTipDirective implements DoCheck {
             const tipName = this.dataTipService.dataTipName;
             const tipAlpha = this.dataTipService.dataTipAlpha;
             const popShowing = this.popService.hasPopUpComponentShowing();
+            const scrollLeft = this.dataTipService.viewerOffset.scrollLeft;
+            const scrollTop = this.dataTipService.viewerOffset.scrollTop;
 
             // Skip expensive DOM reads and style writes when all inputs are unchanged.
+            // Scroll position is included so a scroll (which doesn't change tipX/tipY)
+            // still recomputes the viewport-compensated position.
             if(tipX === this.lastRenderedTipX && tipY === this.lastRenderedTipY &&
                tipName === this.lastRenderedTipName && tipAlpha === this.lastRenderedTipAlpha &&
-               popShowing === this.lastRenderedPopShowing) {
+               popShowing === this.lastRenderedPopShowing &&
+               scrollLeft === this.lastRenderedScrollLeft && scrollTop === this.lastRenderedScrollTop) {
                return;
             }
 
@@ -99,6 +133,8 @@ export class VSDataTipDirective implements DoCheck {
             this.lastRenderedTipName = tipName;
             this.lastRenderedTipAlpha = tipAlpha;
             this.lastRenderedPopShowing = popShowing;
+            this.lastRenderedScrollLeft = scrollLeft;
+            this.lastRenderedScrollTop = scrollTop;
 
             const popInfo = this.popService.getPopInfo(this.dataTipName);
             const containerInfo = this.popService.getPopInfo(this.popContainerName);
@@ -191,16 +227,14 @@ export class VSDataTipDirective implements DoCheck {
                left += popInfo.left - containerInfo.left;
             }
 
-            // Only reposition focus-assembly elements. Component outer divs own their
-            // top/left via template bindings, so overriding them here breaks OnPush
-            // components (e.g. vs-crosstab) that don't re-evaluate bindings on scroll.
-            const isFocusAssembly = nativeElement.classList.contains("focus-assembly");
-
-            if(isFocusAssembly) {
-               this.renderer.setStyle(nativeElement, "left", left + "px");
-               this.renderer.setStyle(nativeElement, "top", top + "px");
-               this.renderer.setStyle(nativeElement, "position", "absolute");
-            }
+            // While this element is the active data tip, its position is owned by the
+            // mouse-tracked coordinates computed above rather than by whatever template
+            // binding (design-time layout position, etc.) it normally uses, so it's always
+            // safe to override here. Subscribing to DataTipService.scrolled (see ngOnInit)
+            // keeps this in sync on scroll for OnPush hosts (e.g. crosstab, table, calc table).
+            this.renderer.setStyle(nativeElement, "left", left + "px");
+            this.renderer.setStyle(nativeElement, "top", top + "px");
+            this.renderer.setStyle(nativeElement, "position", "absolute");
 
             this.renderer.addClass(nativeElement, this.dataTipClass);
 
@@ -227,6 +261,8 @@ export class VSDataTipDirective implements DoCheck {
             this.lastRenderedTipName = undefined;
             this.lastRenderedTipAlpha = undefined;
             this.lastRenderedPopShowing = undefined;
+            this.lastRenderedScrollLeft = undefined;
+            this.lastRenderedScrollTop = undefined;
             this.renderer.setStyle(this.elementRef.nativeElement, "display", "none");
             this.removeOutsideClickListener();
          }
