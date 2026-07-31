@@ -25,6 +25,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -195,6 +196,19 @@ public class WizDashboardFilterBuilder {
 
          if(req.label() != null && control instanceof TitledVSAssembly titled) {
             titled.setTitleValue(req.label());
+
+            // Setting the title VALUE is not enough to make it appear: a TimeSliderVSAssembly
+            // (date/numeric range) renders with its title hidden by default, so a shared-bar range
+            // slider showed only its own value range -- "6..216" with nothing saying that is
+            // partner_id, and no way for a user to tell what the slider filters. Force the title
+            // visible so every control is self-describing.
+            //
+            // The DESIGN value (setTitleVisibleValue, not setTitleVisible) is what matters here: a
+            // composed dashboard is SAVED and reopened, and only the design value survives that
+            // round trip -- the same reason the per-chart dropdown sets setTitleHeightValue.
+            if(control.getVSAssemblyInfo() instanceof TitledVSAssemblyInfo titleInfo) {
+               titleInfo.setTitleVisibleValue(true);
+            }
          }
 
          Point pos = new Point(x, y);
@@ -209,7 +223,7 @@ public class WizDashboardFilterBuilder {
          vs.addAssembly(control);
          applied.add(req.field());
          placements.add(new FilterControlPlacement(control.getName(), pos, size));
-         x += FILTER_CONTROL_WIDTH;
+         x += FILTER_CONTROL_WIDTH + FILTER_CONTROL_GAP;
       }
 
       return new FilterResult(applied, skipped, placements);
@@ -467,6 +481,13 @@ public class WizDashboardFilterBuilder {
    private static final int FILTER_BAR_X = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_BAR_Y = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_CONTROL_WIDTH = 200;
+   /**
+    * Horizontal gap between adjacent shared-bar controls, in pixels. Without it the stride equalled
+    * the control width exactly, so controls butted edge-to-edge and read as one continuous widget --
+    * two range sliders side by side looked like a single double-ended slider, and it was not obvious
+    * where one filter ended and the next began.
+    */
+   private static final int FILTER_CONTROL_GAP = 16;
 
    /** Shared-bar control height, in pixels — compact: a range slider (the usual shared filter) or
     *  a short selection list needs far less than a chart tile, and the toolbar band

@@ -30,6 +30,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -187,6 +188,61 @@ class WizDashboardFilterBuilderTest {
          .findFirst().orElseThrow();
       assertEquals(List.of("CHART_FINAL"), control.getTableNames(),
          "must bind only to the chart's own table, never GLOBAL_STATS");
+   }
+
+   @Test
+   void adjacentSharedBarControlsAreSeparatedByAGap() {
+      // Observed live: two range sliders butted edge-to-edge read as ONE double-ended slider, with no
+      // visual cue where one filter stopped and the next began -- the stride equalled the control
+      // width exactly.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "state", "region"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("state", "string", "State"),
+         new WizDashboardFilterBuilder.FilterRequest("region", "string", "Region")), 0);
+
+      assertEquals(2, result.placements().size(), "both controls should be placed");
+      int firstX = result.placements().get(0).position().x;
+      int secondX = result.placements().get(1).position().x;
+      int width = result.placements().get(0).size().width;
+      assertTrue(secondX > firstX + width,
+         "adjacent controls must not touch: second x=" + secondX + " should exceed first x=" + firstX
+            + " plus width=" + width);
+   }
+
+   @Test
+   void everySharedBarControlHasAVisibleTitleSoItSaysWhatItFilters() {
+      // Pins an invariant we depend on, NOT a regression test for a fix: this assertion passes both
+      // with and without the explicit setTitleVisibleValue(true) call, because the design default is
+      // already true. So the live symptom -- a numeric range slider rendering as bare "6..216" with
+      // nothing saying it filters partner_id -- is NOT explained by the design value and remains
+      // UNDIAGNOSED. Candidates still to check against a running instance: the RUNTIME titleVisible
+      // (as opposed to the design value), a zero title height, or TimeSliderVSAssembly's own renderer
+      // ignoring the title entirely. Do not read this test as proof the title now shows.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "partner_id"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("partner_id", "integer", "Customer")), 0);
+
+      assertEquals(1, result.placements().size());
+      VSAssembly placed = (VSAssembly) vs.getAssembly(result.placements().get(0).assemblyName());
+      assertTrue(placed instanceof TimeSliderVSAssembly,
+         "a numeric column should yield a range slider, got " + placed.getClass().getSimpleName());
+      TitledVSAssemblyInfo info = (TitledVSAssemblyInfo) placed.getVSAssemblyInfo();
+      assertEquals("Customer", info.getTitleValue());
+      assertTrue(info.getTitleVisibleValue(), "the title must be VISIBLE, not merely set");
    }
 
    @Test
