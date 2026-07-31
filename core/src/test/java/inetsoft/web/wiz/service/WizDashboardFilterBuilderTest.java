@@ -30,6 +30,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
@@ -207,10 +208,13 @@ class WizDashboardFilterBuilderTest {
          new WizDashboardFilterBuilder.FilterRequest("state", "string", "State"),
          new WizDashboardFilterBuilder.FilterRequest("region", "string", "Region")), 0);
 
-      assertEquals(2, result.placements().size(), "both controls should be placed");
-      int firstX = result.placements().get(0).position().x;
-      int secondX = result.placements().get(1).position().x;
-      int width = result.placements().get(0).size().width;
+      // Placements now carry a caption per control as well, so compare CONTROL placements only.
+      var ctls = result.placements().stream()
+         .filter(pl -> !pl.assemblyName().startsWith("wizFilterLabel_")).toList();
+      assertEquals(2, ctls.size(), "both controls should be placed");
+      int firstX = ctls.get(0).position().x;
+      int secondX = ctls.get(1).position().x;
+      int width = ctls.get(0).size().width;
       assertTrue(secondX > firstX + width,
          "adjacent controls must not touch: second x=" + secondX + " should exceed first x=" + firstX
             + " plus width=" + width);
@@ -234,9 +238,34 @@ class WizDashboardFilterBuilderTest {
       WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
          new WizDashboardFilterBuilder.FilterRequest("partner_id", "integer", "Customer")), 0);
 
-      VSAssembly placed = (VSAssembly) vs.getAssembly(result.placements().get(0).assemblyName());
-      TitledVSAssemblyInfo info = (TitledVSAssemblyInfo) placed.getVSAssemblyInfo();
-      assertEquals("Customer", info.getTitleValue());
+      // A CAPTION assembly carries the label, because a standalone range slider renders no title of
+      // its own (vs-range-slider.component.html gates the whole title header on
+      // isInSelectionContainer()). Server-side titleVisible/titleHeight were all ruled out by test.
+      VSAssembly caption = (VSAssembly) vs.getAssembly("wizFilterLabel_" + control(vs).getName());
+      assertNotNull(caption, "every labelled control needs a caption assembly");
+      assertEquals("Customer", ((TextVSAssemblyInfo) caption.getVSAssemblyInfo()).getTextValue());
+
+      // ...and the caption is carried into the layout placements, or it is hidden whenever a layout
+      // tier is selected (the same trap the filter-bar band rectangles documented).
+      assertTrue(result.placements().stream().anyMatch(pl -> pl.assemblyName().equals(caption.getName())),
+                 "the caption must appear in the returned placements");
+
+      // The caption sits ABOVE the control, and the pair still fits the band the service reserves.
+      java.awt.Point captionPos = result.placements().stream()
+         .filter(pl -> pl.assemblyName().equals(caption.getName())).findFirst().orElseThrow().position();
+      WizDashboardFilterBuilder.FilterControlPlacement ctl = result.placements().stream()
+         .filter(pl -> !pl.assemblyName().startsWith("wizFilterLabel_")).findFirst().orElseThrow();
+      assertTrue(ctl.position().y > captionPos.y, "control must sit below its caption");
+      assertTrue(ctl.position().y + ctl.size().height
+                    <= captionPos.y + WizDashboardService.FILTER_BAR_ROW_HEIGHT,
+                 "caption + control must fit the reserved filter-bar row");
+   }
+
+   private static VSAssembly control(Viewsheet vs) {
+      return java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (VSAssembly) a)
+         .findFirst().orElseThrow();
    }
 
    @Test
@@ -290,10 +319,16 @@ class WizDashboardFilterBuilderTest {
          vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")),
          WizDashboardService.CANVAS_MARGIN);
 
-      assertEquals(1, result.placements().size());
-      assertNotNull(result.placements().get(0).assemblyName());
+      // Two placements per LABELLED control now: the control plus its caption (a standalone range
+      // slider renders no title of its own, so the caption stands in -- see FILTER_LABEL_HEIGHT).
+      // Both must be returned or an assembly with no per-tier layout entry is hidden.
+      assertEquals(2, result.placements().size());
+      assertTrue(result.placements().stream().allMatch(pl -> pl.assemblyName() != null));
+      // The CAPTION is the topmost thing in the bar, at the passed origin; the control sits under it.
+      var caption = result.placements().stream()
+         .filter(pl -> pl.assemblyName().startsWith("wizFilterLabel_")).findFirst().orElseThrow();
       assertEquals(new java.awt.Point(WizDashboardService.CANVAS_MARGIN, WizDashboardService.CANVAS_MARGIN),
-         result.placements().get(0).position());
+         caption.position());
    }
 
    @Test
@@ -315,8 +350,14 @@ class WizDashboardFilterBuilderTest {
          .findFirst().orElseThrow();
       assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().x,
          "must sit at the passed startX (the merged charts' left edge)");
-      assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().y,
-         "must not sit flush against the canvas's top edge");
+      // The control now sits BELOW its caption, so the caption is what must clear the top edge --
+      // same intent, one row up (see FILTER_LABEL_HEIGHT for why a caption exists at all).
+      assertTrue(control.getPixelOffset().y > WizDashboardService.CANVAS_MARGIN,
+         "the control sits below its caption");
+      var captionAssembly = vs.getAssembly("wizFilterLabel_" + control.getName());
+      assertNotNull(captionAssembly, "the control must have a caption above it");
+      assertEquals(WizDashboardService.CANVAS_MARGIN, ((VSAssembly) captionAssembly).getPixelOffset().y,
+         "the bar must not sit flush against the canvas's top edge");
    }
 
    @Test
