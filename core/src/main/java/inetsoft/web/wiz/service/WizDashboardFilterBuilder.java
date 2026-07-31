@@ -265,9 +265,10 @@ public class WizDashboardFilterBuilder {
     * the given fixed point (the top of that chart's own tile) and sized to {@code width} ×
     * {@code height} — the caller passes the CHART's own width and the reserved header height so
     * the control spans the full width of, and sits flush against the top of, the chart it
-    * filters. Unlike {@link #build}, there is no multi-table candidate search — the single
-    * {@code chartTableName} IS the candidate, so binding is unambiguous by construction (no
-    * residual name-collision risk across charts).
+    * filters. Unlike {@link #build}, there is no board-wide candidate search — post-aggregation
+    * (the default) the single {@code chartTableName} IS the candidate, and pre-aggregation the
+    * candidates are only the root tables reachable from it, so either way the binding is scoped to
+    * this one chart by construction (no residual name-collision risk across charts).
     *
     * <p>When {@code chartAssemblyName} resolves to a real assembly on {@code vs}, the control and
     * that chart are styled as one visually-grouped "card" (matching background, a shared border
@@ -284,8 +285,27 @@ public class WizDashboardFilterBuilder {
                                                 int width, int height, FilterRequest request,
                                                 String chartTableName, String chartAssemblyName)
    {
-      List<String> tables = AddFilterService.findColumnMatchingChartTables(
-         baseWorksheet, List.of(chartTableName), request.field());
+      // Post-aggregation (default): bind to this chart's FINAL bound table -- the control filters
+      // the already-aggregated display rows (see the class Javadoc). Pre-aggregation: bind to the
+      // raw source table(s) carrying the column that are REACHABLE FROM THIS CHART's own table
+      // (findColumnMatchingRootTablesForChart) so the selection applies as a WHERE before any
+      // group-by, filtering the underlying rows and letting the aggregate re-compute over the
+      // subset -- the only way to filter by an orthogonal column that never survives to the
+      // chart's final table (e.g. order `state` on a revenue-by-quarter chart).
+      //
+      // Key distinction from the shared-bar path in build(): that one resolves via
+      // findColumnMatchingRootTables, which scans EVERY visible root table in the merged dashboard
+      // worksheet, so one WHERE can also reach a chart whose cross-row math (a window function, a
+      // global-aggregate ratio) a subset WHERE would collapse -- forcing its caller to veto the
+      // filter unless every chart sharing the column name is structurally safe. Here the control
+      // belongs to exactly ONE chart's tile and binds only to THAT chart's own raw source, so this
+      // chart's safety is decided independently of the rest of the board and no such veto is
+      // needed. Default (false) stays post-aggregation, unchanged.
+      List<String> tables = request.preAggregation()
+         ? AddFilterService.findColumnMatchingRootTablesForChart(
+              baseWorksheet, chartTableName, request.field())
+         : AddFilterService.findColumnMatchingChartTables(
+              baseWorksheet, List.of(chartTableName), request.field());
 
       if(tables.isEmpty()) {
          return null;

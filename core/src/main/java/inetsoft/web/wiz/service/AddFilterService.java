@@ -199,19 +199,100 @@ public class AddFilterService {
             continue;
          }
 
-         ColumnSelection cols = table.getColumnSelection(true);
+         if(tableHasColumn(table, attribute)) {
+            result.add(a.getName());
+         }
+      }
 
-         for(int i = 0; i < cols.getAttributeCount(); i++) {
-            if(!(cols.getAttribute(i) instanceof ColumnRef cref)) {
-               continue;
+      return result;
+   }
+
+   /**
+    * Returns the names of the visible root tables <b>reachable from {@code chartTableName}</b> that
+    * contain a column matching the given {@code attribute} name (alias-first lookup, the identical
+    * matching rule {@link #findColumnMatchingRootTables} and
+    * {@link #findColumnMatchingChartTables} use — see {@link #tableHasColumn}).
+    *
+    * <p>This is {@link #findColumnMatchingRootTables} narrowed to ONE chart. That method scans
+    * <i>every</i> visible root table in the merged dashboard worksheet, which is defensible for the
+    * shared filter bar (one control, every chart) but forces its caller into a conservative veto:
+    * a pre-aggregation filter can only be offered when EVERY chart whose raw source exposes that
+    * column name is structurally safe, because a WHERE bound to a shared root also reaches a chart
+    * whose cross-row math (a window function, a global-aggregate ratio) a subset WHERE would
+    * collapse — silently producing wrong numbers. A PER-CHART filter's control belongs to exactly
+    * one chart's tile, so binding it to only THAT chart's own raw source makes one chart's safety
+    * independent of every other chart's, and the veto becomes unnecessary.</p>
+    *
+    * <p>Reachability is resolved by walking {@code chartTableName}'s transitive
+    * {@code getDependeds} — the set of assemblies a table itself depends on — down to tables whose
+    * own {@code getDependeds} set is empty. Those are the roots, exactly as
+    * {@link #findColumnMatchingRootTables} documents (a wiz merge stacks
+    * {@link MirrorTableAssembly} instances over a shared {@link BoundTableAssembly} base, and each
+    * mirror reports the table it mirrors here; a join reports every table it joins, so a joined
+    * chart correctly resolves to whichever of its roots carries the column). Note the same warning
+    * that method carries: {@code getDependings()} is the REVERSE relation (who depends on this
+    * table) and must NOT be used — it is non-empty for root tables, the opposite of what is wanted.
+    * A {@code visited} set guards termination: a malformed/cyclic or self-referential dependency
+    * graph must not hang the dashboard compose.</p>
+    *
+    * <p>Visibility is checked when a root is REPORTED, matching what the two sibling methods gate
+    * on. It is deliberately not a traversal gate: neither sibling reports intermediate tables at
+    * all, and an invisible intermediate mirror must not sever reachability to a visible root.</p>
+    *
+    * <p>Package-visible (reuse seam, mirrors {@link #findColumnMatchingRootTables}): used by
+    * {@link WizDashboardFilterBuilder#buildPerChart} for a pre-aggregation per-chart filter.
+    */
+   static List<String> findColumnMatchingRootTablesForChart(Worksheet ws, String chartTableName,
+                                                            String attribute)
+   {
+      if(ws == null || chartTableName == null) {
+         return Collections.emptyList();
+      }
+
+      List<String> result = new ArrayList<>();
+      Set<String> visited = new HashSet<>();
+      Deque<String> pending = new ArrayDeque<>();
+      pending.push(chartTableName);
+
+      while(!pending.isEmpty()) {
+         String name = pending.pop();
+
+         // Termination guard: a cyclic or self-referential dependency graph (only reachable from a
+         // malformed worksheet, but it must not hang the compose) revisits a name forever otherwise.
+         if(!visited.add(name)) {
+            continue;
+         }
+
+         if(!(ws.getAssembly(name) instanceof TableAssembly table)) {
+            // Not a table (e.g. a VARIABLE_ASSET a condition depends on) or an unresolvable
+            // dangling reference -- nothing to walk into and nothing to match.
+            continue;
+         }
+
+         Set<AssemblyRef> dependeds = new HashSet<>();
+         table.getDependeds(dependeds);
+
+         if(dependeds.isEmpty()) {
+            // A root: this is a raw source table, so a selection bound here becomes a WHERE
+            // evaluated before any downstream group-by.
+            if(table.isVisible() && table.isVisibleTable() && tableHasColumn(table, attribute)) {
+               result.add(name);
             }
 
-            String colName = cref.getAlias() != null && !cref.getAlias().isEmpty()
-               ? cref.getAlias() : cref.getAttribute();
+            continue;
+         }
 
-            if(colName.equals(attribute)) {
-               result.add(a.getName());
-               break;
+         for(AssemblyRef ref : dependeds) {
+            // Null-guarded deliberately: ArrayDeque REJECTS null elements with a
+            // NullPointerException (it is not a null-permitting Collection), so an AssemblyRef with
+            // no entry -- or an entry with no name -- would abort the entire dashboard compose here
+            // rather than merely failing to resolve one filter. A ref we cannot name is a ref we
+            // cannot walk into, which is exactly the "resolves nothing -> request is skipped"
+            // outcome this lookup already produces for a dangling reference below.
+            String dep = ref.getEntry() != null ? ref.getEntry().getName() : null;
+
+            if(dep != null) {
+               pending.push(dep);
             }
          }
       }
@@ -255,24 +336,43 @@ public class AddFilterService {
             continue;
          }
 
-         ColumnSelection cols = table.getColumnSelection(true);
-
-         for(int i = 0; i < cols.getAttributeCount(); i++) {
-            if(!(cols.getAttribute(i) instanceof ColumnRef cref)) {
-               continue;
-            }
-
-            String colName = cref.getAlias() != null && !cref.getAlias().isEmpty()
-               ? cref.getAlias() : cref.getAttribute();
-
-            if(colName.equals(attribute)) {
-               result.add(name);
-               break;
-            }
+         if(tableHasColumn(table, attribute)) {
+            result.add(name);
          }
       }
 
       return result;
+   }
+
+   /**
+    * Returns whether {@code table}'s column selection exposes a column whose name matches
+    * {@code attribute}, alias-first: a {@link ColumnRef}'s {@code getAlias()} when it is non-null
+    * and non-empty, otherwise its {@code getAttribute()}.
+    *
+    * <p>Package-private (reuse seam, decision (a)): this is the single column-matching loop shared
+    * by all three table-lookup methods — {@link #findColumnMatchingRootTables},
+    * {@link #findColumnMatchingRootTablesForChart} and {@link #findColumnMatchingChartTables}.
+    * It is deliberately one implementation rather than three copies: if the matching rule diverged
+    * between them by even the alias precedence, a filter would bind through one lookup path and
+    * silently not bind through another.</p>
+    */
+   private static boolean tableHasColumn(TableAssembly table, String attribute) {
+      ColumnSelection cols = table.getColumnSelection(true);
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(!(cols.getAttribute(i) instanceof ColumnRef cref)) {
+            continue;
+         }
+
+         String colName = cref.getAlias() != null && !cref.getAlias().isEmpty()
+            ? cref.getAlias() : cref.getAttribute();
+
+         if(colName.equals(attribute)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
