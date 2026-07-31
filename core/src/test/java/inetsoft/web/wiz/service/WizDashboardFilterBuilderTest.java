@@ -98,6 +98,30 @@ class WizDashboardFilterBuilderTest {
    }
 
    @Test
+   void perChartDropdownTitleRowFillsTheReservedHeightSoNoGapShowsAboveTheChart() {
+      // A dropdown draws ONLY its title row (default AssetUtil.defh = 20), ignoring the rest of the
+      // assembly's pixel height. Reserving more than the row draws leaves the difference as a visible
+      // gap between the filter and the chart it belongs to, breaking the single-enclosing-card look
+      // applyGroupedCardStyle creates. Pin the title row to the reserved height so the two agree by
+      // construction rather than by two magic numbers happening to match.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+
+      builder.buildPerChart(vs, ws, 100, 200, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category"), "CHART_FINAL", null);
+
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+      // The DESIGN value is the one that survives save/reopen, which is how a composed dashboard is used.
+      assertEquals(28, control.getSelectionListInfo().getTitleHeightValue(),
+         "the dropdown's title row must fill the reserved height exactly, or the leftover shows as a gap");
+   }
+
+   @Test
    void perChartRangeSliderIsLeftAloneByTheDropdownTreatment() {
       // TimeSlider has no show type -- it is already a single-row control. The dropdown
       // treatment must not touch it (or throw when it is the control that was created).

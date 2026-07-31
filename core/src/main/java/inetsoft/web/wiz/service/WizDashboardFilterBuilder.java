@@ -286,6 +286,13 @@ public class WizDashboardFilterBuilder {
       // (date/numeric) has no show type and is already single-row, so it is deliberately untouched.
       if(control instanceof SelectionListVSAssembly list) {
          list.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+         // A dropdown draws ONLY its title row and ignores the rest of the assembly's pixel height
+         // (default AssetUtil.defh = 20). Anything reserved beyond what the row draws shows up as a
+         // GAP between the filter and its chart, breaking the single-enclosing-card look
+         // applyGroupedCardStyle builds. Pin the row to the caller's reserved height so the two agree
+         // by construction instead of relying on two constants happening to match. The DESIGN value
+         // (not the runtime one) is set because a composed dashboard is saved and reopened.
+         list.getSelectionListInfo().setTitleHeightValue(height);
       }
 
       if(request.label() != null && control instanceof TitledVSAssembly titled) {

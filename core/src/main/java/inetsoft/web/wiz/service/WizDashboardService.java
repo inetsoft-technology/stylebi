@@ -602,7 +602,7 @@ public class WizDashboardService {
     *  {@link WizDashboardFilterBuilder}'s FILTER_CONTROL_HEIGHT.
     *  Package-private (matching {@link #FILTER_BAR_ROW_HEIGHT}) so the grid tests assert geometry
     *  against the constant instead of a literal that silently rots when this is tuned. */
-   static final int PER_CHART_FILTER_ROW_HEIGHT = 40;
+   static final int PER_CHART_FILTER_ROW_HEIGHT = 28;
 
    /**
     * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}
