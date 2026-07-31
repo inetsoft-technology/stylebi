@@ -135,7 +135,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    get alignLeft(): boolean {
-      const width = this.miniToolbarService.getActionsWidth(this.getActions());
+      const width = this.miniToolbarService.getActionsWidth(this.displayActions);
       return this.left + this.width - width < 0;
    }
 
