@@ -258,11 +258,11 @@ public abstract class AbstractEditableAuthenticationProvider
 
       if(!replace) {
          try {
-            OrganizationManager.runInOrgScope(newOrgID, () -> {
-               identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
-
-               return null;
-            });
+            // copyStorages() already raw-copied the __autoSave bucket into newOrg's own bucket
+            // (still keyed by the source org's user ids), so migrate the files in place there --
+            // not in fromOrganization's bucket. Pass newOrgID explicitly rather than relying on
+            // the ambient principal/org context to resolve the right bucket.
+            identityService.updateAutoSaveFilesInBucket(fromOrganization, newOrg, newOrgID);
          }
          catch(Exception e) {
             LOG.warn("Unable to migrate Auto Save Files: "+ e);

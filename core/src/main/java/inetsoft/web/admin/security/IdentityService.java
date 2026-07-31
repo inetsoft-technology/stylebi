@@ -2696,8 +2696,26 @@ public class IdentityService {
       }
    }
 
+   // `principal` is unused now that the target bucket is resolved via an explicit storageOrgId
+   // rather than the ambient principal/org context -- kept for call-site/API stability (the
+   // rename call site in AbstractEditableAuthenticationProvider and existing test mocks all
+   // still call this 3-arg form).
    public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
-      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
+      updateAutoSaveFilesInBucket(oorg, norg, oorg.getId());
+   }
+
+   /**
+    * Named distinctly from {@link #updateAutoSaveFiles(Organization, Organization, Principal)}
+    * rather than overloaded on it -- a same-name {@code (Organization, Organization, String)}
+    * overload makes {@code any(), any(), any()} Mockito stubs against this class ambiguous at
+    * compile time (neither {@code Principal} nor {@code String} is more specific than the other).
+    *
+    * @param storageOrgId the id of the organization whose blob bucket currently holds the auto
+    *                      save files to migrate in place -- see
+    *                      {@link AutoSaveUtils#migrateAutoSaveFiles(Organization, Organization, String)}.
+    */
+   public void updateAutoSaveFilesInBucket(Organization oorg, Organization norg, String storageOrgId) {
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, storageOrgId);
    }
 
    public void updateTaskSaveFiles(Organization oorganization, Organization norganization) {
