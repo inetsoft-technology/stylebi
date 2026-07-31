@@ -112,6 +112,33 @@ class LegacyJavaShimTest {
    }
 
    /**
+    * The Java number parsers accept forms JavaScript's Number() grammar rejects,
+    * so the literal is matched before parsing -- otherwise these would coerce to
+    * real values instead of being left alone. (#75807)
+    */
+   @Test
+   void javaOnlyNumericFormsDoNotCoerce() throws Exception {
+      // control: BasicStroke(float) is reachable and does take a coerced string,
+      // so the rejections below are the grammar check, not an unrelated failure.
+      assertEquals(2.0, num(eval("java.awt.BasicStroke('2').getLineWidth()")));
+
+      // Long.parseLong permits a sign for any radix, so "0x-5" parsed as -5.
+      assertThrows(Exception.class, () -> eval("java.awt.Color('0x-5').getRed()"));
+      assertThrows(Exception.class, () -> eval("java.awt.Color('0x+5').getRed()"));
+
+      // Double.parseDouble accepts the d/f width suffixes, so "66051f" parsed
+      // as the 66051 that reached Color(int).
+      assertThrows(Exception.class, () -> eval("java.awt.Color('66051f').getRed()"));
+
+      // ...and the NaN/Infinity words, which reached a float parameter.
+      assertThrows(Exception.class, () -> eval("java.awt.BasicStroke('NaN').getLineWidth()"));
+      assertThrows(Exception.class,
+                   () -> eval("java.awt.BasicStroke('Infinity').getLineWidth()"));
+      assertThrows(Exception.class,
+                   () -> eval("java.awt.BasicStroke('-Infinity').getLineWidth()"));
+   }
+
+   /**
     * A leading zero is decimal in JavaScript ("010" is 10, not octal 8), so only
     * an explicit 0x prefix may change the radix.
     */

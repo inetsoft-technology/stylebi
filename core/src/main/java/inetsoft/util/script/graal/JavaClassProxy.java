@@ -20,6 +20,8 @@ package inetsoft.util.script.graal;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.*;
 
+import java.util.regex.Pattern;
+
 /**
  * A resolved Java class leaf produced by the {@link LegacyJavaShim}. Wraps the
  * GraalVM host type (from {@code Java.type}) so that static members and {@code
@@ -28,6 +30,11 @@ import org.graalvm.polyglot.proxy.*;
  * class as a function ({@code java.awt.Color(0xaed581)}) instantiates it.
  */
 public final class JavaClassProxy implements ProxyObject, ProxyExecutable, ProxyInstantiable {
+   // the JavaScript numeric literal grammar accepted by toNumber().
+   private static final Pattern HEX_LITERAL = Pattern.compile("0[xX][0-9a-fA-F]+");
+   private static final Pattern DECIMAL_LITERAL =
+      Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
+
    private final Value hostType;
    private final String className;
 
@@ -158,23 +165,29 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
    private static Number toNumber(String str) {
       String s = str.trim();
 
-      if(s.isEmpty()) {
-         return null;
-      }
-
+      // the literal grammar is matched before parsing because the Java parsers
+      // accept forms JS Number() rejects, and each would otherwise silently
+      // coerce a non-number: a sign after the 0x prefix ("0x-5" is -5 to
+      // Long.parseLong, which permits a sign for any radix), the NaN/Infinity
+      // words, and the d/f width suffixes ("12F"). An empty string matches
+      // neither pattern, so it is left alone as documented.
       try {
          // JS treats a leading zero as decimal ("010" is 10), so only an
          // explicit 0x/0X prefix is a radix change -- matching Rhino, which
          // likewise recognized only the unsigned hex form.
-         if(s.length() > 2 && s.charAt(0) == '0' && (s.charAt(1) == 'x' || s.charAt(1) == 'X')) {
+         if(HEX_LITERAL.matcher(s).matches()) {
             return narrow(Long.parseLong(s.substring(2), 16));
          }
 
-         return narrow(Double.parseDouble(s));
+         if(DECIMAL_LITERAL.matcher(s).matches()) {
+            return narrow(Double.parseDouble(s));
+         }
       }
-      catch(NumberFormatException ex) {
-         return null;
+      catch(NumberFormatException ignore) {
+         // a hex literal too wide for long
       }
+
+      return null;
    }
 
    /**
