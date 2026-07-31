@@ -167,9 +167,11 @@ input[type="number"] {
   cursor: pointer;
   color: var(--inet-text-color);
 
+  // the list stays light in dark mode, so the text must flip with the fill. :host-context cannot
+  // scope this — the dropdown is appended to document.body, outside the host subtree.
   &:hover {
     background-color: var(--inet-viz-hover-bg);
-    color: var(--inet-text-color);
+    color: var(--inet-viz-hover-text);
   }
 
   &.selected {
