@@ -31,6 +31,7 @@
 
   // state — live-view DOM overlays only; export-visible state is server-rendered via VSFormat.
   --inet-viz-hover-bg: var(--inet-hover-primary-bg-color); // legacy = data-table row-hover hook (gate-off parity)
+  --inet-viz-hover-text: inherit; // paired foreground; inherit keeps gate-off/light-modern unchanged
   --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
   --inet-viz-selected-text: var(--inet-selected-item-text-color);
   --inet-viz-selected-border: var(--inet-primary-color);
@@ -55,6 +56,7 @@
   // customer-overridable dark state colors, mirroring the -modern seam; consumed only inside
   // .viz-dark below, so gate-off / light-modern are inert.
   --inet-viz-hover-bg-dark: #26313A;
+  --inet-viz-hover-text-dark: #E6E0E9;
   --inet-viz-selected-bg-dark: #0E3B44;
   --inet-viz-selected-text-dark: #A8EEF5;
   --inet-viz-selected-border-dark: #2DD4BF;
@@ -140,6 +142,9 @@
 // order. Density stays driven by the .viz-modern.viz-density-* matrices above; only color changes here.
 .viz-dark {
   --inet-viz-hover-bg: var(--inet-viz-hover-bg-dark);
+  // paired with the fill: surfaces that stay light (worksheet detail table, combo-box list)
+  // would otherwise keep their dark foreground under the dark hover fill.
+  --inet-viz-hover-text: var(--inet-viz-hover-text-dark);
   --inet-viz-selected-bg: var(--inet-viz-selected-bg-dark);
   --inet-viz-selected-text: var(--inet-viz-selected-text-dark);
   --inet-viz-selected-border: var(--inet-viz-selected-border-dark);
