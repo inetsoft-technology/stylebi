@@ -22,8 +22,10 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.MirrorTableAssembly;
 import inetsoft.uql.asset.PhysicalBoundTableAssembly;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
@@ -326,6 +328,139 @@ class WizDashboardFilterBuilderTest {
    }
 
    @Test
+   void perChartPreAggregationFilterBindsToTheChartsRawSourceNotItsFinalTable() {
+      // The chart is a revenue-by-quarter aggregate: its final table (a mirror over the raw source,
+      // exactly what the wiz merge stacks) carries only the grouped dim + measure. `state` lives
+      // only on the RAW source, so post-aggregation cannot reach it at all -- pre-aggregation binds
+      // there instead (a WHERE before the group-by) so the aggregate re-computes over the subset.
+      Worksheet ws = new Worksheet();
+      TableAssembly raw = physicalTable(ws, "SO_RAW", "date_order", "amount_total", "state");
+      ws.addAssembly(raw);
+      ws.addAssembly(mirrorTable(ws, "SO_REVENUE_BY_QTR", raw, "Quarter(date_order)", "total_revenue"));
+
+      Viewsheet vs = new Viewsheet();
+
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 100, 200, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("state", "string", "State", true),
+         "SO_REVENUE_BY_QTR", null);
+
+      assertNotNull(placement, "pre-aggregation must reach a column that never survives to the final table");
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(List.of("SO_RAW"), control.getTableNames(),
+         "pre-aggregation must bind to the chart's raw source table, not its aggregated final table");
+   }
+
+   @Test
+   void perChartPostAggregationStillBindsToTheFinalTableWithTheFlagFalseOrAbsent() {
+      // Regression guard for the default: with preAggregation false -- and with the flag simply
+      // absent (the 3-arg compatibility constructor) -- binding is byte-for-byte the old behavior:
+      // the chart's own FINAL table, and a column that only exists on the raw source is skipped.
+      Worksheet ws = new Worksheet();
+      TableAssembly raw = physicalTable(ws, "SO_RAW", "date_order", "amount_total", "state");
+      ws.addAssembly(raw);
+      ws.addAssembly(mirrorTable(ws, "SO_REVENUE_BY_QTR", raw, "Quarter(date_order)", "total_revenue"));
+
+      for(WizDashboardFilterBuilder.FilterRequest req : List.of(
+         new WizDashboardFilterBuilder.FilterRequest("total_revenue", "string", "Revenue", false),
+         new WizDashboardFilterBuilder.FilterRequest("total_revenue", "string", "Revenue")))
+      {
+         Viewsheet vs = new Viewsheet();
+         assertNotNull(builder.buildPerChart(vs, ws, 0, 0, 640, 28, req, "SO_REVENUE_BY_QTR", null));
+
+         AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+            .filter(a -> a instanceof AbstractSelectionVSAssembly)
+            .map(a -> (AbstractSelectionVSAssembly) a)
+            .findFirst().orElseThrow();
+         assertEquals(List.of("SO_REVENUE_BY_QTR"), control.getTableNames(),
+            "post-aggregation must stay bound to the chart's final table");
+      }
+
+      // And post-aggregation still cannot reach a raw-source-only column -- unchanged.
+      Viewsheet vs = new Viewsheet();
+      assertNull(builder.buildPerChart(vs, ws, 0, 0, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("state", "string", "State"), "SO_REVENUE_BY_QTR", null),
+         "post-aggregation must not reach a column absent from the final table");
+      assertEquals(0, vs.getAssemblies().length);
+   }
+
+   @Test
+   void perChartPreAggregationForOneChartNeverBindsToAnotherChartsRawSourceSharingTheColumnName() {
+      // THE isolation property this whole feature rests on. Two charts, each an aggregate over its
+      // OWN raw source, and BOTH raw sources expose a column called `state`. A per-chart
+      // pre-aggregation filter for chart A must bind to A_RAW only -- never B_RAW -- so chart B's
+      // structural safety (it could be a window/global-ratio chart a subset WHERE would collapse)
+      // is irrelevant to whether A's filter can be offered. That is what removes the conservative
+      // "every chart sharing the column name must be safe" veto the shared-bar path needs.
+      Worksheet ws = new Worksheet();
+      TableAssembly aRaw = physicalTable(ws, "A_RAW", "date_order", "amount_total", "state");
+      TableAssembly bRaw = physicalTable(ws, "B_RAW", "date_order", "amount_total", "state");
+      ws.addAssembly(aRaw);
+      ws.addAssembly(bRaw);
+      ws.addAssembly(mirrorTable(ws, "A_FINAL", aRaw, "Quarter(date_order)", "total_revenue"));
+      ws.addAssembly(mirrorTable(ws, "B_FINAL", bRaw, "Quarter(date_order)", "revenue_share"));
+
+      // The shared-bar resolver has no chart scope: it reaches BOTH raw sources from this same
+      // worksheet, which is precisely why its caller must veto on the least-safe chart.
+      assertEquals(List.of("A_RAW", "B_RAW"),
+         AddFilterService.findColumnMatchingRootTables(ws, "state"),
+         "the shared-bar resolver is board-wide -- the premise of the veto this test removes");
+
+      Viewsheet vs = new Viewsheet();
+
+      assertNotNull(builder.buildPerChart(vs, ws, 0, 0, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("state", "string", "State", true), "A_FINAL", null));
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(List.of("A_RAW"), control.getTableNames(),
+         "chart A's pre-aggregation filter must bind ONLY to A's own root table, never B_RAW");
+   }
+
+   @Test
+   void perChartPreAggregationIsSkippedWhenTheColumnLivesOnlyOnAnUnrelatedChartsSource() {
+      // The chart-scoped lookup finds nothing (the column is on another chart's raw source, not
+      // reachable from this chart's table) -> the request is SKIPPED, never bound to the wrong
+      // table. Binding a pre-aggregation control to a table this chart doesn't read would filter
+      // nothing here while silently changing whatever else reads that table.
+      Worksheet ws = new Worksheet();
+      TableAssembly aRaw = physicalTable(ws, "A_RAW", "date_order", "amount_total");
+      ws.addAssembly(aRaw);
+      ws.addAssembly(mirrorTable(ws, "A_FINAL", aRaw, "Quarter(date_order)", "total_revenue"));
+      // `state` exists only here, on an unrelated chart's source.
+      ws.addAssembly(physicalTable(ws, "B_RAW", "state"));
+
+      Viewsheet vs = new Viewsheet();
+
+      assertNull(builder.buildPerChart(vs, ws, 0, 0, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("state", "string", "State", true), "A_FINAL", null),
+         "a column only on an unrelated chart's source must be skipped, not mis-bound");
+      assertEquals(0, vs.getAssemblies().length, "no control may be added when nothing matched");
+   }
+
+   @Test
+   @org.junit.jupiter.api.Timeout(30)
+   void perChartPreAggregationTerminatesOnASelfReferentialDependencyGraph() {
+      // A malformed worksheet (a mirror whose base is itself) must not hang the dashboard compose:
+      // the walk's visited set terminates it. Nothing is reachable, so nothing binds.
+      Worksheet ws = new Worksheet();
+      MirrorTableAssembly cyclic = mirrorTable(ws, "CYCLE", physicalTable(ws, "SO_RAW", "state"), "state");
+      cyclic.setTableAssemblies(new TableAssembly[]{ cyclic });
+      ws.addAssembly(cyclic);
+
+      Viewsheet vs = new Viewsheet();
+
+      assertNull(builder.buildPerChart(vs, ws, 0, 0, 640, 28,
+         new WizDashboardFilterBuilder.FilterRequest("state", "string", "State", true), "CYCLE", null));
+      assertEquals(0, vs.getAssemblies().length);
+   }
+
+   @Test
    void buildPerChartReturnsNullWhenSkipped() {
       Worksheet ws = new Worksheet();
       ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
@@ -405,7 +540,23 @@ class WizDashboardFilterBuilderTest {
       PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, assemblyName);
       SourceInfo si = new SourceInfo(SourceInfo.PHYSICAL_TABLE, "postgres", "public." + assemblyName);
       table.setSourceInfo(si);
+      table.setColumnSelection(columnSelection(columns), false);
+      return table;
+   }
 
+   // A wiz-merged chart's own final table is a MirrorTableAssembly stacked over the shared physical
+   // base (see WsMergeService) -- the shape the pre-aggregation walk has to traverse. Its own column
+   // selection is set explicitly to the AGGREGATE OUTPUT columns, so the raw columns are reachable
+   // only through getDependeds (which a mirror answers with the table it mirrors), never directly.
+   private static MirrorTableAssembly mirrorTable(Worksheet ws, String assemblyName,
+                                                  TableAssembly base, String... columns)
+   {
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, assemblyName, base);
+      mirror.setColumnSelection(columnSelection(columns), false);
+      return mirror;
+   }
+
+   private static ColumnSelection columnSelection(String... columns) {
       ColumnSelection cs = new ColumnSelection();
 
       for(String name : columns) {
@@ -416,8 +567,7 @@ class WizDashboardFilterBuilderTest {
          cs.addAttribute(col);
       }
 
-      table.setColumnSelection(cs, false);
-      return table;
+      return cs;
    }
 
    // Helper mirrors AddFilterService.buildColumnRef (AttributeRef + ColumnRef with dataType).

@@ -540,8 +540,8 @@ public class WizDashboardService {
       Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
       int x, int y, int width, int height, String chartTableName, String chartAssemblyName)
    {
-      WizDashboardFilterBuilder.FilterRequest req =
-         new WizDashboardFilterBuilder.FilterRequest(spec.getField(), spec.getDataType(), spec.getLabel());
+      WizDashboardFilterBuilder.FilterRequest req = new WizDashboardFilterBuilder.FilterRequest(
+         spec.getField(), spec.getDataType(), spec.getLabel(), spec.isPreAggregation());
       return filterBuilder.buildPerChart(vs, baseWs, x, y, width, height, req, chartTableName, chartAssemblyName);
    }
 
