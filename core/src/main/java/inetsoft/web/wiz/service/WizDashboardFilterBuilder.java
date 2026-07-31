@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
+import inetsoft.uql.asset.internal.AssetUtil;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -196,20 +197,22 @@ public class WizDashboardFilterBuilder {
 
          if(req.label() != null && control instanceof TitledVSAssembly titled) {
             titled.setTitleValue(req.label());
-
-            // Setting the title VALUE is not enough to make it appear: a TimeSliderVSAssembly
-            // (date/numeric range) renders with its title hidden by default, so a shared-bar range
-            // slider showed only its own value range -- "6..216" with nothing saying that is
-            // partner_id, and no way for a user to tell what the slider filters. Force the title
-            // visible so every control is self-describing.
-            //
-            // The DESIGN value (setTitleVisibleValue, not setTitleVisible) is what matters here: a
-            // composed dashboard is SAVED and reopened, and only the design value survives that
-            // round trip -- the same reason the per-chart dropdown sets setTitleHeightValue.
-            if(control.getVSAssemblyInfo() instanceof TitledVSAssemblyInfo titleInfo) {
-               titleInfo.setTitleVisibleValue(true);
-            }
          }
+
+         // KNOWN UNFIXED: a shared-bar range slider renders with NO visible title -- a numeric slider
+         // shows a bare "6..216" with nothing telling the user it filters partner_id. The label IS
+         // applied above (setTitleValue). These explanations have each been RULED OUT by test, so do
+         // NOT retry them:
+         //   - the DESIGN title-visible value (getTitleVisibleValue) is already true by default;
+         //   - the RUNTIME flag (isTitleVisible) is already true by default;
+         //   - the title height is already AssetUtil.defh (20), not zero.
+         // Explicit setTitleVisibleValue(true) and setTitleVisible(true) calls were both tried against
+         // a live dashboard and changed nothing, and a test asserting either passes with AND without
+         // them -- so any such "fix" here is vacuous. TitleInfo's no-arg constructor does leave
+         // titleVisible as a valueless DynamicValue2 (vs TitleInfo(String) seeding "true"), which
+         // looked like the cause but is not: both getters still report true.
+         // Remaining hypothesis: the client-side TimeSlider component renders no title area at all,
+         // which has to be investigated in the Angular viewer, not here.
 
          Point pos = new Point(x, y);
          java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT);
