@@ -15,28 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.general.model;
+package inetsoft.web.admin.general;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
-
-@Value.Immutable
-@JsonSerialize(as = ImmutableBackupDataModel.class)
-@JsonDeserialize(as = ImmutableBackupDataModel.class)
-public interface BackupDataModel {
-   String dataspace();
-
-   @Value.Default
-   default boolean aiSnapshot() {
-      return false;
-   }
-
-   static BackupDataModel.Builder builder() {
-      return new BackupDataModel.Builder();
-   }
-
-   final class Builder extends ImmutableBackupDataModel.Builder {
-
-   }
+/**
+ * Outcome of a storage backup.
+ *
+ * @param status the human-readable status message, as before.
+ * @param path   the external-storage path of the backup that was written, or {@code null} when the
+ *               backup failed. Callers that must reference the artifact later - the admin-chat
+ *               feature records it in its audit trail - need the actual path, which was previously
+ *               computed inside doBackup and discarded.
+ */
+public record BackupResult(String status, String path) {
 }

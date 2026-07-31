@@ -82,10 +82,10 @@ public class DataSpaceSettingsService extends BackupSupport {
 
    public static String backup(BackupDataModel model) {
       return ConfigurationContext.getContext().getSpringBean(DataSpaceSettingsService.class)
-         .doBackup(model);
+         .doBackup(model).status();
    }
 
-   public String doBackup(BackupDataModel model) {
+   public BackupResult doBackup(BackupDataModel model) {
       String status;
       Catalog catalog = Catalog.getCatalog();
       File file = null;
@@ -95,6 +95,7 @@ public class DataSpaceSettingsService extends BackupSupport {
       ActionRecord record = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_BACKUP,
          "Storage", ActionRecord.OBJECT_TYPE_STORAGE, actionTimestamp,
          ActionRecord.ACTION_STATUS_FAILURE, "");
+      String path;
 
       try {
          deleteRedundantBackupFiles();
@@ -107,7 +108,8 @@ public class DataSpaceSettingsService extends BackupSupport {
             StorageTransfer.create(this.keyValueEngine, this.blobEngine).exportContents(output);
          }
 
-         String path = getBackFile(model != null ? model.dataspace() : null, stamp);
+         path = getBackFile(model != null ? model.dataspace() : null, stamp,
+                             model != null && model.aiSnapshot());
          this.externalStorageService.write(path, file.toPath(), null);
 
          status = catalog.getString("Success");
@@ -117,7 +119,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          LOG.error("Failed to back up storage", e);
          status = "Failed to back up storage: " + e.getMessage();
          record.setActionError(status);
-         return status;
+         return new BackupResult(status, null);
       }
       finally {
          if(file != null && file.exists()) {
@@ -128,7 +130,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          Audit.getInstance().auditAction(record, principal);
       }
 
-      return status;
+      return new BackupResult(status, path);
    }
 
    /**
@@ -199,7 +201,7 @@ public class DataSpaceSettingsService extends BackupSupport {
       return -1;
    }
 
-   private String getBackFile(String name, String timestamp) {
+   private String getBackFile(String name, String timestamp, boolean aiSnapshot) {
       name = name == null ? "data" : name;
       int idx = name.indexOf(".zip");
 
@@ -215,7 +217,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          name = prefix + BACKUP_PATH_SPLIT + timestamp + ".zip";
       }
 
-      name = BACKUP_FOLDER + "/" + name;
+      name = (aiSnapshot ? AI_SNAPSHOT_FOLDER : BACKUP_FOLDER) + "/" + name;
       name = this.externalStorageService.getAvailableFile(name, 1);
       return name;
    }
@@ -228,6 +230,15 @@ public class DataSpaceSettingsService extends BackupSupport {
    private final ExternalStorageService externalStorageService;
 
    private static final String BACKUP_FOLDER = "backup";
+
+   /**
+    * Admin-chat snapshots live in their own folder so that {@link #deleteRedundantBackupFiles},
+    * which lists only {@link #BACKUP_FOLDER}, cannot delete a snapshot an audit record still
+    * references. Nothing currently prunes this folder - see the retention note in the admin-chat
+    * design doc.
+    */
+   private static final String AI_SNAPSHOT_FOLDER = "ai-snapshots";
+
    private static final String BACKUP_PATH_SPLIT = "-";
 
    private static final Lock backupLock = new ReentrantLock();
