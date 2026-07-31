@@ -350,6 +350,7 @@
           [left]="getToolbarLeft(vsObject, i)"
           [width]="getToolbarWidth(vsObject)"
           [zIndex]="getContainerZIndex(vsObject) + 1"
+          [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
           [visible]="isAssemblyVisible(vsObject)"
           [forceShow]="forceShowMiniToolbar"
