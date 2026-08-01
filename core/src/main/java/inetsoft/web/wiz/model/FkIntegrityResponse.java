@@ -19,13 +19,19 @@
 package inetsoft.web.wiz.model;
 
 /**
- * The number of rows an INNER join from the fact table to its foreign-key target would drop.
+ * The two ways an INNER join from the fact table to its foreign-key target could change an
+ * aggregate. The join is safe to inject only when <em>both</em> counts are zero — a zero drop
+ * count alone is not sufficient, because a non-unique target key inflates every aggregate while
+ * dropping nothing.
  *
- * <p>This body is only ever produced for a query that actually ran and returned a row. Every
- * failure mode is an error response instead, because a body carrying {@code 0} means "safe to
- * join" to the caller.</p>
+ * <p>This body is only ever produced when both queries actually ran and returned a row. Every
+ * failure mode is an error response instead, because a body carrying zeros means "safe to join"
+ * to the caller.</p>
  *
- * @param droppedRowCount rows whose FK is NULL plus rows whose FK has no matching target row.
+ * @param droppedRowCount         rows the join would drop: rows whose FK is NULL, plus rows whose
+ *                                FK has no matching target row. Non-zero deflates aggregates.
+ * @param duplicateTargetKeyCount target key values occurring more than once. Non-zero means the
+ *                                join fans rows out and inflates aggregates.
  */
-public record FkIntegrityResponse(long droppedRowCount) {
+public record FkIntegrityResponse(long droppedRowCount, long duplicateTargetKeyCount) {
 }

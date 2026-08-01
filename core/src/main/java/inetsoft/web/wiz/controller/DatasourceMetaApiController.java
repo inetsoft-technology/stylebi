@@ -95,13 +95,15 @@ public class DatasourceMetaApiController {
    }
 
    /**
-    * Reports how many rows an INNER join from a fact table to its foreign-key target would drop.
+    * Reports both ways an INNER join from a fact table to its foreign-key target would change an
+    * aggregate: how many rows it would drop, and how many target key values would fan rows out.
     *
     * <p>Used before a dashboard filter is rewritten from a range slider over a surrogate key to a
-    * label list drawn from the FK target: that rewrite injects an INNER join, which would silently
-    * drop NULL and orphaned foreign keys and so change every unfiltered aggregate. The caller only
-    * proceeds on a {@code droppedRowCount} of 0, and treats any non-200 as a rejection — so every
-    * failure here must stay a failure rather than become a count.</p>
+    * label list drawn from the FK target. That rewrite injects an INNER join, which silently drops
+    * NULL and orphaned foreign keys (deflating every unfiltered aggregate) and duplicates rows
+    * when the target key is not unique (inflating them). The caller proceeds only when both counts
+    * are 0, and treats any non-200 as a rejection — so every failure here must stay a failure
+    * rather than become a count.</p>
     */
    @PostMapping("/datasource/fk-integrity")
    public FkIntegrityResponse getFkIntegrity(
@@ -109,7 +111,7 @@ public class DatasourceMetaApiController {
       Principal principal)
       throws Exception
    {
-      return new FkIntegrityResponse(fkIntegrityService.countDroppedRows(data, principal));
+      return fkIntegrityService.checkIntegrity(data, principal);
    }
 
    @GetMapping("/ws/meta/{id}")

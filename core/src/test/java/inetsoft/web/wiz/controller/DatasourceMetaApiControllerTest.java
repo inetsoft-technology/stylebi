@@ -96,12 +96,12 @@ class DatasourceMetaApiControllerTest {
    }
 
    /**
-    * The FK-integrity endpoint answers "how many rows would an INNER join drop?". wiz-services
-    * only injects the join when the answer is 0, so the controller must hand back exactly what
-    * the service computed, under the {@code droppedRowCount} key the caller reads.
+    * The FK-integrity endpoint answers both halves of "would an INNER join change the aggregates?"
+    * — rows dropped and rows duplicated. wiz-services injects the join only when both are 0, so
+    * the controller must hand back exactly what the service measured, under both keys.
     */
    @Test
-   void getFkIntegrity_returnsTheServiceCountAndPassesThePrincipalThrough() throws Exception {
+   void getFkIntegrity_returnsBothServiceCountsAndPassesThePrincipalThrough() throws Exception {
       MetadataApiService metadataService = mock(MetadataApiService.class);
       XRepository xrepository = mock(XRepository.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
@@ -112,12 +112,14 @@ class DatasourceMetaApiControllerTest {
 
       FkIntegrityRequest request = new FkIntegrityRequest();
       Principal principal = mock(Principal.class);
-      when(fkIntegrityService.countDroppedRows(request, principal)).thenReturn(42L);
+      when(fkIntegrityService.checkIntegrity(request, principal))
+         .thenReturn(new FkIntegrityResponse(42L, 7L));
 
       FkIntegrityResponse response = controller.getFkIntegrity(request, principal);
 
       assertEquals(42L, response.droppedRowCount());
-      verify(fkIntegrityService).countDroppedRows(request, principal);
+      assertEquals(7L, response.duplicateTargetKeyCount());
+      verify(fkIntegrityService).checkIntegrity(request, principal);
    }
 
    /**
@@ -137,7 +139,7 @@ class DatasourceMetaApiControllerTest {
 
       FkIntegrityRequest request = new FkIntegrityRequest();
       Principal principal = mock(Principal.class);
-      when(fkIntegrityService.countDroppedRows(request, principal))
+      when(fkIntegrityService.checkIntegrity(request, principal))
          .thenThrow(new IllegalArgumentException("fkColumn is not a valid identifier"));
 
       assertThrows(IllegalArgumentException.class,

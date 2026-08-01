@@ -22,6 +22,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.wiz.model.FkIntegrityResponse;
 import inetsoft.web.wiz.request.FkIntegrityRequest;
 import org.springframework.stereotype.Service;
 
@@ -33,23 +34,39 @@ import java.sql.SQLException;
 import java.util.regex.Pattern;
 
 /**
- * Counts the rows an INNER join from a fact table to a foreign-key target would silently drop.
+ * Measures whether injecting an INNER join from a fact table to a foreign-key target would change
+ * the dashboard's aggregates.
  *
  * <p>wiz-services wants to replace a range slider over a surrogate key (e.g. {@code partner_id})
  * with a filter listing the target's labels, which requires injecting an INNER join to the FK
- * target. That join drops every row whose FK is NULL or orphaned, which would change every
- * unfiltered aggregate on the dashboard. So the join is only injected when this count is zero.</p>
+ * target. An INNER join can change an aggregate in two independent ways, and both are measured
+ * here because either one alone is disqualifying:</p>
+ * <ul>
+ *   <li><b>Dropping rows</b> — every source row whose FK is NULL or orphaned disappears, so every
+ *       unfiltered SUM/COUNT deflates. That is {@code droppedRowCount}.</li>
+ *   <li><b>Duplicating rows</b> — if the target key is not unique, a source row matching n target
+ *       rows is emitted n times, so every unfiltered SUM/COUNT inflates. That is
+ *       {@code duplicateTargetKeyCount}. A zero drop count says nothing about this: a non-unique
+ *       target key inflates aggregates while dropping exactly zero rows.</li>
+ * </ul>
  *
- * <p>Two consequences shape this class:</p>
+ * <p>The join is therefore safe to inject only when <em>both</em> counts are zero.</p>
+ *
+ * <p>The caller does hold metadata claiming the target key is the target's single-column primary
+ * key, but that metadata comes from an annotation store and can be stale or wrong. This whole
+ * endpoint exists because the feature does not trust metadata for safety-critical facts — it
+ * measures them — and uniqueness is no different.</p>
+ *
+ * <p>Two further consequences shape this class:</p>
  * <ul>
  *   <li><b>A wrong zero is the worst failure.</b> Nothing here degrades into a count: no
- *       exception is swallowed, no missing result defaults to zero. Failures propagate to the
- *       controller's {@code @ExceptionHandler}, and wiz-services treats any non-200 as a
- *       rejection — the fail-closed outcome.</li>
+ *       exception is swallowed, no missing result defaults to zero, for either field. Failures
+ *       propagate to the controller's {@code @ExceptionHandler}, and wiz-services treats any
+ *       non-200 as a rejection — the fail-closed outcome.</li>
  *   <li><b>Identifier validation is the security boundary.</b> This is deliberately not a
  *       {@code {sql}}-accepting endpoint; accepting SQL would create an authenticated
  *       arbitrary-SQL surface over every registered datasource to serve one caller with one
- *       fixed query shape. Identifiers come in, the statement is composed here, and anything
+ *       fixed query shape. Identifiers come in, the statements are composed here, and anything
  *       outside the allowed character set is rejected rather than quoted or escaped.</li>
  * </ul>
  */
@@ -63,18 +80,22 @@ public class FkIntegrityService {
    }
 
    /**
-    * Counts the rows an INNER join from {@code sourceTable} to {@code targetTable} would drop.
+    * Measures both ways an INNER join from {@code sourceTable} to {@code targetTable} could change
+    * an aggregate: rows it would drop, and target key values that would fan rows out.
     *
     * @param request   the source/target tables and key columns, as identifiers.
     * @param principal the requesting user; must hold READ on the datasource.
-    * @return rows whose FK is NULL plus rows whose FK has no matching target row.
+    * @return both counts. The join is safe to inject only when both are zero.
     *
     * @throws IllegalArgumentException if any identifier fails validation — nothing is executed.
     * @throws SecurityException        if the user lacks READ on the datasource.
-    * @throws SQLException             if the query fails or returns no usable count. Never
-    *                                  translated into a count.
+    * @throws SQLException             if either query fails or returns no usable count. Never
+    *                                  translated into a count; a failure of either query fails
+    *                                  the whole request rather than reporting the other alone.
     */
-   public long countDroppedRows(FkIntegrityRequest request, Principal principal) throws Exception {
+   public FkIntegrityResponse checkIntegrity(FkIntegrityRequest request, Principal principal)
+      throws Exception
+   {
       if(request == null) {
          throw new IllegalArgumentException("A request body is required.");
       }
@@ -86,6 +107,9 @@ public class FkIntegrityService {
       }
 
       // Validate before anything else: a rejected identifier must never reach a connection.
+      // Every identifier later interpolated into SQL must pass through here. The parameterized
+      // wiring test pins each of these four call sites individually — mutating the shared helper
+      // only pins the rule, never the wiring of a particular field to it.
       String sourceTable = validateTableIdentifier(request.getSourceTable(), "sourceTable");
       String fkColumn = validateColumnIdentifier(request.getFkColumn(), "fkColumn");
       String targetTable = validateTableIdentifier(request.getTargetTable(), "targetTable");
@@ -97,10 +121,16 @@ public class FkIntegrityService {
       }
 
       JDBCDataSource ds = metadataService.getJDBCDatasource(dsName);
-      String sql = buildDroppedRowCountSql(sourceTable, fkColumn, targetTable, targetKeyColumn);
+      String droppedSql =
+         buildDroppedRowCountSql(sourceTable, fkColumn, targetTable, targetKeyColumn);
+      String duplicateSql = buildDuplicateTargetKeyCountSql(targetTable, targetKeyColumn);
 
       try(Connection conn = openConnection(ds, principal)) {
-         return executeCount(conn, sql);
+         // Both measurements share one connection so they describe the same database state.
+         long droppedRowCount = executeCount(conn, droppedSql);
+         long duplicateTargetKeyCount = executeCount(conn, duplicateSql);
+
+         return new FkIntegrityResponse(droppedRowCount, duplicateTargetKeyCount);
       }
    }
 
@@ -113,7 +143,7 @@ public class FkIntegrityService {
    }
 
    /**
-    * Runs the count. An absent row or a NULL count is an error, not a zero: {@code getLong}
+    * Runs one count. An absent row or a NULL count is an error, not a zero: {@code getLong}
     * returns 0 for SQL NULL, and 0 is precisely the answer that opens the gate.
     */
    private static long executeCount(Connection conn, String sql) throws SQLException {
@@ -122,14 +152,14 @@ public class FkIntegrityService {
       {
          if(!rs.next()) {
             throw new SQLException(
-               "Foreign key integrity count returned no row; refusing to report zero dropped rows.");
+               "Foreign key integrity count returned no row; refusing to report zero. SQL: " + sql);
          }
 
          long count = rs.getLong(1);
 
          if(rs.wasNull()) {
             throw new SQLException(
-               "Foreign key integrity count was NULL; refusing to report zero dropped rows.");
+               "Foreign key integrity count was NULL; refusing to report zero. SQL: " + sql);
          }
 
          return count;
@@ -137,7 +167,7 @@ public class FkIntegrityService {
    }
 
    /**
-    * Builds the counting statement from already-validated identifiers.
+    * Builds the drop-count statement from already-validated identifiers.
     *
     * <p>Both halves of "rows an INNER join would drop" are counted: NULL foreign keys, and
     * foreign keys with no matching target row. The orphan half is a correlated subquery, so the
@@ -153,6 +183,21 @@ public class FkIntegrityService {
    }
 
    /**
+    * Builds the duplicate-key statement from already-validated identifiers: how many target key
+    * values occur more than once. Any non-zero result means the join would fan rows out and
+    * inflate aggregates, no matter how many rows it drops.
+    *
+    * <p>NULL target keys are not excluded from the grouping. A NULL key can never match a source
+    * FK, so it cannot in fact duplicate anything — counting repeated NULLs as duplicates is
+    * therefore conservative, which is the correct direction for a gate whose dangerous failure
+    * mode is wrongly allowing the join.</p>
+    */
+   static String buildDuplicateTargetKeyCountSql(String targetTable, String targetKeyColumn) {
+      return "SELECT COUNT(*) FROM (SELECT " + targetKeyColumn + " FROM " + targetTable +
+         " GROUP BY " + targetKeyColumn + " HAVING COUNT(*) > 1) d";
+   }
+
+   /**
     * Validates a table name: at most two dot-separated segments (schema.table).
     */
    static String validateTableIdentifier(String identifier, String field) {
@@ -161,7 +206,7 @@ public class FkIntegrityService {
 
    /**
     * Validates a column name: exactly one segment. A dot in a column name is a rejection, not a
-    * qualification — the statement qualifies columns itself via its {@code src}/{@code tgt}
+    * qualification — the statements qualify columns themselves via their {@code src}/{@code tgt}
     * aliases.
     */
    static String validateColumnIdentifier(String identifier, String field) {
