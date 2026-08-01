@@ -551,19 +551,30 @@ public class WizDashboardService {
 
    /** Reserved row height for the top filter bar, in pixels — sized so the compact filter toolbar
     *  band clears the first chart with a small gap (the chart is pushed to
-    *  FILTER_BAR_ROW_HEIGHT + CANVAS_MARGIN + merge offset ≈ 76+24+24 = 124, just below the band's
-    *  bottom at 92). Not a full chart tile's height. */
-   static final int FILTER_BAR_ROW_HEIGHT = 76;
+    *  FILTER_BAR_ROW_HEIGHT + CANVAS_MARGIN + merge offset ≈ 60+24+24 = 108, just below the band's
+    *  bottom at 76). Not a full chart tile's height. Dropped from 76 alongside the controls
+    *  shrinking from a 60px to a 44px band: left at 76 the gap under the band would have grown to
+    *  48px, which reads as the bar having been abandoned rather than deliberately spaced. */
+   static final int FILTER_BAR_ROW_HEIGHT = 60;
 
    /** Top y (px) of the filter toolbar band -- a small inset above the controls (which sit at
     *  CANVAS_MARGIN=24). */
    private static final int FILTER_BAND_TOP = 12;
 
-   /** Filter toolbar band height (px): wraps the compact 60px controls (at y=24) with a little
-    *  padding, so the band bottom (its divider) lands at 12+80=92 -- above the first chart row
-    *  (which the reserved FILTER_BAR_ROW_HEIGHT + margin + merge offset pushes to ~124), leaving a
-    *  clean gap without the band looking oversized. */
-   private static final int FILTER_BAND_HEIGHT = 80;
+   /** Filter toolbar band height (px): the inset above the controls (they sit at CANVAS_MARGIN,
+    *  the band starts at FILTER_BAND_TOP), the control band itself, and a small bottom inset. So
+    *  the band bottom (its divider) lands at 12+64=76 -- above the first chart row (which the
+    *  reserved FILTER_BAR_ROW_HEIGHT + margin + merge offset pushes to ~108), leaving a clean gap
+    *  without the band looking oversized.
+    *
+    *  DERIVED from the builder's own control height rather than restated as a literal: the two were
+    *  independent numbers, and shrinking the controls left the band still 80px tall with a visibly
+    *  empty strip beneath them. */
+   private static final int FILTER_BAND_BOTTOM_INSET = 8;
+   // CANVAS_MARGIN is qualified, not bare: it is declared further down this file, and a SIMPLE-name
+   // reference to a field declared later in the same class is an illegal forward reference.
+   private static final int FILTER_BAND_HEIGHT = (WizDashboardService.CANVAS_MARGIN - FILTER_BAND_TOP)
+      + WizDashboardFilterBuilder.FILTER_CONTROL_HEIGHT + FILTER_BAND_BOTTOM_INSET;
 
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width

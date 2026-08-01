@@ -259,7 +259,14 @@ class WizDashboardFilterBuilderTest {
    void bothSharedBarControlTypesFillTheSameBandHeightSoTheBarStaysEven() {
       // A dropdown has no caption and a slider does, so without compensating the two would occupy
       // different total heights and the bar would step by 16px between adjacent controls of
-      // different types. The dropdown grows its own row by exactly the caption's height instead.
+      // different types.
+      //
+      // The compensation used to be "the dropdown grows its own row by exactly the caption's
+      // height", which made both span the band top-to-bottom -- and rendered live as a 60px white
+      // box beside a much shorter slider (the D3 complaint). Now BOTH reserve the caption strip and
+      // BOTH draw a control of FILTER_CONTROL_ROW_HEIGHT below it; the dropdown just leaves the
+      // strip empty. So the band is still identical for the two types, and their control rows now
+      // additionally share a baseline -- a strictly stronger evenness property than before.
       Worksheet ws = new Worksheet();
       ws.addAssembly(physicalTable(ws, "SO", "res_partner_name", "partner_id"));
 
@@ -280,17 +287,30 @@ class WizDashboardFilterBuilderTest {
 
       int dropdownTop = list.getPixelOffset().y;
       int dropdownBottom = dropdownTop + list.getPixelSize().height;
+      int sliderTop = slider.getPixelOffset().y;
       int sliderBandTop = caption.getPixelOffset().y;
-      int sliderBandBottom = slider.getPixelOffset().y + slider.getPixelSize().height;
+      int sliderBandBottom = sliderTop + slider.getPixelSize().height;
 
-      assertEquals(sliderBandTop, dropdownTop, "both control types start at the same band top");
+      assertEquals(sliderTop, dropdownTop,
+                   "both control types' own rows sit on the same baseline");
       assertEquals(sliderBandBottom, dropdownBottom, "and end at the same band bottom");
-      // The dropdown's title row still fills exactly what was reserved for it (no gap), now that
-      // "what was reserved" is the whole band rather than the band minus a caption.
+      assertEquals(slider.getPixelSize().height, list.getPixelSize().height,
+                   "and are drawn at the same height -- the dropdown must not be a taller box");
+      // The caption strip is RESERVED by the dropdown too (it just draws nothing into it), so the
+      // total band each control type occupies is still identical and the bar cannot step.
+      assertEquals(sliderBandBottom - sliderBandTop, dropdownBottom - sliderBandTop,
+                   "both control types occupy the same total band height");
+      assertTrue(dropdownTop > sliderBandTop,
+                 "the dropdown leaves the caption strip empty rather than growing to swallow it");
+      // The dropdown's title row still fills exactly what was reserved for it -- no gap.
       int reserved = result.placements().stream()
          .filter(pl -> pl.assemblyName().equals(list.getName()))
          .findFirst().orElseThrow().size().height;
       assertEquals(reserved, list.getSelectionListInfo().getTitleHeightValue());
+      // ...and that is the SAME natural row height the per-chart path uses, which is the whole
+      // point of D3: 60px was a box, 28px is a control.
+      assertEquals(WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT, reserved,
+                   "the shared bar must use the per-chart path's established natural row height");
    }
 
    private static SelectionListVSAssembly dropdown(Viewsheet vs) {
@@ -541,20 +561,24 @@ class WizDashboardFilterBuilderTest {
          WizDashboardService.CANVAS_MARGIN);
 
       // A string field is a DROPDOWN, which draws its own title row -- so exactly ONE placement, the
-      // control itself, sitting at the passed origin. (It used to be two: the control plus a caption,
-      // which printed the label twice.) A LABELLED SLIDER still returns two -- see
-      // aSharedBarControlCarriesItsLabelAsTheTitleValue.
+      // control itself. (It used to be two: the control plus a caption, which printed the label
+      // twice.) A LABELLED SLIDER still returns two -- see aSharedBarControlCarriesItsLabelAsTheTitleValue.
       assertEquals(1, result.placements().size());
       assertTrue(result.placements().stream().allMatch(pl -> pl.assemblyName() != null));
-      assertEquals(new java.awt.Point(WizDashboardService.CANVAS_MARGIN, WizDashboardService.CANVAS_MARGIN),
+      // It sits at the passed origin plus the caption STRIP, which every control type reserves even
+      // when (as here) nothing is drawn into it -- that is what puts both types' rows on one
+      // baseline. Asserting the bare origin would re-pin the 60px full-band dropdown D3 removed.
+      assertEquals(new java.awt.Point(WizDashboardService.CANVAS_MARGIN,
+                                      WizDashboardService.CANVAS_MARGIN + WizDashboardFilterBuilder.FILTER_LABEL_HEIGHT),
          result.placements().get(0).position());
    }
 
    @Test
    void firstControlIsOffsetByTheCanvasMarginNotFlushAgainstTheEdge() {
       Worksheet ws = new Worksheet();
-      // Both control types, because what "the top of the bar" IS differs between them: a dropdown
-      // draws its own title so IT sits at the origin, while a slider's caption does.
+      // Both control types, because the two must line up: a slider's CAPTION is what sits at the
+      // origin, and a dropdown -- which draws no caption -- still starts one caption strip down, on
+      // the same baseline as the slider itself.
       ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name", "order_qty"));
 
       Viewsheet vs = new Viewsheet();
@@ -570,11 +594,11 @@ class WizDashboardFilterBuilderTest {
       SelectionListVSAssembly list = dropdown(vs);
       assertEquals(WizDashboardService.CANVAS_MARGIN, list.getPixelOffset().x,
          "must sit at the passed startX (the merged charts' left edge)");
-      assertEquals(WizDashboardService.CANVAS_MARGIN, list.getPixelOffset().y,
-         "a dropdown has no caption above it, so IT is what must clear the canvas's top edge");
 
       VSAssembly slider = (VSAssembly) java.util.Arrays.stream(vs.getAssemblies())
          .filter(a -> a instanceof TimeSliderVSAssembly).findFirst().orElseThrow();
+      assertEquals(slider.getPixelOffset().y, list.getPixelOffset().y,
+         "the dropdown starts one caption strip down, level with the slider itself");
       // The slider sits BELOW its caption, so the caption is what must clear the top edge --
       // same intent, one row up (see FILTER_LABEL_HEIGHT for why a caption exists at all).
       assertTrue(slider.getPixelOffset().y > WizDashboardService.CANVAS_MARGIN,

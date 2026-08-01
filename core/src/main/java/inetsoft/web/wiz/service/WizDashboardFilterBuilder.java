@@ -207,18 +207,20 @@ public class WizDashboardFilterBuilder {
          // draw a title row, so a caption there printed the label TWICE -- once as the caption and
          // again as the dropdown's own title (observed live: "Res Partner Name" stacked over itself).
          //
-         // Both control types still span the SAME total band height (FILTER_CONTROL_HEIGHT), so the
-         // bar stays visually even: a captioned slider spends FILTER_LABEL_HEIGHT of it on the
-         // caption, a dropdown spends none and grows its own row to swallow the difference. Sizing
-         // the dropdown to the smaller (captioned) height instead would leave a ragged 16px step
-         // between adjacent controls of different types.
+         // EVERY control gets the SAME geometry regardless: the top FILTER_LABEL_HEIGHT of the band
+         // is the caption strip, and the control itself is FILTER_CONTROL_ROW_HEIGHT below it. A
+         // dropdown simply leaves its caption strip EMPTY (its label lives inside its own title row)
+         // rather than growing to swallow it. An earlier version did the latter -- it had the
+         // dropdown span the whole 60px band -- and the result was the live complaint this replaces:
+         // a tall white box next to a visibly much shorter range slider. Reserving the strip for both
+         // is what keeps the two control types' interactive rows on exactly the same baseline, which
+         // is what "the bar stays even" means to someone looking at it.
          boolean rendersOwnTitle = control instanceof SelectionListVSAssembly;
-         int captionHeight = rendersOwnTitle ? 0 : FILTER_LABEL_HEIGHT;
-         int controlHeight = FILTER_CONTROL_HEIGHT - captionHeight;
+         int controlHeight = FILTER_CONTROL_ROW_HEIGHT;
 
          // A shared-bar SelectionList must be a DROPDOWN, for the same reason the per-chart path
          // makes one (see addPerChartFilter): in list mode it draws a multi-row checkbox list, and
-         // the bar reserves only FILTER_CONTROL_HEIGHT (60px) for it. A title row plus ~20px item
+         // the bar reserves only FILTER_CONTROL_ROW_HEIGHT for it. A title row plus ~20px item
          // rows means one or two items are visible inside a scroll area -- useless for picking a
          // value out of, say, 141 customer names, which is exactly the case the FK-label filter
          // feature produces.
@@ -256,19 +258,21 @@ public class WizDashboardFilterBuilder {
          // Caption above the control, so a user can tell what the control filters -- a bare "6..216"
          // range slider is otherwise unreadable. Its placement is returned alongside the control's:
          // an assembly with no per-tier layout entry is hidden when that tier is selected.
-         if(captionHeight > 0 && req.label() != null) {
+         if(!rendersOwnTitle && req.label() != null) {
             placements.add(addCaption(vs, "wizFilterLabel_" + control.getName(),
-                                      x, y, FILTER_CONTROL_WIDTH, captionHeight, req.label()));
+                                      x, y, FILTER_CONTROL_WIDTH, FILTER_LABEL_HEIGHT, req.label()));
          }
 
-         Point pos = new Point(x, y + captionHeight);
+         // + FILTER_LABEL_HEIGHT unconditionally -- the caption strip is RESERVED for both control
+         // types even though only the slider draws into it, so both controls' rows share a baseline.
+         Point pos = new Point(x, y + FILTER_LABEL_HEIGHT);
          java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, controlHeight);
          control.setTableNames(tables);
          control.setPixelOffset(pos);
          // Explicit compact size: SelectionList/TimeSlider's own default pixel size is not
-         // reliably short, and WizDashboardService reserves only FILTER_BAR_ROW_HEIGHT (120px)
-         // above the charts -- an oversized control here would visually collide with the first
-         // chart row instead of leaving the intended small gap.
+         // reliably short, and WizDashboardService reserves only FILTER_BAR_ROW_HEIGHT above the
+         // charts -- an oversized control here would visually collide with the first chart row
+         // instead of leaving the intended small gap.
          control.setPixelSize(size);
          vs.addAssembly(control);
          applied.add(req.field());
@@ -652,10 +656,10 @@ public class WizDashboardFilterBuilder {
     */
    private static final int FILTER_CONTROL_GAP = 16;
    /**
-    * Height of the caption drawn above a shared-bar control that draws NO title of its own, in
-    * pixels. Only the range slider is such a control; a dropdown draws its own title row and gets
-    * no caption (a caption there printed the label twice), spending this height on its own row
-    * instead so both control types still fill {@link #FILTER_CONTROL_HEIGHT}.
+    * Height of the caption strip above every shared-bar control, in pixels. Only the range slider
+    * DRAWS into it (a dropdown's caption there printed the label twice, since it renders its own
+    * title row) but both control types RESERVE it, so their interactive rows sit on a common
+    * baseline and the bar reads as one row of controls rather than a ragged step.
     *
     * A range slider will NOT draw its own title: vs-range-slider.component.html gates the whole
     * title header on {@code @if (isInSelectionContainer())}, which is true only inside a
@@ -665,11 +669,32 @@ public class WizDashboardFilterBuilder {
     * that shared component's behaviour for every standalone slider in the product, draw our own
     * caption beside the control.
     */
-   private static final int FILTER_LABEL_HEIGHT = 16;
+   /* Package-visible so the geometry tests can assert against the constant rather than a literal
+    * that silently rots when this is tuned -- matching FILTER_CONTROL_HEIGHT and
+    * WizDashboardService's own PER_CHART_FILTER_ROW_HEIGHT. */
+   static final int FILTER_LABEL_HEIGHT = 16;
 
-   /** Shared-bar control height, in pixels — compact: a range slider (the usual shared filter) or
-    *  a short selection list needs far less than a chart tile, and the toolbar band
-    *  ({@link WizDashboardService#FILTER_BAND_HEIGHT}) wraps it snugly, so this stays small to keep
-    *  the top bar from looking oversized. */
-   private static final int FILTER_CONTROL_HEIGHT = 60;
+   /**
+    * The DRAWN height of a shared-bar control itself (excluding the caption strip above it), in
+    * pixels — deliberately the SAME constant the per-chart path sizes its control to, which is the
+    * established natural height for both of these widgets.
+    *
+    * <p>It used to be {@code FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT} for a slider and the full
+    * {@code FILTER_CONTROL_HEIGHT} (60px) for a dropdown, on the theory that a dropdown should grow
+    * to swallow the caption height it does not need. Live, that made the dropdown render as a tall
+    * white box beside a much shorter range slider — the opposite of even. Both control types now
+    * draw at this one height and differ only in whether the strip above them carries a caption.
+    */
+   private static final int FILTER_CONTROL_ROW_HEIGHT = WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT;
+
+   /** Total band height one shared-bar control occupies, in pixels: its caption strip plus its own
+    *  row. Identical for both control types, which is what keeps the bar even; only whether the
+    *  strip is drawn into differs. Derived rather than a literal so it cannot drift out of step
+    *  with the two heights it is the sum of.
+    *
+    *  <p>Package-visible so {@link WizDashboardService#FILTER_BAND_HEIGHT} can size the toolbar
+    *  band from it instead of carrying an independent literal that has to be remembered and
+    *  re-tuned whenever this changes — exactly what left a visibly empty strip under the controls
+    *  the first time this shrank. */
+   static final int FILTER_CONTROL_HEIGHT = FILTER_LABEL_HEIGHT + FILTER_CONTROL_ROW_HEIGHT;
 }
