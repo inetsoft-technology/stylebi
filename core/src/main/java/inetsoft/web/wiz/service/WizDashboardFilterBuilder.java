@@ -200,6 +200,26 @@ public class WizDashboardFilterBuilder {
             titled.setTitleValue(req.label());
          }
 
+         // A shared-bar SelectionList must be a DROPDOWN, for the same reason the per-chart path
+         // makes one (see addPerChartFilter): in list mode it draws a multi-row checkbox list, and
+         // the bar reserves only FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT (44px) for it. A title
+         // row plus ~20px item rows means ONE item is visible inside a scroll area -- useless for
+         // picking a value out of, say, 141 customer names, which is exactly the case the FK-label
+         // filter feature produces.
+         //
+         // Dropdown mode collapses it to a single title row that opens on click, so the full list is
+         // reachable regardless of how little vertical space the bar can spare.
+         // SelectionListVSAssemblyInfo#getSizeScale pins the Y scale to 1 in this mode, so it cannot
+         // stretch back open. Title height is pinned to the SAME height the loop below reserves, so
+         // drawn and reserved agree by construction rather than by two constants happening to match.
+         // A TimeSliderVSAssembly (date/numeric) has no show type and is already single-row --
+         // deliberately untouched, and it keeps the separate caption for the reason documented below.
+         if(control instanceof SelectionListVSAssembly list) {
+            list.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+            list.getSelectionListInfo()
+               .setTitleHeightValue(FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT);
+         }
+
          // KNOWN UNFIXED: a shared-bar range slider renders with NO visible title -- a numeric slider
          // shows a bare "6..216" with nothing telling the user it filters partner_id. The label IS
          // applied above (setTitleValue). These explanations have each been RULED OUT by test, so do

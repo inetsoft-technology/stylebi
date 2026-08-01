@@ -80,6 +80,61 @@ class WizDashboardFilterBuilderTest {
    }
 
    @Test
+   void sharedBarCategoricalFilterRendersAsADropdownNotATallList() {
+      // THE BUG: the shared bar reserves FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT (44px) for a
+      // control. In list mode a SelectionList draws a title row plus ~20px item rows inside that,
+      // leaving exactly ONE item visible in a scroll area -- unusable for choosing among, say, 141
+      // customer names, which is precisely what the FK-label filter feature puts on this bar.
+      // Dropdown mode was applied to the per-chart path only; the shared bar was missed.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+
+      assertEquals(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE, control.getSelectionListInfo().getShowType(),
+         "a shared-bar categorical filter must render as a dropdown, not a multi-row list");
+   }
+
+   @Test
+   void sharedBarDropdownTitleRowFillsTheHeightTheBarReserves() {
+      // A dropdown draws ONLY its title row and ignores the rest of the assembly's pixel height, so
+      // reserving more than it draws leaves the difference as a gap in the filter bar. Pin the row
+      // to the height the bar actually reserves rather than relying on two constants matching.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+      int reserved = result.placements().stream()
+         .filter(pl -> pl.assemblyName().equals(control.getName()))
+         .findFirst().orElseThrow().size().height;
+
+      assertEquals(reserved, control.getSelectionListInfo().getTitleHeightValue(),
+         "the dropdown's title row must fill exactly the height the bar reserved for it");
+   }
+
+   @Test
    void perChartCategoricalFilterRendersAsADropdownNotATallList() {
       // A per-chart filter sits INSIDE its chart's tile, so a multi-row checkbox list steals
       // height from the chart itself. Dropdown mode collapses it to a single title row
