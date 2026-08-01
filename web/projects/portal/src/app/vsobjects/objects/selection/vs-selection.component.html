@@ -97,8 +97,8 @@
       }
       <div class="float-start align-middle"
         [class.separator-visible]="model.containerType === 'VSSelectionContainer'"
-        [style.width.px]="(model.container && listSelectedString ? model.objectFormat.width * model.titleRatio : model.objectFormat.width)"
-        [style.max-width.%]="(model.container && listSelectedString ? model.titleRatio * 100 : 100)"
+        [style.width.px]="(selectedTextVisible ? model.objectFormat.width * effectiveTitleRatio : model.objectFormat.width)"
+        [style.max-width.%]="(selectedTextVisible ? effectiveTitleRatio * 100 : 100)"
         [style.height.px]="model.titleFormat.height"
         [style.border-right-color]="headerSeparatorBorderColor"
         [draggable]="true"
@@ -120,16 +120,21 @@
           (onTitleResizeMove)="titleResizeMove($event)"
         (onTitleResizeEnd)="titleResizeEnd()"></title-cell>
       </div>
-      @if (model.container && listSelectedString) {
+      <!-- The selected-values half of the title row. Shown for a CONTAINED list (as always) and
+           now also for a standalone DROPDOWN, which is otherwise collapsed to a bare title with
+           nothing indicating what is currently selected. interactableResizable stays gated on
+           model.container: updateTitleRatio posts the dragged ratio against model.container, so
+           for a standalone control there is no assembly to post it to. -->
+      @if (selectedTextVisible) {
         <div
           class="float-start align-middle selection-list-selected-text"
-          [style.width.px]="model.objectFormat.width - (model.objectFormat.width * model.titleRatio)"
-          [style.max-width.%]="100 - (model.titleRatio * 100)"
+          [style.width.px]="model.objectFormat.width - (model.objectFormat.width * effectiveTitleRatio)"
+          [style.max-width.%]="100 - (effectiveTitleRatio * 100)"
           [style.height.px]="model.titleFormat.height"
           [style.justify-content]="model.titleFormat.justifyContent"
           [style.background]="model.titleFormat.background"
           wInteractable
-          [interactableResizable]="!viewer && selected"
+          [interactableResizable]="!viewer && selected && !!model.container"
           [resizableTopEdge]="false"
           [resizableBottomEdge]="false"
           [resizableRightEdge]="false"

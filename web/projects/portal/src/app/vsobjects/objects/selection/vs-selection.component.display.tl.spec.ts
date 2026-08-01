@@ -584,6 +584,59 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
+   // A standalone DROPDOWN collapses to its title row, so with the selected-values half hidden the
+   // user sees only "Customer" and nothing at all indicating that two customers are ticked -- the
+   // current selection is discoverable only by re-opening the popup. The platform already computes
+   // the summary (updateListSelectedString runs on every model refresh regardless of container);
+   // only the display was gated on model.container.
+   //
+   // These assert the two getters the template binds, not rendered DOM: this suite instantiates the
+   // component directly rather than through TestBed, so there is no template to query.
+   describe("Group 9b �?selected-values display outside a selection container", () => {
+      it("should show the selected values for a STANDALONE dropdown", async () => {
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: true, container: null } as any);
+         comp.updateListSelectedString();
+
+         expect(comp.selectedTextVisible).toBe(true);
+      });
+
+      it("should still hide them for a standalone list in LIST mode", async () => {
+         // The values are already visible in the list itself there, so a summary would be redundant
+         // and would only steal width from the title.
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: false, container: null } as any);
+         comp.updateListSelectedString();
+
+         expect(comp.selectedTextVisible).toBe(false);
+      });
+
+      it("should leave a CONTAINED list showing them exactly as before", async () => {
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: false, container: "Container1" } as any);
+         comp.updateListSelectedString();
+
+         expect(comp.selectedTextVisible).toBe(true);
+      });
+
+      it("should split the title row 50/50 for a standalone dropdown, not by the model default", async () => {
+         // VSSelectionBaseModel defaults titleRatio to 1 and only the container path overwrites it.
+         // Rendering the selected-values div at ratio 1 gives it width 0 -- invisible, which looks
+         // exactly like the un-gating not having worked.
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: true, container: null, titleRatio: 1 } as any);
+
+         expect(comp.effectiveTitleRatio).toBe(0.5);
+      });
+
+      it("should defer to the container's own ratio when contained", async () => {
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ container: "Container1", titleRatio: 0.7 } as any);
+
+         expect(comp.effectiveTitleRatio).toBe(0.7);
+      });
+   });
+
    describe("Group 10 �?getIdentifier", () => {
       it("should return value for leaf node", async () => {
          const { comp } = await renderComponent();
