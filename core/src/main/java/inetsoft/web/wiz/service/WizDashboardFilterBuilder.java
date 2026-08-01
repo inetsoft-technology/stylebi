@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
 import org.springframework.stereotype.Component;
 
@@ -200,12 +201,27 @@ public class WizDashboardFilterBuilder {
             titled.setTitleValue(req.label());
          }
 
+         // Only a control that draws NO title of its own gets a separate caption assembly (see
+         // addCaption / FILTER_LABEL_HEIGHT): that is the TimeSlider, whose Angular component gates
+         // its whole title header on isInSelectionContainer(). A SelectionList in DROPDOWN mode DOES
+         // draw a title row, so a caption there printed the label TWICE -- once as the caption and
+         // again as the dropdown's own title (observed live: "Res Partner Name" stacked over itself).
+         //
+         // Both control types still span the SAME total band height (FILTER_CONTROL_HEIGHT), so the
+         // bar stays visually even: a captioned slider spends FILTER_LABEL_HEIGHT of it on the
+         // caption, a dropdown spends none and grows its own row to swallow the difference. Sizing
+         // the dropdown to the smaller (captioned) height instead would leave a ragged 16px step
+         // between adjacent controls of different types.
+         boolean rendersOwnTitle = control instanceof SelectionListVSAssembly;
+         int captionHeight = rendersOwnTitle ? 0 : FILTER_LABEL_HEIGHT;
+         int controlHeight = FILTER_CONTROL_HEIGHT - captionHeight;
+
          // A shared-bar SelectionList must be a DROPDOWN, for the same reason the per-chart path
          // makes one (see addPerChartFilter): in list mode it draws a multi-row checkbox list, and
-         // the bar reserves only FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT (44px) for it. A title
-         // row plus ~20px item rows means ONE item is visible inside a scroll area -- useless for
-         // picking a value out of, say, 141 customer names, which is exactly the case the FK-label
-         // filter feature produces.
+         // the bar reserves only FILTER_CONTROL_HEIGHT (60px) for it. A title row plus ~20px item
+         // rows means one or two items are visible inside a scroll area -- useless for picking a
+         // value out of, say, 141 customer names, which is exactly the case the FK-label filter
+         // feature produces.
          //
          // Dropdown mode collapses it to a single title row that opens on click, so the full list is
          // reachable regardless of how little vertical space the bar can spare.
@@ -216,8 +232,9 @@ public class WizDashboardFilterBuilder {
          // deliberately untouched, and it keeps the separate caption for the reason documented below.
          if(control instanceof SelectionListVSAssembly list) {
             list.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
-            list.getSelectionListInfo()
-               .setTitleHeightValue(FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT);
+            list.getSelectionListInfo().setTitleHeightValue(controlHeight);
+            centerTitleVertically(list);
+            applyDropdownPopupStyle(list);
          }
 
          // KNOWN UNFIXED: a shared-bar range slider renders with NO visible title -- a numeric slider
@@ -233,19 +250,19 @@ public class WizDashboardFilterBuilder {
          // titleVisible as a valueless DynamicValue2 (vs TitleInfo(String) seeding "true"), which
          // looked like the cause but is not: both getters still report true.
          // Remaining hypothesis: the client-side TimeSlider component renders no title area at all,
-         // which has to be investigated in the Angular viewer, not here.
+         // which has to be investigated in the Angular viewer, not here. NOTE this is ALSO why the
+         // caption cannot simply be deleted for every control: it is the slider's only label.
 
          // Caption above the control, so a user can tell what the control filters -- a bare "6..216"
          // range slider is otherwise unreadable. Its placement is returned alongside the control's:
          // an assembly with no per-tier layout entry is hidden when that tier is selected.
-         if(req.label() != null) {
+         if(captionHeight > 0 && req.label() != null) {
             placements.add(addCaption(vs, "wizFilterLabel_" + control.getName(),
-                                      x, y, FILTER_CONTROL_WIDTH, FILTER_LABEL_HEIGHT, req.label()));
+                                      x, y, FILTER_CONTROL_WIDTH, captionHeight, req.label()));
          }
 
-         Point pos = new Point(x, y + FILTER_LABEL_HEIGHT);
-         java.awt.Dimension size =
-            new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT);
+         Point pos = new Point(x, y + captionHeight);
+         java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, controlHeight);
          control.setTableNames(tables);
          control.setPixelOffset(pos);
          // Explicit compact size: SelectionList/TimeSlider's own default pixel size is not
@@ -260,6 +277,83 @@ public class WizDashboardFilterBuilder {
       }
 
       return new FilterResult(applied, skipped, placements);
+   }
+
+   /**
+    * Vertically centres a control's own title row.
+    *
+    * <p>Without this the shared-bar dropdown's title text rendered hard against the TOP of its
+    * 60px row with a visibly empty band beneath it. Cause: nothing in this builder's path ever
+    * calls {@code initDefaultFormat()} — {@code AddFilterService.createFilterAssembly} just
+    * {@code new}s the assembly, and neither {@code SelectionListVSAssembly}'s constructor nor
+    * {@code Viewsheet.addAssembly} calls it. That method is the ONLY thing that seeds a TITLEPATH
+    * entry in the {@code FormatInfo} map (with {@code H_LEFT | V_CENTER}), so with no entry
+    * {@code FormatInfo.getFormat(TITLEPATH, false)} synthesises one by copying the OBJECT format's
+    * default layer, whose alignment is {@code VSFormat.ALIGN} = {@code H_LEFT | V_TOP}. That
+    * reaches the client as {@code align-items: flex-start} on the title cell's flex container
+    * (VSFormatModel → VSCSSUtil.getvAlign/getFlexAlignment → title-cell.component.html), i.e.
+    * top-aligned. The per-chart path shows no visible symptom only because it reserves 28px, close
+    * enough to the natural row height that there is little slack to misalign within.
+    *
+    * <p>This is approach (a) from the task brief — set V_CENTER on the TITLEPATH format — chosen
+    * over "give the title its natural height and centre the control in the band" because that
+    * would reintroduce the reserved-vs-drawn gap the title-height pinning exists to prevent (a
+    * dropdown draws only its title row and ignores the rest of the assembly's pixel height).
+    * H_LEFT is carried along deliberately: {@code fixAlignment} keeps the horizontal and vertical
+    * bits independently, so writing only V_CENTER would zero the horizontal bit and centre the
+    * caption text horizontally too.
+    *
+    * <p>The DESIGN ({@code ...Value}) setter is the load-bearing one — a composed dashboard is
+    * saved and reopened — and the runtime setter is called alongside it, matching
+    * {@link #applyCardFormat}'s pattern. Be aware the runtime call is belt-and-braces only and is
+    * NOT observable: alignment is a {@code DynamicValue2}, whose {@code getRValue()} falls back to
+    * the design value, so {@code getAlignment()} already reports V_CENTER from the {@code ...Value}
+    * setter alone (mutation-checked — deleting {@code setAlignment} fails no test, deleting
+    * {@code setAlignmentValue} fails
+    * {@code sharedBarDropdownTitleIsVerticallyCentredNotPinnedToTheTopOfItsRow}). Written to the
+    * USER-defined layer, not the default one, so it also outranks any CSS-layer alignment
+    * ({@link VSCompositeFormat#getAlignment} consults the user layer first).
+    */
+   private static void centerTitleVertically(VSAssembly control) {
+      FormatInfo fmtInfo = control.getVSAssemblyInfo().getFormatInfo();
+      VSCompositeFormat titleFormat = fmtInfo.getFormat(VSAssemblyInfo.TITLEPATH);
+
+      if(titleFormat == null) {
+         titleFormat = new VSCompositeFormat();
+         fmtInfo.setFormat(VSAssemblyInfo.TITLEPATH, titleFormat);
+      }
+
+      VSFormat fmt = titleFormat.getUserDefinedFormat();
+      int align = StyleConstants.H_LEFT | StyleConstants.V_CENTER;
+      fmt.setAlignmentValue(align);
+      fmt.setAlignment(align);
+   }
+
+   /**
+    * Gives a shared-bar dropdown an opaque background and an enclosing border, so its OPEN list
+    * reads as a floating list instead of transparent text laid over the chart behind it.
+    *
+    * <p>The popup has no background of its own: {@code .selection-list-body} carries none in
+    * vs-selection.component.scss, and the whole assembly (title row + popup) is painted by the one
+    * {@code [style.background-color]="model.objectFormat.background"} binding on its
+    * {@code .vs-object} wrapper. That background is unset here for the same reason the title was
+    * top-aligned — nothing calls {@code initDefaultFormat()} — so the list rendered fully
+    * transparent and its items overlapped the chart content underneath, unreadable.
+    *
+    * <p>Set on the OBJECT format (not TITLEPATH): the popup is part of the assembly, not the title
+    * row. White rather than {@link #CARD_BACKGROUND} so the control reads as an input widget
+    * against the tinted {@link #BAND_BACKGROUND} toolbar band and the open list reads as floating
+    * ABOVE the chart rather than as another tinted panel of it. Goes through
+    * {@link #applyCardFormat} for the persist-safe both-setters treatment — a background set only
+    * via the plain setter looks right in a unit test and vanishes for the user on reload.
+    */
+   private static void applyDropdownPopupStyle(VSAssembly control) {
+      applyCardFormat(control.getVSAssemblyInfo().getFormat().getUserDefinedFormat(),
+                      DROPDOWN_BACKGROUND,
+                      new BorderColors(CARD_BORDER_COLOR, CARD_BORDER_COLOR,
+                                       CARD_BORDER_COLOR, CARD_BORDER_COLOR),
+                      new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                                 StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
    }
 
    /**
@@ -438,19 +532,18 @@ public class WizDashboardFilterBuilder {
     * invariants to maintain.
     */
    private static void applyGroupedCardStyle(VSAssembly filterControl, VSAssembly chartAssembly) {
-      String backgroundHex = toHex(CARD_BACKGROUND);
       BorderColors borderColors = new BorderColors(CARD_BORDER_COLOR, CARD_BORDER_COLOR,
          CARD_BORDER_COLOR, CARD_BORDER_COLOR);
 
       VSFormat filterFormat = filterControl.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
-      applyCardFormat(filterFormat, backgroundHex, borderColors, new Insets(
+      applyCardFormat(filterFormat, CARD_BACKGROUND, borderColors, new Insets(
          // Insets(top, left, bottom, right) -- no bottom border: the chart's own top edge (also
          // borderless, below) abuts it directly.
          StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
          StyleConstants.NO_BORDER, StyleConstants.THIN_LINE));
 
       VSFormat chartFormat = chartAssembly.getVSAssemblyInfo().getFormat().getUserDefinedFormat();
-      applyCardFormat(chartFormat, backgroundHex, borderColors, new Insets(
+      applyCardFormat(chartFormat, CARD_BACKGROUND, borderColors, new Insets(
          // No top border -- abuts the filter control's borderless bottom edge directly.
          StyleConstants.NO_BORDER, StyleConstants.THIN_LINE,
          StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
@@ -466,12 +559,18 @@ public class WizDashboardFilterBuilder {
     * {@code TableDataVSAssemblyInfo}, for exactly this kind of persisted format) flip
     * "isXxxValueDefined" instead. Calling both covers persistence (the Value variants) and any
     * immediate/pre-refresh read of the plain RValue-based getters.
+    *
+    * <p>Takes the {@link Color} and derives the hex itself, rather than taking both: an earlier
+    * signature took a {@code backgroundHex} String but passed a hard-coded {@link #CARD_BACKGROUND}
+    * to the plain setter, so a second caller with a different color would have silently written two
+    * DIFFERENT backgrounds into the two layers — which layer you read would decide which color you
+    * got.
     */
    private static void applyCardFormat(
-      VSFormat format, String backgroundHex, BorderColors borderColors, Insets borders)
+      VSFormat format, Color background, BorderColors borderColors, Insets borders)
    {
-      format.setBackground(CARD_BACKGROUND);
-      format.setBackgroundValue(backgroundHex);
+      format.setBackground(background);
+      format.setBackgroundValue(toHex(background));
       format.setBorderColors(borderColors);
       format.setBorderColorsValue(borderColors);
       format.setBorders(borders);
@@ -489,6 +588,13 @@ public class WizDashboardFilterBuilder {
    /** Shared card border color -- a clearly-visible-but-neutral gray that outlines the grouped
     *  filter+chart without drawing attention away from the chart content itself. */
    private static final Color CARD_BORDER_COLOR = new Color(158, 166, 178);
+
+   /** Shared-bar dropdown fill -- opaque WHITE, deliberately not {@link #CARD_BACKGROUND}: this
+    *  background paints the control's OPEN popup list, which floats over a chart, so it has to read
+    *  as a floating list rather than as another tinted panel belonging to the chart. White also
+    *  makes the collapsed control read as an input widget against the tinted
+    *  {@link #BAND_BACKGROUND} toolbar band. */
+   private static final Color DROPDOWN_BACKGROUND = Color.WHITE;
 
    /** Filter-toolbar band fill -- a light blue-gray tint, subtly darker than the dashboard canvas,
     *  so the shared filter bar reads as its own toolbar region. */
@@ -546,7 +652,10 @@ public class WizDashboardFilterBuilder {
     */
    private static final int FILTER_CONTROL_GAP = 16;
    /**
-    * Height of the caption drawn above each shared-bar control, in pixels.
+    * Height of the caption drawn above a shared-bar control that draws NO title of its own, in
+    * pixels. Only the range slider is such a control; a dropdown draws its own title row and gets
+    * no caption (a caption there printed the label twice), spending this height on its own row
+    * instead so both control types still fill {@link #FILTER_CONTROL_HEIGHT}.
     *
     * A range slider will NOT draw its own title: vs-range-slider.component.html gates the whole
     * title header on {@code @if (isInSelectionContainer())}, which is true only inside a
