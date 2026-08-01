@@ -27,8 +27,10 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.OsiDataset;
+import inetsoft.web.wiz.request.FkIntegrityRequest;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.request.SchemaSearchRequest;
+import inetsoft.web.wiz.service.FkIntegrityService;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
@@ -45,11 +47,13 @@ import java.util.*;
 public class DatasourceMetaApiController {
    public DatasourceMetaApiController(MetadataApiService metadataService,
                                       XRepository xrepository,
-                                      DataSourceService dataSourceService)
+                                      DataSourceService dataSourceService,
+                                      FkIntegrityService fkIntegrityService)
    {
       this.metadataService = metadataService;
       this.xrepository = xrepository;
       this.dataSourceService = dataSourceService;
+      this.fkIntegrityService = fkIntegrityService;
    }
 
    /**
@@ -88,6 +92,24 @@ public class DatasourceMetaApiController {
       throws Exception
    {
       return metadataService.getMetaData(data, principal);
+   }
+
+   /**
+    * Reports how many rows an INNER join from a fact table to its foreign-key target would drop.
+    *
+    * <p>Used before a dashboard filter is rewritten from a range slider over a surrogate key to a
+    * label list drawn from the FK target: that rewrite injects an INNER join, which would silently
+    * drop NULL and orphaned foreign keys and so change every unfiltered aggregate. The caller only
+    * proceeds on a {@code droppedRowCount} of 0, and treats any non-200 as a rejection — so every
+    * failure here must stay a failure rather than become a count.</p>
+    */
+   @PostMapping("/datasource/fk-integrity")
+   public FkIntegrityResponse getFkIntegrity(
+      @RequestBody FkIntegrityRequest data,
+      Principal principal)
+      throws Exception
+   {
+      return new FkIntegrityResponse(fkIntegrityService.countDroppedRows(data, principal));
    }
 
    @GetMapping("/ws/meta/{id}")
@@ -327,4 +349,5 @@ public class DatasourceMetaApiController {
    private final MetadataApiService metadataService;
    private final XRepository xrepository;
    private final DataSourceService dataSourceService;
+   private final FkIntegrityService fkIntegrityService;
 }
