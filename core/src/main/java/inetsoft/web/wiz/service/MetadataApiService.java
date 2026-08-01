@@ -172,7 +172,7 @@ public class MetadataApiService {
 
          String columnName = columnNode.getName();
          String columnType = columnNode instanceof XTypeNode typeNode ? typeNode.getType() : null;
-         boolean isPK = "true".equals(columnNode.getAttribute("PrimaryKey"));
+         boolean isPK = isPrimaryKeyColumn(columnNode);
          Integer length = (Integer) columnNode.getAttribute("length");
          String comment = (String) columnNode.getAttribute("comment");
          List<String[]> foreignKeys = extractForeignKeys(columnNode);
@@ -295,6 +295,32 @@ public class MetadataApiService {
       catch(Exception e) {
          throw new RuntimeException("Failed to serialize field custom extension", e);
       }
+   }
+
+   /**
+    * True when a column node is flagged as part of the table's primary key.
+    *
+    * <p>The attribute is written by {@code JDBCHandler} as a <b>boolean</b>
+    * ({@code node.setAttribute("PrimaryKey", isPrimary)}), and
+    * {@link XNode#setAttribute(String, Object)} stores the value as an {@code Object} without
+    * coercing it. The previous test here was {@code "true".equals(getAttribute("PrimaryKey"))},
+    * which compares a {@code String} to a {@code Boolean} and is therefore <b>always false</b> —
+    * so every column was reported as a non-key and {@code dataset.primary_key} came back null for
+    * every table on every datasource. The sibling {@code ForeignKey} attribute was unaffected
+    * because {@link #extractForeignKeys} reads it as an object rather than string-comparing it,
+    * which is why relationships worked while primary keys silently did not.</p>
+    *
+    * <p>A {@code String} is still accepted: an {@link XNode} that has round-tripped through XML
+    * carries its attributes as text rather than as their original types.</p>
+    */
+   private static boolean isPrimaryKeyColumn(XNode columnNode) {
+      Object attr = columnNode.getAttribute("PrimaryKey");
+
+      if(attr instanceof Boolean flag) {
+         return flag;
+      }
+
+      return attr != null && "true".equalsIgnoreCase(attr.toString());
    }
 
    private List<String[]> extractForeignKeys(XNode columnNode) {
@@ -1823,7 +1849,7 @@ public class MetadataApiService {
          DatabaseTableMeta.ColumnMeta col = new DatabaseTableMeta.ColumnMeta();
          col.setName(columnNode.getName());
          col.setType(columnNode instanceof XTypeNode typeNode ? typeNode.getType() : null);
-         col.setPrimaryKey("true".equals(columnNode.getAttribute("PrimaryKey")));
+         col.setPrimaryKey(isPrimaryKeyColumn(columnNode));
 
          Integer length = (Integer) columnNode.getAttribute("length");
          col.setLength(length != null ? length : 0);
