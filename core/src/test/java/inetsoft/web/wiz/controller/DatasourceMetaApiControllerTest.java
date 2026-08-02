@@ -19,8 +19,11 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.uql.XRepository;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.wiz.model.FkIntegrityResponse;
 import inetsoft.web.wiz.model.osi.OsiDataset;
+import inetsoft.web.wiz.request.FkIntegrityRequest;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
+import inetsoft.web.wiz.service.FkIntegrityService;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.junit.jupiter.api.Tag;
@@ -31,6 +34,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,9 +52,10 @@ class DatasourceMetaApiControllerTest {
       MetadataApiService metadataService = mock(MetadataApiService.class);
       XRepository xrepository = mock(XRepository.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
+      FkIntegrityService fkIntegrityService = mock(FkIntegrityService.class);
 
-      DatasourceMetaApiController controller =
-         new DatasourceMetaApiController(metadataService, xrepository, dataSourceService);
+      DatasourceMetaApiController controller = new DatasourceMetaApiController(
+         metadataService, xrepository, dataSourceService, fkIntegrityService);
 
       GetDatabaseTableMetaRequest request = new GetDatabaseTableMetaRequest();
       request.setDsName("Examples/Orders");
@@ -76,9 +81,10 @@ class DatasourceMetaApiControllerTest {
       MetadataApiService metadataService = mock(MetadataApiService.class);
       XRepository xrepository = mock(XRepository.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
+      FkIntegrityService fkIntegrityService = mock(FkIntegrityService.class);
 
-      DatasourceMetaApiController controller =
-         new DatasourceMetaApiController(metadataService, xrepository, dataSourceService);
+      DatasourceMetaApiController controller = new DatasourceMetaApiController(
+         metadataService, xrepository, dataSourceService, fkIntegrityService);
 
       UnsupportedDatasourceException ex =
          new UnsupportedDatasourceException("MongoDB REST", "Mongo");
@@ -87,5 +93,56 @@ class DatasourceMetaApiControllerTest {
 
       assertEquals("Mongo", body.get("datasourceType"));
       assertEquals(ex.getMessage(), body.get("error"));
+   }
+
+   /**
+    * The FK-integrity endpoint answers both halves of "would an INNER join change the aggregates?"
+    * — rows dropped and rows duplicated. wiz-services injects the join only when both are 0, so
+    * the controller must hand back exactly what the service measured, under both keys.
+    */
+   @Test
+   void getFkIntegrity_returnsBothServiceCountsAndPassesThePrincipalThrough() throws Exception {
+      MetadataApiService metadataService = mock(MetadataApiService.class);
+      XRepository xrepository = mock(XRepository.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      FkIntegrityService fkIntegrityService = mock(FkIntegrityService.class);
+
+      DatasourceMetaApiController controller = new DatasourceMetaApiController(
+         metadataService, xrepository, dataSourceService, fkIntegrityService);
+
+      FkIntegrityRequest request = new FkIntegrityRequest();
+      Principal principal = mock(Principal.class);
+      when(fkIntegrityService.checkIntegrity(request, principal))
+         .thenReturn(new FkIntegrityResponse(42L, 7L));
+
+      FkIntegrityResponse response = controller.getFkIntegrity(request, principal);
+
+      assertEquals(42L, response.droppedRowCount());
+      assertEquals(7L, response.duplicateTargetKeyCount());
+      verify(fkIntegrityService).checkIntegrity(request, principal);
+   }
+
+   /**
+    * A failure must reach the class's {@code @ExceptionHandler} (400/403), which wiz-services
+    * treats as a rejection. The controller must never convert a failure into a response body —
+    * a body carrying 0 would read as "safe to join".
+    */
+   @Test
+   void getFkIntegrity_letsServiceFailuresPropagateInsteadOfReturningACount() throws Exception {
+      MetadataApiService metadataService = mock(MetadataApiService.class);
+      XRepository xrepository = mock(XRepository.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      FkIntegrityService fkIntegrityService = mock(FkIntegrityService.class);
+
+      DatasourceMetaApiController controller = new DatasourceMetaApiController(
+         metadataService, xrepository, dataSourceService, fkIntegrityService);
+
+      FkIntegrityRequest request = new FkIntegrityRequest();
+      Principal principal = mock(Principal.class);
+      when(fkIntegrityService.checkIntegrity(request, principal))
+         .thenThrow(new IllegalArgumentException("fkColumn is not a valid identifier"));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> controller.getFkIntegrity(request, principal));
    }
 }

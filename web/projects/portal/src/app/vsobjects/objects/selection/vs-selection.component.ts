@@ -214,6 +214,13 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    public static LIST_INDENT: number = 4;
    public static TREE_INDENT: number = 16;
 
+   // Title/selected-values width split for a STANDALONE dropdown -- the same value
+   // VSSelectionListModel falls back to for a contained list whose container ratio is NaN, so a
+   // dropdown splits its title row identically whether or not it sits in a container. There is no
+   // server-side titleRatio for a standalone control (the model's own default is 1, which would
+   // collapse the selected-values half to zero width).
+   public static STANDALONE_TITLE_RATIO: number = 0.5;
+
    private _quickSwitchClickCallback: (() => void) | null = null;
    private _overlayMouseLeaveUnlisten: (() => void) | null = null;
    private _overlayWheelUnlisten: (() => void) | null = null;
@@ -1010,6 +1017,37 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       if(this.listSelectedString == null) {
          this.listSelectedString = "(none)";
       }
+   }
+
+   /**
+    * Whether the title row shows the CURRENT SELECTION beside the title.
+    *
+    * A list inside a VSSelectionContainer has always shown it. A standalone DROPDOWN now does too:
+    * dropdown mode collapses the whole control to its title row, so with this hidden the user sees
+    * "Customer" and nothing at all telling them two customers are ticked -- the selection is only
+    * discoverable by re-opening the popup. It is the same one-line summary the container already
+    * renders, produced by the same updateListSelectedString() (which already ran unconditionally on
+    * every model refresh, container or not, so nothing here can go stale as the selection changes).
+    *
+    * Deliberately NOT extended to a standalone list in LIST mode: there the values are visible in
+    * the list itself, so a summary would be redundant and would only steal width from the title.
+    */
+   get selectedTextVisible(): boolean {
+      return !!this.listSelectedString && (!!this.model.container || this.model.dropdown);
+   }
+
+   /**
+    * The share of the title row's width given to the title, the rest going to the selected values.
+    *
+    * VSSelectionBaseModel defaults titleRatio to 1 and only VSSelectionListModel overwrites it (with
+    * 0.5) when the list is inside a CurrentSelectionVSAssembly -- there is no server-side knob for a
+    * standalone control. Un-gating the selected-values div without this would therefore render it at
+    * width 0 / max-width 0%, i.e. invisible, which looks exactly like the feature not working.
+    * STANDALONE_TITLE_RATIO is the same 0.5 the container path falls back to, so both cases split
+    * the row the same way.
+    */
+   get effectiveTitleRatio(): number {
+      return this.model.container ? this.model.titleRatio : VSSelection.STANDALONE_TITLE_RATIO;
    }
 
    updateTitle(newTitle: string): void {

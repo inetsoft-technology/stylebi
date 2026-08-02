@@ -2712,6 +2712,13 @@ public class JDBCHandler extends XHandler {
             String fkTableSchem = result.getString(6);
             String fkTableName = result.getString(7);
             String fkColumnName = result.getString(8);
+            // FK_NAME (column 12) is what separates two distinct constraints between the same pair
+            // of tables. Without it, callers can only group by table pair, which merges independent
+            // single-column FKs (e.g. sale_order.partner_id, .partner_invoice_id and
+            // .partner_shipping_id all referencing res_partner.id) into one bogus composite
+            // relationship. Drivers that do not supply it leave this null, and the table-pair
+            // grouping remains the fallback.
+            String fkName = result.getString(12);
 
             XNode keyNode = new XNode("ImportKey" + (cnt ++));
 
@@ -2723,6 +2730,7 @@ public class JDBCHandler extends XHandler {
             keyNode.setAttribute("fkTableSchem", fkTableSchem);
             keyNode.setAttribute("fkTableName", fkTableName);
             keyNode.setAttribute("fkColumnName", fkColumnName);
+            keyNode.setAttribute("fkName", fkName);
 
             root.addChild(keyNode, false, false);
          }

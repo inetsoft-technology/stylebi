@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.service;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -33,6 +34,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,6 +79,245 @@ class WizDashboardFilterBuilderTest {
          (SelectionListVSAssembly) builder.createControlForType(vs, "string", column("Region", "string"));
       assertEquals(SelectionVSAssemblyInfo.LIST_SHOW_TYPE, a.getSelectionListInfo().getShowType(),
          "the shared factory must keep StyleBI's default list rendering");
+   }
+
+   @Test
+   void sharedBarCategoricalFilterRendersAsADropdownNotATallList() {
+      // THE BUG: the shared bar reserves FILTER_CONTROL_HEIGHT - FILTER_LABEL_HEIGHT (44px) for a
+      // control. In list mode a SelectionList draws a title row plus ~20px item rows inside that,
+      // leaving exactly ONE item visible in a scroll area -- unusable for choosing among, say, 141
+      // customer names, which is precisely what the FK-label filter feature puts on this bar.
+      // Dropdown mode was applied to the per-chart path only; the shared bar was missed.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+
+      assertEquals(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE, control.getSelectionListInfo().getShowType(),
+         "a shared-bar categorical filter must render as a dropdown, not a multi-row list");
+   }
+
+   @Test
+   void sharedBarDropdownTitleRowFillsTheHeightTheBarReserves() {
+      // A dropdown draws ONLY its title row and ignores the rest of the assembly's pixel height, so
+      // reserving more than it draws leaves the difference as a gap in the filter bar. Pin the row
+      // to the height the bar actually reserves rather than relying on two constants matching.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      SelectionListVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
+      int reserved = result.placements().stream()
+         .filter(pl -> pl.assemblyName().equals(control.getName()))
+         .findFirst().orElseThrow().size().height;
+
+      assertEquals(reserved, control.getSelectionListInfo().getTitleHeightValue(),
+         "the dropdown's title row must fill exactly the height the bar reserved for it");
+   }
+
+   @Test
+   void sharedBarDropdownTitleIsVerticallyCentredNotPinnedToTheTopOfItsRow() {
+      // THE BUG (live screenshot): the dropdown's title text sat hard against the TOP of its 60px
+      // row with an obvious empty band beneath it. Nothing in this path calls initDefaultFormat(),
+      // which is the only thing that seeds a TITLEPATH format (with H_LEFT|V_CENTER); with no entry
+      // the title inherits the OBJECT format's default alignment, VSFormat.ALIGN = H_LEFT|V_TOP,
+      // which reaches the client as align-items:flex-start on the title cell.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      VSCompositeFormat titleFormat = dropdown(vs).getVSAssemblyInfo().getFormatInfo()
+         .getFormat(VSAssemblyInfo.TITLEPATH);
+      assertNotNull(titleFormat, "the dropdown needs its own TITLEPATH format to align at all");
+      // The DESIGN value is the one that survives the composed dashboard being saved and reopened.
+      assertTrue((titleFormat.getAlignmentValue() & StyleConstants.V_CENTER) != 0,
+                 "the dropdown's title must be vertically centred in the row the bar reserves");
+      assertTrue((titleFormat.getAlignment() & StyleConstants.V_CENTER) != 0,
+                 "...and the effective (runtime) alignment must agree");
+      // V_TOP is what it inherited before the fix; asserting its ABSENCE is what distinguishes
+      // "centred" from "both bits set", which fixAlignment would happily store.
+      assertEquals(0, titleFormat.getAlignmentValue() & StyleConstants.V_TOP);
+      // Horizontal alignment must be carried along: fixAlignment keeps the horizontal and vertical
+      // bits independently, so writing V_CENTER alone would zero H_LEFT and centre the text
+      // horizontally too.
+      assertTrue((titleFormat.getAlignmentValue() & StyleConstants.H_LEFT) != 0,
+                 "the title must stay left-aligned horizontally");
+   }
+
+   @Test
+   void sharedBarDropdownPopupHasAnOpaqueBackgroundThatSurvivesAReload() {
+      // THE BUG (live screenshot): the OPEN dropdown list painted transparently on top of the chart
+      // behind it -- its items overlapped chart content and were unreadable. The popup has no
+      // background of its own (.selection-list-body carries none); the whole assembly is painted by
+      // the single [style.background-color]="model.objectFormat.background" binding on .vs-object,
+      // and that was unset because nothing here calls initDefaultFormat().
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      VSCompositeFormat objectFormat = dropdown(vs).getVSAssemblyInfo().getFormat();
+      // Assert through the getter that SURVIVES a save/reload -- the design "...Value" layer. The
+      // plain setter's isBackgroundDefined flag does not survive the round-trip (see
+      // applyCardFormat), so a background set only that way looks right here and vanishes for the
+      // user; reading getBackgroundValue is what makes this test able to tell the difference.
+      assertEquals("#ffffff",
+                   objectFormat.getUserDefinedFormat().getBackgroundValue(),
+                   "the popup needs an opaque background that survives save/reload");
+      assertTrue(objectFormat.getUserDefinedFormat().isBackgroundValueDefined(),
+                 "...and the value must be flagged defined, or the composite getter ignores it");
+      // The effective (composite) getter is what actually renders.
+      assertEquals(java.awt.Color.WHITE, objectFormat.getBackground());
+      // A floating list needs an outline too, or it bleeds into the chart it covers.
+      assertEquals(inetsoft.report.StyleConstants.THIN_LINE, objectFormat.getBorders().top);
+      assertEquals(inetsoft.report.StyleConstants.THIN_LINE, objectFormat.getBorders().bottom);
+      assertNotNull(objectFormat.getBorderColors());
+   }
+
+   @Test
+   void sharedBarDropdownGetsNoCaptionBecauseItDrawsItsOwnTitleRow() {
+      // THE BUG (live screenshot): "Res Partner Name" appeared TWICE -- once as the caption assembly
+      // above the control and again as the dropdown's own title row. The caption exists for the
+      // TimeSlider, which renders no title at all; a dropdown does, so for it the caption is a
+      // duplicate.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer")), 0);
+
+      SelectionListVSAssembly control = dropdown(vs);
+      assertNull(vs.getAssembly("wizFilterLabel_" + control.getName()),
+                 "a dropdown draws its own title -- a caption assembly would print the label twice");
+      assertTrue(result.placements().stream().noneMatch(pl -> pl.assemblyName().startsWith("wizFilterLabel_")),
+                 "and no caption placement may be returned either");
+      // The label still reaches the user -- through the control's OWN title row.
+      assertEquals("Customer", ((TitledVSAssemblyInfo) control.getVSAssemblyInfo()).getTitleValue());
+   }
+
+   @Test
+   void sharedBarRangeSliderStillGetsACaptionBecauseItRendersNoTitleOfItsOwn() {
+      // The other half of the caption rule: vs-range-slider.component.html gates its whole title
+      // header on isInSelectionContainer(), so a standalone slider on the bar shows a bare "6..216"
+      // with nothing naming the column. Removing the caption for EVERY control would strip its only
+      // label.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "partner_id"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("partner_id", "integer", "Customer")), 0);
+
+      assertNotNull(vs.getAssembly("wizFilterLabel_" + control(vs).getName()),
+                    "a range slider renders no title, so it still needs its caption");
+   }
+
+   @Test
+   void bothSharedBarControlTypesFillTheSameBandHeightSoTheBarStaysEven() {
+      // A dropdown has no caption and a slider does, so without compensating the two would occupy
+      // different total heights and the bar would step by 16px between adjacent controls of
+      // different types.
+      //
+      // The compensation used to be "the dropdown grows its own row by exactly the caption's
+      // height", which made both span the band top-to-bottom -- and rendered live as a 60px white
+      // box beside a much shorter slider (the D3 complaint). Now BOTH reserve the caption strip and
+      // BOTH draw a control of FILTER_CONTROL_ROW_HEIGHT below it; the dropdown just leaves the
+      // strip empty. So the band is still identical for the two types, and their control rows now
+      // additionally share a baseline -- a strictly stronger evenness property than before.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "res_partner_name", "partner_id"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("res_partner_name", "string", "Customer"),
+         new WizDashboardFilterBuilder.FilterRequest("partner_id", "integer", "Customer Id")), 0);
+
+      SelectionListVSAssembly list = dropdown(vs);
+      VSAssembly slider = (VSAssembly) java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof TimeSliderVSAssembly).findFirst().orElseThrow();
+      VSAssembly caption = (VSAssembly) vs.getAssembly("wizFilterLabel_" + slider.getName());
+      assertNotNull(caption);
+
+      int dropdownTop = list.getPixelOffset().y;
+      int dropdownBottom = dropdownTop + list.getPixelSize().height;
+      int sliderTop = slider.getPixelOffset().y;
+      int sliderBandTop = caption.getPixelOffset().y;
+      int sliderBandBottom = sliderTop + slider.getPixelSize().height;
+
+      assertEquals(sliderTop, dropdownTop,
+                   "both control types' own rows sit on the same baseline");
+      assertEquals(sliderBandBottom, dropdownBottom, "and end at the same band bottom");
+      assertEquals(slider.getPixelSize().height, list.getPixelSize().height,
+                   "and are drawn at the same height -- the dropdown must not be a taller box");
+      // The caption strip is RESERVED by the dropdown too (it just draws nothing into it), so the
+      // total band each control type occupies is still identical and the bar cannot step.
+      assertEquals(sliderBandBottom - sliderBandTop, dropdownBottom - sliderBandTop,
+                   "both control types occupy the same total band height");
+      assertTrue(dropdownTop > sliderBandTop,
+                 "the dropdown leaves the caption strip empty rather than growing to swallow it");
+      // The dropdown's title row still fills exactly what was reserved for it -- no gap.
+      int reserved = result.placements().stream()
+         .filter(pl -> pl.assemblyName().equals(list.getName()))
+         .findFirst().orElseThrow().size().height;
+      assertEquals(reserved, list.getSelectionListInfo().getTitleHeightValue());
+      // ...and that is the SAME natural row height the per-chart path uses, which is the whole
+      // point of D3: 60px was a box, 28px is a control.
+      assertEquals(WizDashboardService.PER_CHART_FILTER_ROW_HEIGHT, reserved,
+                   "the shared bar must use the per-chart path's established natural row height");
+   }
+
+   private static SelectionListVSAssembly dropdown(Viewsheet vs) {
+      return java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof SelectionListVSAssembly)
+         .map(a -> (SelectionListVSAssembly) a)
+         .findFirst().orElseThrow();
    }
 
    @Test
@@ -319,43 +560,51 @@ class WizDashboardFilterBuilderTest {
          vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")),
          WizDashboardService.CANVAS_MARGIN);
 
-      // Two placements per LABELLED control now: the control plus its caption (a standalone range
-      // slider renders no title of its own, so the caption stands in -- see FILTER_LABEL_HEIGHT).
-      // Both must be returned or an assembly with no per-tier layout entry is hidden.
-      assertEquals(2, result.placements().size());
+      // A string field is a DROPDOWN, which draws its own title row -- so exactly ONE placement, the
+      // control itself. (It used to be two: the control plus a caption, which printed the label
+      // twice.) A LABELLED SLIDER still returns two -- see aSharedBarControlCarriesItsLabelAsTheTitleValue.
+      assertEquals(1, result.placements().size());
       assertTrue(result.placements().stream().allMatch(pl -> pl.assemblyName() != null));
-      // The CAPTION is the topmost thing in the bar, at the passed origin; the control sits under it.
-      var caption = result.placements().stream()
-         .filter(pl -> pl.assemblyName().startsWith("wizFilterLabel_")).findFirst().orElseThrow();
-      assertEquals(new java.awt.Point(WizDashboardService.CANVAS_MARGIN, WizDashboardService.CANVAS_MARGIN),
-         caption.position());
+      // It sits at the passed origin plus the caption STRIP, which every control type reserves even
+      // when (as here) nothing is drawn into it -- that is what puts both types' rows on one
+      // baseline. Asserting the bare origin would re-pin the 60px full-band dropdown D3 removed.
+      assertEquals(new java.awt.Point(WizDashboardService.CANVAS_MARGIN,
+                                      WizDashboardService.CANVAS_MARGIN + WizDashboardFilterBuilder.FILTER_LABEL_HEIGHT),
+         result.placements().get(0).position());
    }
 
    @Test
    void firstControlIsOffsetByTheCanvasMarginNotFlushAgainstTheEdge() {
       Worksheet ws = new Worksheet();
-      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+      // Both control types, because the two must line up: a slider's CAPTION is what sits at the
+      // origin, and a dropdown -- which draws no caption -- still starts one caption strip down, on
+      // the same baseline as the slider itself.
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name", "order_qty"));
 
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = new ChartVSAssembly(vs, "RadarChart");
       boundToTable(chart, "CHART_FINAL");
       vs.addAssembly(chart);
 
-      builder.build(vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")),
+      builder.build(vs, ws, List.of(
+            new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category"),
+            new WizDashboardFilterBuilder.FilterRequest("order_qty", "integer", "Qty")),
          WizDashboardService.CANVAS_MARGIN);
 
-      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
-         .filter(a -> a instanceof AbstractSelectionVSAssembly)
-         .map(a -> (AbstractSelectionVSAssembly) a)
-         .findFirst().orElseThrow();
-      assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().x,
+      SelectionListVSAssembly list = dropdown(vs);
+      assertEquals(WizDashboardService.CANVAS_MARGIN, list.getPixelOffset().x,
          "must sit at the passed startX (the merged charts' left edge)");
-      // The control now sits BELOW its caption, so the caption is what must clear the top edge --
+
+      VSAssembly slider = (VSAssembly) java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof TimeSliderVSAssembly).findFirst().orElseThrow();
+      assertEquals(slider.getPixelOffset().y, list.getPixelOffset().y,
+         "the dropdown starts one caption strip down, level with the slider itself");
+      // The slider sits BELOW its caption, so the caption is what must clear the top edge --
       // same intent, one row up (see FILTER_LABEL_HEIGHT for why a caption exists at all).
-      assertTrue(control.getPixelOffset().y > WizDashboardService.CANVAS_MARGIN,
-         "the control sits below its caption");
-      var captionAssembly = vs.getAssembly("wizFilterLabel_" + control.getName());
-      assertNotNull(captionAssembly, "the control must have a caption above it");
+      assertTrue(slider.getPixelOffset().y > WizDashboardService.CANVAS_MARGIN,
+         "the slider sits below its caption");
+      var captionAssembly = vs.getAssembly("wizFilterLabel_" + slider.getName());
+      assertNotNull(captionAssembly, "the slider must have a caption above it");
       assertEquals(WizDashboardService.CANVAS_MARGIN, ((VSAssembly) captionAssembly).getPixelOffset().y,
          "the bar must not sit flush against the canvas's top edge");
    }
