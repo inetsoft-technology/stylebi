@@ -516,13 +516,18 @@ public class WizAutoBindingService {
     * slot, and concatenating them produces a label no caller asked for. Fields with no {@code title}
     * are skipped rather than contributing an empty string, so a partially-titled axis still gets the
     * title that was actually supplied.
+    *
+    * <p>The SECONDARY Y axis ({@code getY2TitleDescriptor}) is deliberately not written. A measure
+    * with {@code secondaryY:true} and a title has it applied to the primary Y descriptor — the same
+    * gap {@code setChartFormat}'s {@code yAxisTitle} path has, so this inherits an existing
+    * inconsistency rather than introducing a new one. Worth a follow-up if secondary-Y titles are
+    * ever asked for.
     */
    private void applyAxisTitlesFromFieldConfigs(ChartVSAssembly chartAsm,
                                                 Map<String, SimpleFieldInfo> configMap)
    {
       VSChartInfo vsChartInfo = chartAsm.getVSChartInfo();
-      ChartDescriptor desc = chartAsm.getChartInfo() == null
-         ? null : chartAsm.getChartInfo().getChartDescriptor();
+      ChartDescriptor desc = chartAsm.getChartDescriptor();
 
       if(vsChartInfo == null || desc == null || desc.getTitlesDescriptor() == null) {
          return;
