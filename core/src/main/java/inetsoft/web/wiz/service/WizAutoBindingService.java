@@ -289,6 +289,7 @@ public class WizAutoBindingService {
                   }
 
                   applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
+                  applyAxisTitlesFromFieldConfigs(chartAsm, configMap);
                }
                // The crosstab recommender decides row/col header placement itself and ignores
                // rows/cols pins (ChartPreference, the only pin channel into the recommender, models
@@ -492,6 +493,77 @@ public class WizAutoBindingService {
       applyAestheticFieldConfig(chartInfo.getShapeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getSizeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getTextField(), configMap, chartType);
+   }
+
+   /**
+    * Title the X/Y AXES from the {@code title} on whichever fieldConfig is bound to each axis.
+    *
+    * <p>THE DEFECT THIS FIXES. A caller-supplied {@code title} was accepted, forwarded, and applied
+    * to the chart ref as its caption ({@link #applyTitleAndFormat}) — and the axis still read the raw
+    * column name, because AN AXIS TITLE IS NOT A REF CAPTION. It comes from the chart descriptor's
+    * {@link TitlesDescriptor}, and when that carries no value StyleBI falls back to the field's full
+    * name. So {@code title: "Project"} rendered as {@code name} and {@code title: "Estimated Hours"}
+    * as {@code Sum(total_estimated_hours)} (reproduced live on the openproject dataset — the setting
+    * was taken without complaint and silently discarded, the failure mode CLAUDE.md calls out).
+    *
+    * <p>This writes the SAME descriptor that {@code setChartFormat}'s {@code xAxisTitle}/
+    * {@code yAxisTitle} writes, so the two paths agree on what an axis title is. A later explicit
+    * {@code set_chart_format} call still overrides this, which is the right precedence: it is the
+    * more specific instruction, and it runs after.
+    *
+    * <p>FIRST TITLED FIELD WINS per axis. An axis has exactly one title but may carry several fields
+    * (a multi-measure Y, a nested dimension); there is no defensible way to render two titles in one
+    * slot, and concatenating them produces a label no caller asked for. Fields with no {@code title}
+    * are skipped rather than contributing an empty string, so a partially-titled axis still gets the
+    * title that was actually supplied.
+    *
+    * <p>The SECONDARY Y axis ({@code getY2TitleDescriptor}) is deliberately not written. A measure
+    * with {@code secondaryY:true} and a title has it applied to the primary Y descriptor — the same
+    * gap {@code setChartFormat}'s {@code yAxisTitle} path has, so this inherits an existing
+    * inconsistency rather than introducing a new one. Worth a follow-up if secondary-Y titles are
+    * ever asked for.
+    */
+   private void applyAxisTitlesFromFieldConfigs(ChartVSAssembly chartAsm,
+                                                Map<String, SimpleFieldInfo> configMap)
+   {
+      VSChartInfo vsChartInfo = chartAsm.getVSChartInfo();
+      ChartDescriptor desc = chartAsm.getChartDescriptor();
+
+      if(vsChartInfo == null || desc == null || desc.getTitlesDescriptor() == null) {
+         return;
+      }
+
+      TitlesDescriptor titles = desc.getTitlesDescriptor();
+      applyAxisTitle(titles.getXTitleDescriptor(), vsChartInfo.getXFields(), configMap);
+      applyAxisTitle(titles.getYTitleDescriptor(), vsChartInfo.getYFields(), configMap);
+   }
+
+   /**
+    * Set one axis title from the first field on that axis whose fieldConfig carries a title.
+    *
+    * <p>Package-private and static so it can be unit-tested directly with mocked refs, mirroring
+    * {@link #applyDateGroup}.
+    */
+   static void applyAxisTitle(TitleDescriptor titleDesc, ChartRef[] refs,
+                              Map<String, SimpleFieldInfo> configMap)
+   {
+      if(titleDesc == null || refs == null) {
+         return;
+      }
+
+      for(ChartRef ref : refs) {
+         if(ref == null) {
+            continue;
+         }
+
+         SimpleFieldInfo fc = configMap.get(WizardRecommenderUtil.getChartRefFieldName(ref));
+         String title = fc == null ? null : fc.getTitle();
+
+         if(title != null && !title.isEmpty()) {
+            titleDesc.setTitleValue(title);
+            return;
+         }
+      }
    }
 
    /**
