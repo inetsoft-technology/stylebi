@@ -117,6 +117,15 @@ import java.util.List;
  */
 @Component
 public class WizDashboardFilterBuilder {
+   /**
+    * Name prefix for every non-interactive decoration this builder adds to a composed dashboard
+    * (the filter bar's band/divider rectangles and each control's caption). The board PDF export
+    * keys off it to tell decoration apart from a real board tile — a caption is a TextVSAssembly
+    * and so is a KPI tile, so the type alone cannot distinguish them. Keep the two in step: see
+    * WizPrintLayoutBuilder#resolveTopLevelAssemblies.
+    */
+   public static final String DECORATION_NAME_PREFIX = "wizFilter";
+
    public record FilterRequest(String field, String dataType, String label, boolean preAggregation) {
       /** Compatibility constructor defaulting to post-aggregation (the original binding) -- used by
        *  the per-chart path and by tests that predate the pre-aggregation flag. */
@@ -259,7 +268,7 @@ public class WizDashboardFilterBuilder {
          // range slider is otherwise unreadable. Its placement is returned alongside the control's:
          // an assembly with no per-tier layout entry is hidden when that tier is selected.
          if(!rendersOwnTitle && req.label() != null) {
-            placements.add(addCaption(vs, "wizFilterLabel_" + control.getName(),
+            placements.add(addCaption(vs, DECORATION_NAME_PREFIX + "Label_" + control.getName(),
                                       x, y, FILTER_CONTROL_WIDTH, FILTER_LABEL_HEIGHT, req.label()));
          }
 
@@ -375,8 +384,8 @@ public class WizDashboardFilterBuilder {
     */
    public List<FilterControlPlacement> buildFilterBarBand(Viewsheet vs, int x, int y, int width, int height) {
       List<FilterControlPlacement> placements = new ArrayList<>();
-      placements.add(addFillRectangle(vs, "wizFilterBarBand", x, y, width, height, BAND_BACKGROUND));
-      placements.add(addFillRectangle(vs, "wizFilterBarDivider",
+      placements.add(addFillRectangle(vs, DECORATION_NAME_PREFIX + "BarBand", x, y, width, height, BAND_BACKGROUND));
+      placements.add(addFillRectangle(vs, DECORATION_NAME_PREFIX + "BarDivider",
          x, y + height - DIVIDER_THICKNESS, width, DIVIDER_THICKNESS, DIVIDER_COLOR));
       return placements;
    }

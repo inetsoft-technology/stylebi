@@ -4,6 +4,8 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
@@ -106,6 +108,71 @@ class WizPrintLayoutBuilderTest {
          "the recap becomes the summary box");
       assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("First — cap one")));
       assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("Second — cap two")));
+   }
+
+   /**
+    * LIVE BUG. A composed dashboard is no longer charts-only: since the dashboard-filter feature it
+    * also carries interactive filter CONTROLS plus the bar's decoration (caption text, band and
+    * divider rectangles). resolveTopLevelAssemblies counted all of them, so the guard rejected
+    * every board that had any filter — "Dashboard has 13 top-level assemblies but 5 charts were
+    * requested" — and because that 400 carries a JSON body while the caller asks for
+    * application/pdf, it reached the user as an unexplained "Couldn't export PDF".
+    */
+   @Test
+   void ignoresFilterControlsAndFilterBarDecorationWhenCountingTopLevelAssemblies() {
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      textAssembly(vs, "Chart2", 420);
+
+      // A shared-bar control and a per-chart control: both are SelectionVSAssembly.
+      SelectionListVSAssembly shared = new SelectionListVSAssembly(vs, "sharedFilter_name");
+      shared.getVSAssemblyInfo().setPixelOffset(new Point(0, 900));
+      shared.getVSAssemblyInfo().setPixelSize(new Dimension(200, 60));
+      vs.addAssembly(shared);
+
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "perChartFilter_due_date");
+      slider.getVSAssemblyInfo().setPixelOffset(new Point(220, 900));
+      slider.getVSAssemblyInfo().setPixelSize(new Dimension(200, 60));
+      vs.addAssembly(slider);
+
+      // The bar's own decoration — a Text, which is ALSO how a KPI tile renders, so it can only be
+      // told apart by the builder's name prefix.
+      textAssembly(vs, WizDashboardFilterBuilder.DECORATION_NAME_PREFIX + "Label_sharedFilter_name", 960);
+      textAssembly(vs, WizDashboardFilterBuilder.DECORATION_NAME_PREFIX + "BarBand", 980);
+      textAssembly(vs, WizDashboardFilterBuilder.DECORATION_NAME_PREFIX + "BarDivider", 1000);
+
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0),
+         new WizPrintLayoutBuilder.ChartCaption("Second", "cap two", 1)
+      );
+
+      // 7 top-level assemblies, 2 charts requested — must build, not throw.
+      PrintLayout layout = builder.build(vs, "a4", "Board", null, charts);
+
+      List<String> laidOut = layout.getVSAssemblyLayouts().stream()
+         .filter(l -> !(l instanceof VSEditableAssemblyLayout))
+         .map(VSAssemblyLayout::getName)
+         .collect(Collectors.toList());
+      assertEquals(List.of("Chart1", "Chart2"), laidOut,
+         "only the real board tiles get a page — no filter control and no bar decoration");
+   }
+
+   @Test
+   void stillFailsLoudWhenTheREALTileCountDisagrees() {
+      // The guard must keep its teeth: excluding filters must not turn a genuine desync into a
+      // silently mis-captioned export.
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      SelectionListVSAssembly f = new SelectionListVSAssembly(vs, "sharedFilter_name");
+      f.getVSAssemblyInfo().setPixelOffset(new Point(0, 900));
+      f.getVSAssemblyInfo().setPixelSize(new Dimension(200, 60));
+      vs.addAssembly(f);
+
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0),
+         new WizPrintLayoutBuilder.ChartCaption("Second", "cap two", 1)
+      );
+      assertThrows(IllegalStateException.class, () -> builder.build(vs, "a4", "Board", null, charts));
    }
 
    @Test

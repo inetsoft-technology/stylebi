@@ -167,10 +167,16 @@ public class WizViewsheetExportController {
          return null;
       }
       catch(SecurityException e) {
-         return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
+         LOG.warn("Board PDF export refused for dashboard {}: {}", event.getDashboardId(), e.getMessage());
+         return ResponseEntity.status(403).body(Map.of("error", String.valueOf(e.getMessage())));
       }
       catch(IllegalArgumentException | IllegalStateException e) {
-         return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+         // Logged, not just returned. This branch used to be silent, and because the body is JSON
+         // while the caller asks for application/pdf, Spring answered 406 instead — so a real
+         // failure reached the user as an unexplained "Couldn't export PDF" with NOTHING in any log
+         // on either side. A 400 that leaves no trace is indistinguishable from a broken endpoint.
+         LOG.error("Board PDF export rejected for dashboard {}", event.getDashboardId(), e);
+         return ResponseEntity.status(400).body(Map.of("error", String.valueOf(e.getMessage())));
       }
       catch(Exception e) {
          LOG.error("Failed to export board PDF for dashboard {}", event.getDashboardId(), e);
