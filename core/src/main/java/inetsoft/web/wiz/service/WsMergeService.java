@@ -434,6 +434,52 @@ public class WsMergeService {
     * (type + datasource prefix + physical table/query name) as {@code srcTable}, or
     * {@code null} if none exists.
     */
+   /**
+    * True when merging {@code srcTable} into {@code candidate} would LOSE a column, because the two
+    * select the same physical column under different aliases.
+    *
+    * <p>THE DEFECT THIS PREVENTS. Merging is by physical source alone, and mergeColumns then unions
+    * the source's columns in, guarded by EXPOSED NAME. But ColumnSelection dedupes on DataRef
+    * equality, which compares the physical name and IGNORES the alias — so `id AS w3_id` is judged
+    * equal to an already-present `id AS wp_id` and the add silently does nothing. The guard says
+    * "add", the add is a no-op, and every join that referenced the dropped alias then fails at SQL
+    * time with `column ..._fkjoin.w3_id does not exist`. Observed live composing a board whose
+    * charts each aliased work_packages.id differently.
+    *
+    * <p>Keeping BOTH aliases is not an option: the same alias-blind equality runs through query
+    * construction too, so one physical column cannot be projected twice under two names however the
+    * selection is stored — verified by making the selection hold both and watching the query builder
+    * collapse them again. Rewriting the loser's references onto the survivor would have to cascade
+    * through every dependent join and mirror, several levels deep.
+    *
+    * <p>So decline the merge instead. Sharing one physical table across charts is an OPTIMISATION
+    * (one scan instead of two); correctness is not negotiable for it. The two charts simply keep
+    * their own copies of the table, exactly as they would if their sources differed.
+    */
+   private static boolean aliasesConflict(BoundTableAssembly candidate, BoundTableAssembly srcTable) {
+      ColumnSelection candidateCols = candidate.getColumnSelection(true);
+      ColumnSelection srcCols = srcTable.getColumnSelection(true);
+
+      for(int i = 0; i < srcCols.getAttributeCount(); i++) {
+         DataRef col = srcCols.getAttribute(i);
+
+         // Present under this very name — nothing to lose.
+         if(candidateCols.getAttribute(col.getName()) != null) {
+            continue;
+         }
+
+         // Not present by name, but an alias-blind-equal column IS there: the add would no-op.
+         if(candidateCols.containsAttribute(col)) {
+            LOG.debug("Not merging {} into {}: '{}' would collide with an existing column over the " +
+                      "same physical attribute under a different alias.",
+                      srcTable.getName(), candidate.getName(), col.getName());
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private BoundTableAssembly findMergeableTable(Worksheet dashWS, BoundTableAssembly srcTable) {
       SourceInfo srcInfo = srcTable.getSourceInfo();
 
@@ -454,7 +500,8 @@ public class WsMergeService {
 
          if(srcInfo.getType() == candidateInfo.getType() &&
             Objects.equals(srcInfo.getPrefix(), candidateInfo.getPrefix()) &&
-            Objects.equals(srcInfo.getSource(), candidateInfo.getSource()))
+            Objects.equals(srcInfo.getSource(), candidateInfo.getSource()) &&
+            !aliasesConflict(candidate, srcTable))
          {
             return candidate;
          }
@@ -590,8 +637,13 @@ public class WsMergeService {
       // part of preparing an aggregate query) regenerate public FROM the empty private selection,
       // silently dropping every aggregate output. Harmless (a no-op beyond the extra assignment)
       // when aggr is empty, since a plain pass-through mirror never triggers that reset path.
+      // PRIVATE FIRST, then PUBLIC. setColumnSelection(.., false) re-derives the public selection
+      // from the private one, so assigning public first and private second lets the derivation
+      // overwrite public with the base-qualified names -- the mirror then stops exposing `id` and
+      // starts exposing `projects_base.id`, every join key over it resolves to nothing, and
+      // CompositeTableAssembly#checkValidity drops the join as a cross join.
+      prevMirror.setColumnSelection(baseQualified(origPrivateCols, qualifierBase, aggr), false);
       prevMirror.setColumnSelection(origCols, true);
-      prevMirror.setColumnSelection(origPrivateCols, false);
       prevMirror.setPreConditionList(preconds);
       prevMirror.setPostConditionList(postconds);
       prevMirror.setAggregateInfo(aggr);
@@ -609,6 +661,45 @@ public class WsMergeService {
       }
 
       return prevMirrorName;
+   }
+
+   /**
+    * Re-express a mirror's PRIVATE selection as references to its base's EXPOSED names.
+    * See D11: the mirror was seeded with the base's own bare refs while mergeMirrorColumns
+    * qualifies everything it adds later, so the mirror held two namespaces at once and any
+    * ALIASED column was pruned from the projection while joins still referenced it.
+    */
+   private static ColumnSelection baseQualified(ColumnSelection privateCols, String baseName,
+                                                AggregateInfo aggr)
+   {
+      Set<String> groupNames = new HashSet<>();
+
+      for(int i = 0; aggr != null && i < aggr.getGroupCount(); i++) {
+         groupNames.add(aggr.getGroup(i).getName());
+      }
+
+      ColumnSelection out = new ColumnSelection();
+
+      for(int i = 0; i < privateCols.getAttributeCount(); i++) {
+         DataRef col = privateCols.getAttribute(i);
+         String entity = col.getEntity();
+
+         if(entity != null && !entity.isEmpty()) {
+            out.addAttribute(col);
+            continue;
+         }
+
+         if(groupNames.contains(col.getName())) {
+            out.addAttribute(col);
+            continue;
+         }
+
+         ColumnRef qualified = new ColumnRef(AssetUtil.getOuterAttribute(baseName, col));
+         qualified.setDataType(col.getDataType());
+         out.addAttribute(qualified);
+      }
+
+      return out;
    }
 
    /**
@@ -638,7 +729,6 @@ public class WsMergeService {
 
       for(int i = 0; i < srcColumns.getAttributeCount(); i++) {
          DataRef col = srcColumns.getAttribute(i);
-
          if(baseColumns.getAttribute(col.getName()) == null) {
             baseColumns.addAttribute(col);
          }

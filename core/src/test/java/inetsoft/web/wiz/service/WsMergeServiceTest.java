@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -691,6 +692,164 @@ class WsMergeServiceTest {
       aggr.addAggregate(new AggregateRef(aliasedColumn(rawAggColumn, aggregateAlias), formula));
       table.setAggregateInfo(aggr);
       return table;
+   }
+
+   /** A physical table whose columns carry ALIASES that differ from their physical attribute. */
+   private static PhysicalBoundTableAssembly aliasedPhysicalTable(Worksheet ws, String assemblyName,
+                                                                  String[][] cols)
+   {
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, assemblyName);
+      table.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "postgres", "public.types"));
+      ColumnSelection cs = new ColumnSelection();
+
+      for(String[] c : cols) {
+         AttributeRef ref = new AttributeRef(null, c[0]);
+         ref.setDataType(XSchema.STRING);
+         ColumnRef col = new ColumnRef(ref);
+         col.setDataType(XSchema.STRING);
+
+         if(c.length > 1 && c[1] != null) {
+            col.setAlias(c[1]);
+         }
+
+         cs.addAttribute(col);
+      }
+
+      table.setColumnSelection(cs, false);
+      return table;
+   }
+
+   /**
+    * LIVE BUG. Board PDF export died with `column typt.ty_id does not exist`. The merged mirror
+    * over the shared `types` table projected only the columns whose alias equals their physical
+    * name (is_in_roadmap/is_milestone/position) and dropped the two that were genuinely aliased
+    * (id AS ty_id, name AS ty_name) -- one of which is the join key the surrounding predicate
+    * still referenced.
+    *
+    * The aliased pair comes from wiz-services' FK-label join injection, which aliases BOTH the
+    * injected key and label precisely to avoid a bare-name collision, so this shape is the norm
+    * on any board carrying an FK-label join -- not a corner case.
+    *
+    * ensureBaseHasPrevMirror seeds the mirror with the base's OWN refs (bare `ty_id`), while
+    * mergeMirrorColumns qualifies every column it adds later through
+    * AssetUtil.getOuterAttribute (`TYPT_base.ty_id`). The mirror therefore ends up holding two
+    * different namespaces at once, which is the state the query engine cannot resolve.
+    */
+   @Test
+   void seededMirrorColumnsAreOuterAttributeQualifiedEvenWhenAliased() {
+      Worksheet dashWS = new Worksheet();
+      dashWS.addAssembly(aliasedPhysicalTable(dashWS, "TYPT", new String[][] {
+         { "id", "ty_id" }, { "name", "ty_name" }, { "is_milestone", null },
+      }));
+
+      // A second chart binds the same physical table, forcing ensureBaseHasPrevMirror to run.
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(aliasedPhysicalTable(vizWS, "TYPT", new String[][] {
+         { "id", "ty_id" }, { "name", "ty_name" }, { "is_milestone", null }, { "position", null },
+      }));
+
+      service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      TableAssembly prevMirror = (TableAssembly) dashWS.getAssembly("TYPT");
+      assertNotNull(prevMirror, "expected a prevMirror named 'TYPT'");
+      ColumnSelection mirrorPrivate = prevMirror.getColumnSelection(false);
+      // Asserted on entity/attribute directly rather than through getAttribute(name): that lookup
+      // has a fuzzy fallback which reports a BARE ref as a qualified one, so it passes even when
+      // the column is in the wrong namespace -- the exact false confidence this test exists to
+      // avoid.
+      assertEquals("TYPT_base", entityOf(mirrorPrivate, "ty_id"),
+         "the ALIASED join key must be outer-attribute qualified in the mirror's PRIVATE selection, " +
+         "exactly as its unaliased siblings are -- leaving it bare is what makes the engine drop it " +
+         "from the projection while the join still references TYPT.ty_id");
+      assertEquals("TYPT_base", entityOf(mirrorPrivate, "ty_name"),
+         "the ALIASED label column must be outer-attribute qualified too");
+      assertEquals("TYPT_base", entityOf(mirrorPrivate, "is_milestone"),
+         "the unaliased seeded column must be qualified in the same namespace as its siblings");
+      assertEquals("TYPT_base", entityOf(mirrorPrivate, "position"),
+         "a column added by mergeMirrorColumns was already qualified -- it must stay that way");
+
+      // The mirror must keep EXPOSING both under their aliases, so consumers still resolve them.
+      ColumnSelection mirrorPublic = prevMirror.getColumnSelection(true);
+      assertNotNull(mirrorPublic.getAttribute("ty_id"), "mirror must still expose ty_id");
+      assertNotNull(mirrorPublic.getAttribute("ty_name"), "mirror must still expose ty_name");
+   }
+
+   /** The entity of the ref whose EXPOSED name is {@code exposed}, or null if absent entirely. */
+   private static String entityOf(ColumnSelection cs, String exposed) {
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef d = cs.getAttribute(i);
+         String alias = d instanceof ColumnRef ? ((ColumnRef) d).getAlias() : null;
+         String name = alias != null ? alias : d.getAttribute();
+
+         if(exposed.equals(name)) {
+            return d.getEntity();
+         }
+      }
+
+      return null;
+   }
+
+
+   /**
+    * LIVE BUG. Two charts each selected work_packages.id but aliased it differently (`wp_id` vs
+    * `w3_id`). Merging is keyed on the physical SOURCE alone, so the second chart's table was folded
+    * into the first's — and its `w3_id` was then silently lost, because mergeColumns guards on the
+    * EXPOSED NAME while ColumnSelection dedupes on DataRef equality, which ignores the alias. The
+    * add was a no-op, and the join that referenced the dropped alias failed at query time with
+    * `column wp3__fkjoin.w3_id does not exist`.
+    *
+    * Keeping both aliases is not representable — the same alias-blind equality runs through query
+    * construction, so the projection collapses them again (verified live). Declining the merge is
+    * the correct answer: sharing one physical table is an optimisation, and it must not cost a
+    * column.
+    */
+   @Test
+   void doesNotMergeTwoTablesThatAliasTheSamePhysicalColumnDifferently() {
+      Worksheet dashWS = new Worksheet();
+      dashWS.addAssembly(aliasedPhysicalTable(dashWS, "WPT", new String[][] {
+         { "id", "wp_id" }, { "type_id", null },
+      }));
+
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(aliasedPhysicalTable(vizWS, "WP3", new String[][] {
+         { "id", "w3_id" }, { "type_id", null },
+      }));
+
+      service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      // WP3 must survive as its OWN table rather than being folded into WPT and losing w3_id.
+      TableAssembly wp3 = (TableAssembly) dashWS.getAssembly("WP3");
+      assertNotNull(wp3, "WP3 aliases id differently from WPT, so it must NOT be merged away");
+      assertNotNull(wp3.getColumnSelection(true).getAttribute("w3_id"),
+         "WP3 must keep its own w3_id");
+
+      // ...and WPT must be untouched: no promotion to WPT_base, since nothing merged into it.
+      TableAssembly wpt = (TableAssembly) dashWS.getAssembly("WPT");
+      assertNotNull(wpt);
+      assertNotNull(wpt.getColumnSelection(true).getAttribute("wp_id"), "WPT keeps wp_id");
+      assertNull(wpt.getColumnSelection(true).getAttribute("w3_id"),
+         "the conflicting alias must not have been silently folded in");
+   }
+
+   /** Two tables that alias identically DO still merge — the guard must not block the normal case. */
+   @Test
+   void stillMergesWhenTheAliasesAgree() {
+      Worksheet dashWS = new Worksheet();
+      dashWS.addAssembly(aliasedPhysicalTable(dashWS, "WPT", new String[][] {
+         { "id", "wp_id" }, { "type_id", null },
+      }));
+
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(aliasedPhysicalTable(vizWS, "WPT", new String[][] {
+         { "id", "wp_id" }, { "type_id", null }, { "done_ratio", null },
+      }));
+
+      service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      TableAssembly base = (TableAssembly) dashWS.getAssembly("WPT_base");
+      assertNotNull(base, "matching aliases must still merge (and promote to WPT_base)");
+      assertNotNull(base.getColumnSelection(true).getAttribute("done_ratio"),
+         "the extra column from the second chart must be unioned in");
    }
 
    private static ColumnRef aliasedColumn(String rawAttr, String alias) {
