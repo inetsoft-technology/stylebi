@@ -2804,8 +2804,75 @@ public class WizVsService {
          entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, pId);
       }
 
+      // A SAVED VISUALIZATION holds exactly one chart. Enforce that here, at the single write choke
+      // point, rather than in each caller — see pruneSupersededCharts.
+      if(entry.getPath() != null &&
+         entry.getPath().startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))
+      {
+         pruneSupersededCharts(vs);
+      }
+
       viewsheetService.setViewsheet(vs, entry, user, true, true);
       return entry.toIdentifier();
+   }
+
+   /**
+    * Drop every NON-PRIMARY chart from a viewsheet that is about to be stored as a saved
+    * visualization.
+    *
+    * <p>THE DEFECT THIS FIXES. A saved visualization IS one chart — that is the model the rest of
+    * the product enforces: {@code ViewsheetRuntimeController#findChartAssembly} resolves an asset
+    * to its FIRST ChartVSAssembly, and open/verify/reload all report that single assembly.
+    *
+    * <p>But re-binding a REOPENED saved visualization does not replace its chart. The general
+    * create/rebind path DEMOTES the displaced primary ({@code setPrimary(false)}) and adds the new
+    * assembly beside it; only the {@code skipExecution} (change-type) path also deletes it. That
+    * retention is deliberate and correct for a SESSION viewsheet, which holds one historical card
+    * per turn — but this same viewsheet is then handed to persistViewsheet, which writes back
+    * whatever it contains. Re-bind a saved viz and the asset silently gains a second chart.
+    *
+    * <p>Observed live: a board's A1 chart, re-bound after a dataset regeneration, left its
+    * superseded chart in the asset. Composing that board produced 6 chart assemblies for 5 tiles
+    * and the PDF export failed its tile/caption count check. The orphan is invisible everywhere
+    * else, because every other reader takes the first chart and stops.
+    *
+    * <p>Scoped deliberately:
+    * <ul>
+    *   <li>ONLY for the components folder. A session viewsheet in the root folder legitimately
+    *       holds many charts, and pruning there would delete the user's history.</li>
+    *   <li>ONLY charts. Anything else an asset carries (annotations, shapes) is left alone.</li>
+    *   <li>ONLY when a primary chart is actually present. With no primary there is no basis for
+    *       choosing a survivor, and guessing would risk deleting the real one — leave it whole and
+    *       let the first-chart readers cope, exactly as before.</li>
+    * </ul>
+    */
+   static void pruneSupersededCharts(Viewsheet vs) {
+      Assembly[] assemblies = vs == null ? null : vs.getAssemblies();
+
+      if(assemblies == null) {
+         return;
+      }
+
+      boolean hasPrimaryChart = false;
+
+      for(Assembly a : assemblies) {
+         if(a instanceof ChartVSAssembly chart && chart.isPrimary()) {
+            hasPrimaryChart = true;
+            break;
+         }
+      }
+
+      if(!hasPrimaryChart) {
+         return;
+      }
+
+      for(Assembly a : assemblies) {
+         if(a instanceof ChartVSAssembly chart && !chart.isPrimary()) {
+            LOG.warn("Dropping superseded chart '{}' from a saved visualization: an asset in the " +
+                     "components folder holds exactly one chart.", chart.getAbsoluteName());
+            vs.removeAssembly(chart.getName());
+         }
+      }
    }
 
    /**

@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
@@ -68,10 +69,24 @@ public class WizPrintLayoutBuilder {
       List<VSAssembly> topLevel = resolveTopLevelAssemblies(dashboard);
 
       if(topLevel.size() != charts.size()) {
+         // NAME what was found. A bare count ("13 top-level assemblies but 5 charts") says nothing
+         // about WHICH extra assembly is present, and the answer is the whole diagnosis: a stale
+         // tile, or -- as happened when the dashboard-filter feature began adding controls and
+         // decoration to composed dashboards -- something that was never a board tile at all.
+         // Establishing that took a full build-and-deploy cycle per guess; the message now carries
+         // it.
+         StringBuilder found = new StringBuilder();
+
+         for(VSAssembly a : topLevel) {
+            found.append(found.length() == 0 ? "" : ", ")
+                 .append(a.getAbsoluteName()).append(" [").append(a.getClass().getSimpleName()).append("]");
+         }
+
          throw new IllegalStateException(
             "Dashboard has " + topLevel.size() + " top-level assemblies but " + charts.size() +
             " charts were requested — the composed dashboard and the board's curation have " +
-            "desynced (see WizPrintLayoutBuilder's Javadoc / the plan's Global Constraints risk note)");
+            "desynced (see WizPrintLayoutBuilder's Javadoc / the plan's Global Constraints risk " +
+            "note). Found: " + found);
       }
 
       List<ChartCaption> ordered = charts.stream()
@@ -169,6 +184,24 @@ public class WizPrintLayoutBuilder {
          }
 
          if(AnnotationVSUtil.isAnnotation(vsAssembly) || vsAssembly.getContainer() != null) {
+            continue;
+         }
+
+         // A composed dashboard is no longer charts-only: since the dashboard-filter feature it
+         // also carries interactive filter CONTROLS plus the bar's own decoration. Neither is a
+         // board tile, and counting them here made the guard below reject every board that has any
+         // filter -- "Dashboard has 13 top-level assemblies but 5 charts were requested" -- which
+         // reached the user as an unexplained failed PDF export.
+         //
+         // Two exclusions, because one does not cover the other: every filter control is a
+         // SelectionVSAssembly whatever its flavour (list, tree, range slider), while the caption
+         // and band are a TextVSAssembly and a RectangleVSAssembly -- and a Text is ALSO how a KPI
+         // tile is rendered, so the type cannot tell them apart. The decorations are matched by the
+         // builder's own name prefix instead.
+         if(vsAssembly instanceof SelectionVSAssembly ||
+            vsAssembly.getAbsoluteName() != null &&
+            vsAssembly.getAbsoluteName().startsWith(WizDashboardFilterBuilder.DECORATION_NAME_PREFIX))
+         {
             continue;
          }
 

@@ -264,8 +264,38 @@ public class AddVisualizationService {
       List<VSAssembly> clones = new ArrayList<>();
       Map<String, String> vsConflictRenameMap = new HashMap<>();
 
+      // A saved visualization IS one chart -- that is the model the rest of the product enforces:
+      // ViewsheetRuntimeController#findChartAssembly resolves an asset to its FIRST
+      // ChartVSAssembly, and open/verify/reload all report that single assembly. An asset can
+      // nonetheless end up holding more than one, because persistViewsheet writes back whatever
+      // the runtime contains and a re-bind of a reopened saved viz can leave the superseded chart
+      // behind. Merging every assembly then pulled the ORPHAN into the dashboard too, so a 5-chart
+      // board composed to 6 chart assemblies and the export failed the tile/caption count check
+      // with "Dashboard has 6 top-level assemblies but 5 charts were requested" -- observed live.
+      //
+      // Take the same primary the rest of the product takes, and skip any further chart. Anything
+      // that is not a chart still comes across untouched.
+      ChartVSAssembly primaryChart = null;
+
+      for(Assembly a : vizVS.getAssemblies()) {
+         if(a instanceof ChartVSAssembly chart) {
+            primaryChart = chart;
+            break;
+         }
+      }
+
       for(Assembly a : vizVS.getAssemblies()) {
          if(!(a instanceof VSAssembly srcAssembly)) {
+            continue;
+         }
+
+         if(a instanceof ChartVSAssembly && a != primaryChart) {
+            // Identify it by the ASSEMBLIES, not vizVS.getName() — a saved-visualization Viewsheet
+            // carries no name, so that logged a bare "null" and told a reader nothing.
+            LOG.warn("Saved visualization holds more than one chart; merging only its primary " +
+                     "assembly '{}' and skipping the superseded '{}'.",
+                     primaryChart == null ? null : primaryChart.getAbsoluteName(),
+                     srcAssembly.getAbsoluteName());
             continue;
          }
 
