@@ -110,9 +110,22 @@ export class ContentDataSpaceViewComponent implements OnInit {
       let nextNode: FlatTreeNode<DataSpaceTreeNode> = null;
 
       if(this.currentNode) {
-         for(let i = 0; i < this.dataSource.data.length - 1; i++) {
-            if(Tool.isEquals(this.currentNode, this.dataSource.data[i])) {
-               nextNode = this.dataSource.data[i + 1];
+         const index = this.dataSource.data.findIndex(n => Tool.isEquals(this.currentNode, n));
+
+         if(index >= 0) {
+            // skip past the deleted node's own descendants so we don't select a
+            // child of the node being deleted as the next current node
+            const level = this.dataSource.data[index].level;
+            let nextIndex = index + 1;
+
+            while(nextIndex < this.dataSource.data.length &&
+               this.dataSource.data[nextIndex].level > level)
+            {
+               nextIndex++;
+            }
+
+            if(nextIndex < this.dataSource.data.length) {
+               nextNode = this.dataSource.data[nextIndex];
             }
          }
       }
