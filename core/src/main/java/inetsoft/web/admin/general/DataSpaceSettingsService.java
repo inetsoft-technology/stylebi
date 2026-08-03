@@ -224,7 +224,12 @@ public class DataSpaceSettingsService extends BackupSupport {
             long z1Time = getTimestamp(z1);
             long z2Time = getTimestamp(z2);
 
-            return (int) (z1Time - z2Time);
+            // Long.compare, NOT (int) (z1Time - z2Time): these are 14-digit yyyyMMddHHmmss
+            // timestamps, and a long difference that size overflows int (limit ~2.15 billion) for
+            // any pair more than roughly a year apart, which can invert the sign and delete the
+            // newest snapshot instead of the oldest - or, with enough files, make sorted() throw
+            // "Comparison method violates its general contract!".
+            return Long.compare(z1Time, z2Time);
          })
          .toList();
 
@@ -301,8 +306,9 @@ public class DataSpaceSettingsService extends BackupSupport {
    /**
     * Admin-chat snapshots live in their own folder so that {@link #deleteRedundantBackupFiles},
     * which lists only {@link #BACKUP_FOLDER}, cannot delete a snapshot an audit record still
-    * references. Nothing currently prunes this folder - see the retention note in the admin-chat
-    * design doc.
+    * references - that method cannot reach this folder at all, which is the reason this sibling
+    * folder exists rather than reusing {@link #BACKUP_FOLDER}. This folder is instead pruned by
+    * {@link #deleteRedundantAiSnapshotFiles}, to {@code ai.snapshot.count} (default 10).
     */
    private static final String AI_SNAPSHOT_FOLDER = "ai-snapshots";
 

@@ -71,6 +71,9 @@ class AdminChangeServiceTest {
 
       assertEquals("100", res.getBeforeValue());
       assertEquals("500", res.getAfterValue());
+      // Finding 3's undo gate in AdminChangesetApplyService relies on this being true whenever
+      // the snapshot read actually succeeded - keep the two halves from drifting apart.
+      assertTrue(res.isBeforeRead());
       assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
       sreeEnv.verify(() -> SreeEnv.setProperty("max.rows", "500"));
       sreeEnv.verify(SreeEnv::save);

@@ -263,4 +263,31 @@ class DataSpaceSettingsServiceTest {
       verify(externalStorageService, never()).listFiles("backup");
       verify(externalStorageService, never()).delete(startsWith("backup"));
    }
+
+   // [G7] Post-review fix: the comparator must use Long.compare, not (int) (z1Time - z2Time).
+   // Real ai-snapshot filenames carry 14-digit yyyyMMddHHmmss timestamps (see
+   // BackupSupport.createBackupTimestamp), and this pair - three full years apart at the same
+   // time-of-day, so the raw difference is exactly 3*10^10 = 30,000,000,000 - was verified (via a
+   // standalone check, not hand arithmetic) to land in exactly the zone where casting that long
+   // difference to int flips its sign: (int)(30_000_000_000L) == -64771072, even though the true
+   // difference is positive. Note the year-crossing pair suggested as a first guess
+   // (20261231235959 / 20270101000001, diff ~8.87 billion) does NOT actually invert - its
+   // remainder happens to fall back on the correct side of the modulus - which is exactly why this
+   // needs a real check rather than "big enough to overflow".
+   @Test
+   void aiSnapshotPruning_deletesTheOldestEvenWhenTimestampsAreYearsApart() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("1");
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-old-20230101000000.zip", "admin-new-20260101000000.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-8").aiSnapshot(true).build());
+
+      // 2 files, keep 1 -> delete exactly 1: the OLDEST. With the broken (int) cast, this pair
+      // sorts backwards and the NEWEST is deleted instead.
+      verify(externalStorageService, times(1)).delete(anyString());
+      verify(externalStorageService)
+         .delete("ai-snapshots" + File.separator + "admin-old-20230101000000.zip");
+      verify(externalStorageService, never())
+         .delete("ai-snapshots" + File.separator + "admin-new-20260101000000.zip");
+   }
 }
