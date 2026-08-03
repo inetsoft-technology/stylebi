@@ -33,6 +33,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -66,11 +67,28 @@ class AdminAiBeanGraphTest {
    @Test
    void everyAdminAiBeanConstructorParameterIsResolvableInTheWebContext() {
       Set<Class<?>> beanProviderReturnTypes = collectBeanProviderReturnTypes();
+      List<Class<?>> beans =
+         scanAnnotated(TARGET_PACKAGE, Service.class, Component.class, RestController.class);
+
+      // Guard against a vacuous pass: "no problems" is also true when nothing was examined, so a
+      // package rename or a scan that silently finds nothing would otherwise report success
+      // forever. inetsoft.web.admin.ai has 8 @Service/@Component/@RestController classes today
+      // (AdminAiController, AdminPropertiesController, AdminBackupService, AdminChangeService,
+      // AdminChangePlanService, AdminChangesetApplyService, AdminRiskClassifier,
+      // AdminPropertyCatalog); floor at that count so a broken/renamed scan is caught, while
+      // adding a ninth legitimate bean does not.
+      assertTrue(beans.size() >= 8, "expected to find the admin-chat beans in " + TARGET_PACKAGE +
+         " but found " + beans.size() + " - the scan is broken, so this test proves nothing");
+
+      // Guard against the opposite failure mode: an empty provider set would make every
+      // parameter check below fall through to "not resolvable", producing false *failures*
+      // rather than a false pass - noisy rather than dangerous, but worth pinning while here.
+      assertFalse(beanProviderReturnTypes.isEmpty(), "expected to find @Bean-provided types " +
+         "under " + WEB_CONTEXT_PACKAGES + " but found none - the @Configuration scan is broken");
+
       List<String> problems = new ArrayList<>();
 
-      for(Class<?> beanClass : scanAnnotated(TARGET_PACKAGE, Service.class, Component.class,
-                                              RestController.class))
-      {
+      for(Class<?> beanClass : beans) {
          for(Constructor<?> ctor : beanClass.getDeclaredConstructors()) {
             for(Class<?> paramType : ctor.getParameterTypes()) {
                if(!isResolvableInWebContext(paramType, beanProviderReturnTypes)) {
