@@ -883,7 +883,10 @@ public class PhysicalModelService {
                }
             }
 
-            rPartition.setBounds(
+            // set directly on the live partition (not rPartition, which is a
+            // separate cached copy fetched by ID) so the width/height actually
+            // persist instead of being silently discarded
+            partition.setBounds(
                tableName,
                new Rectangle(DEFAULT_GRAPH_LEFT_GAP, DEFAULT_GRAPH_TOP_GAP, width, height));
          }

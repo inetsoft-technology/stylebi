@@ -19,7 +19,7 @@ import {
    Component, OnInit, OnDestroy, DoCheck, ViewChild, TemplateRef, HostListener
 } from "@angular/core";
 import { CanComponentDeactivate } from "../../../../../../../../shared/util/guard/can-component-deactivate";
-import { Observable, of, Subscription } from "rxjs";
+import { EMPTY, Observable, of, Subject, Subscription } from "rxjs";
 import { NotificationData } from "../../../../../widget/repository-tree/repository-tree.service";
 import { SplitPane } from "../../../../../widget/split-pane/split-pane.component";
 import { PhysicalTableAliasesDialog } from "../../../../dialog/physical-table-aliases-dialog/physical-table-aliases-dialog.component";
@@ -37,7 +37,7 @@ import { NameChangeModel } from "../../../model/name-change-model";
 import { NotificationsComponent } from "../../../../../widget/notifications/notifications.component";
 import { DatabaseTreeNodeModel } from "../../../model/datasources/database/physical-model/database-tree-node-model";
 import { PhysicalModelTreeNodeModel } from "../../../model/datasources/database/physical-model/physical-model-tree-node-model";
-import { tap } from "rxjs/operators";
+import { catchError, concatMap, tap } from "rxjs/operators";
 import { PhysicalTableType } from "../../../model/datasources/database/physical-model/physical-table-type.enum";
 import { FolderChangeModel } from "../../../model/folder-change-model";
 import { AddPhysicalModelEvent } from "../../../model/datasources/database/events/add-physical-model-event";
@@ -131,6 +131,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    readonly INIT_TREE_PANE_SIZE = 35;
    treePaneSize: number = this.INIT_TREE_PANE_SIZE;
    private subscription: Subscription;
+   // Serializes table/add requests: the server does a read-modify-write on the
+   // cached runtime partition, so firing requests concurrently (e.g. quickly
+   // checking several tables in the schema tree) risks one add overwriting another.
+   private addTableQueue: Subject<EditTableEvent> = new Subject<EditTableEvent>();
+   private addTableQueueSubscription: Subscription;
    loadingTree: boolean = false;
    private graphViewModel: GraphViewModel;
    selectedGraphModels: GraphModel[] = [];
@@ -232,6 +237,14 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    }
 
    ngOnInit(): void {
+      this.addTableQueueSubscription = this.addTableQueue
+         .pipe(concatMap(event =>
+            this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "add", event)
+               // an error here must not terminate the queue subscription, or every
+               // subsequent table addition for the rest of the session would silently no-op
+               .pipe(catchError(() => EMPTY))))
+         .subscribe(() => this.dataPhysicalModelService.emitModelChange());
+
       // subscribe to route parameters and update current database model
       this.routeParamSubscription = this.route.paramMap
          .subscribe((params: ParamMap) => {
@@ -972,8 +985,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          const newTable: PhysicalTableModel = this.createPhysicalTableModel(nodeData);
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id, newTable,
             null, nodeData);
-         this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "add", event)
-            .subscribe(() => this.dataPhysicalModelService.emitModelChange());
+         // queued (not posted directly) so rapid successive additions don't race
+         this.addTableQueue.next(event);
 
          if(this.tableTree.selectedNodes?.length == 1 &&  this.tableTree.selectedNodes[0] == node) {
             this.editingTable = newTable;
@@ -1331,6 +1344,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       if(!!this.subscription) {
          this.subscription.unsubscribe();
          this.subscription = null;
+      }
+
+      if(!!this.addTableQueueSubscription) {
+         this.addTableQueueSubscription.unsubscribe();
+         this.addTableQueueSubscription = null;
       }
 
       clearInterval(this.heartbeatIntervalId);
