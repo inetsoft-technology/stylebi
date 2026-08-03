@@ -211,11 +211,15 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
 
    public mangleAssets() {
       let timeout = setTimeout(() => this.loading = true, 1000);
+      const done = () => {
+         clearTimeout(timeout);
+         this.loading = false;
+      };
 
       this.httpClient.delete("../api/em/repository/recycle-bin/entries")
-         .subscribe(() => {
-            clearTimeout(timeout);
-            this.loading = false;
+         .subscribe({
+            next: done,
+            error: done
          });
    }
 }
