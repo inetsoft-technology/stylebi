@@ -35,6 +35,7 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
+import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
@@ -68,7 +69,8 @@ public class UserTreeService {
                           CustomThemesManager customThemesManager,
                           DashboardRegistryManager dashboardRegistryManager,
                           XRepository xRepository,
-                          DependencyStorageService dependencyStorageService)
+                          DependencyStorageService dependencyStorageService,
+                          RecycleBin recycleBin)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -87,6 +89,7 @@ public class UserTreeService {
       this.indexedStorage = indexedStorage;
       this.xRepository = xRepository;
       this.dependencyStorageService = dependencyStorageService;
+      this.recycleBin = recycleBin;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -1832,6 +1835,7 @@ public class UserTreeService {
       mvManager.updateMVUser(oldID, newID);
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
       this.dependencyStorageService.migrateStorageData(oldID, newID);
+      recycleBin.renameUser(oldID, newID);
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -1934,5 +1938,6 @@ public class UserTreeService {
    private final DashboardRegistryManager dashboardRegistryManager;
    private final XRepository xRepository;
    private final DependencyStorageService dependencyStorageService;
+   private final RecycleBin recycleBin;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

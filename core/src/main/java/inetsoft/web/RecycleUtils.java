@@ -249,11 +249,21 @@ public final class RecycleUtils {
       IdentityID user = rEntry.getOriginalUser();
       AssetEntry oldEntry = getSheetEntry(path, isViewsheet, user);
 
+      if(oldEntry == null) {
+         throw new MessageException("Failed to restore sheet, the recycled asset at " +
+            path + " owned by " + user + " could not be found");
+      }
+
       if(SUtil.isMyDashboard(path)) {
          oldEntry = getAssetEntry(oldEntry.getType(), path, user);
       }
       else {
          oldEntry = getAssetEntry(oldEntry.getType(), path);
+      }
+
+      if(oldEntry == null) {
+         throw new MessageException("Failed to restore sheet, the recycled asset at " +
+            path + " owned by " + user + " could not be found");
       }
 
       String originalPath = rEntry.getOriginalPath();

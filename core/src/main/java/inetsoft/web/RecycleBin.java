@@ -137,6 +137,32 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Updates the owner recorded on recycle bin entries (in the current org) after a user is
+    * renamed, so that entries deleted by the old username can still be located and restored.
+    */
+   public synchronized void renameUser(IdentityID oldUser, IdentityID newUser) {
+      Map<String, Entry> map = new HashMap<>();
+      KeyValueStorage<Entry> storage = getStorage();
+      storage.stream().forEach(p -> map.put(p.getKey(), p.getValue()));
+
+      for(Map.Entry<String, Entry> e : map.entrySet()) {
+         Entry entry = e.getValue();
+
+         if(Tool.equals(entry.getOriginalUser(), oldUser)) {
+            entry.setOriginalUser(newUser);
+
+            try {
+               storage.put(e.getKey(), entry).get(10L, TimeUnit.SECONDS);
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to rename recycle bin entry owner from {} to {}",
+                         oldUser, newUser, ex);
+            }
+         }
+      }
+   }
+
+   /**
     * Get the original path of an item in recycle bin.
     */
    public synchronized String getOriginalPath(String path) {
