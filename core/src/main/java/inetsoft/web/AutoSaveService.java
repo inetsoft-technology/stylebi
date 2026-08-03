@@ -19,6 +19,8 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.BlobStorage;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -44,10 +46,25 @@ public class AutoSaveService {
 
    @Scheduled(fixedRate = 10800000L)
    public void removeExpiredAutoSaveFiles() {
-      BlobStorage<AutoSaveUtils.Metadata> blobStorage = AutoSaveUtils.getStorage(null);
+      String[] orgIds = SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs();
       Instant sevenDaysAgo = Instant.now().minus(Duration.ofDays(7));
-      loopCleanAutoSaveFiles(blobStorage, false, sevenDaysAgo);
-      loopCleanAutoSaveFiles(blobStorage, true, sevenDaysAgo);
+
+      for(String orgId : orgIds) {
+         // resolve the org's own __autoSave bucket even though this scheduled job runs with no
+         // ambient principal -- OrganizationManager.getCurrentOrgID(null) falls back to this
+         // thread-local before defaulting to the host org, so without it every org would collapse
+         // onto the default org's bucket
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+
+         try {
+            BlobStorage<AutoSaveUtils.Metadata> blobStorage = AutoSaveUtils.getStorage(null);
+            loopCleanAutoSaveFiles(blobStorage, false, sevenDaysAgo);
+            loopCleanAutoSaveFiles(blobStorage, true, sevenDaysAgo);
+         }
+         finally {
+            OrganizationContextHolder.clear();
+         }
+      }
    }
 
    private void loopCleanAutoSaveFiles(BlobStorage<AutoSaveUtils.Metadata> blobStorage, boolean isRecycle, Instant sevenDaysAgo) {

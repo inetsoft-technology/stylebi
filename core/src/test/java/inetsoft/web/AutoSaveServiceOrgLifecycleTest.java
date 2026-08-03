@@ -30,6 +30,8 @@ import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
@@ -211,40 +213,89 @@ class AutoSaveServiceOrgLifecycleTest {
                 + "drops off the EM \"Auto Saved Files\" recycle-bin tree (Issue #75827)");
    }
 
-   // ── scenario 6h: removeExpiredAutoSaveFiles() only ever inspects the default org's bucket -- a
-   //    non-default org's bucket is never even listed, regardless of what it contains ──
+   // ── Bug #75887 (scenario 6h): removeExpiredAutoSaveFiles() only ever inspected the default
+   //    org's bucket -- a non-default org's bucket was never even listed, regardless of age.
+   //    Fixed by looping over SecurityProvider.getOrganizationIDs() and scoping each pass via
+   //    OrganizationContextHolder, mirroring CleanupTableCacheTask's cross-org pattern ──
 
    @Test
-   @Disabled("6h: not yet run/confirmed -- see matrix doc section 3.4")
-   void removeExpiredAutoSaveFiles_onlyScansDefaultOrgBucket_nonDefaultOrgNeverListed() throws Exception {
+   void removeExpiredAutoSaveFiles_expiredNonDefaultOrgFile_isDeleted() throws Exception {
       String nonDefaultOrgId = "sixh_non_default_org";
-      seedAutoSaveBlob(nonDefaultOrgId, "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~",
-                       "dummy".getBytes());
+      String path = "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~";
+      long eightDaysAgo = System.currentTimeMillis() - java.time.Duration.ofDays(8).toMillis();
+      seedAutoSaveBlob(nonDefaultOrgId, path, "dummy".getBytes(), eightDaysAgo);
 
       ViewsheetService viewsheetService = mock(ViewsheetService.class);
       AutoSaveService service = new AutoSaveService(viewsheetService);
 
       // no ThreadContext principal set (mirrors the @Scheduled executor thread in production, where
       // ThreadContext.getContextPrincipal() is normally null)
-      service.removeExpiredAutoSaveFiles();
+      try(MockedStatic<SecurityEngine> securityEngine = mockOrganizationIDs(nonDefaultOrgId)) {
+         service.removeExpiredAutoSaveFiles();
+      }
+
+      BlobStorage<AutoSaveUtils.Metadata> nonDefaultBucket =
+         blobStorageManager.getStorage(nonDefaultOrgId.toLowerCase() + "__autoSave", false);
+
+      assertEquals(0, nonDefaultBucket.paths().count(),
+                  "removeExpiredAutoSaveFiles() must scan every organization's __autoSave bucket, "
+                  + "not just the default org's, and delete entries older than 7 days from each");
+   }
+
+   @Test
+   void removeExpiredAutoSaveFiles_freshNonDefaultOrgFile_survives() throws Exception {
+      String nonDefaultOrgId = "sixh_non_default_org_fresh";
+      String path = "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~";
+      seedAutoSaveBlob(nonDefaultOrgId, path, "dummy".getBytes(), 0L);
+
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AutoSaveService service = new AutoSaveService(viewsheetService);
+
+      try(MockedStatic<SecurityEngine> securityEngine = mockOrganizationIDs(nonDefaultOrgId)) {
+         service.removeExpiredAutoSaveFiles();
+      }
 
       BlobStorage<AutoSaveUtils.Metadata> nonDefaultBucket =
          blobStorageManager.getStorage(nonDefaultOrgId.toLowerCase() + "__autoSave", false);
 
       assertEquals(1, nonDefaultBucket.paths().count(),
-                  "removeExpiredAutoSaveFiles() currently never inspects any bucket other than the "
-                  + "default org's -- a non-default org's file survives untouched regardless of age, "
-                  + "which is the reported gap (not whether age-based deletion itself works)");
+                  "a non-default org's auto save file that is not yet 7 days old must not be deleted");
+   }
+
+   /**
+    * The test fixture's default SecurityProvider (VirtualAuthenticationProvider) only ever
+    * reports the default org, so removeExpiredAutoSaveFiles()'s org loop needs
+    * SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs() stubbed to include
+    * the non-default org under test -- scoped to a try-with-resources so it can't leak into
+    * other tests sharing this class's cached Spring context.
+    */
+   private MockedStatic<SecurityEngine> mockOrganizationIDs(String... extraOrgIds) {
+      MockedStatic<SecurityEngine> securityEngineMock = mockStatic(SecurityEngine.class);
+      SecurityEngine engine = mock(SecurityEngine.class);
+      SecurityProvider provider = mock(SecurityProvider.class);
+      String[] orgIds = new String[extraOrgIds.length + 1];
+      orgIds[0] = Organization.getDefaultOrganizationID();
+      System.arraycopy(extraOrgIds, 0, orgIds, 1, extraOrgIds.length);
+      when(provider.getOrganizationIDs()).thenReturn(orgIds);
+      when(engine.getSecurityProvider()).thenReturn(provider);
+      securityEngineMock.when(SecurityEngine::getSecurity).thenReturn(engine);
+      return securityEngineMock;
    }
 
    // ── fixture helper ──
 
    private void seedAutoSaveBlob(String orgId, String path, byte[] content) throws Exception {
+      seedAutoSaveBlob(orgId, path, content, 0L);
+   }
+
+   private void seedAutoSaveBlob(String orgId, String path, byte[] content, long lastModified)
+      throws Exception
+   {
       BlobStorage<AutoSaveUtils.Metadata> storage =
          blobStorageManager.getStorage(orgId.toLowerCase() + "__autoSave", false);
 
       try(BlobTransaction<AutoSaveUtils.Metadata> tx = storage.beginTransaction();
-          OutputStream out = tx.newStream(path, new AutoSaveUtils.Metadata()))
+          OutputStream out = tx.newStream(path, new AutoSaveUtils.Metadata(), null, lastModified))
       {
          out.write(content);
          tx.commit();
