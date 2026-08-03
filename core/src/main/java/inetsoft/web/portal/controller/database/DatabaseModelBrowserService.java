@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
@@ -45,6 +46,9 @@ import org.springframework.stereotype.Service;
 import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -291,11 +295,46 @@ public class DatabaseModelBrowserService {
             folderModel.setEditable(editable);
             folderModel.setDeletable(deletable);
             folderModel.setDatabaseName(database);
+            setFolderCreatedInfo(folderModel, dataModel, folder);
             result.add(folderModel);
          }
       }
 
       return result;
+   }
+
+   /**
+    * Populate the created-by/created-date fields on a data model folder bean.
+    */
+   private void setFolderCreatedInfo(DataModelFolder folderModel, XDataModel dataModel,
+                                     String folder)
+   {
+      String createdUsername = dataModel.getFolderCreatedBy(folder);
+
+      if(createdUsername != null) {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         IdentityID createdUserID = new IdentityID(createdUsername,
+            OrganizationManager.getInstance().getCurrentOrgID());
+         User user = provider.getUser(createdUserID);
+
+         if(user != null) {
+            folderModel.setCreatedBy(user.getAlias() == null ? user.getName() : user.getAlias());
+         }
+         else {
+            folderModel.setCreatedBy(SUtil.getUserAlias(createdUserID));
+         }
+      }
+
+      long createdDate = dataModel.getFolderCreatedDate(folder);
+
+      if(createdDate > 0) {
+         LocalDateTime cdate = new Date(createdDate).toInstant()
+            .atZone(ZoneId.systemDefault()).toLocalDateTime();
+         String fmt = SreeEnv.getProperty("format.date.time");
+         DateTimeFormatter df = DateTimeFormatter.ofPattern(fmt);
+         folderModel.setCreatedDate(createdDate);
+         folderModel.setCreatedDateLabel(df.format(cdate));
+      }
    }
 
    public void moveDataModels(String database, List<AssetItem> items, String folder,
@@ -755,8 +794,7 @@ public class DatabaseModelBrowserService {
 
          Permission permission = securityEngine.getPermission(
             ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + oldName);
-         dataModel.removeFolder(oldName);
-         dataModel.addFolder(folderName);
+         dataModel.renameFolder(oldName, folderName);
          repository.updateDataModel(dataModel);
          renameTransformHandler.addTransformTask(dinfo);
 
