@@ -41,6 +41,10 @@ package inetsoft.web.admin.general;
  *      prunes that folder to ai.snapshot.count (default 10; < 1 disables), keeping exactly that
  *      many files - unlike the pre-existing off-by-one in deleteRedundantBackupFiles, which is
  *      out of scope here. This never touches "backup/".
+ * [G8] PR-review fix: that pruning runs AFTER the snapshot is durably written, so a failure in it
+ *      must not turn a successful backup into a reported failure (a null path, which
+ *      AdminBackupService escalates into an IOException that aborts the whole changeset apply).
+ *      The guard is scoped to pruning only - a failure in the write itself still fails.
  */
 
 import inetsoft.sree.SreeEnv;
@@ -289,5 +293,41 @@ class DataSpaceSettingsServiceTest {
          .delete("ai-snapshots" + File.separator + "admin-old-20230101000000.zip");
       verify(externalStorageService, never())
          .delete("ai-snapshots" + File.separator + "admin-new-20260101000000.zip");
+   }
+
+   // [G8] a pruning failure must not discard a snapshot that was already durably written
+   @Test
+   void aiSnapshotPruningFailure_doesNotDiscardTheWrittenPath() throws Exception {
+      when(externalStorageService.listFiles("ai-snapshots"))
+         .thenThrow(new RuntimeException("transient storage error"));
+
+      BackupResult result = service.doBackup(
+         BackupDataModel.builder().dataspace("admin-chg-9").aiSnapshot(true).build());
+
+      // The write already happened, so the snapshot exists and its path must be reported.
+      // Unguarded, the prune's exception reaches doBackup's outer catch and returns
+      // BackupResult(status, null) - which AdminBackupService turns into an IOException that
+      // aborts the entire changeset apply, for a snapshot that is sitting in storage intact.
+      assertNotNull(result.path());
+      assertTrue(result.path().startsWith("ai-snapshots"));
+      assertFalse(result.status().contains("Failed"),
+                  "a prune failure must not be reported as a backup failure");
+      verify(externalStorageService).write(eq(result.path()), any(Path.class), isNull());
+   }
+
+   // [G8] the counterpart: the guard is scoped to pruning only. A failure in the write itself
+   // still fails the backup, so the guard cannot be swallowing real errors. Without this,
+   // G8 above would also pass against a doBackup that caught everything and always returned a
+   // non-null path.
+   @Test
+   void aiSnapshotWriteFailure_stillReportsFailure() throws Exception {
+      doThrow(new IOException("disk full"))
+         .when(externalStorageService).write(anyString(), any(Path.class), isNull());
+
+      BackupResult result = service.doBackup(
+         BackupDataModel.builder().dataspace("admin-chg-10").aiSnapshot(true).build());
+
+      assertNull(result.path());
+      assertTrue(result.status().contains("Failed"));
    }
 }

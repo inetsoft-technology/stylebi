@@ -118,7 +118,23 @@ public class DataSpaceSettingsService extends BackupSupport {
          this.externalStorageService.write(path, file.toPath(), null);
 
          if(model != null && model.aiSnapshot()) {
-            deleteRedundantAiSnapshotFiles();
+            // Pruning is housekeeping that runs AFTER the snapshot is already durably written, so
+            // it gets its own catch: letting it reach the outer catch would report a successful
+            // backup as failed (BackupResult with a null path, plus a FAILURE audit record), and
+            // AdminBackupService turns a null path into an IOException that aborts the whole
+            // changeset apply. A pruning failure must never discard a snapshot that exists.
+            // This mirrors the per-file handling inside deleteRedundantAiSnapshotFiles, and
+            // catches Exception rather than IOException because ExternalStorageService.listFiles
+            // declares no checked exception. deleteRedundantBackupFiles is deliberately NOT
+            // guarded this way: it runs BEFORE the write, where a failure legitimately fails the
+            // whole operation.
+            try {
+               deleteRedundantAiSnapshotFiles();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to prune old AI snapshots; the new snapshot at {} is unaffected",
+                         path, e);
+            }
          }
 
          status = catalog.getString("Success");
