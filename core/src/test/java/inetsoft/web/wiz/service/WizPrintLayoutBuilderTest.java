@@ -118,6 +118,73 @@ class WizPrintLayoutBuilderTest {
     * requested" — and because that 400 carries a JSON body while the caller asks for
     * application/pdf, it reached the user as an unexplained "Couldn't export PDF".
     */
+   /**
+    * LIVE BUG, seen in an exported PDF: the first chart's insights prose collided with the SECOND
+    * chart's caption and plot.
+    *
+    * <p>Each chart was pinned at {@code page * pageStride} with {@code page++} after it, which
+    * assumes a chart's block always fits inside one stride. It does not: page 1 also carries the
+    * report header, and an insights block is as tall as its prose. addMarkdownBlock already
+    * measured and RETURNED that bottom — the caller discarded it.
+    */
+   @Test
+   void aTallInsightsBlockPushesTheNextChartPastItInsteadOfUnderneathIt() {
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      textAssembly(vs, "Chart2", 420);
+
+      String longInsights = ("**Finding.** " + "Lorem ipsum dolor sit amet consectetur. ".repeat(60));
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0, longInsights),
+         new WizPrintLayoutBuilder.ChartCaption("Second", "cap two", 1)
+      );
+
+      PrintLayout layout = builder.build(vs, "letter", "Board", "a recap line", charts);
+
+      int insightsBottom = bottomOf(layout, "wizMarkdownInsights_0");
+      int secondCaptionTop = topOf(layout, "wizExportCaption_1");
+      int secondChartTop = topOf(layout, "Chart2");
+
+      assertTrue(secondCaptionTop >= insightsBottom,
+         "the second chart's caption (y=" + secondCaptionTop + ") must start at or below the first " +
+         "chart's insights block (bottom=" + insightsBottom + ") — otherwise they overprint");
+      assertTrue(secondChartTop > insightsBottom,
+         "the second chart itself must clear the first chart's insights");
+   }
+
+   @Test
+   void everyChartStillGetsItsOwnPageWhenTheContentIsShort() {
+      // The overflow fix must not collapse two short charts onto one page.
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      textAssembly(vs, "Chart2", 420);
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "c1", 0),
+         new WizPrintLayoutBuilder.ChartCaption("Second", "c2", 1)
+      );
+
+      PrintLayout layout = builder.build(vs, "letter", "Board", null, charts);
+
+      // letter stride = (11 - 0.55 - 0.55) * 72
+      int stride = (int) Math.round((11.0 - 0.55 - 0.55) * 72);
+      assertEquals(stride, topOf(layout, "wizExportCaption_1"),
+         "with short content the second chart still starts exactly one page down");
+   }
+
+   private static int topOf(PrintLayout layout, String name) {
+      return layout.getVSAssemblyLayouts().stream()
+         .filter(l -> name.equals(l.getName()))
+         .findFirst().orElseThrow(() -> new AssertionError("no layout named " + name))
+         .getPosition().y;
+   }
+
+   private static int bottomOf(PrintLayout layout, String name) {
+      VSAssemblyLayout l = layout.getVSAssemblyLayouts().stream()
+         .filter(x -> name.equals(x.getName()))
+         .findFirst().orElseThrow(() -> new AssertionError("no layout named " + name));
+      return l.getPosition().y + l.getSize().height;
+   }
+
    @Test
    void ignoresFilterControlsAndFilterBarDecorationWhenCountingTopLevelAssemblies() {
       Viewsheet vs = new Viewsheet();
