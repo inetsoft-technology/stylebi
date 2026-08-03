@@ -218,16 +218,19 @@ public abstract class AbstractEditableAuthenticationProvider
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       DataSpace dataSpace = DataSpace.getDataSpace();
+      String odir = "portal/" + fromOrgId;
+      String dir = "portal/" + newOrgID;
       String viewsheet = manager.getCssEntries().get(fromOrgId);
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
          String cssName = viewsheetFile[1];
-         String odir = "portal/" + fromOrgId;
-         String dir = "portal/" + newOrgID;
+         boolean copied;
 
          try(InputStream in = dataSpace.getInputStream(odir, cssName)) {
-            if(in != null) {
+            copied = in != null;
+
+            if(copied) {
                dataSpace.withOutputStream(dir, cssName, out -> Tool.copyTo(in, out));
             }
          }
@@ -235,19 +238,22 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
-         manager.save();
+         if(copied) {
+            manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
+            manager.save();
+         }
       }
 
       String logo = manager.getLogoEntries().get(fromOrgId);
 
       if(logo != null) {
          String logoName = logo.substring(logo.lastIndexOf('/') + 1);
-         String odir = "portal/" + fromOrgId;
-         String dir = "portal/" + newOrgID;
+         boolean copied;
 
          try(InputStream in = dataSpace.getInputStream(odir, logoName)) {
-            if(in != null) {
+            copied = in != null;
+
+            if(copied) {
                dataSpace.withOutputStream(dir, logoName, out -> Tool.copyTo(in, out));
             }
          }
@@ -255,19 +261,22 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addLogoEntry(newOrgID, dir + "/" + logoName);
-         manager.save();
+         if(copied) {
+            manager.addLogoEntry(newOrgID, dir + "/" + logoName);
+            manager.save();
+         }
       }
 
       String favicon = manager.getFaviconEntries().get(fromOrgId);
 
       if(favicon != null) {
          String faviconName = favicon.substring(favicon.lastIndexOf('/') + 1);
-         String odir = "portal/" + fromOrgId;
-         String dir = "portal/" + newOrgID;
+         boolean copied;
 
          try(InputStream in = dataSpace.getInputStream(odir, faviconName)) {
-            if(in != null) {
+            copied = in != null;
+
+            if(copied) {
                dataSpace.withOutputStream(dir, faviconName, out -> Tool.copyTo(in, out));
             }
          }
@@ -275,8 +284,10 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
-         manager.save();
+         if(copied) {
+            manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
+            manager.save();
+         }
       }
 
       PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
