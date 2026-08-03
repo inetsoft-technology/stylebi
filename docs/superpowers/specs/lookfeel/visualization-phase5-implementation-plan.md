@@ -344,7 +344,11 @@ not a mirror of the height resolver); low priority, deferred as a feature, not p
 **Out of Part C:**
 - **Tabular numerals** — no `font-variant-numeric`/font-feature support exists server-side (grep clean);
   a new capability, and font changes touch measuring/wrapping/export layout (the Phase 3 D3 font-risk).
-  Deferred.
+  Deferred. **WITHDRAWN 2026-07-31 (Phase 9C item 6), no code ships:** the server side is a declared
+  boundary (Java2D exposes no OpenType feature API), the shipped default font is already tabular, and
+  `font-variant-numeric: tabular-nums` proved a measured no-op on all 13 fonts tested — in
+  proportional-figure fonts the `tnum` lookup coverage excludes the default digits. See
+  [visualization-phase9c-item6-tabular-numerals.md](visualization-phase9c-item6-tabular-numerals.md).
 - **`warning`/`anomaly` conditional formatting** — server-rendered, export-visible → **Phase 8**.
 
 **Part C gated-defaults contract (mirrors Phase 3 Part B):** a `VSDensityDefaults`-style resolver reads
@@ -430,8 +434,13 @@ item 5 down is an intentional deferral to a later pass or another phase, not an 
    `--inet-viz-header-*` only if a browser-DOM structure follow-up needs them (D4).
 7. **Selection-list selected-highlight in export** — *best practices/completeness.* Selected fill is
    client-CSS only; export-visible selection is a new `SelectionListVSAQuery` server path (C-note).
-8. **Tabular numerals** — *best practices/enhancement.* No server `font-variant-numeric` support; needs a
-   font-feature capability and touches measuring/wrapping/export (font risk). Own spike.
+8. ✅ **Tabular numerals** — *best practices/enhancement — WITHDRAWN 2026-07-31 (Phase 9C item 6).* Spike
+   done, no code ships: the default font (Roboto) is already tabular, Java2D cannot express `tnum` (server
+   side is a declared boundary), and `font-variant-numeric: tabular-nums` is a measured no-op on all 13
+   fonts tested because proportional-figure fonts exclude the default digits from their `tnum` coverage.
+   Numeric right-alignment — the part carrying the real scanability value — already shipped via
+   `FormatTableLens2`. See
+   [visualization-phase9c-item6-tabular-numerals.md](visualization-phase9c-item6-tabular-numerals.md).
 9. **WS-detail virtual-scroll row-height JS constants** — *tech-debt.* TS→token refactor; since Phase 3.
 10. **EM Material tables** — *least/scope.* Separate build, admin chrome, never exported; cross-project
     token plumbing (D5).

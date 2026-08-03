@@ -1174,9 +1174,12 @@ won't-schedule tier (kept visible so nothing is silently dropped).
    viewer + export); a user/`format.css` value still wins via tier precedence; gate off keeps the
    legacy seeds. (An initial render-overlay attempt was reverted — the legacy values are serialized
    DEFAULT-tier seeds, so seeding is the correct layer.) Runtime validation is the USER-owned cycle.
-6. **Completeness items** — selection-highlight export parity (Phase 5 7), tabular numerals (Phase 5 8,
-   needs a font-feature spike), embedded-control filtered state (Phase 7 A3, blocked on a live-overlay
-   layer).
+6. **Completeness items** — selection-highlight export parity (Phase 5 7), tabular numerals (Phase 5 8 —
+   **WITHDRAWN 2026-07-31**: the default font is already tabular, Java2D exposes no OpenType feature API
+   so export is a declared boundary, and `tabular-nums` proved a measured no-op on all 13 fonts tested
+   because proportional-figure fonts exclude the default digits from their `tnum` coverage;
+   [spec](visualization-phase9c-item6-tabular-numerals.md)), embedded-control filtered state (Phase 7 A3,
+   blocked on a live-overlay layer).
 7. **Icon tail** (Phase 9A) — more/overflow alignment (needs grounded selectors + mobile-UX sign-off),
    sort-caret glyph unification (kept Unicode — icon-font chevrons overlap when stacked), context-menu
    drill/sort icons (leave unless the whole menu-glyph set is modernized together).
