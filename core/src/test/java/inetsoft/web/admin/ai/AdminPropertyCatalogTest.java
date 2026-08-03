@@ -120,9 +120,12 @@ class AdminPropertyCatalogTest {
    }
 
    @Test
-   void doesNotTrimAStringValue() {
+   void trimsAStringValue() {
+      // The hash covers the exact value that will be written, and AdminChangeService writes this
+      // method's return value verbatim (it no longer trims) - so canonicalizeValue must trim, or
+      // the operator could approve " smtp.example.com " while "smtp.example.com" gets written.
       CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse("mail.smtp.host"));
-      assertEquals(" smtp.example.com ", catalog.canonicalizeValue(entry, " smtp.example.com "));
+      assertEquals("smtp.example.com", catalog.canonicalizeValue(entry, " smtp.example.com "));
    }
 
    @Test

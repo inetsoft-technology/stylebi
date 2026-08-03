@@ -120,8 +120,10 @@ public class AdminPropertyCatalog {
     *
     * <p>Forgiving where the intent is unambiguous — an agent will naturally write {@code "INFO"} or
     * {@code "TRUE"} for values StyleBI keeps lowercase — and strict otherwise, so a bad value fails
-    * loudly instead of being written through and silently misread. String values are returned
-    * untouched, since leading/trailing whitespace may be significant.
+    * loudly instead of being written through and silently misread. String values ARE trimmed: the
+    * hash computed over the resolved plan must cover the exact value that will be written, and
+    * {@code AdminChangeService} writes this method's return value verbatim (it no longer trims),
+    * so trimming has to happen here, before the value is hashed, rather than at write time.
     *
     * @param value the proposed value, or {@code null} to reset the property to its default.
     *
@@ -173,7 +175,7 @@ public class AdminPropertyCatalog {
          throw new IllegalArgumentException(entry.name() + ": value must be one of " +
             String.join(", ", allowed) + ", got \"" + value + "\"");
       default:
-         return value;
+         return trimmed;
       }
    }
 

@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -81,86 +82,93 @@ public class AdminChangesetApplyService {
     * @throws Exception if the Tier-2 backup fails, in which case nothing was applied.
     */
    public ApplyResult apply(ApplyRequest req, Principal user) throws Exception {
-      ResolvedPlan plan = planService.resolve(req);
+      APPLY_LOCK.lock();
 
-      if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {
-         throw new PlanHashMismatchException(plan);
-      }
+      try {
+         ResolvedPlan plan = planService.resolve(req);
 
-      String txId = "chg-" + newIdSuffix();
-      String backupRef = plan.requiresStorageBackup() ? backupService.backup(txId) : null;
-      List<ApplyOutcome> results = new ArrayList<>();
-      List<PlanChange> undoable = new ArrayList<>();
-      List<String> undoableBefore = new ArrayList<>();
-      // A thrown apply carries no before/after evidence, so its remaining state is unknown - it
-      // can never be silently reported as "rolled back". See the loop below.
-      List<RollbackFailure> unknownStateFailures = new ArrayList<>();
-      boolean failed = false;
+         if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {
+            throw new PlanHashMismatchException(plan);
+         }
 
-      for(PlanChange change : plan.changes()) {
-         // The bookkeeping below lives INSIDE the try: an unexpected null/malformed result would
-         // otherwise NPE out of apply() with earlier changes left applied and no rollback
-         // attempted - exactly the failure mode this method exists to prevent.
-         try {
-            AdminChangeResult applied = changeService.applyChange(
-               request(txId, plan.task(), change, AdminChangeRecord.ACTION_APPLY,
-                       change.proposedValue(), backupRef, req.getReviewOutcome()),
-               user);
+         String txId = "chg-" + newIdSuffix();
+         String backupRef = plan.requiresStorageBackup() ? backupService.backup(txId) : null;
+         List<ApplyOutcome> results = new ArrayList<>();
+         List<PlanChange> undoable = new ArrayList<>();
+         List<String> undoableBefore = new ArrayList<>();
+         // A thrown apply carries no before/after evidence, so its remaining state is unknown - it
+         // can never be silently reported as "rolled back". See the loop below.
+         List<RollbackFailure> unknownStateFailures = new ArrayList<>();
+         boolean failed = false;
 
-            results.add(new ApplyOutcome(change.property(), applied.getBeforeValue(),
-                                         applied.getAfterValue(), applied.getStatus(),
-                                         applied.getError()));
+         for(PlanChange change : plan.changes()) {
+            // The bookkeeping below lives INSIDE the try: an unexpected null/malformed result would
+            // otherwise NPE out of apply() with earlier changes left applied and no rollback
+            // attempted - exactly the failure mode this method exists to prevent.
+            try {
+               AdminChangeResult applied = changeService.applyChange(
+                  request(txId, plan.task(), change, AdminChangeRecord.ACTION_APPLY,
+                          change.proposedValue(), backupRef, req.getReviewOutcome()),
+                  user);
 
-            boolean verified = AdminChangeRecord.STATUS_VERIFIED.equals(applied.getStatus());
-            // Path A (AdminChangeService): SreeEnv.save() can succeed and then a side-effect hook
-            // can throw, so a change comes back with status "failed" even though before != after
-            // - the write took effect. Status alone is not a reliable signal of whether the
-            // server actually moved, so anything demonstrably moved is undoable regardless of
-            // status, in addition to anything verified.
-            boolean moved = !Objects.equals(applied.getBeforeValue(), applied.getAfterValue());
+               results.add(new ApplyOutcome(change.property(), applied.getBeforeValue(),
+                                            applied.getAfterValue(), applied.getStatus(),
+                                            applied.getError()));
 
-            if(verified || moved) {
-               undoable.add(change);
-               undoableBefore.add(applied.getBeforeValue());
+               boolean verified = AdminChangeRecord.STATUS_VERIFIED.equals(applied.getStatus());
+               // Path A (AdminChangeService): SreeEnv.save() can succeed and then a side-effect hook
+               // can throw, so a change comes back with status "failed" even though before != after
+               // - the write took effect. Status alone is not a reliable signal of whether the
+               // server actually moved, so anything demonstrably moved is undoable regardless of
+               // status, in addition to anything verified.
+               boolean moved = !Objects.equals(applied.getBeforeValue(), applied.getAfterValue());
+
+               if(verified || moved) {
+                  undoable.add(change);
+                  undoableBefore.add(applied.getBeforeValue());
+               }
+
+               if(!verified) {
+                  failed = true;
+                  break;
+               }
             }
-
-            if(!verified) {
+            catch(Exception e) {
+               // A throw is a failed change, not a reason to abandon the rollback - but unlike a
+               // reported failure, it carries no before/after evidence, so this property's state is
+               // unknown and must never be reported as rolled back.
+               results.add(new ApplyOutcome(change.property(), null, null,
+                                            AdminChangeRecord.STATUS_FAILED, messageOf(e)));
+               unknownStateFailures.add(new RollbackFailure(change.property(),
+                  "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
                failed = true;
                break;
             }
          }
-         catch(Exception e) {
-            // A throw is a failed change, not a reason to abandon the rollback - but unlike a
-            // reported failure, it carries no before/after evidence, so this property's state is
-            // unknown and must never be reported as rolled back.
-            results.add(new ApplyOutcome(change.property(), null, null,
-                                         AdminChangeRecord.STATUS_FAILED, messageOf(e)));
-            unknownStateFailures.add(new RollbackFailure(change.property(),
-               "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
-            failed = true;
-            break;
+
+         if(!failed) {
+            return new ApplyResult(txId, STATUS_APPLIED, backupRef,
+                                   Collections.unmodifiableList(results), null);
          }
+
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollback(txId, plan.task(), undoable, undoableBefore, backupRef,
+                                  req.getReviewOutcome(), user));
+
+         if(failures.isEmpty()) {
+            return new ApplyResult(txId, STATUS_ROLLED_BACK, backupRef,
+                                   Collections.unmodifiableList(results), null);
+         }
+
+         LOG.error("Admin changeset {} rollback failed; properties still changed: {}", txId,
+                  failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
+         return new ApplyResult(txId, STATUS_ROLLBACK_FAILED, backupRef,
+                                Collections.unmodifiableList(results),
+                                Collections.unmodifiableList(failures));
       }
-
-      if(!failed) {
-         return new ApplyResult(txId, STATUS_APPLIED, backupRef,
-                                Collections.unmodifiableList(results), null);
+      finally {
+         APPLY_LOCK.unlock();
       }
-
-      List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-      failures.addAll(rollback(txId, plan.task(), undoable, undoableBefore, backupRef,
-                               req.getReviewOutcome(), user));
-
-      if(failures.isEmpty()) {
-         return new ApplyResult(txId, STATUS_ROLLED_BACK, backupRef,
-                                Collections.unmodifiableList(results), null);
-      }
-
-      LOG.error("Admin changeset {} rollback failed; properties still changed: {}", txId,
-               failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
-      return new ApplyResult(txId, STATUS_ROLLBACK_FAILED, backupRef,
-                             Collections.unmodifiableList(results),
-                             Collections.unmodifiableList(failures));
    }
 
    /** Undoes verified changes newest-first, attempting all of them and collecting any failures. */
@@ -222,6 +230,28 @@ public class AdminChangesetApplyService {
    public static final String STATUS_ROLLBACK_FAILED = "rollback-failed";
    private static final Logger LOG = LoggerFactory.getLogger(AdminChangesetApplyService.class);
    private static final SecureRandom RANDOM = new SecureRandom();
+
+   /**
+    * Serializes the entire body of {@link #apply}.
+    *
+    * <p>Without this, two concurrent applies can interleave: A writes property P, B writes P, A's
+    * later change then fails, and A's rollback restores A's recorded before-value over B's
+    * committed write - B's change is silently lost even though both requests returned 200 ({@code
+    * applied} for B, {@code rolled-back} for A) and both audit rows say {@code verified}.
+    * Compounding this, {@code PropertiesEngine.save()} snapshots and clears its
+    * {@code changedProps} set for <em>all</em> keys on every call, not just the ones the current
+    * caller staged - so a failing apply can commit another writer's staged, unverified property
+    * writes as a side effect of its own {@code SreeEnv.save()}, contradicting
+    * {@code AdminAiController}'s documented contract that an error status means no mutation
+    * occurred.
+    *
+    * <p><b>This serializes within one JVM only.</b> It does not, and cannot, protect a clustered
+    * deployment (a second node's {@code AdminChangesetApplyService} instance holds its own lock),
+    * nor does it protect against a concurrent edit made through the ordinary EM properties page,
+    * which writes {@code SreeEnv} directly and never acquires this lock. Those remain known,
+    * unresolved gaps - do not attempt a distributed lock here.
+    */
+   private static final ReentrantLock APPLY_LOCK = new ReentrantLock();
    private final AdminChangePlanService planService;
    private final AdminChangeService changeService;
    private final AdminBackupService backupService;

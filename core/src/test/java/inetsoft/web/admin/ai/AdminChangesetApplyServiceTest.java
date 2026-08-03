@@ -29,6 +29,11 @@ import org.mockito.quality.Strictness;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -155,6 +160,67 @@ class AdminChangesetApplyServiceTest {
 
       verify(changeService).applyChange(
          argThat(r -> "approved".equals(r.getReviewOutcome())), eq(principal));
+   }
+
+   // ── concurrency ──────────────────────────────────────────────────────────
+
+   /**
+    * Finding 1: without a lock serializing the whole body of {@code apply}, two concurrent
+    * applies can both proceed past the plan resolution/hash check and both call
+    * {@code changeService.applyChange} while the other is mid-flight - which is exactly the
+    * interleaving that lets one apply's rollback clobber the other's committed write. This test
+    * does not exercise real SreeEnv contention (changeService is mocked); it proves the narrower,
+    * directly-testable claim that {@code apply}'s critical section never runs concurrently with
+    * itself, which is the property {@code APPLY_LOCK} exists to guarantee.
+    */
+   @Test
+   void serializesConcurrentApplies() throws Exception {
+      AdminChangePlanService mockPlanService = mock(AdminChangePlanService.class);
+      PlanChange change = new PlanChange("query.runtime.maxrow", null, "100", "500",
+         AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_VALUE, true, null);
+      ResolvedPlan plan = new ResolvedPlan("t", List.of(change), false, false, "fixed-hash");
+      when(mockPlanService.resolve(any())).thenReturn(plan);
+      AdminChangesetApplyService concurrentService =
+         new AdminChangesetApplyService(mockPlanService, changeService, backupService);
+
+      AtomicInteger concurrent = new AtomicInteger();
+      AtomicInteger maxConcurrent = new AtomicInteger();
+      when(changeService.applyChange(any(), eq(principal))).thenAnswer(inv -> {
+         int c = concurrent.incrementAndGet();
+         maxConcurrent.updateAndGet(m -> Math.max(m, c));
+
+         try {
+            Thread.sleep(150);
+         }
+         finally {
+            concurrent.decrementAndGet();
+         }
+
+         return result("query.runtime.maxrow", "100", "500",
+                        AdminChangeRecord.STATUS_VERIFIED, null);
+      });
+
+      ApplyRequest req = new ApplyRequest();
+      req.setTask("t");
+      req.setChanges(List.of());
+      req.setPlanHash("fixed-hash");
+
+      ExecutorService pool = Executors.newFixedThreadPool(2);
+
+      try {
+         List<Future<ApplyResult>> futures = List.of(
+            pool.submit(() -> concurrentService.apply(req, principal)),
+            pool.submit(() -> concurrentService.apply(req, principal)));
+
+         for(Future<ApplyResult> future : futures) {
+            assertEquals(AdminChangesetApplyService.STATUS_APPLIED, future.get(5, TimeUnit.SECONDS).status());
+         }
+      }
+      finally {
+         pool.shutdown();
+      }
+
+      assertEquals(1, maxConcurrent.get(), "two applies ran their critical section concurrently");
    }
 
    // ── review gate ──────────────────────────────────────────────────────────

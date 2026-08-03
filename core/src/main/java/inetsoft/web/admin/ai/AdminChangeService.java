@@ -45,9 +45,17 @@ public class AdminChangeService {
       result.setProperty(req.getProperty());
 
       // Unlike PropertiesController.editProperty (which treats a "" value as "keep the
-      // current value"), admin-chat treats a trimmed "" as an explicit set-to-empty;
-      // reset-to-default is expressed via a null value (the broker's stage_property_reset).
-      String desired = req.getValue() == null ? null : req.getValue().trim();
+      // current value"), admin-chat treats "" as an explicit set-to-empty; reset-to-default is
+      // expressed via a null value (the broker's stage_property_reset).
+      //
+      // This value is NOT trimmed here. AdminPropertyCatalog.canonicalizeValue trims on the way
+      // into the plan, so the hash the operator approves already covers the exact value that will
+      // be written. Trimming again here would be harmless for that path, but this method is also
+      // reachable from rollback with a STORED value that never went through canonicalizeValue -
+      // trimming a stored value with significant surrounding whitespace would write back a
+      // different value than was there before, so status (computed against this same desired
+      // value) would report "verified" for a property that was not actually restored.
+      String desired = req.getValue();
       String before = null;
       String status = AdminChangeRecord.STATUS_FAILED;
       String error = null;

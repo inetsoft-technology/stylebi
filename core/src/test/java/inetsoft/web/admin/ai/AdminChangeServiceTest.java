@@ -118,6 +118,21 @@ class AdminChangeServiceTest {
       assertEquals("host-1", record.getServerHostName());
    }
 
+   // Finding 2: AdminChangeService must NOT trim. It is reachable from rollback with a STORED
+   // value that never went through AdminPropertyCatalog.canonicalizeValue - trimming here would
+   // write back a different value than was actually there before, while still reporting
+   // "verified" because status is computed against this same (wrongly trimmed) desired value.
+   @Test void writesAndVerifiesAValueWithSurroundingWhitespaceVerbatim() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false))
+             .thenReturn("old").thenReturn(" smtp.example.com ");
+      AdminChangeResult res =
+         service.applyChange(req("mail.smtp.host", " smtp.example.com "), principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("mail.smtp.host", " smtp.example.com "));
+      assertEquals(" smtp.example.com ", res.getAfterValue());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+   }
+
    @Test void rejectsBlankTransactionId() {
       AdminChangeRequest r = req("max.rows", "500");
       r.setTransactionId("   ");
