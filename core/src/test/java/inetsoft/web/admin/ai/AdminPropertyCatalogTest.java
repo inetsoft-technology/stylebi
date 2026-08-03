@@ -72,6 +72,21 @@ class AdminPropertyCatalogTest {
    }
 
    @Test
+   void findsAnEntryForABaseNameThatDiffersOnlyInCase() {
+      // Finding 4: byKey's keys are always lowercased when the catalog is built, but
+      // AdminPropertyName.baseName() preserves case verbatim for four families (log.level.*,
+      // plugin.extra.classpath.*, etc.) - the whole point of those families. None of the seeded
+      // catalog entries happens to fall in one of those families, so this test constructs an
+      // AdminPropertyName directly (bypassing AdminPropertyName.parse, which would itself
+      // lowercase an ordinary name) to simulate exactly the shape a case-preserving family
+      // produces: a mixed-case baseName that matches a catalogued entry only case-insensitively.
+      AdminPropertyName mixedCase = new AdminPropertyName("Mail.SMTP.Host", "Mail.SMTP.Host", null);
+      CatalogEntry entry = catalog.getEntry(mixedCase);
+      assertNotNull(entry);
+      assertEquals("mail.smtp.host", entry.name());
+   }
+
+   @Test
    void leavesAnUnknownNameUnchangedWhenResolving() {
       assertEquals("some.unknown.prop", catalog.resolve("Some.Unknown.Prop").key());
    }

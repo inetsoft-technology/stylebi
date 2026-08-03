@@ -75,7 +75,13 @@ class AdminChangesetApplyServiceTest {
       sreeEnv.close();
    }
 
-   /** Builds an apply request whose planHash is correct for the current stubbed state. */
+   /**
+    * Builds an apply request whose planHash is correct for the current stubbed state.
+    *
+    * <p>Defaults reviewOutcome to "approved" so tests that are not about Finding 5b's signoff
+    * gate do not need to know or care whether their properties happen to be high risk; tests that
+    * ARE about the gate override it afterwards.
+    */
    private ApplyRequest request(String task, String... propertyValuePairs) {
       List<PlanRequest.Change> changes = new ArrayList<>();
 
@@ -89,6 +95,7 @@ class AdminChangesetApplyServiceTest {
       ApplyRequest req = new ApplyRequest();
       req.setTask(task);
       req.setChanges(changes);
+      req.setReviewOutcome("approved");
       PlanRequest probe = new PlanRequest();
       probe.setTask(task);
       probe.setChanges(changes);
@@ -96,12 +103,14 @@ class AdminChangesetApplyServiceTest {
       return req;
    }
 
+   /** Models a change whose snapshot read succeeded - the normal case for every result below. */
    private static AdminChangeResult result(String property, String before, String after,
                                            String status, String error)
    {
       AdminChangeResult r = new AdminChangeResult();
       r.setProperty(property);
       r.setBeforeValue(before);
+      r.setBeforeRead(true);
       r.setAfterValue(after);
       r.setStatus(status);
       r.setError(error);
@@ -260,6 +269,61 @@ class AdminChangesetApplyServiceTest {
       assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
                    () -> service.apply(req, principal));
       verify(changeService, never()).applyChange(any(), any());
+   }
+
+   // ── agent signoff ────────────────────────────────────────────────────────
+
+   @Test
+   void refusesAHighRiskChangesetWithoutAReviewOutcome() throws Exception {
+      // Finding 5b: requiresAgentSignoff was computed but never enforced. mail.smtp.host is high
+      // risk (see the catalog), so this plan requires signoff.
+      stub("mail.smtp.host", "old");
+      ApplyRequest req = request("t", "mail.smtp.host", "new");
+      req.setReviewOutcome(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.apply(req, principal));
+      assertTrue(ex.getMessage().contains("reviewOutcome"));
+      verify(changeService, never()).applyChange(any(), any());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test
+   void refusesAHighRiskChangesetWithABlankReviewOutcome() throws Exception {
+      stub("mail.smtp.host", "old");
+      ApplyRequest req = request("t", "mail.smtp.host", "new");
+      req.setReviewOutcome("   ");
+
+      assertThrows(IllegalArgumentException.class, () -> service.apply(req, principal));
+      verify(changeService, never()).applyChange(any(), any());
+   }
+
+   @Test
+   void proceedsWithAHighRiskChangesetWhenAReviewOutcomeIsProvided() throws Exception {
+      stub("mail.smtp.host", "old");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("mail.smtp.host", "old", "new",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+      ApplyRequest req = request("t", "mail.smtp.host", "new");
+      req.setReviewOutcome("approved");
+
+      ApplyResult applied = service.apply(req, principal);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, applied.status());
+   }
+
+   @Test
+   void doesNotRequireAReviewOutcomeForALowRiskChangeset() throws Exception {
+      stub("query.runtime.maxrow", "100");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("query.runtime.maxrow", "100", "500",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+      ApplyRequest req = request("t", "max.rows", "500");
+      req.setReviewOutcome(null);
+
+      ApplyResult applied = service.apply(req, principal);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, applied.status());
    }
 
    // ── storage backup ───────────────────────────────────────────────────────
@@ -451,6 +515,36 @@ class AdminChangesetApplyServiceTest {
       assertTrue(applied.rollbackFailures().get(0).error().contains("exploded"));
       // 3 applies + 2 rollback attempts: every undo attempted despite the failure.
       verify(changeService, times(5)).applyChange(any(), eq(principal));
+   }
+
+   @Test
+   void doesNotUndoAChangeWhoseBeforeValueWasNeverActuallyRead() throws Exception {
+      // Finding 3: if SreeEnv.getProperty throws on the FIRST read inside
+      // AdminChangeService.applyChange (so beforeValue stays null and no write happened), but the
+      // catch block's re-read succeeds, the result looks like before=null, after=<value> - the
+      // same shape as the NORMAL case of setting a previously-unset property. beforeRead=false is
+      // the only way to tell them apart, and only a confirmed read makes "moved" safe to undo:
+      // undoing this one would remove a property that was never touched.
+      stub("query.runtime.maxrow", "100");
+      AdminChangeResult unreadBefore = new AdminChangeResult();
+      unreadBefore.setProperty("query.runtime.maxrow");
+      unreadBefore.setBeforeValue(null);
+      unreadBefore.setBeforeRead(false);
+      unreadBefore.setAfterValue("500");
+      unreadBefore.setStatus(AdminChangeRecord.STATUS_FAILED);
+      unreadBefore.setError("snapshot read failed");
+
+      when(changeService.applyChange(any(), eq(principal))).thenReturn(unreadBefore);
+
+      ApplyResult applied = service.apply(request("t", "max.rows", "500"), principal);
+
+      // Exactly 1 call: the failed apply. Without the beforeRead gate, before=null != after="500"
+      // would look "moved" and trigger an undo call with value null - removing a property that
+      // was never touched.
+      verify(changeService, times(1)).applyChange(any(), eq(principal));
+      verify(changeService, never()).applyChange(argThat(
+         req -> AdminChangeRecord.ACTION_ROLLBACK.equals(req.getAction())), eq(principal));
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, applied.status());
    }
 
    @Test

@@ -37,6 +37,10 @@ package inetsoft.web.admin.general;
  *      to "ai-snapshots/" instead, so pruning must be skipped for it - otherwise an AI snapshot
  *      would delete an operator's backup and replace it with nothing. A real (non-AI) backup
  *      must still prune as before.
+ * [G6] Finding 6: nothing else prunes "ai-snapshots/", so a successful AI-snapshot write now
+ *      prunes that folder to ai.snapshot.count (default 10; < 1 disables), keeping exactly that
+ *      many files - unlike the pre-existing off-by-one in deleteRedundantBackupFiles, which is
+ *      out of scope here. This never touches "backup/".
  */
 
 import inetsoft.sree.SreeEnv;
@@ -54,6 +58,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -206,5 +211,56 @@ class DataSpaceSettingsServiceTest {
       service.doBackup(BackupDataModel.builder().dataspace("data").build());
 
       verify(externalStorageService, atLeastOnce()).delete(anyString());
+   }
+
+   // [G6] over the limit: prunes down to exactly ai.snapshot.count, oldest first
+   @Test
+   void aiSnapshotPruning_deletesDownToTheConfiguredCount() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("2");
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-1-20260101.zip", "admin-2-20260102.zip", "admin-3-20260103.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-4").aiSnapshot(true).build());
+
+      // 3 files, keep 2 -> delete exactly 1, the oldest.
+      verify(externalStorageService, times(1)).delete(anyString());
+      verify(externalStorageService).delete("ai-snapshots" + File.separator + "admin-1-20260101.zip");
+   }
+
+   // [G6] at or under the limit: nothing is deleted
+   @Test
+   void aiSnapshotPruning_doesNothingWhenAtOrUnderTheLimit() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("5");
+      when(externalStorageService.listFiles("ai-snapshots"))
+         .thenReturn(List.of("admin-1-20260101.zip", "admin-2-20260102.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-5").aiSnapshot(true).build());
+
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   // [G6] a value below 1 disables pruning, matching deleteRedundantBackupFiles's convention
+   @Test
+   void aiSnapshotPruning_disabledWhenCountIsBelowOne() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("0");
+      lenient().when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-1-20260101.zip", "admin-2-20260102.zip", "admin-3-20260103.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-6").aiSnapshot(true).build());
+
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   // [G6] pruning ai-snapshots/ must never list or delete anything under backup/
+   @Test
+   void aiSnapshotPruning_neverTouchesTheBackupFolder() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("1");
+      when(externalStorageService.listFiles("ai-snapshots"))
+         .thenReturn(List.of("admin-1-20260101.zip", "admin-2-20260102.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-7").aiSnapshot(true).build());
+
+      verify(externalStorageService, never()).listFiles("backup");
+      verify(externalStorageService, never()).delete(startsWith("backup"));
    }
 }

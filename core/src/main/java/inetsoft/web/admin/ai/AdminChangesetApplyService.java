@@ -91,6 +91,17 @@ public class AdminChangesetApplyService {
             throw new PlanHashMismatchException(plan);
          }
 
+         // Finding 5b: requiresAgentSignoff was computed by AdminChangePlanService but never
+         // actually enforced anywhere - grep for it over src/main found only its declaration. A
+         // high-risk changeset must carry evidence that an agent (not just the operator who typed
+         // the hash) reviewed and approved it before any property is touched.
+         if(plan.requiresAgentSignoff() &&
+            (req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()))
+         {
+            throw new IllegalArgumentException(
+               "reviewOutcome: required because this changeset contains a high-risk change");
+         }
+
          String txId = "chg-" + newIdSuffix();
          String backupRef = plan.requiresStorageBackup() ? backupService.backup(txId) : null;
          List<ApplyOutcome> results = new ArrayList<>();
@@ -121,7 +132,13 @@ public class AdminChangesetApplyService {
                // - the write took effect. Status alone is not a reliable signal of whether the
                // server actually moved, so anything demonstrably moved is undoable regardless of
                // status, in addition to anything verified.
-               boolean moved = !Objects.equals(applied.getBeforeValue(), applied.getAfterValue());
+               //
+               // isBeforeRead() gates this: before == null cannot distinguish "the property was
+               // unset" from "the snapshot read failed" (no write happened in that case), and only
+               // the former is safe to undo - undoing the latter would remove a property that was
+               // never touched. See AdminChangeResult.isBeforeRead().
+               boolean moved = applied.isBeforeRead() &&
+                  !Objects.equals(applied.getBeforeValue(), applied.getAfterValue());
 
                if(verified || moved) {
                   undoable.add(change);

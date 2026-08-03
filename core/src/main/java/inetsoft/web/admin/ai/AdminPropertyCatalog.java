@@ -91,7 +91,12 @@ public class AdminPropertyCatalog {
     */
    public AdminPropertyName resolve(String input) {
       AdminPropertyName parsed = AdminPropertyName.parse(input);
-      CatalogEntry entry = byKey.get(parsed.baseName());
+      // baseName is case-PRESERVING for log.level.*, plugin.extra.classpath.* and the other two
+      // families in AdminPropertyName.fixCase (that is the whole point of those families), but
+      // byKey's keys are always lowercased when the catalog is built. Without lowercasing here
+      // too, a catalogued entry in one of those families could never be found by lookup - see
+      // Finding 4.
+      CatalogEntry entry = byKey.get(parsed.baseName().toLowerCase());
 
       if(entry == null || entry.name().equals(parsed.baseName())) {
          return parsed;
@@ -112,7 +117,9 @@ public class AdminPropertyCatalog {
     * @return the entry, or {@code null} when the property is not catalogued.
     */
    public CatalogEntry getEntry(AdminPropertyName name) {
-      return name == null ? null : byKey.get(name.baseName());
+      // See the comment in resolve(): baseName preserves case for the four case-preserving
+      // families, so the lookup key must be lowercased to match byKey's construction.
+      return name == null ? null : byKey.get(name.baseName().toLowerCase());
    }
 
    /**
@@ -177,6 +184,29 @@ public class AdminPropertyCatalog {
       default:
          return trimmed;
       }
+   }
+
+   /**
+    * True when {@code baseName} names a property whose value must never be exposed through
+    * admin-chat, e.g. {@code password.encryption.key} (StyleBI's password-encryption master key).
+    *
+    * <p>This is not a privilege boundary — the same operator role can already read and write these
+    * properties, unmasked, through {@code PropertiesController} — but an egress and blast-radius
+    * control: the caller here is an LLM that forwards responses to a model provider off-host, so a
+    * secret value read through this path leaves the host in a way the ordinary EM properties page
+    * never does.
+    *
+    * <p>Matches case-insensitively on the base name: contains {@code password}, {@code secret} or
+    * {@code credential}; ends with {@code .key}; or starts with {@code license.}.
+    */
+   public static boolean isSecret(String baseName) {
+      if(baseName == null) {
+         return false;
+      }
+
+      String lower = baseName.toLowerCase();
+      return lower.contains("password") || lower.contains("secret") ||
+         lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
    }
 
    private static final String RESOURCE = "admin-property-catalog.json";

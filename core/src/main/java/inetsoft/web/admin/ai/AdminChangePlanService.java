@@ -74,6 +74,16 @@ public class AdminChangePlanService {
                "changes: duplicate entry for " + name.key() + "; list each property once");
          }
 
+         // Unlike the read path in AdminPropertiesController (which withholds the value but still
+         // shows the property exists), a change is refused outright: this service exists to WRITE
+         // a value, and blanking a secret through it would make every stored encrypted credential
+         // undecryptable. See AdminPropertyCatalog.isSecret for why this is an egress/blast-radius
+         // control rather than a privilege boundary.
+         if(AdminPropertyCatalog.isSecret(name.baseName())) {
+            throw new IllegalArgumentException(
+               name.key() + ": secret properties cannot be changed through admin-chat");
+         }
+
          CatalogEntry entry = catalog.getEntry(name);
          // An uncatalogued property cannot be validated or canonicalized, so its value passes
          // through verbatim; the classifier marks it high risk so review flags it.

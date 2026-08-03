@@ -193,6 +193,17 @@ class AdminChangePlanServiceTest {
    }
 
    @Test
+   void rejectsAChangeToASecretProperty() {
+      // Finding 5a: password.encryption.key is StyleBI's password-encryption master key; blanking
+      // it through admin-chat would make every stored encrypted credential undecryptable. Unlike
+      // the read path (which withholds the value but still shows the property), a WRITE is
+      // refused outright.
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "password.encryption.key", "x")))
+            .getMessage().contains("password.encryption.key"));
+   }
+
+   @Test
    void rejectsAnInvalidValue() {
       assertTrue(assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("t", "max.rows", "abc"))).getMessage()

@@ -117,6 +117,10 @@ public class DataSpaceSettingsService extends BackupSupport {
                              model != null && model.aiSnapshot());
          this.externalStorageService.write(path, file.toPath(), null);
 
+         if(model != null && model.aiSnapshot()) {
+            deleteRedundantAiSnapshotFiles();
+         }
+
          status = catalog.getString("Success");
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
@@ -178,6 +182,64 @@ public class DataSpaceSettingsService extends BackupSupport {
          }
          catch(IOException e) {
             LOG.error("Failed to delete backup file {}", zips.get(i), e);
+         }
+      }
+   }
+
+   /**
+    * Bounds {@link #AI_SNAPSHOT_FOLDER}, which nothing else prunes - {@link
+    * #deleteRedundantBackupFiles} only lists {@link #BACKUP_FOLDER}, and an admin-chat apply can
+    * write one snapshot per call, forever, if uncatalogued (storage-scoped by default -
+    * see AdminRiskClassifier) properties are touched repeatedly.
+    *
+    * <p>Deliberately a SEPARATE method from {@link #deleteRedundantBackupFiles} rather than a
+    * shared helper: that method has a pre-existing off-by-one (its loop runs {@code i <=
+    * deleteCount}, so it deletes one file more than {@code asset.backup.count} implies) that is
+    * out of scope for this change - see the final-review deferred-findings note. This method
+    * keeps exactly the configured count.
+    *
+    * <p>Retention is controlled by {@code ai.snapshot.count}, defaulting to 10 when absent or
+    * unparsable; a value below 1 disables pruning entirely, matching {@code
+    * deleteRedundantBackupFiles}'s convention for {@code asset.backup.count}.
+    */
+   private void deleteRedundantAiSnapshotFiles() {
+      String countProp = SreeEnv.getProperty("ai.snapshot.count");
+      int count = 10;
+
+      if(countProp != null) {
+         try {
+            count = Integer.parseInt(countProp.trim());
+         }
+         catch(Exception ignore) {
+         }
+      }
+
+      if(count < 1) {
+         return;
+      }
+
+      List<String> zips = this.externalStorageService.listFiles(AI_SNAPSHOT_FOLDER).stream()
+         .filter(f -> f.endsWith(".zip") && f.contains(BACKUP_PATH_SPLIT))
+         .sorted((z1, z2) -> {
+            long z1Time = getTimestamp(z1);
+            long z2Time = getTimestamp(z2);
+
+            return (int) (z1Time - z2Time);
+         })
+         .toList();
+
+      if(zips.size() <= count) {
+         return;
+      }
+
+      int deleteCount = zips.size() - count;
+
+      for(int i = 0; i < deleteCount; i++) {
+         try {
+            this.externalStorageService.delete(AI_SNAPSHOT_FOLDER + File.separator + zips.get(i));
+         }
+         catch(IOException e) {
+            LOG.error("Failed to delete AI snapshot file {}", zips.get(i), e);
          }
       }
    }

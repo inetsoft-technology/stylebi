@@ -30,5 +30,20 @@ public class AdminChangeResult {
    public String getError() { return error; }
    public void setError(String v) { this.error = v; }
 
+   /**
+    * True once the pre-change snapshot read inside {@code AdminChangeService.applyChange}
+    * completed successfully.
+    *
+    * <p>{@code beforeValue == null} cannot, by itself, distinguish "the property was genuinely
+    * unset" from "the snapshot read failed" - both leave {@code beforeValue} null. Only the
+    * former is safe to undo by writing {@code null} (reset-to-default); undoing the latter would
+    * remove a property that was never touched. {@code AdminChangesetApplyService} must check this
+    * flag, not just compare before/after, before treating a change as "moved" and eligible for
+    * rollback.
+    */
+   public boolean isBeforeRead() { return beforeRead; }
+   public void setBeforeRead(boolean v) { this.beforeRead = v; }
+
    private String property, beforeValue, afterValue, status, error;
+   private boolean beforeRead;
 }

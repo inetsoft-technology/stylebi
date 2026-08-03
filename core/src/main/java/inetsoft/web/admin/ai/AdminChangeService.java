@@ -70,6 +70,10 @@ public class AdminChangeService {
          name = AdminPropertyName.parse(req.getProperty());
          before = SreeEnv.getProperty(name.key(), false, false);
          result.setBeforeValue(before);
+         // Marks the snapshot read as having actually completed, so a caller can distinguish
+         // "property was unset" (beforeRead=true, beforeValue=null) from "the read itself threw"
+         // (beforeRead stays false) - see AdminChangeResult.isBeforeRead().
+         result.setBeforeRead(true);
 
          if(desired == null) {
             // Side-effect hooks match exact literals (e.g. "security.exposedefaultorgtoall"), so

@@ -104,8 +104,22 @@ public class AdminPropertiesController {
 
    private PropertyView view(AdminPropertyName name, CatalogEntry entry) {
       AdminRiskClassifier.RiskClassification risk = classifier.classify(name);
-      // orgScope=false so the value shown is the one an apply would actually change.
-      String current = SreeEnv.getProperty(name.key(), false, false);
+      String description = entry == null ? null : entry.description();
+      String current;
+
+      // Secret properties (e.g. password.encryption.key) are still LISTED - an operator
+      // legitimately needs to know the property exists - but the value is withheld rather than
+      // forwarded to the model provider that this endpoint's caller relays responses through. Not
+      // a 403: the same operator role can already read this unmasked via PropertiesController, so
+      // refusing to even acknowledge the property's existence would just be confusing.
+      if(AdminPropertyCatalog.isSecret(name.baseName())) {
+         current = null;
+         description = "Value withheld: secret properties are not exposed through admin-chat.";
+      }
+      else {
+         // orgScope=false so the value shown is the one an apply would actually change.
+         current = SreeEnv.getProperty(name.key(), false, false);
+      }
 
       return new PropertyView(name.key(),
          entry == null ? List.of() : (entry.aliases() == null ? List.of() : entry.aliases()),
@@ -114,7 +128,7 @@ public class AdminPropertiesController {
             ? List.of() : entry.allowedValues()),
          entry == null ? null : entry.min(),
          entry == null ? null : entry.max(),
-         entry == null ? null : entry.description(),
+         description,
          risk.risk(), risk.snapshotScope(), current, risk.recognized());
    }
 

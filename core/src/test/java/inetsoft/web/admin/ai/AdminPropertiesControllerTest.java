@@ -131,6 +131,17 @@ class AdminPropertiesControllerTest {
    }
 
    @Test
+   void withholdsTheValueOfASecretPropertyButStillListsIt() {
+      // Finding 5a: password.encryption.key is StyleBI's password-encryption master key. It must
+      // still be LISTED (an operator legitimately needs to know it exists) but its value must
+      // never reach this endpoint's caller, which forwards responses to a model provider.
+      PropertyView view = controller.get("password.encryption.key", principal);
+      assertNull(view.currentValue());
+      assertNotNull(view.description());
+      sreeEnv.verify(() -> SreeEnv.getProperty("password.encryption.key", false, false), never());
+   }
+
+   @Test
    void refusesANonSiteAdmin() {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
       assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
