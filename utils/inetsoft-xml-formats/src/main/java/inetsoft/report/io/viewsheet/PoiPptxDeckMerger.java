@@ -106,13 +106,80 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    }
 
    private void addCaption(XSLFSlide slide, String title, String caption) {
-      XSLFTextBox captionBox = slide.createTextBox();
-      captionBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT / 2.0,
-         SLIDE_WIDTH_PT - 2 * MARGIN_PT, 44));
       String text = (title == null ? "" : title) +
          (caption != null && !caption.isBlank() ? " — " + caption : "");
+      double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
+
+      // FIT THE CAPTION TO ITS BAND. The caption is drawn ON TOP of the imported chart slide, so
+      // anything that does not fit the reserved band lands on the chart itself. At a fixed
+      // CAPTION_FONT_PT the band holds about two lines; a caption of real prose wraps to three or
+      // more and overprinted the plot -- observed in an exported deck, the heading covering the
+      // chart's own title and top bars.
+      //
+      // Shrink first (a smaller caption is still fully readable and loses nothing), and only
+      // truncate if it still does not fit at the floor. The untruncated caption remains on the
+      // board and in the PDF export, which reserve room for it.
+      double fontPt = CAPTION_FONT_PT;
+
+      while(fontPt > CAPTION_MIN_FONT_PT &&
+            textHeightPt(text, fontPt, boxWidthPt) > CAPTION_BOX_HEIGHT_PT)
+      {
+         fontPt -= 1.0;
+      }
+
+      if(textHeightPt(text, fontPt, boxWidthPt) > CAPTION_BOX_HEIGHT_PT) {
+         text = truncateToFit(text, fontPt, boxWidthPt, CAPTION_BOX_HEIGHT_PT);
+      }
+
+      XSLFTextBox captionBox = slide.createTextBox();
+      captionBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT / 2.0,
+         boxWidthPt, CAPTION_BOX_HEIGHT_PT));
       captionBox.setText(text);
-      styleBox(captionBox, true, CAPTION_FONT_PT, ACCENT);
+      styleBox(captionBox, true, fontPt, ACCENT);
+   }
+
+   /** Wrapped height of {@code text} at {@code fontPt} within {@code widthPt}, greedily by word.
+    *  Uses the same headless java.awt FontMetrics approach as chunkInsightsText. */
+   static double textHeightPt(String text, double fontPt, double widthPt) {
+      if(text == null || text.isBlank()) {
+         return 0;
+      }
+
+      Font font = new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(fontPt));
+      BufferedImage measuring = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = measuring.createGraphics();
+      FontMetrics fm = g.getFontMetrics(font);
+      g.dispose();
+
+      int lines = 1;
+      StringBuilder line = new StringBuilder();
+
+      for(String word : text.trim().split("\\s+")) {
+         String candidate = line.length() == 0 ? word : line + " " + word;
+
+         if(fm.stringWidth(candidate) > widthPt && line.length() > 0) {
+            lines++;
+            line.setLength(0);
+            line.append(word);
+         }
+         else {
+            line.setLength(0);
+            line.append(candidate);
+         }
+      }
+
+      return lines * (double) fm.getHeight();
+   }
+
+   /** Drop whole words from the end until the text fits, then mark the elision. */
+   private static String truncateToFit(String text, double fontPt, double widthPt, double heightPt) {
+      String candidate = text.trim();
+
+      while(candidate.contains(" ") && textHeightPt(candidate + "…", fontPt, widthPt) > heightPt) {
+         candidate = candidate.substring(0, candidate.lastIndexOf(' ')).trim();
+      }
+
+      return candidate + "…";
    }
 
    /** Apply a uniform bold/size/color to every run in every paragraph of a text box. */
@@ -333,4 +400,8 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    private static final double BLOCK_SPACING_PT = 8.0;   // approx paragraph gap for height estimation
    private static final double INSIGHTS_TITLE_FONT_PT = 22.0;
    private static final int INSIGHTS_TITLE_HEIGHT_PT = 40;
+   /** The caption band reserved above the imported chart; anything beyond it overlays the plot. */
+   private static final int CAPTION_BOX_HEIGHT_PT = 44;
+   /** Floor for caption auto-shrink — below this it stops being a readable heading. */
+   private static final double CAPTION_MIN_FONT_PT = 12.0;
 }
