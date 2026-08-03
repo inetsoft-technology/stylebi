@@ -239,7 +239,9 @@ public class AdminChangesetApplyService {
    }
 
    private static String newIdSuffix() {
-      return String.format("%08x", RANDOM.nextInt());
+      // 16 hex chars from a full 64-bit long, not 8 from a 32-bit int: transactionId is the audit
+      // correlation key, and a collision would merge two changesets' audit records together.
+      return String.format("%016x", RANDOM.nextLong());
    }
 
    public static final String STATUS_APPLIED = "applied";

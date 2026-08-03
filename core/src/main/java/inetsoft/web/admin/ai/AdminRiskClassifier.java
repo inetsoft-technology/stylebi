@@ -29,11 +29,13 @@ import org.springframework.stereotype.Component;
  *   <li><b>risk</b> — blast radius, which drives whether an agent reviewer must sign off.</li>
  *   <li><b>snapshotScope</b> — how the change is made reversible. {@code value} means restoring the
  *       recorded before-value suffices; {@code storage} means a Tier-2 backup is needed because the
- *       property's side effect in {@code PropertyChangeSideEffects} mutates the key-value or blob
- *       stores rather than merely invalidating an in-memory cache (e.g. {@code
- *       security.exposedefaultorgtoall} fires repository side effects there). See {@link
- *       AdminPropertyCatalog}'s class javadoc for the worked examples and the rule for classifying a
- *       new entry.</li>
+ *       property's side effect mutates the key-value or blob stores, or fires a repository-wide
+ *       change event whose listeners may themselves reach storage, rather than merely invalidating
+ *       an in-memory cache local to the process (e.g. {@code security.exposedefaultorgtoall} fires
+ *       such a repository-wide event, even though the call site itself performs no direct
+ *       key-value/blob write). See {@link AdminPropertyCatalog}'s class javadoc for the worked
+ *       examples, the three side-effect channels a new entry must be checked against, and the rule
+ *       for classifying a new entry.</li>
  * </ul>
  *
  * <p>Conflating them would make the catalog's per-property {@code snapshotScope} meaningless for

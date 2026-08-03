@@ -34,17 +34,29 @@ import java.util.*;
  * apply, read back {@code null}, and report success for a property nothing reads. Verify every entry
  * against its {@code SreeEnv.getProperty}/{@code setProperty} call site before adding it.
  *
- * <p>{@code snapshotScope} follows one rule: {@code storage} means the property's side effect in
- * {@code inetsoft.web.admin.properties.PropertyChangeSideEffects} mutates the key-value or blob
- * stores; {@code value} means the side effect, if any, only invalidates an in-memory cache. Worked
- * examples from that class: {@code format.number.round} and {@code format.percent.round} call {@code
- * TableFormat.invalidateTableFormatCache()}, and {@code string.compare.casesensitive} calls {@code
- * Tool.invalidateCaseSensitive()} — all three are cache-only, so {@code value} scope. {@code
- * security.exposedefaultorgtoall} calls {@code assetRepository.fireExposeDefaultOrgPropertyChange()},
- * which touches the asset repository, so {@code storage} scope. A new entry's {@code snapshotScope}
- * must be determined the same way — by checking whether its side effect in {@code
- * PropertyChangeSideEffects} touches storage or only a cache — not by guessing from the property's
- * apparent importance.
+ * <p>{@code snapshotScope} follows one rule: {@code storage} means the property's side effect
+ * <b>mutates the key-value or blob stores, or fires repository-wide change events whose listeners
+ * may themselves reach storage</b>; {@code value} means the side effect, if any, only invalidates
+ * an in-memory cache local to the process. Worked examples from {@code
+ * inetsoft.web.admin.properties.PropertyChangeSideEffects}: {@code format.number.round} and {@code
+ * format.percent.round} call {@code TableFormat.invalidateTableFormatCache()}, and {@code
+ * string.compare.casesensitive} calls {@code Tool.invalidateCaseSensitive()} — all three are
+ * cache-only, so {@code value} scope. {@code security.exposedefaultorgtoall} calls {@code
+ * assetRepository.fireExposeDefaultOrgPropertyChange()}, which — see {@code
+ * AbstractAssetEngine.fireExposeDefaultOrgPropertyChange} — constructs an {@code AssetEntry} and
+ * fires a repository-wide {@code AssetChangeEvent} to every registered {@code
+ * AssetChangeListener}; it performs no key-value or blob write itself, but a repository-wide event
+ * whose listener set is open-ended is exactly the "may themselves reach storage" case, so it is
+ * {@code storage} scope. A new entry's {@code snapshotScope} must be determined the same way — by
+ * checking whether its side effect mutates storage directly, or fires an event broadcast widely
+ * enough that some listener plausibly does — not by guessing from the property's apparent
+ * importance.
+ *
+ * <p>{@code PropertyChangeSideEffects} is not the only side-effect channel a catalog author must
+ * consider: {@code inetsoft.sree.PropertiesEngine.applyProperty} also reconfigures logging and
+ * calls {@code SQLHelper.resetCache()} for a couple of specific property names, and listeners
+ * registered through {@code PropertiesEngine.addPropertyChangeListener} fire on every property
+ * change regardless of which of the three channels is involved.
  */
 @Component
 public class AdminPropertyCatalog {

@@ -149,7 +149,9 @@ class AdminChangesetApplyServiceTest {
 
       ApplyResult applied = service.apply(request("t", "max.rows", "500"), principal);
 
-      assertTrue(applied.transactionId().matches("^chg-[0-9a-f]{8}$"));
+      // Finding 8: 16 hex chars from a 64-bit long, not 8 from a 32-bit int - transactionId is the
+      // audit correlation key, and a narrower id collides too easily across many changesets.
+      assertTrue(applied.transactionId().matches("^chg-[0-9a-f]{16}$"));
       verify(changeService).applyChange(argThat(
          req -> applied.transactionId().equals(req.getTransactionId())
             && AdminChangeRecord.ACTION_APPLY.equals(req.getAction())

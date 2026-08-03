@@ -26,8 +26,10 @@ import java.util.List;
  *
  * @param status            {@code applied} — every change verified; {@code rolled-back} — something
  *                          failed and every applied change was undone; {@code rollback-failed} —
- *                          something failed AND at least one undo did not succeed, so the server is
- *                          left partially changed and needs operator attention.
+ *                          the server is left partially changed and needs operator attention,
+ *                          either because at least one undo did not succeed, or because an apply
+ *                          threw with no verifiable before/after evidence to undo from in the
+ *                          first place (no undo was even attempted for that property).
  * @param rollbackFailures  present only when {@code status} is {@code rollback-failed}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
