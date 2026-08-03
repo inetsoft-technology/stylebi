@@ -32,6 +32,11 @@ package inetsoft.web.admin.general;
  *      "backup", so deleteRedundantBackupFiles (which only lists "backup") can never prune it.
  * [G4] A model with aiSnapshot absent (default false) preserves the pre-existing "backup" folder
  *      layout exactly.
+ * [G5] deleteRedundantBackupFiles() prunes "backup/" to asset.backup.count on the assumption
+ *      that the file it is about to write lands back in that same folder. An AI snapshot writes
+ *      to "ai-snapshots/" instead, so pruning must be skipped for it - otherwise an AI snapshot
+ *      would delete an operator's backup and replace it with nothing. A real (non-AI) backup
+ *      must still prune as before.
  */
 
 import inetsoft.sree.SreeEnv;
@@ -52,6 +57,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -129,6 +135,10 @@ class DataSpaceSettingsServiceTest {
 
       assertNotNull(result.path());
       verify(externalStorageService).write(eq(result.path()), any(Path.class), isNull());
+      // Proves the export actually ran rather than doBackup merely writing an empty/untouched
+      // temp file: StorageTransfer.create(keyValueEngine, blobEngine).exportContents(output)
+      // reads the key-value store via idStream() to serialize its contents into the zip.
+      verify(keyValueEngine, atLeastOnce()).idStream();
    }
 
    // [G2] failure during the external-storage write returns a null path
@@ -168,5 +178,33 @@ class DataSpaceSettingsServiceTest {
       assertNotNull(result.path());
       assertTrue(result.path().startsWith("backup/"),
                  "expected path under backup/ but was: " + result.path());
+   }
+
+   // [G5] an AI snapshot must not prune the operator's backup/ folder
+   @Test
+   void aiSnapshotDoesNotPruneTheOperatorsBackupFolder() throws Exception {
+      // Without the call-site guard this deletes a real backup and puts nothing back, because the
+      // snapshot lands in ai-snapshots/ rather than backup/. The guard means listFiles is never
+      // even reached for an AI snapshot, so this stub is lenient - its point is to prove that
+      // even though data is available to prune, nothing gets deleted.
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn("2");
+      lenient().when(externalStorageService.listFiles("backup"))
+         .thenReturn(List.of("data-20260101.zip", "data-20260102.zip", "data-20260103.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-1").aiSnapshot(true).build());
+
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   // [G5] the counterpart: the guard must not disable pruning for ordinary backups
+   @Test
+   void aRealBackupStillPrunes() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn("2");
+      when(externalStorageService.listFiles("backup"))
+         .thenReturn(List.of("data-20260101.zip", "data-20260102.zip", "data-20260103.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("data").build());
+
+      verify(externalStorageService, atLeastOnce()).delete(anyString());
    }
 }

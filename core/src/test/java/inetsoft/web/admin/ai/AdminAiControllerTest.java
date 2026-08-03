@@ -29,6 +29,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
@@ -190,6 +191,17 @@ class AdminAiControllerTest {
    // error contract (#3): endpoints do not swallow exceptions; a scoped
    // @ExceptionHandler maps IllegalArgumentException to 400 instead
    // -------------------------------------------------------------------------
+
+   @Test void backupPropagatesExceptionOnFailure() throws Exception {
+      // AdminBackupService.backup throws when the snapshot did not happen; that must surface as an
+      // error rather than a 200 with a bogus backupRef.
+      doThrow(new IOException("snapshot failed")).when(backupService).backup("chg-1");
+
+      IOException ex = assertThrows(IOException.class,
+         () -> controller.backup(Map.of("transactionId", "chg-1"), principal));
+
+      assertEquals("snapshot failed", ex.getMessage());
+   }
 
    @Test void handleIllegalArgumentReturnsFailedStatusWithMessage() {
       Map<String, String> actual =

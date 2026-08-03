@@ -98,7 +98,12 @@ public class DataSpaceSettingsService extends BackupSupport {
       String path;
 
       try {
-         deleteRedundantBackupFiles();
+         // Pruning trims `backup/` to asset.backup.count on the assumption that this call is about
+         // to add a file back to that same folder. An AI snapshot writes to ai-snapshots/ instead,
+         // so pruning here would delete an operator's backup and replace it with nothing.
+         if(model == null || !model.aiSnapshot()) {
+            deleteRedundantBackupFiles();
+         }
 
          // For the same backup, use the same timestamp
          String stamp = createBackupTimestamp();
