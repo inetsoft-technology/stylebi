@@ -51,19 +51,6 @@ public class AdminAiController {
       return Map.of("backupRef", backupService.backup(body.get("transactionId")));
    }
 
-   @Secured(@RequiredPermission(
-      resourceType = ResourceType.EM_COMPONENT,
-      resource = "settings/properties",
-      actions = ResourceAction.ACCESS))
-   @PostMapping("/api/wiz/v1/admin/restore")
-   public Map<String, String> restore(@RequestBody Map<String, String> body, Principal user)
-      throws Exception
-   {
-      requireSiteAdmin(user);
-      backupService.restore(body.get("backupRef"));
-      return Map.of("status", "restored");
-   }
-
    /**
     * Resolves a change list into a reviewable plan without mutating anything, and returns the
     * {@code planHash} an {@link #apply} must echo.
@@ -116,8 +103,8 @@ public class AdminAiController {
    }
 
    /**
-    * Uniformly maps client/validation errors (blank/invalid transactionId, property, action, or
-    * backup/restore reference) to HTTP 400 with a structured body, across all three endpoints.
+    * Uniformly maps client/validation errors (blank/invalid transactionId, property, or action)
+    * to HTTP 400 with a structured body, across all endpoints.
     * Scoped to {@link IllegalArgumentException} only - a catch-all {@code Exception} handler
     * would also swallow {@link ResponseStatusException} (see {@link #requireSiteAdmin}) and other
     * framework exceptions that must retain their own status codes.

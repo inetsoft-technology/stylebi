@@ -17,168 +17,85 @@
  */
 package inetsoft.web.admin.ai;
 
-import inetsoft.setup.StorageService;
-import inetsoft.storage.BlobStorage;
-import inetsoft.storage.BlobStorageManager;
-import inetsoft.storage.BlobTransaction;
-import inetsoft.util.config.InetsoftConfig;
-import inetsoft.util.config.KeyValueConfig;
+import inetsoft.web.admin.general.BackupResult;
+import inetsoft.web.admin.general.DataSpaceSettingsService;
+import inetsoft.web.admin.general.model.BackupDataModel;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.InputStream;
-import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * {@code new StorageService(dir)} loads (or, absent a config file, defaults to) a "mapdb"
- * key-value engine, whose implementation lives in the separate {@code inetsoft-storage-mapdb}
- * module - not a dependency of {@code community/core} (that module is only pulled in downstream,
- * e.g. by {@code community/server}). To exercise a real {@code StorageService} round trip from
- * within {@code core}'s own test suite, this test writes an {@code inetsoft.yaml} into the temp
- * dir that selects the "test" key-value engine (`inetsoft.test.TestKeyValueEngine`, registered
- * via {@code @AutoService} in {@code core}'s test sources) instead of "mapdb" - the same
- * override used by {@code inetsoft.test.BaseTestConfiguration#inetsoftConfig}. The blob engine
- * stays at its default ("local" / filesystem), which core does ship. This is a real, ServiceLoader
- * -resolved {@link StorageService} backed by real engines - only the key-value backend differs
- * from a production "mapdb" deployment.
+ * {@code AdminBackupService} no longer touches {@code inetsoft.setup.StorageService} - that bean
+ * only exists in the standalone setup-tool context and is never wired into the running web
+ * application, which is exactly why the service could not be constructed on a live server (see
+ * the class javadoc on {@link AdminBackupService}). The live-tested path is
+ * {@link DataSpaceSettingsService#doBackup}, so these tests mock that dependency instead of
+ * standing up a real storage engine round trip.
  */
 @Tag("core")
+@ExtendWith(MockitoExtension.class)
 class AdminBackupServiceTest {
-   /**
-    * Real write -> backup -> mutate live state -> restore -> read round trip: proves restore
-    * actually restores the state that existed at backup time, not merely that the calls don't
-    * throw. Uses {@code StorageService.write/read}, the highest-level data-space API the "test"
-    * key-value/blob engines support in a unit test.
-    */
-   @Test
-   void backupProducesRestorableRefRoundTrip(@TempDir Path dir) throws Exception {
-      StorageService storage = newTestStorageService(dir);
+   @Mock private DataSpaceSettingsService dataSpaceSettingsService;
 
-      try {
-         AdminBackupService service =
-            new AdminBackupService(storage, newMockBlobStorageManager(), dir.toFile());
-         String path = "known.txt";
+   private AdminBackupService service;
 
-         storage.write(path, writeContent(dir, "payload-original.txt", "original-content"));
-         assertEquals("original-content", read(storage, path), "sanity check before backup");
-
-         String ref = service.backup("chg-1");
-         assertNotNull(ref);
-         File backupFile = service.resolve(ref);
-         assertTrue(backupFile.exists(), "backup zip should exist at resolved ref");
-
-         // Mutate live state after the backup was taken, so a no-op/empty restore would fail
-         // this assertion.
-         storage.write(path, writeContent(dir, "payload-mutated.txt", "mutated-content"));
-         assertEquals("mutated-content", read(storage, path), "sanity check after mutation");
-
-         service.restore(ref);
-
-         assertEquals("original-content", read(storage, path),
-                       "restore should bring back the state captured at backup time");
-      }
-      finally {
-         storage.close();
-      }
+   @BeforeEach
+   void setup() {
+      service = new AdminBackupService(dataSpaceSettingsService);
    }
 
    @Test
-   void backupRejectsTransactionIdWithPathTraversal(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
+   void backupReturnsThePathDoBackupReportedAndTagsTheModel() throws Exception {
+      ArgumentCaptor<BackupDataModel> captor = ArgumentCaptor.forClass(BackupDataModel.class);
+      when(dataSpaceSettingsService.doBackup(any()))
+         .thenReturn(new BackupResult("Success", "ai-snapshots/admin-chg-1-123.zip"));
 
+      String path = service.backup("chg-1");
+
+      assertEquals("ai-snapshots/admin-chg-1-123.zip", path);
+      verify(dataSpaceSettingsService).doBackup(captor.capture());
+      BackupDataModel model = captor.getValue();
+      assertTrue(model.aiSnapshot(), "aiSnapshot must be true so this is exempt from redundant-backup cleanup");
+      assertEquals("admin-chg-1", model.dataspace());
+   }
+
+   @Test
+   void backupThrowsWithTransactionIdAndStatusWhenDoBackupReportsNoPath() {
+      when(dataSpaceSettingsService.doBackup(any()))
+         .thenReturn(new BackupResult("Failed to back up storage: disk full", null));
+
+      IOException ex = assertThrows(IOException.class, () -> service.backup("chg-1"));
+
+      assertTrue(ex.getMessage().contains("chg-1"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Failed to back up storage: disk full"), ex.getMessage());
+      verify(dataSpaceSettingsService).doBackup(any());
+   }
+
+   @Test
+   void backupRejectsTransactionIdWithPathTraversal() {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                                                    () -> service.backup("../../etc/passwd"));
       assertTrue(ex.getMessage().contains("transactionId"), ex.getMessage());
+      verifyNoInteractions(dataSpaceSettingsService);
    }
 
    @Test
-   void backupRejectsTransactionIdWithSlash(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
-
+   void backupRejectsTransactionIdWithSlash() {
       assertThrows(IllegalArgumentException.class, () -> service.backup("chg/1"));
+      verifyNoInteractions(dataSpaceSettingsService);
    }
 
    @Test
-   void backupRejectsNullOrBlankTransactionId(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
-
+   void backupRejectsNullOrBlankTransactionId() {
       assertThrows(IllegalArgumentException.class, () -> service.backup(null));
       assertThrows(IllegalArgumentException.class, () -> service.backup("   "));
-   }
-
-   @Test
-   void restoreRejectsBackupRefWithPathTraversal(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
-
-      IllegalArgumentException ex = assertThrows(
-         IllegalArgumentException.class,
-         () -> service.restore("../../../etc/passwd"));
-      assertTrue(ex.getMessage().contains("backupRef"), ex.getMessage());
-   }
-
-   @Test
-   void restoreRejectsNullOrBlankBackupRef(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
-
-      assertThrows(IllegalArgumentException.class, () -> service.restore(null));
-      assertThrows(IllegalArgumentException.class, () -> service.restore(""));
-   }
-
-   @Test
-   void resolveRejectsBackupRefWithPathTraversalOrSlash(@TempDir Path dir) {
-      AdminBackupService service = new AdminBackupService(null, null, dir.toFile());
-
-      assertThrows(IllegalArgumentException.class, () -> service.resolve("../escape.zip"));
-      assertThrows(IllegalArgumentException.class, () -> service.resolve("sub/dir.zip"));
-      assertThrows(IllegalArgumentException.class, () -> service.resolve("sub\\dir.zip"));
-   }
-
-   /**
-    * {@code AdminBackupService.backup} always publishes through {@link BlobStorageManager}
-    * (see {@code AdminBackupServiceClusterTest}), even in this test's real-{@code StorageService}
-    * round trip, so a working (mocked) manager is needed here too even though this test's focus
-    * is the local ZIP round trip, not cluster publication.
-    */
-   private static BlobStorageManager newMockBlobStorageManager() throws java.io.IOException {
-      BlobStorage<Serializable> blobs = mock(BlobStorage.class);
-      BlobStorageManager manager = mock(BlobStorageManager.class);
-      when(manager.<Serializable>getStorage(anyString(), anyBoolean())).thenReturn(blobs);
-      BlobTransaction<Serializable> tx = mock(BlobTransaction.class);
-      when(blobs.beginTransaction()).thenReturn(tx);
-      when(tx.newStream(anyString(), any())).thenReturn(new ByteArrayOutputStream());
-      return manager;
-   }
-
-   private static StorageService newTestStorageService(Path dir) throws Exception {
-      Path configFile = dir.resolve("inetsoft.yaml");
-      InetsoftConfig config = InetsoftConfig.createDefault(dir);
-      KeyValueConfig keyValue = new KeyValueConfig();
-      keyValue.setType("test");
-      config.setKeyValue(keyValue);
-      InetsoftConfig.save(config, configFile);
-
-      // Inject a StorageService pointed at a temp config dir (test ctor from Step 3).
-      return new StorageService(dir.toString());
-   }
-
-   private static File writeContent(Path dir, String fileName, String content) throws Exception {
-      Path file = dir.resolve(fileName);
-      Files.writeString(file, content, StandardCharsets.UTF_8);
-      return file.toFile();
-   }
-
-   private static String read(StorageService storage, String path) throws Exception {
-      try(InputStream in = storage.read(path)) {
-         return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-      }
+      verifyNoInteractions(dataSpaceSettingsService);
    }
 }

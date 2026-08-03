@@ -89,17 +89,6 @@ class AdminAiControllerTest {
       verifyNoInteractions(backupService);
    }
 
-   @Test void restoreThrowsForbiddenWithoutBearerToken() {
-      RequestContextHolder.setRequestAttributes(
-         new ServletRequestAttributes(new MockHttpServletRequest()));
-
-      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> controller.restore(Map.of("backupRef", "admin-chg-1-123.zip"), principal));
-
-      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-      verifyNoInteractions(backupService);
-   }
-
    @Test void previewThrowsForbiddenWithoutBearerToken() {
       RequestContextHolder.setRequestAttributes(
          new ServletRequestAttributes(new MockHttpServletRequest()));
@@ -131,16 +120,6 @@ class AdminAiControllerTest {
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> controller.backup(Map.of("transactionId", "chg-1"), principal));
-
-      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-      verifyNoInteractions(backupService);
-   }
-
-   @Test void restoreThrowsForbiddenForNonSiteAdmin() {
-      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
-
-      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> controller.restore(Map.of("backupRef", "admin-chg-1-123.zip"), principal));
 
       assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
       verifyNoInteractions(backupService);
@@ -180,14 +159,6 @@ class AdminAiControllerTest {
       verify(backupService).backup("chg-1");
    }
 
-   @Test void restoreReturnsRestoredStatusOnSuccess() throws Exception {
-      Map<String, String> actual =
-         controller.restore(Map.of("backupRef", "admin-chg-1-123.zip"), principal);
-
-      assertEquals("restored", actual.get("status"));
-      verify(backupService).restore("admin-chg-1-123.zip");
-   }
-
    @Test void previewDelegatesToService() {
       PlanRequest req = new PlanRequest();
       req.setTask("raise max rows");
@@ -216,19 +187,9 @@ class AdminAiControllerTest {
    }
 
    // -------------------------------------------------------------------------
-   // error contract (#3): restore no longer swallows exceptions; a scoped
+   // error contract (#3): endpoints do not swallow exceptions; a scoped
    // @ExceptionHandler maps IllegalArgumentException to 400 instead
    // -------------------------------------------------------------------------
-
-   @Test void restorePropagatesExceptionOnFailure() throws Exception {
-      doThrow(new IllegalStateException("no such backup"))
-         .when(backupService).restore("missing.zip");
-
-      IllegalStateException ex = assertThrows(IllegalStateException.class,
-         () -> controller.restore(Map.of("backupRef", "missing.zip"), principal));
-
-      assertEquals("no such backup", ex.getMessage());
-   }
 
    @Test void handleIllegalArgumentReturnsFailedStatusWithMessage() {
       Map<String, String> actual =

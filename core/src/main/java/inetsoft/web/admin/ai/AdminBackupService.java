@@ -17,204 +17,73 @@
  */
 package inetsoft.web.admin.ai;
 
-import inetsoft.setup.StorageService;
-import inetsoft.storage.BlobStorage;
-import inetsoft.storage.BlobStorageManager;
-import inetsoft.storage.BlobTransaction;
-import inetsoft.util.FileSystemService;
+import inetsoft.web.admin.general.BackupResult;
+import inetsoft.web.admin.general.DataSpaceSettingsService;
+import inetsoft.web.admin.general.model.BackupDataModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+import java.io.IOException;
 
 /*
- * This service depends on the live, Spring-managed `StorageService` bean
- * (see `DirectStorageConfig.storageService`) rather than constructing its own. That bean wraps
- * the `KeyValueEngine`/`BlobEngine` the running server already has open, so reusing it does not
- * open a second set of engines against the same directory; constructing a fresh
- * `StorageService(String)` against the live config directory while the server is running would
- * risk contending with those already-open engines (e.g. file/db locks held by local or embedded
- * backends).
+ * The snapshot here is taken through the live-tested {@link DataSpaceSettingsService#doBackup}
+ * path - the same one the EM "Backup" action uses - rather than `inetsoft.setup.StorageService`.
+ * `StorageService` is a setup-context API: it is only ever wired up as a bean inside
+ * `DirectStorageConfig`, which `StorageContext` instantiates as its own standalone
+ * `AnnotationConfigApplicationContext` for the offline setup tool. That bean is never imported
+ * into the running web application context, so injecting `StorageService` here made this service
+ * - and, transitively, `AdminAiController`, whose constructor takes it - impossible for Spring to
+ * construct on a live server (`NoSuchBeanDefinitionException`). `DataSpaceSettingsService` is a
+ * normal `@Service` in the web application context and its `doBackup` is exercised by real traffic,
+ * so it is the correct dependency.
  *
- * NOTE: Tier-2 backups produced here are stored server-side, on local disk, then published to
- * cluster-visible BlobStorage so a restore routed to a different node can still find them. There
- * is no retention policy yet. Hardening (retention/expiry, replication to the configured external
- * storage provider, access control on the backup directory) is a follow-up, not in scope for this
- * task.
+ * There is deliberately no restore method. Restoring storage on a running cluster is untested and
+ * will not work - recovering from a snapshot is an offline operation that requires a restart. An
+ * administrator who needs to recover from a snapshot taken here must either restore it manually
+ * (offline) or revert the individual changes recorded in the admin-chat audit records.
  */
 @Service
 public class AdminBackupService {
-   /**
-    * Production constructor. {@code StorageService.backup(File)} necessarily writes a local file, so
-    * the ZIP is published to cluster-visible {@link BlobStorage} afterwards: a backup that exists
-    * only on the producing node is unusable once the load balancer routes {@code restore} elsewhere.
-    */
    @Autowired
-   public AdminBackupService(StorageService storage, BlobStorageManager blobStorageManager) {
-      this(storage, blobStorageManager, resolveBackupDir());
-   }
-
-   /** Test seam: arbitrary {@link StorageService}, blob manager and staging directory. */
-   AdminBackupService(StorageService storage, BlobStorageManager blobStorageManager,
-                      File backupDir)
-   {
-      this.storage = storage;
-      this.blobStorageManager = blobStorageManager;
-      this.backupDir = backupDir;
-      ensureBackupDir(backupDir);
-   }
-
-   private static File resolveBackupDir() {
-      File dir = FileSystemService.getInstance().getCacheFile("admin-ai-backups");
-
-      if(dir == null) {
-         throw new IllegalStateException(
-            "Unable to resolve the Tier-2 backup directory under the cache directory");
-      }
-
-      ensureBackupDir(dir);
-      return dir;
-   }
-
-   /** Creates {@code dir} if it does not already exist, failing loud if it cannot be created. */
-   private static void ensureBackupDir(File dir) {
-      if(!dir.exists() && !dir.mkdirs() && !dir.exists()) {
-         throw new IllegalStateException(
-            "Unable to create Tier-2 backup directory: " + dir.getAbsolutePath());
-      }
+   public AdminBackupService(DataSpaceSettingsService dataSpaceSettingsService) {
+      this.dataSpaceSettingsService = dataSpaceSettingsService;
    }
 
    /**
-    * Creates a Tier-2 backup ZIP of the live storage, named uniquely for the given transaction.
+    * Creates a Tier-2 snapshot of the live storage, named for the given transaction, via
+    * {@link DataSpaceSettingsService#doBackup}.
     *
-    * @param transactionId the admin-chat transaction this backup protects.
+    * @param transactionId the admin-chat transaction this snapshot protects.
     *
-    * @return the backup reference (the ZIP file's name within the backup directory), suitable
-    *         for a later {@link #restore(String)} call.
+    * @return the external-storage path of the snapshot that was written.
     *
     * @throws IllegalArgumentException if {@code transactionId} is null/blank or is not a safe,
     *         single path segment (see {@link #requireSafePathSegment}).
+    * @throws IOException if the snapshot did not produce a usable artifact.
     */
    public String backup(String transactionId) throws Exception {
       requireSafePathSegment(transactionId, "transactionId", "transaction id");
-      String name = "admin-" + transactionId + "-" + System.currentTimeMillis() + ".zip";
-      // Defense in depth: re-validate the constructed name resolves inside backupDir even
-      // though transactionId was already checked above.
-      File file = resolveWithinBackupDir(name, "transactionId", "transaction id");
-      storage.backup(file);
 
-      // No write(path, InputStream) exists; publish through a transaction, per AutoSaveUtils.
-      try {
-         try(BlobTransaction<Serializable> tx = blobs().beginTransaction();
-             OutputStream out = tx.newStream(blobPath(name), null);
-             InputStream in = new FileInputStream(file))
-         {
-            in.transferTo(out);
-            out.flush();
-            tx.commit();
-         }
-      }
-      catch(Exception e) {
-         // The local ZIP from storage.backup(file) above still exists on disk even though
-         // publish failed; an operator needs to know which transaction/backup name to look for
-         // there (see the class-level "no retention policy" note) rather than seeing a bare
-         // IOException with no context.
+      BackupDataModel model = BackupDataModel.builder()
+         .dataspace("admin-" + transactionId)
+         .aiSnapshot(true)
+         .build();
+      BackupResult result = dataSpaceSettingsService.doBackup(model);
+
+      if(result.path() == null) {
          throw new IOException(
-            "Failed to publish Tier-2 backup '" + name + "' for transaction '" + transactionId +
-            "' to shared storage", e);
+            "Failed to snapshot storage for transaction '" + transactionId + "': " +
+            result.status());
       }
 
-      return name;
-   }
-
-   /**
-    * Restores storage from a previously produced backup.
-    *
-    * @param backupRef a reference returned by {@link #backup(String)}.
-    *
-    * @throws IllegalArgumentException if {@code backupRef} is null/blank or is not a safe,
-    *         single path segment (see {@link #requireSafePathSegment}).
-    * @throws Exception if the backup file cannot be found or restore fails.
-    */
-   public void restore(String backupRef) throws Exception {
-      requireSafePathSegment(backupRef, "backupRef", "backup reference");
-      File file = resolve(backupRef);
-
-      if(!file.exists()) {
-         String path = blobPath(backupRef);
-         BlobStorage<Serializable> blobs = blobs();
-
-         if(!blobs.exists(path)) {
-            throw new FileNotFoundException(
-               "Admin backup not found locally or in shared storage: " + backupRef);
-         }
-
-         // Fetch to a temp file and move it into place atomically. Copying straight to `file` would
-         // leave a truncated ZIP behind if the transfer failed partway, and the next restore would
-         // see file.exists(), skip this fetch, and feed that corrupt ZIP to storage.restore.
-         // Prefixed with a literal so File.createTempFile's 3-character minimum prefix length is
-         // met even for a very short (but still valid, per requireSafePathSegment) backupRef.
-         File temp = File.createTempFile("restore-" + backupRef, ".part", backupDir);
-
-         try {
-            try(InputStream in = blobs.getInputStream(path)) {
-               Files.copy(in, temp.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE);
-         }
-         finally {
-            // No-op once the move succeeded; on any failure this removes the partial fetch so a
-            // retry re-fetches instead of consuming it.
-            Files.deleteIfExists(temp.toPath());
-         }
-      }
-
-      storage.restore(file);
-   }
-
-   /**
-    * Resolves a backup reference to its file within the backup directory.
-    *
-    * @throws IllegalArgumentException if {@code backupRef} is null/blank, is not a safe, single
-    *         path segment, or would resolve outside {@code backupDir}.
-    */
-   public File resolve(String backupRef) {
-      return resolveWithinBackupDir(backupRef, "backupRef", "backup reference");
-   }
-
-   /**
-    * Resolves {@code value} as a file directly inside {@code backupDir}, rejecting anything that
-    * is not a safe, single path segment (see {@link #requireSafePathSegment}) and, as defense in
-    * depth, anything whose canonical parent directory is not {@code backupDir} itself (e.g. via a
-    * symlink) even if the raw string looked safe.
-    */
-   private File resolveWithinBackupDir(String value, String fieldName, String description) {
-      requireSafePathSegment(value, fieldName, description);
-      File file = new File(backupDir, value);
-
-      try {
-         File canonicalBackupDir = backupDir.getCanonicalFile();
-         File canonicalParent = file.getCanonicalFile().getParentFile();
-
-         if(canonicalParent == null || !canonicalParent.equals(canonicalBackupDir)) {
-            throw new IllegalArgumentException(fieldName + ": invalid " + description);
-         }
-      }
-      catch(IOException e) {
-         throw new IllegalArgumentException(fieldName + ": invalid " + description, e);
-      }
-
-      return file;
+      return result.path();
    }
 
    /**
     * Rejects any null/blank value, or any value containing a path separator ({@code /} or
-    * {@code \}) or {@code ..}, so that a caller-supplied {@code transactionId}/{@code backupRef}
-    * can never escape {@code backupDir}. Fails loud with a field-named message rather than
-    * silently truncating or sanitizing the input.
+    * {@code \}) or {@code ..}, so that a caller-supplied {@code transactionId} can never be used
+    * to construct an unsafe dataspace/path segment. Fails loud with a field-named message rather
+    * than silently truncating or sanitizing the input.
     */
    private static void requireSafePathSegment(String value, String fieldName, String description) {
       if(value == null || value.isBlank() ||
@@ -224,18 +93,5 @@ public class AdminBackupService {
       }
    }
 
-   private BlobStorage<Serializable> blobs() {
-      return blobStorageManager.getStorage(BLOB_STORE_ID, false);
-   }
-
-   /** Namespaced so admin backups cannot collide with other blob data. */
-   private static String blobPath(String name) {
-      return "admin-backups/" + name;
-   }
-
-   private static final String BLOB_STORE_ID = "adminChatBackups";
-
-   private final StorageService storage;
-   private final BlobStorageManager blobStorageManager;
-   private final File backupDir;
+   private final DataSpaceSettingsService dataSpaceSettingsService;
 }

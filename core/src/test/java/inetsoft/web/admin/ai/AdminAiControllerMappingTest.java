@@ -64,7 +64,6 @@ class AdminAiControllerMappingTest {
    void mappingsMatchTheFrozenContract() {
       assertEquals(
          Set.of("/api/wiz/v1/admin/backup",
-                "/api/wiz/v1/admin/restore",
                 "/api/wiz/v1/admin/preview",
                 "/api/wiz/v1/admin/apply"),
          new HashSet<>(postMappingPaths(AdminAiController.class)));
