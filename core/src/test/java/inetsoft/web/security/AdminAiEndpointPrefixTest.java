@@ -85,9 +85,12 @@ class AdminAiEndpointPrefixTest {
    }
 
    @Test
-   void wizPrefixedAdminBackupAndRestore_areCsrfExempt() throws Exception {
+   void wizPrefixedAdminMutatingPosts_areCsrfExempt() throws Exception {
+      // Every mutating admin-chat endpoint sits on the CSRF-exempt /api/wiz/** prefix, which is
+      // why AdminAiCallerGuard requires a bearer token on each of them.
       mvc.perform(post("/api/wiz/v1/admin/backup")).andExpect(status().isOk());
-      mvc.perform(post("/api/wiz/v1/admin/restore")).andExpect(status().isOk());
+      mvc.perform(post("/api/wiz/v1/admin/preview")).andExpect(status().isOk());
+      mvc.perform(post("/api/wiz/v1/admin/apply")).andExpect(status().isOk());
    }
 
    @Test

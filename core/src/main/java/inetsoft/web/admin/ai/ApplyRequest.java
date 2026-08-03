@@ -15,28 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.general.model;
+package inetsoft.web.admin.ai;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-@Value.Immutable
-@JsonSerialize(as = ImmutableBackupDataModel.class)
-@JsonDeserialize(as = ImmutableBackupDataModel.class)
-public interface BackupDataModel {
-   String dataspace();
+/** Request body for {@code POST /apply}: a plan request plus the hash from {@code preview}. */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class ApplyRequest extends PlanRequest {
+   public String getPlanHash() { return planHash; }
+   public void setPlanHash(String v) { this.planHash = v; }
+   public String getReviewOutcome() { return reviewOutcome; }
+   public void setReviewOutcome(String v) { this.reviewOutcome = v; }
 
-   @Value.Default
-   default boolean aiSnapshot() {
-      return false;
-   }
-
-   static BackupDataModel.Builder builder() {
-      return new BackupDataModel.Builder();
-   }
-
-   final class Builder extends ImmutableBackupDataModel.Builder {
-
-   }
+   private String planHash, reviewOutcome;
 }

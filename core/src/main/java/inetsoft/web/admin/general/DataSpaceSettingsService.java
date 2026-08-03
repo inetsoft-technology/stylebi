@@ -82,10 +82,10 @@ public class DataSpaceSettingsService extends BackupSupport {
 
    public static String backup(BackupDataModel model) {
       return ConfigurationContext.getContext().getSpringBean(DataSpaceSettingsService.class)
-         .doBackup(model);
+         .doBackup(model).status();
    }
 
-   public String doBackup(BackupDataModel model) {
+   public BackupResult doBackup(BackupDataModel model) {
       String status;
       Catalog catalog = Catalog.getCatalog();
       File file = null;
@@ -95,9 +95,15 @@ public class DataSpaceSettingsService extends BackupSupport {
       ActionRecord record = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_BACKUP,
          "Storage", ActionRecord.OBJECT_TYPE_STORAGE, actionTimestamp,
          ActionRecord.ACTION_STATUS_FAILURE, "");
+      String path;
 
       try {
-         deleteRedundantBackupFiles();
+         // Pruning trims `backup/` to asset.backup.count on the assumption that this call is about
+         // to add a file back to that same folder. An AI snapshot writes to ai-snapshots/ instead,
+         // so pruning here would delete an operator's backup and replace it with nothing.
+         if(model == null || !model.aiSnapshot()) {
+            deleteRedundantBackupFiles();
+         }
 
          // For the same backup, use the same timestamp
          String stamp = createBackupTimestamp();
@@ -107,8 +113,29 @@ public class DataSpaceSettingsService extends BackupSupport {
             StorageTransfer.create(this.keyValueEngine, this.blobEngine).exportContents(output);
          }
 
-         String path = getBackFile(model != null ? model.dataspace() : null, stamp);
+         path = getBackFile(model != null ? model.dataspace() : null, stamp,
+                             model != null && model.aiSnapshot());
          this.externalStorageService.write(path, file.toPath(), null);
+
+         if(model != null && model.aiSnapshot()) {
+            // Pruning is housekeeping that runs AFTER the snapshot is already durably written, so
+            // it gets its own catch: letting it reach the outer catch would report a successful
+            // backup as failed (BackupResult with a null path, plus a FAILURE audit record), and
+            // AdminBackupService turns a null path into an IOException that aborts the whole
+            // changeset apply. A pruning failure must never discard a snapshot that exists.
+            // This mirrors the per-file handling inside deleteRedundantAiSnapshotFiles, and
+            // catches Exception rather than IOException because ExternalStorageService.listFiles
+            // declares no checked exception. deleteRedundantBackupFiles is deliberately NOT
+            // guarded this way: it runs BEFORE the write, where a failure legitimately fails the
+            // whole operation.
+            try {
+               deleteRedundantAiSnapshotFiles();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to prune old AI snapshots; the new snapshot at {} is unaffected",
+                         path, e);
+            }
+         }
 
          status = catalog.getString("Success");
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -117,7 +144,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          LOG.error("Failed to back up storage", e);
          status = "Failed to back up storage: " + e.getMessage();
          record.setActionError(status);
-         return status;
+         return new BackupResult(status, null);
       }
       finally {
          if(file != null && file.exists()) {
@@ -128,7 +155,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          Audit.getInstance().auditAction(record, principal);
       }
 
-      return status;
+      return new BackupResult(status, path);
    }
 
    /**
@@ -175,6 +202,69 @@ public class DataSpaceSettingsService extends BackupSupport {
       }
    }
 
+   /**
+    * Bounds {@link #AI_SNAPSHOT_FOLDER}, which nothing else prunes - {@link
+    * #deleteRedundantBackupFiles} only lists {@link #BACKUP_FOLDER}, and an admin-chat apply can
+    * write one snapshot per call, forever, if uncatalogued (storage-scoped by default -
+    * see AdminRiskClassifier) properties are touched repeatedly.
+    *
+    * <p>Deliberately a SEPARATE method from {@link #deleteRedundantBackupFiles} rather than a
+    * shared helper: that method has a pre-existing off-by-one (its loop runs {@code i <=
+    * deleteCount}, so it deletes one file more than {@code asset.backup.count} implies) that is
+    * out of scope for this change - see the final-review deferred-findings note. This method
+    * keeps exactly the configured count.
+    *
+    * <p>Retention is controlled by {@code ai.snapshot.count}, defaulting to 10 when absent or
+    * unparsable; a value below 1 disables pruning entirely, matching {@code
+    * deleteRedundantBackupFiles}'s convention for {@code asset.backup.count}.
+    */
+   private void deleteRedundantAiSnapshotFiles() {
+      String countProp = SreeEnv.getProperty("ai.snapshot.count");
+      int count = 10;
+
+      if(countProp != null) {
+         try {
+            count = Integer.parseInt(countProp.trim());
+         }
+         catch(Exception ignore) {
+         }
+      }
+
+      if(count < 1) {
+         return;
+      }
+
+      List<String> zips = this.externalStorageService.listFiles(AI_SNAPSHOT_FOLDER).stream()
+         .filter(f -> f.endsWith(".zip") && f.contains(BACKUP_PATH_SPLIT))
+         .sorted((z1, z2) -> {
+            long z1Time = getTimestamp(z1);
+            long z2Time = getTimestamp(z2);
+
+            // Long.compare, NOT (int) (z1Time - z2Time): these are 14-digit yyyyMMddHHmmss
+            // timestamps, and a long difference that size overflows int (limit ~2.15 billion) for
+            // any pair more than roughly a year apart, which can invert the sign and delete the
+            // newest snapshot instead of the oldest - or, with enough files, make sorted() throw
+            // "Comparison method violates its general contract!".
+            return Long.compare(z1Time, z2Time);
+         })
+         .toList();
+
+      if(zips.size() <= count) {
+         return;
+      }
+
+      int deleteCount = zips.size() - count;
+
+      for(int i = 0; i < deleteCount; i++) {
+         try {
+            this.externalStorageService.delete(AI_SNAPSHOT_FOLDER + File.separator + zips.get(i));
+         }
+         catch(IOException e) {
+            LOG.error("Failed to delete AI snapshot file {}", zips.get(i), e);
+         }
+      }
+   }
+
    private static long getTimestamp(String fileName) {
       int index = fileName.lastIndexOf(".");
 
@@ -199,7 +289,7 @@ public class DataSpaceSettingsService extends BackupSupport {
       return -1;
    }
 
-   private String getBackFile(String name, String timestamp) {
+   private String getBackFile(String name, String timestamp, boolean aiSnapshot) {
       name = name == null ? "data" : name;
       int idx = name.indexOf(".zip");
 
@@ -215,7 +305,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          name = prefix + BACKUP_PATH_SPLIT + timestamp + ".zip";
       }
 
-      name = BACKUP_FOLDER + "/" + name;
+      name = (aiSnapshot ? AI_SNAPSHOT_FOLDER : BACKUP_FOLDER) + "/" + name;
       name = this.externalStorageService.getAvailableFile(name, 1);
       return name;
    }
@@ -228,6 +318,16 @@ public class DataSpaceSettingsService extends BackupSupport {
    private final ExternalStorageService externalStorageService;
 
    private static final String BACKUP_FOLDER = "backup";
+
+   /**
+    * Admin-chat snapshots live in their own folder so that {@link #deleteRedundantBackupFiles},
+    * which lists only {@link #BACKUP_FOLDER}, cannot delete a snapshot an audit record still
+    * references - that method cannot reach this folder at all, which is the reason this sibling
+    * folder exists rather than reusing {@link #BACKUP_FOLDER}. This folder is instead pruned by
+    * {@link #deleteRedundantAiSnapshotFiles}, to {@code ai.snapshot.count} (default 10).
+    */
+   private static final String AI_SNAPSHOT_FOLDER = "ai-snapshots";
+
    private static final String BACKUP_PATH_SPLIT = "-";
 
    private static final Lock backupLock = new ReentrantLock();

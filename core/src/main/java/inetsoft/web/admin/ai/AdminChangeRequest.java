@@ -34,7 +34,9 @@ public class AdminChangeRequest {
    public void setSnapshotScope(String v) { this.snapshotScope = v; }
    public String getBackupRef() { return backupRef; }
    public void setBackupRef(String v) { this.backupRef = v; }
+   public String getReviewOutcome() { return reviewOutcome; }
+   public void setReviewOutcome(String v) { this.reviewOutcome = v; }
 
    private String transactionId, taskDescription, property, value, action,
-                  riskLevel, snapshotScope, backupRef;
+                  riskLevel, snapshotScope, backupRef, reviewOutcome;
 }

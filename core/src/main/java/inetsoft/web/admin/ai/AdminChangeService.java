@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.properties.PropertyChangeSideEffects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.security.Principal;
@@ -43,35 +45,56 @@ public class AdminChangeService {
       result.setProperty(req.getProperty());
 
       // Unlike PropertiesController.editProperty (which treats a "" value as "keep the
-      // current value"), admin-chat treats a trimmed "" as an explicit set-to-empty;
-      // reset-to-default is expressed via a null value (the broker's stage_property_reset).
-      String desired = req.getValue() == null ? null : req.getValue().trim();
+      // current value"), admin-chat treats "" as an explicit set-to-empty; reset-to-default is
+      // expressed via a null value (the broker's stage_property_reset).
+      //
+      // This value is NOT trimmed here. AdminPropertyCatalog.canonicalizeValue trims on the way
+      // into the plan, so the hash the operator approves already covers the exact value that will
+      // be written. Trimming again here would be harmless for that path, but this method is also
+      // reachable from rollback with a STORED value that never went through canonicalizeValue -
+      // trimming a stored value with significant surrounding whitespace would write back a
+      // different value than was there before, so status (computed against this same desired
+      // value) would report "verified" for a property that was not actually restored.
+      String desired = req.getValue();
       String before = null;
       String status = AdminChangeRecord.STATUS_FAILED;
       String error = null;
+      AdminPropertyName name = null;
 
       try {
-         before = SreeEnv.getProperty(req.getProperty());
+         // orgScope=false: SreeEnv.getProperty(name) is ORG-SCOPED and would resolve to
+         // inetsoft.org.{currentOrg}.{name} when that key exists, while setProperty/remove write
+         // the literal key. Mixing them reads one key and writes another, so the read-back verify
+         // fails and the caller's rollback writes the override's value into the global key. The
+         // three-argument form applies only fixPropertyNameCase, matching setProperty and remove.
+         name = AdminPropertyName.parse(req.getProperty());
+         before = SreeEnv.getProperty(name.key(), false, false);
          result.setBeforeValue(before);
+         // Marks the snapshot read as having actually completed, so a caller can distinguish
+         // "property was unset" (beforeRead=true, beforeValue=null) from "the read itself threw"
+         // (beforeRead stays false) - see AdminChangeResult.isBeforeRead().
+         result.setBeforeRead(true);
 
          if(desired == null) {
-            sideEffects.applyPreRemoveSideEffects(req.getProperty());
-            SreeEnv.remove(req.getProperty());
+            // Side-effect hooks match exact literals (e.g. "security.exposedefaultorgtoall"), so
+            // they must receive the base name; an org-qualified name would silently never fire.
+            sideEffects.applyPreRemoveSideEffects(name.baseName());
+            SreeEnv.remove(name.key());
          }
          else {
-            SreeEnv.setProperty(req.getProperty(), desired);
+            SreeEnv.setProperty(name.key(), desired);
          }
 
          SreeEnv.save();
 
          if(desired == null) {
-            sideEffects.applyPostRemoveSideEffects(req.getProperty());
+            sideEffects.applyPostRemoveSideEffects(name.baseName());
          }
          else {
-            sideEffects.applyEditSideEffects(req.getProperty());
+            sideEffects.applyEditSideEffects(name.baseName());
          }
 
-         String after = SreeEnv.getProperty(req.getProperty());
+         String after = SreeEnv.getProperty(name.key(), false, false);
          result.setAfterValue(after);
          status = Objects.equals(after, desired)
             ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -81,7 +104,11 @@ public class AdminChangeService {
          status = AdminChangeRecord.STATUS_FAILED;
 
          try {
-            result.setAfterValue(SreeEnv.getProperty(req.getProperty()));
+            // name is null only when AdminPropertyName.parse itself threw (e.g. a blank
+            // property), in which case there is no resolved key and the raw, unparsed string
+            // is the only fallback available.
+            String key = name != null ? name.key() : req.getProperty();
+            result.setAfterValue(SreeEnv.getProperty(key, false, false));
          }
          catch(Exception ignore) {
             // leave afterValue as-is; still audit below
@@ -90,7 +117,17 @@ public class AdminChangeService {
       finally {
          result.setStatus(status);
          result.setError(error);
-         writeAudit(req, principal, before, result.getAfterValue(), status, error);
+
+         try {
+            writeAudit(req, principal, before, result.getAfterValue(), status, error);
+         }
+         catch(Exception auditFailure) {
+            // An audit write must never replace the real outcome: propagating from finally would
+            // discard the before/after evidence the caller needs to decide whether the server
+            // state moved, turning a recoverable failure into an unrecoverable one.
+            LOG.error("Failed to write admin change audit record for transaction {}",
+                      req.getTransactionId(), auditFailure);
+         }
       }
 
       return result;
@@ -142,14 +179,15 @@ public class AdminChangeService {
       record.setRiskLevel(req.getRiskLevel());
       record.setSnapshotScope(req.getSnapshotScope());
       record.setBackupRef(req.getBackupRef());
-      // reviewOutcome and userSessionID are intentionally left unpopulated in Plan 1;
-      // they are reserved for the Plan 2 broker. (organizationId IS populated downstream,
-      // by DefaultAudit, not left blank like these two.)
+      record.setReviewOutcome(req.getReviewOutcome());
+      // userSessionID is intentionally left unpopulated; organizationId IS populated downstream by
+      // DefaultAudit.
       record.setUserName(principal == null ? null : principal.getName());
       record.setActionTimestamp(new Timestamp(System.currentTimeMillis()));
       record.setServerHostName(Tool.getHost());
       Audit.getInstance().auditAdminChange(record, principal);
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(AdminChangeService.class);
    private final PropertyChangeSideEffects sideEffects;
 }

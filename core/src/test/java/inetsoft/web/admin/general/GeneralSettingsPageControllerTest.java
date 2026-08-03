@@ -263,7 +263,8 @@ class GeneralSettingsPageControllerTest {
    @Test
    void backup_delegatesToDataSpaceService() {
       BackupDataModel model = mock(BackupDataModel.class);
-      when(dataSpaceSettingsService.doBackup(model)).thenReturn("backup-ok");
+      when(dataSpaceSettingsService.doBackup(model))
+         .thenReturn(new BackupResult("backup-ok", "backup/data-20260731.zip"));
 
       assertEquals("backup-ok", controller.backup(model, principal).getStatus());
    }

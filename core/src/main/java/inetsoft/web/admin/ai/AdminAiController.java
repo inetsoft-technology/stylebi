@@ -30,19 +30,13 @@ import java.util.Map;
 @RestController
 public class AdminAiController {
    @Autowired
-   public AdminAiController(AdminChangeService changeService, AdminBackupService backupService) {
-      this.changeService = changeService;
+   public AdminAiController(AdminBackupService backupService,
+                            AdminChangePlanService planService,
+                            AdminChangesetApplyService applyService)
+   {
       this.backupService = backupService;
-   }
-
-   @Secured(@RequiredPermission(
-      resourceType = ResourceType.EM_COMPONENT,
-      resource = "settings/properties",
-      actions = ResourceAction.ACCESS))
-   @PostMapping("/api/wiz/v1/admin/change")
-   public AdminChangeResult change(@RequestBody AdminChangeRequest req, Principal user) {
-      requireSiteAdmin(user);
-      return changeService.applyChange(req, user);
+      this.planService = planService;
+      this.applyService = applyService;
    }
 
    @Secured(@RequiredPermission(
@@ -57,17 +51,38 @@ public class AdminAiController {
       return Map.of("backupRef", backupService.backup(body.get("transactionId")));
    }
 
+   /**
+    * Resolves a change list into a reviewable plan without mutating anything, and returns the
+    * {@code planHash} an {@link #apply} must echo.
+    */
    @Secured(@RequiredPermission(
       resourceType = ResourceType.EM_COMPONENT,
       resource = "settings/properties",
       actions = ResourceAction.ACCESS))
-   @PostMapping("/api/wiz/v1/admin/restore")
-   public Map<String, String> restore(@RequestBody Map<String, String> body, Principal user)
-      throws Exception
-   {
+   @PostMapping("/api/wiz/v1/admin/preview")
+   public ResolvedPlan preview(@RequestBody PlanRequest req, Principal user) {
       requireSiteAdmin(user);
-      backupService.restore(body.get("backupRef"));
-      return Map.of("status", "restored");
+      return planService.resolve(req);
+   }
+
+   /**
+    * Applies a reviewed plan, all-or-nothing.
+    *
+    * <p>Note the status contract: a {@code 200} response carries a {@code status} of
+    * {@code applied}, {@code rolled-back} or {@code rollback-failed}. An error status means no
+    * mutation occurred, so a non-200 never means "partially applied".
+    *
+    * @throws ResponseStatusException with {@code 409} and the freshly resolved plan when the
+    *         {@code planHash} is missing or stale.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT,
+      resource = "settings/properties",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/apply")
+   public ApplyResult apply(@RequestBody ApplyRequest req, Principal user) throws Exception {
+      requireSiteAdmin(user);
+      return applyService.apply(req, user);
    }
 
    /**
@@ -88,8 +103,8 @@ public class AdminAiController {
    }
 
    /**
-    * Uniformly maps client/validation errors (blank/invalid transactionId, property, action, or
-    * backup/restore reference) to HTTP 400 with a structured body, across all three endpoints.
+    * Uniformly maps client/validation errors (blank/invalid transactionId, property, or action)
+    * to HTTP 400 with a structured body, across all endpoints.
     * Scoped to {@link IllegalArgumentException} only - a catch-all {@code Exception} handler
     * would also swallow {@link ResponseStatusException} (see {@link #requireSiteAdmin}) and other
     * framework exceptions that must retain their own status codes.
@@ -101,6 +116,23 @@ public class AdminAiController {
       return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
    }
 
-   private final AdminChangeService changeService;
+   /**
+    * Maps a stale/missing {@code planHash} to {@code 409} carrying the current plan, so the caller
+    * can show the operator what changed and re-review. Deliberately not {@code 400}: the request was
+    * well-formed, the world moved.
+    */
+   @ExceptionHandler(AdminChangesetApplyService.PlanHashMismatchException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, Object> handlePlanHashMismatch(
+      AdminChangesetApplyService.PlanHashMismatchException ex)
+   {
+      return Map.of("status", "conflict",
+                    "error", String.valueOf(ex.getMessage()),
+                    "plan", ex.current());
+   }
+
    private final AdminBackupService backupService;
+   private final AdminChangePlanService planService;
+   private final AdminChangesetApplyService applyService;
 }

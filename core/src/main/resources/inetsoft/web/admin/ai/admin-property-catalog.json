@@ -1,0 +1,37 @@
+[
+  {
+    "name": "query.runtime.maxrow",
+    "aliases": ["max.rows", "max.row", "query.max.rows"],
+    "type": "int",
+    "min": 0,
+    "max": 10000000,
+    "description": "Maximum rows a query may return at runtime. 0 or blank means unlimited. Lowering it truncates large query results and shows a warning in viewsheets.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "log.detail.level",
+    "aliases": ["log.level", "logging.level"],
+    "type": "enum",
+    "allowedValues": ["debug", "info", "warn", "error", "off"],
+    "description": "Global log detail level. 'debug' is verbose and can grow log storage quickly; 'off' disables logging.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "mail.smtp.host",
+    "aliases": ["smtp.host"],
+    "type": "string",
+    "description": "Outgoing SMTP host used for scheduled reports and alerts. A wrong value fails delivery silently until the next send.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "security.exposedefaultorgtoall",
+    "aliases": ["expose.default.org"],
+    "type": "boolean",
+    "description": "Exposes the default organization's assets to all users. Changing it fires repository side effects and alters what every user can see.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  }
+]

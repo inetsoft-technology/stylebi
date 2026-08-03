@@ -15,28 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.general.model;
+package inetsoft.web.admin.ai;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
+import java.util.List;
 
-@Value.Immutable
-@JsonSerialize(as = ImmutableBackupDataModel.class)
-@JsonDeserialize(as = ImmutableBackupDataModel.class)
-public interface BackupDataModel {
-   String dataspace();
-
-   @Value.Default
-   default boolean aiSnapshot() {
-      return false;
-   }
-
-   static BackupDataModel.Builder builder() {
-      return new BackupDataModel.Builder();
-   }
-
-   final class Builder extends ImmutableBackupDataModel.Builder {
-
-   }
+/**
+ * A fully resolved change plan plus the hash an {@code apply} must echo.
+ *
+ * @param requiresStorageBackup true when any change needs a Tier-2 backup to be reversible.
+ * @param requiresAgentSignoff  true when any change is high risk.
+ * @param planHash              SHA-256 over the canonical plan, including CURRENT values, so an
+ *                              apply after drift is refused.
+ */
+public record ResolvedPlan(String task, List<PlanChange> changes, boolean requiresStorageBackup,
+                           boolean requiresAgentSignoff, String planHash)
+{
 }
