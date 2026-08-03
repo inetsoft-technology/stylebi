@@ -175,6 +175,7 @@ public class WizVisualizationService {
       // continuing a saved chart in chat could only ever produce a SECOND visualization.
       AssetEntry updateTargetEntry = null;
       AssetEntry updateTargetWsEntry = null;
+      String existingAlias = null;
 
       if(!Tool.isEmptyString(event.getExistingIdentifier())) {
          updateTargetEntry = AssetEntry.createAssetEntry(event.getExistingIdentifier());
@@ -203,9 +204,36 @@ public class WizVisualizationService {
          AssetEntry existingWsEntry = updateTargetVs.getBaseEntry();
 
          // Rewrite the worksheet the asset already points at instead of minting a new one, so
-         // repeated updates don't leave a trail of orphaned worksheets behind.
+         // repeated updates don't leave a trail of orphaned worksheets behind. Only a worksheet
+         // that lives in the managed worksheet-components folder may be overwritten: if the
+         // visualization was ever rebound to an outside worksheet (e.g. manually in Composer),
+         // that asset belongs to someone else — leave it alone and mint a fresh managed one.
          if(existingWsEntry != null && existingWsEntry.isWorksheet()) {
-            updateTargetWsEntry = existingWsEntry;
+            if(existingWsEntry.getPath() != null &&
+               existingWsEntry.getPath().startsWith(
+                  GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH + "/"))
+            {
+               updateTargetWsEntry = existingWsEntry;
+            }
+            else {
+               LOG.warn("Visualization '{}' is bound to a worksheet outside the managed folder " +
+                        "('{}'); creating a new managed worksheet instead of overwriting it",
+                        updateTargetEntry.getPath(), existingWsEntry.getPath());
+            }
+         }
+
+         // toIdentifier() carries only scope/type/user/path/orgID, so the entry rebuilt above
+         // starts with no properties, alias or creation metadata — and AbstractAssetEngine#setSheet
+         // replaces the stored entry wholesale (only favoritesUser is carried over). Copy the
+         // persisted entry's state forward so an update that omits e.g. conversationId or
+         // displayName cannot silently erase what was already saved.
+         AssetEntry storedEntry = assetRepository.getAssetEntry(updateTargetEntry);
+
+         if(storedEntry != null) {
+            updateTargetEntry.copyProperties(storedEntry);
+            updateTargetEntry.setCreatedDate(storedEntry.getCreatedDate());
+            updateTargetEntry.setCreatedUsername(storedEntry.getCreatedUsername());
+            existingAlias = storedEntry.getAlias();
          }
       }
 
@@ -226,9 +254,32 @@ public class WizVisualizationService {
       }
 
       // ── Step 4: Save the trimmed Worksheet ───────────────────────────────────
+      // On an update a request that omits displayName must not rename the asset back to the raw
+      // assembly name, so the already-stored alias takes precedence over that fallback.
       String alias = !Tool.isEmptyString(event.getDisplayName())
          ? event.getDisplayName()
-         : event.getAssemblyName();
+         : !Tool.isEmptyString(existingAlias) ? existingAlias : event.getAssemblyName();
+
+      // An update overwrites the worksheet in place, BEFORE the viewsheet is persisted below.
+      // Snapshot its current content first so a failed setViewsheet can put it back — otherwise
+      // the still-persisted, previously-working visualization would be left pointing at a
+      // worksheet that has already been stripped down for the new chart.
+      Worksheet wsBackup = null;
+      String wsBackupAlias = null;
+
+      if(updateTargetWsEntry != null) {
+         wsBackupAlias = updateTargetWsEntry.getAlias();
+
+         try {
+            wsBackup = (Worksheet) assetRepository.getSheet(
+               updateTargetWsEntry, principal, false, AssetContent.ALL);
+         }
+         catch(Exception e) {
+            LOG.warn("Could not snapshot worksheet '{}' before update; rollback will not be possible",
+                     updateTargetWsEntry.getPath(), e);
+         }
+      }
+
       AssetEntry newWsEntry = saveWorksheet(
          sourceVs, assembly, targetFolderPath, alias, updateTargetWsEntry, principal);
 
@@ -317,6 +368,19 @@ public class WizVisualizationService {
             catch(Exception ce) {
                LOG.warn("Failed to clean up orphaned worksheet after viewsheet save failure: {}",
                         newWsEntry.getPath(), ce);
+            }
+         }
+         // On an update the worksheet was already overwritten in place; restore the snapshot so
+         // the unchanged, still-persisted visualization keeps resolving its bindings.
+         else if(updateTargetWsEntry != null && wsBackup != null) {
+            try {
+               updateTargetWsEntry.setAlias(wsBackupAlias);
+               viewsheetService.setWorksheet(wsBackup, updateTargetWsEntry, principal, true, true);
+            }
+            catch(Exception re) {
+               LOG.error("Failed to restore worksheet '{}' after viewsheet update failure; the " +
+                         "saved visualization may be left in an inconsistent state",
+                         updateTargetWsEntry.getPath(), re);
             }
          }
 
