@@ -125,8 +125,20 @@ Render-location rules and the gate mechanism are unchanged from the roadmap — 
 - **Selection-list selected-highlight in export** *(Phase 5 item 7)* — selected fill is client-CSS
   only today; export-visible selection needs a new `SelectionListVSAQuery` server path. Medium effort,
   completeness value.
-- **Tabular numerals** *(Phase 5 item 8)* — no server `font-variant-numeric` support; needs a
-  font-feature capability and touches measuring/wrapping/export (font risk). Own spike before scheduling.
+- **Tabular numerals** *(Phase 5 item 8)* — **spike done (2026-07-31): WITHDRAWN, no code ships.** Three
+  findings. (a) The shipped default already has tabular figures — Roboto's ten digits all measure
+  1150/2048 em, and the docker image installs the same family for server render — so there is no defect
+  at the default. (b) Java2D exposes no OpenType feature API (`TextAttribute` carries
+  KERNING/LIGATURES/TRACKING plus Arabic/Indic `NUMERIC_SHAPING`, which is digit *shaping*, not advance
+  width), so export tabular figures are a property of the configured font, not a StyleBI capability —
+  **declared a boundary**, joining the native `<select>` and theme-image boundaries. (c) Decisively,
+  `font-variant-numeric: tabular-nums` is a **measured no-op on all 13 fonts tested**: a font listing a
+  `tnum` feature does not mean `tnum` covers its digits, and in every proportional-figure font checked
+  (Georgia, Constantia, Corbel, Candara) the `tnum` lookup coverage excludes the default old-style digits.
+  A gated rule was implemented, rebuilt, verified matching in DevTools under Georgia, measured to change
+  rendered widths not at all, and reverted. `lining-nums tabular-nums` was also tested and fixes only
+  Georgia, imperfectly. Spec:
+  [visualization-phase9c-item6-tabular-numerals.md](visualization-phase9c-item6-tabular-numerals.md).
 - **Embedded-control filtered state** *(Phase 7 A3)* — `--inet-viz-filtered-bg` still has zero
   consumers; the selection item state is inline `cellFormat.background` from server `VSFormat` and the
   range-slider band is a PNG. No CSS overlay layer exists to attach the token to without the server
