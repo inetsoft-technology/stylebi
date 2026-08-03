@@ -86,7 +86,7 @@ public class DataModelFolderManagerService {
       }
 
       IdentityID createdBy = IdentityID.getIdentityIDFromKey(principal.getName());
-      dataModel.addFolder(folderName, createdBy.name, System.currentTimeMillis());
+      dataModel.addFolder(folderName, createdBy.convertToKey(), System.currentTimeMillis());
       repository.updateDataModel(dataModel);
    }
 

@@ -309,12 +309,11 @@ public class DatabaseModelBrowserService {
    private void setFolderCreatedInfo(DataModelFolder folderModel, XDataModel dataModel,
                                      String folder)
    {
-      String createdUsername = dataModel.getFolderCreatedBy(folder);
+      String createdByKey = dataModel.getFolderCreatedBy(folder);
 
-      if(createdUsername != null) {
+      if(createdByKey != null) {
          SecurityProvider provider = securityEngine.getSecurityProvider();
-         IdentityID createdUserID = new IdentityID(createdUsername,
-            OrganizationManager.getInstance().getCurrentOrgID());
+         IdentityID createdUserID = IdentityID.getIdentityIDFromKey(createdByKey);
          User user = provider.getUser(createdUserID);
 
          if(user != null) {
@@ -326,15 +325,18 @@ public class DatabaseModelBrowserService {
       }
 
       long createdDate = dataModel.getFolderCreatedDate(folder);
+      String dateLabel = "";
 
       if(createdDate > 0) {
          LocalDateTime cdate = new Date(createdDate).toInstant()
             .atZone(ZoneId.systemDefault()).toLocalDateTime();
          String fmt = SreeEnv.getProperty("format.date.time");
          DateTimeFormatter df = DateTimeFormatter.ofPattern(fmt);
-         folderModel.setCreatedDate(createdDate);
-         folderModel.setCreatedDateLabel(df.format(cdate));
+         dateLabel = df.format(cdate);
       }
+
+      folderModel.setCreatedDate(createdDate > 0 ? createdDate : -1);
+      folderModel.setCreatedDateLabel(dateLabel);
    }
 
    public void moveDataModels(String database, List<AssetItem> items, String folder,

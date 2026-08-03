@@ -892,6 +892,10 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * Rename a folder in the data model, preserving its creation metadata.
     */
    public void renameFolder(String oldName, String newName) {
+      if(Tool.equals(oldName, newName)) {
+         return;
+      }
+
       FolderInfo info = getFolderInfo(oldName);
 
       if(info != null) {
