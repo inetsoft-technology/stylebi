@@ -33,6 +33,18 @@ import java.util.*;
  * is a catalogued name that does not exist in StyleBI: the server would snapshot {@code null},
  * apply, read back {@code null}, and report success for a property nothing reads. Verify every entry
  * against its {@code SreeEnv.getProperty}/{@code setProperty} call site before adding it.
+ *
+ * <p>{@code snapshotScope} follows one rule: {@code storage} means the property's side effect in
+ * {@code inetsoft.web.admin.properties.PropertyChangeSideEffects} mutates the key-value or blob
+ * stores; {@code value} means the side effect, if any, only invalidates an in-memory cache. Worked
+ * examples from that class: {@code format.number.round} and {@code format.percent.round} call {@code
+ * TableFormat.invalidateTableFormatCache()}, and {@code string.compare.casesensitive} calls {@code
+ * Tool.invalidateCaseSensitive()} — all three are cache-only, so {@code value} scope. {@code
+ * security.exposedefaultorgtoall} calls {@code assetRepository.fireExposeDefaultOrgPropertyChange()},
+ * which touches the asset repository, so {@code storage} scope. A new entry's {@code snapshotScope}
+ * must be determined the same way — by checking whether its side effect in {@code
+ * PropertyChangeSideEffects} touches storage or only a cache — not by guessing from the property's
+ * apparent importance.
  */
 @Component
 public class AdminPropertyCatalog {
