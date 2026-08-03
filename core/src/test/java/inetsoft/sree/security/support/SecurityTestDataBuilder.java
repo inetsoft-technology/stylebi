@@ -18,6 +18,7 @@
 package inetsoft.sree.security.support;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
@@ -230,9 +231,24 @@ public class SecurityTestDataBuilder {
       AuthorizationChain authzChain = new AuthorizationChain();
       authzChain.setProviders(Collections.singletonList(authzProvider));
 
+      // Surefire reuses one JVM across Spring test contexts. A prior class's
+      // SreeHomeExtension.afterAll nulls ConfigurationContext while PropertiesEngine's
+      // 500ms ChangeTask may still run; init() can swallow a null-kvStorage NPE and leave
+      // internalProperties set. The next setup()'s SreeEnv.save() then NPEs at
+      // kvStorage.removeListener. Repair before touching SreeEnv.
+      ensurePropertiesEngineReadyForSave();
+
       SreeEnv.setProperty("security.enabled", securityEnabled);
       SreeEnv.setProperty("security.users.multiTenant", multiTenant);
-      SreeEnv.save();
+
+      try {
+         SreeEnv.save();
+      }
+      catch(NullPointerException ex) {
+         // Narrow race: ChangeTask poisoned the bean between ensure and save.
+         ensurePropertiesEngineReadyForSave();
+         SreeEnv.save();
+      }
 
       SecurityEngine.getSecurity().init();
 
@@ -443,6 +459,25 @@ public class SecurityTestDataBuilder {
       // Re-init with security disabled so the engine's internal provider is set to null.
       // Any double-close of the shared KeyValueStorage is silently swallowed by tearDown().
       SecurityEngine.getSecurity().init();
+   }
+
+   /**
+    * Ensures {@link PropertiesEngine}'s {@code kvStorage} field is non-null and that a prior
+    * swallowed init failure has not left a poison {@code internalProperties} that would make
+    * {@link SreeEnv#save()} skip re-init and NPE on {@code removeListener}.
+    *
+    * <p>Test-only workaround for cross-context flake under a reused Surefire JVM; production
+    * {@code PropertiesEngine.save()} still assumes {@code kvStorage} was set in {@code @PostConstruct}.
+    */
+   private static void ensurePropertiesEngineReadyForSave() {
+      PropertiesEngine engine = PropertiesEngine.getInstance();
+      Object kvStorage = ReflectionTestUtils.getField(engine, "kvStorage");
+
+      if(kvStorage == null) {
+         engine.initEngine();
+         ReflectionTestUtils.setField(engine, "internalProperties", null);
+         SreeEnv.init();
+      }
    }
 
    // ── principal factory ─────────────────────────────────────────────────────

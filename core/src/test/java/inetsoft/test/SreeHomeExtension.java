@@ -31,6 +31,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.extension.*;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.*;
 import java.lang.management.*;
@@ -148,6 +149,11 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          mvSupport.dispose(mvNames);
       }
 
+      // Cancel PropertiesEngine's 500ms ChangeTask before nulling ConfigurationContext.
+      // Otherwise the debounced task can fire against the next test class's half-init
+      // Spring context (or a poison PE with kvStorage == null) and flake SreeEnv.save().
+      cancelPropertiesEngineDebouncer();
+
       Thread thread = new Thread(() -> {
          ConfigurationContext.getContext().setApplicationContext(null);
          InetsoftConfig.BOOTSTRAP_INSTANCE = null;
@@ -167,6 +173,28 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          thread.interrupt();
          throw new Exception(
             "Cleanup is stalled. Thread dump:\n" + deadlockThreadDump);
+      }
+   }
+
+   /**
+    * Best-effort cancel of {@link PropertiesEngine}'s property-change debouncer. Safe when
+    * the Spring context is already gone or PE is unavailable.
+    */
+   private static void cancelPropertiesEngineDebouncer() {
+      try {
+         if(ConfigurationContext.getContext().getApplicationContext() == null) {
+            return;
+         }
+
+         PropertiesEngine engine = PropertiesEngine.getInstance();
+         Object debouncer = ReflectionTestUtils.getField(engine, "debouncer");
+
+         if(debouncer instanceof DefaultDebouncer<?> defaultDebouncer) {
+            defaultDebouncer.cancel("change");
+         }
+      }
+      catch(Exception ignore) {
+         // Context may be shutting down; nothing further to cancel.
       }
    }
 
