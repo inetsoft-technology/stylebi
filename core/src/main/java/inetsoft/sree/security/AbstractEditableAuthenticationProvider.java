@@ -225,12 +225,9 @@ public abstract class AbstractEditableAuthenticationProvider
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
          String cssName = viewsheetFile[1];
-         boolean copied;
 
          try(InputStream in = dataSpace.getInputStream(odir, cssName)) {
-            copied = in != null;
-
-            if(copied) {
+            if(in != null) {
                dataSpace.withOutputStream(dir, cssName, out -> Tool.copyTo(in, out));
             }
          }
@@ -238,22 +235,17 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         if(copied) {
-            manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
-            manager.save();
-         }
+         manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
+         manager.save();
       }
 
       String logo = manager.getLogoEntries().get(fromOrgId);
 
       if(logo != null) {
          String logoName = logo.substring(logo.lastIndexOf('/') + 1);
-         boolean copied;
 
          try(InputStream in = dataSpace.getInputStream(odir, logoName)) {
-            copied = in != null;
-
-            if(copied) {
+            if(in != null) {
                dataSpace.withOutputStream(dir, logoName, out -> Tool.copyTo(in, out));
             }
          }
@@ -261,22 +253,17 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         if(copied) {
-            manager.addLogoEntry(newOrgID, dir + "/" + logoName);
-            manager.save();
-         }
+         manager.addLogoEntry(newOrgID, dir + "/" + logoName);
+         manager.save();
       }
 
       String favicon = manager.getFaviconEntries().get(fromOrgId);
 
       if(favicon != null) {
          String faviconName = favicon.substring(favicon.lastIndexOf('/') + 1);
-         boolean copied;
 
          try(InputStream in = dataSpace.getInputStream(odir, faviconName)) {
-            copied = in != null;
-
-            if(copied) {
+            if(in != null) {
                dataSpace.withOutputStream(dir, faviconName, out -> Tool.copyTo(in, out));
             }
          }
@@ -284,10 +271,8 @@ public abstract class AbstractEditableAuthenticationProvider
             throw new RuntimeException(e);
          }
 
-         if(copied) {
-            manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
-            manager.save();
-         }
+         manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
+         manager.save();
       }
 
       PortalWelcomePage welcomePage = manager.getWelcomePage(fromOrgId);
