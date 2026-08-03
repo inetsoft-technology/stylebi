@@ -26,6 +26,8 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -60,6 +62,12 @@ public class AutoSaveService {
             BlobStorage<AutoSaveUtils.Metadata> blobStorage = AutoSaveUtils.getStorage(null);
             loopCleanAutoSaveFiles(blobStorage, false, sevenDaysAgo);
             loopCleanAutoSaveFiles(blobStorage, true, sevenDaysAgo);
+         }
+         catch(Exception e) {
+            // isolate per-org so one org's storage failure doesn't starve cleanup for every org
+            // that sorts after it in getOrganizationIDs() on this (and, if persistent, every
+            // subsequent) scheduled run
+            LOG.warn("Failed to remove expired auto save files for organization {}", orgId, e);
          }
          finally {
             OrganizationContextHolder.clear();
@@ -119,4 +127,5 @@ public class AutoSaveService {
    }
 
    private final ViewsheetService viewsheetService;
+   private static final Logger LOG = LoggerFactory.getLogger(AutoSaveService.class);
 }
