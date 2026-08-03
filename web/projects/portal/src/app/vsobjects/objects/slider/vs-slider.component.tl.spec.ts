@@ -42,6 +42,7 @@
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { Subject } from "rxjs";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DebounceService } from "../../../widget/services/debounce.service";
@@ -349,7 +350,7 @@ describe("VSSlider", () => {
 
       beforeEach(waitForAsync(() => {
          const viewsheetClient: any = { sendEvent: vi.fn(), runtimeId: "vs-1^128^__^Sheet1" };
-         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
+         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false), scrolled: new Subject<void>() };
          const formDataService = {
             checkFormData: vi.fn(),
             removeObject: vi.fn(),

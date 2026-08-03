@@ -29,7 +29,8 @@ import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tr
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { take } from "rxjs/operators";
+import { fromEvent } from "rxjs";
+import { take, takeUntil } from "rxjs/operators";
 import { IdentityClipboardService, IdentityCopyPasteContext } from "./identity-clipboard.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { equalsIdentity } from "../users/identity-id";
@@ -228,7 +229,16 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       }
 
       this.clipboardService.copy(toCopy, this.copyPasteContext);
-      this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION });
+      const snackBarRef = this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION_SHORT });
+
+      // dismiss as soon as the user interacts elsewhere so the toast doesn't linger over the Apply button.
+      // Deferred so the listener isn't registered until after the triggering click finishes bubbling to
+      // document, otherwise the toast would be dismissed by its own opening click.
+      setTimeout(() => {
+         fromEvent(document, "click")
+            .pipe(take(1), takeUntil(snackBarRef.afterDismissed()))
+            .subscribe(() => snackBarRef.dismiss());
+      });
    }
 
    private pasteDialogOpen = false;

@@ -107,6 +107,7 @@ public class TableModeService extends WorksheetControllerService {
 
       if(table != null) {
          setLiveTableMode(table);
+         loadTabularColumns(table, rws);
          applyChanges(commandDispatcher, rws, tableName, principal);
       }
 
@@ -351,6 +352,29 @@ public class TableModeService extends WorksheetControllerService {
       AggregateInfo group = table.getAggregateInfo();
       info.setAggregate(group != null && !group.isEmpty());
       info.setPixelSize(new Dimension(AssetUtil.defw, info.getPixelSize().height));
+   }
+
+   /**
+    * Discover the columns of a tabular query that has never been executed. Without this
+    * the live data would be loaded against an empty column selection and the table would
+    * render as blank, forcing the user to run the query a second time.
+    */
+   private void loadTabularColumns(TableAssembly table, RuntimeWorksheet rws) {
+      if(!(table instanceof TabularTableAssembly) ||
+         table.getColumnSelection(false).getAttributeCount() > 0)
+      {
+         return;
+      }
+
+      AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      try {
+         ((TabularTableAssembly) table).loadColumnSelection(
+            box.getVariableTable(), true, box.getQueryManager());
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to load the columns for " + table.getName(), ex);
+      }
    }
 
    private void applyChanges(

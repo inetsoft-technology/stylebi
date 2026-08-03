@@ -329,7 +329,7 @@ describe("VSImage — Pass 3: Display", () => {
       function renderRealComponent(model: VSImageModel, actions: ImageActions = null) {
          const viewsheetClient: any = { sendEvent: vi.fn() };
          viewsheetClient.runtimeId = "Viewsheet1";
-         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
+         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false), scrolled: new Subject<void>() };
          const router: any = { navigate: vi.fn(), events: new Subject<any>() };
 
          TestBed.configureTestingModule({

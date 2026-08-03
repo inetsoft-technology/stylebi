@@ -517,6 +517,13 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    needsZIndexBoost(vsObject: VSObjectModel): boolean {
+      // Boost the z-index of a max-mode assembly (or an embedded viewsheet containing one)
+      // so its stacking context escapes any ancestor's local z-order and renders above
+      // page-level chrome, mirroring the datatip/pop-component cases below.
+      if((<any> vsObject).maxMode) {
+         return true;
+      }
+
       if(this.dataTipService.dataTipName) {
          if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
             return true;
@@ -546,6 +553,18 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
    getPopUpContentBoostZIndex(): number {
       return DateTipHelper.getPopUpContentBoostZIndex();
+   }
+
+   // The actual stacking-context z-index used for vsObject's own ".vs-object-parent-container"
+   // (see the [style.z-index] binding on that element in the template). The mini-toolbar is a
+   // sibling of that element, not a child, so it must be given a z-index derived from this same
+   // value (rather than a fixed CSS constant) to reliably stack above the assembly's own content
+   // -- assembly z-index values are server-assigned and can be arbitrarily large (e.g. for
+   // embedded-viewsheet or max-mode assemblies), easily exceeding any hardcoded CSS z-index.
+   getContainerZIndex(vsObject: VSObjectModel): number {
+      return this.isActivePopComponent(vsObject) || this.needsZIndexBoost(vsObject)
+         ? this.zIndex(vsObject) + this.popUpContentBoostZIndex
+         : this.zIndex(vsObject);
    }
 
    zIndex(vsObject: VSObjectModel): number {
@@ -598,6 +617,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       else if(obj.objectType === "VSChart") {
          return (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
             ? top ? obj?.objectFormat?.top : obj?.objectFormat?.left : 0);
+      }
+      else if(obj.objectType === "VSViewsheet") {
+         // an embedded viewsheet containing a max-mode descendant is flagged via the same
+         // (obj as any).maxMode marker (see viewer-app/vs-viewsheet onMaxModeChanged) so its
+         // focus overlay lines up with the descendant filling the viewport from (0, 0).
+         return (<any> obj).maxMode ? 0 : (top ? obj?.objectFormat?.top : obj?.objectFormat?.left);
       }
       else if(obj.objectType === "VSRangeSlider") {
          (this.viewer || this.embeddedVS) && obj.containerType !== "VSSelectionContainer" ?
