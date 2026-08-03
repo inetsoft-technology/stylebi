@@ -253,7 +253,7 @@ public class ExcelTableHelper extends VSTableHelper {
          (int) Math.round((double) info.getPixelSize().width / AssetUtil.defw));
 
       if(exporter.isMatchLayout()) {
-         rec.y = PoiExcelVSUtil.ceilY(info.getPixelOffset().y) + titleH;
+         rec.y = PoiExcelVSUtil.floorY(info.getPixelOffset().y) + titleH;
       }
 
       return rec;
