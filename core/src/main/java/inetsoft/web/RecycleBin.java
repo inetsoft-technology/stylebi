@@ -137,12 +137,14 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
    }
 
    /**
-    * Updates the owner recorded on recycle bin entries (in the current org) after a user is
+    * Updates the owner recorded on recycle bin entries (in the user's org) after a user is
     * renamed, so that entries deleted by the old username can still be located and restored.
+    * Resolves storage from {@code oldUser}'s org rather than the calling thread's ambient
+    * current org, so this is correct even when a site admin renames a user in a non-current org.
     */
    public synchronized void renameUser(IdentityID oldUser, IdentityID newUser) {
       Map<String, Entry> map = new HashMap<>();
-      KeyValueStorage<Entry> storage = getStorage();
+      KeyValueStorage<Entry> storage = getStorage(oldUser.getOrgID());
       storage.stream().forEach(p -> map.put(p.getKey(), p.getValue()));
 
       for(Map.Entry<String, Entry> e : map.entrySet()) {

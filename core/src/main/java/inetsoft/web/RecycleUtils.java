@@ -282,7 +282,7 @@ public final class RecycleUtils {
 
       newEntry.copyMetaData(oldEntry);
 
-      if(oldEntry != null && AssetUtil.isDuplicatedEntry(repository, newEntry)) {
+      if(AssetUtil.isDuplicatedEntry(repository, newEntry)) {
          if(overwrite) {
             repository.removeSheet(newEntry, principal, true);
          }
