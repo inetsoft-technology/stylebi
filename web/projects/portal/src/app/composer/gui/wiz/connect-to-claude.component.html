@@ -8,7 +8,8 @@
   <div *ngIf="code" class="wiz-connect-code mt-2">
     <span class="wiz-connect-label">Pairing Code:</span>
     <code class="wiz-connect-value ms-2">{{ code }}</code>
-    <button (click)="copyCode()" class="btn btn-sm btn-outline-secondary ms-2">
+    <button ngxClipboard [cbContent]="code" (cbOnSuccess)="onCopySuccess()" (cbOnError)="onCopyError()"
+      class="btn btn-sm btn-outline-secondary ms-2">
       {{ copied ? 'Copied!' : 'Copy' }}
     </button>
   </div>
