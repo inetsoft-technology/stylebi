@@ -115,10 +115,50 @@ public class CompositeTableAssemblyInfo extends ComposedTableAssemblyInfo {
                   break;
                }
             }
+
+            // The operator was stored for (rtable, ltable) but the caller asked about
+            // (ltable, rtable). A <=> B is symmetric as a JOIN, but its OPERANDS are not
+            // interchangeable -- so hand back a reversed view rather than one whose
+            // left/right attributes belong to the opposite tables. Callers pair the
+            // attributes with the tables THEY named: JoinQuery walks base tables
+            // positionally (i < ri) and resolves getLeftAttribute() against tables[i], so a
+            // reverse-oriented operator made it qualify the key with the wrong table --
+            // emitting `column projects.project_id does not exist` when generating merged
+            // SQL, and silently dropping the condition into a cross join on the
+            // post-processing path. That made a perfectly well-formed worksheet fail (or
+            // quietly return wrong rows) purely because of the order its base tables were
+            // declared in.
+            if(operator != null) {
+               operator = reverse(operator);
+            }
          }
       }
 
       return operator;
+   }
+
+   /**
+    * Build a reversed view of an operator: left and right swapped on every child, so it reads
+    * correctly for the (ltable, rtable) order the caller asked about. Only ever applied to
+    * symmetric operations (the loop above rejects the asymmetric ones), for which swapping the
+    * operands preserves the meaning. Returns a copy -- the stored operator keeps its own
+    * orientation, and no caller mutates what getOperator hands back.
+    */
+   private static TableAssemblyOperator reverse(TableAssemblyOperator operator) {
+      TableAssemblyOperator reversed = new TableAssemblyOperator();
+
+      for(int i = 0; i < operator.getOperatorCount(); i++) {
+         TableAssemblyOperator.Operator op = operator.getOperator(i);
+         TableAssemblyOperator.Operator rop = (TableAssemblyOperator.Operator) op.clone();
+
+         rop.setLeftAttribute(op.getRightAttribute());
+         rop.setRightAttribute(op.getLeftAttribute());
+         rop.setLeftTable(op.getRightTable());
+         rop.setRightTable(op.getLeftTable());
+         reversed.addOperator(rop);
+      }
+
+      return reversed;
    }
 
    /**
