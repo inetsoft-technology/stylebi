@@ -162,6 +162,56 @@ public class AssemblyImageService {
       return imageResultsRef.get();
    }
 
+   /**
+    * Same as {@link #processGetAssemblyImage(String, String, double, double, double, double,
+    * String, int, int, int, Principal, boolean, boolean)} but for a caller that already holds an
+    * authorized {@link RuntimeViewsheet} and must not re-resolve it via
+    * {@code ViewsheetService.getViewsheet(vid, principal)} — that re-resolution enforces the
+    * normal session {@code matches()} check, which rejects a caller whose principal isn't the
+    * exact browser session that opened the runtime (e.g. a pairing-authorized agent, whose
+    * rebuilt principal has a different per-connection identity than the browser's).
+    *
+    * <p><b>Precondition — security-relevant:</b> this overload performs NO ownership check of
+    * its own. The caller MUST have independently verified the caller is allowed to access
+    * {@code rvs} before invoking it (e.g. via {@code SheetRuntimeAccess.getSheetForPairing},
+    * which itself requires a verified {@code PairingGrant} — see {@code SheetJoinService}'s
+    * same-logical-user + runtime-ownership checks). Do not call this with an unauthorized or
+    * unverified {@link RuntimeViewsheet}.</p>
+    */
+   public ImageRenderResult processGetAssemblyImage(RuntimeViewsheet rvs, String aid, double width,
+                                       double height, double maxWidth, double maxHeight,
+                                       String aname, int index, int row, int col,
+                                       Principal principal, boolean svg, boolean export)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      String sheetName = box.map(ViewsheetSandbox::getAssetEntry).map(AssetEntry::getPath).orElse("");
+      String assemblyName = Tool.byteDecode(aid);
+      AtomicReference<ImageRenderResult> imageResultsRef = new AtomicReference<>();
+
+      try {
+         GroupedThread.withGroupedThread(groupedThread -> {
+            groupedThread.addRecord(LogContext.DASHBOARD.getRecord(sheetName));
+            groupedThread.addRecord(LogContext.ASSEMBLY.getRecord(assemblyName));
+         });
+
+         ProfileUtils.addExecutionBreakDownRecord(box.map(ViewsheetSandbox::getID).orElse(rvs.getID()),
+             ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
+               ImageRenderResult result = processGetAssemblyImage1(rvs, aid, width, height, maxWidth, maxHeight, aname, index,
+                                        row, col, principal, svg, export);
+              imageResultsRef.set(result);
+         });
+      }
+      finally {
+         GroupedThread.withGroupedThread(groupedThread -> {
+            groupedThread.removeRecord(LogContext.DASHBOARD.getRecord(sheetName));
+            groupedThread.removeRecord(LogContext.ASSEMBLY.getRecord(assemblyName));
+         });
+      }
+
+      return imageResultsRef.get();
+   }
+
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public MessageCommand checkExporting(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
@@ -576,7 +626,28 @@ public class AssemblyImageService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
 
-      if(rvs == null || width <= 0 || height <= 0) {
+      if(rvs == null) {
+         return null;
+      }
+
+      return processGetAssemblyImage1(rvs, aid, width, height, maxWidth, maxHeight, aname, index,
+                                      row, col, principal, svg, export);
+   }
+
+   /**
+    * Same as {@link #processGetAssemblyImage1(String, String, double, double, double, double,
+    * String, int, int, int, Principal, boolean, boolean)} but for a caller that already holds an
+    * authorized {@link RuntimeViewsheet} — see the precondition on
+    * {@link #processGetAssemblyImage(RuntimeViewsheet, String, double, double, double, double,
+    * String, int, int, int, Principal, boolean, boolean)}, which this mirrors.
+    */
+   private ImageRenderResult processGetAssemblyImage1(RuntimeViewsheet rvs, String aid, double width, double height,
+                                         double maxWidth, double maxHeight, String aname,
+                                         int index, int row, int col, Principal principal,
+                                         boolean svg, boolean export)
+      throws Exception
+   {
+      if(width <= 0 || height <= 0) {
          return null;
       }
 
@@ -667,7 +738,7 @@ public class AssemblyImageService {
                   SreeEnv.setProperty("webmap.suspend.until", hours24 + "");
 
                   box.get().clearGraph(name);
-                  return processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname,
+                  return processGetAssemblyImage1(rvs, aid, width, height, maxWidth, maxHeight, aname,
                                            index, row, col, principal, svg, export);
                }
                finally {
@@ -748,7 +819,7 @@ public class AssemblyImageService {
          resultHeight = image.getHeight();
       }
 
-      String key = "/" + AssemblyImageService.class.getName() + "_" + vid + "_" + aid +
+      String key = "/" + AssemblyImageService.class.getName() + "_" + rvs.getID() + "_" + aid +
          "_" + index + "_" + row + "_" + col;
       BinaryTransfer imageData = binaryTransferService.createBinaryTransfer(key);
       binaryTransferService.setData(imageData, buf);

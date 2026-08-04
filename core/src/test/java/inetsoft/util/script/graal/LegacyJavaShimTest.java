@@ -69,6 +69,88 @@ class LegacyJavaShimTest {
    }
 
    /**
+    * Bug #75807, Rhino coerced a numeric string to a number when scoring a
+    * numeric constructor parameter, so a hex colour built by concatenation --
+    * java.awt.Color('0x' + 'FF6B58') -- selected Color(int).
+    */
+   @Test
+   void numericStringCoercesToConstructorNumber() throws Exception {
+      // the failing idiom: the hex digits come from data, so the argument is a
+      // string, not the 0xFF6B58 numeric literal.
+      assertEquals((double) 0xFF, num(eval("java.awt.Color('0x' + 'FF6B58').getRed()")));
+      assertEquals((double) 0x6B, num(eval("java.awt.Color('0xFF6B58').getGreen()")));
+      assertEquals((double) 0x58, num(eval("new java.awt.Color('0xFF6B58').getBlue()")));
+
+      // a plain decimal string coerces too, and reaches the int overload
+      assertEquals(3.0, num(eval("java.awt.Color('66051').getBlue()")));
+   }
+
+   /**
+    * The coercion is a retry after GraalVM rejects the arguments, so a string
+    * argument that a real String constructor accepts is never re-targeted at a
+    * numeric overload.
+    */
+   @Test
+   void numericStringStillPrefersStringConstructor() throws Exception {
+      // StringBuilder(String) and StringBuilder(int) both exist; "12" must build
+      // the two-character sequence, not a builder with capacity 12.
+      assertEquals(2.0, num(eval("new java.lang.StringBuilder('12').length()")));
+   }
+
+   /**
+    * A non-numeric string is left alone so the reported error still names the
+    * argument the script actually passed.
+    */
+   @Test
+   void nonNumericStringDoesNotCoerce() {
+      assertThrows(Exception.class, () -> eval("java.awt.Color('nonsense').getRed()"));
+
+      // a bare "0x" and a hex value too wide for long are not numbers either
+      assertThrows(Exception.class, () -> eval("java.awt.Color('0x').getRed()"));
+      assertThrows(Exception.class,
+                   () -> eval("java.awt.Color('0xFFFFFFFFFFFFFFFFFF').getRed()"));
+   }
+
+   /**
+    * The Java number parsers accept forms that would silently coerce to a real
+    * value instead of being left alone, so the literal is matched before
+    * parsing. Number() rejects all of these except signed Infinity, which is
+    * excluded by choice -- a data-derived "Infinity" is a nonsense constructor
+    * argument. (#75807)
+    */
+   @Test
+   void javaOnlyNumericFormsDoNotCoerce() throws Exception {
+      // control: BasicStroke(float) is reachable and does take a coerced string,
+      // so the rejections below are the grammar check, not an unrelated failure.
+      assertEquals(2.0, num(eval("java.awt.BasicStroke('2').getLineWidth()")));
+
+      // Long.parseLong permits a sign for any radix, so "0x-5" parsed as -5.
+      assertThrows(Exception.class, () -> eval("java.awt.Color('0x-5').getRed()"));
+      assertThrows(Exception.class, () -> eval("java.awt.Color('0x+5').getRed()"));
+
+      // Double.parseDouble accepts the d/f width suffixes, so "66051f" parsed
+      // as the 66051 that reached Color(int).
+      assertThrows(Exception.class, () -> eval("java.awt.Color('66051f').getRed()"));
+
+      // ...and the NaN/Infinity words, which reached a float parameter.
+      // Number() does accept signed Infinity; it is left alone here by choice.
+      assertThrows(Exception.class, () -> eval("java.awt.BasicStroke('NaN').getLineWidth()"));
+      assertThrows(Exception.class,
+                   () -> eval("java.awt.BasicStroke('Infinity').getLineWidth()"));
+      assertThrows(Exception.class,
+                   () -> eval("java.awt.BasicStroke('-Infinity').getLineWidth()"));
+   }
+
+   /**
+    * A leading zero is decimal in JavaScript ("010" is 10, not octal 8), so only
+    * an explicit 0x prefix may change the radix.
+    */
+   @Test
+   void leadingZeroStringStaysDecimal() throws Exception {
+      assertEquals(10.0, num(eval("java.awt.Color('010').getBlue()")));
+   }
+
+   /**
     * Rhino parity: a JS Date passed where a numeric coordinate is expected
     * (e.g. LabelForm.setTuple(double[]) on a time axis) must coerce to epoch
     * millis, not error. Mirrors the Projection example viewsheet. (#75423)

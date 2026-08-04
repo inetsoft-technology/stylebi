@@ -121,14 +121,29 @@ public class WizPrintLayoutBuilder {
          vsLayouts.add(new VSAssemblyLayout(assembly.getName(), new Point(0, chartY),
             new Dimension(PAGE_CONTENT_WIDTH_PT, CHART_HEIGHT_PT)));
 
+         int contentBottom = chartY + CHART_HEIGHT_PT;
+
          if(c.insightsMarkdown() != null && !c.insightsMarkdown().isBlank()) {
-            int insightsY = chartY + CHART_HEIGHT_PT;
             // One markdown box; MarkdownPresenter renders headers/bullets/inline bold+italic and
             // the converter paints it via a presenter painter (see VsToReportConverter).
-            addMarkdownBlock(vsLayouts, "wizMarkdownInsights_" + i, c.insightsMarkdown(), insightsY);
+            contentBottom = addMarkdownBlock(vsLayouts, "wizMarkdownInsights_" + i,
+                                             c.insightsMarkdown(), contentBottom);
          }
 
-         page++;
+         // Advance past everything just placed, not by a fixed one page.
+         //
+         // THE DEFECT THIS FIXES. `page++` assumed a chart's block always fits inside one stride,
+         // but it does not: page 1 also carries the report header, and an insights block is as tall
+         // as its prose. On a letter page (stride ~713pt) a header of ~150 plus caption 30, chart
+         // 400 and a ~200pt insights block reaches ~780 — so the NEXT chart, pinned at
+         // 1 * stride = 713, was drawn straight over the tail of the previous one's insights.
+         // Observed in an exported PDF as the first chart's prose colliding with the second chart's
+         // caption and plot.
+         //
+         // addMarkdownBlock already measured and returned that bottom; the caller simply discarded
+         // it. Round up to the next page boundary at or after it, and never advance less than one
+         // page so every chart still starts on its own.
+         page = Math.max(page + 1, (int) Math.ceil((double) contentBottom / pageStride));
       }
 
       layout.setVSAssemblyLayouts(vsLayouts);

@@ -440,10 +440,18 @@ public class RepletEngine extends AbstractAssetEngine
       }
 
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      // Go straight to the SecurityProvider instead of through SecurityEngine.checkPermission(),
+      // which additionally requires the principal to be present in SecurityEngine's live-login
+      // cache. That cache is keyed by the principal's current identity, so it is not updated when
+      // the principal's owning identity is renamed, causing these checks to incorrectly report
+      // the caller as not logged in even though it holds an active EM WebSocket subscription
+      // (Bug #75830). hasTaskResourcePermission() replicates SecurityEngine's ADMIN-inheritance
+      // fallback so behavior otherwise matches.
+      SecurityProvider securityProvider = getSecurity().getSecurityProvider();
       boolean principalHasPermission =
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.READ) &&
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE) &&
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.DELETE) &&
+         hasTaskResourcePermission(securityProvider, principal, task.getTaskId(), ResourceAction.READ) &&
+         hasTaskResourcePermission(securityProvider, principal, task.getTaskId(), ResourceAction.WRITE) &&
+         hasTaskResourcePermission(securityProvider, principal, task.getTaskId(), ResourceAction.DELETE) &&
          pId != null && pId.orgID.equals(task.getOwner().orgID);
 
       if(principalHasPermission) {
@@ -451,15 +459,15 @@ public class RepletEngine extends AbstractAssetEngine
       }
 
       boolean internalTaskPermission = ScheduleManager.isInternalTask(task.getTaskId()) &&
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.READ) &&
+         hasTaskResourcePermission(securityProvider, principal, task.getTaskId(), ResourceAction.READ) &&
          XPrincipal.SYSTEM.equals(task.getOwner().name);
 
       if(internalTaskPermission || ScheduleManager.isInternalTask(task.getTaskId())) {
          return internalTaskPermission;
       }
 
-      boolean isOwnerAdmin = task.getOwner() != null && checkPermission(
-         principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
+      boolean isOwnerAdmin = task.getOwner() != null && securityProvider.checkPermission(
+         principal, ResourceType.SECURITY_USER, task.getOwner().convertToKey(), ResourceAction.ADMIN);
 
       if(isOwnerAdmin) {
          return true;
@@ -468,6 +476,19 @@ public class RepletEngine extends AbstractAssetEngine
       boolean isShareRole = ScheduleManager.getScheduleManager()
          .hasShareGroupPermission(task, principal);
       return isShareRole;
+   }
+
+   /**
+    * Check a SCHEDULE_TASK resource permission directly against the SecurityProvider, applying
+    * the same ADMIN-inheritance fallback as SecurityEngine.checkPermission(Principal,
+    * ResourceType, String, ResourceAction) (a grant of ADMIN also satisfies non-ADMIN actions).
+    */
+   private boolean hasTaskResourcePermission(SecurityProvider securityProvider, Principal principal,
+                                             String taskId, ResourceAction action)
+   {
+      return securityProvider.checkPermission(principal, ResourceType.SCHEDULE_TASK, taskId, action) ||
+         (action != ResourceAction.ADMIN &&
+             securityProvider.checkPermission(principal, ResourceType.SCHEDULE_TASK, taskId, ResourceAction.ADMIN));
    }
 
    public boolean taskHasShareGroupPermission(IdentityID owner, Principal principal) {

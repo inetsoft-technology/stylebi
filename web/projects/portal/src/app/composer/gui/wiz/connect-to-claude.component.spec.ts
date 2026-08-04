@@ -124,6 +124,41 @@ describe("ConnectToClaudeComponent", () => {
       expect(component.loading).toBe(false);
    });
 
+   it("copy button uses the ngxClipboard directive instead of navigator.clipboard", () => {
+      // navigator.clipboard is undefined in insecure contexts (plain http on a
+      // non-localhost host); the copy button must not depend on it directly.
+      let capturedHandler: ((msg: any) => void) | null = null;
+      mockStompConnection.subscribe.mockImplementation((_dest: string, handler: (msg: any) => void) => {
+         capturedHandler = handler;
+         return { unsubscribe: vi.fn() };
+      });
+
+      component.requestCode();
+      capturedHandler!({ frame: { body: JSON.stringify({ code: "ABC123" }) } });
+      fixture.detectChanges();
+
+      const copyButton: HTMLButtonElement = fixture.nativeElement.querySelector(".wiz-connect-code button");
+      expect(copyButton.hasAttribute("ngxclipboard")).toBe(true);
+      expect((component as any).copyCode).toBeUndefined();
+   });
+
+   it("onCopySuccess shows the copied indicator then clears it after a delay", () => {
+      vi.useFakeTimers();
+
+      component.onCopySuccess();
+      expect(component.copied).toBe(true);
+
+      vi.advanceTimersByTime(2000);
+      expect(component.copied).toBe(false);
+
+      vi.useRealTimers();
+   });
+
+   it("onCopyError sets an error message", () => {
+      component.onCopyError();
+      expect(component.error).toBe("Could not copy to clipboard — please copy the code manually.");
+   });
+
    it("ngOnDestroy unsubscribes pending mint", () => {
       const subSpy = { unsubscribe: vi.fn() };
       mockStompConnection.subscribe.mockReturnValue(subSpy);

@@ -17,6 +17,7 @@
  */
 import { Component, Input, NgZone, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
 import { NgIf } from "@angular/common";
+import { ClipboardModule } from "ngx-clipboard";
 import { Subscription } from "rxjs";
 import { take } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
@@ -26,7 +27,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
    selector: "wiz-connect-to-claude",
    templateUrl: "./connect-to-claude.component.html",
    standalone: true,
-   imports: [NgIf]
+   imports: [NgIf, ClipboardModule]
 })
 export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
    @Input() runtimeId!: string;
@@ -92,21 +93,17 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
       });
    }
 
-   copyCode(): void {
-      navigator.clipboard.writeText(this.code!).then(() => {
+   onCopySuccess(): void {
+      this.copied = true;
+      setTimeout(() => {
          this.zone.run(() => {
-            this.copied = true;
-            setTimeout(() => {
-               this.zone.run(() => {
-                  this.copied = false;
-               });
-            }, 2000);
+            this.copied = false;
          });
-      }).catch(() => {
-         this.zone.run(() => {
-            this.error = "Could not copy to clipboard — please copy the code manually.";
-         });
-      });
+      }, 2000);
+   }
+
+   onCopyError(): void {
+      this.error = "Could not copy to clipboard — please copy the code manually.";
    }
 
    ngOnDestroy(): void {

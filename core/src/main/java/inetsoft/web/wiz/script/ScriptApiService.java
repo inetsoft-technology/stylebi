@@ -83,16 +83,18 @@ public class ScriptApiService {
       try(InputStream in = getClass().getResourceAsStream(RESOURCE)) {
          if(in == null) {
             LOG.warn("Script API metadata resource not found: {}", RESOURCE);
-            return new ObjectMapper().createObjectNode();
+            return MAPPER.createObjectNode();
          }
 
-         return new ObjectMapper().readTree(in);
+         return MAPPER.readTree(in);
       }
       catch(Exception e) {
          LOG.warn("Failed to load script API metadata", e);
-         return new ObjectMapper().createObjectNode();
+         return MAPPER.createObjectNode();
       }
    }
+
+   private static final ObjectMapper MAPPER = new ObjectMapper();
 
    private volatile JsonNode root;
 }

@@ -142,7 +142,7 @@ public class GeneralSettingsPageController {
    )
    @PostMapping("/api/em/general/settings/data-space/backup")
    public ConnectionStatus backup(@RequestBody BackupDataModel model, Principal principal) {
-      return new ConnectionStatus(dataSpaceSettingsService.doBackup(model));
+      return new ConnectionStatus(dataSpaceSettingsService.doBackup(model).status());
    }
 
    @Secured(

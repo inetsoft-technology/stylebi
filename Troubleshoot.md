@@ -37,18 +37,24 @@ To resolve this, set `INETSOFT_ADMIN_PASSWORD` to a valid password before starti
 storage:
   environment:
     # the password for the "admin" user
-    INETSOFT_ADMIN_PASSWORD: "Test@admin1"
+    INETSOFT_ADMIN_PASSWORD: "changeme"
 ```
 
 or as an environment variable in your shell before running `docker compose up`:
 
+On Linux or macOS:
+
 ```shell
-export INETSOFT_ADMIN_PASSWORD="Test@admin1"
+export INETSOFT_ADMIN_PASSWORD="changeme"
 ```
 
-```powershell
-$env:INETSOFT_ADMIN_PASSWORD="Test@admin1"
+On Windows (Command Prompt):
+
+```cmd
+set INETSOFT_ADMIN_PASSWORD=changeme
 ```
+
+Note that setting the variable this way only applies to the current terminal session, so you must run `docker compose up` in that same session.
 
 or by uncommenting and setting `INETSOFT_ADMIN_PASSWORD` in the `.env` file included with the community examples.
 

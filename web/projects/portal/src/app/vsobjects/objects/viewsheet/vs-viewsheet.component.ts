@@ -455,6 +455,18 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
 
    onMaxModeChanged($event: {assembly: string, maxMode: boolean}) {
       this.maxMode = $event.maxMode;
+
+      // if the max-mode assembly is nested inside a further-embedded viewsheet below this
+      // one, flag that viewsheet too so it repositions to (0, 0) instead of leaving the
+      // enlarged descendant (and its mini-toolbar) offset by its own un-enlarged position.
+      // Reset unconditionally (not just when entering max mode) so the flag doesn't linger
+      // on the nested viewsheet after max mode closes.
+      this.vsObjects.forEach(obj => {
+         if(obj.objectType === "VSViewsheet") {
+            (obj as any).maxMode = $event.maxMode && $event.assembly.startsWith(obj.absoluteName + ".");
+         }
+      });
+
       this.maxModeChange.emit($event);
    }
 

@@ -27,6 +27,11 @@ import org.immutables.value.Value;
 public interface BackupDataModel {
    String dataspace();
 
+   @Value.Default
+   default boolean aiSnapshot() {
+      return false;
+   }
+
    static BackupDataModel.Builder builder() {
       return new BackupDataModel.Builder();
    }

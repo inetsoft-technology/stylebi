@@ -626,20 +626,6 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          else if(entry.isScheduleTask()) {
             //ignore internal tasks, but do not let them pass to be generically handled
             if(!ScheduleManager.isInternalTask(entry.getName())) {
-               XMLSerializable result = getXMLSerializable(key, null, oId);
-
-               if(result instanceof ScheduleTask) {
-                  ScheduleTask task = (ScheduleTask) result;
-                  boolean usedTimeRange = task.getConditionStream()
-                     .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
-                     .findFirst()
-                     .isPresent();
-
-                  if(usedTimeRange) {
-                     continue;
-                  }
-               }
-
                executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
             }
          }

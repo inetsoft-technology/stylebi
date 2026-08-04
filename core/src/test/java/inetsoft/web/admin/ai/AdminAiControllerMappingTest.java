@@ -61,12 +61,21 @@ class AdminAiControllerMappingTest {
    }
 
    @Test
-   void mappingsMatchTheFrozenBrokerContract() {
+   void mappingsMatchTheFrozenContract() {
       assertEquals(
-         Set.of("/api/wiz/v1/admin/change",
-                "/api/wiz/v1/admin/backup",
-                "/api/wiz/v1/admin/restore"),
+         Set.of("/api/wiz/v1/admin/backup",
+                "/api/wiz/v1/admin/preview",
+                "/api/wiz/v1/admin/apply"),
          new HashSet<>(postMappingPaths(AdminAiController.class)));
+   }
+
+   @Test
+   void singlePropertyChangeEndpointIsNotExposed() {
+      // POST /change bypassed the preview/apply review gate entirely. AdminChangeService.applyChange
+      // remains as the internal primitive, but it must not be reachable over HTTP.
+      assertFalse(postMappingPaths(AdminAiController.class).stream()
+         .anyMatch(path -> path.endsWith("/change")),
+         "POST /change must not be mapped: it bypasses the plan-hash review gate");
    }
 
    private static List<String> postMappingPaths(Class<?> controller) {

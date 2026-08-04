@@ -20,13 +20,17 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.script.TableArray;
+import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +47,7 @@ import java.net.URL;
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -334,6 +339,38 @@ public class ViewsheetScopeTest {
 
       ViewsheetScope viewsheetScope1 = (ViewsheetScope)viewsheetScope.clone();
       assertEquals("ViewsheetScope", viewsheetScope1.getClassName());
+   }
+
+   /**
+    * Bug #75807, a qualified read of a base-worksheet table name -- e.g.
+    * viewsheet['Query1'] -- is dispatched straight at the viewsheet scope, so it
+    * has to resolve through the chain that addToPrototype() links to the
+    * worksheet's AssetQueryScope.
+    */
+   @Test
+   void testWorksheetTableResolvedThroughChain() {
+      AssetQuerySandbox wbox = sandbox.getAssetQuerySandbox();
+      String tname = Arrays.stream(wbox.getWorksheet().getAssemblies())
+         .filter(a -> a instanceof TableAssembly)
+         .map(Assembly::getName)
+         .filter(name -> !viewsheetScope.hasMember(name))
+         .findFirst()
+         .orElseThrow();
+
+      // not resolvable until the worksheet scope is chained onto this scope
+      assertFalse(viewsheetScope.hasMember(tname));
+      assertNull(viewsheetScope.getMember(tname));
+
+      AssetQueryScope wscope = new AssetQueryScope(wbox);
+      wscope.setMode(viewsheetScope.getMode());
+      JavaScriptEngine.addToPrototype(viewsheetScope, wscope);
+
+      assertTrue(viewsheetScope.hasMember(tname));
+      assertInstanceOf(TableArray.class, viewsheetScope.getMember(tname));
+
+      // a name owned by neither scope stays absent
+      assertFalse(viewsheetScope.hasMember("NoSuchTable75807"));
+      assertNull(viewsheetScope.getMember("NoSuchTable75807"));
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {

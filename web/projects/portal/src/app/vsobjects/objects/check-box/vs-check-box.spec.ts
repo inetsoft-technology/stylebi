@@ -20,6 +20,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { Subject } from "rxjs";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StompClientService, ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -65,7 +66,7 @@ describe("vs check box component unit case", () => {
          replaceObject: vi.fn()
       };
       debounceService = {debounce: vi.fn((key, fn, delay, args) => fn(...args))};
-      dataTipService = {isDataTip: vi.fn()};
+      dataTipService = {isDataTip: vi.fn(), scrolled: new Subject<void>()};
       const contextProvider = {};
       dialogService = {open: vi.fn()};
       modelService = {getModel: vi.fn()};

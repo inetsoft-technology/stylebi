@@ -71,6 +71,65 @@ class PoiPptxDeckMergerTest {
       return sb.toString();
    }
 
+   /**
+    * LIVE BUG, seen in an exported deck: the slide caption ran over the chart, covering the plot's
+    * own title and top bars.
+    *
+    * <p>The caption is drawn ON TOP of the imported chart slide, in a fixed 44pt band at a fixed
+    * 22pt. That band holds about two lines; a caption made of real prose wraps to three or more and
+    * everything past the band lands on the chart. It now shrinks to fit, and truncates only if it
+    * still will not fit at the floor.
+    */
+   @Test
+   void aLongCaptionIsFittedToItsBandInsteadOfRunningOverTheChart() throws Exception {
+      String title = "bar";
+      String caption = "Portfolio shape: planned hours per project. Heavily right-tailed — one " +
+         "programme carries roughly a third of all planned effort, and the mean sits at more than " +
+         "double the median, so an average-project figure would describe none of them.";
+
+      byte[] deck = merger.mergeSlides("Board", null, List.of(
+         new PptxDeckMerger.ChartSlide(title, caption, oneSlideDeckWithText("chart"), false)));
+
+      try(XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(deck))) {
+         XSLFTextBox captionBox = show.getSlides().get(1).getShapes().stream()
+            .filter(sh -> sh instanceof XSLFTextBox)
+            .map(sh -> (XSLFTextBox) sh)
+            .filter(b -> b.getText() != null && b.getText().startsWith("bar —"))
+            .findFirst().orElseThrow(() -> new AssertionError("no caption box on the chart slide"));
+
+         double fontPt = captionBox.getTextParagraphs().get(0).getTextRuns().get(0).getFontSize();
+         double bandPt = captionBox.getAnchor().getHeight();
+         double needed = PoiPptxDeckMerger.textHeightPt(captionBox.getText(), fontPt,
+                                                        captionBox.getAnchor().getWidth());
+
+         assertTrue(needed <= bandPt,
+            "the caption must fit its " + bandPt + "pt band (needs " + needed + "pt at " + fontPt +
+            "pt) — anything taller is painted over the chart");
+         assertTrue(fontPt <= 22.0 && fontPt >= 12.0,
+            "shrunk to fit but not below the readable floor (got " + fontPt + "pt)");
+      }
+   }
+
+   @Test
+   void aShortCaptionKeepsTheFullSizeAndIsNotTruncated() throws Exception {
+      // The fit logic must not shrink or clip a caption that already fits.
+      byte[] deck = merger.mergeSlides("Board", null, List.of(
+         new PptxDeckMerger.ChartSlide("Revenue", "by region", oneSlideDeckWithText("chart"), false)));
+
+      try(XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(deck))) {
+         XSLFTextBox captionBox = show.getSlides().get(1).getShapes().stream()
+            .filter(sh -> sh instanceof XSLFTextBox)
+            .map(sh -> (XSLFTextBox) sh)
+            .filter(b -> b.getText() != null && b.getText().startsWith("Revenue"))
+            .findFirst().orElseThrow();
+
+         assertEquals("Revenue — by region", captionBox.getText(), "short caption kept verbatim");
+         assertEquals(22.0,
+            captionBox.getTextParagraphs().get(0).getTextRuns().get(0).getFontSize(), 0.01,
+            "no shrink when it already fits");
+      }
+   }
+
    @Test
    void mergesTitleSlidePlusOnePerChart() throws Exception {
       byte[] chart1 = oneSlideDeckWithText("CHART_ONE_MARKER");
