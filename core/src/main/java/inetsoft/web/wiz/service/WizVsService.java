@@ -157,38 +157,91 @@ public class WizVsService {
       Viewsheet vs = getValidatedViewsheet(rvs);
       VSAssembly assembly = resolveChartAssembly(vs, model.getAssemblyName());
 
+      String copyNote = null;
+      VSAssembly demotedOriginal = null;
+      VSAssembly rollbackCopy = null;
+
+      // Copy-then-apply: mirrors applyHighlight / setChartFormat / setChartColors — duplicate the target
+      // BEFORE applying the comparison, so the original is left untouched and the comparison lands on a
+      // new, parallel copy instead. Requested by the caller exactly when its turn has not yet established
+      // a chart of its own (see ApplyDateComparisonModel.copy); after a create or a binding rebind the
+      // caller sends false and this is skipped, so no intermediate copy is orphaned.
+      if(model.isCopy()) {
+         VSAssembly duplicated = duplicatePrimaryAssembly(rvs, assembly);
+
+         if(duplicated != null) {
+            demotedOriginal = assembly;
+            rollbackCopy = duplicated;
+            assembly = duplicated;
+         }
+         else {
+            copyNote = "Copy requested but could not be created; date comparison applied in place.";
+            LOG.warn("applyDateComparison: duplicatePrimaryAssembly failed for {}; " +
+               "falling back to in-place apply.", model.getAssemblyName());
+         }
+      }
+
       VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
 
       if(!(assemblyInfo instanceof DateCompareAbleAssemblyInfo)) {
+         // Thrown BEFORE the try below, so undo the duplication here: nothing else will.
+         if(rollbackCopy != null) {
+            rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
+            demotedOriginal.setPrimary(true);
+         }
+
          throw new IllegalArgumentException(
             "Assembly '" + assembly.getName() + "' does not support date comparison");
       }
 
-      // REUSE StyleBI's own JSON->DateComparisonInfo conversion (do not re-derive).
-      DateComparisonInfo info = model.getDateComparisonModel().getDateComparisonPaneModel()
-         .toDateComparisonInfo();
+      CreateViewsheetResult result;
 
-      // color aesthetic may change (mirrors DateComparisonDialogService.setDateComparison).
-      vs.clearSharedFrames();
-      ((DateCompareAbleAssemblyInfo) assemblyInfo).setDateComparisonInfo(info);
+      // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary.
+      // Nothing below is durably committed until persistViewsheet returns, so a throw anywhere in this
+      // block must undo that live-runtime mutation (remove the copy, restore the original's primary flag)
+      // rather than leave the runtime holding an added/promoted copy the caller never learns about.
+      // Mirrors applyHighlight's identical rollback.
+      try {
+         // REUSE StyleBI's own JSON->DateComparisonInfo conversion (do not re-derive).
+         DateComparisonInfo info = model.getDateComparisonModel().getDateComparisonPaneModel()
+            .toDateComparisonInfo();
 
-      int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
-      CreateViewsheetResult result = executeAndExtract(rvs, assembly, sampleMaxRows);
-      // Order matters: executeAndExtract runs executeView, which populates the chart's RT refs;
-      // collectFlatBinding prefers RT refs, so it must come after. The binding itself is unchanged
-      // by the comparison, but recomputing it keeps the response shape identical to /viewsheet/create.
-      result.setBinding(collectFlatBinding(assembly));
-      result.setAssemblyName(assembly.getName());
-      result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
+         // color aesthetic may change (mirrors DateComparisonDialogService.setDateComparison). This is a
+         // viewsheet-level CACHE invalidation, not state to restore: clearing it only forces the shared
+         // frames to be recomputed, so the rollback above deliberately does not undo it.
+         vs.clearSharedFrames();
+         ((DateCompareAbleAssemblyInfo) assemblyInfo).setDateComparisonInfo(info);
 
-      // Persist the mutated DateComparisonInfo to the DURABLE viewsheet asset named by the request
-      // identifier (the asset the viewer reopens), NOT the live runtime's own entry. A wiz chart runs on
-      // a TEMPORARY runtime whose entry is outside the managed folders, so the previous rvs.getEntry()
-      // guard skipped the write-back whenever the create-time runtime was still alive — leaving the
-      // change only on the ephemeral runtime and absent on reopen. persistViewsheet is the shared save
-      // choke point (managed-folder + ACL checks) and writes to the same asset save_viewsheet rebuilds from.
-      if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
-         result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
+         int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
+         result = executeAndExtract(rvs, assembly, sampleMaxRows);
+         // Order matters: executeAndExtract runs executeView, which populates the chart's RT refs;
+         // collectFlatBinding prefers RT refs, so it must come after. The binding itself is unchanged
+         // by the comparison, but recomputing it keeps the response shape identical to /viewsheet/create.
+         result.setBinding(collectFlatBinding(assembly));
+         result.setAssemblyName(assembly.getName());
+         result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
+
+         // Persist the mutated DateComparisonInfo to the DURABLE viewsheet asset named by the request
+         // identifier (the asset the viewer reopens), NOT the live runtime's own entry. A wiz chart runs on
+         // a TEMPORARY runtime whose entry is outside the managed folders, so the previous rvs.getEntry()
+         // guard skipped the write-back whenever the create-time runtime was still alive — leaving the
+         // change only on the ephemeral runtime and absent on reopen. persistViewsheet is the shared save
+         // choke point (managed-folder + ACL checks) and writes to the same asset save_viewsheet rebuilds from.
+         if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
+            result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
+         }
+      }
+      catch(Exception e) {
+         if(rollbackCopy != null) {
+            rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
+            demotedOriginal.setPrimary(true);
+         }
+
+         throw e;
+      }
+
+      if(copyNote != null) {
+         result.setNote(copyNote);
       }
 
       return result;
