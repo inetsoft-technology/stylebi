@@ -79,7 +79,7 @@ class InnerJoinServiceOperatorOrientationTest {
 
       new InnerJoinService(null, null).editExistingJoinTable(ws, joinTable, noperator, true);
 
-      assertOperatorsConsistent(ws);
+      assertOperatorsConsistent(ws, 2);
    }
 
    /**
@@ -104,7 +104,63 @@ class InnerJoinServiceOperatorOrientationTest {
 
       new InnerJoinService(null, null).editExistingJoinTable(ws, joinTable, noperator, true);
 
-      assertOperatorsConsistent(ws);
+      assertOperatorsConsistent(ws, 2);
+   }
+
+   /**
+    * An outer join must keep preserving the same TABLE after the engine re-orients it. exchange()
+    * used to swap the operands while leaving the operation alone, so `STATUSES LEFT JOIN
+    * WORK_PACKAGES` declared as [WORK_PACKAGES, STATUSES] came back as `WORK_PACKAGES LEFT JOIN
+    * STATUSES` -- no error, just silently wrong rows (verified live on openproject: 10 statuses
+    * instead of 14, the four with no work packages dropped).
+    *
+    * Whichever way round it ends up stored, LEFT must still preserve STATUSES: either
+    * `STATUSES LEFT JOIN WORK_PACKAGES` or the equivalent `WORK_PACKAGES RIGHT JOIN STATUSES`.
+    */
+   @Test
+   void anOuterJoinKeepsPreservingTheSameTableAfterReorientation() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly workPackages = table(ws, "WORK_PACKAGES", "id", "status_id");
+      TableAssembly statuses = table(ws, "STATUSES", "id", "status_name");
+
+      // The referenced table is declared SECOND, which is what triggers the re-orientation.
+      RelationalJoinTableAssembly joinTable = new RelationalJoinTableAssembly(
+         ws, "JOINED", new TableAssembly[]{ workPackages, statuses },
+         new TableAssemblyOperator[0]);
+      ws.addAssembly(joinTable);
+
+      TableAssemblyOperator.Operator leftJoin =
+         innerJoin("STATUSES", "id", "WORK_PACKAGES", "status_id");
+      leftJoin.setOperation(TableAssemblyOperator.LEFT_JOIN);
+      TableAssemblyOperator noperator = new TableAssemblyOperator();
+      noperator.addOperator(leftJoin);
+
+      new InnerJoinService(null, null).editExistingJoinTable(ws, joinTable, noperator, true);
+
+      assertOperatorsConsistent(ws, 1);
+
+      TableAssemblyOperator.Operator stored = soleOperator(ws);
+      assertTrue(stored.getOperation() == TableAssemblyOperator.LEFT_JOIN
+                    || stored.getOperation() == TableAssemblyOperator.RIGHT_JOIN,
+                 "the join must still be an outer join, not degraded to inner");
+
+      String preserved = stored.getOperation() == TableAssemblyOperator.LEFT_JOIN
+         ? stored.getLeftTable()
+         : stored.getRightTable();
+      assertEquals("STATUSES", preserved,
+                   "LEFT/RIGHT must still preserve STATUSES, whichever side it ended up on");
+   }
+
+   /** The single stored operator, for a two-table join. */
+   private static TableAssemblyOperator.Operator soleOperator(Worksheet ws) {
+      RelationalJoinTableAssembly joinTable = joinTableOf(ws);
+      Enumeration<?> e = joinTable.getOperatorTables();
+      assertTrue(e.hasMoreElements(), "no operator pair stored");
+      String[] pair = (String[]) e.nextElement();
+      TableAssemblyOperator top = joinTable.getOperator(pair[0], pair[1]);
+      assertNotNull(top);
+      assertEquals(1, top.getOperatorCount());
+      return top.getOperator(0);
    }
 
    /**
@@ -113,16 +169,8 @@ class InnerJoinServiceOperatorOrientationTest {
     * right table. Reads the join assembly back out of the worksheet because concatenateTable can
     * replace it.
     */
-   private static void assertOperatorsConsistent(Worksheet ws) {
-      RelationalJoinTableAssembly joinTable = null;
-
-      for(Assembly assembly : ws.getAssemblies()) {
-         if(assembly instanceof RelationalJoinTableAssembly) {
-            joinTable = (RelationalJoinTableAssembly) assembly;
-         }
-      }
-
-      assertNotNull(joinTable, "no join table in the worksheet");
+   private static void assertOperatorsConsistent(Worksheet ws, int expectedConditions) {
+      RelationalJoinTableAssembly joinTable = joinTableOf(ws);
       int checked = 0;
 
       for(Enumeration<?> e = joinTable.getOperatorTables(); e.hasMoreElements(); ) {
@@ -144,7 +192,21 @@ class InnerJoinServiceOperatorOrientationTest {
          }
       }
 
-      assertEquals(2, checked, "expected both join conditions to be stored");
+      assertEquals(expectedConditions, checked, "expected every join condition to be stored");
+   }
+
+   /** The join assembly, read back out of the worksheet because concatenateTable can replace it. */
+   private static RelationalJoinTableAssembly joinTableOf(Worksheet ws) {
+      RelationalJoinTableAssembly joinTable = null;
+
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly instanceof RelationalJoinTableAssembly) {
+            joinTable = (RelationalJoinTableAssembly) assembly;
+         }
+      }
+
+      assertNotNull(joinTable, "no join table in the worksheet");
+      return joinTable;
    }
 
    /** The table an attribute belongs to, as encoded by AttributeRef's entity. */

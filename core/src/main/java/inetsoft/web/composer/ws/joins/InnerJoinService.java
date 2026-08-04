@@ -616,26 +616,10 @@ public class InnerJoinService extends WorksheetControllerService {
     * if nSameSideEqual, notify the op.
     */
    private void notifyOp(TableAssemblyOperator.Operator newOp) {
-      int op = newOp.getOperation();
-
-      switch(op) {
-      case TableAssemblyOperator.GREATER_JOIN:
-         op = TableAssemblyOperator.LESS_JOIN;
-         break;
-      case TableAssemblyOperator.LESS_JOIN:
-         op = TableAssemblyOperator.GREATER_JOIN;
-         break;
-      case TableAssemblyOperator.GREATER_EQUAL_JOIN:
-         op = TableAssemblyOperator.LESS_EQUAL_JOIN;
-         break;
-      case TableAssemblyOperator.LESS_EQUAL_JOIN:
-         op = TableAssemblyOperator.GREATER_EQUAL_JOIN;
-         break;
-      default:
-         break;
-      }
-
-      newOp.setOperation(op);
+      // The caller has already swapped this operator's operands to match an existing pair's
+      // orientation, so only the operation itself is left to mirror. It previously listed the
+      // inequalities but not LEFT/RIGHT, which lost the outer side the same way exchange() did.
+      newOp.setOperation(mirrorOperation(newOp.getOperation()));
    }
 
    private void exchange(TableAssemblyOperator.Operator op, TableAssembly[] narr) {
@@ -658,12 +642,13 @@ public class InnerJoinService extends WorksheetControllerService {
       }
 
       if(leftWeight != 0 && rightWeight != 0 && rightWeight > leftWeight) {
-         String tempTable = op.getLeftTable();
-         DataRef tempColumn = op.getLeftAttribute();
-         op.setLeftTable(op.getRightTable());
-         op.setRightTable(tempTable);
-         op.setLeftAttribute(op.getRightAttribute());
-         op.setRightAttribute(tempColumn);
+         // flipOp, not a hand-rolled swap: this used to move the tables and attributes while
+         // leaving the OPERATION alone, so a join whose right table happened to be declared
+         // earlier in the base array kept its `left` outer-ness attached to what was now the other
+         // side. `STATUSES LEFT JOIN WORK_PACKAGES` declared as [WORK_PACKAGES, STATUSES] came back
+         // as `WORK_PACKAGES LEFT JOIN STATUSES` -- no error, just 10 statuses instead of 14,
+         // because the four with no work packages stopped being preserved.
+         flipOp(op);
       }
    }
 
@@ -859,39 +844,31 @@ public class InnerJoinService extends WorksheetControllerService {
    }
 
    /**
+    * The operation that means the same thing once the two operands are swapped: an inequality
+    * reverses, and an outer join changes which side is preserved. Symmetric operations (inner,
+    * equal, not-equal, full, cross) are their own mirror.
+    *
+    * ONE definition, because three places need it and they used to disagree: flipOp had the full
+    * set, notifyOp omitted LEFT/RIGHT, and exchange() mirrored nothing at all while still swapping
+    * the operands -- silently turning `A LEFT JOIN B` into `B LEFT JOIN A`.
+    */
+   private static int mirrorOperation(int op) {
+      return switch(op) {
+         case TableAssemblyOperator.GREATER_JOIN       -> TableAssemblyOperator.LESS_JOIN;
+         case TableAssemblyOperator.LESS_JOIN          -> TableAssemblyOperator.GREATER_JOIN;
+         case TableAssemblyOperator.GREATER_EQUAL_JOIN -> TableAssemblyOperator.LESS_EQUAL_JOIN;
+         case TableAssemblyOperator.LESS_EQUAL_JOIN    -> TableAssemblyOperator.GREATER_EQUAL_JOIN;
+         case TableAssemblyOperator.LEFT_JOIN          -> TableAssemblyOperator.RIGHT_JOIN;
+         case TableAssemblyOperator.RIGHT_JOIN         -> TableAssemblyOperator.LEFT_JOIN;
+         default                                       -> op;
+      };
+   }
+
+   /**
     * Flip operator order.
     */
    public static void flipOp(TableAssemblyOperator.Operator operator) {
-      int op = operator.getOperation();
-
-      switch(op) {
-      case TableAssemblyOperator.GREATER_JOIN:
-         op = TableAssemblyOperator.LESS_JOIN;
-         break;
-
-      case TableAssemblyOperator.LESS_JOIN:
-         op = TableAssemblyOperator.GREATER_JOIN;
-         break;
-
-      case TableAssemblyOperator.GREATER_EQUAL_JOIN:
-         op = TableAssemblyOperator.LESS_EQUAL_JOIN;
-         break;
-
-      case TableAssemblyOperator.LESS_EQUAL_JOIN:
-         op = TableAssemblyOperator.GREATER_EQUAL_JOIN;
-         break;
-
-      case TableAssemblyOperator.LEFT_JOIN:
-         op = TableAssemblyOperator.RIGHT_JOIN;
-         break;
-
-      case TableAssemblyOperator.RIGHT_JOIN:
-         op = TableAssemblyOperator.LEFT_JOIN;
-         break;
-
-      default:
-         break;
-      }
+      int op = mirrorOperation(operator.getOperation());
 
       String leftTable = operator.getLeftTable();
       String rightTable = operator.getRightTable();
