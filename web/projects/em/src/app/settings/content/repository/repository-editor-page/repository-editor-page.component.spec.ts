@@ -24,6 +24,7 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatOptionModule } from "@angular/material/core";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
 import { ContentRepositoryService } from "../content-repository-page/content-repository.service";
@@ -47,7 +48,7 @@ describe("RepositoryEditorPageComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             RouterModule.forRoot([]), FormsModule, ReactiveFormsModule, MatCheckboxModule,
-            MatSelectModule, MatOptionModule, MatInputModule, HttpClientTestingModule,
+            MatSelectModule, MatOptionModule, MatInputModule, MatSnackBarModule, HttpClientTestingModule,
             RepositoryEditorPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent],
          providers: [{provide: ContentRepositoryService, useValue: service}],
          schemas: [
