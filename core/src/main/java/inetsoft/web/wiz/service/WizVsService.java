@@ -153,9 +153,23 @@ public class WizVsService {
          throw new IllegalArgumentException("dateComparisonModel.dateComparisonPaneModel is required");
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(model.getRuntimeId(), user);
+      // Prefer the restore-aware resolver so a reaped runtime is transparently reopened, and echo the
+      // (possibly new) runtimeId back so the caller's next edit targets the live runtime. Without this a
+      // comparison requested in a REOPENED conversation threw instead of applying: reopening starts a new
+      // runtime for the same viewsheet, so the id the client still carries names a dead instance. Same
+      // treatment applyHighlight already has, and the caller already adopts an echoed runtimeId.
+      String requestedRuntimeId = model.getRuntimeId();
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, requestedRuntimeId, model.getViewsheetIdentifier(), user);
+      boolean restored = !Objects.equals(requestedRuntimeId, rvs.getID());
       Viewsheet vs = getValidatedViewsheet(rvs);
       VSAssembly assembly = resolveChartAssembly(vs, model.getAssemblyName());
+      // The name the CALLER knows. `assembly` is REASSIGNED to the duplicate by the copy step below, so a
+      // failure message built from it afterwards would name a generated copy (e.g. "chart1_copy1") that the
+      // caller never saw and that the rollback has already removed by the time the message propagates.
+      // Failure messages reach the caller's error classifier and its retry feedback, so a name that refers
+      // to nothing is worse than merely untidy.
+      final String requestedAssemblyName = assembly.getName();
 
       String copyNote = null;
       VSAssembly demotedOriginal = null;
@@ -177,7 +191,7 @@ public class WizVsService {
          else {
             copyNote = "Copy requested but could not be created; date comparison applied in place.";
             LOG.warn("applyDateComparison: duplicatePrimaryAssembly failed for {}; " +
-               "falling back to in-place apply.", model.getAssemblyName());
+               "falling back to in-place apply.", requestedAssemblyName);
          }
       }
 
@@ -191,7 +205,7 @@ public class WizVsService {
          }
 
          throw new IllegalArgumentException(
-            "Assembly '" + assembly.getName() + "' does not support date comparison");
+            "Assembly '" + requestedAssemblyName + "' does not support date comparison");
       }
 
       CreateViewsheetResult result;
@@ -227,6 +241,10 @@ public class WizVsService {
          // guard skipped the write-back whenever the create-time runtime was still alive — leaving the
          // change only on the ephemeral runtime and absent on reopen. persistViewsheet is the shared save
          // choke point (managed-folder + ACL checks) and writes to the same asset save_viewsheet rebuilds from.
+         if(restored) {
+            result.setRuntimeId(rvs.getID());
+         }
+
          if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
             result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
          }
@@ -282,6 +300,9 @@ public class WizVsService {
       boolean restored = !Objects.equals(runtimeId, rvs.getID());
       Viewsheet vs = getValidatedViewsheet(rvs);
       VSAssembly assembly = resolveTargetAssembly(vs, model.getAssemblyName());
+      // The name the CALLER knows — see applyDateComparison for why a message built from `assembly` after
+      // the copy step names a generated duplicate the caller never saw and the rollback has already removed.
+      final String requestedAssemblyName = assembly.getName();
 
       String copyNote = null;
       VSAssembly demotedOriginal = null;
@@ -303,7 +324,7 @@ public class WizVsService {
          else {
             copyNote = "Copy requested but could not be created; highlight applied in place.";
             LOG.warn("applyHighlight: duplicatePrimaryAssembly failed for {}; falling back to in-place apply.",
-               model.getAssemblyName());
+               requestedAssemblyName);
          }
       }
 
@@ -466,7 +487,7 @@ public class WizVsService {
          }
          else {
             throw new IllegalArgumentException(
-               "Assembly '" + assembly.getName() + "' (" + assemblyInfo.getClass().getSimpleName() +
+               "Assembly '" + requestedAssemblyName + "' (" + assemblyInfo.getClass().getSimpleName() +
                ") does not support highlighting. Wiz highlights charts, tables, crosstabs, and text output " +
                "(gauge and other output types are not highlightable).");
          }
