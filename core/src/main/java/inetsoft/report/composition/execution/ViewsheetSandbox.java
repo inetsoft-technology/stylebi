@@ -5775,20 +5775,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             vset.remove(oname);
             vset.add(nname);
          }
+
+         if(!resetScope) {
+            refreshAssemblyScriptable(oname);
+            refreshAssemblyScriptable(nname);
+         }
       }
       else {
          resetScope = false;
       }
 
-      if(!resetScope) {
-         if(id == Viewsheet.ADD_ASSEMBLY || id == Viewsheet.REMOVE_ASSEMBLY) {
-            refreshAssemblyScriptable(cmd);
-         }
-         else if(id == Viewsheet.RENAME_ASSEMBLY) {
-            int index = cmd.indexOf('^');
-            refreshAssemblyScriptable(cmd.substring(0, index));
-            refreshAssemblyScriptable(cmd.substring(index + 1));
-         }
+      if(!resetScope &&
+         (id == Viewsheet.ADD_ASSEMBLY || id == Viewsheet.REMOVE_ASSEMBLY))
+      {
+         refreshAssemblyScriptable(cmd);
       }
 
       // @by yanie: bug1419286445193
