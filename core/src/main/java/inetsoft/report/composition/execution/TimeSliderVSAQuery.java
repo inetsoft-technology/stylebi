@@ -139,6 +139,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
                sortinfo.addSort(sort);
                tassembly.setSortInfo(sortinfo);
             }
+
+            // ignore null otherwise a member with a null aggregate/measure value
+            // sorts to the front and shows as a blank min label
+            ConditionList conds = new ConditionList();
+            Condition cond = new Condition(column.getDataType());
+            cond.setNegated(true);
+            cond.setOperation(Condition.NULL);
+            conds.append(new ConditionItem(column, cond, 0));
+            tassembly.setPreRuntimeConditionList(conds);
          }
          else {
             if(column instanceof CalculateRef) {

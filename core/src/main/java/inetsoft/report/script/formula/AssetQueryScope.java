@@ -112,9 +112,15 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
          LOG.error("Failed to get property from asset query: " + id, ex);
       }
 
+      if(members.containsKey(id)) {
+         return members.get(id);
+      }
+
       // the dynamic scope fallback (executing scope) is now provided
       // centrally by BindingRootProxy
-      return members.get(id);
+      ScriptScope owner = findInChain(id);
+
+      return owner == null ? null : owner.getMember(id);
    }
 
    @Override
@@ -128,7 +134,42 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
          // ignore
       }
 
-      return members.containsKey(id);
+      if(members.containsKey(id)) {
+         return true;
+      }
+
+      return findInChain(id) != null;
+   }
+
+   /**
+    * Find the scope in this scope's lookup chain that defines a name this scope
+    * does not define itself. The chain is populated by
+    * {@link AssetQuerySandbox#createAssetQueryScope()} -- in practice with a
+    * {@code ViewsheetScope}, which resolves viewsheet assembly names (added by
+    * Bug #75526 so viewsheet assemblies are visible in worksheet scripts).
+    *
+    * <p>A qualified read such as {@code worksheet['<viewsheet assembly>']} is
+    * dispatched straight at this scope by {@code ScopeProxy}, so it never goes
+    * through {@code BindingRootProxy}'s chain walk (that only covers unqualified
+    * names). Both the read and the presence test need this, since GraalJS only
+    * calls {@code getMember} after {@code hasMember} reported the name present.
+    * Mirrors {@code ViewsheetScope.findInChain()} (#75807), the same defect on
+    * the other side of the viewsheet/worksheet scope link.
+    *
+    * @param name the member name to look for.
+    *
+    * @return the owning scope, or <tt>null</tt> if the name is not in the chain.
+    */
+   private ScriptScope findInChain(String name) {
+      for(ScriptScope scope = getParentScope();
+          scope != null && scope != this; scope = scope.getParentScope())
+      {
+         if(scope.hasMember(name)) {
+            return scope;
+         }
+      }
+
+      return null;
    }
 
    /**

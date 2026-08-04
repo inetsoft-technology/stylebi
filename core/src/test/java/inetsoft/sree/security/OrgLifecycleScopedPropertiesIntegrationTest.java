@@ -68,6 +68,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.DataSpace;
@@ -348,7 +349,7 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
          favoritesService, mock(DataCycleManager.class), mock(LicenseManager.class),
          mock(MVManager.class), mock(IndexedStorage.class), mock(CustomThemesManager.class),
          mock(DashboardRegistryManager.class), mock(XRepository.class),
-         mock(DependencyStorageService.class));
+         mock(DependencyStorageService.class), mock(RecycleBin.class));
 
       // The acting principal's own ambient "current org" is actingOrgId, deliberately different
       // from the org being edited -- this is the exact divergence the bug depended on. The
