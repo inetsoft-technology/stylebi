@@ -29,6 +29,7 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -305,6 +306,25 @@ public class ViewsheetScopeTest {
 
       //test execute with a scriptable
       viewsheetScope.execute("visible=false", viewsheetScope.getVSAScriptable("TableView1"), false);
+   }
+
+   @Test
+   void runtimeAssemblyReplacementRefreshesScriptableType() {
+      ViewsheetScope runtimeScope = sandbox.getScope();
+      assertInstanceOf(TableVSAScriptable.class,
+                       runtimeScope.getVSAScriptable("TableView1"));
+
+      sandbox.getViewsheet().removeAssembly("TableView1");
+      sandbox.getViewsheet().addAssembly(
+         new ChartVSAssembly(sandbox.getViewsheet(), "TableView1"));
+      assertInstanceOf(ChartVSAScriptable.class,
+                       runtimeScope.getVSAScriptable("TableView1"));
+
+      sandbox.getViewsheet().removeAssembly("TableView1");
+      sandbox.getViewsheet().addAssembly(
+         new CrosstabVSAssembly(sandbox.getViewsheet(), "TableView1"));
+      assertInstanceOf(CrosstabVSAScriptable.class,
+                       runtimeScope.getVSAScriptable("TableView1"));
    }
 
    @Test

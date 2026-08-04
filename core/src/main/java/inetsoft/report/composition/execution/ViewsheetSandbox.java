@@ -5775,9 +5775,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             vset.remove(oname);
             vset.add(nname);
          }
+
+         if(!resetScope) {
+            refreshAssemblyScriptable(oname);
+            refreshAssemblyScriptable(nname);
+         }
       }
       else {
          resetScope = false;
+      }
+
+      if(!resetScope &&
+         (id == Viewsheet.ADD_ASSEMBLY || id == Viewsheet.REMOVE_ASSEMBLY))
+      {
+         refreshAssemblyScriptable(cmd);
       }
 
       // @by yanie: bug1419286445193
@@ -5788,6 +5799,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // assembly, scriptables will not be associated with the correct scope.
       if(resetScope) {
          resetScope();
+      }
+   }
+
+   /**
+    * Refresh an assembly scriptable in both the active and initial scopes without
+    * re-running onInit.
+    */
+   private void refreshAssemblyScriptable(String name) {
+      ViewsheetScope currentScope = scope;
+      ViewsheetScope currentInitScope = initScope;
+
+      if(currentScope != null) {
+         currentScope.refreshAssemblyScriptable(name);
+      }
+
+      if(currentInitScope != null && currentInitScope != currentScope) {
+         currentInitScope.refreshAssemblyScriptable(name);
       }
    }
 

@@ -576,6 +576,25 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
    }
 
    /**
+    * Refresh the scriptable for a single assembly. This is used when an assembly is
+    * added, removed, renamed, or replaced at runtime, where resetting the entire
+    * scope would incorrectly cause onInit to run again.
+    *
+    * @param name the assembly name.
+    */
+   public synchronized void refreshAssemblyScriptable(String name) {
+      propmap.remove(name);
+      oldAssemblies.remove(name);
+
+      Assembly assembly = box.getViewsheet().getAssembly(name);
+
+      if(assembly != null) {
+         addAssemblyScriptable(
+            assembly, (VSAScriptable) propmap.get(VIEWSHEET_SCRIPTABLE));
+      }
+   }
+
+   /**
     * Add action to viewsheet.
     */
    public void addAction(String icon, String label, String event) {
