@@ -737,9 +737,23 @@ public class InnerJoinService extends WorksheetControllerService {
          new HashMap<>();
 
       for(int i = 0; i < operators.size(); i++) {
-         addOperator(
-            leftTables[i], rightTables[i],
-            operators.get(i), joinTableAssembly, joins, joinedTables);
+         TableAssemblyOperator.Operator operator = operators.get(i);
+
+         // Read the table names off the operator ITSELF rather than the leftTables/rightTables
+         // arrays snapshotted before the concatenate loop above. concatenateTable() re-orients
+         // an operator in place to match the assembly it builds, so after it runs the snapshot
+         // can name the two tables in the opposite order to the operator's own attributes.
+         // addOperator() then compares those stale names against the subtable order, concludes
+         // it must flip, and flips an operator that was ALREADY correct -- storing it under the
+         // right key with its left/right attributes swapped. JoinQuery later resolves the left
+         // attribute against the positionally-left table, misses, and qualifies the key with
+         // the wrong table, emitting `column projects.project_id does not exist`; the
+         // post-processing path instead drops the condition and silently cross-joins. The
+         // arrays stay as the fallback for an operator that never carried table names.
+         String ltable = operator.getLeftTable() != null ? operator.getLeftTable() : leftTables[i];
+         String rtable = operator.getRightTable() != null ? operator.getRightTable() : rightTables[i];
+
+         addOperator(ltable, rtable, operator, joinTableAssembly, joins, joinedTables);
       }
 
       // Check for tables no longer joined. If any exist, join them using a
