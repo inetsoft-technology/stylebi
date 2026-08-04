@@ -93,6 +93,19 @@ public class WizViewsheetController {
       return run("set chart colors", () -> wizAutoBindingService.setChartColors(request, user));
    }
 
+   /**
+    * Read-only companion to /viewsheet/colors: which colour parameters the chart can accept. Callers must
+    * read this first — the accepted parameters are fixed by the chart's colour binding, and the only
+    * valid categoryColors / measureColors keys come from here.
+    */
+   @PostMapping(value = "/chart/aestheticModel", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> getChartAestheticModel(@RequestBody ChartAestheticModelRequest request,
+                                                  Principal user)
+   {
+      return run("read chart aesthetic model",
+         () -> wizAutoBindingService.getChartAestheticModel(request, user));
+   }
+
    @PostMapping(value = "/viewsheet/geo/detect", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<?> geoDetect(@Valid @RequestBody GeoDetectRequest request, Principal user) {
       return run("geo detect", () -> wizGeoService.detect(request, user));

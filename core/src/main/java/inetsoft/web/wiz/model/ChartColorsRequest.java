@@ -58,6 +58,16 @@ public class ChartColorsRequest {
    public Map<String, String> getCategoryColors() { return categoryColors; }
    public void setCategoryColors(Map<String, String> categoryColors) { this.categoryColors = categoryColors; }
 
+   /**
+    * Per-series colors when NO field is on the color aesthetic: measure full name -> hex. Keys must be
+    * {@code aestheticAggregates[].fullName} from {@code /chart/aestheticModel}.
+    *
+    * {@link #getStaticColor()} colors EVERY bound measure, so it cannot express "make profit red and
+    * leave revenue alone" on a chart with several measures — that is what this is for.
+    */
+   public Map<String, String> getMeasureColors() { return measureColors; }
+   public void setMeasureColors(Map<String, String> measureColors) { this.measureColors = measureColors; }
+
    private String wizRuntimeId;
    private String assemblyName;
    private String viewsheetIdentifier;
@@ -66,4 +76,5 @@ public class ChartColorsRequest {
    private String paletteName;
    private List<String> colorList;
    private Map<String, String> categoryColors;
+   private Map<String, String> measureColors;
 }

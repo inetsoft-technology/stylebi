@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.aesthetic.LinearSizeFrame;
 import inetsoft.graph.data.*;
+import inetsoft.graph.internal.GTool;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.VSTableLens;
@@ -2601,7 +2602,9 @@ public class WizVsService {
       return names;
    }
 
-   private static String slotName(DataRef ref) {
+   // Package-private, not private: WizAutoBindingService's aesthetic-model read must name the color
+   // field with the SAME convention the slots echo uses, and a second copy of this would drift from it.
+   static String slotName(DataRef ref) {
       if(ref instanceof VSAggregateRef agg) {
          return agg.getFullName();
       }
@@ -2623,6 +2626,103 @@ public class WizVsService {
 
    private static String aestheticSlotName(AestheticRef aref) {
       return aref == null || aref.getDataRef() == null ? null : slotName(aref.getDataRef());
+   }
+
+   /** Cap on the color values reported by the aesthetic model; see collectColorValues. */
+   private static final int MAX_COLOR_VALUES = 200;
+
+   /**
+    * The distinct values of {@code columnHeader} in the chart's OWN rendered dataset, as the strings a
+    * {@code categoryColors} key must equal. Returns null when there is no dataset yet or the header is
+    * not in it.
+    *
+    * The chart's dataset — not a worksheet browse — for two reasons. It already holds the values the
+    * chart actually renders (date-grouped, filtered, ranked), so a key taken from here names a real
+    * category rather than a raw column value the chart never shows. And stringifying with
+    * {@code GTool.toString} matches {@code CategoricalColorFrame}'s own key function exactly, so the
+    * value round-trips with no format agreement between the two sides.
+    *
+    * Insertion-ordered (LinkedHashSet) purely so the list is stable across calls; assignment order is
+    * StyleBI's business and no caller may read meaning into the sequence.
+    */
+   ChartAestheticModel.ColorValues collectColorValues(RuntimeViewsheet rvs, String assemblyName,
+                                                     String columnHeader)
+   {
+      if(columnHeader == null) {
+         return null;
+      }
+
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+      if(boxOpt.isEmpty()) {
+         return null;
+      }
+
+      try {
+         VGraphPair pair = boxOpt.get().getVGraphPair(assemblyName, true);
+         DataSet dset = pair == null ? null : pair.getData();
+
+         if(dset == null) {
+            return null;
+         }
+
+         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
+         while(true) {
+            if(dset instanceof VSDataSet) {
+               break;
+            }
+            else if(dset instanceof PairsDataSet) {
+               dset = ((PairsDataSet) dset).getDataSet();
+            }
+            else if(dset instanceof DataSetFilter) {
+               dset = ((DataSetFilter) dset).getDataSet();
+            }
+            else {
+               break;
+            }
+         }
+
+         int col = -1;
+
+         for(int c = 0; c < dset.getColCount(); c++) {
+            if(columnHeader.equals(dset.getHeader(c))) {
+               col = c;
+               break;
+            }
+         }
+
+         if(col < 0) {
+            return null;
+         }
+
+         Set<String> values = new LinkedHashSet<>();
+         int rowCount = dset.getRowCount();
+         boolean truncated = false;
+
+         for(int r = 0; r < rowCount; r++) {
+            Object val = dset.getData(col, r);
+
+            if(val == null) {
+               continue;
+            }
+
+            if(values.size() >= MAX_COLOR_VALUES) {
+               truncated = true;
+               break;
+            }
+
+            values.add(GTool.toString(val));
+         }
+
+         return new ChartAestheticModel.ColorValues(new ArrayList<>(values), truncated);
+      }
+      catch(Exception ex) {
+         // A read that cannot be made is not an error the caller can act on: the aesthetic model still
+         // reports the color FIELD, and its consumer withholds the value-keyed parameters when the list
+         // is absent. Failing the whole read here would take the mode information down with it.
+         LOG.warn("Could not collect color values for {} on {}", columnHeader, assemblyName, ex);
+         return null;
+      }
    }
 
    /**
