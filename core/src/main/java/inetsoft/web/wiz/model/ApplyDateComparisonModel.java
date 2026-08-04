@@ -25,7 +25,7 @@ import inetsoft.web.composer.model.vs.DateComparisonDialogModel;
  * Request body for {@code POST /api/wiz/viewsheet/date-comparison}.
  *
  * <p>The wiz-services caller POSTs:
- * {@code { runtimeId, viewsheetIdentifier?, assemblyName?, sampleMaxRows?,
+ * {@code { runtimeId, viewsheetIdentifier?, assemblyName?, copy?, sampleMaxRows?,
  * dateComparisonModel: { dateComparisonPaneModel: <PaneModel> } } }.
  *
  * <p>{@code dateComparisonModel} is a {@link DateComparisonDialogModel}, which Jackson binds
@@ -75,9 +75,26 @@ public class ApplyDateComparisonModel {
       this.sampleMaxRows = sampleMaxRows;
    }
 
+   /**
+    * Duplicate the target chart before applying the comparison, instead of mutating it in place.
+    *
+    * <p>Needed exactly when the calling turn has not yet established a chart of its own: a stand-alone
+    * "add a year-over-year comparison" against an existing chart must not rewrite the chart the user
+    * already has. After a create or a binding rebind the chart IS the turn's own, and the caller sends
+    * false so no intermediate copy is orphaned. Same contract as {@code ApplyHighlightModel.copy}.
+    */
+   public boolean isCopy() {
+      return copy;
+   }
+
+   public void setCopy(boolean copy) {
+      this.copy = copy;
+   }
+
    private String runtimeId;
    private String assemblyName;
    private String viewsheetIdentifier;
    private DateComparisonDialogModel dateComparisonModel;
    private Integer sampleMaxRows;
+   private boolean copy;
 }

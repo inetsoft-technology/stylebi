@@ -2175,7 +2175,12 @@ public class WizAutoBindingService {
          viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
 
       if(rvs == null || rvs.getViewsheet() == null) {
-         throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
+         // IllegalArgumentException, not Exception: a missing runtime/assembly is a CALLER error. The
+         // controller maps IllegalArgumentException to 400 WITH this message, whereas the generic
+         // Exception path returns 500 and a canned "An unexpected error occurred. Please try again."
+         // that discards the only useful detail — leaving the caller unable to tell a stale chart
+         // reference (never retryable) from a real server fault (worth replaying).
+         throw new IllegalArgumentException("Chart runtime not found: " + request.getWizRuntimeId());
       }
 
       String effRuntimeId = rvs.getID();
@@ -2183,7 +2188,7 @@ public class WizAutoBindingService {
       VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
 
       if(!(assembly instanceof ChartVSAssembly chart)) {
-         throw new Exception("Chart assembly not found: " + request.getAssemblyName());
+         throw new IllegalArgumentException("Chart assembly not found: " + request.getAssemblyName());
       }
 
       String note = null;
@@ -2627,7 +2632,7 @@ public class WizAutoBindingService {
          viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
 
       if(rvs == null || rvs.getViewsheet() == null) {
-         throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
+         throw new IllegalArgumentException("Chart runtime not found: " + request.getWizRuntimeId());
       }
 
       String effRuntimeId = rvs.getID();
@@ -2635,7 +2640,7 @@ public class WizAutoBindingService {
       VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
 
       if(!(assembly instanceof ChartVSAssembly chart)) {
-         throw new Exception("Chart assembly not found: " + request.getAssemblyName());
+         throw new IllegalArgumentException("Chart assembly not found: " + request.getAssemblyName());
       }
 
       String note = null;
