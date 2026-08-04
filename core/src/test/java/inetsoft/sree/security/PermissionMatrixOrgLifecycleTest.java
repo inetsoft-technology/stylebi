@@ -299,7 +299,7 @@ public class PermissionMatrixOrgLifecycleTest {
       // (theme copy, sysAdmin-count safety checks), not for this duplicate-ID guard.
       UserTreeService userTreeService = new UserTreeService(
          null, null, null, null, SecurityEngine.getSecurity(), null, null, null, null, null, null,
-         null, null, null, null, null);
+         null, null, null, null, null, null);
 
       EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
          .name(orgAName)
