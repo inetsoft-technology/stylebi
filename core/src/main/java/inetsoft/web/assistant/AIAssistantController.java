@@ -187,7 +187,7 @@ public class AIAssistantController {
     */
    @GetMapping("/api/assistant/health")
    public CompletableFuture<ResponseEntity<Boolean>> checkAssistantHealth() {
-      String upstreamBase = resolveUpstreamBase();
+      String upstreamBase = resolveAssistantBaseUrl();
 
       if(upstreamBase == null) {
          return CompletableFuture.completedFuture(ResponseEntity.noContent().build());
@@ -211,7 +211,15 @@ public class AIAssistantController {
          });
    }
 
-   private String resolveUpstreamBase() {
+   /**
+    * Resolves the assistant server's base URL: the server-to-server URL when proxy mode is
+    * configured, otherwise the browser-facing one, otherwise null.
+    *
+    * <p>Public and static because {@code WizDocSearchController} must resolve the assistant the
+    * same way this controller's health check does. Two independent resolutions would let the
+    * health check report "online" while doc search reported "not configured".</p>
+    */
+   public static String resolveAssistantBaseUrl() {
       String internalUrl = SreeEnv.getProperty(CHAT_APP_INTERNAL_URL);
 
       if(internalUrl != null && !internalUrl.trim().isEmpty()) {
