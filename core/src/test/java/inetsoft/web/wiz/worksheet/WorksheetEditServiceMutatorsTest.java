@@ -438,6 +438,64 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("total", ref.getAttribute());
    }
 
+   @Test
+   void setRankingFallsBackToPrivateSelectionWhenColumnMissingFromPublic() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Simulate what set_column_visibility ultimately produces: a column present in
+      // the PRIVATE selection but absent from the PUBLIC one (the public selection is
+      // what getColumnSelection(true) — the "post" lookup — falls back to). No
+      // AggregateInfo is set, so the AggregateInfo lookup is a no-op; ranking must still
+      // find "total" via the PRIVATE selection instead of returning a bogus
+      // AttributeRef, or a hidden column becomes unrankable.
+      ColumnSelection publicSelection = t.getColumnSelection(false).clone();
+      publicSelection.removeAttribute(publicSelection.getAttribute("total"));
+      t.setColumnSelection(publicSelection, true);
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T", new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertTrue(ref instanceof ColumnRef,
+         "ranking must fall back to the private selection when the column is missing " +
+         "from the public one, got: " + ref);
+      assertEquals("total", ref.getAttribute());
+   }
+
+   @Test
+   void setRankingOnAggregatedTableByUnrelatedColumnResolvesRawColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "employee", "total", "orderNumber");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Grouping/aggregating a table does not prune its column selection — a column
+      // that is neither a group nor an aggregate (here "orderNumber") remains a plain,
+      // resolvable column. Ranking by it must not be forced into an aggregate/group
+      // match; it must resolve to its own raw ColumnRef.
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("orderNumber", 3, "TOP_N", false));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertFalse(ref instanceof AggregateRef);
+      assertFalse(ref instanceof GroupRef);
+      assertTrue(ref instanceof ColumnRef,
+         "ranking by a column outside the group/aggregate must resolve to its raw ColumnRef, got: " + ref);
+      assertEquals("orderNumber", ref.getAttribute());
+   }
+
    // =========================================================================
    // Expression column test
    // =========================================================================
