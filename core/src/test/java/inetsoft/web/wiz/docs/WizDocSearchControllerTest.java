@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -24,8 +24,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +111,19 @@ class WizDocSearchControllerTest {
       controller.search(request, response);
 
       guard.verify(AdminAiCallerGuard::requireBearerAuthenticatedRequest);
+   }
+
+   // The test above only proves the guard was called; it would still pass if the controller
+   // ignored a thrown failure and pressed on. This proves the guard actually stops the request.
+   @Test
+   void aGuardFailureStopsTheRequestBeforeTheGatewayIsCalled() {
+      setBody(request, "{\"query\":\"q\"}");
+      guard.when(AdminAiCallerGuard::requireBearerAuthenticatedRequest)
+         .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN));
+
+      assertThrows(ResponseStatusException.class, () -> controller.search(request, response));
+
+      verifyNoInteractions(gateway);
    }
 
    @Test

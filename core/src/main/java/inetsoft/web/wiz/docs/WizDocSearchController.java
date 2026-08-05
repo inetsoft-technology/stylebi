@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.docs;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.assistant.AIAssistantController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
 /**
  * Proxies the plugins' documentation search to the configured AI assistant server.
@@ -99,36 +101,44 @@ public class WizDocSearchController {
          return;
       }
 
+      // Only the network call to the assistant is guarded here. Writing the response is done
+      // after the try returns, so a client disconnect mid-write (an IOException from the servlet
+      // output stream) propagates as-is instead of being caught below, logged as an assistant
+      // failure it was not, and followed by a second, doomed write to an already-committed
+      // response.
+      AssistantDocSearchGateway.Response gatewayResponse;
+
       try {
-         AssistantDocSearchGateway.Response gatewayResponse =
-            gateway.post(baseUrl, ASSISTANT_PATH, body, request.getHeader("Authorization"));
-
-         // A bare 404 reads as "no such StyleBI route" and sends the operator to debug the wrong
-         // layer. It actually means the assistant predates this endpoint.
-         if(gatewayResponse.status() == HttpStatus.NOT_FOUND.value()) {
-            LOG.warn("AI assistant at {} has no {} endpoint", baseUrl, ASSISTANT_PATH);
-
-            writeJson(response, HttpStatus.BAD_GATEWAY.value(), errorBody(
-               "The AI assistant server does not support document search — upgrade required."));
-            return;
-         }
-
-         // Everything else passes through untouched so the assistant's field-named validation
-         // errors reach the agent intact. Written straight to the servlet response (not returned
-         // as a ResponseEntity<String>) because WebConfig's only application/json-capable
-         // converter is Jackson, which would re-serialize this already-serialized JSON string as
-         // a JSON string literal — the mirror image of the request-binding defect this endpoint
-         // was previously fixed for.
-         writeJson(response, gatewayResponse.status(), gatewayResponse.body());
+         gatewayResponse = gateway.post(baseUrl, ASSISTANT_PATH, body, request.getHeader("Authorization"));
       }
       catch(InterruptedException e) {
          Thread.currentThread().interrupt();
 
          unreachable(response, baseUrl, e);
+         return;
       }
       catch(Exception e) {
          unreachable(response, baseUrl, e);
+         return;
       }
+
+      // A bare 404 reads as "no such StyleBI route" and sends the operator to debug the wrong
+      // layer. It actually means the assistant predates this endpoint.
+      if(gatewayResponse.status() == HttpStatus.NOT_FOUND.value()) {
+         LOG.warn("AI assistant at {} has no {} endpoint", baseUrl, ASSISTANT_PATH);
+
+         writeJson(response, HttpStatus.BAD_GATEWAY.value(), errorBody(
+            "The AI assistant server does not support document search — upgrade required."));
+         return;
+      }
+
+      // Everything else passes through untouched so the assistant's field-named validation
+      // errors reach the agent intact. Written straight to the servlet response (not returned
+      // as a ResponseEntity<String>) because WebConfig's only application/json-capable
+      // converter is Jackson, which would re-serialize this already-serialized JSON string as
+      // a JSON string literal — the mirror image of the request-binding defect this endpoint
+      // was previously fixed for.
+      writeJson(response, gatewayResponse.status(), gatewayResponse.body());
    }
 
    private void unreachable(HttpServletResponse response, String baseUrl, Exception e)
@@ -140,8 +150,13 @@ public class WizDocSearchController {
          errorBody("The AI assistant server did not respond."));
    }
 
-   private String errorBody(String message) {
-      return "{\"error\":\"" + message.replace("\"", "\\\"") + "\"}";
+   /**
+    * Serializes {@code message} through Jackson rather than hand-building the JSON literal, so
+    * this stays correct for any message text without relying on callers passing only string
+    * literals (the previous implementation escaped only {@code "} and had no such guarantee).
+    */
+   private String errorBody(String message) throws IOException {
+      return MAPPER.writeValueAsString(Collections.singletonMap("error", message));
    }
 
    /**
@@ -173,6 +188,7 @@ public class WizDocSearchController {
     */
    private static final int MAX_REQUEST_BODY_CHARS = 64 * 1024;
    private static final Logger LOG = LoggerFactory.getLogger(WizDocSearchController.class);
+   private static final ObjectMapper MAPPER = new ObjectMapper();
 
    private final AssistantDocSearchGateway gateway;
 }

@@ -84,5 +84,5 @@ public class HttpAssistantDocSearchGateway implements AssistantDocSearchGateway 
    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(20);
 
-   private HttpClient cachedClient;
+   private volatile HttpClient cachedClient;
 }
