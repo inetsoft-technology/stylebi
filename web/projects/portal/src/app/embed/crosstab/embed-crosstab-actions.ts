@@ -39,6 +39,9 @@ export class EmbedCrosstabActions extends CrosstabActions {
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
+            // detailCellsSelected is CrosstabActions' own cell test (protected for this reuse):
+            // nothing selected means nothing to drill into. Its showDetailsVisible is this plus
+            // the same isActionVisibleInViewer check, so the embed matches the viewer exactly.
             id: () => "crosstab show-details",
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
@@ -132,34 +135,5 @@ export class EmbedCrosstabActions extends CrosstabActions {
          }]));
 
       return groups;
-   }
-
-   /**
-    * True when the selection holds at least one cell that can show details; nothing selected
-    * means nothing to drill into, so the action stays hidden. The per-cell test is the one
-    * CrosstabActions.showDetailsVisible applies in the viewer (mirrored here because that getter
-    * is private) and comes from ShowDetailEvent: a cell qualifies unless it sits in the corner
-    * header block, with the runtime row/col header counts deciding whether the first row/column
-    * is itself data. Unlike a plain table, a crosstab header selection does count - a row/column
-    * header shows the details behind that group - hence the fall back to selectedHeaders.
-    */
-   private get detailCellsSelected(): boolean {
-      const selectedCells = this.model.selectedData && this.model.selectedData.size ?
-         this.model.selectedData : this.model.selectedHeaders;
-      let detailsCell: boolean = false;
-
-      if(selectedCells) {
-         selectedCells.forEach((cols, row) => {
-            cols.forEach((col) => {
-               detailsCell = detailsCell ||
-                  (row > 0 || this.model.runtimeColHeaderCount > 0) &&
-                  (col > 0 || this.model.runtimeRowHeaderCount > 0 ||
-                     this.model.runtimeColHeaderCount === 0) &&
-                  !(row < this.model.headerRowCount && col < this.model.headerColCount);
-            });
-         });
-      }
-
-      return detailsCell;
    }
 }

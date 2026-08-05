@@ -697,6 +697,17 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
          return false;
       }
 
+      return this.detailCellsSelected;
+   }
+
+   /**
+    * Whether the selection holds at least one cell Show Details can act on. Unlike a plain
+    * table, a crosstab header selection counts - a row/column header shows the details behind
+    * that group - hence the fall back to selectedHeaders. Split out of showDetailsVisible and
+    * protected so subclasses can reuse the rule rather than copy the cell iteration;
+    * EmbedCrosstabActions does exactly that.
+    */
+   protected get detailCellsSelected(): boolean {
       const selectedCells = this.model.selectedData && this.model.selectedData.size ?
          this.model.selectedData : this.model.selectedHeaders;
       let detailsCell: boolean = false;
