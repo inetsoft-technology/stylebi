@@ -284,6 +284,13 @@ table.scrollable-table {
   .tt-stack-total { font-size: 20px; }
 }
 
+// tail present: SVG chrome draws the outline instead
+.widget__card-tooltip--tailed {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .hidden__annotation-tooltip {
   overflow: hidden;
   white-space: pre-wrap;

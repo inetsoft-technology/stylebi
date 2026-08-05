@@ -721,6 +721,22 @@ export namespace ChartTool {
       return -1;
    }
 
+   /**
+    * Map a region coordinate to viewport px. Inverse of the transform drawRegions applies:
+    * it scales by devicePixelRatio * scale then translates by -offset, so in CSS px a region
+    * coordinate sits at (coord - offset) * scale from the canvas origin.
+    */
+   export function regionPointToViewport(point: { x: number, y: number },
+                                         canvasRect: { left: number, top: number },
+                                         offsetX: number, offsetY: number,
+                                         scale: number): { x: number, y: number }
+   {
+      return {
+         x: canvasRect.left + (point.x - offsetX) * scale,
+         y: canvasRect.top + (point.y - offsetY) * scale
+      };
+   }
+
    export function drawReferenceLine(context: CanvasRenderingContext2D, region: ChartRegion,
                                      canvasX: number, canvasY: number, scale: number = 1): void
    {
