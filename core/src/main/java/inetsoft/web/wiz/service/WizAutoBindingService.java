@@ -3119,7 +3119,7 @@ public class WizAutoBindingService {
          CategoricalColorFrame frame = asCategoricalFrame(colorField);
 
          for(Map.Entry<String, String> e : request.getCategoryColors().entrySet()) {
-            frame.setColor(e.getKey(), parseColor(e.getValue()));
+            frame.setColor(Tool.getData(colorField.getDataType(), e.getKey()), parseColor(e.getValue()));
          }
 
          colorField.setVisualFrame(frame);
