@@ -118,6 +118,52 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
          info, configMap(measure("CUSTOMER_COUNT", "Count"))));
    }
 
+   // Regression for PR #4509 review: query execution reads getRuntimeAggregates(), not
+   // getDesignAggregates() — the design-only override could be silently lost if runtime aggregates
+   // were already populated (e.g. by an earlier refreshVisualizationBinding execution) and nothing
+   // forces a fresh VSCrosstabInfo.update() before the response's data-fetch step reads them.
+
+   @Test
+   void alsoOverridesAlreadyPopulatedRuntimeAggregates() {
+      VSAggregateRef designRef = agg("CUSTOMER_COUNT");
+      VSAggregateRef runtimeRef = agg("CUSTOMER_COUNT");
+      VSCrosstabInfo info = mock(VSCrosstabInfo.class);
+      when(info.getDesignAggregates()).thenReturn(new DataRef[] { designRef });
+      when(info.getRuntimeAggregates()).thenReturn(new DataRef[] { runtimeRef });
+
+      WizAutoBindingService.applyCrosstabAggregateFormulas(
+         info, configMap(measure("CUSTOMER_COUNT", "Count")));
+
+      verify(designRef).setFormulaValue("Count");
+      verify(runtimeRef).setFormulaValue("Count");
+   }
+
+   @Test
+   void emptyRuntimeAggregatesArrayIsLeftAlone() {
+      VSAggregateRef designRef = agg("CUSTOMER_COUNT");
+      VSCrosstabInfo info = mock(VSCrosstabInfo.class);
+      when(info.getDesignAggregates()).thenReturn(new DataRef[] { designRef });
+      when(info.getRuntimeAggregates()).thenReturn(new DataRef[0]);
+
+      assertDoesNotThrow(() -> WizAutoBindingService.applyCrosstabAggregateFormulas(
+         info, configMap(measure("CUSTOMER_COUNT", "Count"))));
+
+      verify(designRef).setFormulaValue("Count");
+   }
+
+   @Test
+   void nullRuntimeAggregatesIsSafe() {
+      VSAggregateRef designRef = agg("CUSTOMER_COUNT");
+      VSCrosstabInfo info = mock(VSCrosstabInfo.class);
+      when(info.getDesignAggregates()).thenReturn(new DataRef[] { designRef });
+      when(info.getRuntimeAggregates()).thenReturn(null);
+
+      assertDoesNotThrow(() -> WizAutoBindingService.applyCrosstabAggregateFormulas(
+         info, configMap(measure("CUSTOMER_COUNT", "Count"))));
+
+      verify(designRef).setFormulaValue("Count");
+   }
+
    /**
     * applyResolvedFormulaOverrides(VSAssembly, Map) dispatch — the piece that decides WHICH
     * applicator (chart vs. crosstab vs. neither) a changeType() result actually reaches. Only the

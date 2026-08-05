@@ -555,8 +555,22 @@ public class WizAutoBindingService {
    static void applyCrosstabAggregateFormulas(VSCrosstabInfo crosstabInfo,
                                                Map<String, SimpleFieldInfo> configMap)
    {
-      DataRef[] aggregates = crosstabInfo.getDesignAggregates();
+      applyAggregateFormulasTo(crosstabInfo.getDesignAggregates(), configMap);
 
+      // Runtime aggregates are normally re-derived from design at execution (VSCrosstabInfo.update()
+      // rebuilds aggrs2 from aggrs), but — same reasoning as applyCrosstabHeaderPins just below —
+      // update them in lockstep when already populated, so the override survives regardless of
+      // whether something reads getRuntimeAggregates() before the next execution re-derives it.
+      DataRef[] runtimeAggregates = crosstabInfo.getRuntimeAggregates();
+
+      if(runtimeAggregates != null && runtimeAggregates.length > 0) {
+         applyAggregateFormulasTo(runtimeAggregates, configMap);
+      }
+   }
+
+   /** Shared per-ref mutation for {@link #applyCrosstabAggregateFormulas} — applied to whichever
+    *  {@code DataRef[]} (design or runtime) the caller passes in. */
+   private static void applyAggregateFormulasTo(DataRef[] aggregates, Map<String, SimpleFieldInfo> configMap) {
       if(aggregates == null) {
          return;
       }
