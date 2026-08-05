@@ -301,7 +301,7 @@ public class CoreLifecycleService {
          infoMap.put("accessible", accessible);
          infoMap.put("messageLevels", vsInfo.getMessageLevels());
          infoMap.put("virtualScroll", "true".equals(SreeEnv.getProperty("viewsheet.virtual.scroll")));
-         infoMap.put("inlineSvg", "true".equals(SreeEnv.getProperty("graph.svg.inline")));
+         infoMap.put("inlineSvg", VSChartInteractionDefaults.isInlineSvg());
          infoMap.put("modernVisualization",
                      SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true));
          String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
