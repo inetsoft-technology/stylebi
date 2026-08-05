@@ -4705,10 +4705,24 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             if(sassembly instanceof TimeSliderVSAssembly &&
                clist.getSelectionList().contains(sassembly.getAssemblyEntry()))
             {
-               TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
-                  createVSAQuery(this, sassembly, DataMap.NORMAL);
-               Object obj = getData(sassembly.getName());
-               query.refreshSelectionValue(obj);
+               try {
+                  TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
+                     createVSAQuery(this, sassembly, DataMap.NORMAL);
+                  Object obj = getData(sassembly.getName());
+                  query.refreshSelectionValue(obj);
+               }
+               catch(Exception ex) {
+                  // The column this slider is bound to (e.g. a chart measure, if this
+                  // slider is a filter on a chart) may have just been removed from its
+                  // source by the change that triggered this refresh. Don't let one
+                  // stale binding fail refreshing every other selection on the sheet;
+                  // just leave this slider showing no selection until it is rebound
+                  // or removed.
+                  LOG.warn("Failed to refresh selection value for: {}",
+                     sassembly.getAbsoluteName(), ex);
+                  ((TimeSliderVSAssembly) sassembly).setSelectionList(null);
+                  ((TimeSliderVSAssembly) sassembly).setStateSelectionList(null);
+               }
             }
 
             if(sassembly instanceof CalendarVSAssembly &&
