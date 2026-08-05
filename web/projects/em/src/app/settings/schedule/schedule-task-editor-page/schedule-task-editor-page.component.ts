@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpErrorResponse } from "@angular/common/http";
-import { Component, HostBinding, OnInit, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
@@ -77,6 +77,7 @@ export class TaskItem {
 })
 export class ScheduleTaskEditorPageComponent implements OnInit {
    @HostBinding("class") hostClass = "schedule-task-editor";
+   @ViewChild("editorPanel") editorPanel: EditorPanelComponent;
    originalModel: ScheduleTaskDialogModel;
    model: ScheduleTaskDialogModel;
 
@@ -501,6 +502,14 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       });
 
       console.error("Failed to save task: ", error);
+
+      // EditorPanelComponent.handleClick() optimistically disables the Save button on click
+      // and relies on the [applyDisabled] input binding to re-enable it. Angular only re-pushes
+      // that input when the bound expression's value actually changes; on a failed save, "valid"
+      // is unchanged from before the click, so the binding update is skipped and the button is
+      // left stuck disabled. Force a resync here.
+      this.editorPanel?.changeApplyDisabledState(!this.valid);
+
       return throwError(error);
    }
 }
