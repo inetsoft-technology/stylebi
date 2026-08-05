@@ -32,6 +32,7 @@ import { ChartService } from "../services/chart.service";
 import { DndService } from "../../common/dnd/dnd.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { PagingControlService } from "../../common/services/paging-control.service";
+import { ChartConfigService } from "../services/chart-config.service";
 import { ChartModel } from "../model/chart-model";
 import { ChartObject } from "../model/chart-object";
 import { ChartAreaName } from "../model/chart-area-name";
@@ -108,6 +109,7 @@ export function createComponent(opts: CreateComponentOpts = {}) {
    };
    const renderer = { setStyle: vi.fn() };
    const ngZone = { runOutsideAngular: (fn: Function) => fn(), run: (fn: Function) => fn() };
+   const chartConfigService = { inlineSvg: false };
 
    const comp = new ChartArea(
       chartService as unknown as ChartService,
@@ -117,11 +119,12 @@ export function createComponent(opts: CreateComponentOpts = {}) {
       pagingControlService as unknown as PagingControlService,
       renderer as unknown as Renderer2,
       ngZone as unknown as NgZone,
+      chartConfigService as unknown as ChartConfigService,
    );
    comp.model = opts.model ?? makeModel();
 
    return {
       comp, chartService, dndService, scaleService, changeDetectorRef,
-      pagingControlService, renderer, scrollTopSubject, scrollLeftSubject,
+      pagingControlService, renderer, scrollTopSubject, scrollLeftSubject, chartConfigService,
    };
 }
