@@ -417,20 +417,37 @@ public class PPTValueHelper {
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR);
 
-      // four independent straight-line shapes can't form a rounded corner, so draw a
-      // single rounded-rectangle outline instead when the round corner is set.
-      if(borders != null && format.getRoundCorner() > 0) {
-         int type = borders.top != 0 ? borders.top :
-            borders.left != 0 ? borders.left :
-            borders.right != 0 ? borders.right : borders.bottom;
+      // Four independent straight-line shapes can't form a rounded corner, so draw a
+      // single rounded-rectangle outline instead when the round corner is set. Skip this
+      // for table/crosstab/tree cells (cellType != 0): those rely on the per-side
+      // CELL_TAIL/CELL_CONTENT skips below to avoid doubling up borders shared with
+      // adjacent cells, which a single all-sides shape can't replicate.
+      if(borders != null && format.getRoundCorner() > 0 && cellType == 0) {
+         int type;
+         Color color;
+
+         if(borders.top != 0) {
+            type = borders.top;
+            color = colors == null || colors.topColor == null ?
+               defbcolors.topColor : colors.topColor;
+         }
+         else if(borders.left != 0) {
+            type = borders.left;
+            color = colors == null || colors.leftColor == null ?
+               defbcolors.leftColor : colors.leftColor;
+         }
+         else if(borders.right != 0) {
+            type = borders.right;
+            color = colors == null || colors.rightColor == null ?
+               defbcolors.rightColor : colors.rightColor;
+         }
+         else {
+            type = borders.bottom;
+            color = colors == null || colors.bottomColor == null ?
+               defbcolors.bottomColor : colors.bottomColor;
+         }
 
          if(PPTVSUtil.getBorderWidth(type) != 0) {
-            Color color = colors == null ? defbcolors.topColor :
-               colors.topColor != null ? colors.topColor :
-               colors.leftColor != null ? colors.leftColor :
-               colors.rightColor != null ? colors.rightColor :
-               colors.bottomColor != null ? colors.bottomColor : defbcolors.topColor;
-
             XSLFAutoShape roundBorder = slide.createAutoShape();
             roundBorder.setAnchor(new Rectangle(x, y, width, height));
             PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);

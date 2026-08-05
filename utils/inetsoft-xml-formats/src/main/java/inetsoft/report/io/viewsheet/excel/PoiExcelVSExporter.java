@@ -1011,15 +1011,6 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
    /**
     * Apply the format setting.
-    */
-   private void applyFormat(XSSFTextBox tb, RichTextString rts,
-                            VSCompositeFormat format, boolean shadowed)
-   {
-      applyFormat(tb, rts, format, shadowed, null);
-   }
-
-   /**
-    * Apply the format setting.
     * @param pixelBounds the pixel bounds of the shape, used to translate the round corner
     *                     radius (in pixels) into an OOXML preset geometry adjustment. May be
     *                     null, in which case round corners are not applied.
