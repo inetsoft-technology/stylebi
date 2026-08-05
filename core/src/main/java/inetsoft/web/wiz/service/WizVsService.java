@@ -4212,10 +4212,17 @@ public class WizVsService {
          condition.setEqual(spec.getEqual());
       }
 
+      // Resolve the column this condition actually targets BEFORE resolving its type: the field name
+      // and the operand's type must come from the same answer. When the worksheet has bucketed the
+      // column, both follow the bucketed column; when it has not, both stay on the raw one. An
+      // aggregate (HAVING) condition is built from the raw column below, so it never buckets.
+      DateGroupedField grouped = spec.getAggregateFormula() != null
+         ? null : resolveDateRangeField(spec, dimColumnMapping);
+
       // Set the condition's data type before adding values so each value is coerced to the type
       // the field expects (e.g. "100" -> 100.0, date strings -> Date). Without this the values
       // stay as raw strings and numeric/date comparisons fail.
-      String dataType = resolveConditionType(spec, columns);
+      String dataType = resolveConditionType(spec, columns, grouped);
 
       if(dataType != null) {
          condition.setType(dataType);
@@ -4250,22 +4257,63 @@ public class WizVsService {
          return new ConditionItem(aggregateRef, condition, level);
       }
 
-      // Base (WHERE) condition: use AttributeRef, resolving dateGroupLevel to DateRangeRef name if applicable.
-      String fieldName = spec.getField();
-
-      if(spec.getDateGroupLevel() != null) {
-         int dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
-
-         if(dimColumnMapping != null && dateLevel != XConstants.NONE_DATE_GROUP) {
-            String dateRangeName = DateRangeRef.getName(spec.getField(), dateLevel);
-
-            if(dimColumnMapping.contains(dateRangeName)) {
-               fieldName = dateRangeName;
-            }
-         }
-      }
+      // Base (WHERE) condition: use AttributeRef, on the bucketed column when the worksheet has one.
+      String fieldName = grouped != null ? grouped.name() : spec.getField();
 
       return new ConditionItem(new AttributeRef(null, fieldName), condition, level);
+   }
+
+   /**
+    * The bucketed column a {@code dateGroupLevel} condition resolves to: the DateRangeRef column
+    * name the condition targets, and the level that produced it.
+    *
+    * @param name      the DateRangeRef column name, e.g. {@code MonthOfYear(ORDER_DATE)}
+    * @param dateLevel the level that produced it, never {@link XConstants#NONE_DATE_GROUP}
+    */
+   private record DateGroupedField(String name, int dateLevel) {}
+
+   /**
+    * Resolve the bucketed column a {@code dateGroupLevel} condition targets, or null when the
+    * condition stays on the raw column.
+    *
+    * <p>A level only takes effect when the pre-aggregation pass actually pushed the matching
+    * DateRangeRef column onto the worksheet; {@code dimColumnMapping} is that set, and it is null on
+    * the paths that never pre-aggregate (highlights and {@link #applyConditionModel}, both via
+    * {@link #buildConditionList}). Callers must key BOTH the field name and the operand's data type
+    * off this one answer — retyping without remapping puts the INTEGER ordinal of a PART level onto
+    * a raw date column, which a pushed-down pre-condition renders as {@code ORDER_DATE = 3}.
+    *
+    * <p>An unsupported level string is logged and ignored rather than thrown, matching
+    * {@link WizAutoBindingService#applyDateGroup}. This is the only place the level is parsed, so
+    * that leniency holds for the whole condition rather than for the type alone.
+    */
+   private DateGroupedField resolveDateRangeField(VisualizationConditionModel.ConditionSpec spec,
+                                                  Set<String> dimColumnMapping)
+   {
+      if(spec.getDateGroupLevel() == null || dimColumnMapping == null) {
+         return null;
+      }
+
+      int dateLevel;
+
+      try {
+         dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
+      }
+      catch(IllegalArgumentException e) {
+         LOG.warn("Ignoring unsupported dateGroupLevel '{}' on a condition for field '{}'; " +
+                     "the condition stays on the raw column",
+                  spec.getDateGroupLevel(), spec.getField());
+         return null;
+      }
+
+      if(dateLevel == XConstants.NONE_DATE_GROUP) {
+         return null;
+      }
+
+      String dateRangeName = DateRangeRef.getName(spec.getField(), dateLevel);
+
+      return dimColumnMapping.contains(dateRangeName)
+         ? new DateGroupedField(dateRangeName, dateLevel) : null;
    }
 
    /**
@@ -4274,17 +4322,26 @@ public class WizVsService {
     * always yields an integer regardless of the base field); a null formula result type means the
     * result keeps the base field's type (e.g. Sum, Max), so it falls through to the column lookup.
     *
-    * <p>A {@code dateGroupLevel} retypes the comparison the same way a formula does: the condition is
-    * evaluated against the grouped column, not the raw one. A PART level (Month of Year, Day of Week,
-    * …) yields an INTEGER ordinal, so coercing its operand to the base column's timeInstant turned a
-    * perfectly good {@code Month of Year = 3} into an unparseable value that
+    * <p>A resolved {@code grouped} column retypes the comparison the same way a formula does: the
+    * condition is evaluated against the bucketed column, not the raw one. A PART level (Month of
+    * Year, Day of Week, …) yields an INTEGER ordinal, so coercing its operand to the base column's
+    * timeInstant turned a perfectly good {@code Month of Year = 3} into an unparseable value that
     * {@code Condition.convertType} leaves as-is and the engine renders as the current timestamp —
     * matching no rows, with no error anywhere.
+    *
+    * <p>The retype is driven off {@code grouped} rather than off {@code spec.getDateGroupLevel()} so
+    * it can never disagree with the field {@link #buildConditionItem} picked: a level whose column
+    * was not pushed to the worksheet leaves the condition on the raw column, and its operand must
+    * keep the raw column's type to match.
+    *
+    * @param grouped the bucketed column this condition targets, or null when it stays on the raw
+    *                column; see {@link #resolveDateRangeField}.
     *
     * @return the resolved {@link XSchema} data type, or null if it cannot be determined.
     */
    private String resolveConditionType(VisualizationConditionModel.ConditionSpec spec,
-                                       ColumnSelection columns)
+                                       ColumnSelection columns,
+                                       DateGroupedField grouped)
    {
       if(spec.getAggregateFormula() != null) {
          AggregateFormula formula = AggregateFormula.getFormula(spec.getAggregateFormula());
@@ -4304,20 +4361,9 @@ public class WizVsService {
          }
       }
 
-      if(spec.getDateGroupLevel() != null) {
-         try {
-            int dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
-
-            if(dateLevel != XConstants.NONE_DATE_GROUP) {
-               // Interval levels keep a (truncated) date type; part levels become integer.
-               return DateRangeRef.getDataType(dateLevel, baseType);
-            }
-         }
-         catch(IllegalArgumentException e) {
-            LOG.warn("Ignoring unsupported dateGroupLevel '{}' on a condition for field '{}'; " +
-                        "coercing values to the raw column type instead",
-                     spec.getDateGroupLevel(), spec.getField());
-         }
+      if(grouped != null) {
+         // Interval levels keep a (truncated) date type; part levels become integer.
+         return DateRangeRef.getDataType(grouped.dateLevel(), baseType);
       }
 
       return baseType;
