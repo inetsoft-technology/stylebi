@@ -2991,10 +2991,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       const event = RemoveAnnotationEvent.create(this.vsObjects, this.selectedAssemblies);
 
       if(event) {
-         if(this.vsObjects && this.selectedAssemblies) {
-            for(let index of this.selectedAssemblies) {
-               let model = this.vsObjects[index];
-               model.selectedAnnotations = [];
+         if(this.vsObjects) {
+            for(let model of this.vsObjects) {
+               if(model && model.selectedAnnotations) {
+                  model.selectedAnnotations = [];
+               }
             }
          }
 
