@@ -151,6 +151,9 @@ public interface SVGSupport {
    String ATTR_ORIENT = "orient";
    /** {@code data-row} — dataset row index for a bar (matches {@code rowIdx} in ChartRegion). */
    String ATTR_ROW    = "row";
+   /** {@code data-anchor} — {@code "fx,fy"}, a mark's visual middle as a fraction of its box.
+    *  Written only for arcs, whose box centre falls off the slice into the donut hole. */
+   String ATTR_ANCHOR = "anchor";
    /** {@code data-size} — visual radius in pixels, used by the animation injector to sort points. */
    String ATTR_SIZE   = "size";
    /** {@code data-x} — screen X center in pixels, used to sort schema VOs left-to-right. */
