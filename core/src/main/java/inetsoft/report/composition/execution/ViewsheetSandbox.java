@@ -4705,11 +4705,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             if(sassembly instanceof TimeSliderVSAssembly &&
                clist.getSelectionList().contains(sassembly.getAssemblyEntry()))
             {
+               TimeSliderVSAssembly tsassembly = (TimeSliderVSAssembly) sassembly;
+
                try {
                   TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
                      createVSAQuery(this, sassembly, DataMap.NORMAL);
                   Object obj = getData(sassembly.getName());
                   query.refreshSelectionValue(obj);
+               }
+               catch(ConfirmException | CancelledException ex) {
+                  throw ex;
                }
                catch(Exception ex) {
                   // The column this slider is bound to (e.g. a chart measure, if this
@@ -4720,8 +4725,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   // or removed.
                   LOG.warn("Failed to refresh selection value for: {}",
                      sassembly.getAbsoluteName(), ex);
-                  ((TimeSliderVSAssembly) sassembly).setSelectionList(null);
-                  ((TimeSliderVSAssembly) sassembly).setStateSelectionList(null);
+                  tsassembly.setSelectionList(null);
+                  tsassembly.setStateSelectionList(null);
                }
             }
 
