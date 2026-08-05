@@ -28,6 +28,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
 /**
  * Proxies the plugins' documentation search to the configured AI assistant server.
  *
@@ -51,17 +54,37 @@ public class WizDocSearchController {
       value = "/api/wiz/v1/docs/search",
       consumes = MediaType.APPLICATION_JSON_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<String> search(@RequestBody String body, HttpServletRequest request) {
+   public ResponseEntity<String> search(HttpServletRequest request) throws IOException {
       // Defence in depth rather than load-bearing here: the endpoint is read-only over public
       // product documentation. Kept for consistency with the other plugin-facing AI endpoints,
       // which rely on it as a CSRF backstop under the /api/wiz/** exemption.
       AdminAiCallerGuard.requireBearerAuthenticatedRequest();
 
-      // A doc-search body is a short question. Anything larger is a caller bug or an attack;
-      // relaying it upstream to find that out only spends the assistant's resources too.
-      if(body != null && body.length() > MAX_REQUEST_BODY_CHARS) {
+      // Read the raw body from the request stream instead of via @RequestBody. WebConfig
+      // replaces Spring's default converters, and none of the registered ones can bind a JSON
+      // request body onto a String target: MappingJackson2HttpMessageConverter tries to map
+      // the JSON object onto String and fails, and StringHttpMessageConverter is restricted to
+      // text/plain. A typed DTO isn't the fix either — this controller is a deliberate thin
+      // passthrough (see class javadoc) and must not duplicate the assistant's validation.
+
+      // Reject a body that is already oversized by its declared Content-Length without ever
+      // opening the input stream.
+      if(request.getContentLengthLong() > MAX_REQUEST_BODY_CHARS) {
          return error(HttpStatus.PAYLOAD_TOO_LARGE, "Request body too large.");
       }
+
+      // A doc-search body is a short question. Anything larger is a caller bug or an attack;
+      // relaying it upstream to find that out only spends the assistant's resources too.
+      // readNBytes(cap + 1) never buffers more than cap + 1 bytes, so a chunked body (no
+      // Content-Length) or a dishonest header is still bounded, without a duplicate of
+      // AssistantProxyController's LimitedInputStream.
+      byte[] bytes = request.getInputStream().readNBytes(MAX_REQUEST_BODY_CHARS + 1);
+
+      if(bytes.length > MAX_REQUEST_BODY_CHARS) {
+         return error(HttpStatus.PAYLOAD_TOO_LARGE, "Request body too large.");
+      }
+
+      String body = new String(bytes, StandardCharsets.UTF_8);
 
       String baseUrl = AIAssistantController.resolveAssistantBaseUrl();
 
@@ -113,7 +136,11 @@ public class WizDocSearchController {
    }
 
    private static final String ASSISTANT_PATH = "/api/doc-search";
-   /** Generous next to the assistant's own 2000-character query limit, but bounded. */
+   /**
+    * Generous next to the assistant's own 2000-character query limit, but bounded. Enforced
+    * against the raw UTF-8 byte count read from the request, which is never smaller than the
+    * decoded character count, so this is at least as strict as a character-based cap.
+    */
    private static final int MAX_REQUEST_BODY_CHARS = 64 * 1024;
    private static final Logger LOG = LoggerFactory.getLogger(WizDocSearchController.class);
 

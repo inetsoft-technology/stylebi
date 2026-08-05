@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -64,12 +65,22 @@ class WizDocSearchControllerTest {
       sreeEnv.when(() -> SreeEnv.getProperty("chat.app.server.url")).thenReturn(null);
    }
 
+   /**
+    * The production controller now reads the body from the request stream instead of via
+    * {@code @RequestBody}, so tests supply it the same way {@code MockHttpServletRequest}
+    * would receive it off the wire.
+    */
+   private static void setBody(MockHttpServletRequest request, String body) {
+      request.setContent(body.getBytes(StandardCharsets.UTF_8));
+   }
+
    @Test
    void relaysASuccessfulResponseVerbatim() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
 
-      ResponseEntity<String> result = controller.search("{\"query\":\"q\"}", request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(HttpStatus.OK.value(), result.getStatusCode().value());
       assertEquals("{\"matches\":[]}", result.getBody());
@@ -77,10 +88,11 @@ class WizDocSearchControllerTest {
 
    @Test
    void forwardsTheCallersBearerTokenAndBody() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search("{\"query\":\"q\"}", request);
+      controller.search(request);
 
       verify(gateway).post("https://assistant.example.com", "/api/doc-search",
                            "{\"query\":\"q\"}", "Bearer operator-token");
@@ -88,20 +100,22 @@ class WizDocSearchControllerTest {
 
    @Test
    void requiresABearerAuthenticatedRequest() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search("{\"query\":\"q\"}", request);
+      controller.search(request);
 
       guard.verify(AdminAiCallerGuard::requireBearerAuthenticatedRequest);
    }
 
    @Test
    void relaysAValidationErrorVerbatimSoTheAgentSeesTheNamedField() throws Exception {
+      setBody(request, "{}");
       when(gateway.post(any(), any(), any(), any())).thenReturn(
          new AssistantDocSearchGateway.Response(400, "{\"error\":\"modules[0]: unknown module\"}"));
 
-      ResponseEntity<String> result = controller.search("{}", request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(400, result.getStatusCode().value());
       assertTrue(result.getBody().contains("modules[0]"));
@@ -109,10 +123,11 @@ class WizDocSearchControllerTest {
 
    @Test
    void relaysAnAssistantServerErrorVerbatim() throws Exception {
+      setBody(request, "{}");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(500, "{\"error\":\"Document search failed\"}"));
 
-      ResponseEntity<String> result = controller.search("{}", request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(500, result.getStatusCode().value());
       assertTrue(result.getBody().contains("Document search failed"));
@@ -123,8 +138,9 @@ class WizDocSearchControllerTest {
    @Test
    void rejectsAnOversizedBodyBeforeCallingTheAssistant() throws Exception {
       String huge = "{\"query\":\"" + "x".repeat(70_000) + "\"}";
+      setBody(request, huge);
 
-      ResponseEntity<String> result = controller.search(huge, request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(413, result.getStatusCode().value());
       verifyNoInteractions(gateway);
@@ -132,9 +148,10 @@ class WizDocSearchControllerTest {
 
    @Test
    void returns503NamingBothPropertiesWhenNoAssistantIsConfigured() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       configureAssistant(null);
 
-      ResponseEntity<String> result = controller.search("{\"query\":\"q\"}", request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(503, result.getStatusCode().value());
       assertTrue(result.getBody().contains("chat.app.internal.url"));
@@ -144,13 +161,14 @@ class WizDocSearchControllerTest {
 
    @Test
    void fallsBackToTheBrowserFacingUrlInDirectMode() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       sreeEnv.when(() -> SreeEnv.getProperty("chat.app.internal.url")).thenReturn("");
       sreeEnv.when(() -> SreeEnv.getProperty("chat.app.server.url"))
          .thenReturn("https://direct.example.com");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search("{\"query\":\"q\"}", request);
+      controller.search(request);
 
       verify(gateway).post(eq("https://direct.example.com"), any(), any(), any());
    }
@@ -158,10 +176,11 @@ class WizDocSearchControllerTest {
    // A bare 404 would read as "no such StyleBI route" and send the operator to the wrong layer.
    @Test
    void mapsAssistant404ToAnUpgradeMessage() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(404, "Cannot POST /api/doc-search"));
 
-      ResponseEntity<String> result = controller.search("{\"query\":\"q\"}", request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(502, result.getStatusCode().value());
       assertTrue(result.getBody().toLowerCase().contains("upgrade"));
@@ -170,10 +189,11 @@ class WizDocSearchControllerTest {
 
    @Test
    void returns502WhenTheAssistantDoesNotRespond() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
       when(gateway.post(any(), any(), any(), any()))
          .thenThrow(new IOException("Connection refused"));
 
-      ResponseEntity<String> result = controller.search("{\"query\":\"q\"}", request);
+      ResponseEntity<String> result = controller.search(request);
 
       assertEquals(502, result.getStatusCode().value());
       assertTrue(result.getBody().contains("did not respond"));
@@ -182,10 +202,11 @@ class WizDocSearchControllerTest {
    @Test
    void toleratesAMissingAuthorizationHeader() throws Exception {
       MockHttpServletRequest anonymous = new MockHttpServletRequest();
+      setBody(anonymous, "{\"query\":\"q\"}");
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search("{\"query\":\"q\"}", anonymous);
+      controller.search(anonymous);
 
       verify(gateway).post(any(), any(), any(), isNull());
    }
