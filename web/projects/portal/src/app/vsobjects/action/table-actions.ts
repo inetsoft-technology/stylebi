@@ -326,8 +326,19 @@ export class TableActions extends BaseTableActions<VSTableModel> {
    }
 
    private get showDetailsVisible(): boolean {
-      return this.model.summary && this.model.selectedData && !this.model.form
-         && this.model.selectedData.size > 0 && this.isActionVisibleInViewer("Show Details");
+      return this.model.summary && this.detailCellsSelected &&
+         this.isActionVisibleInViewer("Show Details");
+   }
+
+   /**
+    * Whether the selection is something Show Details can act on: at least one data cell, on a
+    * table that is not a form. Selecting a header does not qualify - vs-table clears
+    * selectedData when a header is picked. Split out of showDetailsVisible and protected so
+    * subclasses can reuse the selection rule without copying it; EmbedTableActions does exactly
+    * that, and deliberately leaves out the model.summary half.
+    */
+   protected get detailCellsSelected(): boolean {
+      return !this.model.form && !!this.model.selectedData && this.model.selectedData.size > 0;
    }
 
    private get selectionApplyVisible(): boolean {

@@ -77,7 +77,8 @@ export class EmbedTableActions extends TableActions {
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details")
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details")
          },
          {
             id: () => "table export",
