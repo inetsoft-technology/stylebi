@@ -36,34 +36,22 @@ export class EmbedTableActions extends TableActions {
          dataTipService, popService, miniToolbarService);
    }
 
+   /**
+    * Deliberately empty. createMenuActions() feeds two surfaces - the mini toolbar's "More"
+    * button, whose children are this.menuActions (abstract-vs-actions.ts, childAction), and the
+    * right-click context menu (see EmbedTableComponent.onOpenContextMenu) - and everything the
+    * embed table offers already has its own toolbar button. Listing show-details and export here
+    * as well, which this class used to do, made "More" repeat the two icons sitting next to it.
+    * The base class does not have that problem: TableActions.createMenuActions holds only
+    * composer/annotation commands, which the embed has no use for, so overriding it away is the
+    * point of this method. The toolbar's own "More" entry self-hides while this stays empty
+    * (its visible() requires a visible menu action), so a future menu-only action needs nothing
+    * but a group pushed here.
+    *
+    * The helper text that used to live here went with them: "Click on cells for additional
+    * commands" describes the composer, and in the embed it was the only thing left in "More".
+    */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "table show-details",
-            label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
-            enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
-         },
-         {
-            id: () => "table export",
-            label: () => "_#(js:Export)",
-            icon: () => "export-icon",
-            enabled: () => true,
-            visible: () => this.isActionVisible("Export") && !this.annotationsSelected
-         },
-      ]));
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "table MenuAction HelperText",
-            label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
-            icon: () => "edit-icon",
-            enabled: () => false,
-            visible: () => this.menuActionHelperTextVisible,
-            classes: () => "helper-text"
-         }
-      ]));
-
       return groups;
    }
 

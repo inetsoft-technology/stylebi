@@ -36,34 +36,14 @@ export class EmbedCrosstabActions extends CrosstabActions {
          dataTipService, popService, miniToolbarService);
    }
 
+   /**
+    * Deliberately empty, for the reasons spelled out in EmbedTableActions.createMenuActions:
+    * "More" is fed by this.menuActions and every command the embed crosstab has is already a
+    * toolbar button, so listing show-details and export here duplicated them in the dropdown.
+    * Overriding the base implementation away is still needed - CrosstabActions.createMenuActions
+    * is all composer/annotation commands.
+    */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "crosstab show-details",
-            label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
-            enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
-         },
-         {
-            id: () => "crosstab export",
-            label: () => "_#(js:Export)",
-            icon: () => "export-icon",
-            enabled: () => true,
-            visible: () => this.isActionVisible("Export") && !this.annotationsSelected
-         },
-      ]));
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "crosstab MenuAction HelperText",
-            label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
-            icon: () => "edit-icon",
-            enabled: () => false,
-            visible: () => this.menuActionHelperTextVisible,
-            classes: () => "helper-text"
-         }
-      ]));
-
       return groups;
    }
 

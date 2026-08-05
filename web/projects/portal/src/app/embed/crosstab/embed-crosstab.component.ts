@@ -557,6 +557,12 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
          actions = this.vsObjectActions.menuActions;
       }
 
+      // EmbedCrosstabActions has no menu actions - everything is a toolbar button - so a right
+      // click would otherwise open an empty dropdown and freeze the mini toolbar behind it.
+      if(!actions?.some((group) => group.visible)) {
+         return;
+      }
+
       const dropdown: DropdownRef = this.showContextMenu(actions, event);
       this.miniToolbarService.hiddenFreeze(this.vsObject?.absoluteName);
 
