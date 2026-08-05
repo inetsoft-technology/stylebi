@@ -266,6 +266,10 @@ public class PPTValueHelper {
             format.getBackground()));
       }
 
+      if(format.getRoundCorner() > 0 && bounds != null) {
+         PPTVSUtil.applyRoundCorner(textbox, format.getRoundCorner(), bounds);
+      }
+
       if(format.getForeground() != null) {
          rtr.setFontColor(format.getForeground());
       }
@@ -412,6 +416,31 @@ public class PPTValueHelper {
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR);
+
+      // four independent straight-line shapes can't form a rounded corner, so draw a
+      // single rounded-rectangle outline instead when the round corner is set.
+      if(borders != null && format.getRoundCorner() > 0) {
+         int type = borders.top != 0 ? borders.top :
+            borders.left != 0 ? borders.left :
+            borders.right != 0 ? borders.right : borders.bottom;
+
+         if(PPTVSUtil.getBorderWidth(type) != 0) {
+            Color color = colors == null ? defbcolors.topColor :
+               colors.topColor != null ? colors.topColor :
+               colors.leftColor != null ? colors.leftColor :
+               colors.rightColor != null ? colors.rightColor :
+               colors.bottomColor != null ? colors.bottomColor : defbcolors.topColor;
+
+            XSLFAutoShape roundBorder = slide.createAutoShape();
+            roundBorder.setAnchor(new Rectangle(x, y, width, height));
+            PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);
+            roundBorder.setFillColor(null);
+            PPTVSUtil.applyLineStyle(roundBorder, type);
+            roundBorder.setLineColor(color);
+         }
+
+         return;
+      }
 
       if(borders != null) {
          if(PPTVSUtil.getBorderWidth(borders.left) != 0) {
