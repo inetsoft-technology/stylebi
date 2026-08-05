@@ -889,7 +889,13 @@ public final class WorksheetMutationSupport {
       int op = "BOTTOM_N".equalsIgnoreCase(spec.operation())
          ? XCondition.BOTTOM_N : XCondition.TOP_N;
 
-      DataRef ref = resolveField(t, spec.field());
+      // The RankingCondition itself always runs after aggregation (see
+      // AssetQuery.getRankingTableLens), so resolve against AggregateInfo first — this
+      // matches both an aggregate (e.g. "Sum(Total)") and a group-by dimension (e.g.
+      // "Employee") — before falling back to the plain column selection, like
+      // set_post_conditions does. Otherwise a rank on "Sum(Total)" binds to the raw
+      // "Total" column instead of the aggregate ref.
+      DataRef ref = resolveField(t, spec.field(), true);
       inetsoft.uql.asset.RankingCondition rc = new inetsoft.uql.asset.RankingCondition();
       rc.setOperation(op);
       rc.setN(spec.n());

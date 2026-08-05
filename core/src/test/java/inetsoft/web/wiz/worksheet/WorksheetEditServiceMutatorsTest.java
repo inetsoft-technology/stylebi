@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -358,6 +359,83 @@ class WorksheetEditServiceMutatorsTest {
          svc.apply("TOK", agent, ed ->
             ed.setGroupAggregate("T", List.of("no_such_group"), List.of())));
       assertTrue(ex2.getMessage().contains("no_such_group"));
+   }
+
+   // =========================================================================
+   // Ranking tests
+   // =========================================================================
+
+   @Test
+   void setRankingOnAggregatedTableResolvesAggregateRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      assertNotNull(cl);
+      assertFalse(cl.isEmpty());
+
+      // Ranking is evaluated post-aggregate: it must bind to the Sum(total) aggregate
+      // ref, not a plain pre-aggregate reference to the raw "total" column — otherwise
+      // the filter displays as "total top3" instead of "Sum(total) top3".
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertTrue(ref instanceof AggregateRef,
+         "ranking on an aggregated table must resolve to the AggregateRef, got: " + ref);
+      assertEquals("total", ((AggregateRef) ref).getAttribute());
+   }
+
+   @Test
+   void setRankingOnAggregatedTableByDimensionResolvesGroupRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Ranking need not target the aggregate — it can also rank by one of the
+      // group-by (pre-aggregate) dimensions, e.g. top 3 employees alphabetically.
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertTrue(ref instanceof GroupRef,
+         "ranking by a group dimension must resolve to the GroupRef, got: " + ref);
+      assertEquals("employee", ref.getAttribute());
+   }
+
+   @Test
+   void setRankingOnUngroupedTableResolvesRawColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+
+      // No AggregateInfo is set, so ranking must still fall back to the plain column —
+      // ranking on a non-aggregated table must keep working exactly as before.
+      assertFalse(ref instanceof AggregateRef);
+      assertEquals("total", ref.getAttribute());
    }
 
    // =========================================================================
