@@ -4274,6 +4274,13 @@ public class WizVsService {
     * always yields an integer regardless of the base field); a null formula result type means the
     * result keeps the base field's type (e.g. Sum, Max), so it falls through to the column lookup.
     *
+    * <p>A {@code dateGroupLevel} retypes the comparison the same way a formula does: the condition is
+    * evaluated against the grouped column, not the raw one. A PART level (Month of Year, Day of Week,
+    * …) yields an INTEGER ordinal, so coercing its operand to the base column's timeInstant turned a
+    * perfectly good {@code Month of Year = 3} into an unparseable value that
+    * {@code Condition.convertType} leaves as-is and the engine renders as the current timestamp —
+    * matching no rows, with no error anywhere.
+    *
     * @return the resolved {@link XSchema} data type, or null if it cannot be determined.
     */
    private String resolveConditionType(VisualizationConditionModel.ConditionSpec spec,
@@ -4287,15 +4294,33 @@ public class WizVsService {
          }
       }
 
+      String baseType = null;
+
       if(columns != null && spec.getField() != null) {
          DataRef ref = columns.getAttribute(spec.getField());
 
          if(ref != null) {
-            return ref.getDataType();
+            baseType = ref.getDataType();
          }
       }
 
-      return null;
+      if(spec.getDateGroupLevel() != null) {
+         try {
+            int dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
+
+            if(dateLevel != XConstants.NONE_DATE_GROUP) {
+               // Interval levels keep a (truncated) date type; part levels become integer.
+               return DateRangeRef.getDataType(dateLevel, baseType);
+            }
+         }
+         catch(IllegalArgumentException e) {
+            LOG.warn("Ignoring unsupported dateGroupLevel '{}' on a condition for field '{}'; " +
+                        "coercing values to the raw column type instead",
+                     spec.getDateGroupLevel(), spec.getField());
+         }
+      }
+
+      return baseType;
    }
 
    private int parseJunction(String junction) {
@@ -4610,10 +4635,26 @@ public class WizVsService {
       else if(ref instanceof VSChartDimensionRef dimRef) {
          if(dimColumnMapping.contains(dimRef.getFullName())) {
             dimRef.setGroupColumnValue(dimRef.getFullName());
-            dimRef.setDateLevelValue(null);
-            dimRef.setDateLevel(DateRangeRef.NONE);
+            clearDateLevelAfterPreAggregation(dimRef);
          }
       }
+   }
+
+   /**
+    * Reset a dimension the worksheet has already bucketed to NONE date level.
+    *
+    * <p>The level must be written as the DESIGN-time value, not only through {@code setDateLevel}.
+    * {@code setDateLevel} assigns the transient {@code dlevel} override, which
+    * {@code VSDimensionRef.writeContents} never serializes, so it is gone the moment the viewsheet is
+    * persisted or its refs are rebuilt — and a date-typed dimension with no level value falls back to
+    * the YEAR default ({@code WizardRecommenderUtil.setDefaultDateLevel}). The chart then re-grouped a
+    * column the worksheet had already reduced to months, rendering {@code Year(Month(ORDER_DATE))} and
+    * collapsing a 12-point monthly series into one bar. Same reason
+    * {@link WizAutoBindingService#applyDateGroup} writes the level value rather than the override.
+    */
+   private void clearDateLevelAfterPreAggregation(VSDimensionRef dimRef) {
+      dimRef.setDateLevelValue(String.valueOf(XConstants.NONE_DATE_GROUP));
+      dimRef.setDateLevel(DateRangeRef.NONE);
    }
 
    private void updateAestheticRefForPreAggregation(
@@ -4664,8 +4705,7 @@ public class WizVsService {
                && dimColumnMapping.contains(dimRef.getFullName()))
             {
                dimRef.setGroupColumnValue(dimRef.getFullName());
-               dimRef.setDateLevelValue(null);
-               dimRef.setDateLevel(DateRangeRef.NONE);
+               clearDateLevelAfterPreAggregation(dimRef);
             }
          }
       }
