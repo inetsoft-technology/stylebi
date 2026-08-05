@@ -299,6 +299,13 @@ public class WizAutoBindingService {
                        crosstabAsm.getVSCrosstabInfo() != null)
                {
                   applyCrosstabHeaderPins(crosstabAsm.getVSCrosstabInfo(), explicitBindings);
+                  // Mirror the chart branch's applyFieldConfigs() call above: the crosstab
+                  // recommender builds its own aggregate formula for each measure (its generic
+                  // per-type default, e.g. Sum for any numeric column) independent of what the
+                  // caller's fieldConfigs actually resolved — same root cause changeType() had to
+                  // guard against (see ChangeTypeRequest.fieldConfigs), just reachable here too on
+                  // a FRESH autoBinding call that resolves straight to a crosstab.
+                  applyCrosstabAggregateFormulas(crosstabAsm.getVSCrosstabInfo(), configMap);
                }
             }
          }
@@ -500,8 +507,12 @@ public class WizAutoBindingService {
     * javadoc) onto whichever assembly type changeType() ends up with — dispatches to the chart or
     * crosstab-specific applicator; a no-op for any other assembly type (e.g. table, which has no
     * per-cell aggregate formula to override in the same sense).
+    *
+    * <p>Package-private (not {@code static} — {@link #applyFieldConfigs} it delegates to is an
+    * instance method) so the dispatch itself can be unit-tested directly against a service instance
+    * with mocked assemblies, rather than only indirectly through the full {@link #changeType}.
     */
-   private void applyResolvedFormulaOverrides(VSAssembly assembly, Map<String, SimpleFieldInfo> configMap) {
+   void applyResolvedFormulaOverrides(VSAssembly assembly, Map<String, SimpleFieldInfo> configMap) {
       if(assembly instanceof ChartVSAssembly chartAsm && chartAsm.getVSChartInfo() != null) {
          applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
       }

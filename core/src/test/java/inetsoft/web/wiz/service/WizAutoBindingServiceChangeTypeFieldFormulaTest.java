@@ -18,10 +18,17 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.model.MeasureFieldInfo;
 import inetsoft.web.wiz.model.SimpleFieldInfo;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -110,5 +117,65 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
 
       assertDoesNotThrow(() -> WizAutoBindingService.applyCrosstabAggregateFormulas(
          info, configMap(measure("CUSTOMER_COUNT", "Count"))));
+   }
+
+   /**
+    * applyResolvedFormulaOverrides(VSAssembly, Map) dispatch — the piece that decides WHICH
+    * applicator (chart vs. crosstab vs. neither) a changeType() result actually reaches. Only the
+    * dispatch is exercised here (via a service instance with every unused collaborator left null,
+    * mirroring WizAutoBindingServiceSetChartFormatTest's pattern) — not the full changeType() call.
+    */
+   @Tag("core")
+   static class ApplyResolvedFormulaOverridesDispatchTest {
+      private final WizAutoBindingService service =
+         new WizAutoBindingService(null, null, null, null, null, null, null);
+
+      @Test
+      void dispatchesChartAssemblyToApplyFieldConfigs() {
+         VSChartAggregateRef yRef = mock(VSChartAggregateRef.class);
+         when(yRef.getColumnValue()).thenReturn("CUSTOMER_COUNT");
+
+         VSChartInfo chartInfo = mock(VSChartInfo.class);
+         when(chartInfo.getXFields()).thenReturn(new inetsoft.uql.viewsheet.graph.ChartRef[0]);
+         when(chartInfo.getYFields()).thenReturn(
+            new inetsoft.uql.viewsheet.graph.ChartRef[] { yRef });
+
+         ChartVSAssembly chartAsm = mock(ChartVSAssembly.class);
+         when(chartAsm.getVSChartInfo()).thenReturn(chartInfo);
+
+         service.applyResolvedFormulaOverrides(
+            (VSAssembly) chartAsm, configMap(measure("CUSTOMER_COUNT", "Count")));
+
+         verify(yRef).setFormulaValue("Count");
+      }
+
+      @Test
+      void dispatchesCrosstabAssemblyToApplyCrosstabAggregateFormulas() {
+         VSAggregateRef ref = agg("CUSTOMER_COUNT");
+         VSCrosstabInfo crosstabInfo = mock(VSCrosstabInfo.class);
+         when(crosstabInfo.getDesignAggregates()).thenReturn(new DataRef[] { ref });
+
+         CrosstabVSAssembly crosstabAsm = mock(CrosstabVSAssembly.class);
+         when(crosstabAsm.getVSCrosstabInfo()).thenReturn(crosstabInfo);
+
+         service.applyResolvedFormulaOverrides(
+            (VSAssembly) crosstabAsm, configMap(measure("CUSTOMER_COUNT", "Count")));
+
+         verify(ref).setFormulaValue("Count");
+      }
+
+      @Test
+      void neitherChartNorCrosstabIsANoOp() {
+         TableVSAssembly tableAsm = mock(TableVSAssembly.class);
+
+         assertDoesNotThrow(() -> service.applyResolvedFormulaOverrides(
+            (VSAssembly) tableAsm, configMap(measure("CUSTOMER_COUNT", "Count"))));
+      }
+
+      @Test
+      void nullAssemblyIsANoOp() {
+         assertDoesNotThrow(() -> service.applyResolvedFormulaOverrides(
+            null, configMap(measure("CUSTOMER_COUNT", "Count"))));
+      }
    }
 }
