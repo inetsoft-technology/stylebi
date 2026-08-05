@@ -313,7 +313,7 @@ export class EmbedChartActions extends ChartActions {
             enabled: () => true,
             visible: () => !this.vsWizardPreview && !this.mobileDevice
                && this.isActionVisibleInViewer("Menu Actions")
-               && this.menuActions.some((g) => g.actions.some((action) => action.visible()))
+               && AssemblyActionGroup.anyVisible(this.menuActions)
          }]));
 
       return groups;

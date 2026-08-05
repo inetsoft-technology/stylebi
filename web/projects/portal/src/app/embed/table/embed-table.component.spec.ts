@@ -65,7 +65,9 @@ describe("EmbedTableComponent.onOpenContextMenu", () => {
 
       expect(dropdownService.open).not.toHaveBeenCalled();
       expect(miniToolbarService.hiddenFreeze).not.toHaveBeenCalled();
-      expect(event.preventDefault).not.toHaveBeenCalled();
+      // The browser's own context menu stays suppressed either way - having nothing of our own
+      // to show is not a reason to offer the embedding page's users Reload/Save As.
+      expect(event.preventDefault).toHaveBeenCalled();
    });
 
    it("still opens the menu when there is something to show", () => {

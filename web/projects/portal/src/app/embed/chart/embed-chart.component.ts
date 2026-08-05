@@ -581,6 +581,16 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          actions = this.vsObjectActions.menuActions;
       }
 
+      // EmbedChartActions does have menu actions, but every one of them is tied to a selection
+      // (a title, an axis, a legend, a zoom), so a right click on plain plot area has nothing to
+      // show. Opening the dropdown anyway leaves an empty popup with the mini toolbar frozen
+      // behind it. Still suppress the browser's own menu, which showContextMenu() would have
+      // done: the assembly having nothing to offer is not a reason to fall back to Reload/Save As.
+      if(!AssemblyActionGroup.anyVisible(actions)) {
+         event.preventDefault();
+         return;
+      }
+
       const dropdown: DropdownRef = this.showContextMenu(actions, event);
       this.miniToolbarService.hiddenFreeze(this.vsObject?.absoluteName);
 

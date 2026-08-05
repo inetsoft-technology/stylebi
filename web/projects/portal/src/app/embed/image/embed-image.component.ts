@@ -465,6 +465,15 @@ export class EmbedImageComponent extends CommandProcessor implements OnInit, OnD
          actions = this.vsObjectActions.menuActions;
       }
 
+      // EmbedImageActions has no menu actions, so a right click would otherwise open an empty
+      // dropdown and freeze the mini toolbar behind it. Still suppress the browser's own menu,
+      // which showContextMenu() would have done: the assembly having nothing to offer is not a
+      // reason to fall back to Reload/Save As.
+      if(!AssemblyActionGroup.anyVisible(actions)) {
+         event.preventDefault();
+         return;
+      }
+
       const dropdown: DropdownRef = this.showContextMenu(actions, event);
       this.miniToolbarService.hiddenFreeze(this.vsObject?.absoluteName);
 

@@ -560,7 +560,10 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
 
       // EmbedTableActions has no menu actions - everything is a toolbar button - so a right
       // click would otherwise open an empty dropdown and freeze the mini toolbar behind it.
+      // Still suppress the browser's own menu, which showContextMenu() would have done: the
+      // assembly having nothing to offer is not a reason to fall back to Reload/Save As.
       if(!AssemblyActionGroup.anyVisible(actions)) {
+         event.preventDefault();
          return;
       }
 

@@ -21,8 +21,9 @@ export class AssemblyActionGroup {
 
    /**
     * Whether any group in the list has a visible action, i.e. whether showing a menu built from
-    * them would show anything at all. Lives here rather than in each caller because the embed
-    * components each own a copy of onOpenContextMenu() and all of them need this same test.
+    * them would show anything at all. Lives here rather than in each caller because the test is
+    * needed in a dozen places - every embed component owns a copy of onOpenContextMenu(), and
+    * every "More" button hides itself on the same condition.
     */
    public static anyVisible(groups: AssemblyActionGroup[]): boolean {
       return !!groups && groups.some((group) => group?.visible);
