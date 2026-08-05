@@ -24,9 +24,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +42,7 @@ class WizDocSearchControllerTest {
    private MockedStatic<AdminAiCallerGuard> guard;
    private WizDocSearchController controller;
    private MockHttpServletRequest request;
+   private MockHttpServletResponse response;
 
    @BeforeEach
    void setUp() {
@@ -51,6 +51,7 @@ class WizDocSearchControllerTest {
       guard = mockStatic(AdminAiCallerGuard.class, withSettings().lenient());
       request = new MockHttpServletRequest();
       request.addHeader("Authorization", "Bearer operator-token");
+      response = new MockHttpServletResponse();
       configureAssistant("https://assistant.example.com");
    }
 
@@ -80,10 +81,11 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(HttpStatus.OK.value(), result.getStatusCode().value());
-      assertEquals("{\"matches\":[]}", result.getBody());
+      assertEquals(200, response.getStatus());
+      assertEquals("{\"matches\":[]}", response.getContentAsString());
+      assertEquals("application/json;charset=UTF-8", response.getContentType());
    }
 
    @Test
@@ -92,7 +94,7 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search(request);
+      controller.search(request, response);
 
       verify(gateway).post("https://assistant.example.com", "/api/doc-search",
                            "{\"query\":\"q\"}", "Bearer operator-token");
@@ -104,7 +106,7 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search(request);
+      controller.search(request, response);
 
       guard.verify(AdminAiCallerGuard::requireBearerAuthenticatedRequest);
    }
@@ -115,10 +117,10 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any())).thenReturn(
          new AssistantDocSearchGateway.Response(400, "{\"error\":\"modules[0]: unknown module\"}"));
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(400, result.getStatusCode().value());
-      assertTrue(result.getBody().contains("modules[0]"));
+      assertEquals(400, response.getStatus());
+      assertTrue(response.getContentAsString().contains("modules[0]"));
    }
 
    @Test
@@ -127,10 +129,10 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(500, "{\"error\":\"Document search failed\"}"));
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(500, result.getStatusCode().value());
-      assertTrue(result.getBody().contains("Document search failed"));
+      assertEquals(500, response.getStatus());
+      assertTrue(response.getContentAsString().contains("Document search failed"));
    }
 
    // A doc-search body is a short question; anything larger is a caller bug or an attack, and
@@ -140,9 +142,9 @@ class WizDocSearchControllerTest {
       String huge = "{\"query\":\"" + "x".repeat(70_000) + "\"}";
       setBody(request, huge);
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(413, result.getStatusCode().value());
+      assertEquals(413, response.getStatus());
       verifyNoInteractions(gateway);
    }
 
@@ -151,11 +153,11 @@ class WizDocSearchControllerTest {
       setBody(request, "{\"query\":\"q\"}");
       configureAssistant(null);
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(503, result.getStatusCode().value());
-      assertTrue(result.getBody().contains("chat.app.internal.url"));
-      assertTrue(result.getBody().contains("chat.app.server.url"));
+      assertEquals(503, response.getStatus());
+      assertTrue(response.getContentAsString().contains("chat.app.internal.url"));
+      assertTrue(response.getContentAsString().contains("chat.app.server.url"));
       verifyNoInteractions(gateway);
    }
 
@@ -168,7 +170,7 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search(request);
+      controller.search(request, response);
 
       verify(gateway).post(eq("https://direct.example.com"), any(), any(), any());
    }
@@ -180,11 +182,11 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(404, "Cannot POST /api/doc-search"));
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(502, result.getStatusCode().value());
-      assertTrue(result.getBody().toLowerCase().contains("upgrade"));
-      assertFalse(result.getBody().contains("Cannot POST"));
+      assertEquals(502, response.getStatus());
+      assertTrue(response.getContentAsString().toLowerCase().contains("upgrade"));
+      assertFalse(response.getContentAsString().contains("Cannot POST"));
    }
 
    @Test
@@ -193,10 +195,10 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenThrow(new IOException("Connection refused"));
 
-      ResponseEntity<String> result = controller.search(request);
+      controller.search(request, response);
 
-      assertEquals(502, result.getStatusCode().value());
-      assertTrue(result.getBody().contains("did not respond"));
+      assertEquals(502, response.getStatus());
+      assertTrue(response.getContentAsString().contains("did not respond"));
    }
 
    @Test
@@ -206,7 +208,7 @@ class WizDocSearchControllerTest {
       when(gateway.post(any(), any(), any(), any()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
-      controller.search(anonymous);
+      controller.search(anonymous, response);
 
       verify(gateway).post(any(), any(), any(), isNull());
    }

@@ -31,8 +31,10 @@ import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -116,5 +118,35 @@ class WizDocSearchControllerRequestBindingTest {
       // The request must reach the gateway with the body intact — proof that binding, not just
       // routing, succeeded.
       verify(gateway).post(any(), any(), eq("{\"query\":\"q\"}"), any());
+   }
+
+   /**
+    * Guards the mirror-image defect from the request-binding one above: the gateway's response
+    * body is already-serialized JSON text, and under the application's real converter set
+    * (Jackson registered ahead of a {@code text/plain}-only {@code StringHttpMessageConverter})
+    * {@code ResponseEntity<String>.contentType(APPLICATION_JSON)} gets written by Jackson, which
+    * re-serializes the {@code String} as a JSON string literal — {@code "{\"matches\":[]}"}
+    * instead of {@code {"matches":[]}}. A test built on {@code standaloneSetup}'s permissive
+    * default converters would not catch this, for the same reason described in the class
+    * javadoc.
+    */
+   @Test
+   void relaysTheResponseBodyAsRealJsonRatherThanADoubleEncodedString() throws Exception {
+      when(gateway.post(any(), any(), any(), any()))
+         .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
+
+      MvcResult result = mvc.perform(post("/api/wiz/v1/docs/search")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"query\":\"q\"}"))
+         .andExpect(status().isOk())
+         .andReturn();
+
+      String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+      assertFalse(body.startsWith("\""),
+         "response body must be a JSON object, not a JSON string literal: " + body);
+      assertFalse(body.contains("\\\""),
+         "response body must not contain escaped quotes (double-encoded JSON): " + body);
+      assertEquals("{\"matches\":[]}", body);
    }
 }

@@ -20,12 +20,12 @@ package inetsoft.web.wiz.docs;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.assistant.AIAssistantController;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ public class WizDocSearchController {
       value = "/api/wiz/v1/docs/search",
       consumes = MediaType.APPLICATION_JSON_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<String> search(HttpServletRequest request) throws IOException {
+   public void search(HttpServletRequest request, HttpServletResponse response) throws IOException {
       // Defence in depth rather than load-bearing here: the endpoint is read-only over public
       // product documentation. Kept for consistency with the other plugin-facing AI endpoints,
       // which rely on it as a CSRF backstop under the /api/wiz/** exemption.
@@ -70,7 +70,9 @@ public class WizDocSearchController {
       // Reject a body that is already oversized by its declared Content-Length without ever
       // opening the input stream.
       if(request.getContentLengthLong() > MAX_REQUEST_BODY_CHARS) {
-         return error(HttpStatus.PAYLOAD_TOO_LARGE, "Request body too large.");
+         writeJson(response, HttpStatus.PAYLOAD_TOO_LARGE.value(),
+            errorBody("Request body too large."));
+         return;
       }
 
       // A doc-search body is a short question. Anything larger is a caller bug or an attack;
@@ -81,7 +83,9 @@ public class WizDocSearchController {
       byte[] bytes = request.getInputStream().readNBytes(MAX_REQUEST_BODY_CHARS + 1);
 
       if(bytes.length > MAX_REQUEST_BODY_CHARS) {
-         return error(HttpStatus.PAYLOAD_TOO_LARGE, "Request body too large.");
+         writeJson(response, HttpStatus.PAYLOAD_TOO_LARGE.value(),
+            errorBody("Request body too large."));
+         return;
       }
 
       String body = new String(bytes, StandardCharsets.UTF_8);
@@ -89,50 +93,76 @@ public class WizDocSearchController {
       String baseUrl = AIAssistantController.resolveAssistantBaseUrl();
 
       if(baseUrl == null) {
-         return error(HttpStatus.SERVICE_UNAVAILABLE,
+         writeJson(response, HttpStatus.SERVICE_UNAVAILABLE.value(), errorBody(
             "AI assistant server is not configured on this StyleBI server " +
-            "(chat.app.internal.url or chat.app.server.url).");
+            "(chat.app.internal.url or chat.app.server.url)."));
+         return;
       }
 
       try {
-         AssistantDocSearchGateway.Response response =
+         AssistantDocSearchGateway.Response gatewayResponse =
             gateway.post(baseUrl, ASSISTANT_PATH, body, request.getHeader("Authorization"));
 
          // A bare 404 reads as "no such StyleBI route" and sends the operator to debug the wrong
          // layer. It actually means the assistant predates this endpoint.
-         if(response.status() == HttpStatus.NOT_FOUND.value()) {
+         if(gatewayResponse.status() == HttpStatus.NOT_FOUND.value()) {
             LOG.warn("AI assistant at {} has no {} endpoint", baseUrl, ASSISTANT_PATH);
 
-            return error(HttpStatus.BAD_GATEWAY,
-               "The AI assistant server does not support document search — upgrade required.");
+            writeJson(response, HttpStatus.BAD_GATEWAY.value(), errorBody(
+               "The AI assistant server does not support document search — upgrade required."));
+            return;
          }
 
          // Everything else passes through untouched so the assistant's field-named validation
-         // errors reach the agent intact.
-         return ResponseEntity.status(response.status())
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(response.body());
+         // errors reach the agent intact. Written straight to the servlet response (not returned
+         // as a ResponseEntity<String>) because WebConfig's only application/json-capable
+         // converter is Jackson, which would re-serialize this already-serialized JSON string as
+         // a JSON string literal — the mirror image of the request-binding defect this endpoint
+         // was previously fixed for.
+         writeJson(response, gatewayResponse.status(), gatewayResponse.body());
       }
       catch(InterruptedException e) {
          Thread.currentThread().interrupt();
 
-         return unreachable(baseUrl, e);
+         unreachable(response, baseUrl, e);
       }
       catch(Exception e) {
-         return unreachable(baseUrl, e);
+         unreachable(response, baseUrl, e);
       }
    }
 
-   private ResponseEntity<String> unreachable(String baseUrl, Exception e) {
+   private void unreachable(HttpServletResponse response, String baseUrl, Exception e)
+      throws IOException
+   {
       LOG.warn("AI assistant doc search failed for {}: {}", baseUrl, e.getMessage());
 
-      return error(HttpStatus.BAD_GATEWAY, "The AI assistant server did not respond.");
+      writeJson(response, HttpStatus.BAD_GATEWAY.value(),
+         errorBody("The AI assistant server did not respond."));
    }
 
-   private ResponseEntity<String> error(HttpStatus status, String message) {
-      return ResponseEntity.status(status)
-         .contentType(MediaType.APPLICATION_JSON)
-         .body("{\"error\":\"" + message.replace("\"", "\\\"") + "\"}");
+   private String errorBody(String message) {
+      return "{\"error\":\"" + message.replace("\"", "\\\"") + "\"}";
+   }
+
+   /**
+    * Writes {@code json} to {@code response} directly, bypassing {@code HttpMessageConverter}
+    * selection entirely — the same pattern {@link inetsoft.web.assistant.AssistantProxyController}
+    * uses for its own proxied responses. {@code json} is always already a complete, valid JSON
+    * document (either relayed verbatim from the assistant or built by {@link #errorBody}), so no
+    * converter is needed or wanted: routing it through one, as {@code ResponseEntity<String>}
+    * did, hands it to {@code MappingJackson2HttpMessageConverter} (the only registered converter
+    * that supports {@code application/json}), which re-serializes the {@code String} as a JSON
+    * string literal instead of writing it as-is.
+    */
+   private void writeJson(HttpServletResponse response, int status, String json)
+      throws IOException
+   {
+      byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+      response.setStatus(status);
+      response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+      response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+      response.setContentLength(bytes.length);
+      response.getOutputStream().write(bytes);
    }
 
    private static final String ASSISTANT_PATH = "/api/doc-search";
