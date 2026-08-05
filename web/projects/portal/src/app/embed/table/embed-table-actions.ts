@@ -39,11 +39,18 @@ export class EmbedTableActions extends TableActions {
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
+            // detailCellsSelected is TableActions' own selection rule (protected for this
+            // reuse). Its showDetailsVisible pairs that with model.summary, which the embed
+            // deliberately drops: summary is assembly.isSummaryTable() on the server, false for
+            // the plain detail tables the wiz generates, so requiring it would hide the action
+            // permanently. Everything else - Show Details needs cells to drill into, and
+            // BaseTableShowDetailsService reads the selection off the event - applies here.
             id: () => "table show-details",
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
          },
          {
             id: () => "table export",
@@ -96,7 +103,8 @@ export class EmbedTableActions extends TableActions {
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details")
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details")
          },
          {
             id: () => "table export",

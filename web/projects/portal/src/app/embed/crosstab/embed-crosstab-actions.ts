@@ -39,11 +39,15 @@ export class EmbedCrosstabActions extends CrosstabActions {
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
+            // detailCellsSelected is CrosstabActions' own cell test (protected for this reuse):
+            // nothing selected means nothing to drill into. Its showDetailsVisible is this plus
+            // the same isActionVisibleInViewer check, so the embed matches the viewer exactly.
             id: () => "crosstab show-details",
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
          },
          {
             id: () => "crosstab export",
@@ -97,7 +101,8 @@ export class EmbedCrosstabActions extends CrosstabActions {
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details")
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details")
          },
          {
             id: () => "crosstab export",
