@@ -2706,12 +2706,23 @@ public class WizVsService {
                continue;
             }
 
+            String value = GTool.toString(val);
+
+            // Membership BEFORE the cap check: a chart with exactly MAX distinct values over thousands of
+            // rows is complete, and flagging it truncated because rows remain would tell the caller its
+            // list might be missing something when it is not. `truncated` is only true once a value that
+            // genuinely is not in the list has been found and could not be added, because the caller uses
+            // it to decide whether an unlisted key is unverifiable or provably fake.
+            if(values.contains(value)) {
+               continue;
+            }
+
             if(values.size() >= MAX_COLOR_VALUES) {
                truncated = true;
                break;
             }
 
-            values.add(GTool.toString(val));
+            values.add(value);
          }
 
          return new ChartAestheticModel.ColorValues(new ArrayList<>(values), truncated);

@@ -2651,6 +2651,7 @@ public class WizAutoBindingService {
          originalChartInfo,
          originalChartInfo == null ? null : originalChartInfo.getColorField(),
          request);
+      validateColorFormats(request);
 
       String copyNote = null;
       String targetAssemblyName = request.getAssemblyName();
@@ -2902,11 +2903,19 @@ public class WizAutoBindingService {
    }
 
    /**
-    * Every bound measure ref, DESIGN and RUNTIME both.
+    * Every measure ref a colour can be painted on, DESIGN and RUNTIME both.
     *
     * Design refs so the change survives runtime regeneration and a save; runtime refs because the
     * renderer reads getRTYFields()/getRTXFields(), which are clones made at execution time — painting
     * only the design refs leaves the next render on the old color.
+    *
+    * The X/Y arrays alone are NOT enough, and the union with getAestheticAggregateRefs is what keeps this
+    * set a superset of the one validateMeasureKeys validates against. Those two are not the same list:
+    * GanttVSChartInfo adds its start/end/milestone fields to getAestheticAggregateRefs, and none of them
+    * live in X or Y. Validating against one list and painting from the other let a measureColors key pass
+    * every check and then paint nothing — silently, which is the exact failure this endpoint exists to
+    * remove. Deriving the paint set from both sources makes them agree for every chart type rather than
+    * for the ones someone remembered to special-case.
     */
    private List<VSChartAggregateRef> collectAggregateRefs(VSChartInfo vsChartInfo) {
       List<VSChartAggregateRef> aggregates = new ArrayList<>();
@@ -2915,7 +2924,7 @@ public class WizAutoBindingService {
          return aggregates;
       }
 
-      List<ChartRef> refs = new ArrayList<>();
+      List<DataRef> refs = new ArrayList<>();
 
       for(ChartRef[] slot : new ChartRef[][]{
          vsChartInfo.getYFields(), vsChartInfo.getXFields(),
@@ -2926,8 +2935,20 @@ public class WizAutoBindingService {
          }
       }
 
-      for(ChartRef ref : refs) {
-         if(ref instanceof VSChartAggregateRef agg) {
+      for(boolean runtime : new boolean[]{ false, true }) {
+         List<ChartAggregateRef> aesthetic = vsChartInfo.getAestheticAggregateRefs(runtime);
+
+         if(aesthetic != null) {
+            refs.addAll(aesthetic);
+         }
+      }
+
+      // Identity, not equals: the same measure appears as distinct design and runtime clones that must
+      // BOTH be painted, and equals/hashCode on a ref would collapse them into one.
+      Set<DataRef> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSChartAggregateRef agg && seen.add(ref)) {
             aggregates.add(agg);
          }
       }
@@ -3016,6 +3037,30 @@ public class WizAutoBindingService {
       if(hasPalette && ColorPalettes.getPalette(request.getPaletteName()) == null) {
          throw badColorRequest("Unknown palette '" + request.getPaletteName() + "'. Valid palettes: " +
             String.join(", ", ColorPalettes.getPaletteNames()));
+      }
+   }
+
+   /**
+    * Parses every hex in the request so a malformed one is rejected before anything is mutated.
+    *
+    * parseColor already throws on a bad value, but it used to do so from INSIDE the apply, part-way
+    * through a map — the earlier entries were already painted, and an in-place apply (no copy to roll
+    * back) kept them. That is the partial apply this endpoint's all-or-nothing contract rules out, so the
+    * parse happens here instead and the apply's own parseColor calls re-parse known-good strings.
+    */
+   private void validateColorFormats(ChartColorsRequest request) {
+      if(request.getStaticColor() != null) {
+         parseColor(request.getStaticColor());
+      }
+
+      if(request.getColorList() != null) {
+         request.getColorList().forEach(WizAutoBindingService::parseColor);
+      }
+
+      for(Map<String, String> colors : Arrays.asList(request.getCategoryColors(), request.getMeasureColors())) {
+         if(colors != null) {
+            colors.values().forEach(WizAutoBindingService::parseColor);
+         }
       }
    }
 

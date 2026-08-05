@@ -35,8 +35,11 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.web.wiz.model.ChartAestheticModel;
+import inetsoft.web.wiz.model.ChartAestheticModelRequest;
 import inetsoft.web.wiz.model.ChartColorsRequest;
 import inetsoft.web.wiz.model.CreateViewsheetResult;
+import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -49,12 +52,20 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.Color;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -242,51 +253,60 @@ class WizAutoBindingServiceSetChartColorsTest {
    }
 
    @Test
-   void copyFailureNoteSurvivesAlongsideAnUnrelatedBindingNote() throws Exception {
-      // Regression: the copy-fallback note used to be stored in the SAME `note` local later
-      // reassigned unconditionally by the color-binding logic, silently discarding the
-      // copy-failure warning whenever the color application itself also produced (or cleared) a
-      // note. Both must now survive, concatenated.
+   void copyFailureNoteIsTheOnlyThingNoteEverCarries() throws Exception {
+      // Supersedes copyFailureNoteSurvivesAlongsideAnUnrelatedBindingNote. That test pinned the two
+      // notes being concatenated, because the copy-fallback warning used to share the `note` local with
+      // the color-binding logic and got silently discarded when both fired. It cannot be written any
+      // more: a color that does not fit the binding is now rejected with a 400 before anything is
+      // applied, so `note` has exactly one possible source. The clobber it guarded against is gone by
+      // construction rather than by assertion, and what matters now is that the copy warning still
+      // reaches the caller on a request that DOES fit.
       when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(null);
 
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+
+      CreateViewsheetResult result = service.setChartColors(request, null);
+
+      assertEquals("Copy requested but could not be created; colors applied in place.", result.getNote());
+   }
+
+   @Test
+   void aColorThatCannotApplyIsRejectedInsteadOfReportedInTheNote() throws Exception {
+      // The other half of the change above: a palette on a chart with no color dimension used to apply
+      // nothing and describe that in `note`, which a caller could not tell apart from the copy warning.
       ChartColorsRequest request = new ChartColorsRequest();
       request.setWizRuntimeId("rt-1");
       request.setAssemblyName("vs_1");
       request.setPaletteName("Blues");
-      request.setCopy(true);
-      // colorField stays null (static/no-color-binding chart from setUp), so requesting a
-      // palette produces the "no color dimension" note in addition to the copy failure.
 
-      CreateViewsheetResult result = service.setChartColors(request, null);
+      ResponseStatusException thrown =
+         assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
 
-      assertEquals(
-         "Copy requested but could not be created; colors applied in place. " +
-         "This chart has no color dimension, so a palette/per-category colors can't apply. " +
-         "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.",
-         result.getNote());
+      assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+      assertTrue(thrown.getReason().contains("no color dimension"),
+         "the reason must name the actual binding so a caller can correct its request: " + thrown.getReason());
+      // Nothing was touched: not the refs, not the graph cache, not the persisted asset.
+      verify(yAgg, never()).setColorFrame(any());
+      verify(box, never()).clearGraph(anyString());
+      verify(wizVsService, never()).persistViewsheet(any(), any(), any());
    }
 
    @Test
-   void copySucceedsThenApplyThrowsRollsBackTheDuplicateAndRestoresTheOriginalAsPrimary() throws Exception {
-      // A categorical color field bound to an unknown palette makes ColorPalettes.getPalette(...)
-      // throw AFTER duplicatePrimaryAssembly has already mutated the live runtime (added the copy,
-      // demoted the original, promoted the copy) but BEFORE persistViewsheet ever runs. That
-      // live-runtime mutation must be undone, not left dangling.
+   void anUnknownPaletteIsRejectedBeforeTheCopyIsEverMade() throws Exception {
+      // Replaces copySucceedsThenApplyThrowsRollsBackTheDuplicateAndRestoresTheOriginalAsPrimary, which
+      // used an unknown palette to make the apply throw AFTER duplicatePrimaryAssembly had mutated the
+      // live runtime, then asserted the rollback. Validation now runs against the ORIGINAL chart before
+      // the copy, so this request never reaches the duplication at all — a stronger guarantee than
+      // rolling it back, and the reason a bad request no longer needs a rollback path.
+      //
+      // The rollback itself is still covered, by copySucceedsButFetchAssemblyDataThrowsRollsBackTheDuplicate:
+      // fetchAssemblyData is the step that can genuinely fail after the copy, since nothing about the
+      // payload can any more.
       AestheticRef colorField = mock(AestheticRef.class);
       DataRef dimensionRef = mock(DataRef.class);
       when(colorField.getDataRef()).thenReturn(dimensionRef);
-
-      VSChartAggregateRef copyYAgg = mock(VSChartAggregateRef.class);
-      VSChartInfo copyChartInfo = mock(VSChartInfo.class);
-      when(copyChartInfo.getColorField()).thenReturn(colorField);
-      when(copyChartInfo.getYFields()).thenReturn(new ChartRef[] { copyYAgg });
-      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
-      when(copyInfo.getVSChartInfo()).thenReturn(copyChartInfo);
-      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
-      when(copyChart.getChartInfo()).thenReturn(copyInfo);
-      when(copyChart.getName()).thenReturn("vs_1_copy1");
-
-      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copyChart);
+      when(chart.getChartInfo().getVSChartInfo().getColorField()).thenReturn(colorField);
 
       ChartColorsRequest request = new ChartColorsRequest();
       request.setWizRuntimeId("rt-1");
@@ -294,15 +314,124 @@ class WizAutoBindingServiceSetChartColorsTest {
       request.setPaletteName("NotARealPalette");
       request.setCopy(true);
 
-      assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
+      ResponseStatusException thrown =
+         assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
 
-      // Rollback: the duplicated assembly is removed from the live viewsheet and the original is
-      // re-promoted to primary.
-      verify(vs).removeAssembly("vs_1_copy1");
-      verify(chart).setPrimary(true);
-      // Nothing was persisted or fetched — the exception must propagate before either.
+      assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+      assertTrue(thrown.getReason().contains("Unknown palette"), thrown.getReason());
+      // No copy was made, so there is nothing to roll back and nothing to undo.
+      verify(wizVsService, never()).duplicatePrimaryAssembly(any(), any());
+      verify(vs, never()).removeAssembly(anyString());
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
       verify(wizVsService, never()).fetchAssemblyData(anyString(), anyString(), any());
+   }
+
+   @Test
+   void aMalformedHexIsRejectedBeforeAnyColorIsPainted() throws Exception {
+      // parseColor used to throw from inside the apply, part-way through the map — the entries before the
+      // bad one were already painted, and an in-place apply has no copy to roll back, so they stayed.
+      // Formats are now parsed up front, which is what makes "apply nothing on rejection" true rather
+      // than true-for-most-inputs.
+      AestheticRef colorField = mock(AestheticRef.class);
+      when(colorField.getDataRef()).thenReturn(mock(DataRef.class));
+      when(chart.getChartInfo().getVSChartInfo().getColorField()).thenReturn(colorField);
+
+      // Insertion-ordered so the VALID entry is processed first: that is the one the old flow painted
+      // and kept before throwing on the second.
+      Map<String, String> categories = new LinkedHashMap<>();
+      categories.put("CA", "#ff0000");
+      categories.put("NY", "not-a-hex");
+
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setCategoryColors(categories);
+
+      assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
+
+      verify(colorField, never()).setVisualFrame(any());
+      verify(box, never()).clearGraph(anyString());
+   }
+
+   @Test
+   void measureColorsPaintsAnAestheticAggregateThatIsNotInXOrY() throws Exception {
+      // The Gantt shape: GanttVSChartInfo adds its start/end/milestone fields to
+      // getAestheticAggregateRefs, and none of them appear in the X or Y arrays. Validation reads the
+      // former and the apply used to scan only the latter, so a key could pass every check and then paint
+      // nothing — silently, which is the failure this endpoint exists to remove. The paint set is now the
+      // union of both, so anything validateMeasureKeys accepts is something the apply can reach.
+      VSChartAggregateRef aestheticOnly = mock(VSChartAggregateRef.class);
+      when(aestheticOnly.getFullName()).thenReturn("Max(end_date)");
+      VSChartInfo vsChartInfo = chart.getChartInfo().getVSChartInfo();
+      when(vsChartInfo.getAestheticAggregateRefs(anyBoolean()))
+         .thenReturn(new ArrayList<>(List.of(aestheticOnly)));
+
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setMeasureColors(Map.of("Max(end_date)", "#d62728"));
+
+      service.setChartColors(request, null);
+
+      ArgumentCaptor<ColorFrame> captor = ArgumentCaptor.forClass(ColorFrame.class);
+      verify(aestheticOnly).setColorFrame(captor.capture());
+      assertEquals(new Color(0xd6, 0x27, 0x28),
+         assertInstanceOf(StaticColorFrame.class, captor.getValue()).getColor());
+   }
+
+   @Test
+   void measureColorsNamingNoColorableMeasureIsRejectedWithTheValidNamesListed() throws Exception {
+      VSChartAggregateRef colorable = mock(VSChartAggregateRef.class);
+      when(colorable.getFullName()).thenReturn("Sum(sales)");
+      when(chart.getChartInfo().getVSChartInfo().getAestheticAggregateRefs(anyBoolean()))
+         .thenReturn(new ArrayList<>(List.of(colorable)));
+
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setMeasureColors(Map.of("Sum(revenue)", "#d62728"));
+
+      ResponseStatusException thrown =
+         assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
+
+      assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+      // Both halves matter: an automated caller needs to know which key was wrong AND what it could
+      // have said instead, or the retry is another guess.
+      assertTrue(thrown.getReason().contains("Sum(revenue)"), thrown.getReason());
+      assertTrue(thrown.getReason().contains("Sum(sales)"), thrown.getReason());
+      verify(colorable, never()).setColorFrame(any());
+   }
+
+   @Test
+   void paletteAndColorListTogetherAreRejectedRatherThanSilentlyDiscardingOne() throws Exception {
+      AestheticRef colorField = mock(AestheticRef.class);
+      when(colorField.getDataRef()).thenReturn(mock(DataRef.class));
+      when(chart.getChartInfo().getVSChartInfo().getColorField()).thenReturn(colorField);
+
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setPaletteName("Blues");
+      request.setColorList(List.of("#ff0000"));
+
+      ResponseStatusException thrown =
+         assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
+
+      assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+      assertTrue(thrown.getReason().contains("mutually exclusive"), thrown.getReason());
+      verify(colorField, never()).setVisualFrame(any());
+   }
+
+   @Test
+   void anEmptyColorRequestIsRejected() {
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+
+      ResponseStatusException thrown =
+         assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
+
+      assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
    }
 
    /** A successful copy whose color application also succeeds cleanly (static color, no color field). */
