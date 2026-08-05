@@ -559,7 +559,7 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
 
       // EmbedCrosstabActions has no menu actions - everything is a toolbar button - so a right
       // click would otherwise open an empty dropdown and freeze the mini toolbar behind it.
-      if(!actions?.some((group) => group.visible)) {
+      if(!AssemblyActionGroup.anyVisible(actions)) {
          return;
       }
 
