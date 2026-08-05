@@ -37,11 +37,10 @@ export class EmbedCrosstabActions extends CrosstabActions {
    }
 
    /**
-    * Deliberately empty, for the reasons spelled out in EmbedTableActions.createMenuActions:
-    * "More" is fed by this.menuActions and every command the embed crosstab has is already a
-    * toolbar button, so listing show-details and export here duplicated them in the dropdown.
-    * Overriding the base implementation away is still needed - CrosstabActions.createMenuActions
-    * is all composer/annotation commands.
+    * Deliberately empty, for the reasons in EmbedTableActions.createMenuActions: every command
+    * the embed crosstab has is already a toolbar button, so listing show-details and export here
+    * duplicated them under "More". The override stays because what it replaces,
+    * CrosstabActions.createMenuActions, is composer/annotation commands the embed cannot use.
     */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       return groups;

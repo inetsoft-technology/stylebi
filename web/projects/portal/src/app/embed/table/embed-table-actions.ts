@@ -37,19 +37,12 @@ export class EmbedTableActions extends TableActions {
    }
 
    /**
-    * Deliberately empty. createMenuActions() feeds two surfaces - the mini toolbar's "More"
-    * button, whose children are this.menuActions (abstract-vs-actions.ts, childAction), and the
-    * right-click context menu (see EmbedTableComponent.onOpenContextMenu) - and everything the
-    * embed table offers already has its own toolbar button. Listing show-details and export here
-    * as well, which this class used to do, made "More" repeat the two icons sitting next to it.
-    * The base class does not have that problem: TableActions.createMenuActions holds only
-    * composer/annotation commands, which the embed has no use for, so overriding it away is the
-    * point of this method. The toolbar's own "More" entry self-hides while this stays empty
-    * (its visible() requires a visible menu action), so a future menu-only action needs nothing
-    * but a group pushed here.
-    *
-    * The helper text that used to live here went with them: "Click on cells for additional
-    * commands" describes the composer, and in the embed it was the only thing left in "More".
+    * Deliberately empty. This feeds the mini toolbar's "More" button (abstract-vs-actions.ts
+    * hands it menuActions as childAction) and the right-click menu, and every command the embed
+    * table has is already a toolbar button - listing show-details and export here, as this class
+    * used to, made "More" repeat its neighbours. The override still has to exist: what it
+    * replaces, TableActions.createMenuActions, is composer/annotation commands the embed cannot
+    * use. "More" self-hides while this is empty, so a menu-only action needs only a group here.
     */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       return groups;
