@@ -43,7 +43,8 @@ export class EmbedTableActions extends TableActions {
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
          },
          {
             id: () => "table export",
@@ -96,7 +97,8 @@ export class EmbedTableActions extends TableActions {
             label: () => "_#(js:Show Details)",
             icon: () => "show-detail-icon",
             enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Details")
+            visible: () => this.detailCellsSelected &&
+               this.isActionVisibleInViewer("Show Details")
          },
          {
             id: () => "table export",
@@ -129,5 +131,18 @@ export class EmbedTableActions extends TableActions {
          }]));
 
       return groups;
+   }
+
+   /**
+    * Show Details drills into the selected data cells - BaseTableShowDetailsService reads the
+    * selection off the event - so with nothing selected there is nothing to show and the action
+    * stays hidden. Same rule TableActions.showDetailsVisible applies in the viewer (mirrored
+    * here because that getter is private), minus its this.model.summary check: summary is
+    * assembly.isSummaryTable() on the server, false for the plain detail tables the wiz
+    * generates, and requiring it would hide the action permanently. Header-only selections do
+    * not count - selecting a header clears selectedData (see vs-table.component.ts).
+    */
+   private get detailCellsSelected(): boolean {
+      return !this.model.form && !!this.model.selectedData && this.model.selectedData.size > 0;
    }
 }
