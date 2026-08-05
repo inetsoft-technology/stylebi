@@ -63,6 +63,58 @@ public final class TestWorksheets {
    }
 
    /**
+    * Creates a {@link BoundTableAssembly} named {@code name} whose private
+    * {@link ColumnSelection} holds a {@link ColumnRef} for each of the given column names.
+    *
+    * <p>Unlike {@link #tableWithColumns}, this is <em>not</em> an embedded table. Use it for
+    * mutators whose behavior differs on embedded/snapshot tables — e.g. the filter/condition
+    * mutators, which reject {@link EmbeddedTableAssembly} (and its
+    * {@link SnapshotEmbeddedTableAssembly} subclass) — so tests that don't care about that
+    * distinction don't accidentally exercise the guard.</p>
+    *
+    * @param ws   the worksheet the table logically belongs to (may be empty)
+    * @param name the assembly name
+    * @param cols column names to include in the private column selection
+    * @return the configured table assembly
+    */
+   public static BoundTableAssembly nonEmbeddedTableWithColumns(Worksheet ws, String name,
+                                                                String... cols)
+   {
+      BoundTableAssembly table = new BoundTableAssembly(ws, name);
+
+      ColumnSelection cs = new ColumnSelection();
+      for(String col : cols) {
+         cs.addAttribute(new ColumnRef(new AttributeRef(null, col)));
+      }
+      table.setColumnSelection(cs, false);
+
+      return table;
+   }
+
+   /**
+    * Creates a {@link SnapshotEmbeddedTableAssembly} named {@code name} whose private
+    * {@link ColumnSelection} holds a {@link ColumnRef} for each of the given column names.
+    *
+    * @param ws   the worksheet the table logically belongs to (may be empty)
+    * @param name the assembly name
+    * @param cols column names to include in the private column selection
+    * @return the configured table assembly
+    */
+   public static SnapshotEmbeddedTableAssembly snapshotTableWithColumns(Worksheet ws, String name,
+                                                                        String... cols)
+   {
+      SnapshotEmbeddedTableAssembly table = new SnapshotEmbeddedTableAssembly(ws, name);
+
+      ColumnSelection cs = new ColumnSelection();
+      for(String col : cols) {
+         cs.addAttribute(new ColumnRef(new AttributeRef(null, col)));
+      }
+      table.setColumnSelection(cs, false);
+
+      return table;
+   }
+
+   /**
     * Configures an existing {@link TableAssembly} with a group-by / sum aggregate and
     * an ascending sort on the group column.
     *

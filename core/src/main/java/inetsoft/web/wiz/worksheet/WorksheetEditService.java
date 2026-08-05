@@ -437,12 +437,14 @@ public class WorksheetEditService {
        * @param field     the column name to filter on
        * @param operation comparison operator: {@code "="}, {@code "!="}, {@code "<"}, {@code ">"}
        * @param values    one or more literal string values
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code table} is an embedded or snapshot-embedded table
        */
       public void addFilter(String table, String field,
                             String operation, String... values) throws PairingException
       {
          TableAssembly t = requireTable(table);
+         requireFilterable(t);
          requireColumn(t, field);
          WorksheetMutationSupport.addFilter(t, field, operation, values);
       }
@@ -660,22 +662,32 @@ public class WorksheetEditService {
 
       /**
        * Replaces the pre-aggregate condition list on a table with a full condition tree.
+       *
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code table} is an embedded or snapshot-embedded table
        */
       public void setConditions(String table,
                                 List<WorksheetMutationSupport.ConditionNode> nodes)
          throws PairingException
       {
-         WorksheetMutationSupport.setConditions(requireTable(table), nodes, false);
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+         WorksheetMutationSupport.setConditions(t, nodes, false);
       }
 
       /**
        * Replaces the post-aggregate condition list (HAVING) on a table.
+       *
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code table} is an embedded or snapshot-embedded table
        */
       public void setPostConditions(String table,
                                     List<WorksheetMutationSupport.ConditionNode> nodes)
          throws PairingException
       {
-         WorksheetMutationSupport.setConditions(requireTable(table), nodes, true);
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+         WorksheetMutationSupport.setConditions(t, nodes, true);
       }
 
       /**
@@ -1071,13 +1083,15 @@ public class WorksheetEditService {
        * @param field     the column name whose condition to replace
        * @param operation new comparison operator
        * @param values    new literal values
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code table} is an embedded or snapshot-embedded table
        */
       public void editCondition(String table, String field,
                                 String operation, String... values)
          throws PairingException
       {
          TableAssembly t = requireTable(table);
+         requireFilterable(t);
          WorksheetMutationSupport.removeFilter(t, field);
          WorksheetMutationSupport.addFilter(t, field, operation, values);
       }
@@ -1988,6 +2002,19 @@ public class WorksheetEditService {
 
          if(cs.getAttribute(column) == null) {
             throw new PairingException("Column not found: " + column);
+         }
+      }
+
+      /**
+       * Rejects filter/condition mutations on embedded and snapshot-embedded tables,
+       * matching the Composer UI's guard in {@code ws-details-pane.component.ts}
+       * ({@code openConditionDialog()}), which never opens the condition dialog for
+       * {@code isEmbeddedTable() === true} and shows the {@code composer.ws.filter-snapshopt}
+       * message instead.
+       */
+      private void requireFilterable(TableAssembly t) throws PairingException {
+         if(t instanceof EmbeddedTableAssembly) {
+            throw new PairingException(Catalog.getCatalog().getString("composer.ws.filter-snapshopt"));
          }
       }
 

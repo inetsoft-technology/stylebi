@@ -97,7 +97,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void addFilterAddsCondition() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -111,7 +111,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void addFilterAppendsSecondConditionWithAnd() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -128,7 +128,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void removeFilterRemovesCondition() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -144,7 +144,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void removeFilterLeavesOtherConditions() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -159,6 +159,35 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(t.getPreConditionList());
       assertFalse(t.getPreConditionList().isEmpty());
       assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   @Test
+   void addFilterRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "hello")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("snapshot"));
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void addFilterRejectsSnapshotEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "hello")));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
    }
 
    // =========================================================================
@@ -569,7 +598,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void editConditionReplacesExistingFilter() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -582,6 +611,48 @@ class WorksheetEditServiceMutatorsTest {
       // After edit_condition, exactly one ConditionItem with value "new"
       assertNotNull(t.getPreConditionList());
       assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   @Test
+   void editConditionRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editCondition("T", "a", "=", "new")));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void setConditionsRejectsSnapshotEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of())));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void setPostConditionsRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setPostConditions("T", List.of())));
+
+      assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty());
    }
 
    @Test
