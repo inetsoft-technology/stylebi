@@ -28,7 +28,6 @@ import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.model.MeasureFieldInfo;
 import inetsoft.web.wiz.model.SimpleFieldInfo;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
