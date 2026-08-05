@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ElementRef } from "@angular/core";
+import { HttpHeaders, HttpResponse } from "@angular/common/http";
+import { of } from "rxjs";
 import { ChartInlineSvgDirective } from "./chart-inline-svg.directive";
 
 function makeDirective(html: string): { dir: ChartInlineSvgDirective, host: HTMLElement } {
@@ -902,6 +904,122 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          vi.spyOn(host.querySelector<Element>("[data-row='4']"), "getBoundingClientRect")
             .mockReturnValue({ left: 0, top: 0, width: 8, height: 8 } as DOMRect);
          expect(dir.getElementAnchor(4, 1)).toEqual({ x: 4, y: 4 });
+      });
+   });
+
+   describe("raster fallback (server refused svg)", () => {
+      const SVG_BODY = `<svg><g class="inetsoft-bar" data-row="0" data-col="0"></g></svg>`;
+
+      /**
+       * A directive wired to a stub HttpClient. respond() sets the next response and assigns a
+       * fresh url, which is what triggers loadSvg.
+       */
+      function makeLoader(): {
+         dir: ChartInlineSvgDirective,
+         host: HTMLElement,
+         respond: (contentType: string | null, body: string) => void
+      } {
+         const host = document.createElement("div");
+         let next = new HttpResponse<ArrayBuffer>({
+            body: new ArrayBuffer(0), headers: new HttpHeaders()
+         });
+         const http = { get: () => of(next) } as any;
+         const dir = new ChartInlineSvgDirective(new ElementRef(host), http);
+         let n = 0;
+
+         return {
+            dir, host,
+            respond: (contentType: string | null, body: string) => {
+               // The directive fetches bytes, so the stub responds with the encoded body.
+               next = new HttpResponse<ArrayBuffer>({
+                  body: new TextEncoder().encode(body).buffer as ArrayBuffer,
+                  headers: contentType == null
+                     ? new HttpHeaders() : new HttpHeaders({ "Content-Type": contentType })
+               });
+               dir.chartInlineSvg = `/plot_area/${n++}`;
+            }
+         };
+      }
+
+      it("inlines the svg and indexes it when the server sent svg", () => {
+         const { dir, host, respond } = makeLoader();
+         const loaded: number[] = [];
+         dir.onLoaded.subscribe(() => loaded.push(1));
+
+         respond("image/svg+xml", SVG_BODY);
+
+         expect(host.querySelector("svg")).not.toBeNull();
+         expect(host.querySelector("img")).toBeNull();
+         expect((dir as any).anchorGroupMap.size).toBe(1);
+         expect(loaded.length).toBe(1);
+      });
+
+      it("shows an image and builds no index when the server sent png", () => {
+         const { dir, host, respond } = makeLoader();
+         const loaded: number[] = [];
+         dir.onLoaded.subscribe(() => loaded.push(1));
+
+         respond("image/png", "\x89PNG\r\n\x1a\n binary");
+
+         const img = host.querySelector("img");
+         expect(img).not.toBeNull();
+         // Built from the bytes already fetched, so no second GET re-rasterizes the plot.
+         expect(img.getAttribute("src")).toMatch(/^blob:/);
+         expect(img.getAttribute("alt")).toBe("");
+         expect(host.querySelector("svg")).toBeNull();
+         expect((dir as any).anchorGroupMap.size).toBe(0);
+         expect((dir as any).svgRootEl).toBeNull();
+         // The tail asks for an anchor on every hover; null sends it to the region centroid.
+         expect(dir.getElementAnchor(0, 0)).toBeNull();
+         expect(loaded.length).toBe(1);
+      });
+
+      it("drops the stale index when a tile reloads oversized", () => {
+         const { dir, host, respond } = makeLoader();
+
+         respond("image/svg+xml", SVG_BODY);
+         expect((dir as any).anchorGroupMap.size).toBe(1);
+
+         respond("image/png", "binary");
+
+         expect((dir as any).anchorGroupMap.size).toBe(0);
+         expect((dir as any).elementGroupMap.size).toBe(0);
+         expect((dir as any).svgRootEl).toBeNull();
+         expect(dir.getElementAnchor(0, 0)).toBeNull();
+         expect(host.querySelector("svg")).toBeNull();
+         expect(host.querySelector("img")).not.toBeNull();
+      });
+
+      it("keeps inlining when the content type is missing", () => {
+         const { host, respond } = makeLoader();
+
+         respond(null, SVG_BODY);
+
+         expect(host.querySelector("svg")).not.toBeNull();
+         expect(host.querySelector("img")).toBeNull();
+      });
+
+      // Each raster holds an object url; without a revoke every tile reload leaks its bytes.
+      it("revokes the raster object url when it is replaced and on destroy", () => {
+         const { dir, host, respond } = makeLoader();
+         const revoke = vi.spyOn(URL, "revokeObjectURL");
+
+         respond("image/png", "binary");
+         const first = host.querySelector("img").getAttribute("src");
+         expect(revoke).not.toHaveBeenCalled();
+
+         respond("image/png", "binary again");
+         expect(revoke).toHaveBeenCalledWith(first);
+
+         const second = host.querySelector("img").getAttribute("src");
+         respond("image/svg+xml", SVG_BODY);
+         expect(revoke).toHaveBeenCalledWith(second);
+
+         respond("image/png", "binary once more");
+         const third = host.querySelector("img").getAttribute("src");
+         dir.ngOnDestroy();
+         expect(revoke).toHaveBeenCalledWith(third);
+         revoke.mockRestore();
       });
    });
 });
