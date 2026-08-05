@@ -2643,7 +2643,16 @@ public class WizAutoBindingService {
          throw new IllegalArgumentException("Chart assembly not found: " + request.getAssemblyName());
       }
 
-      String note = null;
+      // Validate against the ORIGINAL chart, before the copy below. A duplicate carries the same colour
+      // binding, so checking it here is equivalent — and rejecting BEFORE any assembly is added means a
+      // bad request needs no rollback at all.
+      VSChartInfo originalChartInfo = chart.getChartInfo().getVSChartInfo();
+      validateColorRequest(
+         originalChartInfo,
+         originalChartInfo == null ? null : originalChartInfo.getColorField(),
+         request);
+      validateColorFormats(request);
+
       String copyNote = null;
       String targetAssemblyName = request.getAssemblyName();
       VSAssembly demotedOriginal = null;
@@ -2684,26 +2693,24 @@ public class WizAutoBindingService {
       try {
          if(colorField == null || colorField.getDataRef() == null) {
             if(request.getStaticColor() != null) {
-               if(vsChartInfo == null) {
-                  note = "Chart has no binding info; static color could not be applied.";
-               }
-               else {
-                  applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
-               }
+               applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
             }
 
-            if(request.getPaletteName() != null || request.getColorList() != null ||
-               request.getCategoryColors() != null)
-            {
-               note = "This chart has no color dimension, so a palette/per-category colors can't apply. " +
-                  "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.";
+            if(request.getMeasureColors() != null && !request.getMeasureColors().isEmpty()) {
+               Map<String, Color> colors = new LinkedHashMap<>();
+
+               for(Map.Entry<String, String> e : request.getMeasureColors().entrySet()) {
+                  colors.put(e.getKey(), parseColor(e.getValue()));
+               }
+
+               applyMeasureColors(vsChartInfo, colors);
             }
          }
          else if(colorField.getDataRef() instanceof VSChartAggregateRef) {
-            note = applyGradient(colorField, request);
+            applyGradient(colorField, request);
          }
          else {
-            note = applyCategoricalColors(colorField, request);
+            applyCategoricalColors(colorField, request);
          }
 
          info.setRTChartDescriptor(null);
@@ -2759,13 +2766,110 @@ public class WizAutoBindingService {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
       }
 
-      String combinedNote = combineNotes(copyNote, note);
-
-      if(combinedNote != null) {
-         result.setNote(combinedNote);
+      // Only the copy-decline notice can reach `note` now: a colour that does not fit the binding is
+      // rejected up front with a 400 instead of being reported here. That is what makes `note` on this
+      // endpoint mean exactly one thing, so a caller can act on it without parsing prose.
+      if(copyNote != null) {
+         result.setNote(copyNote);
       }
 
       return result;
+   }
+
+   /**
+    * Reads what this chart's COLOR aesthetic can accept. Pure read: no mutation, no persist, no copy.
+    *
+    * Everything here is StyleBI's own determination, deliberately: which field colors the chart
+    * (getColorField() — the group slot plays no part), whether it is categorical or continuous
+    * (VSChartAggregateRef), and which measures can carry an aesthetic (getAestheticAggregateRefs, whose
+    * derivation differs per chart type). A caller that re-derived any of these from a binding echo would
+    * have to track those per-type rules itself and would drift the first time one changed.
+    */
+   public ChartAestheticModel getChartAestheticModel(ChartAestheticModelRequest request, Principal user)
+      throws Exception
+   {
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
+
+      if(rvs == null || rvs.getViewsheet() == null) {
+         throw new IllegalArgumentException("Chart runtime not found: " + request.getWizRuntimeId());
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new IllegalArgumentException("Chart assembly not found: " + request.getAssemblyName());
+      }
+
+      VSChartInfo vsChartInfo = chart.getChartInfo().getVSChartInfo();
+      AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
+
+      ChartAestheticModel model = new ChartAestheticModel();
+      // Unconditional: the restore above may have revived the runtime under a new id, and an apply sent
+      // to the old one lands on a dead instance.
+      model.setRuntimeId(rvs.getID());
+      model.setAestheticAggregates(collectAestheticAggregates(vsChartInfo));
+
+      if(colorField != null && colorField.getDataRef() != null) {
+         DataRef ref = colorField.getDataRef();
+         boolean measure = ref instanceof VSChartAggregateRef;
+         String fullName = WizVsService.slotName(ref);
+         model.setColorField(new ChartAestheticModel.ColorField(
+            fullName, measure ? "measure" : "dimension"));
+
+         // Values only for a dimension: a measure on color is a continuous scale, where per-value colors
+         // have no meaning and the list would be a large, useless read.
+         if(!measure) {
+            model.setColorValues(
+               wizVsService.collectColorValues(rvs, request.getAssemblyName(), fullName));
+         }
+      }
+
+      return model;
+   }
+
+   /**
+    * The measures that can carry a color / marker aesthetic, runtime refs preferred.
+    *
+    * Runtime first because that is what the renderer reads and the two can diverge (a chart-type change
+    * or a date comparison rewrites the runtime aggregates); design refs are the pre-execution fallback.
+    * Names are getFullName(), the same spelling measureColors keys and the binding echo use.
+    */
+   private List<ChartAestheticModel.AestheticAggregate> collectAestheticAggregates(VSChartInfo vsChartInfo) {
+      List<ChartAestheticModel.AestheticAggregate> aggregates = new ArrayList<>();
+
+      if(vsChartInfo == null) {
+         return aggregates;
+      }
+
+      List<ChartAggregateRef> refs = vsChartInfo.getAestheticAggregateRefs(true);
+
+      if(refs == null || refs.isEmpty()) {
+         refs = vsChartInfo.getAestheticAggregateRefs(false);
+      }
+
+      if(refs == null) {
+         return aggregates;
+      }
+
+      Set<String> seen = new HashSet<>();
+
+      for(ChartAggregateRef ref : refs) {
+         if(ref instanceof VSAggregateRef agg) {
+            String fullName = agg.getFullName();
+
+            if(fullName != null && !fullName.isEmpty() && seen.add(fullName)) {
+               aggregates.add(new ChartAestheticModel.AestheticAggregate(fullName));
+            }
+         }
+      }
+
+      return aggregates;
    }
 
    /**
@@ -2775,40 +2879,220 @@ public class WizAutoBindingService {
     * painting only the design refs would leave the next render on the old color).
     */
    private void applyStaticColor(VSChartInfo vsChartInfo, Color color) {
-      if(vsChartInfo == null) {
-         return;
+      for(VSChartAggregateRef agg : collectAggregateRefs(vsChartInfo)) {
+         agg.setColorFrame(new StaticColorFrame(color));
       }
+   }
 
-      List<ChartRef> refs = new ArrayList<>();
+   /**
+    * Applies a color to individual measures, keyed by full name — the per-series counterpart of
+    * applyStaticColor, which cannot express "only this measure" because it paints all of them.
+    *
+    * Keys were validated against the aesthetic aggregates before anything was mutated, so an unmatched
+    * name cannot reach here; matching against every bound aggregate ref (rather than the aesthetic list)
+    * is what makes the design and runtime clones both get painted.
+    */
+   private void applyMeasureColors(VSChartInfo vsChartInfo, Map<String, Color> colors) {
+      for(VSChartAggregateRef agg : collectAggregateRefs(vsChartInfo)) {
+         Color color = colors.get(agg.getFullName());
 
-      if(vsChartInfo.getYFields() != null) {
-         refs.addAll(Arrays.asList(vsChartInfo.getYFields()));
-      }
-
-      if(vsChartInfo.getXFields() != null) {
-         refs.addAll(Arrays.asList(vsChartInfo.getXFields()));
-      }
-
-      if(vsChartInfo.getRTYFields() != null) {
-         refs.addAll(Arrays.asList(vsChartInfo.getRTYFields()));
-      }
-
-      if(vsChartInfo.getRTXFields() != null) {
-         refs.addAll(Arrays.asList(vsChartInfo.getRTXFields()));
-      }
-
-      for(ChartRef ref : refs) {
-         if(ref instanceof VSChartAggregateRef agg) {
+         if(color != null) {
             agg.setColorFrame(new StaticColorFrame(color));
          }
       }
    }
 
    /**
-    * Applies categorical colors to a dimension that is bound to the color aesthetic. Returns a note
-    * if none of the categorical fields were provided.
+    * Every measure ref a colour can be painted on, DESIGN and RUNTIME both.
+    *
+    * Design refs so the change survives runtime regeneration and a save; runtime refs because the
+    * renderer reads getRTYFields()/getRTXFields(), which are clones made at execution time — painting
+    * only the design refs leaves the next render on the old color.
+    *
+    * The X/Y arrays alone are NOT enough, and the union with getAestheticAggregateRefs is what keeps this
+    * set a superset of the one validateMeasureKeys validates against. Those two are not the same list:
+    * GanttVSChartInfo adds its start/end/milestone fields to getAestheticAggregateRefs, and none of them
+    * live in X or Y. Validating against one list and painting from the other let a measureColors key pass
+    * every check and then paint nothing — silently, which is the exact failure this endpoint exists to
+    * remove. Deriving the paint set from both sources makes them agree for every chart type rather than
+    * for the ones someone remembered to special-case.
     */
-   private String applyCategoricalColors(AestheticRef colorField, ChartColorsRequest request) {
+   private List<VSChartAggregateRef> collectAggregateRefs(VSChartInfo vsChartInfo) {
+      List<VSChartAggregateRef> aggregates = new ArrayList<>();
+
+      if(vsChartInfo == null) {
+         return aggregates;
+      }
+
+      List<DataRef> refs = new ArrayList<>();
+
+      for(ChartRef[] slot : new ChartRef[][]{
+         vsChartInfo.getYFields(), vsChartInfo.getXFields(),
+         vsChartInfo.getRTYFields(), vsChartInfo.getRTXFields()
+      }) {
+         if(slot != null) {
+            refs.addAll(Arrays.asList(slot));
+         }
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         List<ChartAggregateRef> aesthetic = vsChartInfo.getAestheticAggregateRefs(runtime);
+
+         if(aesthetic != null) {
+            refs.addAll(aesthetic);
+         }
+      }
+
+      // Identity, not equals: the same measure appears as distinct design and runtime clones that must
+      // BOTH be painted, and equals/hashCode on a ref would collapse them into one.
+      Set<DataRef> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSChartAggregateRef agg && seen.add(ref)) {
+            aggregates.add(agg);
+         }
+      }
+
+      return aggregates;
+   }
+
+   /**
+    * Rejects a color request that does not fit this chart's color binding, BEFORE anything is mutated.
+    *
+    * Validate-then-apply, and all-or-nothing. The alternative this replaces — applying whatever fit and
+    * returning a prose `note` about the rest — was unusable by an automated caller in two ways. The note
+    * shares one field with the copy-then-apply decline notice, so "your colors did not fit" and "the
+    * duplicate could not be made" arrived indistinguishable; and a partial apply makes "did this land?"
+    * unanswerable, so a retry re-applies the half that already succeeded.
+    *
+    * A 400 with the reason is what the caller can act on: it names the offending parameter, states what
+    * the binding actually is, and names the parameter that WOULD work, which is enough for a retry to
+    * correct itself. It also needs no rollback, since it is thrown before the copy is made.
+    */
+   private void validateColorRequest(VSChartInfo vsChartInfo, AestheticRef colorField,
+                                     ChartColorsRequest request)
+   {
+      boolean hasStatic = request.getStaticColor() != null;
+      boolean hasPalette = request.getPaletteName() != null;
+      boolean hasList = request.getColorList() != null && !request.getColorList().isEmpty();
+      boolean hasCategories = request.getCategoryColors() != null && !request.getCategoryColors().isEmpty();
+      boolean hasMeasures = request.getMeasureColors() != null && !request.getMeasureColors().isEmpty();
+
+      if(!hasStatic && !hasPalette && !hasList && !hasCategories && !hasMeasures) {
+         throw badColorRequest("No color provided. Pass one of staticColor, measureColors, paletteName, " +
+            "colorList, or categoryColors.");
+      }
+
+      // paletteName and colorList both replace the SAME CategoricalColorFrame, so accepting both would
+      // silently discard one of them (colorList's setDefaultColors overwrites the palette just installed).
+      if(hasPalette && hasList) {
+         throw badColorRequest("paletteName and colorList are mutually exclusive (both replace the " +
+            "categorical color frame). Pass exactly one; categoryColors may be combined with either.");
+      }
+
+      boolean hasColorField = colorField != null && colorField.getDataRef() != null;
+      boolean measureOnColor = hasColorField && colorField.getDataRef() instanceof VSChartAggregateRef;
+
+      if(!hasColorField) {
+         if(hasPalette || hasList || hasCategories) {
+            throw badColorRequest("This chart has no color dimension, so a palette / color list / " +
+               "per-category colors cannot apply. Use staticColor for one color across the measures, " +
+               "measureColors to color individual measures, or recreate the chart with a dimension on " +
+               "the color aesthetic.");
+         }
+
+         if(hasMeasures) {
+            validateMeasureKeys(vsChartInfo, request.getMeasureColors().keySet());
+         }
+
+         return;
+      }
+
+      if(measureOnColor) {
+         if(hasList || hasCategories) {
+            throw badColorRequest("This chart has a measure on color (a continuous scale), so colorList " +
+               "/ categoryColors do not apply. Use paletteName with a gradient name (" +
+               VALID_GRADIENTS + ").");
+         }
+
+         if(hasStatic || hasMeasures) {
+            throw badColorRequest("This chart uses a measure-driven color scale, so staticColor / " +
+               "measureColors do not apply. Use paletteName with a gradient name (" +
+               VALID_GRADIENTS + ").");
+         }
+
+         if(gradientFrameForName(request.getPaletteName()) == null) {
+            throw badColorRequest("Unknown gradient '" + request.getPaletteName() +
+               "'. Valid gradients: " + VALID_GRADIENTS + ".");
+         }
+
+         return;
+      }
+
+      if(hasStatic || hasMeasures) {
+         throw badColorRequest("This chart has a dimension on color, so staticColor / measureColors do " +
+            "not apply. Use paletteName, colorList, or categoryColors to color the categories.");
+      }
+
+      if(hasPalette && ColorPalettes.getPalette(request.getPaletteName()) == null) {
+         throw badColorRequest("Unknown palette '" + request.getPaletteName() + "'. Valid palettes: " +
+            String.join(", ", ColorPalettes.getPaletteNames()));
+      }
+   }
+
+   /**
+    * Parses every hex in the request so a malformed one is rejected before anything is mutated.
+    *
+    * parseColor already throws on a bad value, but it used to do so from INSIDE the apply, part-way
+    * through a map — the earlier entries were already painted, and an in-place apply (no copy to roll
+    * back) kept them. That is the partial apply this endpoint's all-or-nothing contract rules out, so the
+    * parse happens here instead and the apply's own parseColor calls re-parse known-good strings.
+    */
+   private void validateColorFormats(ChartColorsRequest request) {
+      if(request.getStaticColor() != null) {
+         parseColor(request.getStaticColor());
+      }
+
+      if(request.getColorList() != null) {
+         request.getColorList().forEach(WizAutoBindingService::parseColor);
+      }
+
+      for(Map<String, String> colors : Arrays.asList(request.getCategoryColors(), request.getMeasureColors())) {
+         if(colors != null) {
+            colors.values().forEach(WizAutoBindingService::parseColor);
+         }
+      }
+   }
+
+   /**
+    * Rejects measureColors keys that name no colorable measure.
+    *
+    * Naming a measure the chart does not have is otherwise silent: applyMeasureColors matches by full
+    * name, finds nothing, and the chart renders unchanged while the call reports success. Listing the
+    * real names in the message is what lets a retry fix the spelling instead of guessing again.
+    */
+   private void validateMeasureKeys(VSChartInfo vsChartInfo, Set<String> keys) {
+      List<String> valid = collectAestheticAggregates(vsChartInfo).stream()
+         .map(ChartAestheticModel.AestheticAggregate::getFullName)
+         .collect(Collectors.toList());
+      List<String> unknown = keys.stream().filter(k -> !valid.contains(k)).collect(Collectors.toList());
+
+      if(!unknown.isEmpty()) {
+         throw badColorRequest("measureColors names no colorable measure: " +
+            String.join(", ", unknown) + ". Valid measures: " +
+            (valid.isEmpty() ? "(none)" : String.join(", ", valid)) + ".");
+      }
+   }
+
+   private static ResponseStatusException badColorRequest(String message) {
+      return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+   }
+
+   /**
+    * Applies categorical colors to a dimension that is bound to the color aesthetic. Every fit check ran
+    * in validateColorRequest before any mutation, so this only has to apply.
+    */
+   private void applyCategoricalColors(AestheticRef colorField, ChartColorsRequest request) {
       if(request.getPaletteName() != null) {
          CategoricalColorFrame palette = ColorPalettes.getPalette(request.getPaletteName());
 
@@ -2835,24 +3119,11 @@ public class WizAutoBindingService {
          CategoricalColorFrame frame = asCategoricalFrame(colorField);
 
          for(Map.Entry<String, String> e : request.getCategoryColors().entrySet()) {
-            frame.setColor(e.getKey(), parseColor(e.getValue()));
+            frame.setColor(Tool.getData(colorField.getDataType(), e.getKey()), parseColor(e.getValue()));
          }
 
          colorField.setVisualFrame(frame);
       }
-
-      if(request.getStaticColor() != null) {
-         return "staticColor was ignored: this chart has a color dimension. Use paletteName, " +
-            "colorList, or categoryColors to color the categories.";
-      }
-
-      if(request.getPaletteName() == null && request.getColorList() == null &&
-         request.getCategoryColors() == null)
-      {
-         return "No categorical color provided. Pass paletteName, colorList, or categoryColors.";
-      }
-
-      return null;
    }
 
    /** Returns the color field's current CategoricalColorFrame, or a fresh one if it isn't categorical. */
@@ -2863,31 +3134,11 @@ public class WizAutoBindingService {
 
    /**
     * Applies a named gradient when a measure is on the color aesthetic. Only paletteName is meaningful
-    * for a continuous color scale; colorList/categoryColors return a note.
+    * for a continuous color scale; validateColorRequest already rejected everything else, and rejected
+    * an unknown gradient name, so this only has to apply.
     */
-   private String applyGradient(AestheticRef colorField, ChartColorsRequest request) {
-      if(request.getColorList() != null || request.getCategoryColors() != null) {
-         return "This chart has a measure on color (a continuous scale), so colorList/categoryColors " +
-            "don't apply. Use paletteName with a gradient name (e.g. " + VALID_GRADIENTS + ").";
-      }
-
-      if(request.getStaticColor() != null) {
-         return "staticColor was ignored: this chart uses a measure-driven color scale. Use paletteName " +
-            "with a gradient name.";
-      }
-
-      if(request.getPaletteName() == null) {
-         return "No gradient provided. Pass paletteName with a gradient name (" + VALID_GRADIENTS + ").";
-      }
-
-      ColorFrame gradient = gradientFrameForName(request.getPaletteName());
-
-      if(gradient == null) {
-         return "Unknown gradient '" + request.getPaletteName() + "'. Valid gradients: " + VALID_GRADIENTS + ".";
-      }
-
-      colorField.setVisualFrame(gradient);
-      return null;
+   private void applyGradient(AestheticRef colorField, ChartColorsRequest request) {
+      colorField.setVisualFrame(gradientFrameForName(request.getPaletteName()));
    }
 
    /** The named gradients accepted by {@link #gradientFrameForName} (kept in sync with that switch). */

@@ -29,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
@@ -93,6 +94,19 @@ public class WizViewsheetController {
       return run("set chart colors", () -> wizAutoBindingService.setChartColors(request, user));
    }
 
+   /**
+    * Read-only companion to /viewsheet/colors: which colour parameters the chart can accept. Callers must
+    * read this first — the accepted parameters are fixed by the chart's colour binding, and the only
+    * valid categoryColors / measureColors keys come from here.
+    */
+   @PostMapping(value = "/chart/aestheticModel", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> getChartAestheticModel(@RequestBody ChartAestheticModelRequest request,
+                                                  Principal user)
+   {
+      return run("read chart aesthetic model",
+         () -> wizAutoBindingService.getChartAestheticModel(request, user));
+   }
+
    @PostMapping(value = "/viewsheet/geo/detect", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<?> geoDetect(@Valid @RequestBody GeoDetectRequest request, Principal user) {
       return run("geo detect", () -> wizGeoService.detect(request, user));
@@ -152,6 +166,16 @@ public class WizViewsheetController {
       }
       catch(IllegalArgumentException e) {
          return ResponseEntity.badRequest().body(Map.of("error", nullToEmpty(e.getMessage())));
+      }
+      // Honour the status the thrower chose. ResponseStatusException is a plain RuntimeException, so
+      // without this it fell through to the generic handler below and every deliberate 4xx was returned
+      // as a content-free 500 — the caller was told "unexpected error, please try again" about a request
+      // that could never succeed as sent, and an automated one replays it instead of correcting it.
+      // Pre-dates the colour validation that now leans on this: the malformed-hex and unknown-palette
+      // rejections in WizAutoBindingService have always thrown this type.
+      catch(ResponseStatusException e) {
+         return ResponseEntity.status(e.getStatusCode().value())
+            .body(Map.of("error", nullToEmpty(e.getReason())));
       }
       catch(Exception e) {
          LOG.error("Failed to {}", action, e);
