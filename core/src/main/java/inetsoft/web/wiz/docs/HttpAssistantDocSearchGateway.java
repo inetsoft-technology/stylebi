@@ -18,21 +18,15 @@
 package inetsoft.web.wiz.docs;
 
 import inetsoft.web.assistant.AIAssistantController;
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 /**
  * {@link AssistantDocSearchGateway} over {@code java.net.http.HttpClient}, matching the client
@@ -73,38 +67,19 @@ public class HttpAssistantDocSearchGateway implements AssistantDocSearchGateway 
       if(cachedClient == null) {
          HttpClient.Builder builder = HttpClient.newBuilder()
             .connectTimeout(CONNECT_TIMEOUT);
-
-         if(!AIAssistantController.isSslVerifyEnabled()) {
-            try {
-               SSLContext sslContext = SSLContext.getInstance("TLS");
-               sslContext.init(null, new TrustManager[]{ TRUST_ALL }, new SecureRandom());
-               builder.sslContext(sslContext);
-            }
-            catch(NoSuchAlgorithmException | KeyManagementException e) {
-               throw new RuntimeException("Failed to build assistant doc-search HTTP client", e);
-            }
-         }
-
+         AIAssistantController.applyAssistantTls(builder, "doc search");
          cachedClient = builder.build();
       }
 
       return cachedClient;
    }
 
-   private static final X509TrustManager TRUST_ALL = new X509TrustManager() {
-      @Override
-      public void checkClientTrusted(X509Certificate[] chain, String authType) {
+   @PreDestroy
+   public void closeClient() {
+      if(cachedClient != null) {
+         cachedClient.close();
       }
-
-      @Override
-      public void checkServerTrusted(X509Certificate[] chain, String authType) {
-      }
-
-      @Override
-      public X509Certificate[] getAcceptedIssuers() {
-         return new X509Certificate[0];
-      }
-   };
+   }
 
    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(20);
