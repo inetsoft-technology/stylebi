@@ -261,6 +261,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    protected subscriptions = Subscription.EMPTY;
    protected scrollTopSubscription = Subscription.EMPTY;
    protected scrollLeftSubscription = Subscription.EMPTY;
+   private destroyed = false;
+   private pendingHeightUpdate = false;
    private _selected: boolean;
    preserveSelection: boolean = false;
    private resizingRowHeight: number;
@@ -390,6 +392,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.subscriptions.unsubscribe();
       this.scrollTopSubscription.unsubscribe();
       this.scrollLeftSubscription.unsubscribe();
+      this.destroyed = true;
    }
 
    /**
@@ -1649,10 +1652,16 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
          // triggering ExpressionChangedAfterItHasBeenCheckedError (e.g. when wrap text
          // changes the table's shrink-to-fit height). Defer the write so it lands in a
          // later change detection cycle instead of the one currently in progress.
-         if(this.model.objectHeight !== height) {
+         if(this.model.objectHeight !== height && !this.pendingHeightUpdate) {
+            this.pendingHeightUpdate = true;
+
             Promise.resolve().then(() => {
-               this.model.objectHeight = height;
-               this.changeDetectorRef.markForCheck();
+               this.pendingHeightUpdate = false;
+
+               if(!this.destroyed) {
+                  this.model.objectHeight = height;
+                  this.changeDetectorRef.markForCheck();
+               }
             });
          }
 
