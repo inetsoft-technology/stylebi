@@ -1135,40 +1135,24 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       // curve at each corner (e.g. a shaded title-row fill, or the corner-most cell's
       // text) with a plain white square, the same way the viewer's overflow:hidden clips
       // it. This must happen before the border outline below so the outline's curve is
-      // drawn on top of the mask, not under it.
+      // drawn on top of the mask, not under it. Applies regardless of whether a border is
+      // configured, since it only affects background/content, not border lines.
       maskTableCorners(pixelBounds, radius);
 
       Insets borders = format.getBorders();
 
-      if(borders == null) {
+      // A single roundRect shape can only stroke a uniform outline around all four sides
+      // - unlike the per-side PDF/SVG/PPT border drawing (see ExportUtil.drawBorders), it
+      // can't selectively skip a side. Only draw the outline when every side actually has
+      // a border configured; otherwise skip it, so e.g. a top-only border doesn't
+      // incorrectly get a full box outline in Excel.
+      if(borders == null || borders.top == 0 || borders.left == 0 ||
+         borders.right == 0 || borders.bottom == 0)
+      {
          return;
       }
 
-      BorderColors bcolors = format.getBorderColors();
-      int type;
-      java.awt.Color color;
-
-      if(borders.top != 0) {
-         type = borders.top;
-         color = bcolors == null ? null : bcolors.topColor;
-      }
-      else if(borders.left != 0) {
-         type = borders.left;
-         color = bcolors == null ? null : bcolors.leftColor;
-      }
-      else if(borders.right != 0) {
-         type = borders.right;
-         color = bcolors == null ? null : bcolors.rightColor;
-      }
-      else if(borders.bottom != 0) {
-         type = borders.bottom;
-         color = bcolors == null ? null : bcolors.bottomColor;
-      }
-      else {
-         return;
-      }
-
-      int lineStyle = PoiExcelVSUtil.getLineStyle(type);
+      int lineStyle = PoiExcelVSUtil.getLineStyle(borders.top);
 
       if(lineStyle == ExcelVSUtil.EXCEL_NO_BORDER) {
          return;
@@ -1182,6 +1166,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       if(lineStyle != ExcelVSUtil.EXCEL_SOLID_BORDER) {
          shape.setLineStyle(lineStyle);
       }
+
+      BorderColors bcolors = format.getBorderColors();
+      java.awt.Color color = bcolors == null ? null : bcolors.topColor;
 
       if(color != null) {
          shape.setLineStyleColor(color.getRed(), color.getGreen(), color.getBlue());
