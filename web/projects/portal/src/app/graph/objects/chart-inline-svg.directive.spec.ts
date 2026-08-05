@@ -842,4 +842,66 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          expect(emitted).toEqual(["A", null, "A"]);
       });
    });
+
+   describe("getElementAnchor (tooltip tail anchor)", () => {
+      const html = `
+         <svg>
+            <g class="inetsoft-bar" data-row="0" data-col="0"></g>
+            <g class="inetsoft-bar" data-row="1" data-col="0"></g>
+            <g class="inetsoft-bar" data-row="2" data-col="0" data-anchor="0.2000,0.7500"></g>
+            <g class="inetsoft-bar" data-row="3" data-col="0" data-anchor="oops"></g>
+         </svg>`;
+
+      function stub(host: HTMLElement, row: string): void {
+         vi.spyOn(host.querySelector<Element>(`[data-row='${row}']`), "getBoundingClientRect")
+            .mockReturnValue({ left: 10, top: 20, width: 100, height: 40 } as DOMRect);
+      }
+
+      it("centres on the element's box when the renderer supplied no anchor", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         stub(host, "1");
+         expect(dir.getElementAnchor(1, 0)).toEqual({ x: 60, y: 40 });
+      });
+
+      it("applies the renderer's anchor fraction to the element's box", () => {
+         // An arc's middle is off-centre; 0.2/0.75 of a 100x40 box at (10, 20).
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         stub(host, "2");
+         expect(dir.getElementAnchor(2, 0)).toEqual({ x: 30, y: 50 });
+      });
+
+      it("falls back to the box centre when the anchor attribute is unparseable", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         stub(host, "3");
+         expect(dir.getElementAnchor(3, 0)).toEqual({ x: 60, y: 40 });
+      });
+
+      it("returns null for a row/col with no element", () => {
+         const { dir } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         expect(dir.getElementAnchor(9, 9)).toBeNull();
+      });
+
+      it("returns null before the svg has been indexed", () => {
+         const { dir } = makeDirective(html);
+         expect(dir.getElementAnchor(0, 0)).toBeNull();
+      });
+
+      // Line, area and radar tiles dim by series, so they empty or prune the dim map. The tail
+      // still needs their vertex markers, so anchors are indexed separately.
+      it("still anchors to a point marker after the dim map is emptied", () => {
+         const { dir, host } = makeDirective(`
+            <svg>
+               <g class="inetsoft-point" data-row="4" data-col="1"></g>
+            </svg>`);
+         (dir as any).afterSvgInjected();
+         (dir as any).elementGroupMap.clear();
+         vi.spyOn(host.querySelector<Element>("[data-row='4']"), "getBoundingClientRect")
+            .mockReturnValue({ left: 0, top: 0, width: 8, height: 8 } as DOMRect);
+         expect(dir.getElementAnchor(4, 1)).toEqual({ x: 4, y: 4 });
+      });
+   });
 });

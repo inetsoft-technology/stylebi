@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,35 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-:host {
-  position: fixed;
-  pointer-events: none;
-}
+import { GraphTypes } from "../../common/graph-types";
+import { TailAxis } from "../../widget/tooltip/tooltip-tail-placement";
 
-.tooltip-container {
-  position: relative;
-}
+/** Types placed beside the mark, putting the tail on the box's left or right edge. Design-owned per-type choice. */
+const HORIZONTAL_TAIL_TYPES = new Set<number>([
+   GraphTypes.CHART_TREE,
+   GraphTypes.CHART_NETWORK,
+   GraphTypes.CHART_CIRCULAR,
+   GraphTypes.CHART_TREEMAP,
+   GraphTypes.CHART_ICICLE,
+   GraphTypes.CHART_CIRCLE_PACKING,
+   GraphTypes.CHART_MEKKO,
+   GraphTypes.CHART_STEP,
+   GraphTypes.CHART_JUMP
+]);
 
-.tooltip-chrome {
-  position: absolute;
-  z-index: -1;
-  overflow: visible;
-  pointer-events: none;
-  // Mirrors --inet-shadow-low, but follows the tail as well as the box.
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .06)) drop-shadow(0 1px 3px rgba(0, 0, 0, .04));
-}
-
-.tooltip-chrome__bg,
-.tooltip-chrome__tail {
-  fill: var(--inet-dialog-bg-color);
-}
-
-.tooltip-chrome__border,
-.tooltip-chrome__tail {
-  stroke: var(--inet-default-border-color);
-  stroke-width: 1;
-}
-
-.tooltip-chrome__border {
-  fill: none;
+export function tailAxisForChartType(chartType: number): TailAxis {
+   return HORIZONTAL_TAIL_TYPES.has(chartType) ? "horizontal" : "vertical";
 }

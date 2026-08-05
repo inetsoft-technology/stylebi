@@ -23,6 +23,13 @@ import {
    TemplateRef
 } from "@angular/core";
 import { NgTemplateOutlet, NgClass } from "@angular/common";
+import {
+   buildChromePaths,
+   ChromeGeometry,
+   TAIL_LENGTH,
+   TailSide,
+   TOOLTIP_INSET
+} from "./tooltip-tail-placement";
 
 /**
  * Component used to render tooltips.
@@ -41,6 +48,11 @@ import { NgTemplateOutlet, NgClass } from "@angular/common";
 export class TooltipComponent {
    @Input() content: string | TemplateRef<any>;
    @Input() tooltipCSS: string | string[] | Set<string>;
+   @Input() tailSide: TailSide | null = null;
+   @Input() tailOffset = 0;
+   @Input() boxSize: { width: number, height: number } | null = null;
+   /** chrome overhang: tail length minus box inset */
+   readonly chromeInset = TOOLTIP_INSET - TAIL_LENGTH;
 
    constructor(private changeRef: ChangeDetectorRef) {
    }
@@ -51,5 +63,11 @@ export class TooltipComponent {
 
    contentIsTemplate(): boolean {
       return this.content instanceof TemplateRef;
+   }
+
+   get chrome(): ChromeGeometry | null {
+      return !!this.tailSide && !!this.boxSize
+         ? buildChromePaths(this.boxSize.width, this.boxSize.height, this.tailSide, this.tailOffset)
+         : null;
    }
 }

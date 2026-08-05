@@ -81,6 +81,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * determines which server-injected hover rule fires when inetsoft-active is toggled.
     */
    private elementGroupMap = new Map<string, Element>();
+   /** Anchor index for the tooltip tail. Separate from elementGroupMap because that one is a
+    *  dim index: line, area and radar tiles empty or prune it, having no per-element dim, but
+    *  the tail still needs their vertex markers. Never pruned after the SVG is indexed. */
+   private anchorGroupMap = new Map<string, Element>();
    /** Maps "rowIdx-colIdx" to all glyph elements of the label paired with that data element.
     *  Batik renders each character as a separate <g text-rendering> element with the same
     *  data-row/data-col, so every glyph must be stored and toggled together. */
@@ -257,6 +261,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       else {
          this.element.nativeElement.innerHTML = "";
          this.elementGroupMap.clear();
+         this.anchorGroupMap.clear();
          this.labelGroupMap.clear();
          this._activeKeys = [];
          this._activeFound = false;
@@ -312,6 +317,29 @@ export class ChartInlineSvgDirective implements OnDestroy {
             }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
          }
       }
+   }
+
+   /**
+    * Visual middle of the data element at rowIdx+colIdx in viewport coords, or null when this
+    * tile holds no such element. Same key lookup as {@link highlightElements}; anchors the
+    * tooltip tail. Prefers the server's data-anchor fraction, which the renderer writes for
+    * shapes whose box centre misses the mark — a wide donut wedge centres on the hole.
+    */
+   getElementAnchor(rowIdx: number, colIdx: number): { x: number, y: number } | null {
+      const el = this.anchorGroupMap.get(`${rowIdx}-${colIdx}`);
+
+      if(!el) {
+         return null;
+      }
+
+      const rect = el.getBoundingClientRect();
+      const parts = (el.getAttribute("data-anchor") || "").split(",");
+      const fx = parseFloat(parts[0]);
+      const fy = parseFloat(parts[1]);
+
+      return isFinite(fx) && isFinite(fy)
+         ? { x: rect.left + fx * rect.width, y: rect.top + fy * rect.height }
+         : { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
    }
 
    /**
@@ -680,6 +708,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // Each CSS class corresponds to a different chart type; the CSS class on the stored
       // element determines which server-injected hover rule fires on inetsoft-active toggle.
       this.populateElementGroupMap(ChartInlineSvgDirective.HOVER_CLASSES);
+      this.anchorGroupMap.clear();
+      this.populateElementGroupMap(ChartInlineSvgDirective.HOVER_CLASSES, this.anchorGroupMap);
 
       // Map each point marker's row/col → data-color for snap resolution. Built from .inetsoft-point,
       // the only annotation carrying row, col and color together (line/area groups omit row/col).
@@ -831,7 +861,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * Add every annotation group matching one of the given classes to elementGroupMap, keyed by
     * "data-row-data-col". Classes are applied in order, so a later class wins a key collision.
     */
-   private populateElementGroupMap(cssClasses: string[]): void {
+   private populateElementGroupMap(cssClasses: string[],
+                                   target: Map<string, Element> = this.elementGroupMap): void
+   {
       for(const cssClass of cssClasses) {
          const elements = Array.from(
             this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
@@ -841,7 +873,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
             const col = el.getAttribute("data-col");
 
             if(row != null && col != null) {
-               this.elementGroupMap.set(`${row}-${col}`, el);
+               target.set(`${row}-${col}`, el);
             }
          }
       }

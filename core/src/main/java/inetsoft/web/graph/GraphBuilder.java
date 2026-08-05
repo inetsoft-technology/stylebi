@@ -1014,20 +1014,20 @@ public class GraphBuilder {
       List<short[]> segmentTypeLists = new ArrayList<>();
       Point centroid = new Point();
       boolean smallArea = false;
-      boolean showReferenceLine = chartDesc.getPlotDescriptor().isReferenceLineVisible();
-      // Snap needs centroids on every region so the client can locate the
-      // nearest data point under the cursor.
-      boolean snapTooltip = cinfo.isSnapTooltip() && cinfo.isTooltipVisible()
-         && cinfo.supportsSnapTooltip();
-      boolean hasCurve = false;
+      // Only report a centroid we actually derived from a shape; a degenerate region would
+      // otherwise publish (0,0) and pull anything anchored to it into the corner.
+      boolean hasCentroid = false;
 
       for(int i = 0; i < shapes.size(); i++) {
          Shape shape = shapes.get(i);
          Region region = regions[i];
          final Rectangle2D bounds = shape.getBounds2D();
-         centroid.setLocation(bounds.getCenterX(), bounds.getCenterY());
 
          if(!Double.isNaN(bounds.getY()) && !Double.isNaN(bounds.getX())) {
+            // Inside the guard: a trailing NaN sub-shape would otherwise round to (0,0) and
+            // overwrite a good centroid from an earlier one.
+            centroid.setLocation(bounds.getCenterX(), bounds.getCenterY());
+            hasCentroid = true;
             List<double[][]> subRegionCoordinates = new ArrayList<>();
 
             if(shape instanceof Ellipse2D) {
@@ -1089,7 +1089,6 @@ public class GraphBuilder {
                         parr[k] = point[k] / scaleFactor;
                      }
 
-                     hasCurve = hasCurve || segmentType >= 3;
                      coordinateList.add(parr);
                      segmentTypesList.add((short) segmentType);
                   }
@@ -1442,8 +1441,10 @@ public class GraphBuilder {
          .isAggr(isAggregate ? true : null)
          // appears not used in ts
          //.boundaryIdx(boundaryIndex)
-         // centroid only used if hasCurve, showing reference line, or snap on the client
-         .centroid(hasCurve || showReferenceLine || snapTooltip ? centroid : null)
+         // Always sent: besides curves, reference lines and snap, it anchors the tooltip tail
+         // on chart types whose marks carry no row/col in the SVG (area, line without markers).
+         // Two rounded ints per region — negligible beside this region's own pts array.
+         .centroid(hasCentroid ? centroid : null)
          .parentVals(parentValues)
          .legendItemIdx(legendItemIndex < 0 ? null : legendItemIndex)
          .period(isPeriod ? true : null)

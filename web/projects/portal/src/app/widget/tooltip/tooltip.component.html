@@ -21,7 +21,18 @@
   </div>
 } @else {
   <div class="compact-p tooltip-container">
-    <div [ngClass]="tooltipCSS" [innerHTML]="content"></div>
+    @if (chrome; as c) {
+      <svg class="tooltip-chrome" [attr.width]="c.width" [attr.height]="c.height"
+           [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height"
+           [style.left.px]="chromeInset" [style.top.px]="chromeInset">
+        <rect class="tooltip-chrome__bg" [attr.x]="c.boxX" [attr.y]="c.boxY"
+              [attr.width]="c.boxWidth" [attr.height]="c.boxHeight" [attr.rx]="c.radius"></rect>
+        <path class="tooltip-chrome__border" [attr.d]="c.borderPath"></path>
+        <path class="tooltip-chrome__tail" [attr.d]="c.tailPath"></path>
+      </svg>
+    }
+    <div [ngClass]="tooltipCSS" [class.widget__card-tooltip--tailed]="!!chrome"
+         [innerHTML]="content"></div>
   </div>
 }
 

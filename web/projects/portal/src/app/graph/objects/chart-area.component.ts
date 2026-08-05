@@ -81,6 +81,9 @@ import { ChartFacetArea } from "./chart-facet.component";
 import { MouseEventDirective } from "../../widget/mouse-event/mouse-event.directive";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
 import { NgStyle } from "@angular/common";
+import { ChartConfigService } from "../services/chart-config.service";
+import { tailAxisForChartType } from "./chart-tail-config";
+import { TailAxis } from "../../widget/tooltip/tooltip-tail-placement";
 
 @Component({
     selector: "chart-area",
@@ -307,6 +310,10 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    tooltipCSS: string = "widget__default-tooltip";
    tooltipTop: number = 0;
    tooltipLeft: number = 0;
+   tooltipTail: boolean = false;
+   tooltipTailAxis: TailAxis = "vertical";
+   /** Bound to the tooltip directive; called outside Angular on every hover. */
+   tailAnchorFn = () => this.chartPlotArea?.tailAnchor ?? null;
 
    // Area resizer
    areaResizeInfo: AreaResizeInfo = null;
@@ -343,7 +350,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
                private changeDetectorRef: ChangeDetectorRef,
                private pagingControlService: PagingControlService,
                protected renderer: Renderer2,
-               private ngZone: NgZone)
+               private ngZone: NgZone,
+               private chartConfigService: ChartConfigService)
    {
    }
 
@@ -368,6 +376,10 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       if(changes["model"] || changes["modelTS"]) {
          this.tooltipCSS = this.model && this.model.tooltipStyle === "CARD"
             ? "widget__card-tooltip" : "widget__default-tooltip";
+         // Tail needs a mark rect, only available from inline-svg tiles.
+         this.tooltipTail = this.model && this.model.tooltipStyle === "CARD" &&
+            this.chartConfigService.inlineSvg;
+         this.tooltipTailAxis = tailAxisForChartType(this.model?.chartType);
       }
    }
 
