@@ -496,6 +496,74 @@ public class WizAutoBindingService {
    }
 
    /**
+    * Re-applies the caller's already-resolved per-measure formulas (see ChangeTypeRequest.fieldConfigs
+    * javadoc) onto whichever assembly type changeType() ends up with — dispatches to the chart or
+    * crosstab-specific applicator; a no-op for any other assembly type (e.g. table, which has no
+    * per-cell aggregate formula to override in the same sense).
+    */
+   private void applyResolvedFormulaOverrides(VSAssembly assembly, Map<String, SimpleFieldInfo> configMap) {
+      if(assembly instanceof ChartVSAssembly chartAsm && chartAsm.getVSChartInfo() != null) {
+         applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
+      }
+      else if(assembly instanceof CrosstabVSAssembly crosstabAsm && crosstabAsm.getVSCrosstabInfo() != null) {
+         applyCrosstabAggregateFormulas(crosstabAsm.getVSCrosstabInfo(), configMap);
+      }
+   }
+
+   /**
+    * {@link #applyResolvedFormulaOverrides(VSAssembly, Map)} for the changeType() fallback path,
+    * which only has the resulting runtimeId/assemblyName (autoBindingInternal() already executed
+    * and returned a DTO, not the live assembly) — looks it up and applies the same override.
+    * Best-effort: swallows lookup failures so a formula-override miss never fails the whole
+    * changeType call when the rest of it already succeeded.
+    */
+   private void applyResolvedFormulaOverrides(String runtimeId, String assemblyName,
+                                               Map<String, SimpleFieldInfo> configMap, Principal user)
+   {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         VSAssembly assembly = rvs == null ? null :
+            (VSAssembly) rvs.getViewsheet().getAssembly(assemblyName);
+         applyResolvedFormulaOverrides(assembly, configMap);
+      }
+      catch(Exception e) {
+         LOG.warn("changeType: failed to apply resolved formula overrides for '{}': {}",
+                  assemblyName, e.getMessage());
+      }
+   }
+
+   /**
+    * changeType()'s crosstab counterpart to {@link #applyFieldConfigs(VSChartInfo, Map)} — that one
+    * only walks a {@link VSChartInfo}, so a crosstab recommendation's aggregate formulas were never
+    * overridden by the caller's resolved fieldConfigs. Only {@code aggregateFormula} applies here;
+    * a crosstab aggregate has no ranking/date-group/calculator of its own to carry over.
+    *
+    * <p>Package-private and static so it can be unit-tested directly with mocked refs, mirroring
+    * {@link #repartitionHeaders}.
+    */
+   static void applyCrosstabAggregateFormulas(VSCrosstabInfo crosstabInfo,
+                                               Map<String, SimpleFieldInfo> configMap)
+   {
+      DataRef[] aggregates = crosstabInfo.getDesignAggregates();
+
+      if(aggregates == null) {
+         return;
+      }
+
+      for(DataRef ref : aggregates) {
+         if(!(ref instanceof VSAggregateRef agg)) {
+            continue;
+         }
+
+         SimpleFieldInfo fc = configMap.get(agg.getColumnValue());
+
+         if(fc instanceof MeasureFieldInfo meaFc && meaFc.getAggregateFormula() != null) {
+            agg.setFormulaValue(meaFc.getAggregateFormula());
+         }
+      }
+   }
+
+   /**
     * Title the X/Y AXES from the {@code title} on whichever fieldConfig is bound to each axis.
     *
     * <p>THE DEFECT THIS FIXES. A caller-supplied {@code title} was accepted, forwarded, and applied
@@ -2008,6 +2076,15 @@ public class WizAutoBindingService {
       String wizRuntimeId = request.getWizRuntimeId();
       String worksheetId = request.getWorksheetId();
       String viewsheetIdentifier = request.getViewsheetIdentifier();
+      // See ChangeTypeRequest.fieldConfigs javadoc: lets the caller's already-resolved formula for
+      // a measure (e.g. Count, chosen by a complex-chart LLM node that never touched this model)
+      // win over whatever generic per-type default the recommendation model below would otherwise
+      // assign that same field.
+      List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs();
+      Map<String, SimpleFieldInfo> configMap = fieldConfigs == null ? Collections.emptyMap() :
+         fieldConfigs.stream()
+            .filter(f -> f != null && f.getField() != null)
+            .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
       // 1. Try to get the recommendation model stored by a prior autoBinding call.
       VSRecommendationModel model = null;
@@ -2044,6 +2121,11 @@ public class WizAutoBindingService {
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
          fallback.setCopy(request.isCopy());
          fallback.setAssemblyName(request.getAssemblyName());
+         // Deliberately NOT fallback.setFieldConfigs(fieldConfigs): AutoBindingRequest.fieldConfigs
+         // is the AUTHORITATIVE full field list (selectBindColumns filters the worksheet down to
+         // EXACTLY those columns) — forwarding our measures-only list here would silently drop every
+         // dimension (e.g. STATE) from the rebuild instead of just fixing a formula. Applied post-hoc
+         // onto the resulting assembly below instead, the same as the fast path.
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
@@ -2060,6 +2142,14 @@ public class WizAutoBindingService {
             try {
                String fallbackRuntimeId = !Tool.isEmptyString(result.getRuntimeId())
                   ? result.getRuntimeId() : wizRuntimeId;
+
+               // Override the freshly-recommended assembly's formulas with the caller's already-
+               // resolved ones BEFORE fetching data, so the fetched headers/rows already reflect it
+               // instead of the generic per-type default autoBindingInternal() picked blind.
+               if(!configMap.isEmpty()) {
+                  applyResolvedFormulaOverrides(fallbackRuntimeId, result.getAssemblyName(), configMap, user);
+               }
+
                CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
                   fallbackRuntimeId, result.getAssemblyName(), user);
                result.setHeaders(dataResult.getHeaders());
@@ -2103,6 +2193,13 @@ public class WizAutoBindingService {
 
       if(capturedAutoBindingRvs != null) {
          primaryAssembly = refreshVisualizationBinding(selectedRec, capturedAutoBindingRvs, user);
+
+         // Re-apply the caller's resolved formulas to the freshly-selected recommendation — this
+         // model's own candidate for `visualizationType` was built independent of them (see
+         // ChangeTypeRequest.fieldConfigs javadoc).
+         if(!configMap.isEmpty()) {
+            applyResolvedFormulaOverrides(primaryAssembly, configMap);
+         }
       }
 
       // 4. Place the new primary in wizRuntimeId without executing the sandbox.
