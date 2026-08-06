@@ -17,6 +17,7 @@
  */
 import { AssemblyAction } from "../common/action/assembly-action";
 import { AssemblyActionGroup } from "../common/action/assembly-action-group";
+import { TestUtils } from "../common/test/test-utils";
 import { EmbedChartComponent } from "./chart/embed-chart.component";
 import { EmbedCrosstabComponent } from "./crosstab/embed-crosstab.component";
 import { EmbedGaugeComponent } from "./gauge/embed-gauge.component";
@@ -35,7 +36,10 @@ import { EmbedTextComponent } from "./text/embed-text.component";
  * built off their prototype for the reason given there: these are Angular Elements custom
  * elements wired to a websocket client, and TestBed would exercise the DI setup, not the guard.
  */
-const EMBED_COMPONENTS: [string, { prototype: any }][] = [
+type EmbedComponent = EmbedTableComponent | EmbedCrosstabComponent | EmbedChartComponent |
+   EmbedTextComponent | EmbedGaugeComponent | EmbedImageComponent;
+
+const EMBED_COMPONENTS: [string, { prototype: EmbedComponent }][] = [
    ["EmbedTableComponent", EmbedTableComponent],
    ["EmbedCrosstabComponent", EmbedCrosstabComponent],
    ["EmbedChartComponent", EmbedChartComponent],
@@ -48,7 +52,7 @@ describe.each(EMBED_COMPONENTS)("%s.onOpenContextMenu", (name, componentClass) =
    let dropdownRef: any;
    let dropdownService: any;
    let miniToolbarService: any;
-   let component: any;
+   let component: TestUtils.ContextMenuHost;
 
    const rightClick: () => any = () => ({
       type: "contextmenu", clientX: 10, clientY: 20, preventDefault: vi.fn()
@@ -122,7 +126,7 @@ describe.each(EMBED_COMPONENTS)("%s.onOpenContextMenu", (name, componentClass) =
    // null unless the assembly has an on-click command - the guard catches that too.
    it("opens nothing for a click with no click action", () => {
       component.vsObjectActions = { menuActions: [group(true)], clickAction: null };
-      const event = { ...rightClick(), type: "click" };
+      const event: any = { ...rightClick(), type: "click" };
 
       component.onOpenContextMenu(event);
 

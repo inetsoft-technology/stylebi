@@ -15,8 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AssemblyAction } from "../../common/action/assembly-action";
-import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { TestUtils } from "../../common/test/test-utils";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
 import { VSTableModel } from "../../vsobjects/model/vs-table-model";
@@ -29,9 +27,8 @@ describe("EmbedTableActions", () => {
       new EmbedTableActions(model, EmbedAssemblyContextProviderFactory(), false, null, null, null,
          null, () => false, () => {});
 
-   const find: (groups: AssemblyActionGroup[], id: string) => AssemblyAction =
-      (groups, id) => groups.reduce((all, group) => all.concat(group.actions), [])
-         .find((action) => action.id() === id);
+   /** {@link TestUtils.findAction}, aliased to keep the assertions below on one line. */
+   const find = TestUtils.findAction;
 
    /** One data cell selected, as vs-table leaves the model after a left click on a detail cell. */
    const selectDataCell: (model: VSTableModel) => void = (model) => {

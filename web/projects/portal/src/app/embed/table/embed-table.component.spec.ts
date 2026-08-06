@@ -33,7 +33,7 @@ describe("EmbedTableComponent.onOpenContextMenu", () => {
    let dropdownRef: any;
    let dropdownService: any;
    let miniToolbarService: any;
-   let component: any;
+   let component: TestUtils.ContextMenuHost;
 
    beforeEach(() => {
       dropdownRef = {

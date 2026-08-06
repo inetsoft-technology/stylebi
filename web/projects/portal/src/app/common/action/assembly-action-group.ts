@@ -26,7 +26,7 @@ export class AssemblyActionGroup {
     * every "More" button hides itself on the same condition.
     */
    public static anyVisible(groups: AssemblyActionGroup[]): boolean {
-      return !!groups && groups.some((group) => group?.visible);
+      return groups?.some((group) => group?.visible) ?? false;
    }
 
    /**
