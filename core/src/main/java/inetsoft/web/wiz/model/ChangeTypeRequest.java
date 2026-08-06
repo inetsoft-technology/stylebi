@@ -19,6 +19,8 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
+
 /**
  * Request body for {@code POST /api/wiz/viewsheet/changeType}.
  */
@@ -93,6 +95,15 @@ public class ChangeTypeRequest {
       this.assemblyName = assemblyName;
    }
 
+   /** See the {@link #fieldConfigs} field javadoc. */
+   public List<SimpleFieldInfo> getFieldConfigs() {
+      return fieldConfigs;
+   }
+
+   public void setFieldConfigs(List<SimpleFieldInfo> fieldConfigs) {
+      this.fieldConfigs = fieldConfigs;
+   }
+
    private String worksheetId;
    private String visualizationType;
    /**
@@ -113,4 +124,16 @@ public class ChangeTypeRequest {
    private String viewsheetIdentifier;
    private boolean copy;
    private String assemblyName;
+   /**
+    * Field-level overrides (currently only {@code aggregateFormula} is honored) carried over from
+    * the visualization being switched away from. changeType's own recommendation model — whether
+    * reused from a prior {@code autoBinding} call or freshly recomputed by the fallback below —
+    * has no idea what formula the LIVE chart actually ended up using for a measure (e.g. a
+    * complex-chart LLM node like the map binding path picks its own formula directly against
+    * {@code /viewsheet/create}, entirely bypassing the wizard recommender this model comes from),
+    * so its generic per-type default (e.g. Sum for any numeric column) can silently override an
+    * intentional choice like Count on the SAME field. Passing the caller's already-resolved
+    * formula here lets it win over that default instead of being clobbered on every type switch.
+    */
+   private List<SimpleFieldInfo> fieldConfigs;
 }
