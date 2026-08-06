@@ -25,7 +25,7 @@
         VSPopComponent [popComponentName]="vsObject.absoluteName"
         [popContainerName]="vsObject.container"
         [popZIndex]="zIndex(vsObject)"
-        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'white'"
+        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'var(--inet-dialog-bg-color)'"
         [style.display]="!viewer || vsObject.visible && (vsObject.container && vsObject.active || !vsObject.container) && vsObject.containerType ? null : 'none'"
         [class.bd-selected-assembly]="isFocused(vsObject) || mobile && isSelected(i) && vsObjectActions[i].toolbarActions.length > 0"
         [style.width.px]="getActualWidth(vsObject)"
@@ -42,7 +42,7 @@
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + popUpContentBoostZIndex : zIndex(vsObject)"
+        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? popUpContentZIndex(vsObject) : zIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
         @if (vsObject.objectType == 'VSAnnotation') {
           <vs-annotation

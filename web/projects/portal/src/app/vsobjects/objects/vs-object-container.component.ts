@@ -99,8 +99,6 @@ import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
     imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, forwardRef(() => VSViewsheet), MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
-   readonly popUpContentBoostZIndex: number = DateTipHelper.getPopUpContentBoostZIndex();
-
    @Input() public vsInfo: ViewsheetInfo;
    @Input() public vsObjectActions: AbstractVSActions<any>[];
    @Input() public activeName: string;
@@ -544,8 +542,8 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return false;
    }
 
-   getPopUpContentBoostZIndex(): number {
-      return DateTipHelper.getPopUpContentBoostZIndex();
+   popUpContentZIndex(vsObject: VSObjectModel): number {
+      return DateTipHelper.getPopUpContentZIndex(this.zIndex(vsObject));
    }
 
    zIndex(vsObject: VSObjectModel): number {

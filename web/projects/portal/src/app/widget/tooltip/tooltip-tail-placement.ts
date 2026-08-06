@@ -16,12 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Rectangular } from "../../common/data/rectangle";
+import { GuiTool } from "../../common/util/gui-tool";
 
 export type TailSide = "top" | "bottom" | "left" | "right";
 export type TailAxis = "vertical" | "horizontal";
 
-/** Corner radius of the tooltip box, matching the card skin. */
-export const TAIL_RADIUS = 8;
+// The tailed card's SVG chrome draws the outline in place of the box's own background, border
+// and shadow (.widget__card-tooltip--tailed), so this is its one visible radius and must track
+// .widget__card-tooltip's border-radius: 8px gate-off, 6px under .viz-modern (--inet-radius-xl).
+// An SVG path needs a plain number, so the token cannot be referenced — keep the two in step.
+// Deliberately unexported: reach these through tailRadius(), or the gate is bypassed.
+const TAIL_RADIUS = 8;
+const TAIL_RADIUS_MODERN = 6;
+
+/** Reads the modern visualization gate at call time; the body class toggles at runtime. */
+export function tailRadius(): number {
+   return GuiTool.isVizModern() ? TAIL_RADIUS_MODERN : TAIL_RADIUS;
+}
+
 /** How far the tail projects past the box edge. */
 export const TAIL_LENGTH = 8;
 /** Half the width of the tail's opening on the box edge. */
@@ -133,8 +145,9 @@ function clamp(value: number, lo: number, hi: number): number {
 
 /** Keep the tail on the straight part of the edge; centre it if the edge is too short. */
 function clampToEdge(offset: number, edge: number): number {
-   const lo = TAIL_RADIUS + TAIL_HALF_WIDTH;
-   const hi = edge - TAIL_RADIUS - TAIL_HALF_WIDTH;
+   const r = tailRadius();
+   const lo = r + TAIL_HALF_WIDTH;
+   const hi = edge - r - TAIL_HALF_WIDTH;
    return hi < lo ? (lo + hi) / 2 : clamp(offset, lo, hi);
 }
 
@@ -156,7 +169,7 @@ export interface ChromeGeometry {
 export function buildChromePaths(boxWidth: number, boxHeight: number, tailSide: TailSide,
                                  tailOffset: number): ChromeGeometry
 {
-   const r = TAIL_RADIUS;
+   const r = tailRadius();
    const tw = TAIL_HALF_WIDTH;
    const l = TAIL_LENGTH;
    const bL = l, bT = l, bR = l + boxWidth, bB = l + boxHeight;

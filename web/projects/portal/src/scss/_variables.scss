@@ -235,6 +235,8 @@ $sqrt2: 1.41421356;
   // font
   // Runtime body/app text size. Intentionally independent from Bootstrap's compile-time $font-size-base.
   --inet-font-size-base: 13px;
+  // One step above base. Pairs with --inet-feedback-font-size (11px) as the ramp's caption step.
+  --inet-font-size-lg: 16px;
   --inet-font-family: #{meta.inspect($inet-font-name)};
   --inet-text-color: #{$shell-text-default};
   --inet-icon-color: #{$inet-default-icon-color};
