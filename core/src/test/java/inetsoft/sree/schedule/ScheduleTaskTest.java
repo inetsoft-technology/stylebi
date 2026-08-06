@@ -18,8 +18,11 @@
 
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -27,7 +30,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -326,6 +333,76 @@ public class ScheduleTaskTest {
 
       task.removeCondition(0);
       assertFalse(task.getDependency().hasMoreElements());
+   }
+
+   // --- parseXML(elem, isSiteAdminImport) : org-copy rewrite of CompletionCondition ---
+
+   /*
+    * Bug: after copying an organization, a task's "Run After" completion condition pointing
+    * at a Data Cycle task showed up blank. Root cause: updateConditionTaskPath() located the
+    * owner/task-name split with path.indexOf(":"), but cycle-task ids use "<owner>__<name>"
+    * (ScheduleTask.getTaskId(), Type.CYCLE_TASK branch) and the name itself is
+    * "DataCycle Task: Cycle1", which contains its own colon. The first colon found was the one
+    * inside the task name, so the rewrite dropped "__DataCycle Task" entirely, producing a
+    * taskName that could never match a real task in the new org.
+    */
+   @Test
+   void parseXML_siteAdminImport_cycleTaskCompletionCondition_rewritesOwnerOrgPreservingTaskName()
+      throws Exception
+   {
+      String sourceOrg = "source-org";
+      String targetOrg = "target-org";
+      String cycleTaskId = new IdentityID(XPrincipal.SYSTEM, sourceOrg).convertToKey() +
+         "__" + DataCycleManager.TASK_PREFIX + "Cycle1";
+
+      String xml = "<Task name=\"task1\" owner=\"" +
+         Tool.escape(new IdentityID("admin", sourceOrg).convertToKey()) + "\" enabled=\"true\">" +
+         "<Condition type=\"Completion\" task=\"" + Tool.escape(cycleTaskId) + "\"/>" +
+         "</Task>";
+
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+
+      OrganizationManager.runInOrgScope(targetOrg, () -> {
+         task.parseXML(elem, true);
+         return null;
+      });
+
+      CompletionCondition cc = (CompletionCondition) task.getCondition(0);
+      String expected = new IdentityID(XPrincipal.SYSTEM, targetOrg).convertToKey() +
+         "__" + DataCycleManager.TASK_PREFIX + "Cycle1";
+      assertEquals(expected, cc.getTaskName());
+   }
+
+   @Test
+   void parseXML_siteAdminImport_normalTaskCompletionCondition_rewritesOwnerOrg() throws Exception {
+      String sourceOrg = "source-org";
+      String targetOrg = "target-org";
+      String parentTaskId = new IdentityID("admin", sourceOrg).convertToKey() + ":parent task";
+
+      String xml = "<Task name=\"task1\" owner=\"" +
+         Tool.escape(new IdentityID("admin", sourceOrg).convertToKey()) + "\" enabled=\"true\">" +
+         "<Condition type=\"Completion\" task=\"" + Tool.escape(parentTaskId) + "\"/>" +
+         "</Task>";
+
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+
+      OrganizationManager.runInOrgScope(targetOrg, () -> {
+         task.parseXML(elem, true);
+         return null;
+      });
+
+      CompletionCondition cc = (CompletionCondition) task.getCondition(0);
+      String expected = new IdentityID("admin", targetOrg).convertToKey() + ":parent task";
+      assertEquals(expected, cc.getTaskName());
+   }
+
+   private static Element parseTaskXml(String xml) throws Exception {
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      return factory.newDocumentBuilder()
+         .parse(new InputSource(new StringReader(xml)))
+         .getDocumentElement();
    }
 
    private ScheduleTask createBasicScheduleTask(String taskName) {

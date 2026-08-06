@@ -21,6 +21,7 @@ package inetsoft.util;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.asset.Assembly;
@@ -129,7 +130,11 @@ public class MigrateUtil {
          return taskName;
       }
 
-      int index = taskName.indexOf(":");
+      // cycle tasks use "<owner>__<name>" rather than "<owner>:<name>", and the task name
+      // itself (e.g. "DataCycle Task: Cycle1") contains a colon, so the cycle delimiter must
+      // be matched first or the owner key gets split in the wrong place
+      int cycleIndex = taskName.indexOf("__" + DataCycleManager.TASK_PREFIX);
+      int index = cycleIndex >= 0 ? cycleIndex : taskName.indexOf(":");
 
       if(index > 0) {
          String name = taskName.substring(0, index);
