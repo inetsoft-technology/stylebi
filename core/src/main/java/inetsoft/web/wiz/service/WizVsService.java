@@ -846,6 +846,13 @@ public class WizVsService {
     * callers legitimately send either: the full name ("DistinctCount(PRODUCT_ID)") or the plain one
     * ("PRODUCT_ID").
     *
+    * The plain form is ambiguous when a chart binds two aggregates over the same column (e.g. both
+    * {@code Sum(Sales)} and {@code Avg(Sales)}, each of whose {@code getName()} is "Sales"): a rule using
+    * {@code field = "Sales"} binds to whichever of them comes first in {@code allRefs} — the same
+    * ambiguity {@link #measureMatches} documents for the crosstab path. To target one specifically, pass
+    * the full name (e.g. {@code "Avg(Sales)"}); a full name only ever equals {@code getFullName()}, never
+    * another ref's plain name, so it resolves the same way whatever the ref order.
+    *
     * Falls back to ALL refs — the previous behaviour, so nothing that renders today regresses — when
     * the rule names no field, when the name matches no ref, or for the chart types whose highlightable
     * ref is not a plain X/Y binding: word cloud (text aesthetic), treemap (group fields), relation
