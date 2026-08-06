@@ -90,6 +90,38 @@ public class WizVsService {
    }
 
    /**
+    * Copies {@code assembly}'s binding-field settings onto the autoBinding RVS's temp chart, so they
+    * outlive the rendered assembly. Best-effort: no autoBindingRuntimeId (every caller that predates it,
+    * and the MCP path), an expired runtime, or an RVS that never went through autoBinding all mean there
+    * is no temp chart to record on — the assembly itself already has the settings either way, so this
+    * must never fail the request that triggered it.
+    */
+   private void syncFieldSettingsToTempChart(String autoBindingRuntimeId, VSAssembly assembly,
+                                             Principal user)
+   {
+      if(Tool.isEmptyString(autoBindingRuntimeId) || assembly == null) {
+         return;
+      }
+
+      try {
+         RuntimeViewsheet autoBindingRvs = viewsheetService.getViewsheet(autoBindingRuntimeId, user);
+         ChartVSAssembly tempChart = WizUtil.getTempChart(autoBindingRvs);
+
+         if(tempChart == null || tempChart.getVSChartInfo() == null) {
+            return;
+         }
+
+         WizUtil.copySettingsByFieldName(
+            WizUtil.bindingFieldRefs(assembly), WizUtil.bindingFieldRefs(tempChart));
+      }
+      catch(Exception e) {
+         LOG.warn("Could not record field settings on the temp chart of {}: {}",
+                  autoBindingRuntimeId, e.getMessage());
+         LOG.debug("temp chart field-settings sync stack trace", e);
+      }
+   }
+
+   /**
     * The assembly to sync configs FROM on a rebuild. In sync mode the AI layer names the chart being
     * refined via model.getAssemblyName() (resolved here as existingTarget); otherwise fall back to the
     * displaced assembly (replaced, or the demoted previous primary — same precedence as
@@ -1390,6 +1422,16 @@ public class WizVsService {
 
          // Collect binding for result
          CreateViewsheetResult.FlatBinding binding = collectFlatBinding(assembly);
+
+         // Record this request's field settings (top-N, sort, date level, formula) on the wizard temp
+         // chart, so a later rebuild-from-recommendation inherits them instead of reverting to the bare
+         // recommender defaults. Every create/edit that lands here is a semantic create OR edit of the
+         // binding, and the temp chart is the only place those settings survive one — see
+         // WizUtil.copySettingsByFieldName. Done BEFORE the pre-aggregation push below, which can
+         // rewrite formulas to None once aggregation moves to the worksheet: the temp chart must hold
+         // what the user asked for, not the pushed-down form.
+         syncFieldSettingsToTempChart(model.getAutoBindingRuntimeId(), assembly, user);
+
          AssetEntry wsEntry = null;
          Worksheet originWs = null;
          boolean wsModified = false;
