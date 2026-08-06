@@ -26,9 +26,11 @@ import { EmbedTableComponent } from "./table/embed-table.component";
 import { EmbedTextComponent } from "./text/embed-text.component";
 
 /**
- * Bug #75951: every embed component owns a literal copy of onOpenContextMenu(), so the
- * empty-menu guard is covered once here for all of them rather than in six near-identical
- * files - a copy that is added later and forgets the guard fails as soon as it is listed below.
+ * Bug #75951: the guard lives in EmbedContextMenu.open() and each embed component's
+ * onOpenContextMenu() is a one-line delegation to it. Driving the components rather than the
+ * namespace directly is the point - it covers both the guard and the wiring, so an embed that is
+ * added later and hands over the wrong actions object, service or assembly name fails as soon as
+ * it is listed below.
  *
  * embed-table.component.spec.ts additionally pins the guard against the real EmbedTableActions;
  * here the actions object is stubbed so the cases that matter to the guard (nothing at all, a

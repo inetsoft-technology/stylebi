@@ -51,12 +51,7 @@ import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSGaugeModel } from "../../vsobjects/model/output/vs-gauge-model";
 import { EmbedGaugeActions } from "./embed-gauge-actions";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
-import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
-import { DropdownRef } from "../../widget/fixed-dropdown/fixed-dropdown-ref";
-import { DropdownOptions } from "../../widget/fixed-dropdown/dropdown-options";
-import {
-   ActionsContextmenuComponent
-} from "../../widget/fixed-dropdown/actions-contextmenu.component";
+import { EmbedContextMenu } from "../embed-context-menu";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
 import { EMBED_GAUGE_URL_MATCHER } from "./embed-gauge.routes";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
@@ -452,49 +447,8 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
    }
 
    onOpenContextMenu(event: MouseEvent) {
-      if(!this.vsObjectActions) {
-         return;
-      }
-
-      let actions: AssemblyActionGroup[];
-
-      if(event.type === "click") {
-         actions = [new AssemblyActionGroup([this.vsObjectActions.clickAction])];
-      }
-      else {
-         actions = this.vsObjectActions.menuActions;
-      }
-
-      // EmbedGaugeActions has no menu actions, so a right click would otherwise open an empty
-      // dropdown and freeze the mini toolbar behind it. Still suppress the browser's own menu,
-      // which showContextMenu() would have done: the assembly having nothing to offer is not a
-      // reason to fall back to Reload/Save As.
-      if(!AssemblyActionGroup.anyVisible(actions)) {
-         event.preventDefault();
-         return;
-      }
-
-      const dropdown: DropdownRef = this.showContextMenu(actions, event);
-      this.miniToolbarService.hiddenFreeze(this.vsObject?.absoluteName);
-
-      const sub2 = dropdown.closeEvent.subscribe(() => {
-         sub2.unsubscribe();
-         this.miniToolbarService.hiddenUnfreeze(this.vsObject?.absoluteName);
-      });
-   }
-
-   private showContextMenu(actions: AssemblyActionGroup[], event: MouseEvent): DropdownRef {
-      let options: DropdownOptions = {
-         position: {x: event.clientX, y: event.clientY},
-         contextmenu: true
-      };
-
-      let dropdownRef = this.dropdownService.open(ActionsContextmenuComponent, options);
-      let contextmenu: ActionsContextmenuComponent = dropdownRef.componentInstance;
-      contextmenu.sourceEvent = event;
-      contextmenu.actions = actions;
-      event.preventDefault();
-      return dropdownRef;
+      EmbedContextMenu.open(this.vsObjectActions, event, this.dropdownService,
+         this.miniToolbarService, this.vsObject?.absoluteName);
    }
 
    setServerUpdateInterval(): void {
