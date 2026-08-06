@@ -880,7 +880,15 @@ public final class WorksheetMutationSupport {
     *                  column; omit when {@code field} is itself the aggregate to rank by.
     */
    public record RankingSpec(String field, int n, String operation,
-                             boolean groupOthers, String of) {}
+                             boolean groupOthers, String of) {
+      /**
+       * Compact form for callers that don't need {@code of} (e.g. ranking directly by an
+       * aggregate or group column with no separate "of" value).
+       */
+      public RankingSpec(String field, int n, String operation, boolean groupOthers) {
+         this(field, n, operation, groupOthers, null);
+      }
+   }
 
    /**
     * Sets a ranking condition on the table.
