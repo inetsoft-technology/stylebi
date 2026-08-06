@@ -156,7 +156,9 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
 
          // draw the region after convas is updated in case size changed.
          setTimeout(() => ChartTool.drawRegions(this.getContext(), regions, this.canvasX,
-                                                this.canvasY, this.viewsheetScale), 0);
+                                                this.canvasY, this.viewsheetScale, undefined,
+                                                undefined, false,
+                                                this._chartObject.areaName), 0);
       }
    }
 
