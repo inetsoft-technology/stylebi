@@ -49,9 +49,35 @@ class WorksheetReadServiceTest {
       assertTrue(tm.columns().stream().anyMatch(c -> "a".equals(c.name())));
       assertNotNull(tm.aggregates());
       assertEquals(1, tm.aggregates().groups().size());
-      assertEquals("a", tm.aggregates().groups().get(0));
+      assertEquals("a", tm.aggregates().groups().get(0).field());
+      assertNull(tm.aggregates().groups().get(0).dateLevel());
       assertEquals(1, tm.aggregates().aggregates().size());
       assertFalse(tm.sorts().isEmpty());
+   }
+
+   @Test
+   void readsDateGroupLevelOnGroupedColumn() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      ColumnRef sumCol = (ColumnRef) t.getColumnSelection(false).getAttribute("total");
+
+      GroupRef gref = new GroupRef(dateCol);
+      gref.setDateGroup(inetsoft.uql.XConstants.QUARTER_DATE_GROUP);
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(gref);
+      ainfo.addAggregate(new AggregateRef(sumCol, AggregateFormula.SUM));
+      t.setAggregateInfo(ainfo);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.GroupModel group = m.tables().get(0).aggregates().groups().get(0);
+      assertEquals("orderDate", group.field());
+      assertEquals("QUARTER", group.dateLevel());
    }
 
    @Test

@@ -91,6 +91,13 @@ class WorksheetEditServiceMutatorsTest {
       return rws;
    }
 
+   /** Plain (non-date-bucketed) group specs for the given column names. */
+   private static List<WorksheetMutationSupport.GroupSpec> groups(String... fields) {
+      return java.util.Arrays.stream(fields)
+         .map(WorksheetMutationSupport.GroupSpec::new)
+         .toList();
+   }
+
    // =========================================================================
    // Filter tests
    // =========================================================================
@@ -205,7 +212,7 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed ->
          ed.setGroupAggregate("T",
-                              List.of("cat"),
+                              groups("cat"),
                               List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)))
       );
 
@@ -226,7 +233,7 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed ->
          ed.setGroupAggregate("T",
-            List.of("cat"),
+            groups("cat"),
             List.of(new WorksheetMutationSupport.AggregateSpec("price", "MIN", "min_price"),
                     new WorksheetMutationSupport.AggregateSpec("price", "MAX", "max_price"),
                     new WorksheetMutationSupport.AggregateSpec("price", "COUNT", "n"))));
@@ -281,7 +288,7 @@ class WorksheetEditServiceMutatorsTest {
       // First pass: per-customer average, aliased "customer_avg". This sets the alias
       // directly on the shared "amount" ColumnRef (the output-naming mechanism).
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("cust", "store"),
+         ed.setGroupAggregate("T", groups("cust", "store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "AVG", "customer_avg"))));
 
       // Second pass on the SAME table (no mirror), attempting to chain by referencing
@@ -294,7 +301,7 @@ class WorksheetEditServiceMutatorsTest {
       // prior aggregate's aliases are cleared.
       PairingException ex = assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("store"),
+            ed.setGroupAggregate("T", groups("store"),
                List.of(new WorksheetMutationSupport.AggregateSpec(
                   "customer_avg", "AVG", "avg_of_avgs")))));
       assertTrue(ex.getMessage().contains("customer_avg"));
@@ -302,7 +309,7 @@ class WorksheetEditServiceMutatorsTest {
       // The raw "amount" column must be usable again under its own name — clearing the
       // stale alias must not leave the column unreachable.
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("store"),
+         ed.setGroupAggregate("T", groups("store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
       assertEquals(1, t.getAggregateInfo().getAggregateCount());
    }
@@ -324,10 +331,10 @@ class WorksheetEditServiceMutatorsTest {
       // indiscriminately, destroying the deliberate rename; it must now clear only the
       // aliases applyAggregateInfo itself recorded.
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("cust"),
+         ed.setGroupAggregate("T", groups("cust"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("store"),
+         ed.setGroupAggregate("T", groups("store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
 
       ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
@@ -346,7 +353,7 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("cust"),
+         ed.setGroupAggregate("T", groups("cust"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
 
       // A FAILED intermediate call must not consume the alias bookkeeping of the
@@ -354,11 +361,11 @@ class WorksheetEditServiceMutatorsTest {
       // into the unknown-provenance clear-all fallback and wipe the rename.
       assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("no_such_group"),
+            ed.setGroupAggregate("T", groups("no_such_group"),
                List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
 
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("store"),
+         ed.setGroupAggregate("T", groups("store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
 
       ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
@@ -379,15 +386,60 @@ class WorksheetEditServiceMutatorsTest {
       // silently dropped — a plausible-but-wrong result. It must fail loud instead.
       PairingException ex = assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("cat"),
+            ed.setGroupAggregate("T", groups("cat"),
                List.of(new WorksheetMutationSupport.AggregateSpec("no_such_col", "SUM", "x")))));
       assertTrue(ex.getMessage().contains("no_such_col"));
       assertTrue(ex.getMessage().contains("Available columns"));
 
       PairingException ex2 = assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("no_such_group"), List.of())));
+            ed.setGroupAggregate("T", groups("no_such_group"), List.of())));
       assertTrue(ex2.getMessage().contains("no_such_group"));
+   }
+
+   @Test
+   void setGroupAggregateAppliesDateLevelToDateColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getGroupCount());
+
+      // This is what both the worksheet query engine (AssetQuery#getDateGroup) and the
+      // Composer's Group and Aggregate dialog (GroupRefModel#getDgroup) read to decide the
+      // grouping granularity — leaving it unset (as before this fix) is exactly Bug #75952:
+      // the date group silently shows/behaves as "None" instead of "Quarter".
+      assertEquals(XConstants.QUARTER_DATE_GROUP, ai.getGroup(0).getDateGroup());
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnDateLevelForNonDateColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // "cat" is a plain string column (the default type from TestWorksheets); a dateLevel
+      // silently applied to it would produce a plausible-but-meaningless grouping instead
+      // of failing loud.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("cat", "QUARTER")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("cat"));
+      assertTrue(ex.getMessage().contains("date type"));
    }
 
    // =========================================================================
@@ -403,7 +455,7 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false));
@@ -433,7 +485,7 @@ class WorksheetEditServiceMutatorsTest {
       // Ranking need not target the aggregate — it can also rank by one of the
       // group-by (pre-aggregate) dimensions, e.g. top 3 employees alphabetically.
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false));
@@ -458,7 +510,7 @@ class WorksheetEditServiceMutatorsTest {
       // aggregate to rank it by. Both must resolve to their real AggregateInfo refs, not
       // a raw pre-aggregate ColumnRef, or the condition silently ranks by nothing.
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false, "total"));
@@ -541,7 +593,7 @@ class WorksheetEditServiceMutatorsTest {
       // resolvable column. Ranking by it must not be forced into an aggregate/group
       // match; it must resolve to its own raw ColumnRef.
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("orderNumber", 3, "TOP_N", false));

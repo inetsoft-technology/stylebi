@@ -468,11 +468,11 @@ public class WorksheetEditService {
        * Builds and sets a new {@link AggregateInfo} on the named table.
        *
        * @param table      the assembly name
-       * @param groups     column names to group by
+       * @param groups     group-by column specs (name, plus optional date grouping level)
        * @param aggregates aggregate measures to apply
        * @throws PairingException if no {@link TableAssembly} with {@code table} exists
        */
-      public void setGroupAggregate(String table, List<String> groups,
+      public void setGroupAggregate(String table, List<WorksheetMutationSupport.GroupSpec> groups,
                                     List<WorksheetMutationSupport.AggregateSpec> aggregates)
          throws PairingException
       {
@@ -847,6 +847,32 @@ public class WorksheetEditService {
             case "DAY_OF_WEEK"     -> DateRangeRef.DAY_OF_WEEK_PART;
             case "HOUR_OF_DAY"     -> DateRangeRef.HOUR_OF_DAY_PART;
             default -> DateRangeRef.YEAR_INTERVAL;
+         };
+      }
+
+      /**
+       * Reverse of {@link #parseDateOption}: converts a {@link GroupRef#getDateGroup()} /
+       * {@link DateRangeRef} option constant back to the option string accepted by
+       * {@code dateOption} / {@code dateLevel}. Returns {@code null} for
+       * {@code NONE_DATE_GROUP} or an unrecognized constant.
+       */
+      static String dateOptionName(int dateOption) {
+         return switch(dateOption) {
+            case DateRangeRef.YEAR_INTERVAL -> "YEAR";
+            case DateRangeRef.QUARTER_INTERVAL -> "QUARTER";
+            case DateRangeRef.MONTH_INTERVAL -> "MONTH";
+            case DateRangeRef.WEEK_INTERVAL -> "WEEK";
+            case DateRangeRef.DAY_INTERVAL -> "DAY";
+            case DateRangeRef.HOUR_INTERVAL -> "HOUR";
+            case DateRangeRef.MINUTE_INTERVAL -> "MINUTE";
+            case DateRangeRef.SECOND_INTERVAL -> "SECOND";
+            case DateRangeRef.QUARTER_OF_YEAR_PART -> "QUARTER_OF_YEAR";
+            case DateRangeRef.MONTH_OF_YEAR_PART -> "MONTH_OF_YEAR";
+            case DateRangeRef.WEEK_OF_YEAR_PART -> "WEEK_OF_YEAR";
+            case DateRangeRef.DAY_OF_MONTH_PART -> "DAY_OF_MONTH";
+            case DateRangeRef.DAY_OF_WEEK_PART -> "DAY_OF_WEEK";
+            case DateRangeRef.HOUR_OF_DAY_PART -> "HOUR_OF_DAY";
+            default -> null;
          };
       }
 
