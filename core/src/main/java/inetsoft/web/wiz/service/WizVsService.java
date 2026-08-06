@@ -397,15 +397,6 @@ public class WizVsService {
          // so the condition ref's name/type match the header. Otherwise GraphConditionGroup.findColumn
          // can't resolve the field, the condition is dropped, and no mark is ever colored.
          ColumnSelection chartCols = buildChartHighlightColumns(chartInfo);
-         // A chart applies a highlight FONT only to a data label (text highlight) or to a font-capable
-         // mark — a dimension, or a DISCRETE measure — exactly the cases HighlightDialogService.setShowFont
-         // enables. A continuous-measure mark honors only the COLOR (foreground); its font is ignored. Since
-         // a wiz rule is attached to EVERY binding ref, the font still renders as long as ONE ref is
-         // font-capable; only when the whole chart has no dimension and no discrete measure does a font have
-         // nowhere to land. Precompute that so a font-only rule can fail loud (mirroring the background guard).
-         boolean chartHasFontCapableRef = highlightRefs.stream().anyMatch(
-            r -> r instanceof VSChartDimensionRef ||
-                 r instanceof VSChartAggregateRef agg && agg.isDiscrete());
          Map<HighlightRef, HighlightGroup> pointGroups = new LinkedHashMap<>();
          Map<HighlightRef, HighlightGroup> textGroups = new LinkedHashMap<>();
          Set<String> usedNames = new HashSet<>();
@@ -414,12 +405,18 @@ public class WizVsService {
             String name = uniqueName(rule.getName(), usedNames);
             Highlight hl = buildHighlight(rule, name, chartCols, true);
             boolean isText = !wordCloud && "dataLabel".equals(rule.getApplyArea());
+            // The refs THIS rule attaches to: only the one it names when that is unambiguous, otherwise
+            // every ref (the long-standing behaviour). See resolveRuleHighlightRefs.
+            List<HighlightRef> ruleRefs =
+               resolveRuleHighlightRefs(rule, highlightRefs, chartInfo, wordCloud);
 
             // A rule that sets ONLY a font (no foreground) has no visible effect when the font cannot render:
             // not a data-label highlight AND no font-capable ref to carry it (all marks are continuous
             // measures, which honor color only). Fail loud instead of silently no-opping — the font analogue
-            // of the background-only guard in buildHighlight.
-            if(hl.getForeground() == null && hl.getFont() != null && !isText && !chartHasFontCapableRef) {
+            // of the background-only guard in buildHighlight. Judged against the refs THIS rule lands on:
+            // now that a rule can be narrowed to a single ref, a font-capable ref elsewhere on the chart no
+            // longer means this rule's font has anywhere to render.
+            if(hl.getForeground() == null && hl.getFont() != null && !isText && !hasFontCapableRef(ruleRefs)) {
                throw new IllegalArgumentException(
                   "highlight '" + name + "' sets only a font, but this chart highlights a continuous measure " +
                   "mark, which honors color only — the font has nowhere to render. Set a foreground color, or " +
@@ -428,7 +425,7 @@ public class WizVsService {
 
             Map<HighlightRef, HighlightGroup> sink = isText ? textGroups : pointGroups;
 
-            for(HighlightRef hlRef : highlightRefs) {
+            for(HighlightRef hlRef : ruleRefs) {
                HighlightGroup group = sink.computeIfAbsent(hlRef, k -> new HighlightGroup());
                group.addHighlight(name, hl.clone());
             }
@@ -831,6 +828,92 @@ public class WizVsService {
       highlight.setFont(font);
       highlight.setConditionGroup(conditionGroup);
       return highlight;
+   }
+
+   /**
+    * The binding refs a single chart highlight rule should attach to.
+    *
+    * A chart renders a highlight group through TWO independent paths, both keyed off the SAME
+    * {@link HighlightRef#getHighlightGroup()}: GraphGenerator.applyHighlight() colors the PLOT marks,
+    * and GraphGenerator.addHighlightToAxis() colors the AXIS labels. The engine keeps them apart by ref
+    * KIND — findHighlightRef adopts a ref for the axis only when it is NOT a measure — so a group on a
+    * measure colors the plot, a group on a dimension colors the axis, and an ordinary chart gets one or
+    * the other, never both. Attaching every rule to EVERY binding ref therefore put a group on both
+    * kinds at once: a bar chart came back with its bars AND its category axis colored (Bug #75889).
+    *
+    * So a rule that names a field is attached to just that ref — the same use of the same `field` the
+    * table/crosstab branch already makes (where it is required). Either spelling is matched, since
+    * callers legitimately send either: the full name ("DistinctCount(PRODUCT_ID)") or the plain one
+    * ("PRODUCT_ID").
+    *
+    * Both comparisons IGNORE CASE, unlike the crosstab-path {@link #measureMatches} and the detail-table
+    * header match, which are exact. That asymmetry is deliberate: those two fail loud on no match
+    * ({@link #applyTableHighlight} throws, naming the column), so a mis-cased name is reported back to the
+    * caller, whereas a miss here silently falls back to EVERY ref — reproducing the very bug this method
+    * exists to fix. Leniency is the safer default when the penalty for a miss is a wrong render rather
+    * than an error. A genuinely mis-cased request is still caught: the condition fields are resolved
+    * case-sensitively against the chart columns by rebindChartConditionFields, which throws first.
+    *
+    * The plain form is ambiguous when a chart binds two aggregates over the same column (e.g. both
+    * {@code Sum(Sales)} and {@code Avg(Sales)}, each of whose {@code getName()} is "Sales"): a rule using
+    * {@code field = "Sales"} binds to whichever of them comes first in {@code allRefs} — the same
+    * ambiguity {@link #measureMatches} documents for the crosstab path. To target one specifically, pass
+    * the full name (e.g. {@code "Avg(Sales)"}); a full name only ever equals {@code getFullName()}, never
+    * another ref's plain name, so it resolves the same way whatever the ref order.
+    *
+    * Falls back to ALL refs — the previous behaviour, so nothing that renders today regresses — when
+    * the rule names no field, when the name matches no ref, or for the chart types whose highlightable
+    * ref is not a plain X/Y binding: word cloud (text aesthetic), treemap (group fields), relation
+    * (source/target), gantt (start/end/milestone), scatter matrix. Those are enumerated by
+    * GraphGenerator.getHighlightRefs(); narrowing them by an X/Y-shaped name would silently drop the
+    * highlight rather than merely widen it.
+    *
+    * Package-private (not private) only so {@code WizVsServiceResolveRuleHighlightRefsTest} can drive it
+    * directly — the same reason executeAndExtract is.
+    */
+   List<HighlightRef> resolveRuleHighlightRefs(
+      ApplyHighlightModel.Highlight rule, List<HighlightRef> allRefs, VSChartInfo chartInfo,
+      boolean wordCloud)
+   {
+      String field = rule.getField();
+
+      if(field == null || field.trim().isEmpty() || allRefs.size() <= 1) {
+         return allRefs;
+      }
+
+      // Mirrors GraphGenerator.getHighlightRefs()'s own special-casing, including its use of the
+      // DESIGN chart type for gantt where the others read the runtime type.
+      if(wordCloud || GraphTypeUtil.isScatterMatrix(chartInfo) ||
+         GraphTypes.isTreemap(chartInfo.getRTChartType()) ||
+         GraphTypes.isRelation(chartInfo.getRTChartType()) ||
+         GraphTypes.isGantt(chartInfo.getChartType()))
+      {
+         return allRefs;
+      }
+
+      String target = field.trim();
+
+      for(HighlightRef hlRef : allRefs) {
+         if(hlRef instanceof VSDataRef dataRef &&
+            (target.equalsIgnoreCase(dataRef.getFullName()) ||
+             target.equalsIgnoreCase(dataRef.getName())))
+         {
+            return List.of(hlRef);
+         }
+      }
+
+      return allRefs;
+   }
+
+   /**
+    * Whether any of these refs can render a highlight FONT — a dimension or a DISCRETE measure, exactly
+    * the cases HighlightDialogService.setShowFont enables. A continuous-measure mark honors the
+    * foreground color only, so a font attached there has nowhere to land.
+    */
+   private static boolean hasFontCapableRef(List<HighlightRef> refs) {
+      return refs.stream().anyMatch(
+         r -> r instanceof VSChartDimensionRef ||
+              r instanceof VSChartAggregateRef agg && agg.isDiscrete());
    }
 
    /**

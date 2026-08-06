@@ -253,7 +253,7 @@ implements OnInit, OnChanges, OnDestroy
       fontStr = fontStr.split(" ").pop();
       let padding = this.model.objectFormat.height - Number.parseInt(fontStr, 10) - 3;
       return padding <= 0 ? "" : this.model.objectFormat.vAlign == "top" ?
-         "0px 0px " + padding + "px" : padding + "px 0px 0px";
+         "0px 4px " + padding + "px 4px" : padding + "px 4px 0px 4px";
    }
 
    selectLabel(event: MouseEvent): void {

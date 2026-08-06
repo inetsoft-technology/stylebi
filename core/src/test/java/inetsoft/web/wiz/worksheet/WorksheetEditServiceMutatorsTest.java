@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -97,7 +98,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void addFilterAddsCondition() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -111,7 +112,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void addFilterAppendsSecondConditionWithAnd() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -128,7 +129,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void removeFilterRemovesCondition() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -144,7 +145,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void removeFilterLeavesOtherConditions() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -159,6 +160,35 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(t.getPreConditionList());
       assertFalse(t.getPreConditionList().isEmpty());
       assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   @Test
+   void addFilterRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "hello")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("snapshot"));
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void addFilterRejectsSnapshotEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "hello")));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
    }
 
    // =========================================================================
@@ -358,6 +388,141 @@ class WorksheetEditServiceMutatorsTest {
          svc.apply("TOK", agent, ed ->
             ed.setGroupAggregate("T", List.of("no_such_group"), List.of())));
       assertTrue(ex2.getMessage().contains("no_such_group"));
+   }
+
+   // =========================================================================
+   // Ranking tests
+   // =========================================================================
+
+   @Test
+   void setRankingOnAggregatedTableResolvesAggregateRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      assertNotNull(cl);
+      assertFalse(cl.isEmpty());
+
+      // Ranking is evaluated post-aggregate: it must bind to the Sum(total) aggregate
+      // ref, not a plain pre-aggregate reference to the raw "total" column — otherwise
+      // the filter displays as "total top3" instead of "Sum(total) top3".
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertTrue(ref instanceof AggregateRef,
+         "ranking on an aggregated table must resolve to the AggregateRef, got: " + ref);
+      assertEquals("total", ((AggregateRef) ref).getAttribute());
+   }
+
+   @Test
+   void setRankingOnAggregatedTableByDimensionResolvesGroupRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Ranking need not target the aggregate — it can also rank by one of the
+      // group-by (pre-aggregate) dimensions, e.g. top 3 employees alphabetically.
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertTrue(ref instanceof GroupRef,
+         "ranking by a group dimension must resolve to the GroupRef, got: " + ref);
+      assertEquals("employee", ref.getAttribute());
+   }
+
+   @Test
+   void setRankingOnUngroupedTableResolvesRawColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+
+      // No AggregateInfo is set, so ranking must still fall back to the plain column —
+      // ranking on a non-aggregated table must keep working exactly as before.
+      assertFalse(ref instanceof AggregateRef);
+      assertEquals("total", ref.getAttribute());
+   }
+
+   @Test
+   void setRankingFallsBackToPrivateSelectionWhenColumnMissingFromPublic() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Simulate what set_column_visibility ultimately produces: a column present in
+      // the PRIVATE selection but absent from the PUBLIC one (the public selection is
+      // what getColumnSelection(true) — the "post" lookup — falls back to). No
+      // AggregateInfo is set, so the AggregateInfo lookup is a no-op; ranking must still
+      // find "total" via the PRIVATE selection instead of returning a bogus
+      // AttributeRef, or a hidden column becomes unrankable.
+      ColumnSelection publicSelection = t.getColumnSelection(false).clone();
+      publicSelection.removeAttribute(publicSelection.getAttribute("total"));
+      t.setColumnSelection(publicSelection, true);
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T", new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertTrue(ref instanceof ColumnRef,
+         "ranking must fall back to the private selection when the column is missing " +
+         "from the public one, got: " + ref);
+      assertEquals("total", ref.getAttribute());
+   }
+
+   @Test
+   void setRankingOnAggregatedTableByUnrelatedColumnResolvesRawColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "employee", "total", "orderNumber");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Grouping/aggregating a table does not prune its column selection — a column
+      // that is neither a group nor an aggregate (here "orderNumber") remains a plain,
+      // resolvable column. Ranking by it must not be forced into an aggregate/group
+      // match; it must resolve to its own raw ColumnRef.
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("orderNumber", 3, "TOP_N", false));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef ref = cl.getConditionItem(0).getAttribute();
+      assertFalse(ref instanceof AggregateRef);
+      assertFalse(ref instanceof GroupRef);
+      assertTrue(ref instanceof ColumnRef,
+         "ranking by a column outside the group/aggregate must resolve to its raw ColumnRef, got: " + ref);
+      assertEquals("orderNumber", ref.getAttribute());
    }
 
    // =========================================================================
@@ -569,7 +734,7 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void editConditionReplacesExistingFilter() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
@@ -582,6 +747,48 @@ class WorksheetEditServiceMutatorsTest {
       // After edit_condition, exactly one ConditionItem with value "new"
       assertNotNull(t.getPreConditionList());
       assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   @Test
+   void editConditionRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editCondition("T", "a", "=", "new")));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void setConditionsRejectsSnapshotEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of())));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void setPostConditionsRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setPostConditions("T", List.of())));
+
+      assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty());
    }
 
    @Test

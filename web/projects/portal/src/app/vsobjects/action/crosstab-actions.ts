@@ -609,7 +609,12 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
       });
    }
 
-   private getDrillLabel(isExpand: boolean = true, drillField: boolean = false): string {
+   /**
+    * Protected (rather than private) so EmbedCrosstabActions can reuse this verbatim for its
+    * own "expand/collapse hierarchy/field" menu items - same precedent as detailCellsSelected
+    * above.
+    */
+   protected getDrillLabel(isExpand: boolean = true, drillField: boolean = false): string {
       const row: number = +this.model.firstSelectedRow - this.startRowIndex;
       const col: number = +this.model.firstSelectedColumn;
       let prefix = "";
@@ -641,7 +646,11 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
       return `${prefix} ${suffix}`;
    }
 
-   private getDrillContextMenuVisible(drillField: boolean = false, isCollapse = false): boolean {
+   /**
+    * Protected (rather than private) so EmbedCrosstabActions can reuse this verbatim - see
+    * getDrillLabel above.
+    */
+   protected getDrillContextMenuVisible(drillField: boolean = false, isCollapse = false): boolean {
       if(!this.model.cells || this.model.cells.length <= 0 || this.annotationsSelected ||
          this.model.dateComparisonDefined)
       {
