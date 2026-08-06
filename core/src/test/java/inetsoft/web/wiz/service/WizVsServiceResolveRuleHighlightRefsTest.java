@@ -83,15 +83,20 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       dim = new VSChartDimensionRef();
       dim.setGroupColumnValue("State");
 
-      agg = new VSChartAggregateRef();
-      agg.setColumnValue("Sales");
-      agg.setFormulaValue("Sum");
+      agg = measure("Sales");
 
       chartInfo = new VSChartInfo();
       chartInfo.addXField(dim);
       chartInfo.addYField(agg);
 
       allRefs = List.of(dim, agg);
+   }
+
+   private static VSChartAggregateRef measure(String column) {
+      VSChartAggregateRef ref = new VSChartAggregateRef();
+      ref.setColumnValue(column);
+      ref.setFormulaValue("Sum");
+      return ref;
    }
 
    private static ApplyHighlightModel.Highlight ruleOn(String field) {
@@ -184,6 +189,33 @@ class WizVsServiceResolveRuleHighlightRefsTest {
 
       assertSame(allRefs, service.resolveRuleHighlightRefs(
          ruleOn(agg.getFullName()), allRefs, chartInfo, false));
+   }
+
+   @Test
+   void aRelationChartFallsBackToEveryRefEvenWhenTheFieldMatches() {
+      // Its highlightable refs are the source/target fields, not the X/Y binding.
+      chartInfo.setChartType(GraphTypes.CHART_NETWORK);
+
+      assertSame(allRefs, service.resolveRuleHighlightRefs(
+         ruleOn(agg.getFullName()), allRefs, chartInfo, false));
+   }
+
+   @Test
+   void aScatterMatrixFallsBackToEveryRefEvenWhenTheFieldMatches() {
+      // GraphTypeUtil.isScatterMatrix recognises the shape rather than a chart type: the SAME measures on
+      // both axes and no dimension on either, which is why this case needs its own chart info.
+      VSChartAggregateRef sales = measure("Sales");
+      VSChartAggregateRef profit = measure("Profit");
+      VSChartInfo matrix = new VSChartInfo();
+      matrix.addXField(measure("Sales"));
+      matrix.addXField(measure("Profit"));
+      matrix.addYField(sales);
+      matrix.addYField(profit);
+
+      List<HighlightRef> matrixRefs = List.of(sales, profit);
+
+      assertSame(matrixRefs, service.resolveRuleHighlightRefs(
+         ruleOn(sales.getFullName()), matrixRefs, matrix, false));
    }
 
    @Test
