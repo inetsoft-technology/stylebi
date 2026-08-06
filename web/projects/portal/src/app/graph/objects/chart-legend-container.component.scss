@@ -28,8 +28,3 @@
   // clip symbol tiles to the bordered box; inner area keeps overflow-y:auto for scrolling
   overflow: hidden;
 }
-
-.chart-legend__canvas {
-  position: absolute;
-  pointer-events: none;
-}
