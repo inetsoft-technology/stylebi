@@ -447,6 +447,37 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setRankingWithOfResolvesGroupRankedByAggregateRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // "top 3 employees of Sum(total)" — field names the group to rank, 'of' names the
+      // aggregate to rank it by. Both must resolve to their real AggregateInfo refs, not
+      // a raw pre-aggregate ColumnRef, or the condition silently ranks by nothing.
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", List.of("employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false, "total"));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      DataRef attr = cl.getConditionItem(0).getAttribute();
+      assertTrue(attr instanceof GroupRef,
+         "'field' must resolve to the GroupRef, got: " + attr);
+      assertEquals("employee", attr.getAttribute());
+
+      RankingCondition rc = (RankingCondition) cl.getConditionItem(0).getXCondition();
+      DataRef ofRef = rc.getDataRef();
+      assertTrue(ofRef instanceof AggregateRef,
+         "'of' must resolve to the AggregateRef, got: " + ofRef);
+      assertEquals("total", ((AggregateRef) ofRef).getAttribute());
+   }
+
+   @Test
    void setRankingOnUngroupedTableResolvesRawColumn() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
