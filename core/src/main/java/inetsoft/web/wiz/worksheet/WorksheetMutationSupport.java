@@ -869,13 +869,18 @@ public final class WorksheetMutationSupport {
    /**
     * Describes a ranking condition.
     *
-    * @param field     column to rank by
+    * @param field     column to rank — a group/dimension column or an aggregate column
     * @param n         number of rows (top/bottom N)
     * @param operation {@code "TOP_N"} or {@code "BOTTOM_N"}
     * @param groupOthers {@code true} to group remaining rows as "Others"
+    * @param of        optional aggregate column to rank {@code field} by (e.g. {@code field}
+    *                  {@code ="CITY"}, {@code of="CUSTOMER_COUNT"} ranks CITY rows by the
+    *                  CUSTOMER_COUNT aggregate). Mirrors the "Of" picker in the composer's own
+    *                  ranking-condition editor. Only meaningful when {@code field} is a group
+    *                  column; omit when {@code field} is itself the aggregate to rank by.
     */
    public record RankingSpec(String field, int n, String operation,
-                             boolean groupOthers) {}
+                             boolean groupOthers, String of) {}
 
    /**
     * Sets a ranking condition on the table.
@@ -894,6 +899,14 @@ public final class WorksheetMutationSupport {
       rc.setOperation(op);
       rc.setN(spec.n());
       rc.setGroupOthers(spec.groupOthers());
+
+      if(spec.of() != null && !spec.of().isBlank()) {
+         // 'of' names an aggregate output (e.g. "Sum(Total)"); search AggregateInfo's
+         // aggregates first so it resolves to the AggregateRef, not the private column
+         // selection's raw base column of the same name (see resolveField's post-aggregate
+         // lookup note above).
+         rc.setDataRef(resolveField(t, spec.of(), true));
+      }
 
       ConditionList cl = new ConditionList();
       cl.append(new ConditionItem(ref, rc, 0));
