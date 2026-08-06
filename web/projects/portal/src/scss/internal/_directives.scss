@@ -17,12 +17,23 @@
  */
 @use 'mixins' as *;
 
+// The shell's declared layer order, lowest first. The pop/data-tip content layer sits below
+// .fixed-dropdown deliberately: a dropdown opened inside a data tip must render above it.
+//
+// The scrim (9996) and pop source (9997) sit below this whole registry and are not entries
+// here — their values are assigned per object at runtime from date-tip-helper.ts, and
+// set-z-index-selector only emits contiguous integers. The .pop-component-content entry is
+// the *ceiling* that only the object-container wrapper's pop content is clamped to today
+// (vs-object-container.component.html); date-tip-helper.ts mirrors it as
+// POP_UP_CONTENT_MAX_ZINDEX. The pop directive's and data-tip's own z-index offsets still
+// assign directly and are not governed by this registry. Change both together.
 $stacking-order: (
+        ".pop-component-content",
         ".fixed-dropdown",
         w-tooltip
 );
 
-@include set-z-index-selector($stacking-order, 999900);
+@include set-z-index-selector($stacking-order, 999899);
 
 /**
  fixedDropdown directive
@@ -198,12 +209,10 @@ table.scrollable-table {
   }
 }
 
-/**
-  tooltip
- */
-.widget__default-tooltip {
-  max-width: 40vw;
-  max-height: 40vh;
+// The plain tooltip surface, shared by .widget__default-tooltip and
+// .hidden__annotation-tooltip. Deliberately excludes max-width/max-height: only the
+// default tooltip caps its size, and folding those in would cap hidden annotations too.
+@mixin plain-tooltip-surface {
   overflow: hidden;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -216,8 +225,16 @@ table.scrollable-table {
   padding: var(--inet-space-2) var(--inet-space-3);
   border: 1px solid var(--inet-default-border-color);
   margin: 3px;
-  //display: flex;
-  //flex-direction: column;
+}
+
+/**
+  tooltip
+ */
+.widget__default-tooltip {
+  @include plain-tooltip-surface;
+
+  max-width: 40vw;
+  max-height: 40vh;
 }
 
 .widget__card-tooltip {
@@ -292,20 +309,100 @@ table.scrollable-table {
 }
 
 .hidden__annotation-tooltip {
-  overflow: hidden;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  @include plain-tooltip-surface;
+}
 
-  color: var(--inet-text-color);
-  font-size: 12px;
-  background-color: var(--inet-dialog-bg-color);
-  border-radius: 1px;
-  box-shadow: var(--inet-shadow-low);
-  padding: var(--inet-space-2) var(--inet-space-3);
-  border: 1px solid var(--inet-default-border-color);
-  margin: 3px;
-  //display: flex;
-  //flex-direction: column;
+// Modern visualization gate. The tooltip surfaces are global classes, so the gate is a
+// descendant selector on the body class rather than :host-context.
+.viz-modern {
+  // Item 1 — a position:fixed overlay should not carry the card's own in-flow elevation.
+  .widget__default-tooltip,
+  .widget__card-tooltip,
+  .hidden__annotation-tooltip {
+    box-shadow: var(--inet-shadow-overlay);
+  }
+
+  // Item 3 — 1px is not on the radius scale (2/3/4/6/pill).
+  .widget__default-tooltip,
+  .hidden__annotation-tooltip {
+    border-radius: var(--inet-radius-sm);
+  }
+
+  // Item 3 — 8px is not on the scale either; 6px is the chart card's own radius, so the card
+  // tooltip becomes visibly the same family of surface as the card it belongs to.
+  .widget__card-tooltip {
+    border-radius: var(--inet-radius-xl);
+  }
+
+  // Item 5 — 12px is not a token. Body copy on a surface is --inet-font-size-base.
+  .widget__default-tooltip,
+  .hidden__annotation-tooltip {
+    font-size: var(--inet-font-size-base);
+  }
+
+  // Item 4 — three roles, not six sizes. 16/13/11 gives ~1.23 and ~1.18 steps; the previous
+  // 16→14→13→12→11 ramp stepped 2,1,1,1, and below ~14px a 1px difference is not a signal.
+  // De-emphasis moves from opacity to the text ramp: opacity fades a whole subtree and cannot
+  // express "lighter" in a dark theme.
+  .widget__card-tooltip {
+    // value
+    .tt-tier-1,
+    .tt-stack-total {
+      font-size: var(--inet-font-size-lg);
+      font-weight: 600;
+      color: var(--inet-text-color);
+      opacity: 1;
+    }
+
+    // label
+    .tt-tier-2 {
+      font-size: var(--inet-font-size-base);
+      font-weight: 400;
+      color: var(--inet-text-muted-color);
+      opacity: 1;
+      margin-top: var(--inet-space-1);
+    }
+
+    // caption — tier 3 and every subtitle. A subtitle is the caption role distinguished by the
+    // subtle text colour, not by a size of its own.
+    .tt-tier-3,
+    .tt-subtitle,
+    .tt-tier-1.tt-subtitle,
+    .tt-tier-2.tt-subtitle {
+      font-size: var(--inet-feedback-font-size);
+      font-weight: 400;
+      color: var(--inet-text-subtle-color);
+      opacity: 1;
+      letter-spacing: normal;
+      margin-top: var(--inet-space-1);
+    }
+
+    // Between sections; within a section stays at --inet-space-1 from the role rules above.
+    .tt-section,
+    .tt-tier-1:not(:first-child) {
+      margin-top: var(--inet-space-4);
+    }
+
+    .tt-section.tt-section-first {
+      margin-top: var(--inet-space-1);
+    }
+
+    // The total earns emphasis from a hairline rule and its position rather than from being the
+    // largest text on screen. Accepted trade: it is quieter than the old 20px.
+    .tt-stack-total {
+      margin-top: var(--inet-space-4);
+      padding-top: var(--inet-space-3);
+      border-top: 1px solid var(--inet-default-border-color);
+    }
+  }
+
+  // The tail's SVG chrome draws the outline, so the tailed card must stay flat even under the
+  // gate — the gated .widget__card-tooltip shadow above would otherwise win on specificity.
+  .widget__card-tooltip--tailed {
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
 }
 
 //Add delay to ngbTooltip; only used in scrollbars
