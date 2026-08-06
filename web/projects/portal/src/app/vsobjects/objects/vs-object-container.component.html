@@ -26,7 +26,7 @@
         VSPopComponent [popComponentName]="vsObject.absoluteName"
         [popContainerName]="vsObject.container"
         [popZIndex]="zIndex(vsObject)"
-        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'white'"
+        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'var(--inet-dialog-bg-color)'"
         [style.display]="!viewer || vsObject.visible && (vsObject.container && vsObject.active || !vsObject.container) && vsObject.containerType ? null : 'none'"
         [class.bd-selected-assembly]="isFocused(vsObject) || mobile && isSelected(i) && vsObjectActions[i].toolbarActions.length > 0"
         [style.width.px]="getActualWidth(vsObject)"
