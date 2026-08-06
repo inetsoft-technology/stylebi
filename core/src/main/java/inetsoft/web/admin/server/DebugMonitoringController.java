@@ -22,11 +22,15 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.KeyValueEngine;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.uql.asset.EmbeddedTableStorage;
 import inetsoft.util.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -46,6 +50,13 @@ public class DebugMonitoringController {
       this.libManagerProvider = libManagerProvider;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/debug/key-value-storage-dump")
    public void getKVDump(HttpServletResponse response) throws Exception
    {
@@ -85,6 +96,13 @@ public class DebugMonitoringController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/debug/blob-path-dump")
    public void getBlobPathsDump(HttpServletResponse response) throws Exception
    {
