@@ -94,3 +94,22 @@ $line-handle-width: 10px;
 .annotition-button {
   border: 2px outset  #cccccc;
 }
+
+:host-context(.viz-modern) {
+  // A selected annotation is chrome, so it takes the chrome treatment: solid 2px in the same primary
+  // as every other chrome selection. The dotted darkgray was the product's third way of saying
+  // "selected"; there is now one.
+  .vs-annotation__rectangle--selected {
+    border: 2px solid var(--inet-primary-color);
+  }
+
+  // A named colour cannot follow a theme — annotation body text was black in dark mode too.
+  .vs-annotation__rectangle-content-padding-box .vs-annotation__rectangle-content {
+    color: var(--inet-text-color);
+  }
+
+  // outset is a bevel used nowhere else and #cccccc is off-palette. Same 2px footprint.
+  .annotition-button {
+    border: 2px solid var(--inet-button-secondary-border-color);
+  }
+}
