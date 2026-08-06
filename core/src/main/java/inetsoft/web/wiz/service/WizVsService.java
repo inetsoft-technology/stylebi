@@ -846,6 +846,14 @@ public class WizVsService {
     * callers legitimately send either: the full name ("DistinctCount(PRODUCT_ID)") or the plain one
     * ("PRODUCT_ID").
     *
+    * Both comparisons IGNORE CASE, unlike the crosstab-path {@link #measureMatches} and the detail-table
+    * header match, which are exact. That asymmetry is deliberate: those two fail loud on no match
+    * ({@link #applyTableHighlight} throws, naming the column), so a mis-cased name is reported back to the
+    * caller, whereas a miss here silently falls back to EVERY ref — reproducing the very bug this method
+    * exists to fix. Leniency is the safer default when the penalty for a miss is a wrong render rather
+    * than an error. A genuinely mis-cased request is still caught: the condition fields are resolved
+    * case-sensitively against the chart columns by rebindChartConditionFields, which throws first.
+    *
     * The plain form is ambiguous when a chart binds two aggregates over the same column (e.g. both
     * {@code Sum(Sales)} and {@code Avg(Sales)}, each of whose {@code getName()} is "Sales"): a rule using
     * {@code field = "Sales"} binds to whichever of them comes first in {@code allRefs} — the same
