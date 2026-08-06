@@ -465,13 +465,12 @@ class WorksheetEditServiceMutatorsTest {
       });
 
       ConditionList cl = t.getRankingConditionList().getConditionList();
-      ConditionItem item = cl.getConditionItem(0);
-      DataRef attr = item.getAttribute();
+      DataRef attr = cl.getConditionItem(0).getAttribute();
       assertTrue(attr instanceof GroupRef,
          "'field' must resolve to the GroupRef, got: " + attr);
       assertEquals("employee", attr.getAttribute());
 
-      RankingCondition rc = (RankingCondition) item.getXCondition();
+      RankingCondition rc = (RankingCondition) cl.getConditionItem(0).getXCondition();
       DataRef ofRef = rc.getDataRef();
       assertTrue(ofRef instanceof AggregateRef,
          "'of' must resolve to the AggregateRef, got: " + ofRef);
