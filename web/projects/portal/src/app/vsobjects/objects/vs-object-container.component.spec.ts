@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { makeComponent, makeVSObject, makeDataTipService } from "./vs-object-container.component.test-helpers";
 
 // Bug #76461 / #76458: a max-mode (enlarged) assembly and a different assembly's active
@@ -52,7 +53,7 @@ describe("VSObjectContainer z-index boost tiering", () => {
          absoluteName: "Chart1", objectFormat: { zIndex: 10 } as any, ...( { maxMode: true } as any),
       });
 
-      expect(comp.getContainerZIndex(maxModeChart)).toBe(10 + comp.popUpContentBoostZIndex);
+      expect(comp.getContainerZIndex(maxModeChart)).toBe(10 + DateTipHelper.getPopUpContentBoostZIndex());
    });
 
    it("gives a plain (non-boosted, non-max-mode, non-data-tip) assembly its own zIndex unchanged", () => {
@@ -70,7 +71,7 @@ describe("VSObjectContainer z-index boost tiering", () => {
       });
 
       expect(comp.needsZIndexBoost(embeddedVs)).toBe(true);
-      expect(comp.getContainerZIndex(embeddedVs)).toBe(3 + comp.popUpContentBoostZIndex * 2);
+      expect(comp.getContainerZIndex(embeddedVs)).toBe(3 + DateTipHelper.getPopUpContentBoostZIndex() * 2);
    });
 });
 
@@ -148,6 +149,6 @@ describe("VSObjectContainer embedded-viewsheet hover boost", () => {
 
       comp.onMouseEnter(vs, null);
 
-      expect(comp.getContainerZIndex(vs)).toBeLessThan(6 + comp.popUpContentBoostZIndex);
+      expect(comp.getContainerZIndex(vs)).toBeLessThan(6 + DateTipHelper.getPopUpContentBoostZIndex());
    });
 });

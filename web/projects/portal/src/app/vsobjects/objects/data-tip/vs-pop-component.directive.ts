@@ -39,7 +39,7 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
    @Input() public popComponentName: string;
    @Input() public popContainerName: string;
    @Input() public popZIndex: number;
-   @Input() public popBackground: string = "white";
+   @Input() public popBackground: string = "var(--inet-dialog-bg-color)";
    @Input() public miniToolbar: boolean = false;
    @Input() containerBounds: DOMRectInit;
    @Input() actionsWidth: number;
@@ -322,7 +322,7 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
             this.renderer.setStyle(nativeElement, "background-color", "inherit");
          }
          else {
-            const bg = this.miniToolbar ? "rgba(255,255,255,0)" : this.popBackground;
+            const bg = this.miniToolbar ? "transparent" : this.popBackground;
             this.renderer.setStyle(nativeElement, "background-color", bg);
          }
       }
