@@ -867,8 +867,11 @@ public class WizVsService {
     * (source/target), gantt (start/end/milestone), scatter matrix. Those are enumerated by
     * GraphGenerator.getHighlightRefs(); narrowing them by an X/Y-shaped name would silently drop the
     * highlight rather than merely widen it.
+    *
+    * Package-private (not private) only so {@code WizVsServiceResolveRuleHighlightRefsTest} can drive it
+    * directly — the same reason executeAndExtract is.
     */
-   private List<HighlightRef> resolveRuleHighlightRefs(
+   List<HighlightRef> resolveRuleHighlightRefs(
       ApplyHighlightModel.Highlight rule, List<HighlightRef> allRefs, VSChartInfo chartInfo,
       boolean wordCloud)
    {
