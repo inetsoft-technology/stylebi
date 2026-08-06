@@ -381,10 +381,11 @@ public class WorksheetReadService {
 
       // Groups
       GroupRef[] groupRefs = info.getGroups();
-      List<String> groups = new ArrayList<>(groupRefs.length);
+      List<WorksheetModel.AggregateModel.GroupModel> groups = new ArrayList<>(groupRefs.length);
 
       for(GroupRef gr : groupRefs) {
-         groups.add(gr.getName());
+         String dateLevel = WorksheetEditService.Editor.dateOptionName(gr.getDateGroup());
+         groups.add(new WorksheetModel.AggregateModel.GroupModel(gr.getName(), dateLevel));
       }
 
       // Aggregates (primary + secondary)
