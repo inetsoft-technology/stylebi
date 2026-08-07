@@ -17,6 +17,7 @@
  */
 package inetsoft.uql;
 
+import inetsoft.test.*;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -25,10 +26,14 @@ import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -73,6 +78,15 @@ import static org.junit.jupiter.api.Assertions.*;
  *        normalizeValue() already takes the first element. Only ROLE + STARTING_WITH/CONTAINS/LIKE
  *        could hit it; no known UI path — not tested.
  */
+// Condition's constructor calls Tool.isCaseSensitive(), which reads a property through
+// PropertiesEngine -- a Spring bean. Without an application context of its own this class only
+// passed when some earlier test class happened to leave one installed in ConfigurationContext,
+// so it failed intermittently in CI (and always when run in isolation).
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class ConditionTest {
 
