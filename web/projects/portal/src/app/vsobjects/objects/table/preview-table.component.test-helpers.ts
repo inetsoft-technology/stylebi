@@ -95,6 +95,10 @@ export interface PreviewTableTestOverrides {
    hostElement?: any;
    /** Initial tableData — defaults to makeTableData(2,3) */
    tableData?: BaseTableCellModel[][];
+   /** Skip the initial `comp.tableData = data` assignment, leaving columnRightPositions/
+    *  _columnWidths uninitialized — reproduces the window still open before the first
+    *  LoadTableDataCommand response has been applied. */
+   skipInitialTableData?: boolean;
 }
 
 // ── Component factory ─────────────────────────────────────────────────────────
@@ -201,8 +205,10 @@ export function createPreviewComponent(overrides: PreviewTableTestOverrides = {}
    (comp as any).dropdowns = { forEach: vi.fn() };
 
    // Trigger tableData setter — requires previewContainer to already be set
-   const data = overrides.tableData ?? makeTableData(2, 3);
-   comp.tableData = data;
+   if(!overrides.skipInitialTableData) {
+      const data = overrides.tableData ?? makeTableData(2, 3);
+      comp.tableData = data;
+   }
 
    return { comp, renderer, hyperlinkService, contextProvider, dropdownService, modelService, changeRef, hostElement, previewContainerEl };
 }

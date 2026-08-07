@@ -545,13 +545,6 @@ public class IdentityService {
       int type = identity.getType();
       DashboardManager dmanager = dashboardManager;
       ScheduleManager smanager = scheduleManager;
-      LibManager manager = null;
-
-      if(identityId.orgID != null) {
-         // may be null for built-in roles (Site Admin and Org Admin), in which case the lib manager
-         // does not need to be cleared
-         manager = libManagerProvider.getManager(identityId.orgID);
-      }
 
       Identity nid = new DefaultIdentity(identityId, type);
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
@@ -559,10 +552,6 @@ public class IdentityService {
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
-
-         if(manager != null) {
-            manager.clearAssets();
-         }
       }
       else {
          if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
