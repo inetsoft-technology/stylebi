@@ -17,9 +17,11 @@
 -->
 <div class="mini-toolbar"
   [class.hidden-mini-toolbar]="forceHide"
+  [class.mini-toolbar--anchored]="anchorInTitleLane"
   [style.top.px]="topY"
-  [style.left.px]="left">
-  @if (!mobileDevice) {
+  [style.left.px]="left"
+  [style.width.px]="anchorInTitleLane ? width : null">
+  @if (showToolbarContainer) {
     <div
       class="mini-toolbar-container btn-toolbar" role="toolbar"
       [style.min-width.px]="width"
@@ -29,25 +31,47 @@
            change-detection pass, so tracking by identity recreated the entire toolbar DOM
            every pass (NG0956). The toolbar is positional, so index tracking is stable and
            the inner bindings still re-evaluate per pass. (Bug #75329) -->
-      @for (group of displayActions; track $index; let i = $index) {
-        @if (group.visible) {
-          <div class="btn-group mini-toolbar-button-group" role="group">
-            @for (action of group.actions; track $index; let j = $index) {
-              @let label = action.label();
-              @let icon = action.icon();
-              @if (action.visible()) {
-                <button type="button" role="button"
-                  class="btn icon-hover-bg btn-sm"
-                  [class.bd-selected-cell]="isFocused(i, j)"
-                  [disabled]="!action.enabled()" (click)="doAction(action, $event)"
-                  title="{{label}}">
-                  <i [class]="icon + ' icon-size-small'" aria-hidden="true"></i>
-                  <span class="visually-hidden">{{label}}</span>
-                </button>
+      @if (!mobileDevice) {
+        @for (group of actionButtonGroups; track $index; let i = $index) {
+          @if (group.visible) {
+            <div class="btn-group mini-toolbar-button-group" role="group">
+              @for (action of group.actions; track $index; let j = $index) {
+                @let label = action.label();
+                @let icon = action.icon();
+                @if (action.visible()) {
+                  <button type="button" role="button"
+                    class="btn icon-hover-bg btn-sm"
+                    [class.bd-selected-cell]="isFocused(i, j)"
+                    [disabled]="!action.enabled()" (click)="doAction(action, $event)"
+                    title="{{label}}">
+                    <i [class]="icon + ' icon-size-small'" aria-hidden="true"></i>
+                    <span class="visually-hidden">{{label}}</span>
+                  </button>
+                }
               }
-            }
-          </div>
+            </div>
+          }
         }
+      }
+      <!-- Inside the container (not the mobile guard above): on touch the action-button groups
+           never render, so this is the only route to these actions there. It still needs to be
+           inside .mini-toolbar-container so it inherits the pinned 24px row height, right
+           alignment and button chrome overrides from :host-context(.viz-modern), rather than
+           bare Bootstrap btn-sm metrics as a bare sibling of the container would get. Not
+           anchored, kebabAction is always null and this block is a no-op — byte-identical to
+           before this task for every other assembly type. -->
+      @if (kebabAction) {
+        @let kebabLabel = kebabAction.label();
+        <div class="btn-group mini-toolbar-button-group mini-toolbar-kebab-group" role="group">
+          <button type="button" role="button"
+            class="btn icon-hover-bg btn-sm mini-toolbar-kebab"
+            [class.bd-selected-cell]="isKebabFocused()"
+            [disabled]="!kebabAction.enabled()" (click)="doAction(kebabAction, $event)"
+            title="{{kebabLabel}}">
+            <i [class]="kebabAction.icon() + ' icon-size-small'" aria-hidden="true"></i>
+            <span class="visually-hidden">{{kebabLabel}}</span>
+          </button>
+        </div>
       }
     </div>
   }

@@ -1044,20 +1044,21 @@ Expected: PASS. Compare failures against a clean checkout first.
 
 | Check | Expect |
 |---|---|
-| A chart at rest, nothing hovered | one dim kebab in the title lane's right end; no action buttons |
-| Hover the chart | three actions fade in beside the kebab; **nothing moves** |
+| A chart at rest, nothing hovered | one dim kebab at the title lane's right inset, the pill shrink-wrapped around it; no action buttons |
+| Hover the chart | three actions appear to the **left** of the kebab, the pill growing leftward; **the kebab does not move** |
 | Tab to the kebab with the keyboard | it focuses and opens — an entry point that does not exist today |
-| Open the kebab, then right-click the same chart | **identical, complete lists** |
+| Open the kebab, then right-click the same chart | **not identical** — the kebab lists overflowed *toolbar* actions plus a trailing entry that chains to the menu; right-click lists `menuActions`. What to check is that everything is *reachable* from the kebab via that chain |
 | Click a data point, then look at the strip | the same three actions in the same order; no reshuffle |
 | A brushed chart, kebab open | Clear Brushing appears **once**, not twice under two names |
 | A zoomed chart, kebab open | View All Data appears **once** |
-| Right-click a plot selection | Brush, Zoom and Show Details are all reachable |
+| Select a data point, then open the **kebab** | Brush, Zoom and Show Details are there. They are toolbar-only actions and have never been in `createMenuActions`, so **right-click cannot show them** — with the cap at three they necessarily overflow into the kebab |
 | Right-click any chart | Show Summary Data, Show Enlarged / Show Actual Size present; only one side of the max-mode pair |
 | Right-click any chart | Hide MiniToolbar is in the menu, not slot 0 of the strip |
 | A chart with a **centred** title | the title stays centred on the card, not pushed left, and does not shift on hover |
-| A chart with a **long** title | truncates with an ellipsis; never wraps |
+| A chart with a **long** title | clips without an ellipsis, and the full text is on hover via `tooltipIf`. `vs-title` has `overflow: hidden` + `white-space: nowrap` and **no `text-overflow: ellipsis`** — out of scope here, since adding it changes every assembly type's title ungated. Wrapping is a per-assembly format setting (`titleFormat.wrapping.whiteSpace`), so "never wraps" holds only for the default |
 | A chart with the title **hidden** | strip overlays the plot's top-right; the plot keeps the height the title would have taken |
-| Resize a chart through ≥96px, 70px, 56px, 40px, 24px | 3+kebab · 3+kebab · **watch this boundary** · kebab only · no chrome |
+| Resize a chart's **height** (`objectFormat.height`, the whole card — keep it wide, since width binds independently) through ≥96px, 70px, 56px, 40px, 24px | 3+kebab · 3+kebab · **watch this boundary** · kebab only · no chrome. Both comparisons are strict `<`, so 56 and 32 are inclusive on the upper side |
+| **Max mode** on a chart | the strip lands on the lane inset. The anchored branch deliberately bypasses `miniToolbarService.getToolbarLeft(..., maxMode)`; that is sound because the server rewrites a maxed chart's `objectFormat` to `(0,0)+maxSize`, but it is untested placement |
 | `Hide MiniToolbar`, move away, come back | strip and kebab both hidden, then both back — the dismissal is transient |
 | A deployment with `Properties` denied via `actionNames` | Properties absent from the strip; cap applies to what survives |
 | Select an annotation on a chart | Properties leaves the strip (`!annotationsSelected`) |
@@ -1069,10 +1070,15 @@ Expected: PASS. Compare failures against a clean checkout first.
 | Check | Expect |
 |---|---|
 | A chart on a touch device | a single 44px kebab, fully opaque — the first visible route to chart actions on mobile |
-| Tap it | the full action list opens |
+| Tap it | it opens every visible **toolbar** action plus the trailing entry that chains to the menu. `allowedActionsNum()` returns 0 on mobile, so the kebab carries the whole list rather than only what overflowed past a cap of three that never rendered |
+| Open the menu from the kebab | Save as Image, Show Summary Data, Show Enlarged. **Not** Properties or Date Comparison — 15 entries in `createMenuActions` carry their own `!mobileDevice`, and whether those dialogs are usable on touch is a separate product decision. Show Summary Data and Show Enlarged carry no mobile gate, so they are reachable on touch for the first time |
 | No action buttons anywhere | they stay inside `@if (!mobileDevice)` |
 | A 60px-tall chart | kebab renders (≥52px) |
 | A 45px-tall chart | no chrome — the target was **not** shrunk to fit |
+
+Run these as a set rather than only the tap: the mobile path changed twice late in the PR, so the tap, the
+44px target and both height rows all ride code that no automated test can reach — jsdom has no
+`window.matchMedia`, so `@media (pointer: coarse)` is never evaluated.
 
 - [ ] **Step 4: Validate the 56px threshold against real dashboards**
 
@@ -1080,6 +1086,11 @@ This is the step the handoff asks for by name. Open two or three real customer-s
 containing a KPI row and find the shortest chart cards in them. If a common card sits just under 56px and
 loses its action buttons where it should keep them, **move the threshold** and record the new number and
 the evidence in the PR. Do not shrink the control to satisfy the band.
+
+**Judge 56 fresh rather than confirming it.** `allowedActionsNum()` returns a count of toolbar *slots*, and
+`ToolbarActionsHandler` spends one of them on the kebab, so a cap of 3 rendered only 2 action buttons until
+this PR fixed it. 56 was therefore calibrated against a two-button strip that also never included
+Properties. A 56px card is showing three buttons plus a kebab for the first time.
 
 - [ ] **Step 5: Gate OFF — confirm nothing moved**
 

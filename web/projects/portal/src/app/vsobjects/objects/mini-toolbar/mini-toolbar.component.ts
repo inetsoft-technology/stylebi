@@ -52,6 +52,9 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() width: number;
    @Input() assembly: string;
    @Input() forceAbove: boolean = false;
+   // Set by the host when the strip is positioned inside the assembly rather than floating above it.
+   // The host has already resolved the anchored top/left, so this component must not adjust them.
+   @Input() anchorInTitleLane: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
    @Input() set forceShow(value: boolean) {
@@ -116,6 +119,96 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    getActions(): AssemblyActionGroup[] {
       return this.actions ? this.actions.showingActions :
          this.miniToolbarActions ? this.miniToolbarActions : [];
+   }
+
+   /**
+    * The action-button groups to render inside the mobile-guarded @for in .mini-toolbar-container.
+    *
+    * Not anchored: returns displayActions untouched, so template output is byte-identical to
+    * before this method existed — any pre-existing overflow kebab (from width alone, on any
+    * assembly type) keeps rendering inline as the last button in its group, exactly as before.
+    *
+    * Anchored (gate on, VSChart only — see AbstractVSActions.resident): the resident kebab is
+    * always the trailing action of the last group, appended by AbstractVSActions.showingActions.
+    * Trimming it off here, rather than filtering displayActions itself, keeps every remaining
+    * button at the same (i, j) it already had, so isFocused()/getNextAction()/getPreviousAction()
+    * — all of which read indices against getActions(), not this getter — need no changes.
+    */
+   get actionButtonGroups(): AssemblyActionGroup[] {
+      return this.anchorInTitleLane ? this.kebabSplit.groups : this.displayActions;
+   }
+
+   /**
+    * The resident kebab action. Rendered as its own button group inside .mini-toolbar-container,
+    * alongside the action-button groups but outside their @if (!mobileDevice) guard, so it
+    * inherits the container's flex layout, right-alignment, pinned 24px height and button chrome
+    * (border/background overrides) instead of Bootstrap's bare btn-sm metrics, and so touch
+    * (which never renders the action-button groups) still gets a route to the toolbar. Null when
+    * not anchored, or when displayActions doesn't end in the "more actions" action (e.g. below
+    * the 32px control floor, where AbstractVSActions.showingActions suppresses all chrome).
+    */
+   get kebabAction(): AssemblyAction {
+      return this.anchorInTitleLane ? this.kebabSplit.kebab : null;
+   }
+
+   /**
+    * Whether .mini-toolbar-container should render at all.
+    *
+    * Not anchored: unchanged from before this task — the container renders whenever the device
+    * isn't mobile, regardless of content, exactly as it always has.
+    *
+    * Anchored: below the 32px control floor, AbstractVSActions.showingActions suppresses every
+    * action (actionButtonGroups is empty) and there is no kebab, so without this guard the
+    * container would still render as an empty bordered, backgrounded pill once the assembly-hover
+    * reveal set its opacity to 1 — exactly the rung the fit ladder says should have no chrome.
+    */
+   get showToolbarContainer(): boolean {
+      if(!this.anchorInTitleLane) {
+         return !this.mobileDevice;
+      }
+
+      return (this.actionButtonGroups && this.actionButtonGroups.length > 0) || !!this.kebabAction;
+   }
+
+   private get kebabSplit(): { groups: AssemblyActionGroup[], kebab: AssemblyAction } {
+      const groups = this.displayActions;
+      const lastIndex = groups ? groups.length - 1 : -1;
+      const lastGroup = lastIndex >= 0 ? groups[lastIndex] : null;
+      const lastActions = lastGroup && lastGroup.actions;
+
+      if(!lastActions || lastActions.length === 0) {
+         return { groups, kebab: null };
+      }
+
+      const lastAction = lastActions[lastActions.length - 1];
+
+      if(lastAction.id() !== "more actions") {
+         return { groups, kebab: null };
+      }
+
+      const trimmedGroup = new AssemblyActionGroup(
+         lastActions.slice(0, -1), lastGroup.label, lastGroup.icon);
+      const trimmedGroups = [...groups.slice(0, lastIndex), trimmedGroup];
+
+      return { groups: trimmedGroups, kebab: lastAction };
+   }
+
+   /**
+    * Whether the resident kebab occupies the group/action slot current keyboard focus points at.
+    * getNextAction()/getPreviousAction() set focusedGroupIndex/focusedActionIndex against
+    * getActions() (== displayActions), where the kebab is still the trailing action of the last
+    * group, so its slot there — not any index in the trimmed actionButtonGroups — is what the
+    * separately-rendered kebab button must check.
+    */
+   isKebabFocused(): boolean {
+      if(!this.kebabAction || !this.displayActions || this.displayActions.length === 0) {
+         return false;
+      }
+
+      const lastIndex = this.displayActions.length - 1;
+      const lastGroup = this.displayActions[lastIndex];
+
+      return this.isFocused(lastIndex, lastGroup.actions.length - 1);
    }
 
    get binding(): boolean {
@@ -239,8 +332,26 @@ export class MiniToolbar implements OnChanges, OnDestroy {
 
    @HostListener("window:keyup.esc", [])
    onKeyUp() {
-      if(window.getComputedStyle(this.element.nativeElement.querySelector(".mini-toolbar")).visibility == "hidden") {
+      const toolbar = this.element.nativeElement.querySelector(".mini-toolbar");
+
+      if(window.getComputedStyle(toolbar).visibility == "hidden") {
          return;
+      }
+
+      // Anchored strips are visibility: visible at rest (see mini-toolbar.component.scss), so the
+      // check above never trips for them and every Esc keyup — closing an unrelated dialog,
+      // leaving a selection — would otherwise silently dismiss this chart's strip regardless of
+      // whether it was ever actually shown to the user. What "revealed" means for an anchored strip
+      // is whether the action groups are in layout: they are display: none at rest and inline-flex
+      // on hover/focus-within. No action group at all (touch, or the kebab-only height band) counts
+      // as not revealed — there is nothing there for Esc to dismiss but the resting kebab.
+      if(this.anchorInTitleLane) {
+         const group = toolbar.querySelector(
+            ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)");
+
+         if(!group || window.getComputedStyle(group).display == "none") {
+            return;
+         }
       }
 
       this.miniToolbarService.hideMiniToolbar(this.assembly, true);
@@ -259,6 +370,12 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    get topY(): number {
       if(this.isPopComponent) {
          return Number.NaN;
+      }
+
+      // Anchored: the host placed us inside the assembly's title lane, so there is no height to
+      // subtract and no viewport clamping to do — an anchored strip cannot leave the assembly.
+      if(this.anchorInTitleLane) {
+         return this.top;
       }
 
       // don't cover resize handle in composer

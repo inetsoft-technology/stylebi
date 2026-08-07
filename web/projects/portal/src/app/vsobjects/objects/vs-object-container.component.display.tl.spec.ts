@@ -283,3 +283,122 @@ describe("Group 9 — toolbarForceHidden: delegates to miniToolbarService.isMini
       expect(comp.toolbarForceHidden(obj)).toBe(true);
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 11 — anchored toolbar geometry (chart pilot), including max mode
+// ---------------------------------------------------------------------------
+
+// Final-review round, Important 4: the anchored branches of getToolbarTop/getToolbarLeft bypass
+// miniToolbarService.getToolbarLeft(), the only place maxMode participates in strip placement. These
+// pin why that is correct rather than an oversight: maxMode's sole effect there is to zero the
+// embedded-viewsheet x offset inside a viewport clamp, and the anchored branch has neither term —
+// it is expressed purely in the assembly's own objectFormat, which the server rewrites to origin
+// (0, 0) plus maxSize for a maximised chart (VSChartModel.VSChartModelFactory.createModel).
+describe("Group 11 — anchored toolbar geometry: objectFormat-only, max mode included", () => {
+   const anchoredChart = (overrides: any = {}) => {
+      const obj: any = makeVSObject({
+         objectType: "VSChart",
+         objectFormat: makeObjectFormat({ top: 0, left: 0, width: 1000, height: 600 }),
+      });
+      obj.paddingTop = 6;
+      obj.paddingLeft = 4;
+      obj.paddingRight = 8;
+      return Object.assign(obj, overrides);
+   };
+
+   // getToolbarWidth()/getToolbarLeft() both probe the scroll container for a vertical scrollbar.
+   const scrollless = { scrollHeight: 600, clientHeight: 600 } as any;
+
+   beforeEach(() => {
+      document.body.classList.add("viz-modern");
+   });
+
+   afterEach(() => {
+      document.body.classList.remove("viz-modern");
+   });
+
+   it("anchors a maximised chart's strip inside the assembly, from objectFormat alone", () => {
+      const { comp, miniToolbarSvc } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      // Max mode as the server reports it: objectFormat rewritten to (0, 0) + maxSize.
+      const obj = anchoredChart({ maxMode: true });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
+      expect(comp.getToolbarTop(obj, 0)).toBe(6);   // top 0 + paddingTop
+      // Lane-relative, expressed in the assembly's own insets: left edge at the left inset, box
+      // spanning inset to inset. Nothing here comes from a service mock's return value — the
+      // earlier `1000 - 8 - 100` form spent a getToolbarWidth mock constant unrelated to the 1000px
+      // assembly, so a formula that produced -8 with the real service still read as right-aligned.
+      expect(comp.getToolbarLeft(obj, 0)).toBe(0 + 4);                    // left + paddingLeft
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(1000 - 4 - 8);       // lane, inset to inset
+      // Right edge = left + width, which must land exactly on the lane's right inset.
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj))
+         .toBe(0 + 1000 - 8);
+      // The strip width plays no part in the anchored geometry: the pill right-aligns itself
+      // inside the lane-wide box (margin-left: auto), so no estimate is consulted.
+      expect(miniToolbarSvc.getToolbarWidth).not.toHaveBeenCalled();
+      // The clamp path — and with it the only consumer of maxMode — is not on the anchored route.
+      expect(miniToolbarSvc.getToolbarLeft).not.toHaveBeenCalled();
+   });
+
+   it("keeps the anchored box inset-to-inset for an assembly away from the origin", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj = anchoredChart({
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250 + 4);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600 - 4 - 8);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600 - 8);
+   });
+
+   it("treats missing paddings as zero", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSChart",
+         objectFormat: makeObjectFormat({ top: 0, left: 30, width: 400, height: 200 }),
+      });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getToolbarLeft(obj, 0)).toBe(30);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(400);
+   });
+
+   it("computes the same anchored geometry out of max mode", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj = anchoredChart({ maxMode: false });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getToolbarTop(obj, 0)).toBe(6);
+      expect(comp.getToolbarLeft(obj, 0)).toBe(0 + 4);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(1000 - 4 - 8);
+   });
+
+   it("still hands maxMode to the clamp path for a non-anchored assembly", () => {
+      const { comp, miniToolbarSvc } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = anchoredChart({ objectType: "VSTable", maxMode: true });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
+      comp.getToolbarLeft(obj, 0);
+      expect(miniToolbarSvc.getToolbarLeft).toHaveBeenCalled();
+      const args = (miniToolbarSvc.getToolbarLeft as any).mock.calls[0];
+      expect(args[args.length - 1]).toBe(true);
+   });
+});

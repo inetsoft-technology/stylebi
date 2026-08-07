@@ -28,6 +28,28 @@ $handle-mid: calc(50% - 4px);
   visibility: visible;
 }
 
+// The anchored strip is already visible at rest (see mini-toolbar.component.scss); what the
+// assembly-hover reveals for it is the action-button container, not the strip itself. visibility
+// has to come back too, not just opacity/pointer-events — the container is visibility: hidden at
+// rest (so its .mini-toolbar-button-group children, which force pointer-events: all, cannot make
+// the invisible action buttons clickable) and visibility does not fade, so it is restored here
+// rather than transitioned.
+//
+// :not(.hidden-mini-toolbar) on .mini-toolbar--anchored is load-bearing: this rule sets
+// visibility: visible on .mini-toolbar-container, a *descendant* of the host, and a descendant's
+// own explicit value beats an inherited one regardless of the host's visibility: hidden
+// !important — !important only wins competing declarations on the same element. Hovering the
+// assembly while a dismissed anchored strip's container happens to still be in the DOM must not
+// resurrect it.
+.vs-object-parent-container:not(.popup-showing):hover + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container,
+.object-editor:not(.moving-resizing):hover + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container,
+.vs-object-container:hover .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container,
+.force-show-toolbar.vs-object-parent-container + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 .vs-object-parent-container.max-mode + mini-toolbar > .mini-toolbar {
   z-index: 9930; // > .mini-toolbar base (9920)
 }
