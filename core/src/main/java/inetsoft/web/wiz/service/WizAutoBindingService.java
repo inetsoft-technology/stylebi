@@ -125,29 +125,37 @@ public class WizAutoBindingService {
          ? request.getFieldConfigs() : Collections.emptyList();
       String worksheetId = request.getWorksheetId();
 
-      // A caller that names a chart but sends no field list means "re-bind THAT chart", so take the
-      // chart's own binding as the list rather than falling through to "every visible column".
+      // Which fields to bind, most specific statement first:
       //
-      // The recommender-reslot path needs exactly this: switching to a non-Cartesian type re-binds
-      // through here to get the fields re-slotted, but it carries no fieldConfigs of its own, so the
+      //   1. the caller's fieldConfigs — the authoritative list;
+      //   2. else the binding of the chart named by assemblyName — "re-bind THAT chart";
+      //   3. else the binding of the output viewsheet's PRIMARY chart — "re-bind the active chart",
+      //      which is what a nameless call already means everywhere else in this API;
+      //   4. else every visible column of the worksheet table, and let the recommender choose.
+      //
+      // findWizTargetAssembly resolves 2 and 3 together (named, else primary) and returns null when
+      // there is no output viewsheet to look in at all — a first-time create, which lands on 4.
+      //
+      // The recommender-reslot path is what needs this: switching to a non-Cartesian type re-binds
+      // through here purely to get the fields re-slotted, and carries no fieldConfigs of its own, so the
       // rebind was against the whole worksheet table — every column of it, not merely the wrong chart's.
-      // The named chart is the only statement of which fields were meant.
-      //
-      // Also reached by a continuation turn whose hints produced no fields (autoBinding's syncConfigs
-      // caller names the chart being refined): deriving from that chart is what it meant too.
+      // The chart being re-bound is the only statement of which fields were meant.
       //
       // Same reverse map and the same limitation as changeType's rebuild — a binding whose aggregation
       // was pushed to the worksheet reads back in its pushed form (formula NONE, date level cleared).
-      VSAssembly namedAssembly = fieldConfigs.isEmpty() && !Tool.isEmptyString(request.getAssemblyName())
+      VSAssembly sourceAssembly = fieldConfigs.isEmpty()
          ? wizVsService.findWizTargetAssembly(request.getWizRuntimeId(),
                                               request.getViewsheetIdentifier(),
                                               request.getAssemblyName(), user)
          : null;
-      // The named chart's own worksheet table, unless the caller named one: a conversation's worksheet
+      // That chart's own worksheet table, unless the caller named one: a conversation's worksheet
       // accumulates a table per rebuild generation, and its columns must be read from the table that
       // chart is actually bound to.
-      String wsTableName = !Tool.isEmptyString(request.getWsTableName())
-         ? request.getWsTableName() : sourceTableName(namedAssembly);
+      String requestedTableName = request.getWsTableName();
+      String wsTableName = !Tool.isEmptyString(requestedTableName)
+         ? requestedTableName : sourceTableName(sourceAssembly);
+      boolean derivedTableName = Tool.isEmptyString(requestedTableName)
+         && !Tool.isEmptyString(wsTableName);
 
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
@@ -200,6 +208,18 @@ public class WizAutoBindingService {
                   }
                   else {
                      primary = (WSAssembly) ws.getAssembly(wsTableName);
+
+                     // A DERIVED name can point at a table a later rebuild generation replaced and the
+                     // orphan cleanup then removed. The caller never asked for that table, so fall back
+                     // to the primary rather than reading no columns at all — which would leave the
+                     // recommender with nothing and turn a re-bind that used to succeed (on the whole
+                     // table) into a hard failure. A name the CALLER supplied stays strict.
+                     if(primary == null && derivedTableName) {
+                        LOG.warn("Chart '{}' is bound to worksheet table '{}', which no longer exists; " +
+                                 "reading columns from the primary table instead.",
+                                 sourceAssembly.getName(), wsTableName);
+                        primary = ws.getPrimaryAssembly();
+                     }
                   }
 
                   if(primary instanceof TableAssembly ta) {
@@ -233,8 +253,8 @@ public class WizAutoBindingService {
             }
          }
 
-         if(namedAssembly != null) {
-            fieldConfigs = derivedFieldConfigsWithin(namedAssembly, worksheetColumns);
+         if(sourceAssembly != null) {
+            fieldConfigs = derivedFieldConfigsWithin(sourceAssembly, worksheetColumns);
          }
 
          Map<String, SimpleFieldInfo> configMap = fieldConfigs.stream()
