@@ -38,7 +38,13 @@
  *       updateSelectedItems / findAsset / isFolderEditable: selection & getter contracts.
  *   Group 7 [Risk 3] – addFolder / getRootAssets / materializeAsset / selectChanged /
  *       dragAssets / assetsDroped / dataTreeDragToPane / createInfoByAssetEntry /
- *       showWSDetailsByDataSourcesTree / getEntryLabel (via dragAssets).
+ *       getEntryLabel (via dragAssets).
+ *
+ * showWSDetailsByDataSourcesTree: removed by commit eb6f2e12c ("cleaned up consolidated
+ * portal theming") — replaced by DataDetailsPaneService.worksheetSelectionRequest$ /
+ * applyPendingWorksheetSelection(), which has no current producer in the codebase and does
+ * not perform folder navigation. Not a rename; the tests that exercised the old method were
+ * deleted (see Group 7 below).
  *
  * Method coverage table:
  *   getAssemblyName           ✅ Group 1 setup (returns null)
@@ -73,7 +79,6 @@
  *   assetsDroped              ✅ Group 7
  *   dataTreeDragToPane        ✅ Group 7
  *   createInfoByAssetEntry    ✅ Group 7 (via dataTreeDragToPane)
- *   showWSDetailsByDataSourcesTree ✅ Group 7
  *
  * KEY contracts:
  *   - 403 from /api/portal/data/browser sets unauthorizedAccess=true; other errors show danger.
@@ -95,7 +100,6 @@ import { http, HttpResponse } from "msw";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
-import { AssetConstants } from "../../../common/data/asset-constants";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { WorksheetBrowserInfo } from "../model/worksheet-browser-info";
 import { server } from "@test-mocks/server";
@@ -653,7 +657,7 @@ describe("DataFolderBrowserComponent – selection & getters [Group 6, Risk 3]",
 // ===========================================================================
 // Group 7 – addFolder / getRootAssets / materializeAsset / selectChanged /
 //            dragAssets / assetsDroped / dataTreeDragToPane /
-//            createInfoByAssetEntry / showWSDetailsByDataSourcesTree [Risk 3]
+//            createInfoByAssetEntry [Risk 3]
 // ===========================================================================
 
 describe("DataFolderBrowserComponent – complex actions [Group 7, Risk 3]", () => {
@@ -903,63 +907,4 @@ describe("DataFolderBrowserComponent – complex actions [Group 7, Risk 3]", () 
       expect(DATA_BROWSER_MOCK.changeFolder).toHaveBeenCalledWith("current", 1);
    });
 
-   it("showWSDetailsByDataSourcesTree should strip last path segment and call refreshFolderBrowser", async () => {
-      const browserRequests: string[] = [];
-
-      server.use(
-         http.get("*/api/portal/data/browser/*", ({ request }) => {
-            browserRequests.push(new URL(request.url).pathname);
-            return HttpResponse.json({
-               root: false, worksheetAccess: true, currentFolder: [], folders: [], files: [],
-            });
-         })
-      );
-
-      const { comp } = await renderComponent();
-
-      comp.showWSDetailsByDataSourcesTree({
-         path: "ParentFolder/ChildSheet",
-         scope: String(AssetEntryHelper.GLOBAL_SCOPE),
-      });
-
-      await waitFor(() =>
-         expect(browserRequests.some(p => p.includes("ParentFolder"))).toBe(true)
-      );
-      expect(comp.currentFolderPathScope).toBe(String(AssetEntryHelper.GLOBAL_SCOPE));
-   });
-
-   it("showWSDetailsByDataSourcesTree should set empty path when data.path has no slash", async () => {
-      const { comp } = await renderComponent();
-      const refreshSpy = vi.spyOn(comp as any, "refreshFolderBrowser").mockImplementation(() => {});
-
-      try {
-         comp.showWSDetailsByDataSourcesTree({
-            path: "SingleSegment",
-            scope: String(AssetEntryHelper.GLOBAL_SCOPE),
-         });
-
-         expect(refreshSpy).toHaveBeenCalledWith("", "SingleSegment");
-      }
-      finally {
-         refreshSpy.mockRestore();
-      }
-   });
-
-   it("showWSDetailsByDataSourcesTree should switch scope to GLOBAL when USER_SCOPE path is '/'", async () => {
-      const { comp } = await renderComponent();
-      const refreshSpy = vi.spyOn(comp as any, "refreshFolderBrowser").mockImplementation(() => {});
-
-      try {
-         comp.showWSDetailsByDataSourcesTree({
-            path: "/",
-            scope: String(AssetConstants.USER_SCOPE),
-         });
-
-         expect(comp.currentFolderPathScope).toBe(String(AssetConstants.GLOBAL_SCOPE));
-         expect(refreshSpy).toHaveBeenCalledWith("", "/");
-      }
-      finally {
-         refreshSpy.mockRestore();
-      }
-   });
 });
