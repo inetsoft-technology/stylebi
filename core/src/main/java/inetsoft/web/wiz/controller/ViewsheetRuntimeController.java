@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
 import inetsoft.web.wiz.model.OpenViewsheetResult;
 import inetsoft.web.wiz.model.VerifyViewsheetResult;
@@ -153,7 +154,9 @@ public class ViewsheetRuntimeController {
                ? rvs.getViewsheet().getBaseWorksheet() : null;
 
             if(bws != null) {
-               bws.getWorksheetInfo().setDesignMaxRows(sampleMaxRows);
+               // #75989: per-assembly, so the cap never truncates an injected FK-label lookup and
+               // destroys the join matches it exists to preserve.
+               WizUtil.applySampledPreviewCap(bws, sampleMaxRows);
                rvs.getViewsheetSandbox().ifPresent(box -> {
                   box.cancelAllQueries();
 
@@ -244,7 +247,9 @@ public class ViewsheetRuntimeController {
                var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
 
                if(bws != null) {
-                  bws.getWorksheetInfo().setDesignMaxRows(sampleMaxRows);
+                  // #75989: see applySampledPreviewCap — a worksheet-wide cap here reported a perfectly
+                  // good saved chart as rendering NO data, i.e. as a broken save.
+                  WizUtil.applySampledPreviewCap(bws, sampleMaxRows);
                }
             }
             catch(Exception ex) {
