@@ -459,7 +459,22 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return this.dataTipService.getVSObjectId(object.absoluteName);
    }
 
+   // Chart is the anchoring pilot. TEMPORARY: this type test is deleted during the eight-assembly
+   // rollout, when the other seven get a reviewed strip rather than an incidental one. See
+   // chart-card-design/Anchoring beyond charts - discussion.md.
+   public isToolbarAnchored(object: VSObjectModel): boolean {
+      return GuiTool.isVizModern() &&
+         Tool.equalsIgnoreCase(object.objectType, "VSChart");
+   }
+
    public getToolbarTop(object: VSObjectModel, i: number): number {
+      if(this.isToolbarAnchored(object)) {
+         // Inside the assembly, at the lane's top inset. The inset is the assembly's own paddingTop —
+         // what vs-title already positions against — not the card spec's 12px, which belongs to the
+         // card-geometry work.
+         return object.objectFormat.top + ((<VSChartModel> object).paddingTop || 0);
+      }
+
       let actionHeight = 28;
       let top = object.objectFormat.top;
 
@@ -485,10 +500,32 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return left;
       }
 
+      if(this.isToolbarAnchored(object)) {
+         // The lane's left inset. The strip's own box spans the whole lane (see
+         // getAnchoredToolbarWidth) and the pill right-aligns itself inside it with margin-left:
+         // auto, so the right inset is reached by layout rather than by subtracting an estimated
+         // strip width here — an estimate that would drift with theme tokens, count buttons touch
+         // never renders, and disagree with the cached markup after a band-crossing resize.
+         // No viewport clamping: an anchored strip is inside the assembly, so there are no
+         // viewport bounds to clamp against.
+         return left + ((<VSChartModel> object).paddingLeft || 0);
+      }
+
       return this.miniToolbarService.getToolbarLeft(left, this.containerBounds,
          this.scaleService.getCurrentScale(),
          this.containerScrollLeft, this.checkContainerHasVerticalScrollbar(),
          this.vsObjectActions[i].showingActions, this.embeddedVSBounds, (<any> object).maxMode);
+   }
+
+   /**
+    * The anchored strip's positioning box: the title lane itself, inset to inset. It becomes the
+    * host's inline width, giving the pill (width: fit-content) the free space its margin-left:
+    * auto absorbs to right-align. The host is pointer-events: none and .mini-toolbar-bottom is
+    * transparent and pointer-events: none too, so a lane-wide box adds no hit target over the plot.
+    */
+   public getAnchoredToolbarWidth(object: VSObjectModel): number {
+      const chart = <VSChartModel> object;
+      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0);
    }
 
    public getToolbarWidth(object: VSObjectModel): number {

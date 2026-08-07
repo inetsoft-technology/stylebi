@@ -15,8 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { GraphTypes } from "../../common/graph-types";
 import { TestUtils } from "../../common/test/test-utils";
+import { DrillLevel } from "../../composer/data/vs/drill-level";
 import { Axis } from "../../graph/model/axis";
 import { ChartRegion } from "../../graph/model/chart-region";
 import { Legend } from "../../graph/model/legend";
@@ -1701,5 +1703,114 @@ describe("ChartActions", () => {
 
       expect(menuActions).toMatchSnapshot();
       expect(toolbarActions).toMatchSnapshot();
+   });
+
+   function findMenuAction(actions: AssemblyActionGroup[], id: string) {
+      for(const group of actions) {
+         for(const action of group.actions) {
+            if(action.id() === id) {
+               return action;
+            }
+         }
+      }
+
+      return null;
+   }
+
+   it("exposes show-data and the max-mode pair in the context menu", () => {
+      popService.getPopComponent.mockImplementation(() => "");
+      const model: VSChartModel = createModel();
+      const actions = new ChartActions(model, popService, composerContext);
+      const menuActions = actions.menuActions;
+
+      expect(findMenuAction(menuActions, "chart show-data")).toBeTruthy();
+      expect(findMenuAction(menuActions, "chart open-max-mode")).toBeTruthy();
+      expect(findMenuAction(menuActions, "chart close-max-mode")).toBeTruthy();
+   });
+
+   it("shows only one side of the max-mode pair at a time", () => {
+      popService.getPopComponent.mockImplementation(() => "");
+      const model: VSChartModel = createModel();
+      const actions = new ChartActions(model, popService, composerContext);
+      const menuActions = actions.menuActions;
+      const open = findMenuAction(menuActions, "chart open-max-mode");
+      const close = findMenuAction(menuActions, "chart close-max-mode");
+
+      model.maxMode = false;
+      expect(open.visible()).toBe(true);
+      expect(close.visible()).toBe(false);
+
+      model.maxMode = true;
+      expect(open.visible()).toBe(false);
+      expect(close.visible()).toBe(true);
+   });
+
+   describe("toolbar order under the modern gate", () => {
+      // The base class always prepends a "vs-assembly hide-mini-toolbar" wrapper action and
+      // appends a "menu actions"/"more actions" wrapper — neither is part of what this task
+      // orders, so only chart-prefixed ids are relevant to the assertions below.
+      function toolbarIds(actions: AssemblyActionGroup[]): string[] {
+         return actions.reduce((ids, group) =>
+            ids.concat(group.actions.filter(a => a.visible()).map(a => a.id())), [] as string[])
+            .filter(id => id.startsWith("chart "));
+      }
+
+      afterEach(() => document.body.classList.remove("viz-modern"));
+
+      it("puts the stable actions first when the gate is on", () => {
+         document.body.classList.add("viz-modern");
+         const model = createModel();
+         const actions = new ChartActions(model, popService, composerContext);
+         const ids = toolbarIds(actions.toolbarActions);
+
+         expect(ids[0]).toBe("chart show-data");
+         expect(ids.slice(0, 4)).toContain("chart properties-toolbar");
+      });
+
+      it("keeps the legacy order when the gate is off", () => {
+         const model = createModel();
+         model.chartType = GraphTypes.CHART_BAR;
+         selectMeasureBar(model);
+         model.plot = <Plot> {
+            areaName: "plot_area",
+            bounds: null,
+            layoutBounds: null,
+            tiles: null,
+            regions: [],
+            secondary: false,
+            xboundaries: [],
+            yboundaries: [],
+            showReferenceLine: false,
+            drillLevels: [DrillLevel.Leaf]
+         };
+         const actions = new ChartActions(model, popService, composerContext);
+         const ids = toolbarIds(actions.toolbarActions);
+
+         expect(ids.indexOf("chart show-data"))
+            .toBeGreaterThan(ids.indexOf("chart drill-down"));
+      });
+
+      it("drops the duplicated clear entries from the toolbar under the gate", () => {
+         document.body.classList.add("viz-modern");
+         const model = createModel();
+         model.brushed = true;
+         model.zoomed = true;
+         const actions = new ChartActions(model, popService, composerContext);
+         const ids = toolbarIds(actions.toolbarActions);
+
+         expect(ids).not.toContain("chart clear-brush");
+         expect(ids).not.toContain("chart clear-zoom");
+      });
+
+      it("keeps the clear entries on the toolbar when the gate is off", () => {
+         const model = createModel();
+         model.brushed = true;
+         model.zoomed = true;
+         const actions = new ChartActions(model, popService, composerContext);
+         const ids = toolbarIds(actions.toolbarActions);
+
+         expect(ids).toContain("chart clear-brush");
+         expect(ids).toContain("chart clear-zoom");
+      });
    });
 });
