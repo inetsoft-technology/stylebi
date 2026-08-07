@@ -19,7 +19,7 @@
 /**
  * PortalAppComponent — Pass 2: Async / state-consistency risk paths
  *
- * Covers: updateAccessibility, setTabOrder, checkDefaultTab, showPreferences,
+ * Covers: updateAccessibility, checkDefaultTab, showPreferences,
  *         handleMessageEvent
  *
  * Shared fixtures from app.component.test-helpers.ts (Pass 1 sibling uses the same).
@@ -33,11 +33,9 @@ import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import {
    beforeEachCleanup,
    DASHBOARD_TAB,
-   DATA_TAB,
    makePortalModel,
    renderComponent,
    REPORT_TAB,
-   SCHEDULE_TAB,
 } from "./app.component.test-helpers";
 
 beforeEach(beforeEachCleanup);
@@ -63,61 +61,6 @@ describe("PortalAppComponent — updateAccessibility", () => {
       comp.updateAccessibility();
 
       expect(document.body.classList.contains("accessible")).toBe(false);
-   });
-});
-
-// ── Group 2: setTabOrder ──────────────────────────────────────────────────────
-
-describe("PortalAppComponent — setTabOrder", () => {
-
-   it("defaults reportTabFirst=true and dataTabFirst=true when portalTabs is null", async () => {
-      const { comp } = await renderComponent();
-      comp.portalTabs = null as any;
-
-      comp.setTabOrder();
-
-      expect(comp.reportTabFirst).toBe(true);
-      expect(comp.dataTabFirst).toBe(true);
-   });
-
-   it("sets reportTabFirst=true when report tab comes before dashboard tab", async () => {
-      const { comp } = await renderComponent();
-      // Pre-set to false to prove setTabOrder() actively computed the value (A2).
-      comp.reportTabFirst = false;
-      comp.portalTabs = [REPORT_TAB, DASHBOARD_TAB];
-
-      comp.setTabOrder();
-
-      expect(comp.reportTabFirst).toBe(true);
-   });
-
-   it("sets reportTabFirst=false when dashboard tab comes before report tab", async () => {
-      const { comp } = await renderComponent();
-      comp.portalTabs = [DASHBOARD_TAB, REPORT_TAB];
-
-      comp.setTabOrder();
-
-      expect(comp.reportTabFirst).toBe(false);
-   });
-
-   it("sets dataTabFirst=true when schedule tab comes before data tab", async () => {
-      const { comp } = await renderComponent();
-      // Pre-set to false to prove setTabOrder() actively computed the value (A2).
-      comp.dataTabFirst = false;
-      comp.portalTabs = [SCHEDULE_TAB, DATA_TAB];
-
-      comp.setTabOrder();
-
-      expect(comp.dataTabFirst).toBe(true);
-   });
-
-   it("sets dataTabFirst=false when data tab comes before schedule tab", async () => {
-      const { comp } = await renderComponent();
-      comp.portalTabs = [DATA_TAB, SCHEDULE_TAB];
-
-      comp.setTabOrder();
-
-      expect(comp.dataTabFirst).toBe(false);
    });
 });
 

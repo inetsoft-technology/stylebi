@@ -49,6 +49,7 @@ function createEditor() {
    const renderer = { listen: vi.fn(() => vi.fn()) };
    const element = { nativeElement: document.createElement("div") };
    const comp = new DateValueEditorComponent(
+      document,
       formatter,
       renderer as unknown as Renderer2,
       element as ElementRef,
