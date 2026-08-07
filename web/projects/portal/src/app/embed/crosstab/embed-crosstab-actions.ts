@@ -37,25 +37,72 @@ export class EmbedCrosstabActions extends CrosstabActions {
    }
 
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
+      // Show Details / Export are deliberately not offered here anymore (right-click context
+      // menu) per explicit request - they're still available from the mini-toolbar, see
+      // createToolbarActions below.
       groups.push(new AssemblyActionGroup([
          {
-            // detailCellsSelected is CrosstabActions' own cell test (protected for this reuse):
-            // nothing selected means nothing to drill into. Its showDetailsVisible is this plus
-            // the same isActionVisibleInViewer check, so the embed matches the viewer exactly.
-            id: () => "crosstab show-details",
-            label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
+            // Same visibility rule as CrosstabActions' own "table cell size" - oneCellSelected
+            // is protected on BaseTableActions already, nothing to widen.
+            id: () => "table cell size",
+            label: () => "_#(js:Set Cell Size)",
+            icon: () => "place-holder-icon icon-edit",
             enabled: () => true,
-            visible: () => this.detailCellsSelected &&
-               this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
+            visible: () => this.oneCellSelected && this.isActionVisibleInViewer("Set Cell Size")
+         },
+      ]));
+      groups.push(new AssemblyActionGroup([
+         {
+            id: () => "crosstab hide column",
+            label: () => "_#(js:Hide Column)",
+            icon: () => "place-holder-icon icon-hyperlink",
+            enabled: () => true,
+            visible: () => !this.annotationsSelected &&
+               !this.model.titleSelected && !this.model.metadata && this.cellSelected &&
+               this.isActionVisibleInViewer("Hide Column")
          },
          {
-            id: () => "crosstab export",
-            label: () => "_#(js:Export)",
-            icon: () => "export-icon",
+            id: () => "crosstab show columns",
+            label: () => "_#(js:Show Columns)",
+            icon: () => "place-holder-icon icon-highlight",
             enabled: () => true,
-            visible: () => this.isActionVisible("Export") && !this.annotationsSelected
+            visible: () => !this.annotationsSelected && this.model.hasHiddenColumn &&
+               !this.model.metadata
+         }
+      ]));
+      groups.push(new AssemblyActionGroup([
+         {
+            // getDrillLabel()/getDrillContextMenuVisible() are CrosstabActions' own drill-hierarchy
+            // logic (protected for this reuse, same precedent as detailCellsSelected) - the
+            // criterion is whether the selected field has a drill level defined (drillOp), not
+            // whether it looks like a date field.
+            id: () => "expand all",
+            label: () => this.getDrillLabel(),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible()
          },
+         {
+            id: () => "collapse all",
+            label: () => this.getDrillLabel(false),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible(false, true)
+         },
+         {
+            id: () => "expand field",
+            label: () => this.getDrillLabel(true, true),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible(true)
+         },
+         {
+            id: () => "collapse field",
+            label: () => this.getDrillLabel(false, true),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible(true)
+         }
       ]));
       groups.push(new AssemblyActionGroup([
          {

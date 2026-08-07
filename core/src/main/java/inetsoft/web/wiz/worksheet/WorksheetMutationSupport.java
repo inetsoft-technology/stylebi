@@ -869,13 +869,26 @@ public final class WorksheetMutationSupport {
    /**
     * Describes a ranking condition.
     *
-    * @param field     column to rank by
+    * @param field     column to rank — a group/dimension column or an aggregate column
     * @param n         number of rows (top/bottom N)
     * @param operation {@code "TOP_N"} or {@code "BOTTOM_N"}
     * @param groupOthers {@code true} to group remaining rows as "Others"
+    * @param of        optional aggregate column to rank {@code field} by (e.g. {@code field}
+    *                  {@code ="CITY"}, {@code of="CUSTOMER_COUNT"} ranks CITY rows by the
+    *                  CUSTOMER_COUNT aggregate). Mirrors the "Of" picker in the composer's own
+    *                  ranking-condition editor. Only meaningful when {@code field} is a group
+    *                  column; omit when {@code field} is itself the aggregate to rank by.
     */
    public record RankingSpec(String field, int n, String operation,
-                             boolean groupOthers) {}
+                             boolean groupOthers, String of) {
+      /**
+       * Compact form for callers that don't need {@code of} (e.g. ranking directly by an
+       * aggregate or group column with no separate "of" value).
+       */
+      public RankingSpec(String field, int n, String operation, boolean groupOthers) {
+         this(field, n, operation, groupOthers, null);
+      }
+   }
 
    /**
     * Sets a ranking condition on the table.
@@ -889,11 +902,32 @@ public final class WorksheetMutationSupport {
       int op = "BOTTOM_N".equalsIgnoreCase(spec.operation())
          ? XCondition.BOTTOM_N : XCondition.TOP_N;
 
-      DataRef ref = resolveField(t, spec.field());
+      // The RankingCondition itself always runs after aggregation (see
+      // AssetQuery.getRankingTableLens), so prefer AggregateInfo — matching either an
+      // aggregate (e.g. "Sum(Total)") or a group-by dimension (e.g. "Employee") — over a
+      // plain column, otherwise a rank on "Sum(Total)" binds to the raw "Total" column
+      // instead of the aggregate ref. Unlike set_post_conditions, the fallback stays on
+      // the PRIVATE column selection (not the public one used by resolveField(t, f, true))
+      // so ranking on a non-aggregated table still finds columns hidden via
+      // set_column_visibility.
+      DataRef ref = resolveAggregateOrGroupField(t, spec.field());
+
+      if(ref == null) {
+         ref = resolveField(t, spec.field(), false);
+      }
+
       inetsoft.uql.asset.RankingCondition rc = new inetsoft.uql.asset.RankingCondition();
       rc.setOperation(op);
       rc.setN(spec.n());
       rc.setGroupOthers(spec.groupOthers());
+
+      if(spec.of() != null && !spec.of().isBlank()) {
+         // 'of' names an aggregate output (e.g. "Sum(Total)"); search AggregateInfo's
+         // aggregates first so it resolves to the AggregateRef, not the private column
+         // selection's raw base column of the same name (see resolveField's post-aggregate
+         // lookup note above).
+         rc.setDataRef(resolveField(t, spec.of(), true));
+      }
 
       ConditionList cl = new ConditionList();
       cl.append(new ConditionItem(ref, rc, 0));
@@ -930,32 +964,11 @@ public final class WorksheetMutationSupport {
       // is displayed as a pre-aggregate condition. The alias set by set_group_aggregate lives
       // on the column selection's ColumnRef too, so AggregateInfo must be searched FIRST or
       // the ColumnRef alias match below would win.
-      if(post && field != null) {
-         AggregateInfo ainfo = t.getAggregateInfo();
+      if(post) {
+         DataRef aggregateRef = resolveAggregateOrGroupField(t, field);
 
-         if(ainfo != null && !ainfo.isEmpty()) {
-            for(int i = 0; i < ainfo.getAggregateCount(); i++) {
-               AggregateRef ar = ainfo.getAggregate(i);
-
-               // Match the alias (e.g. "total_paid"), the view ("Sum(total_paid)"),
-               // or the base attribute name.
-               if(field.equals(ar.toView()) ||
-                  ar.getDataRef() instanceof ColumnRef cr &&
-                     (field.equals(cr.getAlias()) || field.equals(cr.getAttribute())))
-               {
-                  return ar;
-               }
-            }
-
-            for(int i = 0; i < ainfo.getGroupCount(); i++) {
-               GroupRef gr = ainfo.getGroup(i);
-
-               if(field.equals(gr.getAttribute()) ||
-                  gr.getDataRef() instanceof ColumnRef cr && field.equals(cr.getAlias()))
-               {
-                  return gr;
-               }
-            }
+         if(aggregateRef != null) {
+            return aggregateRef;
          }
       }
 
@@ -982,6 +995,49 @@ public final class WorksheetMutationSupport {
       }
 
       return new AttributeRef(null, field);
+   }
+
+   /**
+    * Matches {@code field} against the table's {@link AggregateInfo} — an aggregate ref (by
+    * alias, view, or base attribute) or a group-by dimension (by attribute or alias).
+    * Returns {@code null} if the table isn't aggregated or nothing matches, leaving the
+    * caller to fall back to a plain column lookup.
+    */
+   private static DataRef resolveAggregateOrGroupField(TableAssembly t, String field) {
+      if(field == null) {
+         return null;
+      }
+
+      AggregateInfo ainfo = t.getAggregateInfo();
+
+      if(ainfo == null || ainfo.isEmpty()) {
+         return null;
+      }
+
+      for(int i = 0; i < ainfo.getAggregateCount(); i++) {
+         AggregateRef ar = ainfo.getAggregate(i);
+
+         // Match the alias (e.g. "total_paid"), the view ("Sum(total_paid)"),
+         // or the base attribute name.
+         if(field.equals(ar.toView()) ||
+            ar.getDataRef() instanceof ColumnRef cr &&
+               (field.equals(cr.getAlias()) || field.equals(cr.getAttribute())))
+         {
+            return ar;
+         }
+      }
+
+      for(int i = 0; i < ainfo.getGroupCount(); i++) {
+         GroupRef gr = ainfo.getGroup(i);
+
+         if(field.equals(gr.getAttribute()) ||
+            gr.getDataRef() instanceof ColumnRef cr && field.equals(cr.getAlias()))
+         {
+            return gr;
+         }
+      }
+
+      return null;
    }
 
    /**

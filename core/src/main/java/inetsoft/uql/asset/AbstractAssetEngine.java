@@ -2570,9 +2570,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             if(pfolder == null) {
-               IndexedStorage dstorage = getStorage(pentry);
-               pfolder = new AssetFolder();
-               dstorage.putXMLSerializable(pidentifier, pfolder);
+               // reuse addFolder so the missing folder (and any missing ancestors) are
+               // registered in their parent's entry list and an AssetChangeEvent is fired,
+               // instead of just leaving an orphaned storage entry the client tree can't see
+               checkAssetPermission(user, pentry, ResourceAction.WRITE);
+               addFolder(pentry, user);
+               pfolder = getParentFolder(entry, storage);
             }
 
             boolean contained = pfolder.containsEntry(entry);

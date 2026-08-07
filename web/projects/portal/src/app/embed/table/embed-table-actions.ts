@@ -37,27 +37,21 @@ export class EmbedTableActions extends TableActions {
    }
 
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
+      // Show Details / Export are deliberately not offered here anymore (right-click context
+      // menu) per explicit request - they're still available from the mini-toolbar, see
+      // createToolbarActions below. Same treatment as EmbedCrosstabActions; unlike crosstab,
+      // TableActions has no Hide Column/Show Columns or drill-hierarchy concept (no row/column
+      // grouping on a plain table), so Set Cell Size is the only item to add here - it's the
+      // only one that exists on both.
       groups.push(new AssemblyActionGroup([
          {
-            // detailCellsSelected is TableActions' own selection rule (protected for this
-            // reuse). Its showDetailsVisible pairs that with model.summary, which the embed
-            // deliberately drops: summary is assembly.isSummaryTable() on the server, false for
-            // the plain detail tables the wiz generates, so requiring it would hide the action
-            // permanently. Everything else - Show Details needs cells to drill into, and
-            // BaseTableShowDetailsService reads the selection off the event - applies here.
-            id: () => "table show-details",
-            label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
+            // Same visibility rule as TableActions' own "table cell size" - oneCellSelected is
+            // protected on BaseTableActions already, nothing to widen.
+            id: () => "table cell size",
+            label: () => "_#(js:Set Cell Size)",
+            icon: () => "place-holder-icon icon-edit",
             enabled: () => true,
-            visible: () => this.detailCellsSelected &&
-               this.isActionVisibleInViewer("Show Details") && !this.annotationsSelected
-         },
-         {
-            id: () => "table export",
-            label: () => "_#(js:Export)",
-            icon: () => "export-icon",
-            enabled: () => true,
-            visible: () => this.isActionVisible("Export") && !this.annotationsSelected
+            visible: () => this.oneCellSelected && this.isActionVisibleInViewer("Set Cell Size")
          },
       ]));
       groups.push(new AssemblyActionGroup([

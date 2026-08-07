@@ -105,7 +105,13 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
 
          // the field in condition may not contain complete information (named group).
          // get the field from the field list which is more accurate. (60408)
+         // conditionList alternates conditions (even index) and junction operators
+         // (odd index), so items without a field (junctions) must be skipped.
          this.model.conditionList.forEach(cond => {
+            if(!cond || !cond.field) {
+               return;
+            }
+
             const field = this.model.fields.find(a => a.view == cond.field.view);
             if(field) {
                cond.field = field;
