@@ -131,8 +131,8 @@ public class PhysicalGraphModelService {
 
       partition.setAliasTable(alias, sourceTable);
       runtimePartition.setPartition(partition);
-      partitionService.saveRuntimePartition(runtimePartition);
       modelService.fixTableBounds(runtimeId, partition, alias);
+      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    public void editAlias(String alias, String oldAlias, String runtimeId) {

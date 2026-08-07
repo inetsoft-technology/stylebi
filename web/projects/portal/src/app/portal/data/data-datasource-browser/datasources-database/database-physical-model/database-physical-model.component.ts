@@ -131,11 +131,13 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    readonly INIT_TREE_PANE_SIZE = 35;
    treePaneSize: number = this.INIT_TREE_PANE_SIZE;
    private subscription: Subscription;
-   // Serializes table/add requests: the server does a read-modify-write on the
-   // cached runtime partition, so firing requests concurrently (e.g. quickly
-   // checking several tables in the schema tree) risks one add overwriting another.
-   private addTableQueue: Subject<EditTableEvent> = new Subject<EditTableEvent>();
-   private addTableQueueSubscription: Subscription;
+   // Serializes table/add and table/remove requests: the server does a read-modify-write
+   // on the cached runtime partition, so firing requests concurrently (e.g. quickly
+   // checking/unchecking several tables in the schema tree) risks one edit overwriting
+   // another.
+   private tableEditQueue: Subject<{action: "add" | "remove", event: EditTableEvent, node?: TreeNodeModel}>
+      = new Subject();
+   private tableEditQueueSubscription: Subscription;
    loadingTree: boolean = false;
    private graphViewModel: GraphViewModel;
    selectedGraphModels: GraphModel[] = [];
@@ -237,12 +239,38 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    }
 
    ngOnInit(): void {
-      this.addTableQueueSubscription = this.addTableQueue
-         .pipe(concatMap(event =>
-            this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "add", event)
-               // an error here must not terminate the queue subscription, or every
-               // subsequent table addition for the rest of the session would silently no-op
-               .pipe(catchError(() => EMPTY))))
+      this.tableEditQueueSubscription = this.tableEditQueue
+         .pipe(concatMap(({action, event, node}) =>
+            this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + action, event)
+               .pipe(
+                  tap(() => {
+                     if(action === "remove" && !!node) {
+                        const index = this.tableTree.selectedNodes.indexOf(node);
+
+                        if(index >= 0) {
+                           this.tableTree.selectedNodes.splice(index, 1);
+                        }
+                     }
+                  }),
+                  // an error here must not terminate the queue subscription, or every
+                  // subsequent table edit for the rest of the session would silently no-op.
+                  // revert the checkbox state and notify the user so the discrepancy
+                  // between the tree and the model doesn't go unnoticed.
+                  catchError(error => {
+                     if(action === "add" && !!event.node) {
+                        event.node.selected = false;
+                     }
+                     else if(action === "remove" && !!node?.data) {
+                        (<PhysicalModelTreeNodeModel> node.data).selected = true;
+                     }
+
+                     ComponentTool.showHttpError(
+                        action === "add" ? "Failed to add table" : "Failed to remove table",
+                        error, this.modalService);
+
+                     return EMPTY;
+                  })
+               )))
          .subscribe(() => this.dataPhysicalModelService.emitModelChange());
 
       // subscribe to route parameters and update current database model
@@ -985,8 +1013,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          const newTable: PhysicalTableModel = this.createPhysicalTableModel(nodeData);
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id, newTable,
             null, nodeData);
-         // queued (not posted directly) so rapid successive additions don't race
-         this.addTableQueue.next(event);
+         // queued (not posted directly) so rapid successive add/remove requests don't race
+         this.tableEditQueue.next({action: "add", event});
 
          if(this.tableTree.selectedNodes?.length == 1 &&  this.tableTree.selectedNodes[0] == node) {
             this.editingTable = newTable;
@@ -1174,16 +1202,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       if(!!removeTable) {
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id,
             removeTable);
-         this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "remove", event)
-            .subscribe(() => {
-               let index = this.tableTree.selectedNodes.indexOf(node);
-
-               if(index >= 0) {
-                  this.tableTree.selectedNodes.splice(index, 1);
-               }
-
-               this.dataPhysicalModelService.emitModelChange();
-            });
+         // queued (not posted directly) so rapid successive add/remove requests don't race
+         this.tableEditQueue.next({action: "remove", event, node});
       }
 
       // if node is sql or inline view, remove from tree
@@ -1346,9 +1366,9 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          this.subscription = null;
       }
 
-      if(!!this.addTableQueueSubscription) {
-         this.addTableQueueSubscription.unsubscribe();
-         this.addTableQueueSubscription = null;
+      if(!!this.tableEditQueueSubscription) {
+         this.tableEditQueueSubscription.unsubscribe();
+         this.tableEditQueueSubscription = null;
       }
 
       clearInterval(this.heartbeatIntervalId);
