@@ -174,6 +174,16 @@ describe("Group 4 — horizontalScroll / resizeListener", () => {
       expect((comp as any).columnRightPositions).toBeUndefined();
       expect(() => comp.resizeListener()).not.toThrow();
    });
+
+   it("startResize should not throw and should not register window listeners when columnRightPositions is not yet initialized", () => {
+      // 🔁 Regression: startResize() indexes columnRightPositions[index] the same way
+      // updateColumnRange() indexed it before the fix above — guard it the same way.
+      const { comp, renderer } = createPreviewComponent({ skipInitialTableData: true });
+      expect(() =>
+         comp.startResize({ preventDefault: vi.fn() } as any, 0)
+      ).not.toThrow();
+      expect(renderer.listen).not.toHaveBeenCalled();
+   });
 });
 
 // ── Group 5 — resizeEnd: HTTP PUT ─────────────────────────────────────────────

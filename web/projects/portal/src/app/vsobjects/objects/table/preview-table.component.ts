@@ -120,7 +120,8 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    tableHeight: number;
    scrollY: number = 0;
    horizontalDist = 0;
-   columnRightPositions: number[];
+   // undefined until the first tableData response runs through initColumnWidths()/updateWidths()
+   columnRightPositions: number[] | undefined;
    columnIndexRange: Range;
    leftOfColRangeWidth: number;
    rightOfColRangeWidth: number;
@@ -375,6 +376,13 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    startResize(event: MouseEvent, index: number) {
+      if(this.columnRightPositions == null) {
+         // Columns haven't been initialized yet (no tableData response applied) — there is
+         // no resize handle to render at this point, but guard anyway since this shares the
+         // same "not yet initialized" hazard as updateColumnRange().
+         return;
+      }
+
       event.preventDefault();
       this.windowListeners = [
          this.renderer.listen("window", "mousemove", (e) => this.resizeMove(e)),
