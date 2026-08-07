@@ -421,8 +421,14 @@ public class PPTValueHelper {
       // single rounded-rectangle outline instead when the round corner is set. Skip this
       // for table/crosstab/tree cells (cellType != 0): those rely on the per-side
       // CELL_TAIL/CELL_CONTENT skips below to avoid doubling up borders shared with
-      // adjacent cells, which a single all-sides shape can't replicate.
-      if(borders != null && format.getRoundCorner() > 0 && cellType == 0) {
+      // adjacent cells, which a single all-sides shape can't replicate. Also require all
+      // four sides to be set: a single-sided border (e.g. an "underline" with only
+      // borders.bottom set) can't be represented as one rounded outline without drawing an
+      // unwanted box around the other three sides, so fall through to the per-side lines
+      // below instead.
+      if(borders != null && format.getRoundCorner() > 0 && cellType == 0 &&
+         borders.top != 0 && borders.left != 0 && borders.right != 0 && borders.bottom != 0)
+      {
          int type;
          Color color;
 

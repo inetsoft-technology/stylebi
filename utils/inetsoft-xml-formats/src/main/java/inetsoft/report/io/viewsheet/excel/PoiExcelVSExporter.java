@@ -803,7 +803,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       XSSFRichTextString rts = (XSSFRichTextString)
          PoiExcelVSUtil.createRichTextString(book, labelInfo.getLabelText());
       tb.setText(rts);
-      applyFormat(tb, rts, getLabelFormat(labelInfo), false, padded);
+      // Use the original (unpadded) bounds for the round-corner radius calculation so the
+      // font-metric slack added to padded's width doesn't skew the shorter-side comparison.
+      applyFormat(tb, rts, getLabelFormat(labelInfo), false, pixelBounds);
    }
 
    /**
