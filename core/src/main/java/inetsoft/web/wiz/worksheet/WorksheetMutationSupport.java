@@ -17,6 +17,11 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -65,6 +70,44 @@ public final class WorksheetMutationSupport {
     * @param alias   optional output alias; may be {@code null}
     */
    public record AggregateSpec(String field, String formula, String alias) {}
+
+   /**
+    * Describes a single group-by column for
+    * {@link #applyAggregateInfo(TableAssembly, List, List)}.
+    *
+    * <p>Accepted on the wire as either a bare column name string (equivalent to
+    * {@code dateLevel == null}) or an object {@code {"field": ..., "dateLevel": ...}} —
+    * see {@link Deserializer}.</p>
+    *
+    * @param field     the source column name
+    * @param dateLevel optional date grouping level applied directly to the group (no
+    *                  derived column needed) for date-type columns — one of the same
+    *                  option strings accepted by {@code add_date_range_column}'s
+    *                  {@code dateOption} (e.g. {@code "YEAR"}, {@code "QUARTER"},
+    *                  {@code "MONTH"}); {@code null} for a plain (non-date-bucketed) group
+    */
+   @JsonDeserialize(using = GroupSpec.Deserializer.class)
+   public record GroupSpec(String field, String dateLevel) {
+      public GroupSpec(String field) {
+         this(field, null);
+      }
+
+      /** Accepts either a plain JSON string (column name) or a {@code {field, dateLevel}} object. */
+      static final class Deserializer extends JsonDeserializer<GroupSpec> {
+         @Override
+         public GroupSpec deserialize(JsonParser p, DeserializationContext ctxt) throws java.io.IOException {
+            JsonNode node = p.getCodec().readTree(p);
+
+            if(node.isTextual()) {
+               return new GroupSpec(node.asText());
+            }
+
+            String field = node.hasNonNull("field") ? node.get("field").asText() : null;
+            String dateLevel = node.hasNonNull("dateLevel") ? node.get("dateLevel").asText() : null;
+            return new GroupSpec(field, dateLevel);
+         }
+      }
+   }
 
    /**
     * A named group mapping — group name to list of values that belong to that group.
@@ -220,10 +263,10 @@ public final class WorksheetMutationSupport {
     * exist in the private column selection.</p>
     *
     * @param t          the table assembly to mutate
-    * @param groups     column names to group by
+    * @param groups     group-by column specs (name, plus optional date grouping level)
     * @param aggregates aggregate measures to apply
     */
-   public static void applyAggregateInfo(TableAssembly t, List<String> groups,
+   public static void applyAggregateInfo(TableAssembly t, List<GroupSpec> groups,
                                          List<AggregateSpec> aggregates)
       throws inetsoft.web.wiz.pairing.PairingException
    {
@@ -282,8 +325,8 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      for(String group : groups) {
-         ColumnRef resolved = availableColumns.get(group);
+      for(GroupSpec spec : groups) {
+         ColumnRef resolved = availableColumns.get(spec.field());
 
          if(resolved == null) {
             // Fail loud: a silently invalid GroupRef would be dropped by the next
@@ -291,11 +334,29 @@ public final class WorksheetMutationSupport {
             // practice because setting an aggregate alias RENAMES the base column, so
             // a later call referencing the old name misses.
             throw new inetsoft.web.wiz.pairing.PairingException(
-               "Column not found for group: '" + group + "'. Available columns: " +
+               "Column not found for group: '" + spec.field() + "'. Available columns: " +
                availableColumns.keySet());
          }
 
          GroupRef gr = new GroupRef(resolved);
+
+         if(spec.dateLevel() != null) {
+            // Sets the date bucketing level directly on the GroupRef — this is what the
+            // worksheet query engine (AssetQuery/PreAssetQuery#getDateGroup) and the
+            // Composer's Group and Aggregate dialog (GroupRefModel#getDgroup) both read to
+            // decide the grouping granularity, so no derived date-range column is needed
+            // (see add_date_range_column for when an actual materialized bucketed column
+            // is wanted instead).
+            if(!XSchema.isDateType(resolved.getDataType())) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Column '" + spec.field() + "' is not a date type (type=" +
+                  resolved.getDataType() + "). dateLevel requires a date, time, or " +
+                  "timeInstant column.");
+            }
+
+            gr.setDateGroup(WorksheetEditService.Editor.parseDateOption(spec.dateLevel()));
+         }
+
          ainfo.addGroup(gr);
       }
 

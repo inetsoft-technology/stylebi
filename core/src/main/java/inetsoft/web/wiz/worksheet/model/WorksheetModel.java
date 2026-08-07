@@ -113,10 +113,21 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
    /**
     * Aggregation / group-by configuration for a table.
     *
-    * @param groups     group-by dimension names
+    * @param groups     group-by dimensions
     * @param aggregates measure aggregate definitions
     */
-   public record AggregateModel(List<String> groups, List<AggregateRefModel> aggregates) {
+   public record AggregateModel(List<GroupModel> groups, List<AggregateRefModel> aggregates) {
+
+      /**
+       * A single group-by dimension.
+       *
+       * @param field     source column name
+       * @param dateLevel the date grouping level applied directly to this group (e.g.
+       *                  {@code "QUARTER"}), same vocabulary as set_group_aggregate's
+       *                  {@code dateLevel} / add_date_range_column's {@code dateOption};
+       *                  {@code null} for a plain (non-date-bucketed) group
+       */
+      public record GroupModel(String field, String dateLevel) {}
 
       /**
        * A single aggregate measure.
