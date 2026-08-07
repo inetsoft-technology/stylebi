@@ -484,6 +484,13 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    private updateColumnRange(): void {
+      if(this.columnRightPositions == null) {
+         // Not yet initialized — e.g. a window:resize fired before the first tableData
+         // response ran through initColumnWidths()/updateWidths(). Nothing to range yet;
+         // updateWidths() will call this again once column widths are computed.
+         return;
+      }
+
       const leftViewBound = this.previewContainer.nativeElement.scrollLeft;
       const rightViewBound = leftViewBound + this.previewContainer.nativeElement.clientWidth;
       const search = BinarySearch.numbers(this.columnRightPositions);
