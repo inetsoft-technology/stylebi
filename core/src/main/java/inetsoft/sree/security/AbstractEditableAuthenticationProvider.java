@@ -220,7 +220,8 @@ public abstract class AbstractEditableAuthenticationProvider
       DataSpace dataSpace = DataSpace.getDataSpace();
       String odir = "portal/" + fromOrgId;
       String dir = "portal/" + newOrgID;
-      String viewsheet = manager.getCssEntries().get(fromOrgId);
+      Map<String, String> cssEntries = manager.getCssEntries();
+      String viewsheet = cssEntries != null ? cssEntries.get(fromOrgId) : null;
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
@@ -239,7 +240,8 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.save();
       }
 
-      String logo = manager.getLogoEntries().get(fromOrgId);
+      Map<String, String> logoEntries = manager.getLogoEntries();
+      String logo = logoEntries != null ? logoEntries.get(fromOrgId) : null;
 
       if(logo != null) {
          String logoName = logo.substring(logo.lastIndexOf('/') + 1);
@@ -257,7 +259,8 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.save();
       }
 
-      String favicon = manager.getFaviconEntries().get(fromOrgId);
+      Map<String, String> faviconEntries = manager.getFaviconEntries();
+      String favicon = faviconEntries != null ? faviconEntries.get(fromOrgId) : null;
 
       if(favicon != null) {
          String faviconName = favicon.substring(favicon.lastIndexOf('/') + 1);
