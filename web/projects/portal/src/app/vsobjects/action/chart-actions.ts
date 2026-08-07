@@ -26,6 +26,7 @@ import { Axis } from "../../graph/model/axis";
 import { ChartRegion } from "../../graph/model/chart-region";
 import { ChartTool } from "../../graph/model/chart-tool";
 import { Legend } from "../../graph/model/legend";
+import { GuiTool } from "../../common/util/gui-tool";
 import { ContextProvider } from "../context-provider.service";
 import { VSChartModel } from "../model/vs-chart-model";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
@@ -337,6 +338,41 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          }
       ]));
 
+      // show-data and the max-mode pair were toolbar-only, so right-click could not reach them —
+      // max-mode in particular, whose whole purpose is rescuing a chart too small to read. Predicates
+      // are copied verbatim from createToolbarActions; the menu renders labels only, so no icon.
+      // Appended as the last group so the positional assertions in chart-actions.spec.ts do not shift.
+      groups.push(new AssemblyActionGroup([
+         {
+            id: () => "chart show-data",
+            label: () => "_#(js:Show Summary Data)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.isActionVisibleInViewer("Show Data") &&
+               this.isActionVisibleInViewer("Show Summary Data")
+         },
+         {
+            id: () => "chart open-max-mode",
+            label: () => "_#(js:Show Enlarged)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => !this.model.maxMode && !this.vsWizardPreview &&
+               (this.binding || this.isActionVisibleInViewer("Open Max Mode")
+                && this.isActionVisibleInViewer("Maximize") && !this.isDataTip() &&
+                !this.isPopComponent()) && this.isActionVisibleInViewer("Show Enlarged")
+         },
+         {
+            id: () => "chart close-max-mode",
+            label: () => "_#(js:Show Actual Size)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.model.maxMode && !this.vsWizardPreview &&
+               (this.binding || this.model.maxMode &&
+                this.isActionVisibleInViewer("Close Max Mode") && !this.isDataTip() &&
+                !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")
+         }
+      ]));
+
       return super.createMenuActions(groups);
    }
 
@@ -373,145 +409,176 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
    }
 
    protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "chart drill-down",
-            label: () => "_#(js:Drill Down Filter)",
-            icon: () => "drill-down-filter-icon",
-            enabled: () => true,
-            visible: () => this.drillDownVisible() && this.isActionVisibleInViewer("Drill Down Filter")
-               && !this.isDataTip() && !this.isPopComponent()
-         },
-         {
-            id: () => "chart drill-up",
-            label: () => "_#(js:Drill Up Filter)",
-            icon: () => "drill-up-filter-icon",
-            enabled: () => true,
-            visible: () => this.drillUpVisible() && this.isActionVisibleInViewer("Drill Up Filter")
-               && !this.isDataTip() && !this.isPopComponent()
-         },
-         {
-            id: () => "chart brush",
-            label: () => "_#(js:Brush Chart)",
-            icon: () => "brush-icon",
-            enabled: () => true,
-            visible: () => this.brushable && this.isActionVisibleInViewer("Brush") &&
-               !this.isDataTip() && !this.isPopComponent() && this.isNotSelectedPeriod
-         },
-         {
-            id: () => "chart clear-brush",
-            label: () => "_#(js:Clear Brush)",
-            icon: () => "brush-no-icon",
-            enabled: () => true,
-            visible: () => this.model.brushed && this.isActionVisibleInViewer("Clear Brush")
-               && !this.isDataTip() && !this.isPopComponent()
-         },
-         {
-            id: () => "chart zoom",
-            label: () => "_#(js:Zoom Chart)",
-            icon: () => "zoom-in-icon",
-            enabled: () => true,
-            visible: () => this.brushable && this.isActionVisibleInViewer("Zoom Chart") &&
-               !this.isDataTip() && !this.isPopComponent() && this.isNotSelectedPeriod
-         },
-         {
-            id: () => "chart clear-zoom",
-            label: () => "_#(js:Clear Zoom)",
-            icon: () => "zoom-no-icon",
-            enabled: () => true,
-            visible: () => this.model.zoomed && this.isActionVisibleInViewer("Clear Zoom") &&
-               !this.isDataTip() && !this.isPopComponent()
-         },
-         {
-            id: () => "chart exclude-data",
-            label: () => "_#(js:Exclude Data)",
-            icon: () => "eye-off-icon",
-            enabled: () => true,
-            visible: () => this.brushable && this.isActionVisibleInViewer("Exclude Data") &&
-               !this.isDataTip() && !this.isPopComponent() && this.isNotSelectedPeriod
-         },
-         {
-            id: () => "chart show-data",
-            label: () => "_#(js:Show Summary Data)",
-            icon: () => "show-summary-icon",
-            enabled: () => true,
-            visible: () => this.isActionVisibleInViewer("Show Data") &&
-               this.isActionVisibleInViewer("Show Summary Data")
-         },
-         {
-            id: () => "chart show-details",
-            label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
-            enabled: () => true,
-            visible: () => this.dataAreaSelected && !this.model.changedByScript &&
-               this.isActionVisibleInViewer("Show Details") && this.isNotSelectedPeriod
-         },
-         {
-            id: () => "chart open-max-mode",
-            label: () => "_#(js:Show Enlarged)",
-            icon: () => "expand-icon",
-            enabled: () => true,
-            visible: () => !this.model.maxMode && !this.vsWizardPreview &&
-               (this.binding || this.isActionVisibleInViewer("Open Max Mode")
-                && this.isActionVisibleInViewer("Maximize") && !this.isDataTip() &&
-                !this.isPopComponent()) && this.isActionVisibleInViewer("Show Enlarged")
-         },
-         {
-            id: () => "chart close-max-mode",
-            label: () => "_#(js:Show Actual Size)",
-            icon: () => "contract-icon",
-            enabled: () => true,
-            visible: () => this.model.maxMode && !this.vsWizardPreview &&
-               (this.binding || this.model.maxMode &&
-                this.isActionVisibleInViewer("Close Max Mode") && !this.isDataTip() &&
-                !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")
-         },
-         {
-            id: () => "chart manual-refresh",
-            label: () => "_#(js:Enable Auto Refresh)",
-            icon: () => "shape-filled-circle-icon auto-refresh-false",
-            enabled: () => true,
-            visible: () => this.binding && this.manualVisible &&
-               this.isActionVisibleInViewer("Enable Auto Refresh") && !this.isDataTip()
-         },
-         {
-            id: () => "chart auto-refresh",
-            label: () => "_#(js:Enable Manual Refresh)",
-            icon: () => "shape-filled-circle-icon auto-refresh-true",
-            enabled: () => true,
-            visible: () => this.binding && this.autoVisible &&
-               this.isActionVisibleInViewer("Enable Manual Refresh")
-         },
-         {
-            id: () => "chart refresh",
-            label: () => "_#(js:Refresh)",
-            icon: () => "refresh-icon",
-            enabled: () => true,
-            visible: () => this.binding && this.manualVisible &&
-               this.isActionVisibleInViewer("Refresh") && !this.isDataTip() &&
-               !this.isPopComponent()
-         },
-         {
-            id: () => "chart multi-select",
-            label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
-               : "_#(js:Change to Multi-select)",
-            icon: () => this.model.multiSelect ? "select-multi-icon" : "select-single-icon",
-            enabled: () => true,
-            visible: () => this.mobileDevice &&
-               this.isActionVisibleInViewer("Change to Single-select") &&
-               this.isActionVisibleInViewer("Change to Multi-select")
-         },
-         {
-            id: () => "chart edit",
-            label: () => "_#(js:Edit)",
-            icon: () => "edit-icon",
-            enabled: () => true,
-            visible: () => !this.vsWizardPreview && !this.binding && !this.embed &&
-               (this.viewer && this.model.enableAdhoc && !this.mobileDevice &&
-               this.isActionVisibleInViewer("Edit") && !this.isDataTip() && !this.isPopComponent()
-               || this.composer && !this.annotationsSelected && !this.isPopComponent())
-         }
-      ]));
+      const drillDown = {
+         id: () => "chart drill-down",
+         label: () => "_#(js:Drill Down Filter)",
+         icon: () => "drill-down-filter-icon",
+         enabled: () => true,
+         visible: () => this.drillDownVisible() && this.isActionVisibleInViewer("Drill Down Filter")
+            && !this.isDataTip() && !this.isPopComponent()
+      };
+      const drillUp = {
+         id: () => "chart drill-up",
+         label: () => "_#(js:Drill Up Filter)",
+         icon: () => "drill-up-filter-icon",
+         enabled: () => true,
+         visible: () => this.drillUpVisible() && this.isActionVisibleInViewer("Drill Up Filter")
+            && !this.isDataTip() && !this.isPopComponent()
+      };
+      const brush = {
+         id: () => "chart brush",
+         label: () => "_#(js:Brush Chart)",
+         icon: () => "brush-icon",
+         enabled: () => true,
+         visible: () => this.brushable && this.isActionVisibleInViewer("Brush") &&
+            !this.isDataTip() && !this.isPopComponent() && this.isNotSelectedPeriod
+      };
+      const clearBrush = {
+         id: () => "chart clear-brush",
+         label: () => "_#(js:Clear Brush)",
+         icon: () => "brush-no-icon",
+         enabled: () => true,
+         visible: () => !GuiTool.isVizModern() &&
+            this.model.brushed && this.isActionVisibleInViewer("Clear Brush")
+            && !this.isDataTip() && !this.isPopComponent()
+      };
+      const zoom = {
+         id: () => "chart zoom",
+         label: () => "_#(js:Zoom Chart)",
+         icon: () => "zoom-in-icon",
+         enabled: () => true,
+         visible: () => this.brushable && this.isActionVisibleInViewer("Zoom Chart") &&
+            !this.isDataTip() && !this.isPopComponent() && this.isNotSelectedPeriod
+      };
+      const clearZoom = {
+         id: () => "chart clear-zoom",
+         label: () => "_#(js:Clear Zoom)",
+         icon: () => "zoom-no-icon",
+         enabled: () => true,
+         visible: () => !GuiTool.isVizModern() &&
+            this.model.zoomed && this.isActionVisibleInViewer("Clear Zoom") &&
+            !this.isDataTip() && !this.isPopComponent()
+      };
+      const excludeData = {
+         id: () => "chart exclude-data",
+         label: () => "_#(js:Exclude Data)",
+         icon: () => "eye-off-icon",
+         enabled: () => true,
+         visible: () => this.brushable && this.isActionVisibleInViewer("Exclude Data") &&
+            !this.isDataTip() && !this.isPopComponent() && this.isNotSelectedPeriod
+      };
+      const showData = {
+         id: () => "chart show-data",
+         label: () => "_#(js:Show Summary Data)",
+         icon: () => "show-summary-icon",
+         enabled: () => true,
+         visible: () => this.isActionVisibleInViewer("Show Data") &&
+            this.isActionVisibleInViewer("Show Summary Data")
+      };
+      const showDetails = {
+         id: () => "chart show-details",
+         label: () => "_#(js:Show Details)",
+         icon: () => "show-detail-icon",
+         enabled: () => true,
+         visible: () => this.dataAreaSelected && !this.model.changedByScript &&
+            this.isActionVisibleInViewer("Show Details") && this.isNotSelectedPeriod
+      };
+      const openMaxMode = {
+         id: () => "chart open-max-mode",
+         label: () => "_#(js:Show Enlarged)",
+         icon: () => "expand-icon",
+         enabled: () => true,
+         visible: () => !this.model.maxMode && !this.vsWizardPreview &&
+            (this.binding || this.isActionVisibleInViewer("Open Max Mode")
+             && this.isActionVisibleInViewer("Maximize") && !this.isDataTip() &&
+             !this.isPopComponent()) && this.isActionVisibleInViewer("Show Enlarged")
+      };
+      const closeMaxMode = {
+         id: () => "chart close-max-mode",
+         label: () => "_#(js:Show Actual Size)",
+         icon: () => "contract-icon",
+         enabled: () => true,
+         visible: () => this.model.maxMode && !this.vsWizardPreview &&
+            (this.binding || this.model.maxMode &&
+             this.isActionVisibleInViewer("Close Max Mode") && !this.isDataTip() &&
+             !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")
+      };
+      const propertiesToolbar = {
+         id: () => "chart properties-toolbar",
+         label: () => "_#(js:Properties)...",
+         icon: () => "setting-icon",
+         enabled: () => true,
+         // Predicate copied verbatim from the menu entry (chart properties). Do not paraphrase:
+         // !annotationsSelected is what keeps Properties out of the strip while an annotation is
+         // selected. Gated — this is a new button in the strip.
+         visible: () => GuiTool.isVizModern() &&
+            this.isActionVisibleInViewer("Properties") && !this.annotationsSelected
+            && !this.isPopComponent() && !this.mobileDevice
+      };
+      const manualRefresh = {
+         id: () => "chart manual-refresh",
+         label: () => "_#(js:Enable Auto Refresh)",
+         icon: () => "shape-filled-circle-icon auto-refresh-false",
+         enabled: () => true,
+         visible: () => this.binding && this.manualVisible &&
+            this.isActionVisibleInViewer("Enable Auto Refresh") && !this.isDataTip()
+      };
+      const autoRefresh = {
+         id: () => "chart auto-refresh",
+         label: () => "_#(js:Enable Manual Refresh)",
+         icon: () => "shape-filled-circle-icon auto-refresh-true",
+         enabled: () => true,
+         visible: () => this.binding && this.autoVisible &&
+            this.isActionVisibleInViewer("Enable Manual Refresh")
+      };
+      const refresh = {
+         id: () => "chart refresh",
+         label: () => "_#(js:Refresh)",
+         icon: () => "refresh-icon",
+         enabled: () => true,
+         visible: () => this.binding && this.manualVisible &&
+            this.isActionVisibleInViewer("Refresh") && !this.isDataTip() &&
+            !this.isPopComponent()
+      };
+      const multiSelect = {
+         id: () => "chart multi-select",
+         label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
+            : "_#(js:Change to Multi-select)",
+         icon: () => this.model.multiSelect ? "select-multi-icon" : "select-single-icon",
+         enabled: () => true,
+         visible: () => this.mobileDevice &&
+            this.isActionVisibleInViewer("Change to Single-select") &&
+            this.isActionVisibleInViewer("Change to Multi-select")
+      };
+      const edit = {
+         id: () => "chart edit",
+         label: () => "_#(js:Edit)",
+         icon: () => "edit-icon",
+         enabled: () => true,
+         visible: () => !this.vsWizardPreview && !this.binding && !this.embed &&
+            (this.viewer && this.model.enableAdhoc && !this.mobileDevice &&
+            this.isActionVisibleInViewer("Edit") && !this.isDataTip() && !this.isPopComponent()
+            || this.composer && !this.annotationsSelected && !this.isPopComponent())
+      };
+
+      // Source order is arbitrary today: it is emission order in one array literal and nothing reads
+      // position. Under the gate it becomes load-bearing, because the cap of three shows the first
+      // three *visible* actions — so the stable, chart-level actions have to come first or the strip
+      // reshuffles under the pointer on every selection.
+      const stableFirst = [
+         showData, openMaxMode, closeMaxMode, propertiesToolbar,
+         drillDown, drillUp, brush, clearBrush, zoom, clearZoom, excludeData,
+         showDetails, manualRefresh, autoRefresh, refresh, multiSelect, edit
+      ];
+      const legacyOrder = [
+         drillDown, drillUp, brush, clearBrush, zoom, clearZoom, excludeData,
+         showData, showDetails, openMaxMode, closeMaxMode, manualRefresh, autoRefresh,
+         refresh, multiSelect, edit, propertiesToolbar
+      ];
+
+      groups.push(new AssemblyActionGroup(
+         GuiTool.isVizModern() ? stableFirst : legacyOrder));
+
       return super.createToolbarActions(groups, true);
    }
 
