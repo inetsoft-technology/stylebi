@@ -27,6 +27,7 @@
  * Direct instantiation — ConditionEditor child not rendered.
  */
 
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConditionValue } from "../../common/data/condition/condition-value";
 import { ConditionValueType } from "../../common/data/condition/condition-value-type";
 import { DataRef } from "../../common/data/data-ref";
@@ -34,7 +35,7 @@ import { XSchema } from "../../common/data/xschema";
 import { OneOfConditionEditor } from "./one-of-condition-editor.component";
 
 function createEditor(fieldType = XSchema.STRING) {
-   const comp = new OneOfConditionEditor();
+   const comp = new OneOfConditionEditor({} as NgbModal);
    comp.field = { dataType: fieldType, attribute: "col" } as DataRef;
    comp.values = [];
    comp.value = { value: "", type: ConditionValueType.VALUE };

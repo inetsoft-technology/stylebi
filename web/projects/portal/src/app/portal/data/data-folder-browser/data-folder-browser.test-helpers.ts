@@ -38,6 +38,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DomService } from "../../../widget/dom-service/dom.service";
 import { DragService } from "../../../widget/services/drag.service";
 import { DataSourcesTreeActionsService } from "../data-navigation-tree/data-sources-tree-actions.service";
+import { DataDetailsPaneService } from "../services/data-details-pane.service";
 import { WorksheetBrowserInfo } from "../model/worksheet-browser-info";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
 import { DataNotificationsComponent } from "../data-notifications.component";
@@ -176,6 +177,11 @@ export async function renderComponent(routeOverrides: { queryParams?: any } = {}
          { provide: DomService, useValue: DOM_SERVICE_MOCK },
          { provide: DataSourcesTreeActionsService, useValue: DATASOURCES_TREE_ACTIONS_MOCK },
          { provide: SsoHeartbeatService, useValue: { heartbeats: of(), heartbeat: vi.fn() } },
+         // @Injectable() with no providedIn, so it has to be provided here or the component
+         // cannot be constructed. Real instance rather than a mock: it is a dependency-free
+         // BehaviorSubject holder, and the component subscribes to selectedFile$ expecting the
+         // immediate null emission a stub would have to reproduce.
+         DataDetailsPaneService,
       ],
       importOverrides: [
          { replace: DataNotificationsComponent, with: StubDataNotificationsComponent },
