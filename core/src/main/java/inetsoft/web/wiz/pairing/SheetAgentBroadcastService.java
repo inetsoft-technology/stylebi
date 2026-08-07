@@ -32,6 +32,7 @@ import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
+import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -87,11 +88,13 @@ public class SheetAgentBroadcastService {
 
       if(sheetType == SheetType.VIEWSHEET) {
          broadcastViewsheetRefresh((RuntimeViewsheet) rs, runtimeId, sessionId, user);
+         sendUndoState(rs, runtimeId, sessionId, user);
          return;
       }
 
       Object command = buildCommand(sheetType, rs, owner);
       sendCommand(user, sessionId, runtimeId, command);
+      sendUndoState(rs, runtimeId, sessionId, user);
 
       LOG.info("Pairing broadcast refresh sent (sheetType={}, runtimeId={}, sessionId={})",
                sheetType, runtimeId, sessionId);
@@ -177,6 +180,25 @@ public class SheetAgentBroadcastService {
          .build();
 
       sendCommand(user, sessionId, runtimeId, saveCommand);
+
+      // 3. Sync current/savePoint/points so the Composer's modified indicator clears,
+      // even if this save is the first agent action in the session (no prior refresh).
+      sendUndoState(rs, runtimeId, sessionId, user);
+   }
+
+   /**
+    * Push the runtime's current undo/redo position to the browser so the Composer's
+    * "modified" indicator (current !== savePoint) stays in sync with agent-driven edits,
+    * mirroring what {@code VSLayoutService.makeUndoable()} does for the browser-native
+    * STOMP {@code @Undoable} path.
+    */
+   private void sendUndoState(RuntimeSheet rs, String runtimeId, String sessionId, String user) {
+      UpdateUndoStateCommand command = new UpdateUndoStateCommand();
+      command.setPoints(rs.size());
+      command.setCurrent(rs.getCurrent());
+      command.setSavePoint(rs.getSavePoint());
+      command.setId(rs.getID());
+      sendCommand(user, sessionId, runtimeId, command);
    }
 
    private void sendCommand(String user, String sessionId, String runtimeId, Object command) {
