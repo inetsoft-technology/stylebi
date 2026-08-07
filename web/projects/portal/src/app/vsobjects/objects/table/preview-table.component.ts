@@ -120,7 +120,8 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    tableHeight: number;
    scrollY: number = 0;
    horizontalDist = 0;
-   columnRightPositions: number[];
+   // undefined until the first tableData response runs through initColumnWidths()/updateWidths()
+   columnRightPositions: number[] | undefined;
    columnIndexRange: Range;
    leftOfColRangeWidth: number;
    rightOfColRangeWidth: number;
@@ -375,6 +376,13 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    startResize(event: MouseEvent, index: number) {
+      if(this.columnRightPositions == null) {
+         // Columns haven't been initialized yet (no tableData response applied) — there is
+         // no resize handle to render at this point, but guard anyway since this shares the
+         // same "not yet initialized" hazard as updateColumnRange().
+         return;
+      }
+
       event.preventDefault();
       this.windowListeners = [
          this.renderer.listen("window", "mousemove", (e) => this.resizeMove(e)),
@@ -484,6 +492,13 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    private updateColumnRange(): void {
+      if(this.columnRightPositions == null) {
+         // Not yet initialized — e.g. a window:resize fired before the first tableData
+         // response ran through initColumnWidths()/updateWidths(). Nothing to range yet;
+         // updateWidths() will call this again once column widths are computed.
+         return;
+      }
+
       const leftViewBound = this.previewContainer.nativeElement.scrollLeft;
       const rightViewBound = leftViewBound + this.previewContainer.nativeElement.clientWidth;
       const search = BinarySearch.numbers(this.columnRightPositions);

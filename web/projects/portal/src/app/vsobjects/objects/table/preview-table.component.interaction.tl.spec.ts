@@ -162,6 +162,28 @@ describe("Group 4 — horizontalScroll / resizeListener", () => {
       // horizontalDist = clientWidth + scrollLeft
       expect((comp as any).horizontalDist).toBe(480);
    });
+
+   it("resizeListener should not throw when a window:resize fires before tableData has ever been set", () => {
+      // 🔁 Regression: the "Show detail" dialog registers @HostListener("window:resize") as soon
+      // as the component is constructed, but columnRightPositions stays undefined until the first
+      // LoadTableDataCommand response runs through the tableData setter. A resize event racing
+      // ahead of that response (e.g. the dialog's open animation) used to throw inside
+      // BinarySearch.numbers(undefined).ceiling() — "Cannot read properties of undefined (reading
+      // 'length')" — even though the table went on to render correctly once data arrived.
+      const { comp } = createPreviewComponent({ skipInitialTableData: true });
+      expect((comp as any).columnRightPositions).toBeUndefined();
+      expect(() => comp.resizeListener()).not.toThrow();
+   });
+
+   it("startResize should not throw and should not register window listeners when columnRightPositions is not yet initialized", () => {
+      // 🔁 Regression: startResize() indexes columnRightPositions[index] the same way
+      // updateColumnRange() indexed it before the fix above — guard it the same way.
+      const { comp, renderer } = createPreviewComponent({ skipInitialTableData: true });
+      expect(() =>
+         comp.startResize({ preventDefault: vi.fn() } as any, 0)
+      ).not.toThrow();
+      expect(renderer.listen).not.toHaveBeenCalled();
+   });
 });
 
 // ── Group 5 — resizeEnd: HTTP PUT ─────────────────────────────────────────────
