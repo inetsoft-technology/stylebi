@@ -1450,6 +1450,21 @@ public class WorksheetEditService {
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
 
+         // Bare attribute names that occur more than once (e.g. "ID" from both a
+         // "Customers" and an "Orders" entity in a join) are ambiguous — keying the
+         // lookup map on the bare name for those would collide and silently drop one
+         // of the columns. Only use the bare name when it is unique; ambiguous ones
+         // fall back to the entity-qualified DataRef.getName().
+         java.util.Map<String, Integer> attributeNameCounts = new java.util.HashMap<>();
+
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef ref = cs.getAttribute(i);
+
+            if(ref instanceof ColumnRef cr && (cr.getAlias() == null || cr.getAlias().isEmpty())) {
+               attributeNameCounts.merge(cr.getAttribute(), 1, Integer::sum);
+            }
+         }
+
          // Build a map of name → DataRef for fast lookup
          java.util.LinkedHashMap<String, DataRef> byName = new java.util.LinkedHashMap<>();
 
@@ -1461,8 +1476,15 @@ public class WorksheetEditService {
             // not DataRef.getName(), which is entity-qualified (e.g. "All Sales.Company")
             // for columns whose entity is non-blank, such as unpivot header columns.
             if(ref instanceof ColumnRef cr) {
-               name = cr.getAlias() != null && !cr.getAlias().isEmpty()
-                      ? cr.getAlias() : cr.getAttribute();
+               if(cr.getAlias() != null && !cr.getAlias().isEmpty()) {
+                  name = cr.getAlias();
+               }
+               else if(attributeNameCounts.get(cr.getAttribute()) > 1) {
+                  name = ref.getName();
+               }
+               else {
+                  name = cr.getAttribute();
+               }
             }
             else {
                name = ref.getName();

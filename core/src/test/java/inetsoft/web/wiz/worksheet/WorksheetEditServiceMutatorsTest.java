@@ -1457,4 +1457,33 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("a", reordered.getAttribute(1).getAttribute());
       assertEquals("b", reordered.getAttribute(2).getAttribute());
    }
+
+   @Test
+   void reorderColumnsDoesNotDropColumnsWithAmbiguousBareAttributeName() throws Exception {
+      // A join/concatenated table can expose two columns with the same bare attribute
+      // name but different entities (e.g. "Customers.ID" and "Orders.ID"). Keying the
+      // lookup solely on the bare name would let the second collide with and silently
+      // erase the first from the reordered selection.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      ColumnSelection cs = new ColumnSelection();
+      ColumnRef customerId = new ColumnRef(new AttributeRef("Customers", "ID"));
+      ColumnRef orderId = new ColumnRef(new AttributeRef("Orders", "ID"));
+      ColumnRef name = new ColumnRef(new AttributeRef(null, "Name"));
+      cs.addAttribute(customerId);
+      cs.addAttribute(orderId);
+      cs.addAttribute(name);
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.reorderColumns("T", List.of("Name", "ID")));
+
+      ColumnSelection reordered = t.getColumnSelection(false);
+      assertEquals(3, reordered.getAttributeCount(),
+         "an ambiguous bare-name collision must not silently drop a column");
+      assertTrue(reordered.containsAttribute(customerId), "Customers.ID must survive reordering");
+      assertTrue(reordered.containsAttribute(orderId), "Orders.ID must survive reordering");
+   }
 }
