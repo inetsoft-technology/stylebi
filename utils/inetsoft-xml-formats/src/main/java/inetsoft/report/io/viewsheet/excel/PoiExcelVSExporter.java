@@ -492,10 +492,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
 
       if(info instanceof TitledVSAssemblyInfo) {
-         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 0 :
-            (int)Math.round((double) ((TitledVSAssemblyInfo) info).getTitleHeight() /
-            AssetUtil.defh);
-         titleRow = Math.max(1, titleRow);
+         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 1 : 0;
       }
 
       int rows = titleRow;
