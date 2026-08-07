@@ -48,11 +48,22 @@ public class EmailSettingsService {
          .smtpAuthUri(SreeEnv.getProperty("mail.smtp.authUri"))
          .smtpTokenUri(SreeEnv.getPassword("mail.smtp.tokenUri"))
          .smtpOAuthScopes(SreeEnv.getProperty("mail.smtp.oauthScopes"))
-         .smtpOAuthFlags(SreeEnv.getPassword("mail.smtp.outhFlags"))
+         .smtpOAuthFlags(getOAuthFlags())
          .smtpAccessToken(SreeEnv.getPassword("mail.smtp.accessToken"))
          .smtpRefreshToken(SreeEnv.getPassword("mail.smtp.refreshToken"))
          .tokenExpiration(SreeEnv.getProperty("mail.smtp.tokenExpiration"))
          .build();
+   }
+
+   /**
+    * Gets the SMTP OAuth flags. The flags are stored as a plain text property, so they must be
+    * read with getProperty() and not getPassword(). Earlier versions read the flags from the
+    * misspelled "mail.smtp.outhFlags" property, so that name is still honored if the correctly
+    * spelled property is not set.
+    */
+   private String getOAuthFlags() {
+      String flags = SreeEnv.getProperty("mail.smtp.oauthFlags");
+      return Tool.isEmptyString(flags) ? SreeEnv.getProperty("mail.smtp.outhFlags") : flags;
    }
 
    @Audited(
