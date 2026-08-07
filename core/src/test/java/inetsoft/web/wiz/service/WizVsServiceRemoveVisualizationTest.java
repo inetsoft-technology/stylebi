@@ -45,7 +45,7 @@ class WizVsServiceRemoveVisualizationTest {
       when(entry.getPath()).thenReturn(
          WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/abc");
 
-      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null);
+      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null, null);
       service.removeVisualization("rt-1", "Chart1", null);
 
       verify(vs).removeAssembly("Chart1");
@@ -71,7 +71,7 @@ class WizVsServiceRemoveVisualizationTest {
       when(rvs.getEntry()).thenReturn(entry);
       when(entry.getPath()).thenReturn("some/other/folder/abc");
 
-      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null);
+      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null, null);
       service.removeVisualization("rt-1", "Chart1", null);
 
       verify(vs).removeAssembly("Chart1");
@@ -89,7 +89,7 @@ class WizVsServiceRemoveVisualizationTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       when(vs.getAssembly("Chart1")).thenReturn(null);
 
-      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null);
+      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null, null);
       service.removeVisualization("rt-1", "Chart1", null);
 
       verify(vs, never()).removeAssembly(anyString());
@@ -102,7 +102,7 @@ class WizVsServiceRemoveVisualizationTest {
 
       when(vsService.getViewsheet("rt-1", null)).thenThrow(new RuntimeException("expired"));
 
-      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null);
+      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null, null);
       assertDoesNotThrow(() -> service.removeVisualization("rt-1", "Chart1", null));
    }
 
@@ -110,7 +110,7 @@ class WizVsServiceRemoveVisualizationTest {
    void throwsWhenArgsBlank() throws Exception {
       ViewsheetService vsService = mock(ViewsheetService.class);
       AssetRepository engine = mock(AssetRepository.class);
-      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null);
+      WizVsService service = new WizVsService(vsService, engine, grantedSecurity(), null, null);
 
       assertThrows(IllegalArgumentException.class,
                    () -> service.removeVisualization("", "Chart1", null));
@@ -129,7 +129,7 @@ class WizVsServiceRemoveVisualizationTest {
       SecurityEngine sec = mock(SecurityEngine.class);
       when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(false);
 
-      WizVsService service = new WizVsService(vsService, engine, sec, null);
+      WizVsService service = new WizVsService(vsService, engine, sec, null, null);
 
       assertThrows(SecurityException.class,
                    () -> service.removeVisualization("rt-1", "Chart1", null));

@@ -64,7 +64,10 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.SyncInfoHandler;
+import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
@@ -81,12 +84,57 @@ import java.util.stream.Collectors;
 @Service
 public class WizVsService {
    public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
-                       SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler)
+                       SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler,
+                       VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.securityEngine = securityEngine;
       this.syncInfoHandler = syncInfoHandler;
+      this.temporaryInfoService = temporaryInfoService;
+   }
+
+   /**
+    * Records the request's binding-field settings on the autoBinding RVS's temp chart, so they outlive
+    * the rendered assembly — the temp chart being the only binding state a later
+    * rebuild-from-recommendation inherits (see {@link BindingFieldSettings}).
+    *
+    * <p>Uses the RECORD direction: {@code fieldSettings} comes from the chart the user is looking at, so
+    * it is authoritative about what is no longer set as well as what is. A merge would leave a removed
+    * ranking on the temp chart, and the next rebuild would push it back onto the chart.
+    *
+    * <p>Best-effort: no autoBindingRuntimeId (every caller that predates it, and the MCP path), an
+    * expired runtime, or an RVS that never went through autoBinding all mean there is no temp chart to
+    * record on — the assembly itself already has the settings either way, so this must never fail the
+    * request that triggered it.
+    */
+   private void recordFieldSettingsOnTempChart(String autoBindingRuntimeId, DataRef[] fieldSettings,
+                                               Principal user)
+   {
+      if(Tool.isEmptyString(autoBindingRuntimeId) || fieldSettings == null || fieldSettings.length == 0) {
+         return;
+      }
+
+      try {
+         RuntimeViewsheet autoBindingRvs = viewsheetService.getViewsheet(autoBindingRuntimeId, user);
+         // Through the service, not rvs.getVSTemporaryInfo() directly: it takes the init read-lock for
+         // the window where the field is still null, and it is how the sibling call sites in
+         // WizAutoBindingService reach the same state.
+         VSTemporaryInfo tempInfo = autoBindingRvs == null
+            ? null : temporaryInfoService.getVSTemporaryInfo(autoBindingRvs);
+         ChartVSAssembly tempChart = tempInfo == null ? null : tempInfo.getTempChart();
+
+         if(tempChart == null || tempChart.getVSChartInfo() == null) {
+            return;
+         }
+
+         BindingFieldSettings.record(fieldSettings, BindingFieldSettings.refsOf(tempChart));
+      }
+      catch(Exception e) {
+         LOG.warn("Could not record field settings on the temp chart of {}: {}",
+                  autoBindingRuntimeId, e.getMessage());
+         LOG.debug("temp chart field-settings record stack trace", e);
+      }
    }
 
    /**
@@ -1473,6 +1521,13 @@ public class WizVsService {
 
          // Collect binding for result
          CreateViewsheetResult.FlatBinding binding = collectFlatBinding(assembly);
+
+         // This request's field settings (top-N, sort, date level, formula), captured before the
+         // mutations below can rewrite them. Recorded onto the wizard temp chart at the end of the try,
+         // once everything has succeeded — the temp chart is the only place those settings survive a
+         // later rebuild-from-recommendation (see BindingFieldSettings).
+         DataRef[] fieldSettings = BindingFieldSettings.snapshot(assembly);
+
          AssetEntry wsEntry = null;
          Worksheet originWs = null;
          boolean wsModified = false;
@@ -1669,6 +1724,13 @@ public class WizVsService {
 
             String identifierToUse = model.getViewsheetIdentifier();
             result.setViewsheetIdentifier(persistViewsheet(targetVs, identifierToUse, user));
+
+            // Every mutation has succeeded and been persisted by this point, so the temp chart is only
+            // ever written for a request that actually landed — a rolled-back create leaves it alone.
+            // Recorded from the snapshot taken before the pre-aggregation push above, which rewrites
+            // exactly these values (a pushed measure's formula becomes NONE and a bucketed dimension's
+            // level is cleared): the temp chart must hold what the user asked for, not the pushed form.
+            recordFieldSettingsOnTempChart(model.getAutoBindingRuntimeId(), fieldSettings, user);
 
             if(copyNote != null) {
                result.setNote(copyNote);
@@ -5044,6 +5106,7 @@ public class WizVsService {
    private final AssetRepository engine;
    private final SecurityEngine securityEngine;
    private final SyncInfoHandler syncInfoHandler;
+   private final VSWizardTemporaryInfoService temporaryInfoService;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(

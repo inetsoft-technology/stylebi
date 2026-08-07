@@ -126,6 +126,27 @@ public class CreateVisualizationModel {
    }
 
    /**
+    * The autoBinding runtime whose wizard temp chart holds this conversation's accumulated
+    * binding-field settings (top-N ranking, sort, date group level, aggregate formula).
+    *
+    * <p>Supplying it lets createViewsheetInternal record THIS request's field settings on that temp
+    * chart, which is the only place they survive a later rebuild-from-recommendation: every
+    * recommendation candidate's x/y refs are clones of the temp chart's, whereas the rendered assembly
+    * is discarded by the next rebuild. Without it a "show top 3" applied here is silently dropped the
+    * next time the chart type changes.
+    *
+    * <p>Optional. Null — the default, and every caller that has no wizard runtime (the MCP path) — just
+    * means there is nothing to record; the rendered assembly still gets the settings.
+    */
+   public String getAutoBindingRuntimeId() {
+      return autoBindingRuntimeId;
+   }
+
+   public void setAutoBindingRuntimeId(String autoBindingRuntimeId) {
+      this.autoBindingRuntimeId = autoBindingRuntimeId;
+   }
+
+   /**
     * Which existing chart this call addresses, by name (see
     * {@code WizVsService.createViewsheetInternal}). Null — the default and every pre-existing
     * caller — means the viewsheet's current PRIMARY assembly, i.e. the chart created or copied most
@@ -182,4 +203,5 @@ public class CreateVisualizationModel {
    private transient boolean keepCondition;
    private boolean copy;
    private boolean syncConfigs;
+   private String autoBindingRuntimeId;
 }

@@ -51,6 +51,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.binding.model.graph.CalculateInfo;
+import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
@@ -307,6 +308,14 @@ public class WizAutoBindingService {
                   // a FRESH autoBinding call that resolves straight to a crosstab.
                   applyCrosstabAggregateFormulas(crosstabAsm.getVSCrosstabInfo(), configMap);
                }
+
+               // Also record them on the TEMP CHART, not only on the rendered assembly above. The
+               // rendered assembly is thrown away by the next rebuild-from-recommendation (changeType,
+               // a reslot, a reopen); the temp chart is what every later recommendation clones its
+               // x/y refs from, so this is what makes a ranking/sort/date-level outlive a type switch.
+               // Applies to the crosstab branch too — the temp chart is always a chart, and it is the
+               // same field settings either way.
+               applyFieldConfigsToTempChart(rvs, configMap);
             }
          }
 
@@ -500,6 +509,96 @@ public class WizAutoBindingService {
       applyAestheticFieldConfig(chartInfo.getShapeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getSizeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getTextField(), configMap, chartType);
+   }
+
+   /**
+    * Records the caller's field settings on the autoBinding RVS's TEMP CHART x/y refs, in addition to
+    * the rendered assembly {@link #applyFieldConfigs(VSChartInfo, Map)} handles.
+    *
+    * <p>The temp chart is the wizard's durable binding state, and it is what every later
+    * recommendation is generated from: {@code ChartCombinationUtil.getChartInfosWithScores} reads
+    * {@code temp.getXFields()/getYFields()}, and {@code ChartTypeFilter.getAllRefs(true)} puts a
+    * CLONE of each temp ref into every candidate chart info. So a ranking/sort/date-level recorded
+    * here is inherited by every candidate of every chart type, for free.
+    *
+    * <p>Applying the settings only to the rendered assembly is why they used to vanish: the
+    * recommender builds its dimensions from AssetEntries ({@code ChartRecommenderUtil.createChartRef}),
+    * which carry no ranking, so the next rebuild from a recommendation produced a chart with the
+    * user's top-N silently dropped.
+    *
+    * <p>Best-effort by design — a missing temp chart (an RVS that never went through autoBinding, or
+    * an expired one) just means there is nothing to record; the rendered assembly still gets the
+    * settings, so the current chart is correct either way.
+    */
+   void applyFieldConfigsToTempChart(RuntimeViewsheet autoBindingRvs,
+                                     Map<String, SimpleFieldInfo> configMap)
+   {
+      if(autoBindingRvs == null || configMap == null || configMap.isEmpty()) {
+         return;
+      }
+
+      VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(autoBindingRvs);
+      ChartVSAssembly tempChart = tempInfo == null ? null : tempInfo.getTempChart();
+
+      if(tempChart == null || tempChart.getVSChartInfo() == null) {
+         return;
+      }
+
+      applyFieldConfigs(tempChart.getVSChartInfo(), configMap);
+   }
+
+   /**
+    * {@link #applyFieldConfigsToTempChart} against a runtime named by id rather than one already in
+    * hand — for the changeType fallback, whose autoBinding RVS is created inside the call it delegates
+    * to. Best-effort like its delegate: a runtime that cannot be resolved just records nothing.
+    */
+   private void recordFieldConfigsOnTempChart(String autoBindingRuntimeId,
+                                              Map<String, SimpleFieldInfo> configMap,
+                                              Principal user)
+   {
+      if(Tool.isEmptyString(autoBindingRuntimeId)) {
+         return;
+      }
+
+      try {
+         applyFieldConfigsToTempChart(viewsheetService.getViewsheet(autoBindingRuntimeId, user), configMap);
+      }
+      catch(Exception e) {
+         LOG.warn("Could not record field settings on the temp chart of {}: {}",
+                  autoBindingRuntimeId, e.getMessage());
+         LOG.debug("temp chart field-settings record stack trace", e);
+      }
+   }
+
+   /**
+    * Restores the temp chart's x/y binding-field settings onto {@code assembly}, matching refs by field
+    * name. The read counterpart of {@link #applyFieldConfigsToTempChart}.
+    *
+    * <p>A FRESH recommendation needs nothing from here — its candidates' x/y refs are already clones of
+    * the temp chart's ({@code ChartTypeFilter.getAllRefs(true)}). This exists for {@code changeType()}'s
+    * fast path, which reuses the CACHED recommendation model: those candidates were cloned back when
+    * autoBinding ran, so they are a snapshot from before every edit made since. If changeType is ever
+    * changed to re-run the recommendation instead of reusing the cached model, this call becomes
+    * redundant and can go away.
+    *
+    * <p>Copies ONLY what the temp ref actually carries. Pushing a default-valued temp ref onto a
+    * candidate would overwrite the ordering/level the recommender picked for the target type — trading
+    * one silent loss for another.
+    */
+   void applyTempChartFieldSettings(RuntimeViewsheet autoBindingRvs, VSAssembly assembly) {
+      if(autoBindingRvs == null || assembly == null) {
+         return;
+      }
+
+      VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(autoBindingRvs);
+      ChartVSAssembly tempChart = tempInfo == null ? null : tempInfo.getTempChart();
+
+      if(tempChart == null || tempChart.getVSChartInfo() == null) {
+         return;
+      }
+
+      BindingFieldSettings.restore(
+         BindingFieldSettings.refsOf(tempChart), BindingFieldSettings.refsOf(assembly));
    }
 
    /**
@@ -2151,6 +2250,12 @@ public class WizAutoBindingService {
          // EXACTLY those columns) — forwarding our measures-only list here would silently drop every
          // dimension (e.g. STATE) from the rebuild instead of just fixing a formula. Applied post-hoc
          // onto the resulting assembly below instead, the same as the fast path.
+         // KNOWN GAP: unlike the fast path below, this branch cannot RESTORE field settings accumulated
+         // before this call. We are here precisely because the autoBinding RVS (and with it the temp
+         // chart holding them) could not be read, and the fresh one autoBindingInternal creates builds
+         // its temp chart from AssetEntries — which carry no ranking/sort. Reachable when the autoBinding
+         // runtime has expired (e.g. a long-idle conversation). The caller's own fieldConfigs are still
+         // both applied and RECORDED below, so this branch does not also drop what THIS call establishes.
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
@@ -2173,6 +2278,11 @@ public class WizAutoBindingService {
                // instead of the generic per-type default autoBindingInternal() picked blind.
                if(!configMap.isEmpty()) {
                   applyResolvedFormulaOverrides(fallbackRuntimeId, result.getAssemblyName(), configMap, user);
+                  // Record them on the temp chart of the RVS autoBindingInternal just created, too.
+                  // Applying them only to the rendered assembly would let the NEXT changeType drop them
+                  // again — reintroducing this PR's bug one turn later rather than merely failing to
+                  // recover the older history the gap above describes.
+                  recordFieldConfigsOnTempChart(resp.getAutoBindingRuntimeId(), configMap, user);
                }
 
                CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
@@ -2219,6 +2329,13 @@ public class WizAutoBindingService {
       if(capturedAutoBindingRvs != null) {
          primaryAssembly = refreshVisualizationBinding(selectedRec, capturedAutoBindingRvs, user);
 
+         // Restore the field settings the user has accumulated (top-N, sort, date level, formula) from
+         // the temp chart. The recommendation model read above is the CACHED one, so its candidates were
+         // cloned from the temp chart back when autoBinding ran — a snapshot from before every edit
+         // since. Without this a type switch renders from that snapshot and silently drops them.
+         // Runs BEFORE applyResolvedFormulaOverrides so an explicit caller fieldConfigs still wins.
+         applyTempChartFieldSettings(capturedAutoBindingRvs, primaryAssembly);
+
          // Re-apply the caller's resolved formulas to the freshly-selected recommendation — this
          // model's own candidate for `visualizationType` was built independent of them (see
          // ChangeTypeRequest.fieldConfigs javadoc).
@@ -2241,6 +2358,10 @@ public class WizAutoBindingService {
       vsModel.setKeepCondition(true);
       vsModel.setCopy(request.isCopy());
       vsModel.setAssemblyName(request.getAssemblyName());
+      // Record the outcome back onto the temp chart: applyTempChartFieldSettings above restored what the
+      // temp chart already held, but the caller's own fieldConfigs (applied after it) are new information
+      // this conversation should keep for the next rebuild.
+      vsModel.setAutoBindingRuntimeId(autoBindingRuntimeId);
 
       final RuntimeViewsheet autoRvsForHook = capturedAutoBindingRvs;
       CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user,
