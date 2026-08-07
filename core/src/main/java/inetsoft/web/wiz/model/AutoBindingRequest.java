@@ -184,6 +184,23 @@ public class AutoBindingRequest {
    }
 
    /**
+    * Carry the displaced assembly's pre-condition onto the freshly-bound one — forwarded straight to
+    * {@link inetsoft.web.wiz.model.CreateVisualizationModel#isKeepCondition()}.
+    *
+    * <p>Server-side only, never on the wire: the sole caller is {@code changeType}'s rebuild branch,
+    * which replaces a chart the user already filtered and so must keep that filter, exactly as the
+    * fast path does. A plain {@code /viewsheet/autoBinding} request is a (re)bind, not a type switch,
+    * and leaves this false — its own condition handling goes through {@code syncConfigs}.
+    */
+   public boolean isKeepCondition() {
+      return keepCondition;
+   }
+
+   public void setKeepCondition(boolean keepCondition) {
+      this.keepCondition = keepCondition;
+   }
+
+   /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
     */
@@ -217,4 +234,5 @@ public class AutoBindingRequest {
    private boolean copy;
    private String assemblyName;
    private boolean syncConfigs;
+   private transient boolean keepCondition;
 }

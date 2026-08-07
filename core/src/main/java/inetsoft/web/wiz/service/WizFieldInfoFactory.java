@@ -147,7 +147,30 @@ final class WizFieldInfoFactory {
          info.setSortByCol(sortByCol);
       }
 
+      applySortOrder(info, dim);
       return info;
+   }
+
+   /**
+    * Reports the dimension's sort order, which is what gives a value-based sort (and a ranking) its
+    * direction — a sortByCol with no order is inert.
+    *
+    * <p>Only the four explicit orders. SORT_NONE / SORT_ORIGINAL carry no user intent, and echoing them
+    * would make a re-applied config override whatever order the recommender picked for the chart type.
+    * SORT_SPECIFIC is excluded because it is meaningless without the manual value list, which is NOT
+    * reported: {@code WizAutoBindingService.applyFieldConfig} REVERSES a supplied manual list for a
+    * funnel (the incoming list is in caller order, not ref order), so a list read off a funnel and
+    * re-applied to one would come back inverted. A manual order therefore still reaches a rebuilt chart
+    * only through {@code BindingFieldSettings}, which copies refs directly and does not transform.
+    */
+   private static void applySortOrder(DimensionFieldInfo info, VSDimensionRef dim) {
+      int order = dim.getOrder();
+
+      if(order == XConstants.SORT_ASC || order == XConstants.SORT_DESC ||
+         order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC)
+      {
+         info.setOrder(order);
+      }
    }
 
    private static void applyRanking(DimensionFieldInfo info, VSDimensionRef dim) {

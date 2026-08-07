@@ -108,6 +108,47 @@ public final class BindingFieldSettings {
    }
 
    /**
+    * The set of columns an assembly binds, keyed exactly as {@link #record}/{@link #restore} pair refs.
+    *
+    * <p>Used to decide whether a wizard temp chart still describes the assembly a call is about. Column
+    * identity is the right granularity for that question and the SETTINGS are not: a recommendation
+    * candidate carries per-type values the temp chart never had (the `order` and date level the
+    * recommender picked — the very reason {@code restore} copies only what the source carries), so
+    * comparing settings would report a difference after every ordinary autoBinding and force a rebuild
+    * every time. The candidate's refs, by contrast, are CLONES of the temp chart's, so equal column
+    * sets is a reliable "same binding" test.
+    *
+    * <p>Slot-agnostic on purpose — {@link #refsOf} flattens x/y and the aesthetics together, and a
+    * chart-type change is precisely a change of slot placement.
+    */
+   public static Set<String> columnKeys(VSAssembly assembly) {
+      return columnKeys(refsOf(assembly));
+   }
+
+   /**
+    * {@link #columnKeys(VSAssembly)} over refs already in hand — for a caller holding a
+    * {@link #snapshot}, whose keys must be read BEFORE a mutation (the pre-aggregation push rewrites
+    * the assembly's refs to the pushed columns) rather than off the live assembly.
+    */
+   public static Set<String> columnKeys(DataRef[] refs) {
+      if(refs == null) {
+         return Collections.emptySet();
+      }
+
+      Set<String> keys = new HashSet<>();
+
+      for(DataRef ref : refs) {
+         String key = fieldKey(ref);
+
+         if(key != null && !key.isEmpty()) {
+            keys.add(key);
+         }
+      }
+
+      return keys;
+   }
+
+   /**
     * RESTORE onto a freshly-rebuilt assembly: copies only the settings the source actually carries.
     *
     * <p>A default-valued source must not overwrite the ordering or date level the recommender chose for

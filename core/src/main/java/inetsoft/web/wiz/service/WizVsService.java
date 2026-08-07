@@ -103,13 +103,25 @@ public class WizVsService {
     * it is authoritative about what is no longer set as well as what is. A merge would leave a removed
     * ranking on the temp chart, and the next rebuild would push it back onto the chart.
     *
+    * <p>Only when the temp chart still binds the SAME columns as {@code fieldSettings}. Recording
+    * settings across two different bindings is what made the temp chart lie: a conversation reuses one
+    * recommendation runtime, so a call that edits an earlier history card would otherwise write that
+    * card's ranking onto a temp chart describing the latest chart — and, RECORD being authoritative,
+    * clear whatever the latest chart had. The next chart-type change then pushes the wrong settings
+    * back. When the columns differ the temp chart is stale for this assembly, so the marker is CLEARED
+    * instead, which makes {@code changeType} rebuild it from the target rather than trust it.
+    *
+    * <p>On a match the marker moves to {@code assemblyName}: the temp chart now describes this
+    * assembly. That is the ordinary case even for an in-place edit, because an explicit re-bind
+    * ({@code /viewsheet/create} with a config) lands in a NEWLY named assembly.
+    *
     * <p>Best-effort: no autoBindingRuntimeId (every caller that predates it, and the MCP path), an
     * expired runtime, or an RVS that never went through autoBinding all mean there is no temp chart to
     * record on — the assembly itself already has the settings either way, so this must never fail the
     * request that triggered it.
     */
-   private void recordFieldSettingsOnTempChart(String autoBindingRuntimeId, DataRef[] fieldSettings,
-                                               Principal user)
+   void recordFieldSettingsOnTempChart(String autoBindingRuntimeId, DataRef[] fieldSettings,
+                                       String assemblyName, Principal user)
    {
       if(Tool.isEmptyString(autoBindingRuntimeId) || fieldSettings == null || fieldSettings.length == 0) {
          return;
@@ -128,12 +140,66 @@ public class WizVsService {
             return;
          }
 
+         // Keys off the SNAPSHOT, not the live assembly: the pre-aggregation push rewrites the
+         // assembly's refs to the pushed columns, which would compare unequal against the temp chart
+         // for reasons that have nothing to do with which chart this is.
+         if(!BindingFieldSettings.columnKeys(fieldSettings).equals(
+               BindingFieldSettings.columnKeys(tempChart)))
+         {
+            tempInfo.setWizSourceAssemblyName(null);
+            return;
+         }
+
          BindingFieldSettings.record(fieldSettings, BindingFieldSettings.refsOf(tempChart));
+         tempInfo.setWizSourceAssemblyName(assemblyName);
       }
       catch(Exception e) {
          LOG.warn("Could not record field settings on the temp chart of {}: {}",
                   autoBindingRuntimeId, e.getMessage());
          LOG.debug("temp chart field-settings record stack trace", e);
+      }
+   }
+
+   /**
+    * The assembly a wiz call is about, in the output viewsheet named by {@code runtimeId}: the one
+    * {@code assemblyName} names, else whichever is currently primary (= the session's latest chart,
+    * which is what a caller carrying no name targets).
+    *
+    * <p>Deliberately best-effort — null on an expired runtime, a name that no longer resolves, or no
+    * primary at all. The caller ({@code changeType}) uses this only to decide whether the wizard temp
+    * chart is stale, and "cannot tell" must degrade to the pre-existing behavior rather than fail a
+    * type change.
+    *
+    * <p>Not {@link #resolveTargetAssembly}, which throws on ambiguity: a wiz session viewsheet
+    * legitimately holds many charts (every history card), so "multiple charts" is the normal state
+    * here, not an error.
+    */
+   VSAssembly findWizTargetAssembly(String runtimeId, String viewsheetIdentifier, String assemblyName,
+                                    Principal user)
+   {
+      if(Tool.isEmptyString(runtimeId)) {
+         return null;
+      }
+
+      try {
+         RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+            viewsheetService, runtimeId, viewsheetIdentifier, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+         if(vs == null) {
+            return null;
+         }
+
+         if(!Tool.isEmptyString(assemblyName)) {
+            return vs.getAssembly(assemblyName) instanceof VSAssembly found ? found : null;
+         }
+
+         return findPrimaryAssembly(vs);
+      }
+      catch(Exception e) {
+         LOG.debug("Could not resolve wiz target assembly '{}' in {}: {}",
+                   assemblyName, runtimeId, e.getMessage());
+         return null;
       }
    }
 
@@ -1730,7 +1796,8 @@ public class WizVsService {
             // Recorded from the snapshot taken before the pre-aggregation push above, which rewrites
             // exactly these values (a pushed measure's formula becomes NONE and a bucketed dimension's
             // level is cleared): the temp chart must hold what the user asked for, not the pushed form.
-            recordFieldSettingsOnTempChart(model.getAutoBindingRuntimeId(), fieldSettings, user);
+            recordFieldSettingsOnTempChart(model.getAutoBindingRuntimeId(), fieldSettings,
+                                           assembly == null ? null : assembly.getName(), user);
 
             if(copyNote != null) {
                result.setNote(copyNote);
