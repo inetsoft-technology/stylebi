@@ -125,6 +125,38 @@ public class WizAutoBindingService {
          ? request.getFieldConfigs() : Collections.emptyList();
       String worksheetId = request.getWorksheetId();
 
+      // Which fields to bind, most specific statement first:
+      //
+      //   1. the caller's fieldConfigs — the authoritative list;
+      //   2. else the binding of the chart named by assemblyName — "re-bind THAT chart";
+      //   3. else the binding of the output viewsheet's PRIMARY chart — "re-bind the active chart",
+      //      which is what a nameless call already means everywhere else in this API;
+      //   4. else every visible column of the worksheet table, and let the recommender choose.
+      //
+      // findWizTargetAssembly resolves 2 and 3 together (named, else primary) and returns null when
+      // there is no output viewsheet to look in at all — a first-time create, which lands on 4.
+      //
+      // The recommender-reslot path is what needs this: switching to a non-Cartesian type re-binds
+      // through here purely to get the fields re-slotted, and carries no fieldConfigs of its own, so the
+      // rebind was against the whole worksheet table — every column of it, not merely the wrong chart's.
+      // The chart being re-bound is the only statement of which fields were meant.
+      //
+      // Same reverse map and the same limitation as changeType's rebuild — a binding whose aggregation
+      // was pushed to the worksheet reads back in its pushed form (formula NONE, date level cleared).
+      VSAssembly sourceAssembly = fieldConfigs.isEmpty()
+         ? wizVsService.findWizTargetAssembly(request.getWizRuntimeId(),
+                                              request.getViewsheetIdentifier(),
+                                              request.getAssemblyName(), user)
+         : null;
+      // That chart's own worksheet table, unless the caller named one: a conversation's worksheet
+      // accumulates a table per rebuild generation, and its columns must be read from the table that
+      // chart is actually bound to.
+      String requestedTableName = request.getWsTableName();
+      String wsTableName = !Tool.isEmptyString(requestedTableName)
+         ? requestedTableName : sourceTableName(sourceAssembly);
+      boolean derivedTableName = Tool.isEmptyString(requestedTableName)
+         && !Tool.isEmptyString(wsTableName);
+
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
       boolean createdAutoBindingRvs = false;
@@ -169,7 +201,6 @@ public class WizAutoBindingService {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);
 
                if(sheet instanceof Worksheet ws) {
-                  String wsTableName = request.getWsTableName();
                   WSAssembly primary = null;
 
                   if(Tool.isEmptyString(wsTableName)) {
@@ -177,6 +208,18 @@ public class WizAutoBindingService {
                   }
                   else {
                      primary = (WSAssembly) ws.getAssembly(wsTableName);
+
+                     // A DERIVED name can point at a table a later rebuild generation replaced and the
+                     // orphan cleanup then removed. The caller never asked for that table, so fall back
+                     // to the primary rather than reading no columns at all — which would leave the
+                     // recommender with nothing and turn a re-bind that used to succeed (on the whole
+                     // table) into a hard failure. A name the CALLER supplied stays strict.
+                     if(primary == null && derivedTableName) {
+                        LOG.warn("Chart '{}' is bound to worksheet table '{}', which no longer exists; " +
+                                 "reading columns from the primary table instead.",
+                                 sourceAssembly.getName(), wsTableName);
+                        primary = ws.getPrimaryAssembly();
+                     }
                   }
 
                   if(primary instanceof TableAssembly ta) {
@@ -208,6 +251,10 @@ public class WizAutoBindingService {
             catch(Exception e) {
                LOG.warn("Failed to load worksheet '{}': {}", worksheetId, e.getMessage());
             }
+         }
+
+         if(sourceAssembly != null) {
+            fieldConfigs = derivedFieldConfigsWithin(sourceAssembly, worksheetColumns);
          }
 
          Map<String, SimpleFieldInfo> configMap = fieldConfigs.stream()
@@ -339,6 +386,9 @@ public class WizAutoBindingService {
             vsModel.setCopy(request.isCopy());
             vsModel.setAssemblyName(request.getAssemblyName());
             vsModel.setSyncConfigs(request.isSyncConfigs());
+            // Only changeType's rebuild branch sets this — a chart it replaces may carry a filter the
+            // user must not lose to a type switch. See AutoBindingRequest.isKeepCondition().
+            vsModel.setKeepCondition(request.isKeepCondition());
 
             WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {
@@ -368,6 +418,14 @@ public class WizAutoBindingService {
                                       explicitBindings, entries);
             }
          }
+
+         // The temp chart, and the recommendation model generated from it, now describe THIS assembly.
+         // Recording which one lets a later changeType aimed at a DIFFERENT chart (an earlier history
+         // card) see that both are stale for its target and rebuild them from it, instead of silently
+         // rendering this chart's binding under that card's name. Cleared when nothing was placed — a
+         // leftover name must never be mistaken for a match, and initTemporary reuses this object.
+         tempInfo.setWizSourceAssemblyName(
+            visualizationResult == null ? null : visualizationResult.getAssemblyName());
 
          // Phase 4: build response.
          RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetId);
@@ -599,6 +657,128 @@ public class WizAutoBindingService {
 
       BindingFieldSettings.restore(
          BindingFieldSettings.refsOf(tempChart), BindingFieldSettings.refsOf(assembly));
+   }
+
+   /**
+    * Whether the temp chart in {@code tempInfo} — and so the recommendation model generated from it —
+    * still describes {@code target}.
+    *
+    * <p>Two independent checks, both needed:
+    * <ul>
+    *   <li>the recorded source name, because two charts can bind the same columns and differ only in
+    *       their settings (one carries a top-3, the other does not);</li>
+    *   <li>the bound columns, because an explicit re-bind ({@code /viewsheet/create} with a config) can
+    *       add or drop a column without going through autoBinding at all — the temp chart is then stale
+    *       for a chart whose name it legitimately carries.</li>
+    * </ul>
+    *
+    * <p>Returns true when it cannot tell (no temp info, no temp chart, no target). "Cannot tell" must
+    * degrade to the pre-existing fast path rather than force a rebuild off state we were unable to read.
+    */
+   boolean tempChartDescribes(VSTemporaryInfo tempInfo, VSAssembly target) {
+      ChartVSAssembly tempChart = tempInfo == null ? null : tempInfo.getTempChart();
+
+      if(tempChart == null || tempChart.getVSChartInfo() == null || target == null) {
+         return true;
+      }
+
+      return Tool.equals(tempInfo.getWizSourceAssemblyName(), target.getName())
+         && BindingFieldSettings.columnKeys(tempChart)
+               .equals(BindingFieldSettings.columnKeys(target));
+   }
+
+   /**
+    * The target assembly's own binding as an {@code AutoBindingRequest.fieldConfigs} list, so a rebuild
+    * re-seeds the temp chart from THAT chart rather than from whatever autoBinding last built.
+    *
+    * <p>{@code WizVsService.collectFlatBinding} already reverse-maps a chart / crosstab / output
+    * assembly's refs into {@code DimensionFieldInfo} / {@code MeasureFieldInfo} — both
+    * {@code SimpleFieldInfo} subtypes, which is exactly the element type fieldConfigs takes — carrying
+    * ranking, sort order, date group level and aggregate formula along with the column names.
+    *
+    * <p>Empty (never null) when there is no target or it binds nothing readable.
+    */
+   List<SimpleFieldInfo> deriveFieldConfigs(VSAssembly target) {
+      if(target == null) {
+         return Collections.emptyList();
+      }
+
+      CreateViewsheetResult.FlatBinding binding = wizVsService.collectFlatBinding(target);
+
+      if(binding == null) {
+         return Collections.emptyList();
+      }
+
+      List<SimpleFieldInfo> configs = new ArrayList<>();
+
+      if(binding.getDimensions() != null) {
+         configs.addAll(binding.getDimensions());
+      }
+
+      if(binding.getMeasures() != null) {
+         configs.addAll(binding.getMeasures());
+      }
+
+      return configs;
+   }
+
+   /**
+    * {@link #deriveFieldConfigs} for the case where the list is INFERRED rather than supplied: empty
+    * unless every derived column is present in {@code worksheetColumns}.
+    *
+    * <p>All-or-nothing because an authoritative field list is enforced strictly — {@code
+    * selectBindColumns} throws on a column the worksheet does not have, which is right for a caller that
+    * NAMED its fields and wrong for a list we inferred on its behalf. A chart bound to a worksheet table
+    * that has since been replaced by a later rebuild generation would turn a type change into a 400.
+    *
+    * <p>And all-or-nothing rather than dropping the missing ones: half a binding is not the chart the
+    * caller meant either (a chart of one dimension and no measure, say), so falling back to the previous
+    * behavior — every visible column, re-slotted by the recommender — is the more predictable failure.
+    */
+   List<SimpleFieldInfo> derivedFieldConfigsWithin(VSAssembly target,
+                                                   List<ColumnRef> worksheetColumns)
+   {
+      List<SimpleFieldInfo> derived = deriveFieldConfigs(target);
+
+      if(derived.isEmpty()) {
+         return derived;
+      }
+
+      Set<String> available = worksheetColumns.stream()
+         .map(ColumnRef::getDisplayName)
+         .collect(Collectors.toSet());
+      List<String> missing = derived.stream()
+         .map(SimpleFieldInfo::getField)
+         .filter(f -> f != null && !available.contains(f))
+         .sorted()
+         .collect(Collectors.toList());
+
+      if(!missing.isEmpty()) {
+         LOG.warn("Not deriving a field list from '{}': column(s) {} are not in the worksheet table. " +
+                  "Binding every visible column instead.", target.getName(), missing);
+         return Collections.emptyList();
+      }
+
+      return derived;
+   }
+
+   /**
+    * The worksheet table {@code target} is bound to, so a rebuild reads its columns from that table.
+    *
+    * <p>Matters for a conversation whose worksheet holds several generations of tables: the chart being
+    * rebuilt may be bound to an older generation than the worksheet's current primary assembly, and
+    * resolving fieldConfigs against the wrong table fails them all as unknown columns.
+    *
+    * <p>Null when unavailable, which leaves autoBinding on the worksheet's primary assembly.
+    */
+   static String sourceTableName(VSAssembly target) {
+      if(!(target instanceof DataVSAssembly dataAsm)) {
+         return null;
+      }
+
+      SourceInfo source = dataAsm.getSourceInfo();
+
+      return source == null ? null : source.getSource();
    }
 
    /**
@@ -2186,11 +2366,14 @@ public class WizAutoBindingService {
     * Changes the visualization type of an existing wizard viewsheet without re-running queries.
     *
     * <p>The recommendation model previously computed by {@link #autoBinding} is read from the
-    * {@code autoBindingRuntimeId} RVS.  If it is absent the service falls back to a full
-    * {@link #autoBinding} call (which also handles placing the primary and returning the result).
-    * Otherwise the matching recommendation is selected and placed in the
-    * {@code wizRuntimeId} RVS without executing the sandbox, so the response is fast and does
-    * not carry row data.
+    * {@code autoBindingRuntimeId} RVS. When it is present AND still describes the chart this call
+    * targets, the matching recommendation is selected and placed in the {@code wizRuntimeId} RVS
+    * without executing the sandbox, so the response is fast and does not carry row data.
+    *
+    * <p>Otherwise — absent, or describing a different chart because the user aimed the type change at
+    * an earlier history card — it is rebuilt from the target's own binding through a full
+    * {@link #autoBinding} call, which also handles placing the primary and returning the result. See
+    * {@link #tempChartDescribes}.
     */
    public CreateViewsheetResult changeType(ChangeTypeRequest request, Principal user)
       throws Exception
@@ -2234,28 +2417,67 @@ public class WizAutoBindingService {
          }
       }
 
-      // 2. Model missing — fall back to full autoBinding (handles placement too).
-      if(model == null) {
+      // 1b. Which chart is this call about, and does the temp chart still describe it?
+      //
+      // A conversation reuses ONE recommendation runtime, and every autoBinding re-initializes its temp
+      // chart from whichever chart it is building — so the temp chart, and the recommendation model
+      // cloned from it, describe exactly one of the session's charts at a time. When the user aims a
+      // type change at an EARLIER history card, both are the latest chart's: the fast path below would
+      // rebuild that card with the latest chart's binding entirely (not merely lose its ranking), and
+      // applyTempChartFieldSettings would then push the latest chart's settings onto it.
+      //
+      // The check has to run in both directions — latest -> historical AND historical -> latest, and
+      // between two different historical cards — because whichever chart was rebuilt last is the one
+      // the temp chart describes from then on. Hence: rebuild whenever it does not describe the target,
+      // never "when the target is historical".
+      VSAssembly targetAssembly = wizVsService.findWizTargetAssembly(
+         wizRuntimeId, viewsheetIdentifier, request.getAssemblyName(), user);
+      // The target's binding as an authoritative field list. Empty when the target could not be
+      // resolved or binds nothing readable — in which case there is nothing to rebuild FROM, so a
+      // staleness verdict would be unactionable and the fast path (the pre-existing behavior) stands.
+      //
+      // Also empty without a worksheet: an authoritative field list is resolved against that
+      // worksheet's columns, so passing one with no worksheet to read turns what used to be an empty
+      // result into "Unknown field(s) in fieldConfigs … Available worksheet columns: []".
+      List<SimpleFieldInfo> targetFieldConfigs = Tool.isEmptyString(worksheetId)
+         ? Collections.emptyList() : deriveFieldConfigs(targetAssembly);
+      boolean staleForTarget = !targetFieldConfigs.isEmpty()
+         && !tempChartDescribes(autoBindingTempInfo, targetAssembly);
+
+      // 2. Temp chart missing, expired, or describing a different chart — rebuild it (and the
+      // recommendation model with it) from the target's own binding through a full autoBinding, which
+      // also handles placement.
+      if(model == null || staleForTarget) {
          AutoBindingRequest fallback = new AutoBindingRequest();
          fallback.setWorksheetId(worksheetId);
          fallback.setVisualizationType(visualizationType);
-         // Do not forward autoBindingRuntimeId: if it was non-empty but invalid (expired RVS),
-         // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
+         // Reuse the SAME recommendation runtime when it is readable, so the rebuilt temp chart and
+         // model replace the stale ones this conversation will keep consulting. Only when the runtime
+         // itself could not be read is the id withheld: it may be a dead RVS, and forwarding it would
+         // make autoBindingInternal skip minting a fresh one and fail on the same dead id again.
+         fallback.setAutoBindingRuntimeId(
+            capturedAutoBindingRvs != null ? autoBindingRuntimeId : null);
          fallback.setWizRuntimeId(wizRuntimeId);
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
          fallback.setCopy(request.isCopy());
          fallback.setAssemblyName(request.getAssemblyName());
-         // Deliberately NOT fallback.setFieldConfigs(fieldConfigs): AutoBindingRequest.fieldConfigs
-         // is the AUTHORITATIVE full field list (selectBindColumns filters the worksheet down to
-         // EXACTLY those columns) — forwarding our measures-only list here would silently drop every
-         // dimension (e.g. STATE) from the rebuild instead of just fixing a formula. Applied post-hoc
-         // onto the resulting assembly below instead, the same as the fast path.
-         // KNOWN GAP: unlike the fast path below, this branch cannot RESTORE field settings accumulated
-         // before this call. We are here precisely because the autoBinding RVS (and with it the temp
-         // chart holding them) could not be read, and the fresh one autoBindingInternal creates builds
-         // its temp chart from AssetEntries — which carry no ranking/sort. Reachable when the autoBinding
-         // runtime has expired (e.g. a long-idle conversation). The caller's own fieldConfigs are still
-         // both applied and RECORDED below, so this branch does not also drop what THIS call establishes.
+         // A type switch must not drop the chart's filter, exactly as the fast path's
+         // vsModel.setKeepCondition(true) below.
+         fallback.setKeepCondition(true);
+         // The target's own binding, as the AUTHORITATIVE full field list — this is what makes the
+         // rebuilt temp chart describe the target rather than whatever autoBinding last built, and it
+         // carries the target's ranking / sort / date level / formula along with the columns. Note this
+         // is NOT `fieldConfigs`: that one is the caller's measures-only formula overrides (see
+         // ChangeTypeRequest.fieldConfigs), and forwarding it here would filter the worksheet down to
+         // those measures alone, silently dropping every dimension from the rebuild. It is still
+         // applied post-hoc onto the resulting assembly below, so an explicit caller formula wins.
+         //
+         // Empty (target unresolvable, or no worksheet) leaves selectBindColumns binding every visible
+         // worksheet column, which is what this branch did before it could read the target at all —
+         // and with it the residue of the gap this replaced: nothing to seed FROM means a rebuild
+         // still cannot recover settings accumulated before an expired recommendation runtime.
+         fallback.setFieldConfigs(targetFieldConfigs);
+         fallback.setWsTableName(sourceTableName(targetAssembly));
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 

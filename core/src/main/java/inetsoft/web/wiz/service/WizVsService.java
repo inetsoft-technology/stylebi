@@ -103,13 +103,25 @@ public class WizVsService {
     * it is authoritative about what is no longer set as well as what is. A merge would leave a removed
     * ranking on the temp chart, and the next rebuild would push it back onto the chart.
     *
+    * <p>Only when the temp chart still binds the SAME columns as {@code fieldSettings}. Recording
+    * settings across two different bindings is what made the temp chart lie: a conversation reuses one
+    * recommendation runtime, so a call that edits an earlier history card would otherwise write that
+    * card's ranking onto a temp chart describing the latest chart — and, RECORD being authoritative,
+    * clear whatever the latest chart had. The next chart-type change then pushes the wrong settings
+    * back. When the columns differ the temp chart is stale for this assembly, so the marker is CLEARED
+    * instead, which makes {@code changeType} rebuild it from the target rather than trust it.
+    *
+    * <p>On a match the marker moves to {@code assemblyName}: the temp chart now describes this
+    * assembly. That is the ordinary case even for an in-place edit, because an explicit re-bind
+    * ({@code /viewsheet/create} with a config) lands in a NEWLY named assembly.
+    *
     * <p>Best-effort: no autoBindingRuntimeId (every caller that predates it, and the MCP path), an
     * expired runtime, or an RVS that never went through autoBinding all mean there is no temp chart to
     * record on — the assembly itself already has the settings either way, so this must never fail the
     * request that triggered it.
     */
-   private void recordFieldSettingsOnTempChart(String autoBindingRuntimeId, DataRef[] fieldSettings,
-                                               Principal user)
+   void recordFieldSettingsOnTempChart(String autoBindingRuntimeId, DataRef[] fieldSettings,
+                                       String assemblyName, Principal user)
    {
       if(Tool.isEmptyString(autoBindingRuntimeId) || fieldSettings == null || fieldSettings.length == 0) {
          return;
@@ -128,12 +140,66 @@ public class WizVsService {
             return;
          }
 
+         // Keys off the SNAPSHOT, not the live assembly: the pre-aggregation push rewrites the
+         // assembly's refs to the pushed columns, which would compare unequal against the temp chart
+         // for reasons that have nothing to do with which chart this is.
+         if(!BindingFieldSettings.columnKeys(fieldSettings).equals(
+               BindingFieldSettings.columnKeys(tempChart)))
+         {
+            tempInfo.setWizSourceAssemblyName(null);
+            return;
+         }
+
          BindingFieldSettings.record(fieldSettings, BindingFieldSettings.refsOf(tempChart));
+         tempInfo.setWizSourceAssemblyName(assemblyName);
       }
       catch(Exception e) {
          LOG.warn("Could not record field settings on the temp chart of {}: {}",
                   autoBindingRuntimeId, e.getMessage());
          LOG.debug("temp chart field-settings record stack trace", e);
+      }
+   }
+
+   /**
+    * The assembly a wiz call is about, in the output viewsheet named by {@code runtimeId}: the one
+    * {@code assemblyName} names, else whichever is currently primary (= the session's latest chart,
+    * which is what a caller carrying no name targets).
+    *
+    * <p>Deliberately best-effort — null on an expired runtime, a name that no longer resolves, or no
+    * primary at all. The caller ({@code changeType}) uses this only to decide whether the wizard temp
+    * chart is stale, and "cannot tell" must degrade to the pre-existing behavior rather than fail a
+    * type change.
+    *
+    * <p>Not {@link #resolveTargetAssembly}, which throws on ambiguity: a wiz session viewsheet
+    * legitimately holds many charts (every history card), so "multiple charts" is the normal state
+    * here, not an error.
+    */
+   VSAssembly findWizTargetAssembly(String runtimeId, String viewsheetIdentifier, String assemblyName,
+                                    Principal user)
+   {
+      if(Tool.isEmptyString(runtimeId)) {
+         return null;
+      }
+
+      try {
+         RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+            viewsheetService, runtimeId, viewsheetIdentifier, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+         if(vs == null) {
+            return null;
+         }
+
+         if(!Tool.isEmptyString(assemblyName)) {
+            return vs.getAssembly(assemblyName) instanceof VSAssembly found ? found : null;
+         }
+
+         return findPrimaryAssembly(vs);
+      }
+      catch(Exception e) {
+         LOG.debug("Could not resolve wiz target assembly '{}' in {}: {}",
+                   assemblyName, runtimeId, e.getMessage());
+         return null;
       }
    }
 
@@ -151,6 +217,49 @@ public class WizVsService {
       }
 
       if(existingTarget != null) {
+         return existingTarget;
+      }
+
+      return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+   }
+
+   /**
+    * Whether the named assembly is REPLACED, or only named as the chart to build from.
+    *
+    * <p>{@code copy} decides, which is what lets one field name the target for both intents: a click on
+    * a card's own chart-type menu replaces that card ({@code copy} false), while a chat turn about it
+    * keeps it as history and adds a new card ({@code copy} true) — and either way the call needs to know
+    * WHICH chart it is about, so the binding it rebuilds from is that card's and not whichever chart
+    * happens to be primary.
+    *
+    * <p>Every pre-existing caller already maintained this as a caller-side invariant (a name is only
+    * ever sent with {@code copy} false — see validateBinding's mutually-exclusive assemblyName / copy),
+    * so honoring {@code copy} here changes no existing path; it only stops the {@code copy} true case
+    * from being silently reinterpreted as a replace.
+    *
+    * <p>Never in sync mode: there the named chart is the config SOURCE and the result is by definition a
+    * new assembly.
+    */
+   static boolean replaceInPlace(VSAssembly existingTarget, boolean syncMode, boolean copy) {
+      return existingTarget != null && !syncMode && !copy;
+   }
+
+   /**
+    * The assembly whose pre-condition a type change carries onto the new one (see
+    * {@code CreateVisualizationModel.isKeepCondition()}).
+    *
+    * <p>The NAMED chart wins when there is one: on a copy it is not the displaced assembly (the
+    * displaced one is whichever was primary, i.e. the latest chart), and carrying the latest chart's
+    * filter onto a type change made about an earlier card would apply a filter the user never asked for
+    * there. Identical to the displaced assembly whenever the two coincide — a replace.
+    *
+    * <p>Falls through in sync mode, where {@code syncConfigs} carries the condition instead.
+    */
+   static VSAssembly resolveConditionSource(boolean syncMode, VSAssembly existingTarget,
+                                            VSAssembly replacedAssembly,
+                                            VSAssembly previousPrimaryAssembly)
+   {
+      if(!syncMode && existingTarget != null) {
          return existingTarget;
       }
 
@@ -1383,8 +1492,9 @@ public class WizVsService {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
-            // In this (standard) path the named assembly is the one to REPLACE in place; the
-            // modificationOnly branch above reads the same field as the chart to modify.
+            // In this (standard) path the named assembly is the chart this call is ABOUT — the one it
+            // builds from and, unless copy says otherwise, replaces. The modificationOnly branch above
+            // reads the same field as the chart to modify.
             String targetAssemblyName = model.getAssemblyName();
             boolean syncMode = model.isSyncConfigs();
             VSAssembly existingTarget = null;
@@ -1404,7 +1514,10 @@ public class WizVsService {
                existingTarget = foundVs;
             }
 
-            String assemblyName = !(Tool.isEmptyString(targetAssemblyName) || syncMode)
+            boolean replaceInPlace = replaceInPlace(existingTarget, syncMode, model.isCopy());
+            // A copy MUST take a fresh name: reusing the target's would have addAssembly overwrite it by
+            // name below, destroying the very card copy exists to preserve.
+            String assemblyName = replaceInPlace
                ? targetAssemblyName : uniqueAssemblyName(targetVs, ctx.title());
 
             if(model.getPrimaryAssembly() != null) {
@@ -1424,13 +1537,9 @@ public class WizVsService {
                }
             }
 
-            if(existingTarget != null && !syncMode) {
+            if(replaceInPlace) {
                // Targeted replace: swap in the new assembly under the SAME name, carrying over the
                // old one's exact primary state — no other assembly is touched either way.
-               // model.isCopy() is NOT consulted here (only in the else branch below, via
-               // previousPrimaryAssembly): a caller that sets both assemblyName and copy=true gets
-               // copy silently bypassed — replacing one specific historical card by name should not
-               // also duplicate it. See CreateVisualizationModel.getAssemblyName()'s javadoc.
                replacedAssembly = existingTarget;
                replacedWasPrimary = existingTarget.isPrimary();
                targetVs.removeAssembly(targetAssemblyName);
@@ -1475,9 +1584,10 @@ public class WizVsService {
                rvs.getViewsheetSandbox().ifPresent(sandbox -> sandbox.clearGraph(assembly.getName()));
             }
 
-            // Sync pre-condition from the replaced assembly to the new one when the caller
+            // Sync pre-condition from the chart being switched away from to the new one when the caller
             // is performing a visualization type change (e.g. table → chart).
-            VSAssembly displacedForCondition = replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+            VSAssembly displacedForCondition = resolveConditionSource(
+               syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
 
             if(model.isKeepCondition() &&
                displacedForCondition instanceof DataVSAssembly oldDataAsm &&
@@ -1730,7 +1840,8 @@ public class WizVsService {
             // Recorded from the snapshot taken before the pre-aggregation push above, which rewrites
             // exactly these values (a pushed measure's formula becomes NONE and a bucketed dimension's
             // level is cleared): the temp chart must hold what the user asked for, not the pushed form.
-            recordFieldSettingsOnTempChart(model.getAutoBindingRuntimeId(), fieldSettings, user);
+            recordFieldSettingsOnTempChart(model.getAutoBindingRuntimeId(), fieldSettings,
+                                           assembly == null ? null : assembly.getName(), user);
 
             if(copyNote != null) {
                result.setNote(copyNote);

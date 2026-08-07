@@ -187,6 +187,27 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
    }
 
    /**
+    * The output-viewsheet assembly this temp chart currently mirrors, or null when that is unknown.
+    *
+    * <p>Only the wiz (AI) path writes this. A wiz conversation reuses ONE recommendation runtime, and
+    * every autoBinding call re-initializes the temp chart from whichever chart it is building — so the
+    * temp chart, and the recommendation model generated from it, describe exactly one of the session's
+    * charts at a time. When a later call targets a DIFFERENT chart (the user edits an earlier history
+    * card), both are stale for that target and must be rebuilt from it; this name is how that is
+    * detected. See {@code WizAutoBindingService.changeType}.
+    *
+    * <p>Survives {@code initTemporary}, which reuses a non-destroyed VSTemporaryInfo — so every path
+    * that re-seeds the temp chart must overwrite it rather than rely on the re-init to clear it.
+    */
+   public String getWizSourceAssemblyName() {
+      return wizSourceAssemblyName;
+   }
+
+   public void setWizSourceAssemblyName(String wizSourceAssemblyName) {
+      this.wizSourceAssemblyName = wizSourceAssemblyName;
+   }
+
+   /**
     * Getter for wizard previewPaneSize.
     */
    public Dimension getPreviewPaneSize() {
@@ -204,6 +225,7 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
       destroyed = true;
       position = null;
       description = null;
+      wizSourceAssemblyName = null;
       tempChart = null;
       originalModel = null;
       recommendationModel = null;
@@ -288,6 +310,7 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
       }
 
       clone.description = description;
+      clone.wizSourceAssemblyName = wizSourceAssemblyName;
       clone.recommendationModel = (VSRecommendationModel) Tool.clone(recommendationModel);
       clone.originalModel = (VSWizardOriginalModel) Tool.clone(originalModel);
 
@@ -385,6 +408,13 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
 
       if(description != null) {
          writer.print(" description=\"" + description + "\"");
+      }
+
+      if(wizSourceAssemblyName != null) {
+         // Escaped, unlike the attributes around it: assembly names are generated identifiers today, but
+         // an unescaped attribute is only safe for as long as that stays true, and Tool.escape paired
+         // with Tool.getAttribute is what the rest of the XMLSerializable assembly infos do.
+         writer.print(" wizSourceAssemblyName=\"" + Tool.escape(wizSourceAssemblyName) + "\"");
       }
 
       if(selectedType != null) {
@@ -498,6 +528,7 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
       }
 
       description = Tool.getAttribute(elem, "description");
+      wizSourceAssemblyName = Tool.getAttribute(elem, "wizSourceAssemblyName");
       autoOrder = "true".equalsIgnoreCase(Tool.getAttribute(elem, "autoOrder"));
       showLegend = "true".equalsIgnoreCase(Tool.getAttribute(elem, "showLegend"));
       destroyed = "true".equalsIgnoreCase(Tool.getAttribute(elem, "destroyed"));
@@ -570,6 +601,7 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
    private Point position;
    private Dimension previewPaneSize;
    private String description;
+   private String wizSourceAssemblyName;
    private VSRecommendationModel recommendationModel;
    private VSWizardOriginalModel originalModel;
    private ChartVSAssembly tempChart;

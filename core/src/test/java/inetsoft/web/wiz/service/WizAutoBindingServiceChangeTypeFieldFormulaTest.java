@@ -31,6 +31,9 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
@@ -38,6 +41,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.BindingFieldSettings;
+import inetsoft.web.wiz.model.CreateViewsheetResult;
 import inetsoft.web.wiz.model.DimensionFieldInfo;
 import inetsoft.web.wiz.model.MeasureFieldInfo;
 import inetsoft.web.wiz.model.Ranking;
@@ -50,14 +54,19 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -685,6 +694,277 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
          assertNotSame(live, snapshot[0]);
          assertEquals(String.valueOf(XCondition.TOP_N),
                       ((VSChartDimensionRef) snapshot[0]).getRankingOptionValue());
+      }
+
+      /**
+       * columnKeys is the "is the temp chart still about this chart" test, so it must span every slot a
+       * column can sit in — a dimension moved onto colour for a pie is still the same bound column, and
+       * reporting a difference there would force a needless rebuild on every type switch.
+       */
+      @Test
+      void columnKeysSpansXYAndTheAesthetics() {
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getXFields()).thenReturn(new ChartRef[] { chartDim("MONTH") });
+         when(info.getYFields()).thenReturn(new ChartRef[] { chartAgg("amount", "Sum") });
+
+         AestheticRef color = mock(AestheticRef.class);
+         when(color.getDataRef()).thenReturn(chartDim("REGION"));
+         when(info.getColorField()).thenReturn(color);
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertEquals(Set.of("MONTH", "amount", "REGION"), BindingFieldSettings.columnKeys(chart));
+      }
+
+      /** A crosstab keys off the same value accessors, so the two sides compare on equal terms. */
+      @Test
+      void columnKeysReadsACrosstabsDesignHeaders() {
+         VSDimensionRef header = new VSDimensionRef();
+         header.setGroupColumnValue("MONTH");
+         VSAggregateRef aggregate = new VSAggregateRef();
+         aggregate.setColumnValue("amount");
+
+         VSCrosstabInfo info = mock(VSCrosstabInfo.class);
+         when(info.getDesignRowHeaders()).thenReturn(new DataRef[] { header });
+         when(info.getDesignColHeaders()).thenReturn(new DataRef[0]);
+         when(info.getDesignAggregates()).thenReturn(new DataRef[] { aggregate });
+
+         CrosstabVSAssembly crosstab = mock(CrosstabVSAssembly.class);
+         when(crosstab.getVSCrosstabInfo()).thenReturn(info);
+
+         assertEquals(Set.of("MONTH", "amount"), BindingFieldSettings.columnKeys(crosstab));
+      }
+
+      /**
+       * Unlike the record/restore index, a column bound twice is NOT dropped here. The question is which
+       * columns are bound, and dropping an ambiguous one would make a chart binding Sum(amount) and
+       * Average(amount) compare equal to one binding neither.
+       */
+      @Test
+      void columnKeysKeepsAColumnBoundTwice() {
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getXFields()).thenReturn(new ChartRef[0]);
+         when(info.getYFields()).thenReturn(
+            new ChartRef[] { chartAgg("amount", "Sum"), chartAgg("amount", "Average") });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertEquals(Set.of("amount"), BindingFieldSettings.columnKeys(chart));
+      }
+   }
+
+   /**
+    * tempChartDescribes(VSTemporaryInfo, VSAssembly) — whether the temp chart, and the recommendation
+    * model generated from it, still describe the chart a changeType call targets.
+    *
+    * <p>A conversation reuses one recommendation runtime whose temp chart is re-seeded from whichever
+    * chart autoBinding last built. Aiming a type change at an earlier history card would otherwise
+    * rebuild that card from the LATEST chart's binding entirely, so this predicate is what routes such a
+    * call into a rebuild — in both directions, since after that rebuild the temp chart describes the
+    * historical card and a call on the latest chart is the stale one.
+    */
+   @Tag("core")
+   static class TempChartDescribesTest {
+      private WizAutoBindingService service;
+
+      @BeforeEach
+      void setUp() {
+         service = new WizAutoBindingService(null, null, null, null, null, null, null);
+      }
+
+      private static ChartVSAssembly chartBinding(String... columns) {
+         ChartRef[] x = new ChartRef[columns.length];
+
+         for(int i = 0; i < columns.length; i++) {
+            VSChartDimensionRef dim = mock(VSChartDimensionRef.class);
+            when(dim.getGroupColumnValue()).thenReturn(columns[i]);
+            x[i] = dim;
+         }
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getXFields()).thenReturn(x);
+         when(info.getYFields()).thenReturn(new ChartRef[0]);
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+         return chart;
+      }
+
+      private static VSTemporaryInfo tempInfo(String sourceName, String... columns) {
+         // Built before the stubbing that consumes it: chartBinding() stubs mocks of its own, and
+         // nesting that inside when(...) leaves Mockito with an unfinished stubbing.
+         ChartVSAssembly tempChart = chartBinding(columns);
+         VSTemporaryInfo info = mock(VSTemporaryInfo.class);
+         when(info.getTempChart()).thenReturn(tempChart);
+         when(info.getWizSourceAssemblyName()).thenReturn(sourceName);
+         return info;
+      }
+
+      private static VSAssembly target(String name, String... columns) {
+         ChartVSAssembly chart = chartBinding(columns);
+         when(chart.getName()).thenReturn(name);
+         return chart;
+      }
+
+      @Test
+      void theChartItWasSeededFromMatches() {
+         assertTrue(service.tempChartDescribes(
+            tempInfo("Chart2", "MONTH", "amount"), target("Chart2", "MONTH", "amount")));
+      }
+
+      /** The historical-card case: same columns is not enough, the settings belong to another chart. */
+      @Test
+      void aDifferentChartWithTheSameColumnsDoesNotMatch() {
+         assertFalse(service.tempChartDescribes(
+            tempInfo("Chart2", "MONTH", "amount"), target("Chart1", "MONTH", "amount")));
+      }
+
+      /**
+       * The name alone is not enough either: an explicit re-bind lands in a newly named assembly and the
+       * record step carries the name across, but it cannot add a column to the temp chart — so a measure
+       * added that way leaves the temp chart stale for a chart whose name it legitimately holds.
+       */
+      @Test
+      void theRightChartWithAnAddedColumnDoesNotMatch() {
+         assertFalse(service.tempChartDescribes(
+            tempInfo("Chart2", "MONTH"), target("Chart2", "MONTH", "amount")));
+      }
+
+      /** Cleared marker — the record step's way of saying "stale, rebuild from the chart". */
+      @Test
+      void aClearedMarkerDoesNotMatch() {
+         assertFalse(service.tempChartDescribes(
+            tempInfo(null, "MONTH"), target("Chart2", "MONTH")));
+      }
+
+      /**
+       * Unreadable state must degrade to the pre-existing fast path. Forcing a rebuild off state we
+       * could not read would turn a missing temp chart into a full re-recommendation on every call.
+       */
+      @Test
+      void unreadableStateReportsAMatch() {
+         VSTemporaryInfo noTempChart = mock(VSTemporaryInfo.class);
+         when(noTempChart.getTempChart()).thenReturn(null);
+
+         assertTrue(service.tempChartDescribes(noTempChart, target("Chart2", "MONTH")));
+         assertTrue(service.tempChartDescribes(null, target("Chart2", "MONTH")));
+         assertTrue(service.tempChartDescribes(tempInfo("Chart2", "MONTH"), null));
+      }
+   }
+
+   /**
+    * deriveFieldConfigs / sourceTableName — how a rebuild learns what the target chart is bound to.
+    */
+   @Tag("core")
+   static class DeriveFieldConfigsTest {
+      private WizVsService wizVsService;
+      private WizAutoBindingService service;
+
+      @BeforeEach
+      void setUp() {
+         wizVsService = mock(WizVsService.class);
+         service = new WizAutoBindingService(null, null, null, null, null, wizVsService, null);
+      }
+
+      @Test
+      void flattensTheTargetsDimensionsAndMeasures() {
+         DimensionFieldInfo month = new DimensionFieldInfo();
+         month.setField("MONTH");
+         MeasureFieldInfo amount = measure("amount", "Sum");
+
+         ChartVSAssembly target = mock(ChartVSAssembly.class);
+         when(wizVsService.collectFlatBinding(target)).thenReturn(
+            new CreateViewsheetResult.FlatBinding(List.of(month), List.of(amount), Map.of()));
+
+         assertEquals(List.of(month, amount), service.deriveFieldConfigs(target));
+      }
+
+      /**
+       * Empty rather than null, and empty is what makes the caller stand down: with nothing to rebuild
+       * FROM, a staleness verdict is unactionable and the fast path must stay.
+       */
+      @Test
+      void anUnreadableTargetDerivesNothing() {
+         ChartVSAssembly target = mock(ChartVSAssembly.class);
+         when(wizVsService.collectFlatBinding(target)).thenReturn(null);
+
+         assertEquals(List.of(), service.deriveFieldConfigs(target));
+         assertEquals(List.of(), service.deriveFieldConfigs(null));
+      }
+
+      /**
+       * The target's own table, not the worksheet's primary: a conversation's worksheet accumulates a
+       * table per rebuild generation, and resolving the target's columns against the wrong one fails
+       * every one of them as unknown.
+       */
+      @Test
+      void readsTheTargetsOwnWorksheetTable() {
+         ChartVSAssembly target = mock(ChartVSAssembly.class);
+         when(target.getSourceInfo()).thenReturn(
+            new SourceInfo(SourceInfo.ASSET, null, "Query1_2"));
+
+         assertEquals("Query1_2", WizAutoBindingService.sourceTableName(target));
+      }
+
+      @Test
+      void noSourceInfoLeavesTheTableUnnamed() {
+         ChartVSAssembly target = mock(ChartVSAssembly.class);
+         when(target.getSourceInfo()).thenReturn(null);
+
+         assertNull(WizAutoBindingService.sourceTableName(target));
+         assertNull(WizAutoBindingService.sourceTableName(null));
+         assertNull(WizAutoBindingService.sourceTableName(mock(TableVSAssembly.class)));
+      }
+
+      private static ColumnRef wsColumn(String name) {
+         ColumnRef col = mock(ColumnRef.class);
+         when(col.getDisplayName()).thenReturn(name);
+         return col;
+      }
+
+      private ChartVSAssembly targetBoundTo(String... fields) {
+         List<DimensionFieldInfo> dimensions = new ArrayList<>();
+
+         for(String field : fields) {
+            DimensionFieldInfo dim = new DimensionFieldInfo();
+            dim.setField(field);
+            dimensions.add(dim);
+         }
+
+         ChartVSAssembly target = mock(ChartVSAssembly.class);
+         when(target.getName()).thenReturn("Chart1");
+         when(wizVsService.collectFlatBinding(target)).thenReturn(
+            new CreateViewsheetResult.FlatBinding(dimensions, List.of(), Map.of()));
+         return target;
+      }
+
+      /**
+       * An INFERRED list is only used when the worksheet table actually has every column. `fieldConfigs`
+       * is enforced strictly — selectBindColumns throws on a column the table does not have, which is
+       * right for a caller that named its fields and wrong for a list inferred on its behalf.
+       */
+      @Test
+      void derivesOnlyWhenEveryColumnIsInTheTable() {
+         ChartVSAssembly target = targetBoundTo("MONTH", "REGION");
+
+         assertEquals(2, service.derivedFieldConfigsWithin(
+            target, List.of(wsColumn("MONTH"), wsColumn("REGION"), wsColumn("amount"))).size());
+      }
+
+      /**
+       * All-or-nothing rather than dropping the missing ones: half a binding is not the chart the caller
+       * meant either, so it falls back to the pre-existing behavior (every visible column, re-slotted).
+       * Reachable when the chart's table was replaced by a later rebuild generation.
+       */
+      @Test
+      void derivesNothingWhenAColumnIsMissing() {
+         ChartVSAssembly target = targetBoundTo("MONTH", "REGION");
+
+         assertEquals(List.of(),
+                      service.derivedFieldConfigsWithin(target, List.of(wsColumn("MONTH"))));
+         assertEquals(List.of(), service.derivedFieldConfigsWithin(target, List.of()));
       }
    }
 }
