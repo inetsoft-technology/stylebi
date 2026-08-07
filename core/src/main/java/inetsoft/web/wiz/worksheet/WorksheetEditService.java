@@ -1041,6 +1041,27 @@ public class WorksheetEditService {
             throw new PairingException("Column not found: " + col);
          }
 
+         // Mirrors the UI's WSHeaderCellComponent.supportChangeColumnType(): a type
+         // change only survives the post-edit refreshColumnSelection() pass for
+         // expression columns, or for embedded/tabular/SQL-bound/unpivot tables that
+         // persist the override into their own definition. Every other table type
+         // (plain bound/physical tables, joins, etc.) has its column selection rebuilt
+         // from the source schema, which silently discards the override — so reject
+         // the request here instead of reporting success for a change that won't stick.
+         boolean isRangeRef = cr.getDataRef() instanceof NumericRangeRef ||
+            cr.getDataRef() instanceof DateRangeRef;
+         boolean supportsTypeChange = !isRangeRef && (cr.isExpression() ||
+            t instanceof EmbeddedTableAssembly || t instanceof TabularTableAssembly ||
+            t instanceof SQLBoundTableAssembly || t instanceof UnpivotTableAssembly);
+
+         if(!supportsTypeChange) {
+            throw new PairingException(
+               "Column type cannot be changed for \"" + col + "\" on table \"" + table +
+               "\". Changing the data type is only supported for expression columns " +
+               "and embedded, tabular/REST, SQL-bound, or unpivot tables — physical " +
+               "(bound query) tables and joins do not support changing column types.");
+         }
+
          // Also update the matching ref from findAttribute (same approach as
          // ColumnTypeDialogService) to ensure the canonical ref is updated.
          ColumnRef cr2 = (ColumnRef) cs.findAttribute(cr);

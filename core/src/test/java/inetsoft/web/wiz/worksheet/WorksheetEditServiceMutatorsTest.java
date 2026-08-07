@@ -1411,4 +1411,40 @@ class WorksheetEditServiceMutatorsTest {
                 "fix must recurse into the nested subquery's own selection and clear the mangled " +
                 "alias there, not just on the outer sql.getSelection()");
    }
+
+   // =========================================================================
+   // Column type tests
+   // =========================================================================
+
+   @Test
+   void changeColumnTypeRejectsPhysicalBoundTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("cannot be changed"));
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertNotEquals("integer", ((ColumnRef) ref).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeAllowsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer"));
+
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals("integer", ((ColumnRef) ref).getDataType());
+   }
 }
