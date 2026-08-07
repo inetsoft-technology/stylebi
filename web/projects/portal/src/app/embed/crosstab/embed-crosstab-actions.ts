@@ -36,10 +36,18 @@ export class EmbedCrosstabActions extends CrosstabActions {
          dataTipService, popService, miniToolbarService);
    }
 
+   /**
+    * Menu-only commands, on the same rule as EmbedTableActions.createMenuActions: an entry belongs
+    * here only if it is not already a toolbar button. Show Details and Export were listed in both
+    * places and so duplicated themselves under "More" (Bug #75951); Set Cell Size, Hide Column /
+    * Show Columns and the drill-hierarchy pair exist only here (Bug #75961). The override stays
+    * because what it replaces, CrosstabActions.createMenuActions, is composer/annotation commands
+    * the embed cannot use.
+    *
+    * Every entry is selection-gated, so an untouched crosstab still shows nothing - "More"
+    * self-hides and EmbedContextMenu.open suppresses the empty popup.
+    */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      // Show Details / Export are deliberately not offered here anymore (right-click context
-      // menu) per explicit request - they're still available from the mini-toolbar, see
-      // createToolbarActions below.
       groups.push(new AssemblyActionGroup([
          {
             // Same visibility rule as CrosstabActions' own "table cell size" - oneCellSelected
@@ -104,16 +112,11 @@ export class EmbedCrosstabActions extends CrosstabActions {
             visible: () => this.getDrillContextMenuVisible(true)
          }
       ]));
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "crosstab MenuAction HelperText",
-            label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
-            icon: () => "edit-icon",
-            enabled: () => false,
-            visible: () => this.menuActionHelperTextVisible,
-            classes: () => "helper-text"
-         }
-      ]));
+
+      // The "MenuAction HelperText" entry is deliberately not carried over, for the reason spelled
+      // out in EmbedTableActions.createMenuActions: menuActionHelperTextVisible is true throughout
+      // an embed, so keeping it would defeat both the "More" button's self-hiding and
+      // EmbedContextMenu.open's empty-menu guard.
 
       return groups;
    }
@@ -178,7 +181,7 @@ export class EmbedCrosstabActions extends CrosstabActions {
             enabled: () => true,
             visible: () => !this.mobileDevice
                && this.isActionVisibleInViewer("Menu Actions")
-               && this.menuActions.some((g) => g.actions.some((action) => action.visible()))
+               && AssemblyActionGroup.anyVisible(this.menuActions)
          }]));
 
       return groups;
