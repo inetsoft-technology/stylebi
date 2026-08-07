@@ -163,12 +163,14 @@ public class CreateVisualizationModel {
     *       applied to, or duplicated from when {@link #isCopy()}). Without it, a filter built
     *       against an earlier chart's fields lands on a different chart, which at best filters the
     *       wrong chart and at worst references columns that chart does not bind.</li>
-    *   <li>Standard create/rebind path — the chart to REPLACE in place: the new assembly is added
-    *       under this same name with the old one's exact primary state carried over, and no other
-    *       assembly's primary flag is touched. Used for changeType on a non-current (historical)
-    *       card. {@link #isCopy()} is not consulted in this mode (see
-    *       {@code createViewsheetInternal}): replacing one specific historical card by name should
-    *       not also duplicate it.</li>
+    *   <li>Standard create/rebind path — the chart this call is ABOUT: the binding it rebuilds from,
+    *       and, when {@link #isCopy()} is false, the chart to REPLACE in place (the new assembly is
+    *       added under this same name with the old one's exact primary state carried over, and no
+    *       other assembly's primary flag is touched). With {@link #isCopy()} true the named chart is
+    *       kept as history and the result lands in a new assembly, exactly as it would with no name —
+    *       the name still matters, because it says which chart's binding and pre-condition to carry.
+    *       A click on a card's own chart-type menu is the former, a chat turn about that card the
+    *       latter.</li>
     * </ul>
     */
    public String getAssemblyName() {

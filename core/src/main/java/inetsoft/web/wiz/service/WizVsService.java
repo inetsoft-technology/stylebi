@@ -223,6 +223,49 @@ public class WizVsService {
       return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
    }
 
+   /**
+    * Whether the named assembly is REPLACED, or only named as the chart to build from.
+    *
+    * <p>{@code copy} decides, which is what lets one field name the target for both intents: a click on
+    * a card's own chart-type menu replaces that card ({@code copy} false), while a chat turn about it
+    * keeps it as history and adds a new card ({@code copy} true) — and either way the call needs to know
+    * WHICH chart it is about, so the binding it rebuilds from is that card's and not whichever chart
+    * happens to be primary.
+    *
+    * <p>Every pre-existing caller already maintained this as a caller-side invariant (a name is only
+    * ever sent with {@code copy} false — see validateBinding's mutually-exclusive assemblyName / copy),
+    * so honoring {@code copy} here changes no existing path; it only stops the {@code copy} true case
+    * from being silently reinterpreted as a replace.
+    *
+    * <p>Never in sync mode: there the named chart is the config SOURCE and the result is by definition a
+    * new assembly.
+    */
+   static boolean replaceInPlace(VSAssembly existingTarget, boolean syncMode, boolean copy) {
+      return existingTarget != null && !syncMode && !copy;
+   }
+
+   /**
+    * The assembly whose pre-condition a type change carries onto the new one (see
+    * {@code CreateVisualizationModel.isKeepCondition()}).
+    *
+    * <p>The NAMED chart wins when there is one: on a copy it is not the displaced assembly (the
+    * displaced one is whichever was primary, i.e. the latest chart), and carrying the latest chart's
+    * filter onto a type change made about an earlier card would apply a filter the user never asked for
+    * there. Identical to the displaced assembly whenever the two coincide — a replace.
+    *
+    * <p>Falls through in sync mode, where {@code syncConfigs} carries the condition instead.
+    */
+   static VSAssembly resolveConditionSource(boolean syncMode, VSAssembly existingTarget,
+                                            VSAssembly replacedAssembly,
+                                            VSAssembly previousPrimaryAssembly)
+   {
+      if(!syncMode && existingTarget != null) {
+         return existingTarget;
+      }
+
+      return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+   }
+
    @FunctionalInterface
    public interface PostAssemblyHook {
       void apply(RuntimeViewsheet rvs, VSAssembly assembly) throws Exception;
@@ -1449,8 +1492,9 @@ public class WizVsService {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
-            // In this (standard) path the named assembly is the one to REPLACE in place; the
-            // modificationOnly branch above reads the same field as the chart to modify.
+            // In this (standard) path the named assembly is the chart this call is ABOUT — the one it
+            // builds from and, unless copy says otherwise, replaces. The modificationOnly branch above
+            // reads the same field as the chart to modify.
             String targetAssemblyName = model.getAssemblyName();
             boolean syncMode = model.isSyncConfigs();
             VSAssembly existingTarget = null;
@@ -1470,7 +1514,10 @@ public class WizVsService {
                existingTarget = foundVs;
             }
 
-            String assemblyName = !(Tool.isEmptyString(targetAssemblyName) || syncMode)
+            boolean replaceInPlace = replaceInPlace(existingTarget, syncMode, model.isCopy());
+            // A copy MUST take a fresh name: reusing the target's would have addAssembly overwrite it by
+            // name below, destroying the very card copy exists to preserve.
+            String assemblyName = replaceInPlace
                ? targetAssemblyName : uniqueAssemblyName(targetVs, ctx.title());
 
             if(model.getPrimaryAssembly() != null) {
@@ -1490,13 +1537,9 @@ public class WizVsService {
                }
             }
 
-            if(existingTarget != null && !syncMode) {
+            if(replaceInPlace) {
                // Targeted replace: swap in the new assembly under the SAME name, carrying over the
                // old one's exact primary state — no other assembly is touched either way.
-               // model.isCopy() is NOT consulted here (only in the else branch below, via
-               // previousPrimaryAssembly): a caller that sets both assemblyName and copy=true gets
-               // copy silently bypassed — replacing one specific historical card by name should not
-               // also duplicate it. See CreateVisualizationModel.getAssemblyName()'s javadoc.
                replacedAssembly = existingTarget;
                replacedWasPrimary = existingTarget.isPrimary();
                targetVs.removeAssembly(targetAssemblyName);
@@ -1541,9 +1584,10 @@ public class WizVsService {
                rvs.getViewsheetSandbox().ifPresent(sandbox -> sandbox.clearGraph(assembly.getName()));
             }
 
-            // Sync pre-condition from the replaced assembly to the new one when the caller
+            // Sync pre-condition from the chart being switched away from to the new one when the caller
             // is performing a visualization type change (e.g. table → chart).
-            VSAssembly displacedForCondition = replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+            VSAssembly displacedForCondition = resolveConditionSource(
+               syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
 
             if(model.isKeepCondition() &&
                displacedForCondition instanceof DataVSAssembly oldDataAsm &&
