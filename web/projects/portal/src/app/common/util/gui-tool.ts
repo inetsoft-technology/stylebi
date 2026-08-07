@@ -57,6 +57,11 @@ export class GuiTool {
 
    static readonly MINI_TOOLBAR_HEIGHT = 28;
 
+   // Must stay in sync with the base .mini-toolbar z-index in mini-toolbar.component.scss.
+   // Used as a floor so the toolbar always outranks ordinary sibling assemblies, even when
+   // its own assembly's server-assigned z-index is low.
+   static readonly MINI_TOOLBAR_MIN_ZINDEX = 9920;
+
    static readonly MINIMUM_TITLE_HEIGHT = 18;
 
    private static scrollbarWidth: number;

@@ -567,6 +567,16 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          : this.zIndex(vsObject);
    }
 
+   // The mini-toolbar's z-index (see [zIndex] binding on <mini-toolbar> in the template) is
+   // getContainerZIndex(vsObject) + 1 -- it only needs to outrank its own assembly's stacking
+   // context, not unrelated sibling assemblies elsewhere on the canvas. Clamp it to the same
+   // floor as the toolbar's base CSS z-index so it still beats ordinary siblings with a higher
+   // server-assigned z-index (e.g. #75948), while preserving the larger boosted value for
+   // max-mode/embedded/datatip cases where the server z-index can exceed that floor.
+   getMiniToolbarZIndex(vsObject: VSObjectModel): number {
+      return Math.max(this.getContainerZIndex(vsObject) + 1, GuiTool.MINI_TOOLBAR_MIN_ZINDEX);
+   }
+
    zIndex(vsObject: VSObjectModel): number {
       const adhocFilter = (<any> vsObject).adhocFilter;
 

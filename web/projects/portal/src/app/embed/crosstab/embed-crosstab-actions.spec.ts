@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
+import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { TestUtils } from "../../common/test/test-utils";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
 import { VSCrosstabModel } from "../../vsobjects/model/vs-crosstab-model";
@@ -38,12 +40,14 @@ describe("EmbedCrosstabActions", () => {
    /** {@link TestUtils.findAction}, aliased to keep the assertions below on one line. */
    const find = TestUtils.findAction;
 
-   // Bug #75951: show-details and export are toolbar buttons, and used to be listed in the menu
-   // as well, so "More" repeated them.
-   it("offers no menu actions, so the toolbar's More button hides itself", () => {
+   // Bug #75951: show-details and export are toolbar buttons and used to be listed in the menu as
+   // well, so "More" repeated them. Bug #75961 then added menu-only entries, so the menu is no
+   // longer empty - but every entry is selection-gated, which is what keeps "More" hidden on an
+   // untouched crosstab and what EmbedContextMenu.open's empty-menu guard relies on.
+   it("shows no menu action until something is selected, so the More button hides itself", () => {
       const actions = createActions(createModel());
 
-      expect(actions.menuActions).toEqual([]);
+      expect(AssemblyActionGroup.anyVisible(actions.menuActions)).toBeFalsy();
       expect(find(actions.toolbarActions, "menu actions").visible()).toBeFalsy();
    });
 
@@ -86,5 +90,145 @@ describe("EmbedCrosstabActions", () => {
 
       expect(find(actions.toolbarActions, "crosstab export").visible()).toBeTruthy();
       expect(find(actions.toolbarActions, "crosstab wiz-fullscreen").visible()).toBeTruthy();
+   });
+
+   // ------------------------------------------------------------------ menu-only actions (#75961)
+   //
+   // These build their model with the bare TestUtils factory rather than createModel() above: the
+   // drill assertions read cells/selectedRegions directly and must not also inherit createModel()'s
+   // header counts, which would move which cell (0, 0) is.
+
+   // Plain data/summary cell, no drill hierarchy defined on the field - e.g. a measure value,
+   // not a date field grouped by Year/Month/Day.
+   const selectNonDrillableDataCell: (model: VSCrosstabModel) => void = (model) => {
+      model.selectedHeaders = null;
+      model.selectedData = new Map<number, number[]>();
+      model.selectedData.set(0, [0]);
+      model.selectedRegions = [Object.assign(TestUtils.createMockselectedRegion(), {
+         path: ["Sum(Discount)"],
+         type: TableDataPathTypes.SUMMARY
+      })];
+      model.firstSelectedRow = 0;
+      model.firstSelectedColumn = 0;
+      model.cells = [[{
+         cellData: "16",
+         cellLabel: null,
+         row: 0,
+         col: 0,
+         vsFormatModel: TestUtils.createMockVSFormatModel(),
+         hyperlinks: [],
+         grouped: false,
+         dataPath: {
+            row: false, col: false, colIndex: -1, index: 0, level: -1,
+            dataType: "double", path: ["Sum(Discount)"], type: TableDataPathTypes.SUMMARY
+         },
+         presenter: null,
+         isImage: false
+      }]];
+   };
+
+   // Row header cell for a field with a drill hierarchy defined - e.g. Month(ORDER_DATE)
+   // grouped by Year/Quarter/Month, matching bugs/img_2.png.
+   const selectDrillableHeaderCell: (model: VSCrosstabModel) => void = (model) => {
+      model.selectedData = null;
+      model.selectedHeaders = new Map<number, number[]>();
+      model.selectedHeaders.set(0, [0]);
+      model.selectedRegions = [Object.assign(TestUtils.createMockselectedRegion(), {
+         path: ["Month(ORDER_DATE)"],
+         type: TableDataPathTypes.GROUP_HEADER
+      })];
+      model.firstSelectedRow = 0;
+      model.firstSelectedColumn = 0;
+      model.cells = [[{
+         cellData: "2025 10月",
+         cellLabel: "2025 10月",
+         row: 0,
+         col: 0,
+         vsFormatModel: TestUtils.createMockVSFormatModel(),
+         hyperlinks: [],
+         grouped: true,
+         drillOp: "+",
+         field: "Month(ORDER_DATE)",
+         dataPath: {
+            row: true, col: false, colIndex: -1, index: 0, level: 0,
+            dataType: "date", path: ["Month(ORDER_DATE)"], type: TableDataPathTypes.GROUP_HEADER
+         },
+         presenter: null,
+         isImage: false
+      }]];
+   };
+
+   it("should not show Show Details or Export in the context menu", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      const menuActions = actions.menuActions;
+      selectNonDrillableDataCell(model);
+
+      const allIds = menuActions.flatMap(g => g.actions.map(a => a.id()));
+      expect(allIds).not.toContain("crosstab show-details");
+      expect(allIds).not.toContain("crosstab export");
+   });
+
+   it("should show Set Cell Size and Hide Column, but not the drill actions, for a plain data cell", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      const menuActions = actions.menuActions;
+      selectNonDrillableDataCell(model);
+
+      const setCellSize = menuActions[0].actions[0];
+      const hideColumn = menuActions[1].actions[0];
+      const showColumns = menuActions[1].actions[1];
+      const expandAll = menuActions[2].actions[0];
+      const collapseAll = menuActions[2].actions[1];
+      const expandField = menuActions[2].actions[2];
+      const collapseField = menuActions[2].actions[3];
+
+      expect(setCellSize.id()).toBe("table cell size");
+      expect(setCellSize.visible()).toBeTruthy();
+      expect(hideColumn.id()).toBe("crosstab hide column");
+      expect(hideColumn.visible()).toBeTruthy();
+      expect(showColumns.id()).toBe("crosstab show columns");
+      expect(showColumns.visible()).toBeFalsy();
+      expect(expandAll.id()).toBe("expand all");
+      expect(expandAll.visible()).toBeFalsy();
+      expect(collapseAll.id()).toBe("collapse all");
+      expect(collapseAll.visible()).toBeFalsy();
+      expect(expandField.id()).toBe("expand field");
+      expect(expandField.visible()).toBeFalsy();
+      expect(collapseField.id()).toBe("collapse field");
+      expect(collapseField.visible()).toBeFalsy();
+   });
+
+   it("should show Set Cell Size, Hide Column and the drill actions for a header cell with a defined drill hierarchy", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      const menuActions = actions.menuActions;
+      selectDrillableHeaderCell(model);
+
+      const setCellSize = menuActions[0].actions[0];
+      const hideColumn = menuActions[1].actions[0];
+      const expandAll = menuActions[2].actions[0];
+      const collapseAll = menuActions[2].actions[1];
+      const expandField = menuActions[2].actions[2];
+      const collapseField = menuActions[2].actions[3];
+
+      expect(setCellSize.visible()).toBeTruthy();
+      expect(hideColumn.visible()).toBeTruthy();
+      expect(expandAll.visible()).toBeTruthy();
+      expect(collapseAll.visible()).toBeTruthy();
+      expect(expandField.visible()).toBeTruthy();
+      expect(collapseField.visible()).toBeTruthy();
+   });
+
+   it("should show Show Columns when the model has a hidden column, regardless of cell selection", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      const menuActions = actions.menuActions;
+      const showColumns = menuActions[1].actions[1];
+
+      expect(showColumns.visible()).toBeFalsy();
+
+      (model as any).hasHiddenColumn = true;
+      expect(showColumns.visible()).toBeTruthy();
    });
 });

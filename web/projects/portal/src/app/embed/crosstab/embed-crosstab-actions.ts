@@ -37,12 +37,87 @@ export class EmbedCrosstabActions extends CrosstabActions {
    }
 
    /**
-    * Deliberately empty, for the reasons in EmbedTableActions.createMenuActions: every command
-    * the embed crosstab has is already a toolbar button, so listing show-details and export here
-    * duplicated them under "More". The override stays because what it replaces,
-    * CrosstabActions.createMenuActions, is composer/annotation commands the embed cannot use.
+    * Menu-only commands, on the same rule as EmbedTableActions.createMenuActions: an entry belongs
+    * here only if it is not already a toolbar button. Show Details and Export were listed in both
+    * places and so duplicated themselves under "More" (Bug #75951); Set Cell Size, Hide Column /
+    * Show Columns and the drill-hierarchy pair exist only here (Bug #75961). The override stays
+    * because what it replaces, CrosstabActions.createMenuActions, is composer/annotation commands
+    * the embed cannot use.
+    *
+    * Every entry is selection-gated, so an untouched crosstab still shows nothing - "More"
+    * self-hides and EmbedContextMenu.open suppresses the empty popup.
     */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
+      groups.push(new AssemblyActionGroup([
+         {
+            // Same visibility rule as CrosstabActions' own "table cell size" - oneCellSelected
+            // is protected on BaseTableActions already, nothing to widen.
+            id: () => "table cell size",
+            label: () => "_#(js:Set Cell Size)",
+            icon: () => "place-holder-icon icon-edit",
+            enabled: () => true,
+            visible: () => this.oneCellSelected && this.isActionVisibleInViewer("Set Cell Size")
+         },
+      ]));
+      groups.push(new AssemblyActionGroup([
+         {
+            id: () => "crosstab hide column",
+            label: () => "_#(js:Hide Column)",
+            icon: () => "place-holder-icon icon-hyperlink",
+            enabled: () => true,
+            visible: () => !this.annotationsSelected &&
+               !this.model.titleSelected && !this.model.metadata && this.cellSelected &&
+               this.isActionVisibleInViewer("Hide Column")
+         },
+         {
+            id: () => "crosstab show columns",
+            label: () => "_#(js:Show Columns)",
+            icon: () => "place-holder-icon icon-highlight",
+            enabled: () => true,
+            visible: () => !this.annotationsSelected && this.model.hasHiddenColumn &&
+               !this.model.metadata
+         }
+      ]));
+      groups.push(new AssemblyActionGroup([
+         {
+            // getDrillLabel()/getDrillContextMenuVisible() are CrosstabActions' own drill-hierarchy
+            // logic (protected for this reuse, same precedent as detailCellsSelected) - the
+            // criterion is whether the selected field has a drill level defined (drillOp), not
+            // whether it looks like a date field.
+            id: () => "expand all",
+            label: () => this.getDrillLabel(),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible()
+         },
+         {
+            id: () => "collapse all",
+            label: () => this.getDrillLabel(false),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible(false, true)
+         },
+         {
+            id: () => "expand field",
+            label: () => this.getDrillLabel(true, true),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible(true)
+         },
+         {
+            id: () => "collapse field",
+            label: () => this.getDrillLabel(false, true),
+            icon: () => "place-holder-icon",
+            enabled: () => true,
+            visible: () => this.getDrillContextMenuVisible(true)
+         }
+      ]));
+
+      // The "MenuAction HelperText" entry is deliberately not carried over, for the reason spelled
+      // out in EmbedTableActions.createMenuActions: menuActionHelperTextVisible is true throughout
+      // an embed, so keeping it would defeat both the "More" button's self-hiding and
+      // EmbedContextMenu.open's empty-menu guard.
+
       return groups;
    }
 

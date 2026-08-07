@@ -52,13 +52,14 @@ export namespace EmbedContextMenu {
       const groups: AssemblyActionGroup[] = event.type === "click" ?
          [new AssemblyActionGroup([actions.clickAction])] : actions.menuActions;
 
-      // Bug #75951: an embed assembly can have nothing to offer. The table, crosstab, text,
-      // gauge and image embeds put every command on the toolbar and so have no menu actions at
-      // all, and every chart menu action is tied to a selection, so a right click on plain plot
-      // area leaves all of them hidden. Opening the dropdown anyway gives an empty popup with
-      // the mini toolbar frozen behind it. The browser's own menu still stays suppressed, as it
-      // would have been below: having nothing of our own to show is not a reason to offer the
-      // embedding page's users Reload/Save As.
+      // Bug #75951: an embed assembly can have nothing to offer. The text, gauge and image embeds
+      // put every command on the toolbar and so have no menu actions at all; the table and
+      // crosstab keep only menu-only entries (Set Cell Size, Hide Column, the drill pair - Bug
+      // #75961), and those, like every chart menu action, are tied to a selection. So a right
+      // click on an untouched assembly, or on plain plot area, leaves all of them hidden. Opening
+      // the dropdown anyway gives an empty popup with the mini toolbar frozen behind it. The
+      // browser's own menu still stays suppressed, as it would have been below: having nothing of
+      // our own to show is not a reason to offer the embedding page's users Reload/Save As.
       if(!AssemblyActionGroup.anyVisible(groups)) {
          event.preventDefault();
          return;

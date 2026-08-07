@@ -18,7 +18,8 @@
 @for (vsObject of vsInfo.vsObjects; track trackByName(i, vsObject); let i = $index) {
   @if (isObjectRendered(vsObject)) {
     <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
-         [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)">
+         [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)"
+         [style.z-index]="isFilterInMaxModeView(vsObject) ? getContainerZIndex(vsObject) : null">
       <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
         [id]="getAssemblyDivId(vsObject)"
         VSDataTip [dataTipName]="vsObject.absoluteName"
@@ -349,7 +350,7 @@
           [top]="getToolbarTop(vsObject, i)"
           [left]="getToolbarLeft(vsObject, i)"
           [width]="getToolbarWidth(vsObject)"
-          [zIndex]="getContainerZIndex(vsObject) + 1"
+          [zIndex]="getMiniToolbarZIndex(vsObject)"
           [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
           [visible]="isAssemblyVisible(vsObject)"

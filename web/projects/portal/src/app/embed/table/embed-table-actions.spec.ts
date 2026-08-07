@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
+import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { TestUtils } from "../../common/test/test-utils";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
 import { VSTableModel } from "../../vsobjects/model/vs-table-model";
@@ -30,10 +32,23 @@ describe("EmbedTableActions", () => {
    /** {@link TestUtils.findAction}, aliased to keep the assertions below on one line. */
    const find = TestUtils.findAction;
 
-   /** One data cell selected, as vs-table leaves the model after a left click on a detail cell. */
-   const selectDataCell: (model: VSTableModel) => void = (model) => {
+   /**
+    * One data cell selected, as vs-table leaves the model after a left click on a detail cell.
+    * table-actions.ts has no row/column grouping concept, so unlike crosstab there is no Hide
+    * Column/Show Columns/drill hierarchy to reuse here - Set Cell Size is the only menu entry.
+    */
+   const selectDetailCell: (model: VSTableModel) => void = (model) => {
+      let region = TestUtils.createMockselectedRegion();
+      region.path = ["City"];
+      region.type = TableDataPathTypes.DETAIL;
+
+      model.titleSelected = false;
+      model.firstSelectedRow = 1;
+      model.firstSelectedColumn = 3;
       model.selectedHeaders = null;
-      model.selectedData = new Map<number, number[]>([[1, [3]]]);
+      model.selectedData = new Map<number, number[]>();
+      model.selectedData.set(1, [3]);
+      model.selectedRegions = [region];
    };
 
    /** A header click: vs-table records it in selectedHeaders and clears selectedData. */
@@ -42,13 +57,42 @@ describe("EmbedTableActions", () => {
       model.selectedData = null;
    };
 
-   // Bug #75951: show-details and export are toolbar buttons, and used to be listed in the menu
-   // as well, so "More" repeated them.
-   it("offers no menu actions, so the toolbar's More button hides itself", () => {
+   // Bug #75951: show-details and export are toolbar buttons and used to be listed in the menu as
+   // well, so "More" repeated them. Bug #75961 then added menu-only entries, so the menu is no
+   // longer empty - but every entry is selection-gated, which is what keeps "More" hidden on an
+   // untouched table and what EmbedContextMenu.open's empty-menu guard relies on.
+   it("shows no menu action until something is selected, so the More button hides itself", () => {
       const actions = createActions(createModel());
 
-      expect(actions.menuActions).toEqual([]);
+      expect(AssemblyActionGroup.anyVisible(actions.menuActions)).toBeFalsy();
       expect(find(actions.toolbarActions, "menu actions").visible()).toBeFalsy();
+   });
+
+   // The other half of Bug #75951: these two are on the toolbar, so they must not be in the menu
+   // at all - not merely hidden there.
+   it("should not show Show Details or Export in the context menu", () => {
+      const model = createModel();
+      const actions = createActions(model);
+      const menuActions = actions.menuActions;
+      selectDetailCell(model);
+
+      const allIds = menuActions.flatMap(g => g.actions.map(a => a.id()));
+      expect(allIds).not.toContain("table show-details");
+      expect(allIds).not.toContain("table export");
+   });
+
+   // Bug #75961: menu-only, so it has to be in the menu rather than on the toolbar.
+   it("should show Set Cell Size when a single cell is selected", () => {
+      const model = createModel();
+      const actions = createActions(model);
+      const menuActions = actions.menuActions;
+
+      const setCellSize = menuActions[0].actions[0];
+      expect(setCellSize.id()).toBe("table cell size");
+      expect(setCellSize.visible()).toBeFalsy();
+
+      selectDetailCell(model);
+      expect(setCellSize.visible()).toBeTruthy();
    });
 
    // Bug #75923: the action drills into the selected cells, so with nothing selected it has
@@ -60,7 +104,7 @@ describe("EmbedTableActions", () => {
 
       expect(showDetails.visible()).toBeFalsy();
 
-      selectDataCell(model);
+      selectDetailCell(model);
       expect(showDetails.visible()).toBeTruthy();
    });
 
@@ -76,7 +120,7 @@ describe("EmbedTableActions", () => {
       const model = createModel();
       const actions = createActions(model);
 
-      selectDataCell(model);
+      selectDetailCell(model);
       model.form = true;
       expect(find(actions.toolbarActions, "table show-details").visible()).toBeFalsy();
    });
@@ -89,7 +133,7 @@ describe("EmbedTableActions", () => {
       const model = createModel();
       const actions = createActions(model);
 
-      selectDataCell(model);
+      selectDetailCell(model);
       expect(model.summary).toBeFalsy();
       expect(find(actions.toolbarActions, "table show-details").visible()).toBeTruthy();
    });

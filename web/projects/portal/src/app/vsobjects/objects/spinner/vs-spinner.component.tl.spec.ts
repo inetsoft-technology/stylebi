@@ -568,7 +568,7 @@ describe("VSSpinner — getTextVerticalPosition", () => {
       comp.model.objectFormat.font = "bold 12px Arial";
       comp.model.objectFormat.vAlign = "top";
       comp.model.objectFormat.height = 30; // 30 - 12 - 3 = 15
-      expect(comp.getTextVerticalPosition()).toBe("0px 0px 15px");
+      expect(comp.getTextVerticalPosition()).toBe("0px 4px 15px 4px");
    });
 
    it("should return bottom padding shorthand when vAlign is not top or middle with positive padding", () => {
@@ -576,7 +576,7 @@ describe("VSSpinner — getTextVerticalPosition", () => {
       comp.model.objectFormat.font = "bold 12px Arial";
       comp.model.objectFormat.vAlign = "bottom";
       comp.model.objectFormat.height = 30; // 30 - 12 - 3 = 15
-      expect(comp.getTextVerticalPosition()).toBe("15px 0px 0px");
+      expect(comp.getTextVerticalPosition()).toBe("15px 4px 0px 4px");
    });
 });
 

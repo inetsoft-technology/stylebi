@@ -309,6 +309,18 @@ public class ExcelTableHelper extends VSTableHelper {
    @Override
    protected void drawObjectFormat(TableDataVSAssemblyInfo info, VSTableLens lens,
                                    boolean borderOnly) {
+      // the border is drawn as an overlay shape on top of the cell data (rather than as
+      // native cell borders, which have no rounded-corner concept), so only draw once,
+      // after the cells are written, to match the "borderOnly" (second) pass used by
+      // PDF/SVG export.
+      if(!borderOnly || info == null) {
+         return;
+      }
+
+      Rectangle2D bounds = new Rectangle2D.Double(
+         info.getPixelOffset().x, info.getPixelOffset().y,
+         info.getPixelSize().width, info.getPixelSize().height);
+      ((PoiExcelVSExporter) getExporter()).drawTableRoundedBorder(bounds, info.getFormat());
    }
 
    /**

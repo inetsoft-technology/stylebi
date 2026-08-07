@@ -1499,12 +1499,22 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       String path = condition.getTaskName();
 
-      if(path == null || path.indexOf(":") < 0) {
+      if(path == null) {
          return;
       }
 
-      String pathUserID = path.substring(0, path.indexOf(":"));
-      String remaining = path.substring(path.indexOf(":"));
+      // cycle tasks use "<owner>__<name>" rather than "<owner>:<name>", and the task
+      // name itself (e.g. "DataCycle Task: Cycle1") contains a colon, so the cycle
+      // delimiter must be matched first or the owner key gets split in the wrong place
+      int cycleIdx = path.indexOf("__" + DataCycleManager.TASK_PREFIX);
+      int idx = cycleIdx >= 0 ? cycleIdx : path.indexOf(":");
+
+      if(idx < 0) {
+         return;
+      }
+
+      String pathUserID = path.substring(0, idx);
+      String remaining = path.substring(idx);
       IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
 
       if(!Tool.equals(userID.orgID, currOrgID)) {

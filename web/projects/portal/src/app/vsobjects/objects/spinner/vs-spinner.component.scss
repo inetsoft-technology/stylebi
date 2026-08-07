@@ -26,8 +26,10 @@ input {
    min: 0;
    max: 100;
    position: relative;
+   box-sizing: border-box;
    width: 100%;
    height: 100%;
+   padding: 0 4px;
 }
 
 input::-webkit-inner-spin-button {
@@ -37,6 +39,9 @@ input::-webkit-inner-spin-button {
 
 .text-label {
   display: flex;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  padding: 0 4px;
+  overflow: hidden;
 }

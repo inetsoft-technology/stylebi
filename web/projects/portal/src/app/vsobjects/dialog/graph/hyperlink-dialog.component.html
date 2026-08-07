@@ -74,16 +74,16 @@
                       <div class="col web-field">
                         <select [ngModel]="model.webLink" (ngModelChange)="selectWebLink($event)"
                           class="form-control" >
-                          <option [ngValue]="null" [selected]="model.webLink == null">
-                            @for (field of model.fields; track $index) {
-                              <option
-                                [ngValue]="'hyperlink:' + field.name" [selected]="field.name == model.webLink">
-                                hyperlink:{{field.view}}
-                              </option>
-                            }
-                          </select>
-                        </div>
-                      }
+                          <option [ngValue]="null" [selected]="model.webLink == null"></option>
+                          @for (field of model.fields; track $index) {
+                            <option
+                              [ngValue]="'hyperlink:' + field.name" [selected]="field.name == model.webLink">
+                              hyperlink:{{field.view}}
+                            </option>
+                          }
+                        </select>
+                      </div>
+                    }
                       @if (valueType == ValueType.EXPRESSION) {
                         <div class="col">
                           <expression-editor [vsId]="runtimeId"
