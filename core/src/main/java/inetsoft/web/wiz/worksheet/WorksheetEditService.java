@@ -1042,15 +1042,20 @@ public class WorksheetEditService {
          }
 
          // Mirrors the UI's WSHeaderCellComponent.supportChangeColumnType(): a type
-         // change only survives the post-edit refreshColumnSelection() pass for
+         // override only survives the post-edit refreshColumnSelection() pass for
          // expression columns, or for embedded/tabular/SQL-bound/unpivot tables that
-         // persist the override into their own definition. Every other table type
-         // (plain bound/physical tables, joins, etc.) has its column selection rebuilt
-         // from the source schema, which silently discards the override — so reject
-         // the request here instead of reporting success for a change that won't stick.
+         // persist it into their own definition — every other table type has its
+         // column selection rebuilt from the source schema, discarding the override.
          boolean isRangeRef = cr.getDataRef() instanceof NumericRangeRef ||
             cr.getDataRef() instanceof DateRangeRef;
-         boolean supportsTypeChange = !isRangeRef && (cr.isExpression() ||
+
+         // An aggregate measure's exposed type is computed from the formula + input
+         // type when the query runs, not read back off this ref's dataType, so an
+         // override here is discarded the same way regardless of table type.
+         boolean isAggregateMeasure = t.isAggregate() && t.getAggregateInfo() != null &&
+            t.getAggregateInfo().getAggregate(cr) != null;
+
+         boolean supportsTypeChange = !isRangeRef && !isAggregateMeasure && (cr.isExpression() ||
             t instanceof EmbeddedTableAssembly || t instanceof TabularTableAssembly ||
             t instanceof SQLBoundTableAssembly || t instanceof UnpivotTableAssembly);
 

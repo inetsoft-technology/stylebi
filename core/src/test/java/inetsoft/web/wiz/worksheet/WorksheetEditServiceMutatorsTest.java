@@ -1447,4 +1447,45 @@ class WorksheetEditServiceMutatorsTest {
       assertInstanceOf(ColumnRef.class, ref);
       assertEquals("integer", ((ColumnRef) ref).getDataType());
    }
+
+   @Test
+   void changeColumnTypeRejectsAggregateMeasureOnEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
+
+      // Without this guard the request would otherwise succeed (EmbeddedTableAssembly
+      // is unconditionally allowed above), but "b"'s exposed type is computed from the
+      // SUM formula when the query runs, not read back off this override, so it must
+      // be rejected the same way a physical-table column is.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "b", "integer")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("cannot be changed"));
+   }
+
+   @Test
+   void changeColumnTypeAllowsGroupColumnOnAggregatedEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
+
+      // The group-by column passes its value through unchanged (unlike an aggregate
+      // output), so its type change should still be allowed even on an aggregated table.
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer"));
+
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals("integer", ((ColumnRef) ref).getDataType());
+   }
 }
