@@ -51,6 +51,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.binding.model.graph.CalculateInfo;
+import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
@@ -547,6 +548,29 @@ public class WizAutoBindingService {
    }
 
    /**
+    * {@link #applyFieldConfigsToTempChart} against a runtime named by id rather than one already in
+    * hand — for the changeType fallback, whose autoBinding RVS is created inside the call it delegates
+    * to. Best-effort like its delegate: a runtime that cannot be resolved just records nothing.
+    */
+   private void recordFieldConfigsOnTempChart(String autoBindingRuntimeId,
+                                              Map<String, SimpleFieldInfo> configMap,
+                                              Principal user)
+   {
+      if(Tool.isEmptyString(autoBindingRuntimeId)) {
+         return;
+      }
+
+      try {
+         applyFieldConfigsToTempChart(viewsheetService.getViewsheet(autoBindingRuntimeId, user), configMap);
+      }
+      catch(Exception e) {
+         LOG.warn("Could not record field settings on the temp chart of {}: {}",
+                  autoBindingRuntimeId, e.getMessage());
+         LOG.debug("temp chart field-settings record stack trace", e);
+      }
+   }
+
+   /**
     * Restores the temp chart's x/y binding-field settings onto {@code assembly}, matching refs by field
     * name. The read counterpart of {@link #applyFieldConfigsToTempChart}.
     *
@@ -573,8 +597,8 @@ public class WizAutoBindingService {
          return;
       }
 
-      WizUtil.copySettingsByFieldName(
-         WizUtil.bindingFieldRefs(tempChart), WizUtil.bindingFieldRefs(assembly));
+      BindingFieldSettings.restore(
+         BindingFieldSettings.refsOf(tempChart), BindingFieldSettings.refsOf(assembly));
    }
 
    /**
@@ -2226,12 +2250,12 @@ public class WizAutoBindingService {
          // EXACTLY those columns) — forwarding our measures-only list here would silently drop every
          // dimension (e.g. STATE) from the rebuild instead of just fixing a formula. Applied post-hoc
          // onto the resulting assembly below instead, the same as the fast path.
-         // KNOWN GAP: unlike the fast path below, this branch cannot restore accumulated field settings
-         // from the temp chart. We are here precisely because the autoBinding RVS (and with it the temp
+         // KNOWN GAP: unlike the fast path below, this branch cannot RESTORE field settings accumulated
+         // before this call. We are here precisely because the autoBinding RVS (and with it the temp
          // chart holding them) could not be read, and the fresh one autoBindingInternal creates builds
-         // its temp chart from AssetEntries — which carry no ranking/sort. Only the caller's own
-         // fieldConfigs survive, applied post-hoc below. Reachable when the autoBinding runtime has
-         // expired (e.g. a long-idle conversation).
+         // its temp chart from AssetEntries — which carry no ranking/sort. Reachable when the autoBinding
+         // runtime has expired (e.g. a long-idle conversation). The caller's own fieldConfigs are still
+         // both applied and RECORDED below, so this branch does not also drop what THIS call establishes.
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
@@ -2254,6 +2278,11 @@ public class WizAutoBindingService {
                // instead of the generic per-type default autoBindingInternal() picked blind.
                if(!configMap.isEmpty()) {
                   applyResolvedFormulaOverrides(fallbackRuntimeId, result.getAssemblyName(), configMap, user);
+                  // Record them on the temp chart of the RVS autoBindingInternal just created, too.
+                  // Applying them only to the rendered assembly would let the NEXT changeType drop them
+                  // again — reintroducing this PR's bug one turn later rather than merely failing to
+                  // recover the older history the gap above describes.
+                  recordFieldConfigsOnTempChart(resp.getAutoBindingRuntimeId(), configMap, user);
                }
 
                CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
