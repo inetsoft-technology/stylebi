@@ -89,3 +89,122 @@
     align-items: center;
   }
 }
+
+// The anchored chart strip is visible at rest so its kebab can render, take focus and be tapped.
+// The class is only set when anchorInTitleLane is true, which is already isVizModern() && VSChart,
+// so it carries the gate and the chart-only pilot condition on its own — no separate .viz-modern
+// scope needed here.
+.mini-toolbar.mini-toolbar--anchored {
+  visibility: visible;
+}
+
+// Right-aligns the pill at the lane's right inset. The host spans the lane (its inline width is the
+// lane width, from getAnchoredToolbarWidth) while .mini-toolbar-container above is
+// `width: fit-content !important` — an author !important that the template's non-important
+// [style.min-width.px] cannot beat, so the pill shrink-wraps its buttons whatever the binding says.
+// An auto margin on the shrink-wrapped box absorbs all the remaining lane width, which lands its
+// right edge exactly on the inset at any button count, theme or pointer type — no strip-width
+// estimate in the geometry. Sets no visibility, so it needs no :not(.hidden-mini-toolbar) scoping.
+.mini-toolbar--anchored .mini-toolbar-container {
+  margin-left: auto;
+}
+
+// Anchored resting state: the pill keeps its chrome (background, border, radius) and stays visible,
+// wrapped tight around the kebab, which is what makes the kebab read as a button rather than a bare
+// glyph. The container must NOT be opacity: 0 here. opacity, unlike visibility, is not escapable by
+// a descendant: it applies to the element and its whole subtree as a single composited group, so a
+// kebab nested inside an opacity: 0 container multiplies down to 0 x 0.55 = 0 and is fully
+// transparent no matter what opacity it declares for itself. (visibility *is* overridable by a
+// descendant's own explicit value; opacity is not. An earlier revision of this file reasoned
+// correctly about visibility and then assumed opacity behaved the same way, which is exactly what
+// made the resting kebab invisible once the kebab moved inside the container.)
+//
+// So the action groups leave layout at rest — display: none, not merely transparent — and return on
+// hover/focus. This deliberately overrides the plan's earlier "opacity only, never display"
+// instruction, which was written while the strip spanned the whole title lane, before it became
+// right-aligned by `margin-left: auto` on a `width: fit-content` pill. With a shrink-wrapped,
+// right-aligned pill, transparent-but-in-layout action buttons would leave a wide empty pill sitting
+// at rest. Leaving layout is what lets the pill shrink to the kebab alone while the kebab itself
+// stays put across both states (the auto margin absorbs the width the buttons give up, so growth
+// happens leftward). Do not "fix" this back to opacity.
+//
+// Leaving layout also settles pointer-events for free: `.mini-toolbar-button-group` above sets
+// pointer-events: all unconditionally — it has to, for every non-anchored mini-toolbar, where the
+// whole strip is either fully shown or visibility: hidden — so a merely-transparent action button
+// would still be clickable. A display: none box is not hit-tested at all.
+.mini-toolbar--anchored .mini-toolbar-button-group:not(.mini-toolbar-kebab-group) {
+  display: none;
+}
+
+// :hover here is the anchored twin of the legacy `.mini-toolbar:hover { visibility: visible }`
+// above: <mini-toolbar> is a DOM *sibling* of .vs-object-parent-container, so moving the pointer
+// off the assembly and onto an action button drops the assembly-hover reveal (see
+// _moving-resize.scss). Without this the buttons would leave layout again the moment the pointer
+// crossed onto them, the pointer would fall through, hover would re-fire — a flicker loop. The host
+// is pointer-events: none, but a hovered descendant still puts :hover on its ancestors, which is the
+// same mechanism the legacy rule relies on; :focus-within is the keyboard route in, reachable
+// because the kebab is focusable at rest. inline-flex, not flex: that is .btn-group's own display,
+// restored rather than changed. :not(.hidden-mini-toolbar) keeps a strip dismissed via Hide
+// MiniToolbar from re-expanding under the pointer.
+.mini-toolbar--anchored:not(.hidden-mini-toolbar):hover .mini-toolbar-button-group:not(.mini-toolbar-kebab-group),
+.mini-toolbar--anchored:not(.hidden-mini-toolbar):focus-within .mini-toolbar-button-group:not(.mini-toolbar-kebab-group) {
+  display: inline-flex;
+}
+
+// The `.mini-toolbar-button-group + .mini-toolbar-button-group` divider above matches on DOM
+// adjacency, which display: none does not break — at rest it would draw a stray 1px line down the
+// left edge of the pill that now wraps only the kebab. Suppressed at rest, restored on reveal, and
+// only where a group really does precede the kebab (on touch, and in the kebab-only height band,
+// none renders). Both rules carry one class more than the divider they override, so neither depends
+// on source order.
+.mini-toolbar--anchored .mini-toolbar-button-group.mini-toolbar-kebab-group {
+  border-left: none;
+}
+
+.mini-toolbar--anchored:hover .mini-toolbar-button-group + .mini-toolbar-button-group.mini-toolbar-kebab-group,
+.mini-toolbar--anchored:focus-within .mini-toolbar-button-group + .mini-toolbar-button-group.mini-toolbar-kebab-group {
+  border-left: 1px solid var(--inet-default-border-color);
+}
+
+// The resting kebab is a touch and keyboard affordance, not a mouse-discoverability fix: touch has
+// no hover to sweep, and a control that exists only on hover has no resting focus target. Dim at
+// rest, full on reveal. It declares no visibility of its own, on purpose: the container is no longer
+// hidden, so the kebab inherits "visible" from the host, and *not* declaring it is what lets
+// .hidden-mini-toolbar { visibility: hidden !important } on the host reach the kebab — an inherited
+// value loses to a descendant's own explicit one, and !important only wins between declarations on
+// the same element. :not(.hidden-mini-toolbar) is likewise load-bearing on pointer-events: without
+// it a dismissed strip's kebab would keep pointer-events: auto.
+.mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
+  opacity: 0.55;
+  pointer-events: auto;
+  transition: opacity 120ms ease-in-out;
+}
+
+.mini-toolbar--anchored:not(.hidden-mini-toolbar):hover .mini-toolbar-kebab,
+.mini-toolbar--anchored:not(.hidden-mini-toolbar):focus-within .mini-toolbar-kebab {
+  opacity: 1;
+}
+
+// Touch: the action buttons never render (they sit inside @if (!mobileDevice)), so the kebab is the
+// whole strip and takes the hit-target floor rather than any height band.
+@media (pointer: coarse) {
+  // :host-context(.viz-modern) .mini-toolbar-container above pins height: 24px and clips overflow
+  // — written when the kebab lived outside the container, it now clips the 44px touch target
+  // below right back down to 24px. Height and overflow are overridden together, height only (no
+  // fixed value, just a floor), so the mouse-pointer 24px row — coupled to
+  // GuiTool.MINI_TOOLBAR_HEIGHT_MODERN, see gui-tool.ts — is untouched; this rule only ever
+  // matches under a coarse pointer, is more specific than the :host-context rule it must beat
+  // (0,4,0 vs 0,3,0, so it does not depend on source order either), and does not apply once the
+  // strip is dismissed.
+  :host-context(.viz-modern) .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container {
+    height: auto;
+    min-height: var(--inet-control-height-touch);
+    overflow: visible;
+  }
+
+  .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
+    min-width: var(--inet-control-height-touch);
+    min-height: var(--inet-control-height-touch);
+    opacity: 1;
+  }
+}
