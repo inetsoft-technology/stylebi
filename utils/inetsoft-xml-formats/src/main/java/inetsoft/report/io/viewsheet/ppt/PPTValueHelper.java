@@ -266,6 +266,10 @@ public class PPTValueHelper {
             format.getBackground()));
       }
 
+      if(format.getRoundCorner() > 0 && bounds != null) {
+         PPTVSUtil.applyRoundCorner(textbox, format.getRoundCorner(), bounds);
+      }
+
       if(format.getForeground() != null) {
          rtr.setFontColor(format.getForeground());
       }
@@ -412,6 +416,54 @@ public class PPTValueHelper {
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR);
+
+      // Four independent straight-line shapes can't form a rounded corner, so draw a
+      // single rounded-rectangle outline instead when the round corner is set. Skip this
+      // for table/crosstab/tree cells (cellType != 0): those rely on the per-side
+      // CELL_TAIL/CELL_CONTENT skips below to avoid doubling up borders shared with
+      // adjacent cells, which a single all-sides shape can't replicate. Also require all
+      // four sides to be set: a single-sided border (e.g. an "underline" with only
+      // borders.bottom set) can't be represented as one rounded outline without drawing an
+      // unwanted box around the other three sides, so fall through to the per-side lines
+      // below instead.
+      if(borders != null && format.getRoundCorner() > 0 && cellType == 0 &&
+         borders.top != 0 && borders.left != 0 && borders.right != 0 && borders.bottom != 0)
+      {
+         int type;
+         Color color;
+
+         if(borders.top != 0) {
+            type = borders.top;
+            color = colors == null || colors.topColor == null ?
+               defbcolors.topColor : colors.topColor;
+         }
+         else if(borders.left != 0) {
+            type = borders.left;
+            color = colors == null || colors.leftColor == null ?
+               defbcolors.leftColor : colors.leftColor;
+         }
+         else if(borders.right != 0) {
+            type = borders.right;
+            color = colors == null || colors.rightColor == null ?
+               defbcolors.rightColor : colors.rightColor;
+         }
+         else {
+            type = borders.bottom;
+            color = colors == null || colors.bottomColor == null ?
+               defbcolors.bottomColor : colors.bottomColor;
+         }
+
+         if(PPTVSUtil.getBorderWidth(type) != 0) {
+            XSLFAutoShape roundBorder = slide.createAutoShape();
+            roundBorder.setAnchor(new Rectangle(x, y, width, height));
+            PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);
+            roundBorder.setFillColor(null);
+            PPTVSUtil.applyLineStyle(roundBorder, type);
+            roundBorder.setLineColor(color);
+         }
+
+         return;
+      }
 
       if(borders != null) {
          if(PPTVSUtil.getBorderWidth(borders.left) != 0) {

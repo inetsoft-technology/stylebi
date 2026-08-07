@@ -188,7 +188,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
    }
 
    protected isAssemblyTreeNode(entry): boolean {
-      return entry.path.indexOf("/components/__vs_assembly") > -1;
+      return !!entry && !!entry.path && entry.path.indexOf("/components/__vs_assembly") > -1;
    }
 
    /**
