@@ -296,7 +296,7 @@ public class CoreLifecycleService {
          infoMap.put("metadata", vsInfo.isMetadata());
 
          boolean accessible =
-            Boolean.parseBoolean((SreeEnv.getProperty(" accessibility.enabled", "false")));
+            Boolean.parseBoolean((SreeEnv.getProperty("accessibility.enabled", "false")));
 
          infoMap.put("accessible", accessible);
          infoMap.put("messageLevels", vsInfo.getMessageLevels());
