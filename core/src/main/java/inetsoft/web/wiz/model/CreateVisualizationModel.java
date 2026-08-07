@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.VSAssembly;
 
@@ -75,10 +76,21 @@ public class CreateVisualizationModel {
       this.primaryAssembly = primaryAssembly;
    }
 
+   /**
+    * Carry the displaced chart's pre-condition onto the new one, so a type change does not drop the
+    * user's filter. Set only by {@code WizAutoBindingService.changeType} (both branches).
+    *
+    * <p>{@code @JsonIgnore}, not merely {@code transient}: Jackson binds through the setter and ignores
+    * the field's transient marker unless {@code MapperFeature.PROPAGATE_TRANSIENT_MARKER} is on, which it
+    * is not here — so without the annotation a raw request body could set this and silently carry a
+    * filter onto a create that asked for none.
+    */
+   @JsonIgnore
    public boolean isKeepCondition() {
       return keepCondition;
    }
 
+   @JsonIgnore
    public void setKeepCondition(boolean keepCondition) {
       this.keepCondition = keepCondition;
    }
@@ -100,9 +112,9 @@ public class CreateVisualizationModel {
     *       replaced (the UI-click flow leaves this false to keep its existing delete-and-replace
     *       behavior).</li>
     * </ul>
-    * Default false (in-place / delete-and-replace, the existing behavior) in both paths. Not
-    * consulted by the standard path when {@link #getAssemblyName()} names an assembly to replace —
-    * see that field's javadoc.
+    * Default false (in-place / delete-and-replace, the existing behavior) in both paths. In the standard
+    * path this is also what decides whether a named {@link #getAssemblyName()} is REPLACED or merely
+    * named as the chart to build from — see that field's javadoc.
     */
    public boolean isCopy() {
       return copy;

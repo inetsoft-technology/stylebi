@@ -411,7 +411,10 @@ public class VSTemporaryInfo implements Cloneable, Serializable, XMLSerializable
       }
 
       if(wizSourceAssemblyName != null) {
-         writer.print(" wizSourceAssemblyName=\"" + wizSourceAssemblyName + "\"");
+         // Escaped, unlike the attributes around it: assembly names are generated identifiers today, but
+         // an unescaped attribute is only safe for as long as that stays true, and Tool.escape paired
+         // with Tool.getAttribute is what the rest of the XMLSerializable assembly infos do.
+         writer.print(" wizSourceAssemblyName=\"" + Tool.escape(wizSourceAssemblyName) + "\"");
       }
 
       if(selectedType != null) {

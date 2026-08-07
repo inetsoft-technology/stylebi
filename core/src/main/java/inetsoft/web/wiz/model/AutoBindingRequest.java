@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
@@ -187,15 +188,22 @@ public class AutoBindingRequest {
     * Carry the displaced assembly's pre-condition onto the freshly-bound one — forwarded straight to
     * {@link inetsoft.web.wiz.model.CreateVisualizationModel#isKeepCondition()}.
     *
-    * <p>Server-side only, never on the wire: the sole caller is {@code changeType}'s rebuild branch,
-    * which replaces a chart the user already filtered and so must keep that filter, exactly as the
-    * fast path does. A plain {@code /viewsheet/autoBinding} request is a (re)bind, not a type switch,
-    * and leaves this false — its own condition handling goes through {@code syncConfigs}.
+    * <p>Server-side only: the sole caller is {@code changeType}'s rebuild branch, which replaces a chart
+    * the user already filtered and so must keep that filter, exactly as the fast path does. A plain
+    * {@code /viewsheet/autoBinding} request is a (re)bind, not a type switch, and leaves this false — its
+    * own condition handling goes through {@code syncConfigs}.
+    *
+    * <p>{@code @JsonIgnore}, not merely {@code transient}: Jackson binds through the setter and ignores
+    * the field's transient marker unless {@code MapperFeature.PROPAGATE_TRANSIENT_MARKER} is on, which it
+    * is not here — so without the annotation a raw request body could set this and silently carry a
+    * filter onto a rebind that asked for none.
     */
+   @JsonIgnore
    public boolean isKeepCondition() {
       return keepCondition;
    }
 
+   @JsonIgnore
    public void setKeepCondition(boolean keepCondition) {
       this.keepCondition = keepCondition;
    }
