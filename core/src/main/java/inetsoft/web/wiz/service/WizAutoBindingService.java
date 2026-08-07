@@ -125,6 +125,30 @@ public class WizAutoBindingService {
          ? request.getFieldConfigs() : Collections.emptyList();
       String worksheetId = request.getWorksheetId();
 
+      // A caller that names a chart but sends no field list means "re-bind THAT chart", so take the
+      // chart's own binding as the list rather than falling through to "every visible column".
+      //
+      // The recommender-reslot path needs exactly this: switching to a non-Cartesian type re-binds
+      // through here to get the fields re-slotted, but it carries no fieldConfigs of its own, so the
+      // rebind was against the whole worksheet table — every column of it, not merely the wrong chart's.
+      // The named chart is the only statement of which fields were meant.
+      //
+      // Also reached by a continuation turn whose hints produced no fields (autoBinding's syncConfigs
+      // caller names the chart being refined): deriving from that chart is what it meant too.
+      //
+      // Same reverse map and the same limitation as changeType's rebuild — a binding whose aggregation
+      // was pushed to the worksheet reads back in its pushed form (formula NONE, date level cleared).
+      VSAssembly namedAssembly = fieldConfigs.isEmpty() && !Tool.isEmptyString(request.getAssemblyName())
+         ? wizVsService.findWizTargetAssembly(request.getWizRuntimeId(),
+                                              request.getViewsheetIdentifier(),
+                                              request.getAssemblyName(), user)
+         : null;
+      // The named chart's own worksheet table, unless the caller named one: a conversation's worksheet
+      // accumulates a table per rebuild generation, and its columns must be read from the table that
+      // chart is actually bound to.
+      String wsTableName = !Tool.isEmptyString(request.getWsTableName())
+         ? request.getWsTableName() : sourceTableName(namedAssembly);
+
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
       boolean createdAutoBindingRvs = false;
@@ -169,7 +193,6 @@ public class WizAutoBindingService {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);
 
                if(sheet instanceof Worksheet ws) {
-                  String wsTableName = request.getWsTableName();
                   WSAssembly primary = null;
 
                   if(Tool.isEmptyString(wsTableName)) {
@@ -208,6 +231,10 @@ public class WizAutoBindingService {
             catch(Exception e) {
                LOG.warn("Failed to load worksheet '{}': {}", worksheetId, e.getMessage());
             }
+         }
+
+         if(namedAssembly != null) {
+            fieldConfigs = derivedFieldConfigsWithin(namedAssembly, worksheetColumns);
          }
 
          Map<String, SimpleFieldInfo> configMap = fieldConfigs.stream()
@@ -673,6 +700,46 @@ public class WizAutoBindingService {
       }
 
       return configs;
+   }
+
+   /**
+    * {@link #deriveFieldConfigs} for the case where the list is INFERRED rather than supplied: empty
+    * unless every derived column is present in {@code worksheetColumns}.
+    *
+    * <p>All-or-nothing because an authoritative field list is enforced strictly — {@code
+    * selectBindColumns} throws on a column the worksheet does not have, which is right for a caller that
+    * NAMED its fields and wrong for a list we inferred on its behalf. A chart bound to a worksheet table
+    * that has since been replaced by a later rebuild generation would turn a type change into a 400.
+    *
+    * <p>And all-or-nothing rather than dropping the missing ones: half a binding is not the chart the
+    * caller meant either (a chart of one dimension and no measure, say), so falling back to the previous
+    * behavior — every visible column, re-slotted by the recommender — is the more predictable failure.
+    */
+   List<SimpleFieldInfo> derivedFieldConfigsWithin(VSAssembly target,
+                                                   List<ColumnRef> worksheetColumns)
+   {
+      List<SimpleFieldInfo> derived = deriveFieldConfigs(target);
+
+      if(derived.isEmpty()) {
+         return derived;
+      }
+
+      Set<String> available = worksheetColumns.stream()
+         .map(ColumnRef::getDisplayName)
+         .collect(Collectors.toSet());
+      List<String> missing = derived.stream()
+         .map(SimpleFieldInfo::getField)
+         .filter(f -> f != null && !available.contains(f))
+         .sorted()
+         .collect(Collectors.toList());
+
+      if(!missing.isEmpty()) {
+         LOG.warn("Not deriving a field list from '{}': column(s) {} are not in the worksheet table. " +
+                  "Binding every visible column instead.", target.getName(), missing);
+         return Collections.emptyList();
+      }
+
+      return derived;
    }
 
    /**

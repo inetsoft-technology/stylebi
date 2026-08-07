@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
@@ -53,6 +54,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -914,6 +916,55 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
          assertNull(WizAutoBindingService.sourceTableName(target));
          assertNull(WizAutoBindingService.sourceTableName(null));
          assertNull(WizAutoBindingService.sourceTableName(mock(TableVSAssembly.class)));
+      }
+
+      private static ColumnRef wsColumn(String name) {
+         ColumnRef col = mock(ColumnRef.class);
+         when(col.getDisplayName()).thenReturn(name);
+         return col;
+      }
+
+      private ChartVSAssembly targetBoundTo(String... fields) {
+         List<DimensionFieldInfo> dimensions = new ArrayList<>();
+
+         for(String field : fields) {
+            DimensionFieldInfo dim = new DimensionFieldInfo();
+            dim.setField(field);
+            dimensions.add(dim);
+         }
+
+         ChartVSAssembly target = mock(ChartVSAssembly.class);
+         when(target.getName()).thenReturn("Chart1");
+         when(wizVsService.collectFlatBinding(target)).thenReturn(
+            new CreateViewsheetResult.FlatBinding(dimensions, List.of(), Map.of()));
+         return target;
+      }
+
+      /**
+       * An INFERRED list is only used when the worksheet table actually has every column. `fieldConfigs`
+       * is enforced strictly — selectBindColumns throws on a column the table does not have, which is
+       * right for a caller that named its fields and wrong for a list inferred on its behalf.
+       */
+      @Test
+      void derivesOnlyWhenEveryColumnIsInTheTable() {
+         ChartVSAssembly target = targetBoundTo("MONTH", "REGION");
+
+         assertEquals(2, service.derivedFieldConfigsWithin(
+            target, List.of(wsColumn("MONTH"), wsColumn("REGION"), wsColumn("amount"))).size());
+      }
+
+      /**
+       * All-or-nothing rather than dropping the missing ones: half a binding is not the chart the caller
+       * meant either, so it falls back to the pre-existing behavior (every visible column, re-slotted).
+       * Reachable when the chart's table was replaced by a later rebuild generation.
+       */
+      @Test
+      void derivesNothingWhenAColumnIsMissing() {
+         ChartVSAssembly target = targetBoundTo("MONTH", "REGION");
+
+         assertEquals(List.of(),
+                      service.derivedFieldConfigsWithin(target, List.of(wsColumn("MONTH"))));
+         assertEquals(List.of(), service.derivedFieldConfigsWithin(target, List.of()));
       }
    }
 }
