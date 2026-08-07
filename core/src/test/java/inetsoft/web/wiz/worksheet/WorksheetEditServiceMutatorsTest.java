@@ -1449,7 +1449,31 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
-   void changeColumnTypeRejectsAggregateMeasureOnEmbeddedTable() throws Exception {
+   void changeColumnTypeRejectsExpressionAggregateMeasureOnEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addExpressionColumn("T", "e", "field['a']", "double", false);
+         ed.setGroupAggregate("T", List.of(), List.of(
+            new WorksheetMutationSupport.AggregateSpec("e", "SUM", null)));
+      });
+
+      // Mirrors the UI's isExpressionAggregate exclusion: "e" would otherwise be
+      // allowed via cr.isExpression() (EmbeddedTableAssembly is also unconditionally
+      // allowed), but its exposed type is computed from the SUM formula when the
+      // query runs, not read back off this override, so it must be rejected.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "e", "integer")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("cannot be changed"));
+   }
+
+   @Test
+   void changeColumnTypeAllowsNonExpressionAggregateMeasureOnEmbeddedTable() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
       ws.addAssembly(t);
@@ -1459,14 +1483,14 @@ class WorksheetEditServiceMutatorsTest {
       svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
          List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
 
-      // Without this guard the request would otherwise succeed (EmbeddedTableAssembly
-      // is unconditionally allowed above), but "b"'s exposed type is computed from the
-      // SUM formula when the query runs, not read back off this override, so it must
-      // be rejected the same way a physical-table column is.
-      PairingException ex = assertThrows(PairingException.class,
-         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "b", "integer")));
+      // "b" is a raw (non-expression) aggregate measure. The UI's isExpressionAggregate
+      // check only excludes EXPRESSION-typed aggregates, so this must stay allowed here
+      // too — the backend guard should not be more restrictive than the UI.
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "b", "integer"));
 
-      assertTrue(ex.getMessage().toLowerCase().contains("cannot be changed"));
+      DataRef ref = t.getColumnSelection(false).getAttribute("b");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals("integer", ((ColumnRef) ref).getDataType());
    }
 
    @Test

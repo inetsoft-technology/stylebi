@@ -1049,13 +1049,13 @@ public class WorksheetEditService {
          boolean isRangeRef = cr.getDataRef() instanceof NumericRangeRef ||
             cr.getDataRef() instanceof DateRangeRef;
 
-         // An aggregate measure's exposed type is computed from the formula + input
-         // type when the query runs, not read back off this ref's dataType, so an
-         // override here is discarded the same way regardless of table type.
-         boolean isAggregateMeasure = t.isAggregate() && t.getAggregateInfo() != null &&
-            t.getAggregateInfo().getAggregate(cr) != null;
+         // Mirrors the UI's isExpressionAggregate exclusion: an expression column
+         // that is also one of the table's aggregate measures is still rejected even
+         // though cr.isExpression() would otherwise allow it.
+         boolean isExpressionAggregate = cr.isExpression() && t.isAggregate() &&
+            t.getAggregateInfo() != null && t.getAggregateInfo().getAggregate(cr) != null;
 
-         boolean supportsTypeChange = !isRangeRef && !isAggregateMeasure && (cr.isExpression() ||
+         boolean supportsTypeChange = !isRangeRef && !isExpressionAggregate && (cr.isExpression() ||
             t instanceof EmbeddedTableAssembly || t instanceof TabularTableAssembly ||
             t instanceof SQLBoundTableAssembly || t instanceof UnpivotTableAssembly);
 
