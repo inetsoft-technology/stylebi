@@ -1411,4 +1411,105 @@ class WorksheetEditServiceMutatorsTest {
                 "fix must recurse into the nested subquery's own selection and clear the mangled " +
                 "alias there, not just on the outer sql.getSelection()");
    }
+
+   // =========================================================================
+   // Column type tests
+   // =========================================================================
+
+   @Test
+   void changeColumnTypeRejectsPhysicalBoundTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("cannot be changed"));
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertNotEquals("integer", ((ColumnRef) ref).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeAllowsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer"));
+
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals("integer", ((ColumnRef) ref).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeRejectsExpressionAggregateMeasureOnEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addExpressionColumn("T", "e", "field['a']", "double", false);
+         ed.setGroupAggregate("T", List.of(), List.of(
+            new WorksheetMutationSupport.AggregateSpec("e", "SUM", null)));
+      });
+
+      // Mirrors the UI's isExpressionAggregate exclusion: "e" would otherwise be
+      // allowed via cr.isExpression() (EmbeddedTableAssembly is also unconditionally
+      // allowed), but its exposed type is computed from the SUM formula when the
+      // query runs, not read back off this override, so it must be rejected.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "e", "integer")));
+
+      assertTrue(ex.getMessage().toLowerCase().contains("cannot be changed"));
+   }
+
+   @Test
+   void changeColumnTypeAllowsNonExpressionAggregateMeasureOnEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
+
+      // "b" is a raw (non-expression) aggregate measure. The UI's isExpressionAggregate
+      // check only excludes EXPRESSION-typed aggregates, so this must stay allowed here
+      // too — the backend guard should not be more restrictive than the UI.
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "b", "integer"));
+
+      DataRef ref = t.getColumnSelection(false).getAttribute("b");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals("integer", ((ColumnRef) ref).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeAllowsGroupColumnOnAggregatedEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
+
+      // The group-by column passes its value through unchanged (unlike an aggregate
+      // output), so its type change should still be allowed even on an aggregated table.
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "a", "integer"));
+
+      DataRef ref = t.getColumnSelection(false).getAttribute("a");
+      assertInstanceOf(ColumnRef.class, ref);
+      assertEquals("integer", ((ColumnRef) ref).getDataType());
+   }
 }
