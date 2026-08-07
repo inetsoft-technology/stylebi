@@ -253,7 +253,13 @@ public class ExcelTableHelper extends VSTableHelper {
          (int) Math.round((double) info.getPixelSize().width / AssetUtil.defw));
 
       if(exporter.isMatchLayout()) {
-         rec.y = PoiExcelVSUtil.floorY(info.getPixelOffset().y) + titleH;
+         // Only round the anchor down to the grid line when the title is hidden
+         // (bug #75894) — the rounding slop is otherwise absorbed by the title
+         // bar, and rounding down here would shift a visible title's header row
+         // up into the title, same tradeoff documented for alignBottomTabsTables()
+         // in PoiExcelVSExporter.java.
+         rec.y = (info.isTitleVisible() ? PoiExcelVSUtil.ceilY(info.getPixelOffset().y) :
+            PoiExcelVSUtil.floorY(info.getPixelOffset().y)) + titleH;
       }
 
       return rec;
