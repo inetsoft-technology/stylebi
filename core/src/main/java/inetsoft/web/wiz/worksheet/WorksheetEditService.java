@@ -1455,9 +1455,19 @@ public class WorksheetEditService {
 
          for(int i = 0; i < cs.getAttributeCount(); i++) {
             DataRef ref = cs.getAttribute(i);
-            String name = ref instanceof ColumnRef cr && cr.getAlias() != null
-                          && !cr.getAlias().isEmpty()
-                          ? cr.getAlias() : ref.getName();
+            String name;
+
+            // Match on the bare attribute name (what the caller and the UI both use),
+            // not DataRef.getName(), which is entity-qualified (e.g. "All Sales.Company")
+            // for columns whose entity is non-blank, such as unpivot header columns.
+            if(ref instanceof ColumnRef cr) {
+               name = cr.getAlias() != null && !cr.getAlias().isEmpty()
+                      ? cr.getAlias() : cr.getAttribute();
+            }
+            else {
+               name = ref.getName();
+            }
+
             byName.put(name, ref);
          }
 
