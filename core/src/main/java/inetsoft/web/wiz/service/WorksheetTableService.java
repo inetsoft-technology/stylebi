@@ -1469,6 +1469,25 @@ public class WorksheetTableService {
             // built date-grouped column (DateRangeRef carries none), or a group key with no upstream
             // annotation. Aggregate MEASURES are handled separately below and DO take the model's
             // description, since aggregation genuinely changes the column's meaning.
+            // Output-column alias, mirroring the aggregate branch below (which sets it on the PRIVATE
+            // ColumnRef, because the public selection is regenerated as clones of privateCs). Resolved
+            // to the same private target the description uses just below: the DateRangeRef column for a
+            // date-grouped field, otherwise the private column of the same name.
+            //
+            // Without this a dateGroupLevel group's output name is DateRangeRef's RENDERED expression
+            // ("Month(T.due_date)"), which is not a SQL alias — so it could not be referenced from a
+            // downstream sql:true expression under any form, and the canonical
+            // COALESCE(left_key, right_key) over a FULL join was unexpressible in pushed-down SQL.
+            if(!Tool.isEmptyString(grp.getAlias())) {
+               ColumnRef aliasTarget = grp.getDateGroupLevel() != null
+                  ? column
+                  : (privateCs.getAttribute(grp.getFieldName()) instanceof ColumnRef pc ? pc : null);
+
+               if(aliasTarget != null) {
+                  aliasTarget.setAlias(grp.getAlias());
+               }
+            }
+
             if(!Tool.isEmptyString(grp.getDescription())) {
                // Best-effort: unlike the aggregate branch below (which falls back to the public
                // `column` when privateCs lookup misses), a plain group whose fieldName does not

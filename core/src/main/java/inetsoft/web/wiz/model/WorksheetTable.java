@@ -332,6 +332,15 @@ public class WorksheetTable {
    public static class GroupByFieldInfo {
       private String fieldName;
       private String dateGroupLevel;
+      /**
+       * Output-column name for this group, mirroring AggregateFieldInfo.alias.
+       *
+       * Matters most for a dateGroupLevel group: without an alias its output name is the RENDERED
+       * expression DateRangeRef produces ("Month(T.due_date)"), which is not a SQL alias and therefore
+       * cannot be referenced from a downstream sql:true expression column at all — the canonical
+       * COALESCE(left_key, right_key) over a FULL join had no way to name its own join keys.
+       */
+      private String alias;
       /** Business meaning of the group-by output column (english); persisted onto the output column. */
       private String description;
 
@@ -339,6 +348,8 @@ public class WorksheetTable {
       public void setFieldName(String fieldName) { this.fieldName = fieldName; }
       public String getDateGroupLevel() { return dateGroupLevel; }
       public void setDateGroupLevel(String dateGroupLevel) { this.dateGroupLevel = dateGroupLevel; }
+      public String getAlias() { return alias; }
+      public void setAlias(String alias) { this.alias = alias; }
       public String getDescription() { return description; }
       public void setDescription(String description) { this.description = description; }
    }
