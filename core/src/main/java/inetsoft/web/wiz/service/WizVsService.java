@@ -2909,7 +2909,7 @@ public class WizVsService {
       // Chart dims are VSChartDimensionRef, whose groupColumnValue is non-empty, so
       // this branch is crosstab-only and leaves chart slot names unaffected.
       if((name == null || name.isEmpty()) && ref instanceof VSDimensionRef dim) {
-         return WizFieldInfoFactory.crosstabDimFullName(dim);
+         return WizFieldInfoFactory.dimFullName(dim);
       }
 
       return name;
@@ -4166,6 +4166,24 @@ public class WizVsService {
          ref.setManualOrderList(new java.util.ArrayList<>(dim.getManualOrder()));
       }
 
+      // The declared type, for EVERY explicit dimension — not only the numeric-bin one that used to be
+      // its sole setter (further down, where it was needed to make applyNumericBin work).
+      //
+      // Leaving it unset does not break the DATA: setDateLevelValue below drives the grouping, so a
+      // Year-grouped chart renders correctly. It breaks everything that later asks what this dimension
+      // IS. VSDimensionRef.isDateTime() reads getDataType(), so an unset type made a genuine date
+      // dimension look non-date, and the binding ECHO built from it lost both halves of its identity:
+      // `dateGroupLevel` came back null (applyDateGroup's date guard failed) and `fullName` came back
+      // "due_date" instead of "Year(due_date)" (getFullName() never reached its date-qualifying branch).
+      //
+      // Downstream that reads as a different chart: a sunburst over TWO years reported
+      // `single_value: "due_date has a single value ()"`, because the facts builder could not match the
+      // echoed "due_date" to the actual "Year(due_date)" column. The plugin now tolerates the bad echo
+      // (stylebi-wiz #1497), but the echo was the thing that was wrong.
+      if(base.getType() != null && !base.getType().isEmpty()) {
+         ref.setDataType(base.getType());
+      }
+
       if(dim != null && dim.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(dim.getDateGroupLevel())));
          ref.setTimeSeries(dim.isTimeSeries());
@@ -4185,10 +4203,7 @@ public class WizVsService {
       }
 
       if(dim != null && dim.isNumericBin()) {
-         if(base.getType() != null && !base.getType().isEmpty()) {
-            ref.setDataType(base.getType());
-         }
-
+         // dataType is set unconditionally above; applyNumericBin still depends on it being present.
          WizardRecommenderUtil.applyNumericBin(ref);
       }
 
