@@ -1998,11 +1998,32 @@ public class WizAutoBindingService {
 
    /**
     * Flattens the recommendation list into a feasibility-filtered, named chart-type menu (highest
-    * fit first). Chart candidates and their scores come from each {@link VSChartRecommendation}'s
-    * prefInfos; table/crosstab/gauge/text appear once each when feasible. Scores are normalized to
+    * fit first). table/crosstab/gauge/text appear once each when feasible. Scores are normalized to
     * [0,1] for ordering only. Every entry is a type the recommender found feasible for the fields.
+    *
+    * <p>MEMBERSHIP comes from {@code chartInfos}, ORDER from {@code prefInfos}. The two lists mean
+    * different things (see {@link ChartCombinationUtil.ChartInfosResult}): {@code chartInfos} is the
+    * full feasible set, always populated and already sorted by base data-score; {@code prefInfos} is
+    * the preference-adjusted ranking, and is **null whenever no pin was supplied**.
+    *
+    * <p>Reading only prefInfos — as this did — got both cases wrong, and in the same direction: it
+    * presented a NARROWER menu as though it were the feasible one.
+    * <ul>
+    *   <li><b>No pins</b> (the common case): prefInfos is null, so the menu contained NO chart types
+    *       at all — a plain month/Count line chart offered only "crosstab, table" while rendering
+    *       perfectly as a line.</li>
+    *   <li><b>With pins</b>: only pin-satisfying types survived, so pinning x/y on a one-date +
+    *       one-measure chart dropped bar, column and line out of the menu entirely and left
+    *       waterfall as the top suggestion — a cumulative-build-up chart for independent per-quarter
+    *       totals. Pinning an axis says where a field goes, NOT that the ordinary Cartesian types
+    *       stopped being possible.</li>
+    * </ul>
+    *
+    * <p>So every feasible type is listed, and a pin re-ranks rather than removes. Types known only
+    * from chartInfos carry no preference score and take 0, which sorts them after the preferred ones
+    * while a stable sort preserves the recommender's own base-score order among them.
     */
-   private List<ChartTypeCandidate> buildChartTypeCandidates(List<VSObjectRecommendation> recommendations) {
+   static List<ChartTypeCandidate> buildChartTypeCandidates(List<VSObjectRecommendation> recommendations) {
       if(recommendations == null || recommendations.isEmpty()) {
          return Collections.emptyList();
       }
@@ -2020,6 +2041,19 @@ public class WizAutoBindingService {
 
                   if(type != null) {
                      best.merge(type, si.getScore(), Math::max);
+                  }
+               }
+            }
+
+            // Then every remaining feasible type, in the recommender's own base-score order.
+            List<ChartInfo> chartInfos = vcr.getChartInfos();
+
+            if(chartInfos != null) {
+               for(ChartInfo ci : chartInfos) {
+                  String type = getChartTypeString(ci.getChartType());
+
+                  if(type != null) {
+                     best.putIfAbsent(type, 0);
                   }
                }
             }
