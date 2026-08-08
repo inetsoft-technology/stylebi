@@ -165,8 +165,12 @@ class WizPrintLayoutBuilderTest {
 
       PrintLayout layout = builder.build(vs, "letter", "Board", null, charts);
 
-      // letter stride = (11 - 0.55 - 0.55) * 72
-      int stride = (int) Math.round((11.0 - 0.55 - 0.55) * 72);
+      // Letter stride = (11 - 0.55 - 0.55) * 72, TRUNCATED — the same arithmetic as
+      // VsToReportConverter.getPageContentSize(), which is what the converter paginates against.
+      // Rounding up to 713 instead put each page's content one point past the converter's own page
+      // boundary, so getPageNumber() read it as belonging to the next page.
+      int stride = (int) ((11.0 - 0.55 - 0.55) * 72.0);
+      assertEquals(712, stride, "guards the truncation, not just the expression");
       assertEquals(stride, topOf(layout, "wizExportCaption_1"),
          "with short content the second chart still starts exactly one page down");
    }
@@ -272,9 +276,10 @@ class WizPrintLayoutBuilderTest {
          .filter(l -> !(l instanceof VSEditableAssemblyLayout))
          .filter(l -> l.getName().equals("Chart1"))
          .findFirst().orElseThrow();
-      // 576x400 = PAGE_CONTENT_WIDTH_PT x CHART_HEIGHT_PT (private constants; hardcoded here since
+      // width = A4's printable content width (paper minus left/right margins, the width the
+      // converter paints into); height = CHART_HEIGHT_PT (a private constant, hardcoded here since
       // this test lives in the same package but not the same class, so private members aren't visible).
-      assertEquals(new Dimension(576, 400), chartLayout.getSize(),
+      assertEquals(new Dimension(printableContentWidthPt(layout), 400), chartLayout.getSize(),
          "chart box is not resized when insights are present");
 
       List<VSEditableAssemblyLayout> texts = all.stream()
@@ -382,5 +387,82 @@ class WizPrintLayoutBuilderTest {
          .filter(l -> l instanceof VSEditableAssemblyLayout).count();
       // null recap -> report header is title + date only (no summary box), + caption = 3
       assertEquals(3, editableTextBlocks, "the 3-arg compatibility constructor omits insights");
+   }
+
+   /**
+    * LIVE BUG. An exported board's insights prose was cut off mid-sentence at the bottom of a page —
+    * the tail of the paragraph simply never appeared, and the next page began with the next chart.
+    *
+    * The block is a markdown box whose height the builder reserves from
+    * MarkdownPresenter.getPreferredSize(md, width). It passed a hardcoded 8in (576pt) as that width,
+    * but the box is PAINTED at the page's real printable width — VsToReportConverter's
+    * getPageContentSize() is (paper - left - right) * 72, i.e. 544pt on Letter and 527pt on A4 at
+    * this layout's margins. Narrower paint width means MORE wrapped lines than were measured, and
+    * PainterElementDef.getPainterPreferredSize() returns the element's EXPLICIT size when one is
+    * set, so isEnd() stops the painter dead at the reserved height: every line past it is dropped,
+    * silently. ~6% under-measurement is one or two lines on a full-page block — exactly the observed
+    * "cut off at the bottom of page three".
+    *
+    * The measure width must equal the paint width, for both page sizes.
+    */
+   @Test
+   void insightsBoxReservesTheHeightItsTextNeedsAtThePageWidthItIsPaintedAt() {
+      String insights = """
+         **The warning on the counted view did not survive contact with the data — weighting by \
+         effort barely changes anything.**
+
+         The expectation going in was that a count would mislead, because it treats a 160-hour Epic \
+         and a 2-hour Bug alike. It doesn't here. Re-weighting by hours leaves the ranking identical \
+         and each tier's share of the whole within about a point of where it was, and the spread even \
+         narrows slightly. Whatever you concluded from the counted chart still stands.
+
+         **The reason is the more useful finding: priority and size are close to independent.** \
+         Urgent items are only slightly larger on average than low-priority ones — a gradient exists, \
+         but a weak one. That matters because effort on this dataset scales *strongly* with \
+         work-package type, Epics running an order of magnitude above Bugs.
+
+         **So what:** priority is safe to analyse by row count, which is the cheaper and more robust \
+         cut — you are not hiding an effort story behind it. The corollary is the caution: do not use \
+         priority to forecast capacity.
+
+         **Better cuts:** priority against type, to confirm directly that the two are independent \
+         rather than inferring it from the flatness here; or priority against status, which asks the \
+         question this chart cannot — whether urgent work is actually being cleared or just piling up.
+         """;
+
+      for(String pageSize : List.of("letter", "a4")) {
+         Viewsheet vs = new Viewsheet();
+         textAssembly(vs, "Chart1", 0);
+         PrintLayout layout = builder.build(vs, pageSize, "Project maturity", null,
+            List.of(new WizPrintLayoutBuilder.ChartCaption("Priority vs effort", null, 0, insights)));
+
+         VSEditableAssemblyLayout box = layout.getVSAssemblyLayouts().stream()
+            .filter(l -> l instanceof VSEditableAssemblyLayout)
+            .map(l -> (VSEditableAssemblyLayout) l)
+            .filter(t -> t.getName().startsWith("wizMarkdownInsights"))
+            .findFirst().orElseThrow();
+
+         int paintWidth = printableContentWidthPt(layout);
+
+         assertEquals(paintWidth, box.getSize().width, pageSize +
+            ": the markdown box must be as wide as the page's printable area, since that is the " +
+            "width VsToReportConverter paints it at");
+
+         MarkdownPresenter presenter = new MarkdownPresenter();
+         presenter.setFont(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11));
+         int needed = presenter.getPreferredSize(insights, paintWidth).height;
+
+         assertTrue(box.getSize().height >= needed, pageSize +
+            ": reserved " + box.getSize().height + "pt for a block that needs " + needed +
+            "pt when wrapped at the " + paintWidth + "pt paint width — the overflow is clipped, " +
+            "not flowed, so the tail of the prose is lost");
+      }
+   }
+
+   /** VsToReportConverter.getPageContentSize().width, recomputed from the layout's own print info. */
+   private static int printableContentWidthPt(PrintLayout layout) {
+      inetsoft.uql.viewsheet.vslayout.PrintInfo info = layout.getPrintInfo();
+      inetsoft.report.Margin margin = info.getMargin();
+      return (int) ((info.getSize().getWidth() - margin.left - margin.right) * 72.0);
    }
 }
