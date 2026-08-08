@@ -2456,7 +2456,9 @@ public class WizVsService {
             Map<String, Object> row = new LinkedHashMap<>(colCount);
 
             for(int c = 0; c < colCount; c++) {
-               row.put(headers.get(c), dset.getData(c, r));
+               // Not the raw cell: a date-comparison DataSet yields DCMergeDatesCell, whose getFormat()
+               // drags the entire locale timezone table into the response (see WizUtil.toResponseCell).
+               row.put(headers.get(c), WizUtil.toResponseCell(dset.getData(c, r)));
             }
 
             rows.add(row);
