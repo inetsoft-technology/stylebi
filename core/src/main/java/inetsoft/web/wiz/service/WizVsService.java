@@ -2107,7 +2107,11 @@ public class WizVsService {
       var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
 
       if(bws != null) {
-         bws.getWorksheetInfo().setDesignMaxRows(Math.max(sampleMaxRows, 0));
+         // #75989: per-assembly rather than worksheet-wide. A worksheet-wide cap also truncated the
+         // few-row lookup wiz injects to label an FK, destroying the INNER join's matches — a cap of 8
+         // returned 0 rows from a 984-row table. applySampledPreviewCap also clears a previous render's
+         // cap when sampleMaxRows <= 0, which is what the full-data path relies on.
+         WizUtil.applySampledPreviewCap(bws, sampleMaxRows);
 
          try {
             box.resetDataMap(assembly.getName());
@@ -2157,7 +2161,9 @@ public class WizVsService {
       // #75456: preserve the current data-mode on this lazy re-fetch path — pass the design-max
       // already set on the source worksheet (no-op for full; keeps sampled mode sampled).
       var fetchWs = vs.getBaseWorksheet();
-      int curMax = fetchWs != null ? fetchWs.getWorksheetInfo().getDesignMaxRows() : 0;
+      // #75989: read the cap back from the assemblies, not designMaxRows — the cap is applied per
+      // assembly now, so reading designMaxRows here would silently promote a sampled render to full data.
+      int curMax = WizUtil.sampledPreviewCap(fetchWs);
       CreateViewsheetResult result = executeAndExtract(rvs, assembly, curMax);
 
       if(result != null) {
@@ -2445,7 +2451,9 @@ public class WizVsService {
          // worksheet design-max to 0 (unlimited) -> no flag. Best-effort; absence just means no warning.
          try {
             var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
-            int dmax = bws != null ? bws.getWorksheetInfo().getDesignMaxRows() : 0;
+            // #75989: same reason — designMaxRows is no longer where the cap lives, and reading it
+            // here reported a sampled 8-of-984-row chart as full data with no approximate-totals warning.
+            int dmax = WizUtil.sampledPreviewCap(bws);
 
             if(dmax > 0) {
                result.setSampled(true);
