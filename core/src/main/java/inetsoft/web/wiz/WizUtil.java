@@ -19,6 +19,8 @@
 package inetsoft.web.wiz;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.graph.internal.LabelValue;
+import inetsoft.report.filter.DCMergeCell;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
@@ -236,6 +238,53 @@ public class WizUtil {
       }
 
       return cap;
+   }
+
+   /**
+    * Reduce one chart-data cell to something worth putting on the wire.
+    *
+    * <p>A DataSet cell is not always a scalar. A date comparison over CUSTOM ranges yields
+    * {@link inetsoft.report.filter.DCMergeDatesCell} — a domain object carrying the merged dates, the
+    * original value, and its {@link java.text.Format}. Handed to Jackson it is walked getter by getter,
+    * and {@code getFormat()} drags in a {@code SimpleDateFormat} -> {@code DateFormatSymbols} ->
+    * {@code zoneStrings}: the whole Java locale timezone table, <b>597 zones, ~67KB, per cell</b>.
+    *
+    * <p>Measured on a 14-row year-over-year comparison (openproject B6): each cell serialized to
+    * ~69KB, of which 97% was zoneStrings; the 14 cells appeared twice (the rows array and the facts
+    * table computed from it) for <b>~1.9M characters, 99.8% of the response</b>, to convey fourteen
+    * short labels. It exceeded the caller's token limit outright, so the tool result could not be read.
+    *
+    * <p>{@link LabelValue#getText()} is what the chart actually draws for such a cell, and — because a
+    * comparison plots every series against one shared axis — it is period-independent, which is what
+    * lets a consumer pair the same grain point across periods. So it is the string emitted here, and it
+    * matches what the plugin's own defensive scalarizer picks (stylebi-wiz #1495), leaving the figures
+    * derived downstream unchanged. Note this is deliberately NOT {@code toString()}: on the outer cell
+    * that joins EVERY merged date with "&" ("2025 Jun&2026 Jun") rather than naming the point.
+    *
+    * <p>Scalars pass through untouched, so the ordinary path is unaffected.
+    */
+   public static Object toResponseCell(Object value) {
+      if(value == null || value instanceof Number || value instanceof String ||
+         value instanceof Boolean || value instanceof java.util.Date)
+      {
+         return value;
+      }
+
+      if(value instanceof LabelValue label) {
+         String text = label.getText();
+
+         if(text != null && !text.isEmpty()) {
+            return text;
+         }
+      }
+
+      // Any other non-scalar (a merge cell without a usable label, a custom value object) still must
+      // not reach Jackson as an object graph.
+      if(value instanceof DCMergeCell || !(value instanceof Comparable)) {
+         return value.toString();
+      }
+
+      return value;
    }
 
    public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";
