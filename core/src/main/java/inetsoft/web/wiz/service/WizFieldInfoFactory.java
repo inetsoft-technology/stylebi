@@ -35,7 +35,13 @@ final class WizFieldInfoFactory {
 
    static DimensionFieldInfo createDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
-      info.setFullName(dim.getFullName());
+      info.setType(dim.getDataType());
+      // Same derivation as the crosstab echo, and for the same reason: a ref built from an EXPLICIT
+      // binding carries no backing ColumnRef, so getFullName() never reaches its date-qualifying branch
+      // and returns the bare group column. A Year-grouped chart dimension then echoed as "due_date"
+      // while its data column was "Year(due_date)" — and a consumer that matches the two by name (the
+      // facts builder) found nothing, so a sunburst over TWO years reported "single value".
+      info.setFullName(dimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
       return info;
@@ -44,7 +50,7 @@ final class WizFieldInfoFactory {
    static DimensionFieldInfo createCrosstabDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setType(dim.getDataType());
-      info.setFullName(crosstabDimFullName(dim));
+      info.setFullName(dimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
       info.setSummarize(dim.isSubTotalVisible());
@@ -52,7 +58,9 @@ final class WizFieldInfoFactory {
    }
 
    /**
-    * A crosstab design ref built from an explicit binding has no backing ColumnRef, so getVSName()
+    * Shared by the crosstab AND chart echoes — both build refs from explicit bindings and hit this.
+    *
+    * A design ref built from an explicit binding has no backing ColumnRef, so getVSName()
     * is empty and getFullName() short-circuits to "" before the date-qualifying branch. Derive the
     * name directly from the group column: a level-qualified name (e.g. "DayOfWeek(date_start)") for a
     * DATE-typed dimension that carries a real date level, else the plain column name.
@@ -62,7 +70,7 @@ final class WizFieldInfoFactory {
     * that pollutes the downstream facts pack. We only date-qualify genuine date dimensions, and always
     * fall back to the group column (never an empty string) for everything else.
     */
-   static String crosstabDimFullName(VSDimensionRef dim) {
+   static String dimFullName(VSDimensionRef dim) {
       String fullName = dim.getFullName();
       String groupColumn = dim.getGroupColumnValue();
 
@@ -81,7 +89,8 @@ final class WizFieldInfoFactory {
 
    static DimensionFieldInfo createChartDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
-      info.setFullName(dim.getFullName());
+      info.setType(dim.getDataType());
+      info.setFullName(dimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
       return info;
