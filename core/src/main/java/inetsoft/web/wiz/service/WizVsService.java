@@ -266,6 +266,30 @@ public class WizVsService {
       return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
    }
 
+   /**
+    * Should the condition source's pre-condition be carried onto the freshly-bound assembly?
+    *
+    * <p>{@code keepConditionRequested} is the explicit server-side ask — {@code changeType}'s rebuild
+    * branch, replacing a chart the user already filtered. It stays {@code @JsonIgnore} on
+    * {@link inetsoft.web.wiz.model.AutoBindingRequest} so a raw request body can never force a filter
+    * onto a rebind that asked for none.
+    *
+    * <p>{@code replaceInPlace} is the second, implicit case, and the one this method exists for: a
+    * re-bind that REPLACES the named chart produces the SAME chart — same assembly name, same saved
+    * identifier — just bound differently. A filter is a property of that chart, so dropping it silently
+    * widens the data (observed: a chart filtered to one project came back with the whole portfolio, ~100x
+    * the rows, with no error and no note, and the widening was then persisted to the saved viewsheet).
+    * Note {@code replaceInPlace} already implies {@code !syncMode && existingTarget != null}, so
+    * {@link #resolveConditionSource} returns exactly the chart being replaced — never an unrelated
+    * assembly whose filter the caller never asked for.
+    *
+    * <p>A COPY is deliberately excluded (it is not the same chart — it keeps the original as history), as
+    * is sync mode, where {@code syncConfigs} carries the condition instead.
+    */
+   static boolean carryCondition(boolean keepConditionRequested, boolean replaceInPlace) {
+      return keepConditionRequested || replaceInPlace;
+   }
+
    @FunctionalInterface
    public interface PostAssemblyHook {
       void apply(RuntimeViewsheet rvs, VSAssembly assembly) throws Exception;
@@ -1585,11 +1609,12 @@ public class WizVsService {
             }
 
             // Sync pre-condition from the chart being switched away from to the new one when the caller
-            // is performing a visualization type change (e.g. table → chart).
+            // is performing a visualization type change (e.g. table → chart), or whenever the re-bind
+            // REPLACES the named chart in place (see carryCondition).
             VSAssembly displacedForCondition = resolveConditionSource(
                syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
 
-            if(model.isKeepCondition() &&
+            if(carryCondition(model.isKeepCondition(), replaceInPlace) &&
                displacedForCondition instanceof DataVSAssembly oldDataAsm &&
                assembly instanceof DataVSAssembly newDataAsm)
             {

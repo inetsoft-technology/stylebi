@@ -51,6 +51,18 @@ public class OpenViewsheetResult {
       this.binding = binding;
    }
 
+   /**
+    * True when the reopened chart carries a row-restricting pre-condition (a filter); null when no
+    * chart assembly could be resolved, so "unknown" stays distinguishable from "none".
+    */
+   public Boolean getHasCondition() {
+      return hasCondition;
+   }
+
+   public void setHasCondition(Boolean hasCondition) {
+      this.hasCondition = hasCondition;
+   }
+
    public String getWorksheetIdentifier() {
       return worksheetIdentifier;
    }
@@ -62,6 +74,10 @@ public class OpenViewsheetResult {
    private String runtimeId;
    private String assemblyName;
    private CreateViewsheetResult.FlatBinding binding;
+   // Whether the reopened chart carries a row-restricting pre-condition. Boxed so NON_NULL omits it
+   // when no chart assembly was resolved (absent = unknown, false = known to have none) — a caller
+   // must not read "no chart found" as "this chart has no filter".
+   private Boolean hasCondition;
    // The reopened viewsheet's base worksheet identifier, so callers can re-bind in place
    // (update_binding re-runs autoBinding against this worksheet) without rebuilding. See #75486.
    private String worksheetIdentifier;
