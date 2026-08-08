@@ -95,4 +95,34 @@ class WizVsServiceReplaceInPlaceTest {
       assertSame(previousPrimary,
                  WizVsService.resolveConditionSource(true, named, null, previousPrimary));
    }
+
+   /** The explicit server-side ask (changeType's rebuild branch) still carries the condition. */
+   @Test
+   void anExplicitKeepConditionCarriesTheFilter() {
+      assertTrue(WizVsService.carryCondition(true, false));
+   }
+
+   /**
+    * A replace-in-place re-bind produces the SAME chart — same assembly name, same saved identifier —
+    * so its filter must survive even though no caller asked for keepCondition (it is {@code @JsonIgnore},
+    * so update_binding CANNOT ask). Without this, re-binding a filtered chart silently returned the whole
+    * unfiltered dataset and persisted that widening to the saved viewsheet.
+    */
+   @Test
+   void aReplaceInPlaceRebindCarriesTheFilterWithoutBeingAsked() {
+      assertTrue(WizVsService.carryCondition(false, true));
+   }
+
+   /**
+    * A copy is NOT the same chart — it keeps the original as history — so it must not inherit a filter
+    * nobody asked it to have. Sync mode likewise falls through to syncConfigs.
+    */
+   @Test
+   void neitherACopyNorSyncModeInheritsAFilterUnasked() {
+      assertFalse(WizVsService.carryCondition(false, false));
+      assertFalse(WizVsService.carryCondition(
+         false, WizVsService.replaceInPlace(mock(VSAssembly.class), false, true)));
+      assertFalse(WizVsService.carryCondition(
+         false, WizVsService.replaceInPlace(mock(VSAssembly.class), true, false)));
+   }
 }

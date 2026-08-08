@@ -26,7 +26,9 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Catalog;
@@ -117,6 +119,7 @@ public class ViewsheetRuntimeController {
       if(assembly != null) {
          result.setAssemblyName(assembly.getName());
          result.setBinding(wizVsService.collectFlatBinding(assembly));
+         result.setHasCondition(hasPreCondition(assembly));
       }
 
       // #75486: make a reopened saved viz re-bindable in place. Return its base worksheet
@@ -284,6 +287,28 @@ public class ViewsheetRuntimeController {
             log.warn("Failed to close runtime [{}] after verify", runtimeId);
          }
       }
+   }
+
+   /**
+    * Does the reopened chart carry a row-restricting pre-condition (a filter)?
+    *
+    * <p>Reported so a caller reopening a saved chart can tell a FILTERED chart from an unfiltered one.
+    * Without it the plugin's active-chart state defaulted to "no filter" for every reopened chart, and
+    * then advised merging into that empty model and calling apply_filter — which REPLACES the whole
+    * filter, so following the advice silently erased a filter the chart really had.
+    *
+    * <p>A boolean, not the condition itself: reporting the full model back would need a
+    * ConditionList -> VisualizationConditionModel reverse conversion that does not exist. Knowing a
+    * filter is THERE is enough to stop the caller from destroying it unknowingly.
+    */
+   private boolean hasPreCondition(VSAssembly assembly) {
+      if(!(assembly instanceof DataVSAssembly dataAsm)) {
+         return false;
+      }
+
+      ConditionList cond = dataAsm.getPreConditionList();
+
+      return cond != null && !cond.isEmpty();
    }
 
    /**
