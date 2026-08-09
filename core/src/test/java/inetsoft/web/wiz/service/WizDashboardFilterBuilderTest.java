@@ -313,6 +313,48 @@ class WizDashboardFilterBuilderTest {
                    "the shared bar must use the per-chart path's established natural row height");
    }
 
+   /**
+    * DIAGNOSTIC for the KNOWN UNFIXED note in WizDashboardFilterBuilder: a shared-bar range slider
+    * renders with NO visible title, even though the label IS applied (setTitleValue), titleVisible is
+    * true on both the design and runtime flags, and the title height is 20 rather than 0.
+    *
+    * Those ruled-out explanations are all FLAGS. This asserts the thing none of them covers: whether
+    * the slider ends up with a TITLEPATH FORMAT at all. centerTitleVertically() -- the only thing in
+    * this builder that seeds one -- is called solely for SelectionListVSAssembly, so a TimeSlider
+    * goes without. FormatInfo.getFormat(path, shrink=false) then returns null unless an OBJECTPATH
+    * entry exists to synthesise from, and VSRangeSliderModel builds its titleFormat straight from
+    * that composite.
+    *
+    * The comment's recorded hypothesis -- "the client-side TimeSlider component renders no title area
+    * at all" -- is demonstrably wrong: vs-range-slider.component.html does render a title div, gated
+    * only on !editingTitle. Two follow-on theories were also checked and disproved: titleRatio
+    * defaults to 1 (not 0), and titleFormat gets its size on the standalone path too, so the div is
+    * not zero-width.
+    */
+   @Test
+   void sharedBarRangeSliderGetsItsOwnTitlePathFormatLikeTheDropdownDoes() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "SO", "date_order"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C");
+      boundToTable(chart, "SO");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(
+         new WizDashboardFilterBuilder.FilterRequest("date_order", "date", "Order Date")), 0);
+
+      VSAssembly slider = (VSAssembly) java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof TimeSliderVSAssembly).findFirst().orElseThrow();
+
+      VSCompositeFormat titleFormat = slider.getVSAssemblyInfo().getFormatInfo()
+         .getFormat(VSAssemblyInfo.TITLEPATH);
+      assertNotNull(titleFormat,
+                    "the slider needs its own TITLEPATH format for its title to render at all");
+      assertTrue((titleFormat.getAlignmentValue() & StyleConstants.V_CENTER) != 0,
+                 "the slider's title must be vertically centred, as the dropdown's is");
+   }
+
    private static SelectionListVSAssembly dropdown(Viewsheet vs) {
       return java.util.Arrays.stream(vs.getAssemblies())
          .filter(a -> a instanceof SelectionListVSAssembly)
