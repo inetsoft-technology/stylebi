@@ -244,14 +244,21 @@ public class WizDashboardFilterBuilder {
          if(control instanceof SelectionListVSAssembly list) {
             list.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
             list.getSelectionListInfo().setTitleHeightValue(controlHeight);
-            centerTitleVertically(list);
             applyDropdownPopupStyle(list);
          }
 
-         // KNOWN UNFIXED: a shared-bar range slider renders with NO visible title -- a numeric slider
-         // shows a bare "6..216" with nothing telling the user it filters partner_id. The label IS
-         // applied above (setTitleValue). These explanations have each been RULED OUT by test, so do
-         // NOT retry them:
+         // EVERY control, not just the dropdown. This seeds the TITLEPATH format, and nothing else in
+         // this builder's path does -- AddFilterService.createFilterAssembly just `new`s the assembly
+         // and neither the constructor nor Viewsheet.addAssembly calls initDefaultFormat(). A
+         // TimeSlider was left without one entirely, so FormatInfo.getFormat(TITLEPATH, false)
+         // returned null and VSRangeSliderModel built its titleFormat straight from that. See the
+         // range-slider note below for why this is the surviving explanation of the missing title.
+         centerTitleVertically(control);
+
+         // RANGE-SLIDER TITLE: a shared-bar range slider rendered with NO visible title -- a numeric
+         // slider showed a bare "6..216" with nothing telling the user it filters partner_id. The
+         // label IS applied above (setTitleValue). These explanations were each RULED OUT by test, so
+         // do NOT retry them:
          //   - the DESIGN title-visible value (getTitleVisibleValue) is already true by default;
          //   - the RUNTIME flag (isTitleVisible) is already true by default;
          //   - the title height is already AssetUtil.defh (20), not zero.
@@ -260,9 +267,27 @@ public class WizDashboardFilterBuilder {
          // them -- so any such "fix" here is vacuous. TitleInfo's no-arg constructor does leave
          // titleVisible as a valueless DynamicValue2 (vs TitleInfo(String) seeding "true"), which
          // looked like the cause but is not: both getters still report true.
-         // Remaining hypothesis: the client-side TimeSlider component renders no title area at all,
-         // which has to be investigated in the Angular viewer, not here. NOTE this is ALSO why the
-         // caption cannot simply be deleted for every control: it is the slider's only label.
+         //
+         // Note what those all have in common: they are FLAGS. The gap none of them covers is the
+         // FORMAT, and that one is real and now closed -- centerTitleVertically is called for every
+         // control above, where it used to run only for the dropdown, so the slider no longer goes
+         // without a TITLEPATH format (regression test:
+         // sharedBarRangeSliderGetsItsOwnTitlePathFormatLikeTheDropdownDoes, which fails without it).
+         //
+         // THREE PRIOR HYPOTHESES, ALL DISPROVED -- recorded so they are not re-tried:
+         //   - "the client-side TimeSlider renders no title area at all, investigate the Angular
+         //     viewer": WRONG. vs-range-slider.component.html DOES render a title div, gated only on
+         //     !editingTitle. This one was the previously recorded remaining hypothesis and it sent
+         //     the investigation at the wrong layer.
+         //   - "titleRatio collapses the title to zero width": WRONG. VSRangeSliderModel declares
+         //     `titleRatio = 1`; it is only reassigned inside the CurrentSelection-container branch.
+         //   - "titleFormat has no size on the standalone path": WRONG. titleFormat.setPositions is
+         //     called with a real Dimension before that branch.
+         //
+         // STILL UNCONFIRMED VISUALLY: that seeding the format makes the title actually appear. The
+         // absent-format gap is proven by test; the rendered outcome needs eyes on a live dashboard.
+         // NOTE the caption below cannot simply be deleted for every control until that is confirmed:
+         // it is currently the slider's only label.
 
          // Caption above the control, so a user can tell what the control filters -- a bare "6..216"
          // range slider is otherwise unreadable. Its placement is returned alongside the control's:
