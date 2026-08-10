@@ -2647,9 +2647,11 @@ public class WizVsService {
          String redetectedType = geoOption.getMapping() == null ? null : geoOption.getMapping().getType();
 
          if(Tool.isEmptyString(redetectedType)) {
-            LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive; " +
-                     "keeping the original '{}' guess instead of leaving it unrenderable.",
-                     refName, mapping.getType());
+            List<String> sample = unmatched.keySet().stream().limit(10).collect(Collectors.toList());
+            LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive " +
+                     "({} distinct real value(s), sample: {}); keeping the original '{}' guess " +
+                     "instead of leaving it unrenderable.",
+                     refName, distinct, sample, mapping.getType());
             geoOption.setMapping(mapping);
             continue;
          }
