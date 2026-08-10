@@ -91,6 +91,35 @@ describe("MiniToolbar.topY", () => {
 
       expect(comp.topY).toBeLessThan(200);
    });
+
+   // Max mode mounts the strip through vs-object-view with [top]="0" [forceAbove]="true". forceAbove
+   // bypasses the minTop guard that otherwise keeps this branch positive, so the strip lands above
+   // its own origin — clipped by the host's overflow-y: hidden, or drawn off-canvas. Either way the
+   // enlarged toolbar never appears. There is no space above origin to float into, so floor it.
+   it("never positions the strip above its own origin (max mode: top 0 with forceAbove)", () => {
+      const comp = makeToolbar();
+      comp.top = 0;
+      comp.forceAbove = true;
+
+      expect(comp.topY).toBe(0);
+   });
+
+   it("floors at the origin under the gate too", () => {
+      document.body.classList.add("viz-modern");
+      const comp = makeToolbar();
+      comp.top = 0;
+      comp.forceAbove = true;
+
+      expect(comp.topY).toBe(0);
+   });
+
+   it("still floats above a low assembly that has room, rather than flooring everything", () => {
+      const comp = makeToolbar();
+      comp.top = 40;
+      comp.forceAbove = true;
+
+      expect(comp.topY).toBe(12); // 40 - 28 - 0, unchanged by the floor
+   });
 });
 
 // isFocused(i, j) and doAction() key off the group/action indices produced by the two @for loops
