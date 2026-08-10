@@ -76,7 +76,8 @@ class WizVsServiceResolveRuleHighlightRefsTest {
    @BeforeEach
    void setUp() {
       service = new WizVsService(
-         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null);
+         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null,
+         null);
 
       // The exact shape bug #75889 reproduced on: one dimension on X, one measure on Y — a plain bar
       // chart, where the dimension carries the axis highlight and the measure the plot highlight.

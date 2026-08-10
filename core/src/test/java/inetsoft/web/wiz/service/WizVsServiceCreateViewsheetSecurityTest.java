@@ -60,7 +60,7 @@ class WizVsServiceCreateViewsheetSecurityTest {
          eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
          .thenReturn(false);
 
-      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null);
+      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null, null);
       CreateVisualizationModel model = new CreateVisualizationModel();
 
       SecurityException ex = assertThrows(SecurityException.class,
@@ -92,7 +92,7 @@ class WizVsServiceCreateViewsheetSecurityTest {
       when(vsService.openTemporaryViewsheet(any(), any(), eq(principal), any()))
          .thenThrow(marker);
 
-      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null);
+      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null, null);
       CreateVisualizationModel model = new CreateVisualizationModel();
 
       RuntimeException thrown = assertThrows(RuntimeException.class,
@@ -123,7 +123,7 @@ class WizVsServiceCreateViewsheetSecurityTest {
          eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
          .thenReturn(false);
 
-      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null);
+      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null, null);
 
       assertThrows(SecurityException.class,
          () -> service.persistViewsheet(vs, "1^128^__NULL__^visualizations/abc^host-org", principal));
@@ -144,7 +144,7 @@ class WizVsServiceCreateViewsheetSecurityTest {
          eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
          .thenReturn(false);
 
-      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null);
+      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null, null);
 
       assertThrows(SecurityException.class,
          () -> service.validateBinding(new CreateVisualizationModel(), principal));
@@ -163,7 +163,7 @@ class WizVsServiceCreateViewsheetSecurityTest {
          eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
          .thenReturn(false);
 
-      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null);
+      WizVsService service = new WizVsService(vsService, engine, securityEngine, null, null, null);
 
       assertThrows(SecurityException.class,
          () -> service.deleteViewsheet("1^128^__NULL__^visualizations/abc^host-org", principal));
