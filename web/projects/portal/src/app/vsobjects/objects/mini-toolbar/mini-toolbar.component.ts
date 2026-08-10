@@ -140,8 +140,9 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     * before this method existed — any pre-existing overflow kebab (from width alone, on any
     * assembly type) keeps rendering inline as the last button in its group, exactly as before.
     *
-    * Anchored (gate on, VSChart only — see AbstractVSActions.resident): the resident kebab is
-    * always the trailing action of the last group, appended by AbstractVSActions.showingActions.
+    * Anchored (gate on, the anchored set only — see AbstractVSActions.resident): the resident
+    * kebab is always the trailing action of the last group, appended by
+    * AbstractVSActions.showingActions.
     * Trimming it off here, rather than filtering displayActions itself, keeps every remaining
     * button at the same (i, j) it already had, so isFocused()/getNextAction()/getPreviousAction()
     * — all of which read indices against getActions(), not this getter — need no changes.

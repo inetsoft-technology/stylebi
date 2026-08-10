@@ -54,7 +54,7 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { isAnchoredAssemblyType, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
 import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
@@ -459,12 +459,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return this.dataTipService.getVSObjectId(object.absoluteName);
    }
 
-   // Chart is the anchoring pilot. TEMPORARY: this type test is deleted during the eight-assembly
-   // rollout, when the other seven get a reviewed strip rather than an incidental one. See
+   // TEMPORARY, like AbstractVSActions.resident: both read the one rollout boundary in
+   // mini-toolbar.service.ts and are deleted together with it when the last family slice lands. See
    // chart-card-design/Anchoring beyond charts - discussion.md.
    public isToolbarAnchored(object: VSObjectModel): boolean {
-      return GuiTool.isVizModern() &&
-         Tool.equalsIgnoreCase(object.objectType, "VSChart");
+      return GuiTool.isVizModern() && isAnchoredAssemblyType(object.objectType);
    }
 
    public getToolbarTop(object: VSObjectModel, i: number): number {
@@ -525,8 +524,31 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     */
    public getAnchoredToolbarWidth(object: VSObjectModel): number {
       const chart = <VSChartModel> object;
-      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0);
+      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0)
+         - VSObjectContainer.rightEdgeReserve(object);
    }
+
+   /**
+    * The right inset the anchored pill gives up so it does not land on a control living at the
+    * content's right edge.
+    *
+    * With a title visible the strip sits in the title lane, which owns nothing, so this is zero.
+    * With the title hidden the strip overlays the first content row instead (spec §03 reserves no
+    * lane), and for the table family that row is the column header — whose last cell carries the
+    * sort control at right: 2px, width: 20px (base-table.scss .vs-header-cell-button-sort). The
+    * kebab landed exactly on it, and because the kebab button re-enables pointer events inside an
+    * otherwise pointer-events: none pill, it swallowed the click: the column could not be sorted at
+    * all while the strip was up.
+    *
+    * Keyed on the absence of a title rather than on a second assembly-type list. On a chart it
+    * costs 22px of empty plot corner and keeps one rule for the whole anchored set.
+    */
+   private static rightEdgeReserve(object: VSObjectModel): number {
+      return (<any> object).titleVisible === false ? VSObjectContainer.SORT_CONTROL_RESERVE : 0;
+   }
+
+   // 20px control + its 2px inset.
+   private static readonly SORT_CONTROL_RESERVE = 22;
 
    public getToolbarWidth(object: VSObjectModel): number {
       return this.miniToolbarService.getToolbarWidth(object, this.containerBounds,
