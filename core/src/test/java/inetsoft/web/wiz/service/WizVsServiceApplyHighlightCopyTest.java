@@ -87,7 +87,7 @@ class WizVsServiceApplyHighlightCopyTest {
       AssetRepository engine = mock(AssetRepository.class);
       SecurityEngine securityEngine = mock(SecurityEngine.class);
 
-      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null, null);
+      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null);
       service = spy(real);
 
       // A simple TEXT output assembly — the highlight branch with the fewest collaborators to satisfy,

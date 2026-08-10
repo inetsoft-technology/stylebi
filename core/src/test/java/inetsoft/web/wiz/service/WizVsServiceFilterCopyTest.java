@@ -94,7 +94,7 @@ class WizVsServiceFilterCopyTest {
       when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       user = mock(Principal.class);
 
-      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null, null);
+      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null);
       service = spy(real);
 
       // The current primary assembly (isPrimary()=true) that findPrimaryAssembly resolves in the

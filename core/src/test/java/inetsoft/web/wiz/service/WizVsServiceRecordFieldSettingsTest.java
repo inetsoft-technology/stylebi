@@ -71,7 +71,7 @@ class WizVsServiceRecordFieldSettingsTest {
       tempInfo = mock(VSTemporaryInfo.class);
       when(tempInfoService.getVSTemporaryInfo(rvs)).thenReturn(tempInfo);
 
-      service = new WizVsService(viewsheetService, null, null, null, tempInfoService, null);
+      service = new WizVsService(viewsheetService, null, null, null, tempInfoService);
    }
 
    /** Puts a temp chart bound to {@code columns} behind the recommendation runtime, and returns its refs. */

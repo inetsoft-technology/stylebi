@@ -17,32 +17,28 @@
  */
 package inetsoft.web.wiz.service;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.graph.MapData;
+import inetsoft.report.internal.graph.MapHelper;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
-import inetsoft.uql.viewsheet.graph.FeatureMapping;
 import inetsoft.uql.viewsheet.graph.GeographicOption;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
-import inetsoft.web.binding.handler.CalculatorHandler;
-import inetsoft.web.binding.handler.VSChartHandler;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -51,9 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 /**
@@ -68,6 +63,12 @@ import static org.mockito.Mockito.when;
  * <p>Exercises {@link WizVsService#correctWizGeoMapping} directly -- package-private for exactly
  * this reason, the same as {@link WizVsService#executeAndExtract} -- rather than standing up a
  * real {@link inetsoft.report.composition.execution.ViewsheetSandbox}.
+ *
+ * <p>Calls {@link MapHelper#autoDetect} directly (not through {@code VSChartHandler.autoDetect}):
+ * a live break during manual testing showed that wrapper re-resolves the geo ref itself via
+ * runtime-index alignment between {@code getRTGeoColumns()} and {@code getGeoColumns()}, which on
+ * a real (post-execution) chart did not line up and silently no-opped, leaving the mapping this
+ * fix had just cleared never re-populated. No {@code VSChartHandler} is needed here as a result.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -75,16 +76,6 @@ import static org.mockito.Mockito.when;
 @SreeHome
 @Tag("core")
 class WizVsServiceCorrectsWrongGeoMapTypeTest {
-   /**
-    * A real (non-mocked) {@link VSChartHandler} -- its own collaborators (asset repository,
-    * viewsheet service, calculator handler) are never touched by {@code autoDetect}/
-    * {@code copyGeoColumns}, only by the query-execution methods this fix doesn't call.
-    */
-   private static VSChartHandler realChartHandler() {
-      return new VSChartHandler(mock(AssetRepository.class), mock(ViewsheetService.class),
-                                mock(CalculatorHandler.class));
-   }
-
    private static DataSet usStatesDataSet() {
       return new DefaultDataSet(new Object[][] {
          { "STATE" },
@@ -130,11 +121,15 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
       return rvs;
    }
 
+   private static WizVsService newService() {
+      return new WizVsService(null, null, null, null, null);
+   }
+
    @Test
    void resetsAndRedetectsWhenTheGuessedTypeMatchesNoneOfTheRealValues() {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = mapChart(vs, "Canada", "Province");
-      WizVsService service = new WizVsService(null, null, null, null, null, realChartHandler());
+      WizVsService service = newService();
 
       boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet());
 
@@ -144,11 +139,31 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
          "real U.S. state data must be re-detected as U.S., not left as the wrong Canada guess");
    }
 
+   /** The exact 14 real STATE abbreviations from bug-75983's production data (not just the clean,
+    * spelled-out synthetic set above) -- confirms abbreviations re-detect correctly too. */
+   @Test
+   void resetsAndRedetectsRealAbbreviatedStateCodes() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = mapChart(vs, "Canada", "Province");
+      WizVsService service = newService();
+
+      DataSet abbreviations = new DefaultDataSet(new Object[][] {
+         { "STATE" }, { "AZ" }, { "CA" }, { "CO" }, { "CT" }, { "FL" }, { "IL" }, { "MA" },
+         { "MD" }, { "NJ" }, { "NV" }, { "NY" }, { "PA" }, { "TX" }, { "WA" },
+      });
+
+      boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", abbreviations);
+
+      assertTrue(corrected, "2-letter state abbreviations must also be re-detected correctly");
+      VSMapInfo mapInfo = (VSMapInfo) chart.getVSChartInfo();
+      assertEquals("U.S.", mapInfo.getMapType());
+   }
+
    @Test
    void leavesACorrectlyGuessedTypeAlone() {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = mapChart(vs, "U.S.", "State");
-      WizVsService service = new WizVsService(null, null, null, null, null, realChartHandler());
+      WizVsService service = newService();
 
       boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet());
 
@@ -158,36 +173,32 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
    }
 
    /**
-    * Regression for a live break found via manual testing (bug-75983): against real production
-    * data, {@code MapHelper.autoDetect} can settle the mapping's type back to null instead of a
-    * usable type (StyleBI's own auto-detect has a documented "already valid, skip re-derivation"
-    * short-circuit -- see {@link WizGeoService}'s call site -- that can leave a freshly-cleared
-    * mapping under-populated). Rendering a chart whose geo mapping type is null throws ("X layer is
-    * not supported by null"), which is strictly worse than the original wrong-but-renderable guess.
-    * Stubs {@link VSChartHandler#autoDetect} to force exactly that outcome, since coaxing StyleBI's
-    * real feature-matching heuristics into it deterministically would require a real, messy dataset
-    * this test can't fabricate.
+    * Regression for a live break found via manual testing (bug-75983): {@code MapHelper.autoDetect}
+    * can settle the mapping's type back to null instead of a usable type when re-detection is
+    * inconclusive. Rendering a chart whose geo mapping type is null throws ("X layer is not
+    * supported by null"), which is strictly worse than the original wrong-but-renderable guess.
+    * Mocks the static {@code MapHelper.autoDetect} to force exactly that outcome, since coaxing
+    * StyleBI's real feature-matching heuristics into an inconclusive result deterministically would
+    * require a real, messy dataset this test can't fabricate.
     */
    @Test
    void rollsBackToTheOriginalGuessWhenRedetectionIsInconclusive() {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = mapChart(vs, "Canada", "Province");
+      WizVsService service = newService();
 
-      VSChartHandler inconclusiveChartHandler = mock(VSChartHandler.class);
-      doAnswer(invocation -> {
-         VSChartInfo info = invocation.getArgument(2);
-         String refName = invocation.getArgument(3);
-         VSChartGeoRef geoRef = (VSChartGeoRef) info.getGeoColumns().getAttribute(refName);
-         geoRef.getGeographicOption().setMapping(new FeatureMapping());
-         return null;
-      }).when(inconclusiveChartHandler).autoDetect(any(), any(), any(), anyString(), any());
+      try(MockedStatic<MapHelper> mapHelper = mockStatic(MapHelper.class, invocation -> {
+         // Delegate every static call except autoDetect to the real implementation.
+         if("autoDetect".equals(invocation.getMethod().getName())) {
+            return null;
+         }
+         return invocation.callRealMethod();
+      })) {
+         boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet());
 
-      WizVsService service = new WizVsService(null, null, null, null, null, inconclusiveChartHandler);
+         assertFalse(corrected, "an inconclusive re-detection must not be reported as a correction");
+      }
 
-      boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet());
-
-      assertFalse(corrected,
-         "an inconclusive re-detection must not be reported as a correction");
       VSMapInfo mapInfo = (VSMapInfo) chart.getVSChartInfo();
       assertEquals("Canada", mapInfo.getMapType(),
          "the original guess must be restored rather than left with a null/unrenderable type");
@@ -199,17 +210,17 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
       ChartVSAssembly chart = new ChartVSAssembly(vs, "chart1");
       chart.setVSChartInfo(new DefaultVSChartInfo());
       vs.addAssembly(chart);
-      WizVsService service = new WizVsService(null, null, null, null, null, realChartHandler());
+      WizVsService service = newService();
 
       assertFalse(service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet()));
    }
 
    @Test
-   void noopWhenChartHandlerIsNotWired() {
+   void noopWhenSourceIsNull() {
       Viewsheet vs = new Viewsheet();
       mapChart(vs, "Canada", "Province");
-      WizVsService service = new WizVsService(null, null, null, null, null, null);
+      WizVsService service = newService();
 
-      assertFalse(service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet()));
+      assertFalse(service.correctWizGeoMapping(rvsFor(vs), "chart1", null));
    }
 }

@@ -112,7 +112,7 @@ class WizVsServiceSecondaryYAxisRenderTest {
       when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       Principal user = mock(Principal.class);
 
-      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null, null);
+      WizVsService real = new WizVsService(viewsheetService, engine, securityEngine, null, null);
       WizVsService service = spy(real);
 
       // Source worksheet resolveSourceContext must find, with a primary table assembly.

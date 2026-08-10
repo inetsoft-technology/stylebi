@@ -64,7 +64,6 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.vswizard.handler.SyncInfoHandler;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -87,15 +86,13 @@ import java.util.stream.Collectors;
 public class WizVsService {
    public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
                        SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler,
-                       VSWizardTemporaryInfoService temporaryInfoService,
-                       VSChartHandler chartHandler)
+                       VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.securityEngine = securityEngine;
       this.syncInfoHandler = syncInfoHandler;
       this.temporaryInfoService = temporaryInfoService;
-      this.chartHandler = chartHandler;
    }
 
    /**
@@ -2557,6 +2554,15 @@ public class WizVsService {
     * {@code VSChartHandler}'s own private {@code getGeoCol} uses) -- sufficient because wiz only
     * ever creates a single geo dimension per map chart, with the same field name in both
     * {@code createGeoFields}'s design geo column and {@code applyChartBinding}'s bound geo field.
+    * For the same reason, re-detection calls {@link MapHelper#autoDetect} directly with the
+    * already-resolved {@link GeographicOption} rather than going through
+    * {@code VSChartHandler.autoDetect}: that convenience wrapper re-resolves the geo ref itself via
+    * RT-index alignment between {@code getRTGeoColumns()} and {@code getGeoColumns()}, which on a
+    * real (post-execution) chart does not line up with this by-name resolution and silently no-ops
+    * -- leaving the mapping this method just cleared never re-populated (verified live: bug-75983's
+    * real data resolved correctly through {@code MapHelper.autoDetect} called directly, but through
+    * {@code VSChartHandler.autoDetect} it stayed cleared and this method's null-type rollback below
+    * kept firing).
     *
     * <p>Package-private (not private) so tests can call it directly without standing up a real
     * {@link ViewsheetSandbox}, the same reason {@link #executeAndExtract} is.
@@ -2564,7 +2570,7 @@ public class WizVsService {
     * @return true if a correction was applied -- the caller must invalidate the cached graph.
     */
    boolean correctWizGeoMapping(RuntimeViewsheet rvs, String assemblyName, DataSet source) {
-      if(chartHandler == null || source == null) {
+      if(source == null) {
          return false;
       }
 
@@ -2632,11 +2638,16 @@ public class WizVsService {
             continue;
          }
 
+         List<String> allUnmatched = new ArrayList<>(unmatched.keySet());
+         System.out.println("[WIZ-GEO] '" + refName + "': guessed type='" + mapping.getType() +
+            "' layer=" + mapping.getLayer() + " matched none of " + distinct +
+            " real value(s), ALL unmatched values=" + allUnmatched +
+            "; clearing and re-detecting from data.");
          LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
-                  "for '{}'; clearing and re-detecting the map type from data.",
-                  mapping.getType(), mapping.getLayer(), distinct, refName);
+                  "for '{}' -- {}; clearing and re-detecting the map type from data.",
+                  mapping.getType(), mapping.getLayer(), distinct, refName, allUnmatched);
          geoOption.setMapping(new FeatureMapping());
-         chartHandler.autoDetect(vs, sourceInfo, chartInfo, refName, source);
+         MapHelper.autoDetect(vs, sourceInfo, chartInfo, geoOption, refName, source);
 
          // Real production data is messier than any one country's feature list -- autoDetect can
          // fail to confidently settle on a type (e.g. mixed/unrecognized values) and leave the
@@ -2644,14 +2655,19 @@ public class WizVsService {
          // by null"), which is strictly worse than the original wrong-but-renderable guess. Only
          // keep the correction if it actually produced a usable type; otherwise put the original
          // guess back rather than leave the chart unable to render at all.
-         String redetectedType = geoOption.getMapping() == null ? null : geoOption.getMapping().getType();
+         FeatureMapping redetected = geoOption.getMapping();
+         String redetectedType = redetected == null ? null : redetected.getType();
+         System.out.println("[WIZ-GEO] '" + refName + "': re-detected type='" + redetectedType +
+            "' layer=" + (redetected == null ? "n/a" : redetected.getLayer()) +
+            " mappingCount=" + (redetected == null ? 0 : redetected.getMappings().size()));
 
          if(Tool.isEmptyString(redetectedType)) {
-            List<String> sample = unmatched.keySet().stream().limit(10).collect(Collectors.toList());
             LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive " +
-                     "({} distinct real value(s), sample: {}); keeping the original '{}' guess " +
+                     "({} distinct real value(s): {}); keeping the original '{}' guess " +
                      "instead of leaving it unrenderable.",
-                     refName, distinct, sample, mapping.getType());
+                     refName, distinct, allUnmatched, mapping.getType());
+            System.out.println("[WIZ-GEO] '" + refName + "': re-detection inconclusive, rolling back to '" +
+               mapping.getType() + "'.");
             geoOption.setMapping(mapping);
             continue;
          }
@@ -5430,7 +5446,6 @@ public class WizVsService {
    private final SecurityEngine securityEngine;
    private final SyncInfoHandler syncInfoHandler;
    private final VSWizardTemporaryInfoService temporaryInfoService;
-   private final VSChartHandler chartHandler;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(
