@@ -648,4 +648,42 @@ describe("CalcTableActions", () => {
 
       expect(menuActions.length).toBe(0);
    });
+
+   describe("menu reachability for the toolbar-only actions", () => {
+      const menuIds = (actions: CalcTableActions): string[] =>
+         actions.menuActions.reduce(
+            (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("exposes max mode, show details and export in the menu", () => {
+         const actions = new CalcTableActions(TestUtils.createMockVSCalcTableModel("CalcTable1"),
+            ViewerContextProviderFactory(false));
+         const ids = menuIds(actions);
+
+         expect(ids).toContain("calc-table open-max-mode");
+         expect(ids).toContain("calc-table close-max-mode");
+         expect(ids).toContain("calc-table show-details");
+         expect(ids).toContain("calc-table export");
+      });
+
+      it("appends them as the last group, so existing positional assertions do not shift", () => {
+         const actions = new CalcTableActions(TestUtils.createMockVSCalcTableModel("CalcTable1"),
+            ViewerContextProviderFactory(false));
+         const groups = actions.menuActions;
+
+         expect(groups[groups.length - 1].actions.map(a => a.id())).toEqual([
+            "calc-table open-max-mode",
+            "calc-table close-max-mode",
+            "calc-table show-details",
+            "calc-table export"
+         ]);
+      });
+
+      it("carries no glyph across, because menu rows render labels only", () => {
+         const actions = new CalcTableActions(TestUtils.createMockVSCalcTableModel("CalcTable1"),
+            ViewerContextProviderFactory(false));
+         const group = actions.menuActions[actions.menuActions.length - 1];
+
+         group.actions.forEach(a => expect(a.icon()).toBeNull());
+      });
+   });
 });

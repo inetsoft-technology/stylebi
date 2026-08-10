@@ -271,6 +271,42 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
          }
       ]));
 
+      // open-max-mode, close-max-mode, show-details and export were toolbar-only, so right-click
+      // could not reach any of them — max mode in particular, whose whole purpose is rescuing an
+      // assembly too small to read. Predicates are copied verbatim from createToolbarActions; the
+      // menu renders labels only, so no icon. Appended last so the positional assertions in
+      // crosstab-actions.spec.ts do not shift.
+      groups.push(new AssemblyActionGroup([
+         {
+            id: () => "crosstab open-max-mode",
+            label: () => "_#(js:Show Enlarged)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.openMaxModeVisible
+         },
+         {
+            id: () => "crosstab close-max-mode",
+            label: () => "_#(js:Show Actual Size)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.closeMaxModeVisible
+         },
+         {
+            id: () => "crosstab show-details",
+            label: () => "_#(js:Show Details)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.showDetailsVisible
+         },
+         {
+            id: () => "crosstab export",
+            label: () => "_#(js:Export)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => !this.vsWizardPreview && this.isActionVisible("Export")
+         }
+      ]));
+
       return super.createMenuActions(groups);
    }
 
