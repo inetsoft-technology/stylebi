@@ -394,8 +394,15 @@ export class MiniToolbar implements OnChanges, OnDestroy {
       // don't cover resize handle in composer
       const adj = this.contextProvider.composer && !this.contextProvider.vsWizard ? 3 : 0;
       const minTop = 20;
-      return this.top > minTop || this.forceAbove ? this.top - this.miniToolbarHeight - adj
+      const above = this.top > minTop || this.forceAbove ? this.top - this.miniToolbarHeight - adj
         : this.top;
+
+      // minTop keeps this branch positive for an assembly sitting low on the canvas, but forceAbove
+      // bypasses it. Max mode mounts the strip at top 0 with forceAbove (vs-object-view), so the
+      // subtraction lands above the strip's own origin — clipped by that host's overflow-y: hidden,
+      // or drawn off-canvas — and the enlarged toolbar never appears. Nothing is floatable above
+      // origin, so floor it there.
+      return Math.max(0, above);
    }
 
    get isPopComponent(): boolean {
