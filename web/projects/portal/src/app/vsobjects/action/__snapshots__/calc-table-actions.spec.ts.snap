@@ -357,6 +357,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
     "icon": [Function],
     "label": [Function],
   },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
 ]
 `;
 
@@ -795,6 +833,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
       {
         "action": [Function],
         "classes": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
         "enabled": [Function],
         "icon": [Function],
         "id": [Function],
@@ -1253,6 +1329,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
     "icon": [Function],
     "label": [Function],
   },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
 ]
 `;
 
@@ -1691,6 +1805,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
       {
         "action": [Function],
         "classes": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
         "enabled": [Function],
         "icon": [Function],
         "id": [Function],
@@ -2149,6 +2301,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
     "icon": [Function],
     "label": [Function],
   },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
 ]
 `;
 
@@ -2597,6 +2787,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
     "icon": [Function],
     "label": [Function],
   },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
 ]
 `;
 
@@ -3035,6 +3263,44 @@ exports[`CalcTableActions > check status of menu actions and toolbar actions in 
       {
         "action": [Function],
         "classes": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
         "enabled": [Function],
         "icon": [Function],
         "id": [Function],
