@@ -204,6 +204,61 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
          "the original guess must be restored rather than left with a null/unrenderable type");
    }
 
+   /**
+    * Regression found via an independent PR review (bug-75983): {@code MapHelper.getUnMatchedValues}
+    * does not skip blank/null cells the way {@code distinctValueCount} does, so a blank geo cell
+    * surfaces as an unmatched {@code ""} entry. Before the fix, one blank row alongside otherwise
+    * fully-matched real values made an already-correct guess look fully unmatched (distinct=1 real
+    * value, but unmatched={"", the blank row} also size 1), needlessly clearing and re-detecting it.
+    */
+   @Test
+   void leavesAnAlreadyCorrectGuessAloneWhenDataHasABlankRow() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = mapChart(vs, "U.S.", "State");
+      WizVsService service = newService();
+
+      DataSet withBlankRow = new DefaultDataSet(new Object[][] {
+         { "STATE" },
+         { "California" },
+         { "" },
+      });
+
+      boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", withBlankRow);
+
+      assertFalse(corrected, "a blank row must not make an already-correct guess look unmatched");
+      VSMapInfo mapInfo = (VSMapInfo) chart.getVSChartInfo();
+      assertEquals("U.S.", mapInfo.getMapType());
+   }
+
+   /**
+    * Regression found via an independent PR review (bug-75983): a mapping with explicit
+    * value-to-geocode entries was built by a real person through geo_apply
+    * (WizGeoService.apply -> FeatureMapping.addMapping) -- e.g. a deliberately-chosen layer whose
+    * real values are numeric/relabeled codes that will never textually auto-match. That deliberate
+    * choice must not be silently re-litigated (and possibly overwritten) on every later render just
+    * because the raw values don't textually match; only wiz's own unvalidated createGeoFields guess
+    * (always an empty mapping) is a candidate for correction.
+    */
+   @Test
+   void respectsAnExplicitlyMappedGuessEvenIfItDoesNotTextuallyMatch() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = mapChart(vs, "Canada", "Province");
+      VSMapInfo mapInfo = (VSMapInfo) chart.getVSChartInfo();
+      VSChartGeoRef designGeo = (VSChartGeoRef) mapInfo.getGeoColumns().getAttribute("STATE");
+      // The explicit override covers a relabeled/legacy value, not any value in the CURRENT real
+      // dataset below -- without the getMappings().isEmpty() guard, getUnMatchedValues would still
+      // report every one of the three current values unmatched (none auto-match "Canada", and none
+      // equal the one explicitly-mapped key either), so the old "unmatched.size() < distinct" check
+      // alone would not have caught this and would have wiped out the deliberate mapping.
+      designGeo.getGeographicOption().getMapping().addMapping("Golden State", "US-CA");
+      WizVsService service = newService();
+
+      boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet());
+
+      assertFalse(corrected, "an explicitly value-mapped guess must not be re-litigated");
+      assertEquals("Canada", mapInfo.getMapType(), "the explicit choice must be left untouched");
+   }
+
    @Test
    void ignoresNonMapCharts() {
       Viewsheet vs = new Viewsheet();

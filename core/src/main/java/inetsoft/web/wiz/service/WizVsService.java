@@ -2409,20 +2409,11 @@ public class WizVsService {
          }
 
          box = boxOpt.get();
-         VGraphPair pair = box.getVGraphPair(assemblyName, true);
-
-         if(pair == null) {
-            return new CreateViewsheetResult();
-         }
-
-         DataSet dset = pair.getData();
+         DataSet dset = fetchUnwrappedDataSet(box, assemblyName);
 
          if(dset == null) {
             return new CreateViewsheetResult();
          }
-
-         // Unwrap dataset wrappers to reach the aggregated data
-         dset = unwrapDataSet(dset);
 
          // A wiz-guessed geo map type/layer (e.g. "province" in the prompt naively matched to
          // Canada's "Province" layer) is never validated against the real data at creation time.
@@ -2435,8 +2426,7 @@ public class WizVsService {
          if(correctWizGeoMapping(rvs, assemblyName, dset)) {
             box.clearGraph(assemblyName);
             box.executeView(assemblyName, true);
-            pair = box.getVGraphPair(assemblyName, true);
-            dset = pair == null ? null : unwrapDataSet(pair.getData());
+            dset = fetchUnwrappedDataSet(box, assemblyName);
 
             if(dset == null) {
                return new CreateViewsheetResult();
@@ -2520,6 +2510,18 @@ public class WizVsService {
 
          return new CreateViewsheetResult();
       }
+   }
+
+   /**
+    * Fetches the assembly's current graph data and unwraps it to the underlying aggregated
+    * dataset, or {@code null} if no graph/data is available yet.
+    */
+   private static DataSet fetchUnwrappedDataSet(ViewsheetSandbox box, String assemblyName)
+      throws Exception
+   {
+      VGraphPair pair = box.getVGraphPair(assemblyName, true);
+      DataSet dset = pair == null ? null : pair.getData();
+      return dset == null ? null : unwrapDataSet(dset);
    }
 
    /** Unwraps dataset wrappers (pair/filter chains) to reach the underlying aggregated data. */
@@ -2609,6 +2611,15 @@ public class WizVsService {
             continue;
          }
 
+         // A non-empty explicit mapping means a real person built it value-by-value via geo_apply
+         // (WizGeoService.apply -> FeatureMapping.addMapping) -- e.g. picking a layer whose real
+         // values are numeric/relabeled codes that will never textually match any auto-detected
+         // type. Respect that deliberate choice rather than re-litigating it on every render; only
+         // wiz's own unvalidated createGeoFields guess (always an empty mapping) is a candidate.
+         if(!mapping.getMappings().isEmpty()) {
+            continue;
+         }
+
          // createGeoFields only ever sets the option's own DynamicValue layer (geoOption.getLayer())
          // and the mapping's type -- never the mapping's own `layer` field, which then defaults to 0.
          // getUnMatchedValues below reads mapping.getLayer(), so an out-of-sync 0 would look up an
@@ -2633,12 +2644,19 @@ public class WizVsService {
          Map<String, Integer> unmatched =
             MapHelper.getUnMatchedValues(source, colIndex, mapping, chartInfo);
 
-         if(unmatched.size() < distinct) {
+         // Unlike distinctValueCount above, getUnMatchedValues does not skip blank/null cells --
+         // a blank geo cell that matches nothing surfaces here as an unmatched "" entry. Left in,
+         // it would make an otherwise fully-matched (already-correct) mapping look unmatched
+         // whenever the data has even one blank row, needlessly clearing and re-detecting it.
+         List<String> realUnmatched = unmatched.keySet().stream()
+            .filter(v -> !Tool.isEmptyString(v)).collect(Collectors.toList());
+
+         if(realUnmatched.size() < distinct) {
             // At least one real value matched the guessed type/layer -- trust it.
             continue;
          }
 
-         List<String> unmatchedSample = unmatched.keySet().stream()
+         List<String> unmatchedSample = realUnmatched.stream()
             .limit(LOGGED_UNMATCHED_VALUES).collect(Collectors.toList());
          LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
                   "for '{}' -- sample: {}; clearing and re-detecting the map type from data.",
@@ -2704,22 +2722,7 @@ public class WizVsService {
       }
 
       // Unwrap dataset wrappers to reach the aggregated data (mirrors extractChartData).
-      DataSet unwrapped = dset;
-
-      while(true) {
-         if(unwrapped instanceof VSDataSet) {
-            break;
-         }
-         else if(unwrapped instanceof PairsDataSet) {
-            unwrapped = ((PairsDataSet) unwrapped).getDataSet();
-         }
-         else if(unwrapped instanceof DataSetFilter) {
-            unwrapped = ((DataSetFilter) unwrapped).getDataSet();
-         }
-         else {
-            break;
-         }
-      }
+      DataSet unwrapped = unwrapDataSet(dset);
 
       if(unwrapped instanceof VSDataSet vds) {
          // Throws IllegalArgumentException carrying the real cause when the query failed.
@@ -3109,27 +3112,11 @@ public class WizVsService {
       }
 
       try {
-         VGraphPair pair = boxOpt.get().getVGraphPair(assemblyName, true);
-         DataSet dset = pair == null ? null : pair.getData();
+         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
+         DataSet dset = fetchUnwrappedDataSet(boxOpt.get(), assemblyName);
 
          if(dset == null) {
             return null;
-         }
-
-         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
-         while(true) {
-            if(dset instanceof VSDataSet) {
-               break;
-            }
-            else if(dset instanceof PairsDataSet) {
-               dset = ((PairsDataSet) dset).getDataSet();
-            }
-            else if(dset instanceof DataSetFilter) {
-               dset = ((DataSetFilter) dset).getDataSet();
-            }
-            else {
-               break;
-            }
          }
 
          int col = -1;
