@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -442,6 +443,7 @@ class WorksheetAgentControllerTest {
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
 
       WorksheetAgentController ctrl = importController("TOK-CSV", rws);
 
