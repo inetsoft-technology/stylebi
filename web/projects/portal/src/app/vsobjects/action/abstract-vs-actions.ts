@@ -24,9 +24,8 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
+import { isAnchoredAssemblyType, MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
-import { Tool } from "../../../../../shared/util/tool";
 
 /**
  * Base class for viewsheet assembly context actions.
@@ -136,10 +135,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.assemblyMenuActions;
    }
 
-   // TEMPORARY type test, like the container's isToolbarAnchored: the cap and the height bands
-   // are part of the chart pilot and are deleted during the eight-assembly rollout.
+   // TEMPORARY, like the container's isToolbarAnchored: both read the one rollout boundary in
+   // mini-toolbar.service.ts and are deleted together with it when the last family slice lands.
    private get resident(): boolean {
-      return GuiTool.isVizModern() && Tool.equalsIgnoreCase(this.model.objectType, "VSChart");
+      return GuiTool.isVizModern() && isAnchoredAssemblyType(this.model.objectType);
    }
 
    /**
@@ -175,7 +174,19 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
          return 0;
       }
 
-      return Math.min(AbstractVSActions.MAX_TOOLBAR_ACTIONS + 1, num);
+      // The budget must be sized off how many real (non-wrapper) actions are actually visible, not
+      // off the flat cap: the trailing "menu actions" wrapper is the only group meant to overflow
+      // into the kebab, and getMarkPoint() (ToolbarActionsHandler) only overflows a group once the
+      // cumulative visible count reaches the budget. A table typically has fewer real actions than
+      // MAX_TOOLBAR_ACTIONS, so the flat cap + 1 was never reached and the wrapper stayed stuck on
+      // the strip beside the (separately, always-appended) kebab, which then opened empty. The "+ 1"
+      // here is the slot reserved for the wrapper itself, so it is exactly the one thing that
+      // overflows once real actions fill the rest of the budget.
+      const realActions = ToolbarActionsHandler.getVisibleToolbarActions(this.toolbarActions)
+         .reduce((count, group) =>
+            count + group.actions.filter(a => a.id() !== "menu actions").length, 0);
+
+      return Math.min(num, Math.min(AbstractVSActions.MAX_TOOLBAR_ACTIONS, realActions) + 1);
    }
 
    get showingActions(): AssemblyActionGroup[] {
@@ -241,7 +252,42 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
          this.allowedActionsNum());
       ToolbarActionsHandler.copyActions(actions, this.more);
 
-      return this.more;
+      // Where an action button can still render, the kebab keeps the trailing "menu actions"
+      // wrapper and the full menu sits one level below it, as on a pointer strip.
+      return this.resident && this.allowedActionsNum() === 0 ? this.flattenedMoreActions()
+         : this.more;
+   }
+
+   /**
+    * The kebab's contents where no action button renders at all — touch, and the kebab-only height
+    * band. There the kebab is the entire strip, and leaving the menu nested behind a "More" row
+    * costs three taps to reach something the strip exists to put one tap away.
+    *
+    * It also showed the same entries twice. The menu-reachability fix put the max-mode pair,
+    * show-details and export into createMenuActions with the ids their toolbar twins already use,
+    * so the overflowed toolbar list and the menu behind "More" repeated each other in adjacent
+    * panels. Flattening merges the two into one panel: overflowed toolbar actions first, then the
+    * menu, with the wrapper dropped and ids deduplicated.
+    *
+    * Deduplicating by id is exact rather than a heuristic — the menu entries were copied verbatim
+    * from the toolbar entries, ids and visibility predicates alike, so an id is visible in both
+    * places or neither.
+    */
+   private flattenedMoreActions(): AssemblyActionGroup[] {
+      const seen = new Set<string>();
+
+      return [...this.more, ...this.menuActions]
+         .map(group => new AssemblyActionGroup(group.actions.filter(action => {
+            const id = action.id();
+
+            if(id === "menu actions" || seen.has(id)) {
+               return false;
+            }
+
+            seen.add(id);
+            return true;
+         })))
+         .filter(group => group.actions.length > 0);
    }
 
    public resetAssemblyMenuActions(): void {
@@ -364,8 +410,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
             // The dismissal is something done to the strip, not to the assembly, and at toolbar
             // index 0 it ate a slot ahead of show-data under a cap on toolbar length. It moves to
             // the menu instead of splicing at index 0 here; createMenuActions() below reads this
-            // field to surface it there. Gated, so gate-off orgs keep index 0 and the other seven
-            // assembly types with a mini-toolbar are unaffected until the rollout.
+            // field to surface it there. Gated on isVizModern() alone, with no type test — so under
+            // the gate this reaches every assembly type, not only the anchored ones. Types that
+            // have not yet joined the rollout therefore reach the dismissal by right-click until
+            // their slice lands and gives them a resident kebab.
             this.hideMiniToolbarAction = hideMiniToolbar;
          }
          else {
@@ -387,9 +435,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
                   // On touch the action-button groups are not rendered, so this wrapper is the only
                   // thing that can carry menuActions into the resident kebab. TEMPORARY relaxation
                   // of the pre-existing mobile exclusion, reusing the resident type test the cap
-                  // uses so it yields only for an anchored chart under the gate; deleted with the
-                  // rest of the pilot's type tests during the eight-assembly rollout. It restores
-                  // the route only — menu entries carrying their own !mobileDevice stay hidden.
+                  // uses so it yields only for an anchored assembly under the gate; deleted with
+                  // the rest of the pilot's type tests during the eight-assembly rollout. It
+                  // restores the route only — menu entries carrying their own !mobileDevice stay
+                  // hidden.
                   visible: () => !this.vsWizardPreview && (!this.mobileDevice || this.resident)
                      && this.isActionVisibleInViewer("Menu Actions")
                      && this.menuActions.some((g) => g.actions.some((action) => action.visible())),
