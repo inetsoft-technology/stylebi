@@ -35,8 +35,13 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.util.filereader.ExcelFileInfo;
+import inetsoft.uql.util.filereader.ExcelFileReader;
+import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -595,10 +600,140 @@ public class WorksheetAgentController {
          }
       }
 
+      return createEmbeddedTable(sessionToken, user, body.name(), types, data, nrows, ncols);
+   }
+
+   /**
+    * Import an Excel file (.xls/.xlsx) as a new embedded table assembly in the worksheet.
+    *
+    * <p>Unlike {@link #importCsv}, column types are taken directly from the workbook's own
+    * cell types (via {@link ExcelFileReader}, the same POI-backed reader the Composer's
+    * "Import Data" dialog uses) rather than inferred from text, so numbers, dates, and
+    * booleans round-trip correctly.</p>
+    *
+    * @param sessionToken the token obtained at join time
+    * @param body         name (optional), base64-encoded file bytes, file type, and sheet (optional)
+    * @param user         the authenticated agent principal
+    */
+   public record ImportExcelRequest(String name, String fileBase64, String fileType, String sheet) {}
+
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/import-excel")
+   public ImportCsvResponse importExcel(@PathVariable String sessionToken,
+                                        @RequestBody ImportExcelRequest body,
+                                        Principal user) throws Exception
+   {
+      requireEnabled();
+
+      if(body.fileBase64() == null || body.fileBase64().isBlank()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fileBase64 is required");
+      }
+
+      boolean xls = "XLS".equalsIgnoreCase(body.fileType());
+      boolean xlsx = "XLSX".equalsIgnoreCase(body.fileType());
+
+      if(!xls && !xlsx) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "fileType must be either \"XLS\" or \"XLSX\"");
+      }
+
+      byte[] bytes;
+
+      try {
+         bytes = Base64.getDecoder().decode(body.fileBase64());
+      }
+      catch(IllegalArgumentException e) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fileBase64 is not valid base64");
+      }
+
+      ExcelFileReader reader = xls
+         ? ExcelFileSupport.getInstance().createXLSReader()
+         : ExcelFileSupport.getInstance().createXLSXReader();
+
+      TextOutput output = new TextOutput();
+      ExcelFileInfo headerInfo = new ExcelFileInfo();
+      headerInfo.setSheet(body.sheet());
+      headerInfo.setStartRow(0);
+      headerInfo.setEndRow(0);
+      headerInfo.setStartColumn(0);
+      headerInfo.setEndColumn(-1);
+      output.setHeaderInfo(headerInfo);
+
+      ExcelFileInfo bodyInfo = new ExcelFileInfo();
+      bodyInfo.setSheet(body.sheet());
+      bodyInfo.setStartRow(1);
+      bodyInfo.setEndRow(-1);
+      bodyInfo.setStartColumn(0);
+      bodyInfo.setEndColumn(-1);
+      output.setBodyInfo(bodyInfo);
+
+      XTypeNode meta;
+
+      try {
+         meta = reader.importHeader(new ByteArrayInputStream(bytes), "UTF-8", output, 0, -1);
+      }
+      catch(Exception e) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Failed to read Excel file: " + e.getMessage());
+      }
+
+      int ncols = meta.getChildCount();
+
+      if(ncols == 0) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Excel sheet must have a header row and at least one data row");
+      }
+
+      bodyInfo.setEndColumn(ncols - 1);
+
+      String[] headers = new String[ncols];
+      String[] types = new String[ncols];
+
+      for(int c = 0; c < ncols; c++) {
+         XTypeNode col = (XTypeNode) meta.getChild(c);
+         headers[c] = col.getName();
+         types[c] = col.getType();
+      }
+
+      XTableNode excelData = reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
+                                         0, ncols, true, null, false);
+
+      List<Object[]> dataRows = new ArrayList<>();
+      dataRows.add(headers);
+
+      while(excelData.next()) {
+         Object[] row = new Object[ncols];
+
+         for(int c = 0; c < ncols; c++) {
+            row[c] = excelData.getObject(c);
+         }
+
+         dataRows.add(row);
+      }
+
+      if(dataRows.size() < 2) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Excel sheet must have a header row and at least one data row");
+      }
+
+      int nrows = dataRows.size();
+      Object[][] data = dataRows.toArray(new Object[0][]);
+
+      return createEmbeddedTable(sessionToken, user, body.name(), types, data, nrows, ncols);
+   }
+
+   /**
+    * Shared tail of {@link #importCsv} and {@link #importExcel}: builds a new
+    * {@link EmbeddedTableAssembly} from already-typed header+data rows and adds it to the
+    * worksheet.
+    */
+   private ImportCsvResponse createEmbeddedTable(String sessionToken, Principal user, String name,
+                                                 String[] types, Object[][] data, int nrows, int ncols)
+      throws Exception
+   {
       return editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         String tableName = (body.name() != null && !body.name().isBlank())
-            ? body.name()
+         String tableName = (name != null && !name.isBlank())
+            ? name
             : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
 
          EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);

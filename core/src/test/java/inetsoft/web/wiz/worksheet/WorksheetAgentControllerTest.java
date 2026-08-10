@@ -420,6 +420,91 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // importCsv / importExcel
+   // ---------------------------------------------------------------------------
+
+   private static WorksheetAgentController importController(String token, RuntimeWorksheet rws) throws Exception {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      return controller(featureOn(), mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+   }
+
+   @Test
+   void importCsvCreatesEmbeddedTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetAgentController ctrl = importController("TOK-CSV", rws);
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
+         "TOK-CSV", new WorksheetAgentController.ImportCsvRequest("Imported", "a,b\n1,x\n2,y"), agent);
+
+      assertEquals("Imported", resp.tableName());
+      assertEquals(2, resp.rows());
+      assertEquals(2, resp.columns());
+      assertNotNull(ws.getAssembly("Imported"));
+   }
+
+   @Test
+   void importCsvRejectsBlankCsv() {
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK", new WorksheetAgentController.ImportCsvRequest(null, " "),
+                              TestPrincipals.user("alice", "host-org")));
+      assertEquals(400, ex.getStatusCode().value());
+   }
+
+   // NOTE: there is no test here exercising a real .xlsx round-trip through importExcel().
+   // ExcelFileSupport.getInstance() reflectively loads PoiExcelFileSupport from the
+   // inetsoft-xml-formats module, which itself depends on inetsoft-core — core cannot
+   // depend on it back (even at test scope) without creating a cyclic Maven reactor
+   // reference. This mirrors the pre-existing gap in ImportCSVDialogService's own Excel
+   // path, which has no core-module test coverage for the same structural reason; both
+   // are exercised only where core and inetsoft-xml-formats are both on the classpath,
+   // i.e. the packaged server.
+
+   @Test
+   void importExcelRejectsUnknownFileType() {
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importExcel("TOK", new WorksheetAgentController.ImportExcelRequest(
+                                    null, "AAAA", "PDF", null),
+                                TestPrincipals.user("alice", "host-org")));
+      assertEquals(400, ex.getStatusCode().value());
+   }
+
+   @Test
+   void importExcelRejectsInvalidBase64() {
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importExcel("TOK", new WorksheetAgentController.ImportExcelRequest(
+                                    null, "not base64 !!!", "XLSX", null),
+                                TestPrincipals.user("alice", "host-org")));
+      assertEquals(400, ex.getStatusCode().value());
+   }
+
+   // ---------------------------------------------------------------------------
    // detach
    // ---------------------------------------------------------------------------
 
