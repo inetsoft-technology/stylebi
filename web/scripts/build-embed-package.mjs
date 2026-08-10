@@ -24,6 +24,12 @@ export const GENERATED_RESOURCES_DIR = path.join(PROJECT_ROOT, "target", "genera
 const GULP_APP_DIR = path.join(GENERATED_RESOURCES_DIR, "gulp", "inetsoft", "web", "resources", "app");
 const NG_ELEMENTS_ASSETS_DIR = path.join(GENERATED_RESOURCES_DIR, "ng", "inetsoft", "web", "resources", "elements", "assets");
 const FALLBACK_ASSETS_DIR = path.join(PROJECT_ROOT, "projects", "portal", "src", "assets");
+// elements.css/viewer-element.css (copied from GULP_APP_DIR below) declare @font-face rules
+// pointing at "assets/roboto/*". The "fonts:stage" gulp task is what actually populates that
+// folder (from node_modules/roboto-fontface) -- it lands in the Gulp app output, not in the
+// Angular "elements" project assets or projects/portal/src/assets, so resolveAssetsDir() never
+// picks it up on its own and the shipped package silently ships without any Roboto webfonts.
+const GULP_ROBOTO_ASSETS_DIR = path.join(GULP_APP_DIR, "assets", "roboto");
 
 // Configuration
 const verbose = process.env.VERBOSE === "true" || process.env.VERBOSE === "1";
@@ -72,6 +78,10 @@ export function buildEmbedPackage() {
    const assetsDir = resolveAssetsDir();
    log(`Copying assets from: ${path.relative(PROJECT_ROOT, assetsDir)}`);
    copyDir(assetsDir, path.join(OUTPUT_DIR, "assets"));
+
+   ensureRobotoFontsExist();
+   log(`Copying Roboto webfonts from: ${path.relative(PROJECT_ROOT, GULP_ROBOTO_ASSETS_DIR)}`);
+   copyDir(GULP_ROBOTO_ASSETS_DIR, path.join(OUTPUT_DIR, "assets", "roboto"));
 
    log("Copying template files...");
    copyTemplateFiles();
@@ -196,6 +206,19 @@ function ensureFilesExist(files) {
       throw new Error(
          `Missing embed build artifacts:\n  - ${relativeFiles}\n\n` +
          `Run "npm run build:embed:prod" first.`
+      );
+   }
+}
+
+/**
+ * Validates that the Gulp-staged Roboto webfonts exist before they're copied into the package.
+ * @throws {Error} If the "fonts:stage" gulp task has not been run
+ */
+function ensureRobotoFontsExist() {
+   if(!fs.existsSync(GULP_ROBOTO_ASSETS_DIR) || fs.readdirSync(GULP_ROBOTO_ASSETS_DIR).length === 0) {
+      throw new Error(
+         `Missing Roboto webfonts: ${path.relative(PROJECT_ROOT, GULP_ROBOTO_ASSETS_DIR)}\n\n` +
+         `elements.css/viewer-element.css reference assets/roboto/* -- run "gulp fonts:stage" first.`
       );
    }
 }
