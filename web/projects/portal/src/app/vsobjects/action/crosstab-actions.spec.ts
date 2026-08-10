@@ -1186,4 +1186,53 @@ describe("CrosstabActions", () => {
          group.actions.forEach(a => expect(a.icon()).toBeNull());
       });
    });
+
+   // Under the cap of three, "the first three visible actions" is only a sensible rule if the
+   // stable, assembly-level actions lead. Drill is contextual: it appears when a cell is selected,
+   // so with drill first the strip reshuffles under the pointer on every selection.
+   describe("toolbar order under the modern gate", () => {
+      const toolbarIds = (actions: CrosstabActions): string[] =>
+         actions.toolbarActions.reduce(
+            (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      afterEach(() => document.body.classList.remove("viz-modern"));
+
+      it("leads with the stable actions under the gate", () => {
+         document.body.classList.add("viz-modern");
+         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
+            ViewerContextProviderFactory(false));
+
+         expect(toolbarIds(actions)).toEqual([
+            "crosstab open-max-mode",
+            "crosstab close-max-mode",
+            "crosstab export",
+            "crosstab show-details",
+            "crosstab drilldown",
+            "crosstab drillup",
+            "crosstab multi-select",
+            "crosstab edit",
+            "menu actions"
+         ]);
+      });
+
+      it("emits the legacy order untouched when the gate is off", () => {
+         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
+            ViewerContextProviderFactory(false));
+
+         // Gate off still splices the Hide MiniToolbar dismissal in at index 0 (slice 1 left that
+         // branch alone), so it leads here and not in the gated expectation above.
+         expect(toolbarIds(actions)).toEqual([
+            "vs-assembly hide-mini-toolbar",
+            "crosstab drilldown",
+            "crosstab drillup",
+            "crosstab open-max-mode",
+            "crosstab close-max-mode",
+            "crosstab show-details",
+            "crosstab export",
+            "crosstab multi-select",
+            "crosstab edit",
+            "menu actions"
+         ]);
+      });
+   });
 });

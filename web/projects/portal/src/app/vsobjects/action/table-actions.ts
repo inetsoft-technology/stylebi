@@ -23,6 +23,7 @@ import { BaseTableActions } from "./base-table-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
 import { SourceInfoType } from "../../binding/data/source-info-type";
+import { GuiTool } from "../../common/util/gui-tool";
 import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
 
 export class TableActions extends BaseTableActions<VSTableModel> {
@@ -264,56 +265,65 @@ export class TableActions extends BaseTableActions<VSTableModel> {
    }
 
    protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "table open-max-mode",
-            label: () => "_#(js:Show Enlarged)",
-            icon: () => "expand-icon",
-            enabled: () => true,
-            visible: () => this.openMaxModeVisible
-         },
-         {
-            id: () => "table close-max-mode",
-            label: () => "_#(js:Show Actual Size)",
-            icon: () => "contract-icon",
-            enabled: () => true,
-            visible: () => this.closeMaxModeVisible
-         },
-         {
-            id: () => "table show-details",
-            label: () => "_#(js:Show Details)",
-            icon: () => "show-detail-icon",
-            visible: () => this.showDetailsVisible,
-            enabled: () => true
-         },
-         {
-            id: () => "table export",
-            label: () => "_#(js:Export)",
-            icon: () => "export-icon",
-            visible: () => !this.vsWizardPreview && this.isActionVisibleInViewer("Export"),
-            enabled: () => true
-         },
-         {
-            id: () => "table multi-select",
-            label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
-               : "_#(js:Change to Multi-select)",
-            icon: () => this.model.multiSelect ? "select-multi-icon" : "select-single-icon",
-            enabled: () => true,
-            visible: () => this.mobileDevice &&
-               this.isActionVisibleInViewer("Change to Single-select") &&
-               this.isActionVisibleInViewer("Change to Multi-select")
-         },
-         {
-            id: () => "table edit",
-            label: () => "_#(js:Edit)",
-            icon: () => "edit-icon",
-            visible: () => !this.vsWizardPreview && !this.isPopComponent() && !this.embed &&
-               (!this.preview && !this.composer && !this.mobileDevice &&
-                !this.binding && this.model.enableAdhoc && this.isActionVisibleInViewer("Edit")
-                || this.composer && !this.annotationsSelected),
-            enabled: () => true
-         },
-      ]));
+      const openMaxMode = {
+         id: () => "table open-max-mode",
+         label: () => "_#(js:Show Enlarged)",
+         icon: () => "expand-icon",
+         enabled: () => true,
+         visible: () => this.openMaxModeVisible
+      };
+      const closeMaxMode = {
+         id: () => "table close-max-mode",
+         label: () => "_#(js:Show Actual Size)",
+         icon: () => "contract-icon",
+         enabled: () => true,
+         visible: () => this.closeMaxModeVisible
+      };
+      const showDetails = {
+         id: () => "table show-details",
+         label: () => "_#(js:Show Details)",
+         icon: () => "show-detail-icon",
+         visible: () => this.showDetailsVisible,
+         enabled: () => true
+      };
+      const exportAction = {
+         id: () => "table export",
+         label: () => "_#(js:Export)",
+         icon: () => "export-icon",
+         visible: () => !this.vsWizardPreview && this.isActionVisibleInViewer("Export"),
+         enabled: () => true
+      };
+      const multiSelect = {
+         id: () => "table multi-select",
+         label: () => this.model.multiSelect ? "_#(js:Change to Single-select)"
+            : "_#(js:Change to Multi-select)",
+         icon: () => this.model.multiSelect ? "select-multi-icon" : "select-single-icon",
+         enabled: () => true,
+         visible: () => this.mobileDevice &&
+            this.isActionVisibleInViewer("Change to Single-select") &&
+            this.isActionVisibleInViewer("Change to Multi-select")
+      };
+      const edit = {
+         id: () => "table edit",
+         label: () => "_#(js:Edit)",
+         icon: () => "edit-icon",
+         visible: () => !this.vsWizardPreview && !this.isPopComponent() && !this.embed &&
+            (!this.preview && !this.composer && !this.mobileDevice &&
+             !this.binding && this.model.enableAdhoc && this.isActionVisibleInViewer("Edit")
+             || this.composer && !this.annotationsSelected),
+         enabled: () => true
+      };
+
+      // Source order is arbitrary gate-off: it is emission order in one array literal and nothing
+      // reads position. Under the gate it becomes load-bearing, because the cap of three shows the
+      // first three *visible* actions — and show-details is contextual (selectedData.size > 0), so
+      // with show-details ahead of export the strip reshuffles under the pointer on every cell
+      // selection.
+      const stableFirst = [openMaxMode, closeMaxMode, exportAction, showDetails, multiSelect, edit];
+      const legacyOrder = [openMaxMode, closeMaxMode, showDetails, exportAction, multiSelect, edit];
+
+      groups.push(new AssemblyActionGroup(
+         GuiTool.isVizModern() ? stableFirst : legacyOrder));
       groups.push(new AssemblyActionGroup([
          {
             id: () => "table selection-reset",
