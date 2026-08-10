@@ -2821,8 +2821,7 @@ public class WizVsService {
             for(AestheticRef aref : new AestheticRef[]{
                aggRef.getColorField(), aggRef.getShapeField(),
                aggRef.getSizeField(), aggRef.getTextField()
-            })
-            {
+            }) {
                if(aref != null) {
                   classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
                }
