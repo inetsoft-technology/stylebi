@@ -2639,10 +2639,6 @@ public class WizVsService {
          }
 
          List<String> allUnmatched = new ArrayList<>(unmatched.keySet());
-         System.out.println("[WIZ-GEO] '" + refName + "': guessed type='" + mapping.getType() +
-            "' layer=" + mapping.getLayer() + " matched none of " + distinct +
-            " real value(s), ALL unmatched values=" + allUnmatched +
-            "; clearing and re-detecting from data.");
          LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
                   "for '{}' -- {}; clearing and re-detecting the map type from data.",
                   mapping.getType(), mapping.getLayer(), distinct, refName, allUnmatched);
@@ -2657,17 +2653,12 @@ public class WizVsService {
          // guess back rather than leave the chart unable to render at all.
          FeatureMapping redetected = geoOption.getMapping();
          String redetectedType = redetected == null ? null : redetected.getType();
-         System.out.println("[WIZ-GEO] '" + refName + "': re-detected type='" + redetectedType +
-            "' layer=" + (redetected == null ? "n/a" : redetected.getLayer()) +
-            " mappingCount=" + (redetected == null ? 0 : redetected.getMappings().size()));
 
          if(Tool.isEmptyString(redetectedType)) {
             LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive " +
                      "({} distinct real value(s): {}); keeping the original '{}' guess " +
                      "instead of leaving it unrenderable.",
                      refName, distinct, allUnmatched, mapping.getType());
-            System.out.println("[WIZ-GEO] '" + refName + "': re-detection inconclusive, rolling back to '" +
-               mapping.getType() + "'.");
             geoOption.setMapping(mapping);
             continue;
          }
