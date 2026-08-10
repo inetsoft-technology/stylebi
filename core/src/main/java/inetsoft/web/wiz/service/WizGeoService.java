@@ -189,7 +189,7 @@ public class WizGeoService {
       int colIndex = GraphUtil.indexOfHeader(source, refName);
       Set<String> unmatched = new LinkedHashSet<>(
          MapHelper.getUnMatchedValues(source, colIndex, mapping, cinfo).keySet());
-      int distinct = distinctValueCount(source, colIndex);
+      int distinct = MapHelper.distinctValueCount(source, colIndex);
 
       GeoDetectResponse response = new GeoDetectResponse();
       response.setGeoType(geoType != null ? geoType : "");
@@ -568,25 +568,6 @@ public class WizGeoService {
       }
 
       return resolved != null ? resolved : code;
-   }
-
-   /** Distinct number of non-null values in the geo column. */
-   private int distinctValueCount(DataSet source, int colIndex) {
-      if(colIndex < 0) {
-         return 0;
-      }
-
-      Set<String> distinct = new HashSet<>();
-
-      for(int r = 0; r < source.getRowCount(); r++) {
-         Object v = source.getData(colIndex, r);
-
-         if(!Tool.isEmptyString(Tool.toString(v))) {
-            distinct.add(Tool.toString(v));
-         }
-      }
-
-      return distinct.size();
    }
 
    /** Candidate feature display labels for the given layer's name table, capped at {@value MAX_CANDIDATES}. */

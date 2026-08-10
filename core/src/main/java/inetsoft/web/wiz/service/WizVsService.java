@@ -2624,7 +2624,7 @@ public class WizVsService {
             continue;
          }
 
-         int distinct = distinctValueCount(source, colIndex);
+         int distinct = MapHelper.distinctValueCount(source, colIndex);
 
          if(distinct == 0) {
             continue;
@@ -2638,10 +2638,11 @@ public class WizVsService {
             continue;
          }
 
-         List<String> allUnmatched = new ArrayList<>(unmatched.keySet());
+         List<String> unmatchedSample = unmatched.keySet().stream()
+            .limit(LOGGED_UNMATCHED_VALUES).collect(Collectors.toList());
          LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
-                  "for '{}' -- {}; clearing and re-detecting the map type from data.",
-                  mapping.getType(), mapping.getLayer(), distinct, refName, allUnmatched);
+                  "for '{}' -- sample: {}; clearing and re-detecting the map type from data.",
+                  mapping.getType(), mapping.getLayer(), distinct, refName, unmatchedSample);
          geoOption.setMapping(new FeatureMapping());
          MapHelper.autoDetect(vs, sourceInfo, chartInfo, geoOption, refName, source);
 
@@ -2656,9 +2657,9 @@ public class WizVsService {
 
          if(Tool.isEmptyString(redetectedType)) {
             LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive " +
-                     "({} distinct real value(s): {}); keeping the original '{}' guess " +
+                     "({} distinct real value(s), sample: {}); keeping the original '{}' guess " +
                      "instead of leaving it unrenderable.",
-                     refName, distinct, allUnmatched, mapping.getType());
+                     refName, distinct, unmatchedSample, mapping.getType());
             geoOption.setMapping(mapping);
             continue;
          }
@@ -2669,20 +2670,9 @@ public class WizVsService {
       return corrected;
    }
 
-   /** Distinct number of non-null values in the given data column. */
-   private static int distinctValueCount(DataSet source, int colIndex) {
-      Set<String> distinct = new HashSet<>();
-
-      for(int r = 0; r < source.getRowCount(); r++) {
-         Object v = source.getData(colIndex, r);
-
-         if(!Tool.isEmptyString(Tool.toString(v))) {
-            distinct.add(Tool.toString(v));
-         }
-      }
-
-      return distinct.size();
-   }
+   /** Caps how many unmatched geo values a single log line spells out (columns like ZIP/city can
+    * have thousands of distinct bad values). The unmatched-count check itself uses the full set. */
+   private static final int LOGGED_UNMATCHED_VALUES = 20;
 
    /** Outcome of executing a chart assembly for verification: did it render data, and how many rows. */
    public record VerifyResult(boolean hasData, int rowCount) {}
