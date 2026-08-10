@@ -2430,10 +2430,14 @@ public class WizVsService {
          // A wiz-guessed geo map type/layer (e.g. "province" in the prompt naively matched to
          // Canada's "Province" layer) is never validated against the real data at creation time.
          // Now that real data is available, re-check it and force a genuine re-detection if every
-         // real value failed to match -- then drop the stale graph so the re-fetch below (and any
-         // later image request) renders with the corrected mapping instead of the wrong guess.
+         // real value failed to match. Correcting only the design geo column (what autoDetect
+         // touches) leaves other runtime-synced structures the graph generator also reads (e.g.
+         // VSMapInfo's runtime geo fields) stale, so a full re-execution -- the same binding-sync
+         // pipeline a normal chart load runs -- is needed to render with the corrected mapping
+         // instead of the wrong guess (a partial refresh here previously left rendering broken).
          if(correctWizGeoMapping(rvs, assemblyName, dset)) {
             box.clearGraph(assemblyName);
+            box.executeView(assemblyName, true);
             pair = box.getVGraphPair(assemblyName, true);
             dset = pair == null ? null : unwrapDataSet(pair.getData());
 
@@ -2631,8 +2635,25 @@ public class WizVsService {
          LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
                   "for '{}'; clearing and re-detecting the map type from data.",
                   mapping.getType(), mapping.getLayer(), distinct, refName);
-         geoRef.getGeographicOption().setMapping(new FeatureMapping());
+         geoOption.setMapping(new FeatureMapping());
          chartHandler.autoDetect(vs, sourceInfo, chartInfo, refName, source);
+
+         // Real production data is messier than any one country's feature list -- autoDetect can
+         // fail to confidently settle on a type (e.g. mixed/unrecognized values) and leave the
+         // mapping's type null. Rendering a map with a null type throws ("X layer is not supported
+         // by null"), which is strictly worse than the original wrong-but-renderable guess. Only
+         // keep the correction if it actually produced a usable type; otherwise put the original
+         // guess back rather than leave the chart unable to render at all.
+         String redetectedType = geoOption.getMapping() == null ? null : geoOption.getMapping().getType();
+
+         if(Tool.isEmptyString(redetectedType)) {
+            LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive; " +
+                     "keeping the original '{}' guess instead of leaving it unrenderable.",
+                     refName, mapping.getType());
+            geoOption.setMapping(mapping);
+            continue;
+         }
+
          corrected = true;
       }
 

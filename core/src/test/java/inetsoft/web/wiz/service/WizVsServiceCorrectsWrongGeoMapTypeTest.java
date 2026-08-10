@@ -33,8 +33,10 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
+import inetsoft.uql.viewsheet.graph.FeatureMapping;
 import inetsoft.uql.viewsheet.graph.GeographicOption;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.handler.CalculatorHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
@@ -48,6 +50,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -150,6 +155,42 @@ class WizVsServiceCorrectsWrongGeoMapTypeTest {
       assertFalse(corrected, "a map type that already matches real values must not be touched");
       VSMapInfo mapInfo = (VSMapInfo) chart.getVSChartInfo();
       assertEquals("U.S.", mapInfo.getMapType());
+   }
+
+   /**
+    * Regression for a live break found via manual testing (bug-75983): against real production
+    * data, {@code MapHelper.autoDetect} can settle the mapping's type back to null instead of a
+    * usable type (StyleBI's own auto-detect has a documented "already valid, skip re-derivation"
+    * short-circuit -- see {@link WizGeoService}'s call site -- that can leave a freshly-cleared
+    * mapping under-populated). Rendering a chart whose geo mapping type is null throws ("X layer is
+    * not supported by null"), which is strictly worse than the original wrong-but-renderable guess.
+    * Stubs {@link VSChartHandler#autoDetect} to force exactly that outcome, since coaxing StyleBI's
+    * real feature-matching heuristics into it deterministically would require a real, messy dataset
+    * this test can't fabricate.
+    */
+   @Test
+   void rollsBackToTheOriginalGuessWhenRedetectionIsInconclusive() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = mapChart(vs, "Canada", "Province");
+
+      VSChartHandler inconclusiveChartHandler = mock(VSChartHandler.class);
+      doAnswer(invocation -> {
+         VSChartInfo info = invocation.getArgument(2);
+         String refName = invocation.getArgument(3);
+         VSChartGeoRef geoRef = (VSChartGeoRef) info.getGeoColumns().getAttribute(refName);
+         geoRef.getGeographicOption().setMapping(new FeatureMapping());
+         return null;
+      }).when(inconclusiveChartHandler).autoDetect(any(), any(), any(), anyString(), any());
+
+      WizVsService service = new WizVsService(null, null, null, null, null, inconclusiveChartHandler);
+
+      boolean corrected = service.correctWizGeoMapping(rvsFor(vs), "chart1", usStatesDataSet());
+
+      assertFalse(corrected,
+         "an inconclusive re-detection must not be reported as a correction");
+      VSMapInfo mapInfo = (VSMapInfo) chart.getVSChartInfo();
+      assertEquals("Canada", mapInfo.getMapType(),
+         "the original guess must be restored rather than left with a null/unrenderable type");
    }
 
    @Test
