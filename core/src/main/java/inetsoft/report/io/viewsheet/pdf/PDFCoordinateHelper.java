@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.OutputStream;
 import java.util.HashMap;
@@ -216,6 +217,32 @@ public class PDFCoordinateHelper extends CoordinateHelper {
    }
 
    /**
+    * Clip subsequent drawing to a rounded-corner rectangle, so square cell
+    * backgrounds/text don't stick out past the rounded border drawn on top afterward.
+    * @param roundCorner the round corner radius; a value &lt;= 0 leaves the clip unchanged.
+    */
+   public void beginRoundCornerClip(Rectangle2D bounds, int roundCorner) {
+      if(roundCorner <= 0) {
+         return;
+      }
+
+      savedClip = printer.getClip();
+      double r = roundCorner * 2d;
+      printer.setClip(new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),
+                                                   bounds.getWidth(), bounds.getHeight(), r, r));
+   }
+
+   /**
+    * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
+    */
+   public void endRoundCornerClip() {
+      if(savedClip != null) {
+         printer.setClip(savedClip);
+         savedClip = null;
+      }
+   }
+
+   /**
     * Get the page count.
     */
    int getPage() {
@@ -383,6 +410,7 @@ public class PDFCoordinateHelper extends CoordinateHelper {
 
    private HashMap<Integer, LinkedHashMap<Object, Hyperlink.Ref>> linksMap = new HashMap<>();
    private PDFPrinter printer;
+   private Shape savedClip;
    private int page = -1;
    private static final Logger LOG =
       LoggerFactory.getLogger(PDFCoordinateHelper.class);
