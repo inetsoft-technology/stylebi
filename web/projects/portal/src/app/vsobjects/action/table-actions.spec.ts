@@ -1005,4 +1005,42 @@ describe("TableActions", () => {
 
       expect(menuActions.length).toBe(0);
    });
+
+   // The same standing bug slice 1 closed for charts: these four were toolbar-only, so right-click
+   // reached none of them — max mode included, whose whole purpose is rescuing an assembly too
+   // small to read. Ungated: it adds reachability and removes nothing.
+   describe("menu reachability for the toolbar-only actions", () => {
+      const menuIds = (actions: TableActions): string[] =>
+         actions.menuActions.reduce(
+            (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("exposes max mode, show details and export in the menu", () => {
+         const actions = new TableActions(createModel(), ViewerContextProviderFactory(false));
+         const ids = menuIds(actions);
+
+         expect(ids).toContain("table open-max-mode");
+         expect(ids).toContain("table close-max-mode");
+         expect(ids).toContain("table show-details");
+         expect(ids).toContain("table export");
+      });
+
+      it("appends them as the last group, so existing positional assertions do not shift", () => {
+         const actions = new TableActions(createModel(), ViewerContextProviderFactory(false));
+         const groups = actions.menuActions;
+
+         expect(groups[groups.length - 1].actions.map(a => a.id())).toEqual([
+            "table open-max-mode",
+            "table close-max-mode",
+            "table show-details",
+            "table export"
+         ]);
+      });
+
+      it("carries no glyph across, because menu rows render labels only", () => {
+         const actions = new TableActions(createModel(), ViewerContextProviderFactory(false));
+         const group = actions.menuActions[actions.menuActions.length - 1];
+
+         group.actions.forEach(a => expect(a.icon()).toBeNull());
+      });
+   });
 });
