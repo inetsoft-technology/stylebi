@@ -25,6 +25,40 @@ import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
 import { VSObjectModel } from "../../model/vs-object-model";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 
+/**
+ * The assembly types whose mini-toolbar is anchored in the title lane, with the cap of three, the
+ * height bands and the resident kebab. A subset of hasMiniToolbar() below, which enumerates the
+ * types that get a strip at all.
+ *
+ * TEMPORARY. This is the rollout boundary, not a permanent distinction. Slice 1 shipped VSChart as
+ * the pilot; each family slice adds its types. The last slice deletes this predicate together with
+ * AbstractVSActions.resident, its TEMPORARY mobile relaxation of the "menu actions" wrapper
+ * (abstract-vs-actions.ts:389), and VSObjectContainerComponent.isToolbarAnchored, leaving the
+ * .viz-modern gate as the only condition. VSRangeSlider is excluded permanently, not pending — it
+ * declares no titleVisible, so it has no lane to anchor into. See
+ * chart-card-design/Anchoring beyond charts - discussion.md, Case 4.
+ */
+const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
+   "vschart",
+   // Slice 2, the table family. Table and calc table already emitted their stable actions first;
+   // crosstab was reordered to match. All three inherit the chart's treatment unchanged, and take
+   // the flush full-width lane the container's padding fallbacks resolve them to.
+   "vstable",
+   "vscrosstab",
+   "vscalctable"
+]);
+
+/**
+ * Whether an assembly type is in the anchored set. Lowercases its argument because the two call
+ * sites this replaces (abstract-vs-actions.ts and vs-object-container.component.ts) used
+ * Tool.equalsIgnoreCase; a bare Set.has() would narrow the match. A third site,
+ * AbstractVSActions's mobile relaxation, was never a literal — it already delegated to
+ * this.resident, so it picks up the change for free.
+ */
+export function isAnchoredAssemblyType(objectType: string): boolean {
+   return !!objectType && ANCHORED_ASSEMBLY_TYPES.has(objectType.toLowerCase());
+}
+
 @Injectable()
 export class MiniToolbarService {
    private listeners = new Map<HTMLElement, Observable<any>>();

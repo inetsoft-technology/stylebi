@@ -495,7 +495,7 @@ describe("Group 12 — anchored toolbar geometry: objectFormat-only, max mode in
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
       comp.containerRef = scrollless;
-      const obj: any = anchoredChart({ objectType: "VSTable", maxMode: true });
+      const obj: any = anchoredChart({ objectType: "VSCalendar", maxMode: true });
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(false);
@@ -503,5 +503,75 @@ describe("Group 12 — anchored toolbar geometry: objectFormat-only, max mode in
       expect(miniToolbarSvc.getToolbarLeft).toHaveBeenCalled();
       const args = (miniToolbarSvc.getToolbarLeft as any).mock.calls[0];
       expect(args[args.length - 1]).toBe(true);
+   });
+
+   // The table family declares no paddingTop/Left/Right — those fields are on vs-chart-model only —
+   // so the || 0 fallbacks resolve a table to a strip flush inside the content box, spanning the
+   // full width. That is the lane a table already has, which is what slice 1's rule asks for.
+   it("anchors a table flush and full width, since no table model carries paddings", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
+      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
+   });
+
+   // With the title hidden the strip overlays the column header row, whose last cell carries the
+   // sort control at right: 2px, width: 20px (base-table.scss). The kebab landed exactly on it and
+   // ate the click, so the column could not be sorted at all. The lane box gives that footprint up
+   // so the pill right-aligns clear of it.
+   it("reserves the sort control's footprint when the title is hidden", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.titleVisible = false;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600 - 22);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600 - 22);
+   });
+
+   it("reserves nothing when a title lane exists", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.titleVisible = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+   });
+
+   it("does not anchor a calendar, whose rollout slice has not landed", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSCalendar",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
    });
 });
