@@ -805,9 +805,12 @@ public class WizAutoBindingService {
 
    /**
     * Carries highlight rules from the chart being switched away from (source) onto the freshly-bound
-    * chart for the new type (target) — a chart-only operation, a no-op for any other assembly type
-    * (e.g. table/crosstab, which key their highlight differently — see
-    * {@code WizVsService#applyTableHighlight} — and are not reached by changeType's fast path).
+    * chart for the new type (target) — a chart-only operation, a no-op for any other assembly type.
+    * Table/crosstab/gauge/text recommendations DO reach changeType's fast path too (see
+    * {@link #findRecByType}) — they key their highlight differently (see
+    * {@code WizVsService#applyTableHighlight}) and are simply not handled here yet, so a highlight is
+    * still silently dropped switching a chart to/from one of those. Only the chart-to-chart case
+    * reported in bug #76025 is fixed by this method.
     *
     * <p>Needed because changeType()'s createViewsheetSkipExecution() call never runs
     * {@code SyncInfoHandler#syncConfigs} — that only fires on the /viewsheet/autoBinding
@@ -839,15 +842,23 @@ public class WizAutoBindingService {
     * the pre-highlight graph to every later request (the browser's post-refreshViewsheet re-render
     * included) until something else happens to invalidate it.
     *
+    * <p>{@code source} is whatever {@code findWizTargetAssembly} resolved at the top of {@code
+    * changeType}. That method is documented as deliberately best-effort — built for a staleness
+    * check that tolerates "cannot tell" — not as a guaranteed-fresh handle; this call site leans on it
+    * for the highlight's source of truth anyway, so a future change to its resolution/null-handling
+    * that stays within its own contract could make highlight-carry silently no-op more often without
+    * that being an obviously-related regression.
+    *
     * <p>Best-effort: swallows lookup failures so a highlight-carry miss never fails the whole changeType
     * call when the rest of it already succeeded, mirroring
     * {@link #applyResolvedFormulaOverrides(String, String, Map, Principal)}.
     */
-   private void syncHighlightOnTypeChange(VSAssembly source, String runtimeId, String assemblyName,
-                                           Principal user)
+   private void syncHighlightOnTypeChange(VSAssembly source, String runtimeId, String viewsheetIdentifier,
+                                           String assemblyName, Principal user)
    {
       try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+            viewsheetService, runtimeId, viewsheetIdentifier, user);
          VSAssembly target = rvs == null ? null :
             (VSAssembly) rvs.getViewsheet().getAssembly(assemblyName);
          syncHighlightOnTypeChange(source, target);
@@ -2612,7 +2623,8 @@ public class WizAutoBindingService {
                // Carry the highlight from the chart being switched away from onto the rebuilt chart,
                // then invalidate the graph fetchAssemblyData (above) already cached from before the
                // highlight was attached — see syncHighlightOnTypeChange's javadoc.
-               syncHighlightOnTypeChange(targetAssembly, fallbackRuntimeId, result.getAssemblyName(), user);
+               syncHighlightOnTypeChange(
+                  targetAssembly, fallbackRuntimeId, viewsheetIdentifier, result.getAssemblyName(), user);
             }
             catch(Exception e) {
                LOG.warn("changeType fallback: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
@@ -2714,7 +2726,8 @@ public class WizAutoBindingService {
             // Carry the highlight from the chart being switched away from onto the rebuilt chart,
             // then invalidate the graph fetchAssemblyData (above) already cached from before the
             // highlight was attached — see syncHighlightOnTypeChange's javadoc.
-            syncHighlightOnTypeChange(targetAssembly, result.getRuntimeId(), result.getAssemblyName(), user);
+            syncHighlightOnTypeChange(
+               targetAssembly, result.getRuntimeId(), viewsheetIdentifier, result.getAssemblyName(), user);
          }
          catch(Exception e) {
             LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
