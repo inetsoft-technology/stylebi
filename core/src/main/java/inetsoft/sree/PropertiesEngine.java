@@ -1048,6 +1048,6 @@ public class PropertiesEngine {
    private final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
    private static final Set<String> EXCLUDED_ORG_PROPERTIES = Set.of(
       "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval",
-      "inetsoft.sree.security.CheckPermissionStrategy");
+      "inetsoft.sree.security.checkpermissionstrategy");
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }
