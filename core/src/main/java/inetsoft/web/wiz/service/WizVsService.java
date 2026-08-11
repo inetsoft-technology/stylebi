@@ -2971,6 +2971,21 @@ public class WizVsService {
          }
       }
 
+      // Per-measure aesthetic refs. A "multi-style" binding (pie/donut: see DonutChartFilter,
+      // which sets info.setMultiStyles(true) and calls the Y measure's OWN setColorField rather
+      // than the chart-info-level one) carries its category dimension on the individual
+      // ChartAggregateRef, not on VSChartInfo above — that dimension was invisible here, so
+      // deriving fields from a pie/donut source (a chart-type change that re-binds via this
+      // method, e.g. re-slotting into a crosstab) silently dropped it and produced a
+      // dimension-less rebuild. Delegate to getAggregateAestheticRefs(), which already gates on
+      // isMultiAesthetic() -- reading every aggregate's color/shape/size/text unconditionally
+      // would resurface a stale colorField that ChangeSeparateStatusProcessor leaves behind on
+      // non-first aggregates when a chart is switched OUT of multi-styles, reintroducing a
+      // phantom dimension.
+      for(AestheticRef aref : info.getAggregateAestheticRefs(false)) {
+         classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
+      }
+
       // Path field
       ChartRef pathField = info.getPathField();
       if(pathField != null) {
