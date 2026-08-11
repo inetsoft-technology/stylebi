@@ -58,7 +58,7 @@ class WizAutoBindingServiceAutoBindingSecurityTest {
       // environment (no Spring context) — mirroring the WizAutoBindingServiceSetChartColorsTest /
       // WizAutoBindingServiceSetChartFormatTest pattern in this package, pass null instead.
       return new WizAutoBindingService(
-         viewsheetService, null, null, null, null, mock(WizVsService.class), securityEngine);
+         viewsheetService, null, null, null, null, mock(WizVsService.class), securityEngine, null);
    }
 
    @Test

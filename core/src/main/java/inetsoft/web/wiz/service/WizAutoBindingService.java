@@ -38,6 +38,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+import inetsoft.web.vswizard.handler.SyncChartHandler;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.*;
@@ -75,7 +76,8 @@ public class WizAutoBindingService {
                                 VSWizardBindingHandler bindingHandler,
                                 VSDefaultRecommendationFactory defaultRecommendationFactory,
                                 WizVsService wizVsService,
-                                SecurityEngine securityEngine)
+                                SecurityEngine securityEngine,
+                                SyncChartHandler syncChartHandler)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
@@ -84,6 +86,7 @@ public class WizAutoBindingService {
       this.defaultRecommendationFactory = defaultRecommendationFactory;
       this.wizVsService = wizVsService;
       this.securityEngine = securityEngine;
+      this.syncChartHandler = syncChartHandler;
    }
 
    public AutoBindingResponse autoBinding(AutoBindingRequest request, Principal user)
@@ -797,6 +800,64 @@ public class WizAutoBindingService {
       }
       else if(assembly instanceof CrosstabVSAssembly crosstabAsm && crosstabAsm.getVSCrosstabInfo() != null) {
          applyCrosstabAggregateFormulas(crosstabAsm.getVSCrosstabInfo(), configMap);
+      }
+   }
+
+   /**
+    * Carries highlight rules from the chart being switched away from (source) onto the freshly-bound
+    * chart for the new type (target) — a chart-only operation, a no-op for any other assembly type
+    * (e.g. table/crosstab, which key their highlight differently — see
+    * {@code WizVsService#applyTableHighlight} — and are not reached by changeType's fast path).
+    *
+    * <p>Needed because changeType()'s createViewsheetSkipExecution() call never runs
+    * {@code SyncInfoHandler#syncConfigs} — that only fires on the /viewsheet/autoBinding
+    * (skipExecution=false) path — so without this, a highlight applied via /viewsheet/highlight was
+    * silently dropped on every chart-type switch (the GUI's "change chart style" action).
+    *
+    * <p>Package-private so the dispatch itself can be unit-tested directly against a service instance
+    * with mocked assemblies, mirroring {@link #applyResolvedFormulaOverrides(VSAssembly, Map)}.
+    */
+   void syncHighlightOnTypeChange(VSAssembly source, VSAssembly target) {
+      if(source instanceof ChartVSAssembly fromChart && target instanceof ChartVSAssembly toChart) {
+         syncChartHandler.syncHighlight(fromChart, toChart);
+      }
+   }
+
+   /**
+    * {@link #syncHighlightOnTypeChange(VSAssembly, VSAssembly)} for a call site that only has the
+    * resulting runtimeId/assemblyName (createViewsheetSkipExecution / autoBindingInternal already ran
+    * and returned a DTO, not the live assembly) — looks up the live target assembly and applies the
+    * same sync, then invalidates the sandbox's cached graph for it.
+    *
+    * <p>The graph-clear matters regardless of when this runs relative to execution: by the time this
+    * is called (after fetchAssemblyData, so headers/rows are ready for the response), that same call
+    * already executed and cached a graph built from the PRE-highlight design refs. Mutating the design
+    * refs afterward (see {@code SyncChartHandler#syncHighlight}'s javadoc on why it targets design, not
+    * runtime, refs) doesn't retroactively change that cached graph — {@code applyHighlight} avoids this
+    * by mutating before its own execution; this call site can't, because the target chart doesn't exist
+    * yet before createViewsheetSkipExecution places it. Without clearing it, the sandbox keeps serving
+    * the pre-highlight graph to every later request (the browser's post-refreshViewsheet re-render
+    * included) until something else happens to invalidate it.
+    *
+    * <p>Best-effort: swallows lookup failures so a highlight-carry miss never fails the whole changeType
+    * call when the rest of it already succeeded, mirroring
+    * {@link #applyResolvedFormulaOverrides(String, String, Map, Principal)}.
+    */
+   private void syncHighlightOnTypeChange(VSAssembly source, String runtimeId, String assemblyName,
+                                           Principal user)
+   {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         VSAssembly target = rvs == null ? null :
+            (VSAssembly) rvs.getViewsheet().getAssembly(assemblyName);
+         syncHighlightOnTypeChange(source, target);
+
+         if(rvs != null) {
+            rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyName));
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("changeType: failed to sync highlight for '{}': {}", assemblyName, e.getMessage());
       }
    }
 
@@ -2547,6 +2608,11 @@ public class WizAutoBindingService {
                result.setRows(dataResult.getRows());
                result.setHasData(dataResult.getHasData());
                result.setTruncated(dataResult.getTruncated());
+
+               // Carry the highlight from the chart being switched away from onto the rebuilt chart,
+               // then invalidate the graph fetchAssemblyData (above) already cached from before the
+               // highlight was attached — see syncHighlightOnTypeChange's javadoc.
+               syncHighlightOnTypeChange(targetAssembly, fallbackRuntimeId, result.getAssemblyName(), user);
             }
             catch(Exception e) {
                LOG.warn("changeType fallback: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
@@ -2644,6 +2710,11 @@ public class WizAutoBindingService {
             result.setRows(dataResult.getRows());
             result.setHasData(dataResult.getHasData());
             result.setTruncated(dataResult.getTruncated());
+
+            // Carry the highlight from the chart being switched away from onto the rebuilt chart,
+            // then invalidate the graph fetchAssemblyData (above) already cached from before the
+            // highlight was attached — see syncHighlightOnTypeChange's javadoc.
+            syncHighlightOnTypeChange(targetAssembly, result.getRuntimeId(), result.getAssemblyName(), user);
          }
          catch(Exception e) {
             LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
@@ -3694,4 +3765,5 @@ public class WizAutoBindingService {
    private final VSDefaultRecommendationFactory defaultRecommendationFactory;
    private final WizVsService wizVsService;
    private final SecurityEngine securityEngine;
+   private final SyncChartHandler syncChartHandler;
 }

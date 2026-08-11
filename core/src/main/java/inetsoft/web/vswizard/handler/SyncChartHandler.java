@@ -506,14 +506,28 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       }
    }
 
-   private void syncHighlight(ChartVSAssembly fromChart, ChartVSAssembly targetChart) {
+   /**
+    * Copies highlight rules from fromChart onto targetChart by matching bound refs (same rule
+    * {@link #syncChart} applies internally). Exposed separately so a caller that wants ONLY the
+    * highlight carried over — {@code changeType}'s fast path, which must not also pull in
+    * {@link #syncChart}'s format/legend/condition/hyperlink copying — can invoke it directly.
+    *
+    * <p>Matches on the DESIGN refs ({@code getBindingRefs(false)}), not runtime ones. Runtime X/Y
+    * fields are transient clones regenerated from the design refs on every execution/re-render (see
+    * {@code WizVsService#applyHighlight}, which attaches highlight the same way for the same reason,
+    * quoting: "clearRuntime()/executeView regenerate the runtime refs as clones that carry the
+    * group, so it survives the re-render"). A highlight copied onto a RUNTIME ref only lives until the
+    * next execution discards that ref and clones a fresh (highlight-less) one from the design ref — the
+    * copy would silently disappear the next time the chart re-executes (e.g. a second changeType call).
+    */
+   public void syncHighlight(ChartVSAssembly fromChart, ChartVSAssembly targetChart) {
       VSChartInfo fromChartInfo = fromChart.getVSChartInfo();
       VSChartInfo targetChartInfo = targetChart.getVSChartInfo();
 
       HighlightGroup highlightGroup;
       boolean mergedProcessed = false; // just only process once
-      VSDataRef[] fromXYFields = fromChartInfo.getRTFields(true, false, false, false);
-      VSDataRef[] targetXYFields = targetChartInfo.getRTFields(true, false, false, false);
+      VSDataRef[] fromXYFields = fromChartInfo.getBindingRefs(false);
+      VSDataRef[] targetXYFields = targetChartInfo.getBindingRefs(false);
 
       for (VSDataRef ref: fromXYFields) {
          List<Integer> targetBindingRefs = VSWizardBindingHandler.findIndex(targetXYFields, ref, true);
