@@ -1480,7 +1480,19 @@ public class WorksheetAgentController {
     */
    private void createVariable(Worksheet ws, String name, String type,
                                String label, String defaultValue)
+      throws PairingException
    {
+      if(ws.getAssembly(name) != null) {
+         // Fail loud: Worksheet.addAssembly() silently replaces an existing assembly
+         // of the same name (or, for a same-name assembly of a different type, silently
+         // no-ops). Either way a second add_variable call would destroy or discard state
+         // without warning. edit_variable is the explicit path for changing an existing
+         // variable's type/label/default value.
+         throw new PairingException(
+            "An assembly named '" + name + "' already exists in this worksheet. " +
+            "Use edit_variable to change its type, label, or default value instead.");
+      }
+
       AssetVariable var = new AssetVariable(name);
 
       if(label != null) {
