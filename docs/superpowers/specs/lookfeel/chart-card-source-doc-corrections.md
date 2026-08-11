@@ -67,7 +67,7 @@ previous set and whose August findings carry over unchanged.
 | 2.3 | The strip is already 24px under the gate | **Still true** — and contradicted again by the new set. See §5.3, and §3.1 for how the widget spec resolves it |
 | 2.4 | The CARD tooltip grew a structure the docs do not know about | **Closed** by `43a934add` |
 | 2.5 | `chart-actions.spec.ts` asserts by index, not only by label | **Closed** by `67c486d67`, which appended the new menu group last |
-| 3.1 | Title band fill: spec says never filled, `VSTitleChromeDefaults` ships a fill | **Still open.** `TITLE_BG = 0xF1EFEA` at `VSTitleChromeDefaults.java:143`, unchanged. Now more pressing — the anchored strip ships and sits on that band |
+| 3.1 | Title band fill: spec says never filled, `VSTitleChromeDefaults` ships a fill | **Decided 2026-08-11 — unfilled, hairline rule only.** See [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §1, which also records the two consequences that reach past the chart card: the title bar stops matching the table header band, and the widget spec's 6px radius argument loses one of its two supports |
 | 3.2 | The legend is server-side, and the spec does not say so | **Still true.** Nothing in the sync diff touches it |
 | 4.1 | The anchoring mechanism is unspecified | **Closed.** Resolved as reposition-in-place and shipped across three slices |
 
@@ -445,6 +445,11 @@ written — the chart's chrome, legend, title band and palette had been dark-awa
 real decision is smaller and more answerable: **do the chart card's browser-DOM surfaces take dark, or is
 dark explicitly deferred for them?** Four surfaces, one gate, no server or export involvement.
 
+**Decided 2026-08-11 — in scope, implement it.** See
+[chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §2 for the four surfaces, the
+choice between per-surface `.viz-dark` rules and dark-aware shell neutrals, and the note that the 28%
+selection fill was calibrated over a light plot.
+
 **The handoff's other stated gap is smaller than it says.** "No alignment-anchor model" — the widget spec
 §09 supplies the missing rule: three shipped control-height steps used deliberately (30 `-md` in a title
 lane, 24 `-sm` overlaid, 44 touch floor), plus the title-lane height row at 20/26/30 in §08 step 3. That
@@ -596,7 +601,10 @@ Verified this pass against `a038a30b5`. Counts were run, not sampled.
 ### Not checked this pass
 
 - The widget spec's §04 density matrix values and §05 per-widget literal inventories.
-- The range slider's three PNGs and the `granite/timeslider/` painter set.
+- The range slider's three PNGs and the `granite/timeslider/` painter set — but the divergence question
+  the widget spec §08 left open by name is now answered: the painter is redrawn with the CSS control. See
+  [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §3, which carries the scope on
+  both sides and the sequencing note that its range band waits on §07, which waits on the seed mark.
 - `Dead menu icons - ticket.md`'s "~50 unreachable `icon()` declarations" — unchanged since the previous
   set and not re-counted. Given §1.3, treat the number as unverified.
 - Whether the live viewer renders gauges and thermometers through the painter or the DOM — the widget
