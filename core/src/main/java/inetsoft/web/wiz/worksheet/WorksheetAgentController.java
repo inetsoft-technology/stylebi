@@ -893,6 +893,10 @@ public class WorksheetAgentController {
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
             editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue());
+         case "rename_variable" ->
+            editor.renameVariable(req.name(), req.newName());
+         case "delete_variable" ->
+            editor.deleteVariable(req.name());
          case "edit_named_group" ->
             editor.editNamedGroup(req.name(), req.groupMappings(),
                                   req.groupOthers() != null && req.groupOthers());

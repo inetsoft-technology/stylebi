@@ -1843,6 +1843,46 @@ public class WorksheetEditService {
          }
       }
 
+      /**
+       * Renames a variable assembly in the worksheet.  Dependent references
+       * (e.g. {@code $(name)} usages in conditions/expressions) are updated
+       * automatically by {@link Worksheet#renameAssembly}.
+       *
+       * @param oldName the current variable assembly name
+       * @param newName the desired new name
+       * @throws PairingException if no variable assembly with {@code oldName} exists or
+       *                          the rename fails
+       */
+      public void renameVariable(String oldName, String newName) throws PairingException {
+         Assembly a = ws.getAssembly(oldName);
+
+         if(!(a instanceof DefaultVariableAssembly)) {
+            throw new PairingException("Variable assembly not found: " + oldName);
+         }
+
+         if(!ws.renameAssembly(oldName, newName, true)) {
+            throw new PairingException(
+               "Failed to rename variable '" + oldName + "' to '" + newName +
+               "' — the name may already be in use.");
+         }
+      }
+
+      /**
+       * Removes a variable assembly from the worksheet.
+       *
+       * @param name the variable assembly name to delete
+       * @throws PairingException if no variable assembly with {@code name} exists
+       */
+      public void deleteVariable(String name) throws PairingException {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof DefaultVariableAssembly)) {
+            throw new PairingException("Variable assembly not found: " + name);
+         }
+
+         ws.removeAssembly(name);
+      }
+
       // -----------------------------------------------------------------------
       // Edit named group
       // -----------------------------------------------------------------------
