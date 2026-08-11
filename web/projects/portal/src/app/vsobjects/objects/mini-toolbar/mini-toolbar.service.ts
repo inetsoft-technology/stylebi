@@ -45,7 +45,11 @@ const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
    // the flush full-width lane the container's padding fallbacks resolve them to.
    "vstable",
    "vscrosstab",
-   "vscalctable"
+   "vscalctable",
+   // Slice 3, the selection family — anchored but not capped: AbstractVSActions.kebabOnly makes the
+   // kebab the whole strip at any width. The container is deliberately absent; it is its own slice.
+   "vsselectionlist",
+   "vsselectiontree"
 ]);
 
 /**

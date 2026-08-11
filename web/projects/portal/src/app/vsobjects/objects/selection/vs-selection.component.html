@@ -304,7 +304,7 @@
 }
 @if (pendingSubmit) {
   <i class="submit-icon pending-alert"
-    [class.left]="model.dropdown || model.maxMode || inContainer"
+    [class.left]="model.dropdown || inContainer"
     [class.top]="!model.titleVisible"
     title="_#(common.viewsheet.pending.submit)"
     (click)="this.controller.applySelections()"

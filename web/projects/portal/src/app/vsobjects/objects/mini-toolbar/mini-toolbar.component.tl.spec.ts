@@ -182,6 +182,29 @@ describe("MiniToolbar rendered - kebab placement and resting visibility", () => 
       expect(containerStyle.visibility).toBe("visible");
    });
 
+   // Slice 3: the guard generalizes to any contributing ancestor, not just declarations inside
+   // MiniToolbar's own stylesheet. vs-selection.component.scss's `.selection-list__header-buttons`
+   // is visibility: hidden at rest — exactly the shape this guard exists to catch if a selection
+   // host ever ended up an ancestor of the resident kebab.
+   it("flags a selection host's resting visibility: hidden as a zeroing ancestor", async () => {
+      const { fixture } = await renderToolbar([
+         new AssemblyActionGroup([makeAction("chart show-data")]),
+         new AssemblyActionGroup([makeAction("more actions")])
+      ], true);
+
+      const host: HTMLElement = fixture.nativeElement.querySelector(".mini-toolbar");
+      const kebab: HTMLElement = fixture.nativeElement.querySelector(".mini-toolbar-kebab");
+
+      const selectionHeader = document.createElement("div");
+      selectionHeader.className = "selection-list__header-buttons";
+      selectionHeader.style.visibility = "hidden";
+      host.replaceWith(selectionHeader);
+      selectionHeader.appendChild(host);
+
+      const offenders = zeroingAncestors(kebab, selectionHeader);
+      expect(offenders.some(o => o.includes("selection-list__header-buttons"))).toBe(true);
+   });
+
    it("at rest: the action groups are out of layout, so the pill can shrink-wrap the kebab", async () => {
       const { fixture } = await renderToolbar([
          new AssemblyActionGroup([makeAction("chart show-data")]),

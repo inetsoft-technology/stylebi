@@ -15,17 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { isAnchoredAssemblyType } from "./mini-toolbar.service";
+import { isAnchoredAssemblyType, MiniToolbarService } from "./mini-toolbar.service";
 
 // The rollout boundary, asserted explicitly rather than left implied. Each family slice moves types
 // from the second test to the first; the last one deletes the predicate entirely and the gate
 // becomes the only condition.
 describe("isAnchoredAssemblyType", () => {
-   it("anchors the chart pilot and the table family", () => {
+   it("anchors the chart pilot, the table family and the selection family", () => {
       expect(isAnchoredAssemblyType("VSChart")).toBe(true);
       expect(isAnchoredAssemblyType("VSTable")).toBe(true);
       expect(isAnchoredAssemblyType("VSCrosstab")).toBe(true);
       expect(isAnchoredAssemblyType("VSCalcTable")).toBe(true);
+      expect(isAnchoredAssemblyType("VSSelectionList")).toBe(true);
+      expect(isAnchoredAssemblyType("VSSelectionTree")).toBe(true);
    });
 
    it("matches case-insensitively, as the Tool.equalsIgnoreCase calls it replaces did", () => {
@@ -36,8 +38,9 @@ describe("isAnchoredAssemblyType", () => {
 
    it("does not anchor the types whose rollout slices have not landed", () => {
       expect(isAnchoredAssemblyType("VSCalendar")).toBe(false);
-      expect(isAnchoredAssemblyType("VSSelectionList")).toBe(false);
-      expect(isAnchoredAssemblyType("VSSelectionTree")).toBe(false);
+      // The container is its own slice: four toolbar actions rather than nine, a vs-title lane in
+      // normal flow rather than a ratio-split header, and it governs whether its children get a
+      // strip at all.
       expect(isAnchoredAssemblyType("VSSelectionContainer")).toBe(false);
    });
 
@@ -50,5 +53,33 @@ describe("isAnchoredAssemblyType", () => {
       expect(isAnchoredAssemblyType(null)).toBe(false);
       expect(isAnchoredAssemblyType(undefined)).toBe(false);
       expect(isAnchoredAssemblyType("")).toBe(false);
+   });
+});
+
+// The selection component has two kebabs: the anchored strip the container mounts, and an inline
+// mini-menu in its own header (vs-selection.component.html, .selection-list__header-buttons). They
+// are mutually exclusive — the inline one renders only for dropdown and container-child selections,
+// which are exactly the cases isMiniToolbarVisible() excludes. Neither file states the other's half
+// of that contract, so it is asserted here.
+describe("isMiniToolbarVisible: the anchored strip and the inline header kebab never co-render", () => {
+   const service = new MiniToolbarService(
+      { runOutsideAngular: (fn: () => any) => fn() } as any);
+
+   // isMiniToolbarVisible reads only these four fields, so a literal is clearer than a full mock.
+   const selection = (overrides: any = {}) => Object.assign(
+      { objectType: "VSSelectionList", enabled: true, dropdown: false, containerType: null },
+      overrides) as any;
+
+   it("suppresses the anchored strip for a dropdown selection, which mounts the inline kebab", () => {
+      expect(service.isMiniToolbarVisible(selection({ dropdown: true }))).toBe(false);
+   });
+
+   it("suppresses the anchored strip for a container child, which mounts the inline kebab", () => {
+      expect(service.isMiniToolbarVisible(
+         selection({ containerType: "VSSelectionContainer" }))).toBe(false);
+   });
+
+   it("allows the anchored strip for a standalone selection, which mounts no inline kebab", () => {
+      expect(service.isMiniToolbarVisible(selection())).toBe(true);
    });
 });

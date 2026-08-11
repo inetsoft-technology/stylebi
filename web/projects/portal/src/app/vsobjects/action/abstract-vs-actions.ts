@@ -142,6 +142,14 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    }
 
    /**
+    * Whether this assembly type's anchored strip is the kebab alone — no action buttons, at any
+    * width. Permanent, unlike the resident/anchored predicate above: it survives the rollout.
+    */
+   protected get kebabOnly(): boolean {
+      return false;
+   }
+
+   /**
     * The number of toolbar *slots*, not action buttons. ToolbarActionsHandler.getShowingActions()
     * spends one of the slots it is handed on the overflow control (it decrements before slicing, so
     * n slots yield n-1 action buttons whenever anything overflows), and the width term below is in
@@ -156,6 +164,13 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
 
       if(!this.resident) {
          return num;
+      }
+
+      // Kebab-only types never get an action button, so neither the height bands nor the cap
+      // arithmetic below apply. Placed after the resident guard on purpose: keyed on kebabOnly
+      // alone this would also fire gate-off, stripping a floating toolbar users already have.
+      if(this.kebabOnly) {
+         return 0;
       }
 
       const height = this.model.objectFormat.height;

@@ -65,6 +65,11 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    // Set by the host when the strip is positioned inside the assembly rather than floating above it.
    // The host has already resolved the anchored top/left, so this component must not adjust them.
    @Input() anchorInTitleLane: boolean = false;
+   // Set by the host for every assembly type in the resident/kebab-only design, independent of
+   // whether it is currently anchored — max mode has no lane to anchor into (see
+   // VSObjectContainerComponent.isToolbarAnchored) but still needs a route to the kebab on touch,
+   // which has no hover to reveal a non-resident strip. See kebabResident below.
+   @Input() residentKebab: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
    @Input() set forceShow(value: boolean) {
@@ -148,7 +153,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     * — all of which read indices against getActions(), not this getter — need no changes.
     */
    get actionButtonGroups(): AssemblyActionGroup[] {
-      return this.anchorInTitleLane ? this.kebabSplit.groups : this.displayActions;
+      return this.kebabResident ? this.kebabSplit.groups : this.displayActions;
    }
 
    /**
@@ -161,26 +166,41 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     * the 32px control floor, where AbstractVSActions.showingActions suppresses all chrome).
     */
    get kebabAction(): AssemblyAction {
-      return this.anchorInTitleLane ? this.kebabSplit.kebab : null;
+      return this.kebabResident ? this.kebabSplit.kebab : null;
    }
 
    /**
     * Whether .mini-toolbar-container should render at all.
     *
-    * Not anchored: unchanged from before this task — the container renders whenever the device
+    * Not resident: unchanged from before this task — the container renders whenever the device
     * isn't mobile, regardless of content, exactly as it always has.
     *
-    * Anchored: below the 32px control floor, AbstractVSActions.showingActions suppresses every
+    * Resident: below the 32px control floor, AbstractVSActions.showingActions suppresses every
     * action (actionButtonGroups is empty) and there is no kebab, so without this guard the
     * container would still render as an empty bordered, backgrounded pill once the assembly-hover
     * reveal set its opacity to 1 — exactly the rung the fit ladder says should have no chrome.
     */
    get showToolbarContainer(): boolean {
-      if(!this.anchorInTitleLane) {
+      if(!this.kebabResident) {
          return !this.mobileDevice;
       }
 
       return (this.actionButtonGroups && this.actionButtonGroups.length > 0) || !!this.kebabAction;
+   }
+
+   /**
+    * Whether the kebab should render split out and resident (visible without a hover), rather than
+    * as an ordinary trailing action inside a hover-only strip.
+    *
+    * True whenever geometrically anchored (anchorInTitleLane). Also true off that path, on touch
+    * only, for any assembly type in the resident/kebab-only design (residentKebab): touch has no
+    * hover, so a kebab that is only resident when anchored would be unreachable in max mode, where
+    * anchoring is off (no title lane to anchor into) but the type still carries the design.
+    * Desktop keeps the accepted max-mode trade-off — hover reveals the strip there — since this
+    * only forces residency for the touch case.
+    */
+   get kebabResident(): boolean {
+      return this.anchorInTitleLane || (this.residentKebab && this.mobileDevice);
    }
 
    private get kebabSplit(): { groups: AssemblyActionGroup[], kebab: AssemblyAction } {
@@ -358,7 +378,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
       // is whether the action groups are in layout: they are display: none at rest and inline-flex
       // on hover/focus-within. No action group at all (touch, or the kebab-only height band) counts
       // as not revealed — there is nothing there for Esc to dismiss but the resting kebab.
-      if(this.anchorInTitleLane) {
+      if(this.kebabResident) {
          const group = toolbar.querySelector(
             ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)");
 

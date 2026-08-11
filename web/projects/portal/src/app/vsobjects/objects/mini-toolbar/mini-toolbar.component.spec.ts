@@ -316,6 +316,52 @@ describe("MiniToolbar.showToolbarContainer", () => {
    });
 });
 
+// Max mode (isToolbarAnchored() && !maxMode) turns anchorInTitleLane off, but touch has no hover
+// to reveal a non-resident strip — residentKebab is the host's signal that the type still carries
+// the kebab-only design regardless, so kebabResident (and everything gated on it) must stay true
+// on touch even though anchorInTitleLane alone would now say no.
+describe("MiniToolbar.kebabResident (touch without anchoring, e.g. max mode)", () => {
+   it("is false off the anchored path on desktop, matching the accepted hover-reveal trade-off", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
+      comp.residentKebab = true;
+      comp.mobileDevice = false;
+
+      expect(comp.kebabResident).toBe(false);
+   });
+
+   it("is true off the anchored path on touch, once residentKebab says the type carries the design", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
+      comp.residentKebab = true;
+      comp.mobileDevice = true;
+
+      expect(comp.kebabResident).toBe(true);
+   });
+
+   it("is false on touch when the type never carried the resident design (residentKebab false)", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
+      comp.residentKebab = false;
+      comp.mobileDevice = true;
+
+      expect(comp.kebabResident).toBe(false);
+   });
+
+   it("splits out the kebab and keeps the container visible on touch, unanchored", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
+      comp.residentKebab = true;
+      comp.mobileDevice = true;
+      setShowingActions(comp, [
+         new AssemblyActionGroup([makeAction("selection-list show-data"), makeAction("more actions")])
+      ]);
+
+      expect(comp.kebabAction.id()).toBe("more actions");
+      expect(comp.showToolbarContainer).toBe(true);
+   });
+});
+
 // Important 2: for an anchored strip, the host .mini-toolbar is visibility: visible at rest (see
 // mini-toolbar.component.scss), so the pre-existing "is the host hidden" guard never trips for
 // it. Without a second, anchored-specific check, any Esc keyup anywhere in the app — closing an
@@ -417,6 +463,23 @@ describe("MiniToolbar.onKeyUp", () => {
       const hideMiniToolbar = wire(comp, makeElement("visible"));
 
       expect(() => comp.onKeyUp()).not.toThrow();
+      expect(hideMiniToolbar).not.toHaveBeenCalled();
+   });
+
+   // Max mode turns anchorInTitleLane off (no title lane to anchor into), but a maximised selection
+   // on touch is still kebabResident (residentKebab && mobileDevice) and therefore visibility:
+   // visible at rest, per .mini-toolbar--anchored in mini-toolbar.component.scss. Keying the guard
+   // on anchorInTitleLane alone would miss this case: the host-hidden check never trips, the
+   // resident-only check never runs, and Esc would dismiss a strip with no hover to bring it back.
+   it("does not dismiss a maximised selection's resident strip on touch, even though anchorInTitleLane is false", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
+      comp.residentKebab = true;
+      comp.mobileDevice = true;
+      const hideMiniToolbar = wire(comp, makeElement("visible"));
+
+      comp.onKeyUp();
+
       expect(hideMiniToolbar).not.toHaveBeenCalled();
    });
 });
