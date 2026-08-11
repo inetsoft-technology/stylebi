@@ -90,9 +90,10 @@
   }
 }
 
-// The anchored strip is visible at rest so its kebab can render, take focus and be tapped. The
-// class is only set when anchorInTitleLane is true, which is already isVizModern() && the
-// anchored set, so it carries the gate and the anchored-set condition on its own — no separate
+// The resident strip is visible at rest so its kebab can render, take focus and be tapped. The
+// class is set by kebabResident, which is already isVizModern() && the anchored set (either
+// geometrically anchored, or — off that path, on touch only — carrying the design without a lane
+// to anchor into), so it carries the gate and the set condition on its own — no separate
 // .viz-modern scope needed here.
 .mini-toolbar.mini-toolbar--anchored {
   visibility: visible;

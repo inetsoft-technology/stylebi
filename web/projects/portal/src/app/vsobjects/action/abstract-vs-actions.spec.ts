@@ -18,13 +18,21 @@
 import { TestUtils } from "../../common/test/test-utils";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ComposerContextProviderFactory, ViewerContextProviderFactory } from "../context-provider.service";
+import { VSCalcTableModel } from "../model/vs-calctable-model";
 import { VSCalendarModel } from "../model/calendar/vs-calendar-model";
 import { VSChartModel } from "../model/vs-chart-model";
+import { VSCrosstabModel } from "../model/vs-crosstab-model";
+import { VSSelectionListModel } from "../model/vs-selection-list-model";
+import { VSSelectionTreeModel } from "../model/vs-selection-tree-model";
 import { VSTableModel } from "../model/vs-table-model";
 import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
+import { CalcTableActions } from "./calc-table-actions";
 import { CalendarActions } from "./calendar-actions";
 import { ChartActions } from "./chart-actions";
+import { CrosstabActions } from "./crosstab-actions";
+import { SelectionListActions } from "./selection-list-actions";
+import { SelectionTreeActions } from "./selection-tree-actions";
 import { TableActions } from "./table-actions";
 
 describe("AbstractVSActions", () => {
@@ -66,6 +74,42 @@ describe("AbstractVSActions", () => {
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       return new TableActions(model, composerContext, false, null, null, popService,
+         miniToolbarService);
+   }
+
+   // The selection family. Same constructor order as TableActions and CalendarActions —
+   // popService positional 6th, miniToolbarService 7th — verified against selection-list-actions.ts
+   // and selection-tree-actions.ts rather than assumed.
+   function selectionListActionsFor(width: number, height: number): SelectionListActions {
+      const model: VSSelectionListModel = TestUtils.createMockVSSelectionListModel("SelectionList1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      return new SelectionListActions(model, composerContext, false, null, null, popService,
+         miniToolbarService);
+   }
+
+   function selectionTreeActionsFor(width: number, height: number): SelectionTreeActions {
+      const model: VSSelectionTreeModel = TestUtils.createMockVSSelectionTreeModel("SelectionTree1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      return new SelectionTreeActions(model, composerContext, false, null, null, popService,
+         miniToolbarService);
+   }
+
+   // The remaining two anchored table-family types, for the kebabOnly negative assertions only.
+   function crosstabActionsFor(width: number, height: number): CrosstabActions {
+      const model: VSCrosstabModel = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      return new CrosstabActions(model, composerContext, false, null, null, popService,
+         miniToolbarService);
+   }
+
+   function calcTableActionsFor(width: number, height: number): CalcTableActions {
+      const model: VSCalcTableModel = TestUtils.createMockVSCalcTableModel("CalcTable1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      return new CalcTableActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
@@ -583,6 +627,92 @@ describe("AbstractVSActions", () => {
             ["table open-max-mode", "table export", "more actions"]);
          // Nothing to overflow — the wrapper was never visible in the first place.
          expect(ids(actions.getMoreActions())).toEqual([]);
+      });
+   });
+
+   // kebabOnly is a permanent property of the selection family, not a rollout stage — which is why
+   // it is a capability on the actions class rather than a second entry in the TEMPORARY type set.
+   // Asserting it on all six anchored types is what stops a later slice widening it by accident.
+   describe("kebabOnly capability", () => {
+      it("is set on the selection family", () => {
+         expect((selectionListActionsFor(400, 200) as any).kebabOnly).toBe(true);
+         expect((selectionTreeActionsFor(400, 200) as any).kebabOnly).toBe(true);
+      });
+
+      it("is not set on the chart pilot or the table family", () => {
+         expect((actionsFor(400, 200) as any).kebabOnly).toBe(false);
+         expect((tableActionsFor(400, 200) as any).kebabOnly).toBe(false);
+         expect((crosstabActionsFor(400, 200) as any).kebabOnly).toBe(false);
+         expect((calcTableActionsFor(400, 200) as any).kebabOnly).toBe(false);
+      });
+   });
+
+   // Rendered-control counts, not allowedActionsNum(): that returns *slots*, one of which
+   // ToolbarActionsHandler spends on the overflow control. Substituting slots for buttons is what
+   // hid the slot-vs-button defect through the whole chart pilot.
+   describe("the selection family is kebab-only", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("allows no action-button slots at any width under the gate", () => {
+         document.body.classList.add("viz-modern");
+         expect(selectionListActionsFor(150, 200).allowedActionsNum()).toBe(0);
+         expect(selectionListActionsFor(400, 200).allowedActionsNum()).toBe(0);
+         expect(selectionListActionsFor(800, 200).allowedActionsNum()).toBe(0);
+      });
+
+      it("renders the kebab and nothing else at any width under the gate", () => {
+         document.body.classList.add("viz-modern");
+         expect(ids(selectionListActionsFor(150, 200).showingActions)).toEqual(["more actions"]);
+         expect(ids(selectionListActionsFor(400, 200).showingActions)).toEqual(["more actions"]);
+         expect(ids(selectionListActionsFor(800, 200).showingActions)).toEqual(["more actions"]);
+      });
+
+      it("treats the tree the same as the list", () => {
+         document.body.classList.add("viz-modern");
+         expect(selectionTreeActionsFor(400, 200).allowedActionsNum()).toBe(0);
+         expect(ids(selectionTreeActionsFor(400, 200).showingActions)).toEqual(["more actions"]);
+      });
+
+      it("leaves the width-derived number alone when the gate is off", () => {
+         expect(selectionListActionsFor(800, 200).allowedActionsNum()).toBeGreaterThan(1);
+         expect(selectionTreeActionsFor(800, 200).allowedActionsNum()).toBeGreaterThan(1);
+      });
+
+      // Every selection list takes the flattened branch permanently, because no action button ever
+      // renders. Leaving the menu nested behind a "More" row would cost three taps to reach what
+      // the strip exists to put one tap away.
+      it("flattens the kebab into one panel with no wrapper row", () => {
+         document.body.classList.add("viz-modern");
+         const more = ids(selectionListActionsFor(400, 200).getMoreActions());
+
+         expect(more).not.toContain("menu actions");
+         expect(more).toContain("selection-list search");
+         expect(more).toContain("selection-list unselect");
+      });
+
+      it("still removes all chrome below the 32px control floor", () => {
+         document.body.classList.add("viz-modern");
+         expect(ids(selectionListActionsFor(400, 24).showingActions)).toEqual([]);
+      });
+
+      // flattenedMoreActions() dedupes by id, and these entries reuse their toolbar twins' ids
+      // exactly for that reason. A fresh id would put Maximize in the kebab twice, in adjacent
+      // groups.
+      it("shows one Maximize row in the flattened kebab, not two", () => {
+         document.body.classList.add("viz-modern");
+         const model = TestUtils.createMockVSSelectionListModel("SelectionList1");
+         model.objectFormat.width = 400;
+         model.objectFormat.height = 200;
+         const actions = new SelectionListActions(model, ViewerContextProviderFactory(false),
+            false, null, null, popService, miniToolbarService);
+         const ids = actions.getMoreActions()
+            .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+         // A set, not a count: a divergent menu id would add a member here even though the
+         // known-good id still appears exactly once.
+         expect(new Set(ids.filter(id => /max-mode/.test(id)))).toEqual(
+            new Set(["selection-list open-max-mode", "selection-list close-max-mode"]));
       });
    });
 });

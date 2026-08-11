@@ -40,6 +40,11 @@ export class SelectionListActions extends AbstractVSActions<VSSelectionListModel
             dataTipService, popService, miniToolbarService);
    }
 
+   // Case 2: the kebab is the whole strip at any width.
+   protected get kebabOnly(): boolean {
+      return true;
+   }
+
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
@@ -102,6 +107,24 @@ export class SelectionListActions extends AbstractVSActions<VSSelectionListModel
          groups.push(this.createDefaultEditMenuActions());
          groups.push(this.createDefaultOrderMenuActions());
       }
+
+      // Ids and predicates match the toolbar twins; the kebab dedupes by id.
+      groups.push(new AssemblyActionGroup([
+         {
+            id: () => "selection-list open-max-mode",
+            label: () => "_#(js:Show Enlarged)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.openMaxModeVisible
+         },
+         {
+            id: () => "selection-list close-max-mode",
+            label: () => "_#(js:Show Actual Size)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.closeMaxModeVisible
+         }
+      ]));
 
       return super.createMenuActions(groups);
    }

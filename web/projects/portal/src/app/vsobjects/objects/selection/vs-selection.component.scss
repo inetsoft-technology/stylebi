@@ -207,6 +207,8 @@
   top: 2px;
   right: 5px;
   width: 20px;
+  // Must outrank .selection-list-body's z-index: 99, since the icon overlays the body when no title lane exists.
+  z-index: 100;
 
   &.left {
     left: 1px;
@@ -216,6 +218,12 @@
   &.top {
     top: -1px;
   }
+}
+
+// Kebab pill is ~40px (18px glyph + 4px icon padding + 16px btn-sm padding + 2px border), not
+// --inet-control-height-md (a min-width floor the content exceeds, so it can't size this).
+:host-context(.viz-modern) .pending-alert:not(.left) {
+  right: 48px;
 }
 
 .vertical-scrollbar-wrapper-container {
