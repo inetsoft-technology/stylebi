@@ -18,6 +18,7 @@
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { TestUtils } from "../../common/test/test-utils";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
+import { VSTableModel } from "../../vsobjects/model/vs-table-model";
 import { EmbedTableActions } from "./embed-table-actions";
 import { EmbedTableComponent } from "./embed-table.component";
 
@@ -35,6 +36,7 @@ describe("EmbedTableComponent.onOpenContextMenu", () => {
    let dropdownService: any;
    let miniToolbarService: any;
    let component: TestUtils.ContextMenuHost;
+   let table: VSTableModel;
 
    beforeEach(() => {
       dropdownRef = {
@@ -44,8 +46,9 @@ describe("EmbedTableComponent.onOpenContextMenu", () => {
       dropdownService = { open: vi.fn(() => dropdownRef) };
       miniToolbarService = { hiddenFreeze: vi.fn(), hiddenUnfreeze: vi.fn() };
 
+      table = TestUtils.createMockVSTableModel("Table1");
       component = Object.create(EmbedTableComponent.prototype);
-      component.vsObject = TestUtils.createMockVSTableModel("Table1");
+      component.vsObject = table;
       component.dropdownService = dropdownService;
       component.miniToolbarService = miniToolbarService;
    });
@@ -54,7 +57,7 @@ describe("EmbedTableComponent.onOpenContextMenu", () => {
    // ones there are), so on an untouched table nothing is visible - and without the guard every
    // right click opened an empty dropdown and left the mini toolbar frozen behind it.
    it("opens nothing when the assembly has no visible menu action", () => {
-      component.vsObjectActions = new EmbedTableActions(component.vsObject,
+      component.vsObjectActions = new EmbedTableActions(table,
          EmbedAssemblyContextProviderFactory(), false, null, null, null, null,
          () => false, () => {});
       const event: any = {
