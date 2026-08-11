@@ -218,13 +218,14 @@ public abstract class AbstractEditableAuthenticationProvider
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       DataSpace dataSpace = DataSpace.getDataSpace();
-      String viewsheet = manager.getCssEntries().get(fromOrgId);
+      String odir = "portal/" + fromOrgId;
+      String dir = "portal/" + newOrgID;
+      Map<String, String> cssEntries = manager.getCssEntries();
+      String viewsheet = cssEntries != null ? cssEntries.get(fromOrgId) : null;
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
          String cssName = viewsheetFile[1];
-         String odir = "portal/" + fromOrgId;
-         String dir = "portal/" + newOrgID;
 
          try(InputStream in = dataSpace.getInputStream(odir, cssName)) {
             if(in != null) {
@@ -236,6 +237,44 @@ public abstract class AbstractEditableAuthenticationProvider
          }
 
          manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
+         manager.save();
+      }
+
+      Map<String, String> logoEntries = manager.getLogoEntries();
+      String logo = logoEntries != null ? logoEntries.get(fromOrgId) : null;
+
+      if(logo != null) {
+         String logoName = logo.substring(logo.lastIndexOf('/') + 1);
+
+         try(InputStream in = dataSpace.getInputStream(odir, logoName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, logoName, out -> Tool.copyTo(in, out));
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+
+         manager.addLogoEntry(newOrgID, dir + "/" + logoName);
+         manager.save();
+      }
+
+      Map<String, String> faviconEntries = manager.getFaviconEntries();
+      String favicon = faviconEntries != null ? faviconEntries.get(fromOrgId) : null;
+
+      if(favicon != null) {
+         String faviconName = favicon.substring(favicon.lastIndexOf('/') + 1);
+
+         try(InputStream in = dataSpace.getInputStream(odir, faviconName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, faviconName, out -> Tool.copyTo(in, out));
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+
+         manager.addFaviconEntry(newOrgID, dir + "/" + faviconName);
          manager.save();
       }
 
@@ -292,6 +331,8 @@ public abstract class AbstractEditableAuthenticationProvider
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
+         manager.removeLogoEntry(fromOrgId);
+         manager.removeFaviconEntry(fromOrgId);
          manager.removeWelcomePage(fromOrgId);
          manager.save();
          RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
