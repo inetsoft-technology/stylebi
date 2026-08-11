@@ -26,6 +26,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.SelectTable;
@@ -312,6 +313,20 @@ public final class WorksheetMutationSupport {
       AggregateInfo ainfo = new AggregateInfo();
       ColumnSelection cs = t.getColumnSelection(false);
 
+      // The table's AggregateInfo as it stood before this call, captured before any
+      // mutation below — needed by the stale-range-column cleanup at the end, which
+      // (matching AggregateDialogService#processDateGrouping) treats a column as a
+      // candidate for removal only if it was one of THESE previous groups, not any
+      // DateRangeRef-wrapped column anywhere in the table's column selection.
+      AggregateInfo oaginfo = t.getAggregateInfo();
+      oaginfo = oaginfo == null ? new AggregateInfo() : oaginfo;
+
+      // The final DataRef for each of THIS call's groups, in order — mirrors
+      // AggregateDialogService's own `list`, used by the same cleanup to recognize a
+      // range column as still active even though it isn't reachable via `oaginfo`
+      // (e.g. it was just created a few lines above for this very call).
+      List<DataRef> activeGroupColumns = new ArrayList<>();
+
       // Aliases set by THIS call to label aggregate outputs; recorded on the table so
       // the next call's clearAggregateAliases() can tell them apart from aliases set
       // deliberately via rename_column on a column that also happens to be aggregated.
@@ -423,47 +438,55 @@ public final class WorksheetMutationSupport {
          }
 
          ainfo.addGroup(gr);
+         activeGroupColumns.add(gr.getDataRef());
       }
 
-      // Drop any auto-created DateRangeRef-wrapped column left behind by a PRIOR call
-      // that is not one of THIS call's active groups — covers both re-grouping the same
-      // field at a different level (the old "Quarter(orderDate)" is no longer any
-      // group's DataRef once "Month(orderDate)" is built above) and dropping a
-      // previously date-grouped field out of `groups` entirely (set_group_aggregate
-      // fully replaces the AggregateInfo each call, so a field simply absent from this
-      // call's `groups` is exactly as "no longer grouped" as one explicitly re-leveled).
-      // Gated on isAutoCreate() — default true for a column WE materialize here, but
-      // explicitly false for one add_date_range_column created (see addDateRangeColumn)
-      // — so a column the caller deliberately kept as a standalone derived column is
-      // never swept just because it happens to wrap the same base attribute as a group.
-      // Mirrors AggregateDialogService's "remove useless range column" pass, including
-      // its isAutoRangeColumn()-equivalent gate.
-      Set<DataRef> activeGroupColumns = new HashSet<>();
-
-      for(int i = 0; i < ainfo.getGroupCount(); i++) {
-         activeGroupColumns.add(ainfo.getGroup(i).getDataRef());
-      }
-
-      boolean removedStaleRangeColumn = false;
-
+      // Remove a range column left over from a PRIOR call's grouping that is no longer
+      // referenced — ported directly from AggregateDialogService#processDateGrouping's
+      // "remove useless range column" pass (same two conditions, same oaginfo/list
+      // scoping), so this only ever touches a column this mechanism itself put there,
+      // never one created by an unrelated operation (e.g. add_date_range_column, or a
+      // range column serving some other still-active purpose).
       for(int i = cs.getAttributeCount() - 1; i >= 0; i--) {
-         DataRef existing = cs.getAttribute(i);
+         DataRef ref0 = cs.getAttribute(i);
+         String name0 = ref0.getName();
+         boolean range = ref0 instanceof DataRefWrapper &&
+            ((DataRefWrapper) ref0).getDataRef() instanceof DateRangeRef;
 
-         if(existing instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef drr &&
-            drr.isAutoCreate() && !activeGroupColumns.contains(existing))
-         {
+         if(!range) {
+            for(int j = 0; j < oaginfo.getGroupCount(); j++) {
+               GroupRef gref = oaginfo.getGroup(j);
+               DateRangeRef dateRef = getDateRangeRef(gref);
+
+               if(dateRef != null && dateRef.isAutoCreate() && name0.equals(dateRef.getName())) {
+                  range = true;
+                  break;
+               }
+            }
+         }
+
+         if(range) {
+            if(activeGroupColumns.contains(ref0)) {
+               continue;
+            }
+
+            DateRangeRef dateRangeRef = getInnerDateRangeRef(ref0);
+
+            if(dateRangeRef != null && !isAutoRangeColumn(ref0) &&
+               cs.containsAttribute(dateRangeRef.getDataRef()))
+            {
+               continue;
+            }
+
             cs.removeAttribute(i);
-            removedStaleRangeColumn = true;
          }
       }
 
-      if(removedStaleRangeColumn) {
-         // A filter/ranking condition that referenced the removed column's synthetic
-         // name (e.g. add_filter on "Quarter(orderDate)", which read_worksheet_model
-         // does list) would otherwise be left pointing at a DataRef no longer in the
-         // selection. Matches AggregateDialogService's own post-cleanup call.
-         inetsoft.uql.asset.internal.AssetUtil.validateConditions(cs, t);
-      }
+      // Matches AggregateDialogService's own unconditional post-cleanup call: a filter/
+      // ranking condition that referenced a just-removed column's synthetic name (e.g.
+      // add_filter on "Quarter(orderDate)", which read_worksheet_model does list) would
+      // otherwise be left pointing at a DataRef no longer in the selection.
+      inetsoft.uql.asset.internal.AssetUtil.validateConditions(cs, t);
 
       for(AggregateSpec spec : aggregates) {
          AggregateFormula formula = AggregateFormula.getFormula(spec.formula());
@@ -570,6 +593,46 @@ public final class WorksheetMutationSupport {
                     appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+   }
+
+   /**
+    * Ported from {@code AggregateDialogService#getDateRangeRef}: walks a
+    * {@link DataRefWrapper} chain looking for a {@link DateRangeRef}, stopping at the
+    * outermost one found.
+    */
+   private static DateRangeRef getDateRangeRef(DataRef ref0) {
+      while(ref0 instanceof DataRefWrapper) {
+         if(ref0 instanceof DateRangeRef) {
+            break;
+         }
+
+         ref0 = ((DataRefWrapper) ref0).getDataRef();
+      }
+
+      return ref0 instanceof DateRangeRef ? (DateRangeRef) ref0 : null;
+   }
+
+   /**
+    * Ported from {@code AggregateDialogService#getInnerDateRangeRef}: walks a
+    * {@link DataRefWrapper} chain looking for the innermost {@link DateRangeRef} that
+    * does not itself wrap another one (relevant for chained/nested date ranges).
+    */
+   private static DateRangeRef getInnerDateRangeRef(DataRef ref0) {
+      while(ref0 instanceof DataRefWrapper) {
+         if(ref0 instanceof DateRangeRef && !(((DateRangeRef) ref0).getDataRef() instanceof DateRangeRef)) {
+            break;
+         }
+
+         ref0 = ((DataRefWrapper) ref0).getDataRef();
+      }
+
+      return ref0 instanceof DateRangeRef ? (DateRangeRef) ref0 : null;
+   }
+
+   /** Ported from {@code AggregateDialogService#isAutoRangeColumn}. */
+   private static boolean isAutoRangeColumn(DataRef group) {
+      DateRangeRef dateRangeRef = getDateRangeRef(group);
+      return dateRangeRef != null && dateRangeRef.isAutoCreate();
    }
 
    // =========================================================================
