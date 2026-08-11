@@ -1,7 +1,7 @@
 # Chart Card — Slice 2 Design (Anchoring rollout: the table family)
 
 **Date:** 2026-08-10
-**Source docs:** `chart-card-design/` (enterprise repo root) — `Anchoring beyond charts - discussion.md`
+**Source docs:** `chart-card-design/` (`docs/superpowers/specs/lookfeel/`) — `Anchoring beyond charts - discussion.md`
 (required reading, and the source of every settled case cited below), `Open items - handoff.md` §3c,
 `Chart Card Spec.html` §02/§03/§06
 **Predecessor:** [chart-card-slice1-design.md](./chart-card-slice1-design.md) — slice 1's three PRs are
