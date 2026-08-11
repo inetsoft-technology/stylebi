@@ -176,16 +176,21 @@ export class EmbedChartActions extends ChartActions {
                this.isActionVisibleInViewer("Show Legend") && !this.annotationsSelected
          }
       ]));
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "chart MenuAction HelperText",
-            label: () => "_#(js:composer.vs.action.helperText.menuAction.chart)",
-            icon: () => "edit-icon",
-            enabled: () => false,
-            visible: () => this.menuActionHelperTextVisible,
-            classes: () => "helper-text"
-         }
-      ]));
+      // ChartActions' "MenuAction HelperText" entry is deliberately not carried over, for the same
+      // reason EmbedTableActions and EmbedCrosstabActions drop theirs: its visibility is
+      // menuActionHelperTextVisible, which is `!embed || embed && !annotationsSelected`
+      // (abstract-vs-actions.ts), so inside an embed it is true whenever no annotation is selected -
+      // permanently, in practice. A greyed-out hint that the current selection has no commands is a
+      // composer affordance, not something to show an embedding page's end users, and while it is
+      // here AssemblyActionGroup.anyVisible can never report this menu as empty.
+      //
+      // Unlike table and crosstab, that does NOT leave the chart menu selection-gated throughout:
+      // "chart save-image-as" above is visible on `!binding && !composer`, both always false in an
+      // embed, so it stands on isActionVisibleInViewer("Save Image As") alone. That is a real
+      // menu-only command - the chart toolbar carries only the fullscreen toggle, refresh,
+      // multi-select and "More" - so a right click on plain plot area legitimately still opens a
+      // menu holding it. EmbedContextMenu.open's empty-menu guard therefore engages for the chart
+      // only where the server hides Save Image As.
 
       return groups;
    }
@@ -313,7 +318,7 @@ export class EmbedChartActions extends ChartActions {
             enabled: () => true,
             visible: () => !this.vsWizardPreview && !this.mobileDevice
                && this.isActionVisibleInViewer("Menu Actions")
-               && this.menuActions.some((g) => g.actions.some((action) => action.visible()))
+               && AssemblyActionGroup.anyVisible(this.menuActions)
          }]));
 
       return groups;

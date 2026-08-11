@@ -492,10 +492,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
 
       if(info instanceof TitledVSAssemblyInfo) {
-         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 0 :
-            (int)Math.round((double) ((TitledVSAssemblyInfo) info).getTitleHeight() /
-            AssetUtil.defh);
-         titleRow = Math.max(1, titleRow);
+         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 1 : 0;
       }
 
       int rows = titleRow;
@@ -803,7 +800,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       XSSFRichTextString rts = (XSSFRichTextString)
          PoiExcelVSUtil.createRichTextString(book, labelInfo.getLabelText());
       tb.setText(rts);
-      applyFormat(tb, rts, getLabelFormat(labelInfo), false);
+      // Use the original (unpadded) bounds for the round-corner radius calculation so the
+      // font-metric slack added to padded's width doesn't skew the shorter-side comparison.
+      applyFormat(tb, rts, getLabelFormat(labelInfo), false, pixelBounds);
    }
 
    /**
@@ -887,7 +886,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          XSSFRichTextString rts = (XSSFRichTextString)
             PoiExcelVSUtil.createRichTextString(book, txt);
          tb.setText(rts);
-         applyFormat(tb, rts, getTextFormat(info), false);
+         applyFormat(tb, rts, getTextFormat(info), false, split[1]);
       }
       catch(SheetMaxRowsException e) {
          throw e;
@@ -994,7 +993,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                tb.setBottomInset(padding.bottom);
             }
 
-            applyFormat(tb, rts, format, shadowed);
+            applyFormat(tb, rts, format, shadowed,
+                        new Rectangle2D.Double(0, 0, size.width, size.height));
          }
       }
       catch(SheetMaxRowsException e) {
@@ -1010,9 +1010,13 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
    /**
     * Apply the format setting.
+    * @param pixelBounds the pixel bounds of the shape, used to translate the round corner
+    *                     radius (in pixels) into an OOXML preset geometry adjustment. May be
+    *                     null, in which case round corners are not applied.
     */
    private void applyFormat(XSSFTextBox tb, RichTextString rts,
-                            VSCompositeFormat format, boolean shadowed)
+                            VSCompositeFormat format, boolean shadowed,
+                            Rectangle2D pixelBounds)
    {
       if(format == null) {
          return;
@@ -1024,6 +1028,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       BorderColors bcolors = format.getBorderColors();
       java.awt.Font font = format.getFont();
       int alpha = format.getAlpha();
+      int roundCorner = format.getRoundCorner();
 
       if(font != null) {
          rts.applyFont(PoiExcelVSUtil.getPOIFont(format, book, true));
@@ -1034,6 +1039,10 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
       if(bg != null) {
          tb.setFillColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+      }
+
+      if(roundCorner > 0 && pixelBounds != null) {
+         applyRoundCorner(tb, roundCorner, pixelBounds);
       }
 
       if(borders != null) {

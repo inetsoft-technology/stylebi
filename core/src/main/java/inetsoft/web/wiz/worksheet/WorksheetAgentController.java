@@ -893,6 +893,10 @@ public class WorksheetAgentController {
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
             editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue());
+         case "rename_variable" ->
+            editor.renameVariable(req.name(), req.newName());
+         case "delete_variable" ->
+            editor.deleteVariable(req.name());
          case "edit_named_group" ->
             editor.editNamedGroup(req.name(), req.groupMappings(),
                                   req.groupOthers() != null && req.groupOthers());
@@ -1480,7 +1484,19 @@ public class WorksheetAgentController {
     */
    private void createVariable(Worksheet ws, String name, String type,
                                String label, String defaultValue)
+      throws PairingException
    {
+      if(ws.getAssembly(name) != null) {
+         // Fail loud: Worksheet.addAssembly() silently replaces an existing assembly
+         // of the same name (or, for a same-name assembly of a different type, silently
+         // no-ops). Either way a second add_variable call would destroy or discard state
+         // without warning. edit_variable is the explicit path for changing an existing
+         // variable's type/label/default value.
+         throw new PairingException(
+            "An assembly named '" + name + "' already exists in this worksheet. " +
+            "Use edit_variable to change its type, label, or default value instead.");
+      }
+
       AssetVariable var = new AssetVariable(name);
 
       if(label != null) {

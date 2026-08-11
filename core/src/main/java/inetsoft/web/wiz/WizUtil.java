@@ -19,6 +19,8 @@
 package inetsoft.web.wiz;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.graph.internal.LabelValue;
+import inetsoft.report.filter.DCMergeCell;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
@@ -154,6 +156,135 @@ public class WizUtil {
       else if(info instanceof TableDataVSAssemblyInfo tableInfo) {
          tableInfo.setMaxModeZIndex(zIndex);
       }
+   }
+
+   /**
+    * Infix of the lookup table wiz injects purely to label a foreign key — {@code <source>__fk_<target>}
+    * in fkJoinBatchRewrite. Deliberately does NOT match the join itself ({@code <source>__fkjoin}, no
+    * trailing underscore), which carries the fact rows and must be capped like any other detail table.
+    */
+   private static final String FK_LABEL_LOOKUP_INFIX = "__fk_";
+
+   /**
+    * Applies the sampled-preview row cap to a worksheet's DETAIL tables, leaving any lookup table
+    * injected purely to label a foreign key uncapped. Pass {@code maxRows <= 0} for full data, which
+    * clears a cap left by an earlier sampled render on the same runtime.
+    *
+    * <p>Bug #75989. {@code WorksheetInfo.setDesignMaxRows} is worksheet-WIDE, so it capped every table
+    * assembly independently — including the few-row lookup wiz injects to turn an FK id into a name.
+    * Truncating the lookup side of an INNER join does not sample the facts, it destroys matches: every
+    * fact row whose key was truncated away disappears. Measured on a 984-row table, same binding, only
+    * the cap changed: 8 → <b>0 rows</b>, 12 → 12 rows, 20 → 20 rows; the lookup ({@code projects}) has
+    * 13 rows, which is exactly where the behaviour turns.
+    *
+    * <p>What makes that a defect rather than a rough edge: the injection is only sound BECAUSE the join
+    * is row-preserving — wiz probes for orphans and duplicate target keys before injecting, precisely so
+    * that no unfiltered aggregate changes. A worksheet-wide cap silently voids that precondition. And
+    * because the join is injected automatically, a caller who wrote a single-table worksheet and never
+    * asked for a join could hit it.
+    *
+    * <p>Applying the cap per assembly keeps the documented semantics — "aggregate at most maxRows detail
+    * rows" — while exempting the dimension tables that were never part of the sampled fact stream.
+    */
+   public static void applySampledPreviewCap(inetsoft.uql.asset.Worksheet ws, int maxRows) {
+      if(ws == null) {
+         return;
+      }
+
+      final int cap = Math.max(maxRows, 0);
+
+      // Never worksheet-wide (that is the bug). Cleared unconditionally so a cap set by an earlier
+      // render of this same runtime cannot linger once the caller asks for full data.
+      ws.getWorksheetInfo().setDesignMaxRows(0);
+
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly instanceof inetsoft.uql.asset.TableAssembly table) {
+            final String name = table.getName();
+            table.setMaxRows(name != null && name.contains(FK_LABEL_LOOKUP_INFIX) ? 0 : cap);
+         }
+      }
+   }
+
+   /**
+    * The sampled-preview cap currently in effect on {@code ws}, or 0 for full data.
+    *
+    * Companion to {@link #applySampledPreviewCap} and the reason it exists: the cap can no longer be
+    * read back off {@code designMaxRows}, because it is deliberately never set there any more (#75989).
+    * Two call sites depend on reading it back — the {@code sampled}/{@code sampleMaxRows} flags that tell
+    * the caller its Sum/Count is approximate, and the lazy re-fetch path that must keep a sampled render
+    * sampled. Left reading designMaxRows, the first silently claimed a sampled chart was full data and
+    * the second silently promoted it to full data.
+    *
+    * Reads the DETAIL tables only, mirroring how the cap is applied: an injected FK-label lookup is
+    * intentionally uncapped, so including it would always report 0.
+    */
+   public static int sampledPreviewCap(inetsoft.uql.asset.Worksheet ws) {
+      if(ws == null) {
+         return 0;
+      }
+
+      int cap = 0;
+
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly instanceof inetsoft.uql.asset.TableAssembly table) {
+            final String name = table.getName();
+
+            if(name != null && name.contains(FK_LABEL_LOOKUP_INFIX)) {
+               continue;
+            }
+
+            cap = Math.max(cap, table.getMaxRows());
+         }
+      }
+
+      return cap;
+   }
+
+   /**
+    * Reduce one chart-data cell to something worth putting on the wire.
+    *
+    * <p>A DataSet cell is not always a scalar. A date comparison over CUSTOM ranges yields
+    * {@link inetsoft.report.filter.DCMergeDatesCell} — a domain object carrying the merged dates, the
+    * original value, and its {@link java.text.Format}. Handed to Jackson it is walked getter by getter,
+    * and {@code getFormat()} drags in a {@code SimpleDateFormat} -> {@code DateFormatSymbols} ->
+    * {@code zoneStrings}: the whole Java locale timezone table, <b>597 zones, ~67KB, per cell</b>.
+    *
+    * <p>Measured on a 14-row year-over-year comparison (openproject B6): each cell serialized to
+    * ~69KB, of which 97% was zoneStrings; the 14 cells appeared twice (the rows array and the facts
+    * table computed from it) for <b>~1.9M characters, 99.8% of the response</b>, to convey fourteen
+    * short labels. It exceeded the caller's token limit outright, so the tool result could not be read.
+    *
+    * <p>{@link LabelValue#getText()} is what the chart actually draws for such a cell, and — because a
+    * comparison plots every series against one shared axis — it is period-independent, which is what
+    * lets a consumer pair the same grain point across periods. So it is the string emitted here, and it
+    * matches what the plugin's own defensive scalarizer picks (stylebi-wiz #1495), leaving the figures
+    * derived downstream unchanged. Note this is deliberately NOT {@code toString()}: on the outer cell
+    * that joins EVERY merged date with "&" ("2025 Jun&2026 Jun") rather than naming the point.
+    *
+    * <p>Scalars pass through untouched, so the ordinary path is unaffected.
+    */
+   public static Object toResponseCell(Object value) {
+      if(value == null || value instanceof Number || value instanceof String ||
+         value instanceof Boolean || value instanceof java.util.Date)
+      {
+         return value;
+      }
+
+      if(value instanceof LabelValue label) {
+         String text = label.getText();
+
+         if(text != null && !text.isEmpty()) {
+            return text;
+         }
+      }
+
+      // Any other non-scalar (a merge cell without a usable label, a custom value object) still must
+      // not reach Jackson as an object graph.
+      if(value instanceof DCMergeCell || !(value instanceof Comparable)) {
+         return value.toString();
+      }
+
+      return value;
    }
 
    public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";

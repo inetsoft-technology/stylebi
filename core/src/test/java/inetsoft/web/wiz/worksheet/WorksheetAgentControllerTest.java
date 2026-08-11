@@ -28,6 +28,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -417,6 +418,236 @@ class WorksheetAgentControllerTest {
       PairingException ex = assertThrows(PairingException.class,
          () -> ctrl.edit("TOK-EE", req, agent));
       assertTrue(ex.getMessage().contains("name"));
+   }
+
+   /** Builds an {@code add_variable} EditRequest that routes to addVariableFromEdit(). */
+   private static EditRequest addVariableRequest(String name, String type) {
+      return new EditRequest(
+         "add_variable", null, null, name, type, null, null, null, null, null, null, null, null, false,
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null
+      );
+   }
+
+   @Test
+   void editAddVariableCreatesVariableWhenNameIsNew() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AV"), any())).thenReturn(session("TOK-AV"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-AV", addVariableRequest("minTotal", "double"), agent);
+
+      Assembly a = ws.getAssembly("minTotal");
+      assertTrue(a instanceof VariableAssembly, "a variable assembly should have been created");
+   }
+
+   @Test
+   void editRejectsAddVariableWithDuplicateName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      // Regression for Bug #75991: a second add_variable call with a name that
+      // already exists used to silently replace the existing variable assembly
+      // (including its type and default value) via Worksheet.addAssembly's
+      // generic same-name replace semantics. add_variable must fail loud instead
+      // and point the caller at edit_variable, which is the explicit modify path.
+      Worksheet ws = new Worksheet();
+      AssetVariable existingVar = new AssetVariable("minTotal");
+      existingVar.setTypeNode(XSchema.createPrimitiveType(XSchema.DOUBLE));
+      DefaultVariableAssembly existing = new DefaultVariableAssembly(ws, "minTotal");
+      existing.setVariable(existingVar);
+      ws.addAssembly(existing);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AVD"), any())).thenReturn(session("TOK-AVD"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AVD", addVariableRequest("minTotal", "date"), agent));
+      assertTrue(ex.getMessage().contains("already exists"));
+      assertTrue(ex.getMessage().contains("edit_variable"));
+
+      Assembly a = ws.getAssembly("minTotal");
+      assertSame(existing, a, "the original variable assembly must not be replaced");
+      assertEquals(XSchema.DOUBLE, ((VariableAssembly) a).getVariable().getTypeNode().getType(),
+                   "the original variable's type must be unchanged");
+   }
+
+   // ---------------------------------------------------------------------------
+   // edit — rename_variable / delete_variable dispatch (Bug #75994)
+   // ---------------------------------------------------------------------------
+
+   /** Builds a {@code rename_variable} EditRequest that routes to renameVariable(). */
+   private static EditRequest renameVariableRequest(String name, String newName) {
+      return new EditRequest(
+         "rename_variable", null, null, name, null, newName, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null
+      );
+   }
+
+   /** Builds a {@code delete_variable} EditRequest that routes to deleteVariable(). */
+   private static EditRequest deleteVariableRequest(String name) {
+      return new EditRequest(
+         "delete_variable", null, null, name, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null
+      );
+   }
+
+   private static DefaultVariableAssembly addVariable(Worksheet ws, String name) {
+      AssetVariable var = new AssetVariable(name);
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   @Test
+   void editDispatchesRenameVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "minTotal");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RV"), any())).thenReturn(session("TOK-RV"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-RV", renameVariableRequest("minTotal", "employee"), agent);
+
+      assertNull(ws.getAssembly("minTotal"), "old variable name should no longer exist");
+      assertTrue(ws.getAssembly("employee") instanceof DefaultVariableAssembly,
+                 "renamed variable should exist under the new name");
+   }
+
+   @Test
+   void editRenameVariableThrowsWhenAssemblyNotFound() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RV2"), any())).thenReturn(session("TOK-RV2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-RV2", renameVariableRequest("noSuchVar", "employee"), agent));
+      assertTrue(ex.getMessage().contains("noSuchVar"));
+   }
+
+   @Test
+   void editDispatchesDeleteVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "minTotal");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-DV"), any())).thenReturn(session("TOK-DV"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-DV", deleteVariableRequest("minTotal"), agent);
+
+      assertNull(ws.getAssembly("minTotal"), "variable should have been removed");
+   }
+
+   @Test
+   void editDeleteVariableThrowsWhenAssemblyNotFound() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "x", "y");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-DV2"), any())).thenReturn(session("TOK-DV2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // "T" exists but is a table, not a variable — delete_variable must reject it
+      // rather than silently deleting a same-named table assembly.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-DV2", deleteVariableRequest("T"), agent));
+      assertTrue(ex.getMessage().contains("T"));
+      assertNotNull(ws.getAssembly("T"), "table should not have been deleted");
    }
 
    // ---------------------------------------------------------------------------

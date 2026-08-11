@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.VSAssembly;
 
@@ -75,10 +76,21 @@ public class CreateVisualizationModel {
       this.primaryAssembly = primaryAssembly;
    }
 
+   /**
+    * Carry the displaced chart's pre-condition onto the new one, so a type change does not drop the
+    * user's filter. Set only by {@code WizAutoBindingService.changeType} (both branches).
+    *
+    * <p>{@code @JsonIgnore}, not merely {@code transient}: Jackson binds through the setter and ignores
+    * the field's transient marker unless {@code MapperFeature.PROPAGATE_TRANSIENT_MARKER} is on, which it
+    * is not here — so without the annotation a raw request body could set this and silently carry a
+    * filter onto a create that asked for none.
+    */
+   @JsonIgnore
    public boolean isKeepCondition() {
       return keepCondition;
    }
 
+   @JsonIgnore
    public void setKeepCondition(boolean keepCondition) {
       this.keepCondition = keepCondition;
    }
@@ -100,9 +112,9 @@ public class CreateVisualizationModel {
     *       replaced (the UI-click flow leaves this false to keep its existing delete-and-replace
     *       behavior).</li>
     * </ul>
-    * Default false (in-place / delete-and-replace, the existing behavior) in both paths. Not
-    * consulted by the standard path when {@link #getAssemblyName()} names an assembly to replace —
-    * see that field's javadoc.
+    * Default false (in-place / delete-and-replace, the existing behavior) in both paths. In the standard
+    * path this is also what decides whether a named {@link #getAssemblyName()} is REPLACED or merely
+    * named as the chart to build from — see that field's javadoc.
     */
    public boolean isCopy() {
       return copy;
@@ -126,6 +138,27 @@ public class CreateVisualizationModel {
    }
 
    /**
+    * The autoBinding runtime whose wizard temp chart holds this conversation's accumulated
+    * binding-field settings (top-N ranking, sort, date group level, aggregate formula).
+    *
+    * <p>Supplying it lets createViewsheetInternal record THIS request's field settings on that temp
+    * chart, which is the only place they survive a later rebuild-from-recommendation: every
+    * recommendation candidate's x/y refs are clones of the temp chart's, whereas the rendered assembly
+    * is discarded by the next rebuild. Without it a "show top 3" applied here is silently dropped the
+    * next time the chart type changes.
+    *
+    * <p>Optional. Null — the default, and every caller that has no wizard runtime (the MCP path) — just
+    * means there is nothing to record; the rendered assembly still gets the settings.
+    */
+   public String getAutoBindingRuntimeId() {
+      return autoBindingRuntimeId;
+   }
+
+   public void setAutoBindingRuntimeId(String autoBindingRuntimeId) {
+      this.autoBindingRuntimeId = autoBindingRuntimeId;
+   }
+
+   /**
     * Which existing chart this call addresses, by name (see
     * {@code WizVsService.createViewsheetInternal}). Null — the default and every pre-existing
     * caller — means the viewsheet's current PRIMARY assembly, i.e. the chart created or copied most
@@ -142,12 +175,14 @@ public class CreateVisualizationModel {
     *       applied to, or duplicated from when {@link #isCopy()}). Without it, a filter built
     *       against an earlier chart's fields lands on a different chart, which at best filters the
     *       wrong chart and at worst references columns that chart does not bind.</li>
-    *   <li>Standard create/rebind path — the chart to REPLACE in place: the new assembly is added
-    *       under this same name with the old one's exact primary state carried over, and no other
-    *       assembly's primary flag is touched. Used for changeType on a non-current (historical)
-    *       card. {@link #isCopy()} is not consulted in this mode (see
-    *       {@code createViewsheetInternal}): replacing one specific historical card by name should
-    *       not also duplicate it.</li>
+    *   <li>Standard create/rebind path — the chart this call is ABOUT: the binding it rebuilds from,
+    *       and, when {@link #isCopy()} is false, the chart to REPLACE in place (the new assembly is
+    *       added under this same name with the old one's exact primary state carried over, and no
+    *       other assembly's primary flag is touched). With {@link #isCopy()} true the named chart is
+    *       kept as history and the result lands in a new assembly, exactly as it would with no name —
+    *       the name still matters, because it says which chart's binding and pre-condition to carry.
+    *       A click on a card's own chart-type menu is the former, a chat turn about that card the
+    *       latter.</li>
     * </ul>
     */
    public String getAssemblyName() {
@@ -182,4 +217,5 @@ public class CreateVisualizationModel {
    private transient boolean keepCondition;
    private boolean copy;
    private boolean syncConfigs;
+   private String autoBindingRuntimeId;
 }

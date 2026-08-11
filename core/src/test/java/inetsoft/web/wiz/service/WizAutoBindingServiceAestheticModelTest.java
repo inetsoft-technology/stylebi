@@ -79,7 +79,7 @@ class WizAutoBindingServiceAestheticModelTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       service = new WizAutoBindingService(
-         viewsheetService, null, null, null, null, wizVsService, securityEngine);
+         viewsheetService, null, null, null, null, wizVsService, securityEngine, null);
 
       vsChartInfo = mock(VSChartInfo.class);
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);

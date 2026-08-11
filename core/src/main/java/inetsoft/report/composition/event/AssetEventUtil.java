@@ -105,26 +105,38 @@ public class AssetEventUtil {
       List<Node> cubeList = new ArrayList<>();
 
       if(source != null) {
-         if(source.startsWith(Assembly.CUBE_VS)) {
-            source = source.substring(Assembly.CUBE_VS.length());
-            int idx = source.lastIndexOf("/");
+         String cubePrefix = prefix;
+         String cubeSource = source;
+
+         if(cubeSource.startsWith(Assembly.CUBE_VS)) {
+            cubeSource = cubeSource.substring(Assembly.CUBE_VS.length());
+            int idx = cubeSource.lastIndexOf("/");
 
             if(idx >= 0) {
-               prefix = source.substring(0, idx);
-               source = source.substring(idx + 1);
+               cubePrefix = cubeSource.substring(0, idx);
+               cubeSource = cubeSource.substring(idx + 1);
             }
          }
 
-         XCube cube = getXCube(prefix, source, user);
-         Node cubeNode = getCubeNode(cube, prefix, showMeasures, showDimensions,
-            vs, filter);
+         XCube cube = getXCube(cubePrefix, cubeSource, user);
 
-         if(cubeNode != null) {
-            cubeNode.setRequested(true);
-            cubeList.add(cubeNode);
+         if(cube != null) {
+            Node cubeNode = getCubeNode(cube, cubePrefix, showMeasures, showDimensions,
+               vs, filter);
+
+            if(cubeNode != null) {
+               cubeNode.setRequested(true);
+               cubeList.add(cubeNode);
+            }
+
+            // cube resolved but has no dimensions/measures to show -- an empty list is
+            // the correct result here, not a reason to fall back to the full listing.
+            return cubeList;
          }
 
-         return cubeList;
+         // the cube named by "source" could not be resolved at all (e.g. stale/renamed
+         // source info) -- fall back to listing all cubes instead of returning an empty
+         // tree, so the binding pane's data source tree doesn't go blank.
       }
 
       XRepository repository = XRepository.getRepository();

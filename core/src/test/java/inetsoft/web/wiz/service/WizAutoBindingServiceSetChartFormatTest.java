@@ -79,7 +79,7 @@ class WizAutoBindingServiceSetChartFormatTest {
       securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       service = new WizAutoBindingService(
-         viewsheetService, null, null, null, null, wizVsService, securityEngine);
+         viewsheetService, null, null, null, null, wizVsService, securityEngine, null);
 
       // getChartInfo() and getVSAssemblyInfo() both return the ChartVSAssemblyInfo for a chart;
       // one mock backs both. A title-only request leaves the descriptor null, so every axis/

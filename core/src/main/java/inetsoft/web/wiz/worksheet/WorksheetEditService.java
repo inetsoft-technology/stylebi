@@ -1476,14 +1476,46 @@ public class WorksheetEditService {
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
 
+         // Bare attribute names that occur more than once (e.g. "ID" from both a
+         // "Customers" and an "Orders" entity in a join) are ambiguous — keying the
+         // lookup map on the bare name for those would collide and silently drop one
+         // of the columns. Only use the bare name when it is unique; ambiguous ones
+         // fall back to the entity-qualified DataRef.getName().
+         java.util.Map<String, Integer> attributeNameCounts = new java.util.HashMap<>();
+
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef ref = cs.getAttribute(i);
+
+            if(ref instanceof ColumnRef cr && (cr.getAlias() == null || cr.getAlias().isEmpty())) {
+               attributeNameCounts.merge(cr.getAttribute(), 1, Integer::sum);
+            }
+         }
+
          // Build a map of name → DataRef for fast lookup
          java.util.LinkedHashMap<String, DataRef> byName = new java.util.LinkedHashMap<>();
 
          for(int i = 0; i < cs.getAttributeCount(); i++) {
             DataRef ref = cs.getAttribute(i);
-            String name = ref instanceof ColumnRef cr && cr.getAlias() != null
-                          && !cr.getAlias().isEmpty()
-                          ? cr.getAlias() : ref.getName();
+            String name;
+
+            // Match on the bare attribute name (what the caller and the UI both use),
+            // not DataRef.getName(), which is entity-qualified (e.g. "All Sales.Company")
+            // for columns whose entity is non-blank, such as unpivot header columns.
+            if(ref instanceof ColumnRef cr) {
+               if(cr.getAlias() != null && !cr.getAlias().isEmpty()) {
+                  name = cr.getAlias();
+               }
+               else if(attributeNameCounts.get(cr.getAttribute()) > 1) {
+                  name = ref.getName();
+               }
+               else {
+                  name = cr.getAttribute();
+               }
+            }
+            else {
+               name = ref.getName();
+            }
+
             byName.put(name, ref);
          }
 
@@ -1835,6 +1867,46 @@ public class WorksheetEditService {
                var.setValueNode(valueNode);
             }
          }
+      }
+
+      /**
+       * Renames a variable assembly in the worksheet.  Dependent references
+       * (e.g. {@code $(name)} usages in conditions/expressions) are updated
+       * automatically by {@link Worksheet#renameAssembly}.
+       *
+       * @param oldName the current variable assembly name
+       * @param newName the desired new name
+       * @throws PairingException if no variable assembly with {@code oldName} exists or
+       *                          the rename fails
+       */
+      public void renameVariable(String oldName, String newName) throws PairingException {
+         Assembly a = ws.getAssembly(oldName);
+
+         if(!(a instanceof DefaultVariableAssembly)) {
+            throw new PairingException("Variable assembly not found: " + oldName);
+         }
+
+         if(!ws.renameAssembly(oldName, newName, true)) {
+            throw new PairingException(
+               "Failed to rename variable '" + oldName + "' to '" + newName +
+               "' — the name may already be in use.");
+         }
+      }
+
+      /**
+       * Removes a variable assembly from the worksheet.
+       *
+       * @param name the variable assembly name to delete
+       * @throws PairingException if no variable assembly with {@code name} exists
+       */
+      public void deleteVariable(String name) throws PairingException {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof DefaultVariableAssembly)) {
+            throw new PairingException("Variable assembly not found: " + name);
+         }
+
+         ws.removeAssembly(name);
       }
 
       // -----------------------------------------------------------------------

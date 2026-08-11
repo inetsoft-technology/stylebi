@@ -588,7 +588,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
       let zIndex = vsObject.objectFormat.zIndex;
 
-      for(let container = vsObject.container; container; ) {
+      // A max-mode (enlarged) assembly is rendered pulled out of its Group Container/Tab, so
+      // that container's own z-index is no longer meaningful to its stacking and must not be
+      // added on top -- otherwise the container's z-index can push the enlarged assembly above
+      // its own adhoc filter popup, which has no container and so never gets this addition (#75990).
+      for(let container = !(<any> vsObject).maxMode ? vsObject.container : null; container; ) {
          let containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName == container);
 
          if(containerObj) {

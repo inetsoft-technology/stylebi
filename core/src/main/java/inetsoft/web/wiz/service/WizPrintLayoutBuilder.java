@@ -98,11 +98,12 @@ public class WizPrintLayoutBuilder {
       // Stride each subsequent chart to the real printable page height (paper minus top/bottom
       // margins), not a fixed 11in — otherwise later pages drift down and leave awkward whitespace.
       int pageStride = pageContentHeightPt(pageSize);
+      int contentWidth = pageContentWidthPt(pageSize);
 
       // Page 1: report-style header — a prominent title, a "Generated <date>" line closed by a
       // thin rule, and the session recap as a markdown-stripped summary. Split into separate text
       // boxes because a single box can only carry one font. Returns the y where the body begins.
-      int headerBottom = addReportHeader(vsLayouts, title, recap);
+      int headerBottom = addReportHeader(vsLayouts, title, recap, contentWidth);
 
       for(int i = 0; i < ordered.size(); i++) {
          ChartCaption c = ordered.get(i);
@@ -116,10 +117,10 @@ public class WizPrintLayoutBuilder {
          String captionText = c.title() +
             (c.caption() != null && !c.caption().isBlank() ? " — " + c.caption() : "");
          vsLayouts.add(styledTextLayout("wizExportCaption_" + i, captionText,
-            new Point(0, captionY), new Dimension(PAGE_CONTENT_WIDTH_PT, CAPTION_HEIGHT_PT),
+            new Point(0, captionY), new Dimension(contentWidth, CAPTION_HEIGHT_PT),
             Font.BOLD, CAPTION_FONT_PT, CAPTION_COLOR, true));
          vsLayouts.add(new VSAssemblyLayout(assembly.getName(), new Point(0, chartY),
-            new Dimension(PAGE_CONTENT_WIDTH_PT, CHART_HEIGHT_PT)));
+            new Dimension(contentWidth, CHART_HEIGHT_PT)));
 
          int contentBottom = chartY + CHART_HEIGHT_PT;
 
@@ -127,7 +128,7 @@ public class WizPrintLayoutBuilder {
             // One markdown box; MarkdownPresenter renders headers/bullets/inline bold+italic and
             // the converter paints it via a presenter painter (see VsToReportConverter).
             contentBottom = addMarkdownBlock(vsLayouts, "wizMarkdownInsights_" + i,
-                                             c.insightsMarkdown(), contentBottom);
+                                             c.insightsMarkdown(), contentBottom, contentWidth);
          }
 
          // Advance past everything just placed, not by a fixed one page.
@@ -150,11 +151,43 @@ public class WizPrintLayoutBuilder {
       return layout;
    }
 
-   /** Printable content height in points: paper height minus top/bottom margins. */
+   /**
+    * Printable content height in points: paper height minus top/bottom margins.
+    *
+    * Truncated, not rounded, to match {@link inetsoft.uql.viewsheet.internal.VsToReportConverter}'s
+    * getPageContentSize() exactly — it is that value the converter paginates against
+    * (getPageNumber(y, pageHeight)), so a builder that strides by even one point more puts an
+    * element the builder believes sits at the top of page N onto page N+1.
+    */
    private int pageContentHeightPt(String pageSize) {
+      Size size = paperSize(pageSize);
+      return (int) ((size.height - MARGIN_TOP_IN - MARGIN_BOTTOM_IN) * 72.0);
+   }
+
+   /**
+    * Printable content WIDTH in points: paper width minus left/right margins.
+    *
+    * THE DEFECT THIS FIXES. This used to be a hardcoded 8in (576pt) for both paper sizes, but the
+    * printable width is 544pt on Letter and 527pt on A4 at these margins, and the converter paints
+    * every box at the printable width (PainterElementDef.print: painterW = min(size, areaW) where
+    * areaW comes from getPageContentSize()). A markdown block's reserved height is measured by
+    * MarkdownPresenter at the width passed here, so measuring at 576 and painting at 544 wraps into
+    * MORE lines than were reserved — and the overflow is not flowed onto the next page, it is
+    * DROPPED: getPainterPreferredSize() returns an element's explicit size when one is set, so
+    * isEnd() halts the painter at the reserved height. In an exported board that surfaced as prose
+    * cut off mid-sentence at the bottom of a page, with the next page starting on the next chart.
+    *
+    * Same arithmetic as the converter's getPageContentSize() so the measured width is exactly the
+    * painted width.
+    */
+   private int pageContentWidthPt(String pageSize) {
+      Size size = paperSize(pageSize);
+      return (int) ((size.width - MARGIN_LEFT_IN - MARGIN_RIGHT_IN) * 72.0);
+   }
+
+   private Size paperSize(String pageSize) {
       String canonicalName = PAGE_SIZE_NAMES.get(pageSize == null ? "" : pageSize.toLowerCase());
-      Size size = PaperSize.getSize(canonicalName);
-      return (int) Math.round((size.height - MARGIN_TOP_IN - MARGIN_BOTTOM_IN) * 72);
+      return PaperSize.getSize(canonicalName);
    }
 
    private PrintInfo buildPrintInfo(String pageSize) {
@@ -232,23 +265,25 @@ public class WizPrintLayoutBuilder {
     * Emits the page-1 report header (title, generated-date line + rule, recap summary) and
     * returns the y-coordinate (in points) where the body content should start.
     */
-   private int addReportHeader(List<VSAssemblyLayout> vsLayouts, String title, String recap) {
+   private int addReportHeader(List<VSAssemblyLayout> vsLayouts, String title, String recap,
+                               int contentWidth)
+   {
       String heading = title == null || title.isBlank() ? "Analysis Report" : title.trim();
       int y = 0;
 
       vsLayouts.add(styledTextLayout("wizExportTitle", heading, new Point(0, y),
-         new Dimension(PAGE_CONTENT_WIDTH_PT, TITLE_HEIGHT_PT),
+         new Dimension(contentWidth, TITLE_HEIGHT_PT),
          Font.BOLD, TITLE_FONT_PT, TITLE_COLOR, false));
       y += TITLE_HEIGHT_PT;
 
       vsLayouts.add(styledTextLayout("wizExportDate", generatedDateLine(), new Point(0, y),
-         new Dimension(PAGE_CONTENT_WIDTH_PT, DATE_HEIGHT_PT),
+         new Dimension(contentWidth, DATE_HEIGHT_PT),
          Font.PLAIN, DATE_FONT_PT, DATE_COLOR, true));
       y += DATE_HEIGHT_PT;
 
       if(recap != null && !recap.isBlank()) {
          y += SUMMARY_GAP_PT;
-         y = addMarkdownBlock(vsLayouts, "wizMarkdownSummary", recap, y);
+         y = addMarkdownBlock(vsLayouts, "wizMarkdownSummary", recap, y, contentWidth);
       }
 
       return y + HEADER_BOTTOM_GAP_PT;
@@ -261,18 +296,20 @@ public class WizPrintLayoutBuilder {
     * Returns the y just past the box.
     */
    private int addMarkdownBlock(List<VSAssemblyLayout> vsLayouts, String name, String markdown,
-                                int startY)
+                                int startY, int contentWidth)
    {
       MarkdownPresenter presenter = new MarkdownPresenter();
       // Match the font the converter will hand the presenter (the box's body font) so the
       // height we reserve equals what gets painted.
       presenter.setFont(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.getDefaultFont(Font.PLAIN, BODY_FONT_PT));
-      int h = presenter.getPreferredSize(markdown, PAGE_CONTENT_WIDTH_PT).height + BLOCK_GAP_PT;
+      // Measure at contentWidth — the SAME width the converter paints at. Anything the box does not
+      // reserve room for is clipped, never flowed (see pageContentWidthPt).
+      int h = presenter.getPreferredSize(markdown, contentWidth).height + BLOCK_GAP_PT;
 
       // The box carries the raw markdown as its text and a plain body font; the converter reads
       // that font for the presenter and paints the markdown (the box's own text is not drawn).
       vsLayouts.add(styledTextLayout(name, markdown, new Point(0, startY),
-         new Dimension(PAGE_CONTENT_WIDTH_PT, h), Font.PLAIN, BODY_FONT_PT, SUMMARY_COLOR, false));
+         new Dimension(contentWidth, h), Font.PLAIN, BODY_FONT_PT, SUMMARY_COLOR, false));
       return startY + h;
    }
 
@@ -308,9 +345,9 @@ public class WizPrintLayoutBuilder {
    /** Points-per-inch used by VsToReportConverter's print-layout-to-report conversion
     *  (see VsToReportConverter.java:3226, INCH_POINT = 72) — VSAssemblyLayout position/size
     *  values feed that same pipeline, so page/content geometry below is expressed in points.
-    *  CONFIRM in Task 3's integration test that content doesn't clip/overlap across the page
-    *  boundary; adjust these constants if it does. */
-   private static final int PAGE_CONTENT_WIDTH_PT = 8 * 72;
+    *  Content width/height are NOT constants: they are derived per page size by
+    *  {@link #pageContentWidthPt}/{@link #pageContentHeightPt} so they equal what the converter
+    *  paints into. */
    private static final int CAPTION_HEIGHT_PT = 30;
    private static final int CAPTION_FONT_PT = 13;
    private static final String CAPTION_COLOR = "0x3B6EA5";   // slate-blue accent

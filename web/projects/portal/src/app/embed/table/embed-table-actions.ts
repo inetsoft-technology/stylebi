@@ -36,13 +36,22 @@ export class EmbedTableActions extends TableActions {
          dataTipService, popService, miniToolbarService);
    }
 
+   /**
+    * Menu-only commands. This feeds the mini toolbar's "More" button (abstract-vs-actions.ts hands
+    * it menuActions as childAction) and the right-click menu, so the rule for what belongs here is
+    * that it is NOT already a toolbar button: show-details and export used to be listed here as
+    * well as on the toolbar, which made "More" repeat its neighbours (Bug #75951), while Set Cell
+    * Size exists only here (Bug #75961). The override still has to exist regardless: what it
+    * replaces, TableActions.createMenuActions, is composer/annotation commands the embed cannot
+    * use.
+    *
+    * Everything below is selection-gated, so on an untouched table nothing is visible - "More"
+    * self-hides and EmbedContextMenu.open suppresses the empty popup.
+    */
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      // Show Details / Export are deliberately not offered here anymore (right-click context
-      // menu) per explicit request - they're still available from the mini-toolbar, see
-      // createToolbarActions below. Same treatment as EmbedCrosstabActions; unlike crosstab,
-      // TableActions has no Hide Column/Show Columns or drill-hierarchy concept (no row/column
-      // grouping on a plain table), so Set Cell Size is the only item to add here - it's the
-      // only one that exists on both.
+      // Unlike crosstab, TableActions has no Hide Column/Show Columns or drill-hierarchy concept
+      // (no row/column grouping on a plain table), so Set Cell Size is the only item to add here -
+      // it's the only one that exists on both.
       groups.push(new AssemblyActionGroup([
          {
             // Same visibility rule as TableActions' own "table cell size" - oneCellSelected is
@@ -54,16 +63,17 @@ export class EmbedTableActions extends TableActions {
             visible: () => this.oneCellSelected && this.isActionVisibleInViewer("Set Cell Size")
          },
       ]));
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "table MenuAction HelperText",
-            label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
-            icon: () => "edit-icon",
-            enabled: () => false,
-            visible: () => this.menuActionHelperTextVisible,
-            classes: () => "helper-text"
-         }
-      ]));
+
+      // TableActions' "MenuAction HelperText" entry is deliberately NOT carried over. Its
+      // visibility is menuActionHelperTextVisible, which is `!embed || embed &&
+      // !annotationsSelected` (abstract-vs-actions.ts) - inside an embed that is true whenever no
+      // annotation is selected, i.e. essentially always. Keeping it would make the group above
+      // permanently non-empty in AssemblyActionGroup.anyVisible's eyes, so both the "More" button
+      // and EmbedContextMenu.open's empty-menu guard would treat an untouched table as having
+      // something to show, and Bug #75951's empty popup would come straight back - now with a
+      // single greyed-out hint in it. The hint is a composer affordance anyway: it tells the
+      // author their selection has no menu commands, which is not something to say to the
+      // embedding page's end users.
 
       return groups;
    }
@@ -127,7 +137,7 @@ export class EmbedTableActions extends TableActions {
             enabled: () => true,
             visible: () => !this.mobileDevice
                && this.isActionVisibleInViewer("Menu Actions")
-               && this.menuActions.some((g) => g.actions.some((action) => action.visible()))
+               && AssemblyActionGroup.anyVisible(this.menuActions)
          }]));
 
       return groups;

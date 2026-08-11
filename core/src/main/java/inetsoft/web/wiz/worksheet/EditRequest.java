@@ -77,6 +77,8 @@ import java.util.Map;
  *   <li>{@code duplicate_assembly} — {@code table} (source), {@code name} (new name)</li>
  *   <li>{@code set_primary_assembly} — {@code table}</li>
  *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue}</li>
+ *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
+ *   <li>{@code delete_variable} — {@code name}</li>
  *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}</li>
  *   <li>{@code edit_sql_query} — {@code table}, {@code expression} (new SQL string)</li>
  *   <li>{@code update_mirror} — {@code table}</li>

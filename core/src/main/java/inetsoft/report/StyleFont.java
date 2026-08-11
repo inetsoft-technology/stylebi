@@ -84,6 +84,10 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     * The default font font family.
     */
    public static final String DEFAULT_FONT_FAMILY = "Default";
+   /**
+    * The font family used when the 'default.font.family' property cannot be read.
+    */
+   private static final String DEFAULT_FONT_FAMILY_FALLBACK = "Roboto";
    /* not implemented now
     public static final int OUTLINE = 0x200;
     public static final int EMBOSE = 0x400;
@@ -679,7 +683,18 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
    }
 
    public static String getDefaultFontFamily() {
-      return SreeEnv.getProperty("default.font.family", "Roboto");
+      // Resolving this property goes through PropertiesEngine, a Spring bean. Fonts are built
+      // from static initializers (Util.DEFAULT_FONT, Util.WATER_FONT), and an exception thrown
+      // out of a static initializer marks the class permanently unusable for the life of the
+      // JVM -- every later reference gets NoClassDefFoundError. Since Util underpins most of
+      // the report/chart code, letting a missing application context escape here takes down
+      // effectively everything. Fall back to the default instead of throwing when no context
+      // is available (server starting up or shutting down).
+      if(!SreeEnv.isInitialized()) {
+         return DEFAULT_FONT_FAMILY_FALLBACK;
+      }
+
+      return SreeEnv.getProperty("default.font.family", DEFAULT_FONT_FAMILY_FALLBACK);
    }
 
    /**

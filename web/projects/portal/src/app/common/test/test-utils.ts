@@ -98,11 +98,49 @@ import { GraphTypes } from "../graph-types";
 import { StyleConstants } from "../util/style-constants";
 import { XConstants } from "../util/xconstants";
 import { SourceInfo } from "../../binding/data/source-info";
+// Type-only: nothing here instantiates them, and AbstractVSActions in particular drags in half
+// the vsobjects module graph if it is pulled in at runtime.
+import type { AbstractVSActions } from "../../vsobjects/action/abstract-vs-actions";
+import type { AssemblyAction } from "../action/assembly-action";
+import type { AssemblyActionGroup } from "../action/assembly-action-group";
 
 /**
  * Namespace that provides utility methods that are useful in developing unit tests.
  */
 export namespace TestUtils {
+   /**
+    * The members of an embed component that onOpenContextMenu() touches, for the specs that
+    * build one off its prototype instead of through TestBed. The two services are private
+    * constructor parameters and so cannot be picked off the component type; naming them here is
+    * what keeps a typo in a stub a compile error rather than a property nobody reads.
+    */
+   export interface ContextMenuHost {
+      vsObject: { absoluteName: string };
+      vsObjectActions: Pick<AbstractVSActions<any>, "menuActions" | "clickAction">;
+      dropdownService: { open: (component: any, options: any) => any };
+      miniToolbarService: {
+         hiddenFreeze: (name: string) => void,
+         hiddenUnfreeze: (name: string) => void
+      };
+      onOpenContextMenu: (event: MouseEvent) => void;
+   }
+
+   /**
+    * Looks an action up by id across every group, for the assertions that check whether a given
+    * toolbar button or menu item is offered. Which group an action lands in is a layout detail
+    * (it decides where the separators go), so a test that names the action should not have to
+    * know it.
+    *
+    * @param groups the toolbarActions or menuActions of an assembly.
+    * @param id     the action id, e.g. "table show-details".
+    *
+    * @returns the action, or undefined if no group offers it.
+    */
+   export function findAction(groups: AssemblyActionGroup[], id: string): AssemblyAction {
+      return groups.reduce((all, group) => all.concat(group.actions), [] as AssemblyAction[])
+         .find((action) => action.id() === id);
+   }
+
    /**
     * Creates a new, empty instance of VSFormatModel.
     */

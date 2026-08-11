@@ -42,6 +42,7 @@ import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.report.internal.graph.MapData;
+import inetsoft.report.internal.graph.MapHelper;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -64,7 +65,10 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.SyncInfoHandler;
+import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
@@ -81,12 +85,123 @@ import java.util.stream.Collectors;
 @Service
 public class WizVsService {
    public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
-                       SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler)
+                       SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler,
+                       VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.securityEngine = securityEngine;
       this.syncInfoHandler = syncInfoHandler;
+      this.temporaryInfoService = temporaryInfoService;
+   }
+
+   /**
+    * Records the request's binding-field settings on the autoBinding RVS's temp chart, so they outlive
+    * the rendered assembly — the temp chart being the only binding state a later
+    * rebuild-from-recommendation inherits (see {@link BindingFieldSettings}).
+    *
+    * <p>Uses the RECORD direction: {@code fieldSettings} comes from the chart the user is looking at, so
+    * it is authoritative about what is no longer set as well as what is. A merge would leave a removed
+    * ranking on the temp chart, and the next rebuild would push it back onto the chart.
+    *
+    * <p>Only when the temp chart still binds the SAME columns as {@code fieldSettings}. Recording
+    * settings across two different bindings is what made the temp chart lie: a conversation reuses one
+    * recommendation runtime, so a call that edits an earlier history card would otherwise write that
+    * card's ranking onto a temp chart describing the latest chart — and, RECORD being authoritative,
+    * clear whatever the latest chart had. The next chart-type change then pushes the wrong settings
+    * back. When the columns differ the temp chart is stale for this assembly, so the marker is CLEARED
+    * instead, which makes {@code changeType} rebuild it from the target rather than trust it.
+    *
+    * <p>On a match the marker moves to {@code assemblyName}: the temp chart now describes this
+    * assembly. That is the ordinary case even for an in-place edit, because an explicit re-bind
+    * ({@code /viewsheet/create} with a config) lands in a NEWLY named assembly.
+    *
+    * <p>Best-effort: no autoBindingRuntimeId (every caller that predates it, and the MCP path), an
+    * expired runtime, or an RVS that never went through autoBinding all mean there is no temp chart to
+    * record on — the assembly itself already has the settings either way, so this must never fail the
+    * request that triggered it.
+    */
+   void recordFieldSettingsOnTempChart(String autoBindingRuntimeId, DataRef[] fieldSettings,
+                                       String assemblyName, Principal user)
+   {
+      if(Tool.isEmptyString(autoBindingRuntimeId) || fieldSettings == null || fieldSettings.length == 0) {
+         return;
+      }
+
+      try {
+         RuntimeViewsheet autoBindingRvs = viewsheetService.getViewsheet(autoBindingRuntimeId, user);
+         // Through the service, not rvs.getVSTemporaryInfo() directly: it takes the init read-lock for
+         // the window where the field is still null, and it is how the sibling call sites in
+         // WizAutoBindingService reach the same state.
+         VSTemporaryInfo tempInfo = autoBindingRvs == null
+            ? null : temporaryInfoService.getVSTemporaryInfo(autoBindingRvs);
+         ChartVSAssembly tempChart = tempInfo == null ? null : tempInfo.getTempChart();
+
+         if(tempChart == null || tempChart.getVSChartInfo() == null) {
+            return;
+         }
+
+         // Keys off the SNAPSHOT, not the live assembly: the pre-aggregation push rewrites the
+         // assembly's refs to the pushed columns, which would compare unequal against the temp chart
+         // for reasons that have nothing to do with which chart this is.
+         if(!BindingFieldSettings.columnKeys(fieldSettings).equals(
+               BindingFieldSettings.columnKeys(tempChart)))
+         {
+            tempInfo.setWizSourceAssemblyName(null);
+            return;
+         }
+
+         BindingFieldSettings.record(fieldSettings, BindingFieldSettings.refsOf(tempChart));
+         tempInfo.setWizSourceAssemblyName(assemblyName);
+      }
+      catch(Exception e) {
+         LOG.warn("Could not record field settings on the temp chart of {}: {}",
+                  autoBindingRuntimeId, e.getMessage());
+         LOG.debug("temp chart field-settings record stack trace", e);
+      }
+   }
+
+   /**
+    * The assembly a wiz call is about, in the output viewsheet named by {@code runtimeId}: the one
+    * {@code assemblyName} names, else whichever is currently primary (= the session's latest chart,
+    * which is what a caller carrying no name targets).
+    *
+    * <p>Deliberately best-effort — null on an expired runtime, a name that no longer resolves, or no
+    * primary at all. The caller ({@code changeType}) uses this only to decide whether the wizard temp
+    * chart is stale, and "cannot tell" must degrade to the pre-existing behavior rather than fail a
+    * type change.
+    *
+    * <p>Not {@link #resolveTargetAssembly}, which throws on ambiguity: a wiz session viewsheet
+    * legitimately holds many charts (every history card), so "multiple charts" is the normal state
+    * here, not an error.
+    */
+   VSAssembly findWizTargetAssembly(String runtimeId, String viewsheetIdentifier, String assemblyName,
+                                    Principal user)
+   {
+      if(Tool.isEmptyString(runtimeId)) {
+         return null;
+      }
+
+      try {
+         RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+            viewsheetService, runtimeId, viewsheetIdentifier, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+         if(vs == null) {
+            return null;
+         }
+
+         if(!Tool.isEmptyString(assemblyName)) {
+            return vs.getAssembly(assemblyName) instanceof VSAssembly found ? found : null;
+         }
+
+         return findPrimaryAssembly(vs);
+      }
+      catch(Exception e) {
+         LOG.debug("Could not resolve wiz target assembly '{}' in {}: {}",
+                   assemblyName, runtimeId, e.getMessage());
+         return null;
+      }
    }
 
    /**
@@ -107,6 +222,73 @@ public class WizVsService {
       }
 
       return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+   }
+
+   /**
+    * Whether the named assembly is REPLACED, or only named as the chart to build from.
+    *
+    * <p>{@code copy} decides, which is what lets one field name the target for both intents: a click on
+    * a card's own chart-type menu replaces that card ({@code copy} false), while a chat turn about it
+    * keeps it as history and adds a new card ({@code copy} true) — and either way the call needs to know
+    * WHICH chart it is about, so the binding it rebuilds from is that card's and not whichever chart
+    * happens to be primary.
+    *
+    * <p>Every pre-existing caller already maintained this as a caller-side invariant (a name is only
+    * ever sent with {@code copy} false — see validateBinding's mutually-exclusive assemblyName / copy),
+    * so honoring {@code copy} here changes no existing path; it only stops the {@code copy} true case
+    * from being silently reinterpreted as a replace.
+    *
+    * <p>Never in sync mode: there the named chart is the config SOURCE and the result is by definition a
+    * new assembly.
+    */
+   static boolean replaceInPlace(VSAssembly existingTarget, boolean syncMode, boolean copy) {
+      return existingTarget != null && !syncMode && !copy;
+   }
+
+   /**
+    * The assembly whose pre-condition a type change carries onto the new one (see
+    * {@code CreateVisualizationModel.isKeepCondition()}).
+    *
+    * <p>The NAMED chart wins when there is one: on a copy it is not the displaced assembly (the
+    * displaced one is whichever was primary, i.e. the latest chart), and carrying the latest chart's
+    * filter onto a type change made about an earlier card would apply a filter the user never asked for
+    * there. Identical to the displaced assembly whenever the two coincide — a replace.
+    *
+    * <p>Falls through in sync mode, where {@code syncConfigs} carries the condition instead.
+    */
+   static VSAssembly resolveConditionSource(boolean syncMode, VSAssembly existingTarget,
+                                            VSAssembly replacedAssembly,
+                                            VSAssembly previousPrimaryAssembly)
+   {
+      if(!syncMode && existingTarget != null) {
+         return existingTarget;
+      }
+
+      return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+   }
+
+   /**
+    * Should the condition source's pre-condition be carried onto the freshly-bound assembly?
+    *
+    * <p>{@code keepConditionRequested} is the explicit server-side ask — {@code changeType}'s rebuild
+    * branch, replacing a chart the user already filtered. It stays {@code @JsonIgnore} on
+    * {@link inetsoft.web.wiz.model.AutoBindingRequest} so a raw request body can never force a filter
+    * onto a rebind that asked for none.
+    *
+    * <p>{@code replaceInPlace} is the second, implicit case, and the one this method exists for: a
+    * re-bind that REPLACES the named chart produces the SAME chart — same assembly name, same saved
+    * identifier — just bound differently. A filter is a property of that chart, so dropping it silently
+    * widens the data (observed: a chart filtered to one project came back with the whole portfolio, ~100x
+    * the rows, with no error and no note, and the widening was then persisted to the saved viewsheet).
+    * Note {@code replaceInPlace} already implies {@code !syncMode && existingTarget != null}, so
+    * {@link #resolveConditionSource} returns exactly the chart being replaced — never an unrelated
+    * assembly whose filter the caller never asked for.
+    *
+    * <p>A COPY is deliberately excluded (it is not the same chart — it keeps the original as history), as
+    * is sync mode, where {@code syncConfigs} carries the condition instead.
+    */
+   static boolean carryCondition(boolean keepConditionRequested, boolean replaceInPlace) {
+      return keepConditionRequested || replaceInPlace;
    }
 
    @FunctionalInterface
@@ -1335,8 +1517,9 @@ public class WizVsService {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
-            // In this (standard) path the named assembly is the one to REPLACE in place; the
-            // modificationOnly branch above reads the same field as the chart to modify.
+            // In this (standard) path the named assembly is the chart this call is ABOUT — the one it
+            // builds from and, unless copy says otherwise, replaces. The modificationOnly branch above
+            // reads the same field as the chart to modify.
             String targetAssemblyName = model.getAssemblyName();
             boolean syncMode = model.isSyncConfigs();
             VSAssembly existingTarget = null;
@@ -1356,7 +1539,10 @@ public class WizVsService {
                existingTarget = foundVs;
             }
 
-            String assemblyName = !(Tool.isEmptyString(targetAssemblyName) || syncMode)
+            boolean replaceInPlace = replaceInPlace(existingTarget, syncMode, model.isCopy());
+            // A copy MUST take a fresh name: reusing the target's would have addAssembly overwrite it by
+            // name below, destroying the very card copy exists to preserve.
+            String assemblyName = replaceInPlace
                ? targetAssemblyName : uniqueAssemblyName(targetVs, ctx.title());
 
             if(model.getPrimaryAssembly() != null) {
@@ -1376,13 +1562,9 @@ public class WizVsService {
                }
             }
 
-            if(existingTarget != null && !syncMode) {
+            if(replaceInPlace) {
                // Targeted replace: swap in the new assembly under the SAME name, carrying over the
                // old one's exact primary state — no other assembly is touched either way.
-               // model.isCopy() is NOT consulted here (only in the else branch below, via
-               // previousPrimaryAssembly): a caller that sets both assemblyName and copy=true gets
-               // copy silently bypassed — replacing one specific historical card by name should not
-               // also duplicate it. See CreateVisualizationModel.getAssemblyName()'s javadoc.
                replacedAssembly = existingTarget;
                replacedWasPrimary = existingTarget.isPrimary();
                targetVs.removeAssembly(targetAssemblyName);
@@ -1427,11 +1609,13 @@ public class WizVsService {
                rvs.getViewsheetSandbox().ifPresent(sandbox -> sandbox.clearGraph(assembly.getName()));
             }
 
-            // Sync pre-condition from the replaced assembly to the new one when the caller
-            // is performing a visualization type change (e.g. table → chart).
-            VSAssembly displacedForCondition = replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+            // Sync pre-condition from the chart being switched away from to the new one when the caller
+            // is performing a visualization type change (e.g. table → chart), or whenever the re-bind
+            // REPLACES the named chart in place (see carryCondition).
+            VSAssembly displacedForCondition = resolveConditionSource(
+               syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
 
-            if(model.isKeepCondition() &&
+            if(carryCondition(model.isKeepCondition(), replaceInPlace) &&
                displacedForCondition instanceof DataVSAssembly oldDataAsm &&
                assembly instanceof DataVSAssembly newDataAsm)
             {
@@ -1473,6 +1657,13 @@ public class WizVsService {
 
          // Collect binding for result
          CreateViewsheetResult.FlatBinding binding = collectFlatBinding(assembly);
+
+         // This request's field settings (top-N, sort, date level, formula), captured before the
+         // mutations below can rewrite them. Recorded onto the wizard temp chart at the end of the try,
+         // once everything has succeeded — the temp chart is the only place those settings survive a
+         // later rebuild-from-recommendation (see BindingFieldSettings).
+         DataRef[] fieldSettings = BindingFieldSettings.snapshot(assembly);
+
          AssetEntry wsEntry = null;
          Worksheet originWs = null;
          boolean wsModified = false;
@@ -1669,6 +1860,14 @@ public class WizVsService {
 
             String identifierToUse = model.getViewsheetIdentifier();
             result.setViewsheetIdentifier(persistViewsheet(targetVs, identifierToUse, user));
+
+            // Every mutation has succeeded and been persisted by this point, so the temp chart is only
+            // ever written for a request that actually landed — a rolled-back create leaves it alone.
+            // Recorded from the snapshot taken before the pre-aggregation push above, which rewrites
+            // exactly these values (a pushed measure's formula becomes NONE and a bucketed dimension's
+            // level is cleared): the temp chart must hold what the user asked for, not the pushed form.
+            recordFieldSettingsOnTempChart(model.getAutoBindingRuntimeId(), fieldSettings,
+                                           assembly == null ? null : assembly.getName(), user);
 
             if(copyNote != null) {
                result.setNote(copyNote);
@@ -1934,7 +2133,11 @@ public class WizVsService {
       var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
 
       if(bws != null) {
-         bws.getWorksheetInfo().setDesignMaxRows(Math.max(sampleMaxRows, 0));
+         // #75989: per-assembly rather than worksheet-wide. A worksheet-wide cap also truncated the
+         // few-row lookup wiz injects to label an FK, destroying the INNER join's matches — a cap of 8
+         // returned 0 rows from a 984-row table. applySampledPreviewCap also clears a previous render's
+         // cap when sampleMaxRows <= 0, which is what the full-data path relies on.
+         WizUtil.applySampledPreviewCap(bws, sampleMaxRows);
 
          try {
             box.resetDataMap(assembly.getName());
@@ -1984,7 +2187,9 @@ public class WizVsService {
       // #75456: preserve the current data-mode on this lazy re-fetch path — pass the design-max
       // already set on the source worksheet (no-op for full; keeps sampled mode sampled).
       var fetchWs = vs.getBaseWorksheet();
-      int curMax = fetchWs != null ? fetchWs.getWorksheetInfo().getDesignMaxRows() : 0;
+      // #75989: read the cap back from the assemblies, not designMaxRows — the cap is applied per
+      // assembly now, so reading designMaxRows here would silently promote a sampled render to full data.
+      int curMax = WizUtil.sampledPreviewCap(fetchWs);
       CreateViewsheetResult result = executeAndExtract(rvs, assembly, curMax);
 
       if(result != null) {
@@ -2204,31 +2409,27 @@ public class WizVsService {
          }
 
          box = boxOpt.get();
-         VGraphPair pair = box.getVGraphPair(assemblyName, true);
-
-         if(pair == null) {
-            return new CreateViewsheetResult();
-         }
-
-         DataSet dset = pair.getData();
+         DataSet dset = fetchUnwrappedDataSet(box, assemblyName);
 
          if(dset == null) {
             return new CreateViewsheetResult();
          }
 
-         // Unwrap dataset wrappers to reach the aggregated data
-         while(true) {
-            if(dset instanceof VSDataSet) {
-               break;
-            }
-            else if(dset instanceof PairsDataSet) {
-               dset = ((PairsDataSet) dset).getDataSet();
-            }
-            else if(dset instanceof DataSetFilter) {
-               dset = ((DataSetFilter) dset).getDataSet();
-            }
-            else {
-               break;
+         // A wiz-guessed geo map type/layer (e.g. "province" in the prompt naively matched to
+         // Canada's "Province" layer) is never validated against the real data at creation time.
+         // Now that real data is available, re-check it and force a genuine re-detection if every
+         // real value failed to match. Correcting only the design geo column (what autoDetect
+         // touches) leaves other runtime-synced structures the graph generator also reads (e.g.
+         // VSMapInfo's runtime geo fields) stale, so a full re-execution -- the same binding-sync
+         // pipeline a normal chart load runs -- is needed to render with the corrected mapping
+         // instead of the wrong guess (a partial refresh here previously left rendering broken).
+         if(correctWizGeoMapping(rvs, assemblyName, dset)) {
+            box.clearGraph(assemblyName);
+            box.executeView(assemblyName, true);
+            dset = fetchUnwrappedDataSet(box, assemblyName);
+
+            if(dset == null) {
+               return new CreateViewsheetResult();
             }
          }
 
@@ -2252,7 +2453,9 @@ public class WizVsService {
             Map<String, Object> row = new LinkedHashMap<>(colCount);
 
             for(int c = 0; c < colCount; c++) {
-               row.put(headers.get(c), dset.getData(c, r));
+               // Not the raw cell: a date-comparison DataSet yields DCMergeDatesCell, whose getFormat()
+               // drags the entire locale timezone table into the response (see WizUtil.toResponseCell).
+               row.put(headers.get(c), WizUtil.toResponseCell(dset.getData(c, r)));
             }
 
             rows.add(row);
@@ -2272,7 +2475,9 @@ public class WizVsService {
          // worksheet design-max to 0 (unlimited) -> no flag. Best-effort; absence just means no warning.
          try {
             var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
-            int dmax = bws != null ? bws.getWorksheetInfo().getDesignMaxRows() : 0;
+            // #75989: same reason — designMaxRows is no longer where the cap lives, and reading it
+            // here reported a sampled 8-of-984-row chart as full data with no approximate-totals warning.
+            int dmax = WizUtil.sampledPreviewCap(bws);
 
             if(dmax > 0) {
                result.setSampled(true);
@@ -2307,6 +2512,186 @@ public class WizVsService {
       }
    }
 
+   /**
+    * Fetches the assembly's current graph data and unwraps it to the underlying aggregated
+    * dataset, or {@code null} if no graph/data is available yet.
+    */
+   private static DataSet fetchUnwrappedDataSet(ViewsheetSandbox box, String assemblyName)
+      throws Exception
+   {
+      VGraphPair pair = box.getVGraphPair(assemblyName, true);
+      DataSet dset = pair == null ? null : pair.getData();
+      return dset == null ? null : unwrapDataSet(dset);
+   }
+
+   /** Unwraps dataset wrappers (pair/filter chains) to reach the underlying aggregated data. */
+   private static DataSet unwrapDataSet(DataSet dset) {
+      while(true) {
+         if(dset instanceof VSDataSet) {
+            return dset;
+         }
+         else if(dset instanceof PairsDataSet) {
+            dset = ((PairsDataSet) dset).getDataSet();
+         }
+         else if(dset instanceof DataSetFilter) {
+            dset = ((DataSetFilter) dset).getDataSet();
+         }
+         else {
+            return dset;
+         }
+      }
+   }
+
+   /**
+    * Re-validates a wiz-guessed geo map type/layer against the real executed data, and forces a
+    * genuine data-driven re-detection if every real value fails to match -- mirrors what StyleBI's
+    * own {@code MapHelper.autoDetect} would do, except that it otherwise short-circuits whenever a
+    * recognized (but not necessarily correct) map type is already set on the chart. This is how a
+    * chart of real U.S. states (e.g. "NJ"/"CA"/"NY") ends up rendered as a map of Canada: wiz-services
+    * naively matches the word "province" in the user's prompt to Canada's "Province" layer -- the
+    * only StyleBI layer literally named that -- and {@code createGeoFields} writes that guess into
+    * the chart unconditionally, without ever checking it against the actual column values.
+    *
+    * <p>Resolves the geo field being corrected by name (not by the runtime-index alignment
+    * {@code VSChartHandler}'s own private {@code getGeoCol} uses) -- sufficient because wiz only
+    * ever creates a single geo dimension per map chart, with the same field name in both
+    * {@code createGeoFields}'s design geo column and {@code applyChartBinding}'s bound geo field.
+    * For the same reason, re-detection calls {@link MapHelper#autoDetect} directly with the
+    * already-resolved {@link GeographicOption} rather than going through
+    * {@code VSChartHandler.autoDetect}: that convenience wrapper re-resolves the geo ref itself via
+    * RT-index alignment between {@code getRTGeoColumns()} and {@code getGeoColumns()}, which on a
+    * real (post-execution) chart does not line up with this by-name resolution and silently no-ops
+    * -- leaving the mapping this method just cleared never re-populated (verified live: bug-75983's
+    * real data resolved correctly through {@code MapHelper.autoDetect} called directly, but through
+    * {@code VSChartHandler.autoDetect} it stayed cleared and this method's null-type rollback below
+    * kept firing).
+    *
+    * <p>Package-private (not private) so tests can call it directly without standing up a real
+    * {@link ViewsheetSandbox}, the same reason {@link #executeAndExtract} is.
+    *
+    * @return true if a correction was applied -- the caller must invalidate the cached graph.
+    */
+   boolean correctWizGeoMapping(RuntimeViewsheet rvs, String assemblyName, DataSet source) {
+      if(source == null) {
+         return false;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         return false;
+      }
+
+      VSChartInfo chartInfo = chart.getVSChartInfo();
+
+      if(!(chartInfo instanceof MapInfo mapInfo)) {
+         return false;
+      }
+
+      SourceInfo sourceInfo = chart.getSourceInfo();
+      boolean corrected = false;
+
+      for(ChartRef ref : mapInfo.getGeoFields()) {
+         if(!(ref instanceof VSChartGeoRef boundRef)) {
+            continue;
+         }
+
+         String refName = boundRef.getName();
+         DataRef designRef = chartInfo.getGeoColumns().getAttribute(refName);
+
+         if(!(designRef instanceof VSChartGeoRef geoRef)) {
+            continue;
+         }
+
+         GeographicOption geoOption = geoRef.getGeographicOption();
+         FeatureMapping mapping = geoOption.getMapping();
+
+         if(mapping == null) {
+            continue;
+         }
+
+         // A non-empty explicit mapping means a real person built it value-by-value via geo_apply
+         // (WizGeoService.apply -> FeatureMapping.addMapping) -- e.g. picking a layer whose real
+         // values are numeric/relabeled codes that will never textually match any auto-detected
+         // type. Respect that deliberate choice rather than re-litigating it on every render; only
+         // wiz's own unvalidated createGeoFields guess (always an empty mapping) is a candidate.
+         if(!mapping.getMappings().isEmpty()) {
+            continue;
+         }
+
+         // createGeoFields only ever sets the option's own DynamicValue layer (geoOption.getLayer())
+         // and the mapping's type -- never the mapping's own `layer` field, which then defaults to 0.
+         // getUnMatchedValues below reads mapping.getLayer(), so an out-of-sync 0 would look up an
+         // undefined layer and silently report every value as matched. Keep it in sync with the
+         // option's real layer before checking.
+         if(mapping.getLayer() != geoOption.getLayer()) {
+            mapping.setLayer(geoOption.getLayer());
+         }
+
+         int colIndex = GraphUtil.indexOfHeader(source, refName);
+
+         if(colIndex < 0) {
+            continue;
+         }
+
+         int distinct = MapHelper.distinctValueCount(source, colIndex);
+
+         if(distinct == 0) {
+            continue;
+         }
+
+         Map<String, Integer> unmatched =
+            MapHelper.getUnMatchedValues(source, colIndex, mapping, chartInfo);
+
+         // Unlike distinctValueCount above, getUnMatchedValues does not skip blank/null cells --
+         // a blank geo cell that matches nothing surfaces here as an unmatched "" entry. Left in,
+         // it would make an otherwise fully-matched (already-correct) mapping look unmatched
+         // whenever the data has even one blank row, needlessly clearing and re-detecting it.
+         List<String> realUnmatched = unmatched.keySet().stream()
+            .filter(v -> !Tool.isEmptyString(v)).collect(Collectors.toList());
+
+         if(realUnmatched.size() < distinct) {
+            // At least one real value matched the guessed type/layer -- trust it.
+            continue;
+         }
+
+         List<String> unmatchedSample = realUnmatched.stream()
+            .limit(LOGGED_UNMATCHED_VALUES).collect(Collectors.toList());
+         LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
+                  "for '{}' -- sample: {}; clearing and re-detecting the map type from data.",
+                  mapping.getType(), mapping.getLayer(), distinct, refName, unmatchedSample);
+         geoOption.setMapping(new FeatureMapping());
+         MapHelper.autoDetect(vs, sourceInfo, chartInfo, geoOption, refName, source);
+
+         // Real production data is messier than any one country's feature list -- autoDetect can
+         // fail to confidently settle on a type (e.g. mixed/unrecognized values) and leave the
+         // mapping's type null. Rendering a map with a null type throws ("X layer is not supported
+         // by null"), which is strictly worse than the original wrong-but-renderable guess. Only
+         // keep the correction if it actually produced a usable type; otherwise put the original
+         // guess back rather than leave the chart unable to render at all.
+         FeatureMapping redetected = geoOption.getMapping();
+         String redetectedType = redetected == null ? null : redetected.getType();
+
+         if(Tool.isEmptyString(redetectedType)) {
+            LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive " +
+                     "({} distinct real value(s), sample: {}); keeping the original '{}' guess " +
+                     "instead of leaving it unrenderable.",
+                     refName, distinct, unmatchedSample, mapping.getType());
+            geoOption.setMapping(mapping);
+            continue;
+         }
+
+         corrected = true;
+      }
+
+      return corrected;
+   }
+
+   /** Caps how many unmatched geo values a single log line spells out (columns like ZIP/city can
+    * have thousands of distinct bad values). The unmatched-count check itself uses the full set. */
+   private static final int LOGGED_UNMATCHED_VALUES = 20;
+
    /** Outcome of executing a chart assembly for verification: did it render data, and how many rows. */
    public record VerifyResult(boolean hasData, int rowCount) {}
 
@@ -2337,22 +2722,7 @@ public class WizVsService {
       }
 
       // Unwrap dataset wrappers to reach the aggregated data (mirrors extractChartData).
-      DataSet unwrapped = dset;
-
-      while(true) {
-         if(unwrapped instanceof VSDataSet) {
-            break;
-         }
-         else if(unwrapped instanceof PairsDataSet) {
-            unwrapped = ((PairsDataSet) unwrapped).getDataSet();
-         }
-         else if(unwrapped instanceof DataSetFilter) {
-            unwrapped = ((DataSetFilter) unwrapped).getDataSet();
-         }
-         else {
-            break;
-         }
-      }
+      DataSet unwrapped = unwrapDataSet(dset);
 
       if(unwrapped instanceof VSDataSet vds) {
          // Throws IllegalArgumentException carrying the real cause when the query failed.
@@ -2601,6 +2971,21 @@ public class WizVsService {
          }
       }
 
+      // Per-measure aesthetic refs. A "multi-style" binding (pie/donut: see DonutChartFilter,
+      // which sets info.setMultiStyles(true) and calls the Y measure's OWN setColorField rather
+      // than the chart-info-level one) carries its category dimension on the individual
+      // ChartAggregateRef, not on VSChartInfo above — that dimension was invisible here, so
+      // deriving fields from a pie/donut source (a chart-type change that re-binds via this
+      // method, e.g. re-slotting into a crosstab) silently dropped it and produced a
+      // dimension-less rebuild. Delegate to getAggregateAestheticRefs(), which already gates on
+      // isMultiAesthetic() -- reading every aggregate's color/shape/size/text unconditionally
+      // would resurface a stale colorField that ChangeSeparateStatusProcessor leaves behind on
+      // non-first aggregates when a chart is switched OUT of multi-styles, reintroducing a
+      // phantom dimension.
+      for(AestheticRef aref : info.getAggregateAestheticRefs(false)) {
+         classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
+      }
+
       // Path field
       ChartRef pathField = info.getPathField();
       if(pathField != null) {
@@ -2701,7 +3086,7 @@ public class WizVsService {
       // Chart dims are VSChartDimensionRef, whose groupColumnValue is non-empty, so
       // this branch is crosstab-only and leaves chart slot names unaffected.
       if((name == null || name.isEmpty()) && ref instanceof VSDimensionRef dim) {
-         return WizFieldInfoFactory.crosstabDimFullName(dim);
+         return WizFieldInfoFactory.dimFullName(dim);
       }
 
       return name;
@@ -2742,27 +3127,11 @@ public class WizVsService {
       }
 
       try {
-         VGraphPair pair = boxOpt.get().getVGraphPair(assemblyName, true);
-         DataSet dset = pair == null ? null : pair.getData();
+         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
+         DataSet dset = fetchUnwrappedDataSet(boxOpt.get(), assemblyName);
 
          if(dset == null) {
             return null;
-         }
-
-         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
-         while(true) {
-            if(dset instanceof VSDataSet) {
-               break;
-            }
-            else if(dset instanceof PairsDataSet) {
-               dset = ((PairsDataSet) dset).getDataSet();
-            }
-            else if(dset instanceof DataSetFilter) {
-               dset = ((DataSetFilter) dset).getDataSet();
-            }
-            else {
-               break;
-            }
          }
 
          int col = -1;
@@ -3958,6 +4327,24 @@ public class WizVsService {
          ref.setManualOrderList(new java.util.ArrayList<>(dim.getManualOrder()));
       }
 
+      // The declared type, for EVERY explicit dimension — not only the numeric-bin one that used to be
+      // its sole setter (further down, where it was needed to make applyNumericBin work).
+      //
+      // Leaving it unset does not break the DATA: setDateLevelValue below drives the grouping, so a
+      // Year-grouped chart renders correctly. It breaks everything that later asks what this dimension
+      // IS. VSDimensionRef.isDateTime() reads getDataType(), so an unset type made a genuine date
+      // dimension look non-date, and the binding ECHO built from it lost both halves of its identity:
+      // `dateGroupLevel` came back null (applyDateGroup's date guard failed) and `fullName` came back
+      // "due_date" instead of "Year(due_date)" (getFullName() never reached its date-qualifying branch).
+      //
+      // Downstream that reads as a different chart: a sunburst over TWO years reported
+      // `single_value: "due_date has a single value ()"`, because the facts builder could not match the
+      // echoed "due_date" to the actual "Year(due_date)" column. The plugin now tolerates the bad echo
+      // (stylebi-wiz #1497), but the echo was the thing that was wrong.
+      if(base.getType() != null && !base.getType().isEmpty()) {
+         ref.setDataType(base.getType());
+      }
+
       if(dim != null && dim.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(dim.getDateGroupLevel())));
          ref.setTimeSeries(dim.isTimeSeries());
@@ -3977,10 +4364,7 @@ public class WizVsService {
       }
 
       if(dim != null && dim.isNumericBin()) {
-         if(base.getType() != null && !base.getType().isEmpty()) {
-            ref.setDataType(base.getType());
-         }
-
+         // dataType is set unconditionally above; applyNumericBin still depends on it being present.
          WizardRecommenderUtil.applyNumericBin(ref);
       }
 
@@ -4162,9 +4546,13 @@ public class WizVsService {
     * Only base conditions are applied here; aggregate conditions require pushing to worksheet.
     */
    private void applyConditionModel(VSAssembly assembly, VisualizationConditionModel conditionModel) {
-      if(conditionModel == null || conditionModel.getBaseConditions() == null ||
-         conditionModel.getBaseConditions().isEmpty())
-      {
+      // The model itself is the boundary: absent means the request said nothing about conditions and
+      // whatever the assembly carries must be left alone, present means it IS the complete new
+      // condition state. Within a present model an empty list and a null list say the same thing —
+      // "no conditions" — matching hasAggregateConditions(), and both must therefore CLEAR. Treating
+      // an empty list as "nothing to do" is what made "delete this filter" a silent no-op that still
+      // reported success.
+      if(conditionModel == null) {
          return;
       }
 
@@ -4176,7 +4564,15 @@ public class WizVsService {
       // Resolve the assembly's candidate condition fields so condition values can be coerced
       // to each field's data type (see buildConditionItem).
       ColumnSelection columns = VSUtil.getBaseColumns(dataAssembly, true);
-      dataAssembly.setPreConditionList(buildConditionList(conditionModel, columns));
+      ConditionList conditions = buildConditionList(conditionModel, columns);
+
+      if(!canApplyConditions(conditions, conditionModel.getBaseConditions(), "base")) {
+         return;
+      }
+
+      // An empty ConditionList is normalized to null by setPreConditionList0, which is what clears the
+      // filter and flags INPUT_DATA_CHANGED so the chart re-executes.
+      dataAssembly.setPreConditionList(conditions);
    }
 
    /**
@@ -4224,6 +4620,12 @@ public class WizVsService {
             VisualizationConditionModel.ConditionSpec spec = leaf.getCondition();
 
             if(spec == null || Tool.isEmptyString(spec.getField())) {
+               // canApplyConditions only refuses a list where EVERY node was unusable, so a PARTIAL
+               // drop is written as though it were complete — and a missing leaf widens the result
+               // instead of emptying it, which reads as a correct answer. Say so here or the reason
+               // is unrecoverable.
+               LOG.warn("Dropping a condition node with no field; the applied filter will be wider " +
+                           "than requested");
                continue;
             }
 
@@ -4667,30 +5069,62 @@ public class WizVsService {
       // Candidate condition fields, used to coerce condition values to each field's data type.
       ColumnSelection columns = table.getColumnSelection(false);
 
-      // Apply base conditions as pre-conditions (WHERE equivalent)
-      if(conditionModel.getBaseConditions() != null && !conditionModel.getBaseConditions().isEmpty()) {
-         ConditionList preCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList,
-                              new boolean[]{ true }, null, columns);
+      // The model reaching here is the complete new condition state, so each half is replaced — an
+      // empty (or absent) half clears that half. Same rule as applyConditionModel, and it has to hold
+      // here too or a filter would be removable from the chart but not from the worksheet.
+      List<VisualizationConditionModel.ConditionNode> base = conditionModel.getBaseConditions();
+      ConditionList preCondList = new ConditionList();
 
-         if(!preCondList.isEmpty()) {
-            table.setPreConditionList(preCondList);
-         }
+      // Apply base conditions as pre-conditions (WHERE equivalent)
+      if(base != null) {
+         appendConditionNodes(base, 0, preCondList, new boolean[]{ true }, null, columns);
+      }
+
+      if(canApplyConditions(preCondList, base, "base")) {
+         table.setPreConditionList(preCondList);
       }
 
       // Apply aggregate conditions as post-conditions (HAVING equivalent)
       // Aggregate conditions are built as AggregateRef items (field+formula+secondaryField+nOrP)
       // so the engine matches them against post-aggregation (HAVING) result columns.
       // Use dimColumnMapping to translate dimension field+dateGroupLevel to DateRangeRef column names
-      if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
-         ConditionList postCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList,
-                              new boolean[]{ true }, dimColumnMapping, columns);
+      List<VisualizationConditionModel.ConditionNode> aggregate = conditionModel.getAggregateConditions();
+      ConditionList postCondList = new ConditionList();
 
-         if(!postCondList.isEmpty()) {
-            table.setPostConditionList(postCondList);
-         }
+      if(aggregate != null) {
+         appendConditionNodes(aggregate, 0, postCondList, new boolean[]{ true }, dimColumnMapping,
+                              columns);
       }
+
+      if(canApplyConditions(postCondList, aggregate, "aggregate")) {
+         table.setPostConditionList(postCondList);
+      }
+   }
+
+   /**
+    * Whether a compiled condition list may be written.
+    *
+    * An empty result is a legitimate write when the request itself carried no conditions — absent and
+    * empty say the same thing, and both are how a caller asks for every condition to be removed. An
+    * empty result from a NON-empty request is a different thing entirely: every node was unusable
+    * (unknown field, malformed spec), and writing it would clear conditions the request never asked
+    * to touch.
+    *
+    * @param compiled  the condition list built from {@code requested}
+    * @param requested the condition nodes the request carried; null when it carried none
+    * @param label     which half of the model this is, for the log line
+    */
+   private boolean canApplyConditions(ConditionList compiled,
+                                      List<VisualizationConditionModel.ConditionNode> requested,
+                                      String label)
+   {
+      if(!compiled.isEmpty() || requested == null || requested.isEmpty()) {
+         return true;
+      }
+
+      LOG.warn("None of the {} {} condition(s) could be built; leaving the existing conditions " +
+                  "untouched", requested.size(), label);
+      return false;
    }
 
    /**
@@ -5044,6 +5478,7 @@ public class WizVsService {
    private final AssetRepository engine;
    private final SecurityEngine securityEngine;
    private final SyncInfoHandler syncInfoHandler;
+   private final VSWizardTemporaryInfoService temporaryInfoService;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(
