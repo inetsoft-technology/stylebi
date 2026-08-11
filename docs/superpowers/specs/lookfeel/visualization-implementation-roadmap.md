@@ -44,6 +44,19 @@ For shell-first work such as buttons, inputs, dialogs, nav, tabs, toolbars, and 
 - [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
 - [visualization-design-spec.md](visualization-design-spec.md)
 
+The **chart card track** runs alongside the phases below and is decomposed by slice rather than by phase,
+so it has its own roadmap. It owns the anchored mini-toolbar rollout, the shell and chart surfaces found
+through it, and the tooltip and selection vocabulary:
+
+- [chart-card-roadmap.md](chart-card-roadmap.md) — what is done, what is ready, and what gates the rest
+- [chart-card-open-item-decisions.md](chart-card-open-item-decisions.md) — decisions taken and their
+  consequences, including two that reach beyond the chart
+- [chart-card-source-doc-corrections.md](chart-card-source-doc-corrections.md) — the audit of the
+  external `chart-card-design2/` set against the branch
+- [chart-card-slice1-design.md](chart-card-slice1-design.md) ·
+  [chart-card-slice2-tables-design.md](chart-card-slice2-tables-design.md) ·
+  [chart-card-slice3-selection-design.md](chart-card-slice3-selection-design.md)
+
 ## Delivery Model
 
 Use four change types throughout this roadmap:
