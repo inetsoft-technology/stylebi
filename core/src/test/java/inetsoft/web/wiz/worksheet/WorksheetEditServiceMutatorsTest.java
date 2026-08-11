@@ -1411,4 +1411,79 @@ class WorksheetEditServiceMutatorsTest {
                 "fix must recurse into the nested subquery's own selection and clear the mangled " +
                 "alias there, not just on the outer sql.getSelection()");
    }
+
+   // =========================================================================
+   // Column reorder tests
+   // =========================================================================
+
+   @Test
+   void reorderColumnsAppliesRequestedOrder() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b", "c");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.reorderColumns("T", List.of("c", "a", "b")));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertEquals("c", cs.getAttribute(0).getAttribute());
+      assertEquals("a", cs.getAttribute(1).getAttribute());
+      assertEquals("b", cs.getAttribute(2).getAttribute());
+   }
+
+   @Test
+   void reorderColumnsMatchesColumnsByBareNameNotEntityQualifiedName() throws Exception {
+      // Bug #75999: columns whose entity is non-blank (e.g. unpivot header columns,
+      // whose entity gets retroactively set to the base table's name the first time
+      // the table is queried) were never matched against the caller's bare column
+      // names, so reorderColumns silently fell back to the original order for them.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef("T", "a")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("T", "b")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("T", "c")));
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.reorderColumns("T", List.of("c", "a", "b")));
+
+      ColumnSelection reordered = t.getColumnSelection(false);
+      assertEquals("c", reordered.getAttribute(0).getAttribute(),
+         "entity-qualified columns must still be matched by their bare attribute name");
+      assertEquals("a", reordered.getAttribute(1).getAttribute());
+      assertEquals("b", reordered.getAttribute(2).getAttribute());
+   }
+
+   @Test
+   void reorderColumnsDoesNotDropColumnsWithAmbiguousBareAttributeName() throws Exception {
+      // A join/concatenated table can expose two columns with the same bare attribute
+      // name but different entities (e.g. "Customers.ID" and "Orders.ID"). Keying the
+      // lookup solely on the bare name would let the second collide with and silently
+      // erase the first from the reordered selection.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      ColumnSelection cs = new ColumnSelection();
+      ColumnRef customerId = new ColumnRef(new AttributeRef("Customers", "ID"));
+      ColumnRef orderId = new ColumnRef(new AttributeRef("Orders", "ID"));
+      ColumnRef name = new ColumnRef(new AttributeRef(null, "Name"));
+      cs.addAttribute(customerId);
+      cs.addAttribute(orderId);
+      cs.addAttribute(name);
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.reorderColumns("T", List.of("Name", "ID")));
+
+      ColumnSelection reordered = t.getColumnSelection(false);
+      assertEquals(3, reordered.getAttributeCount(),
+         "an ambiguous bare-name collision must not silently drop a column");
+      assertTrue(reordered.containsAttribute(customerId), "Customers.ID must survive reordering");
+      assertTrue(reordered.containsAttribute(orderId), "Orders.ID must survive reordering");
+   }
 }
