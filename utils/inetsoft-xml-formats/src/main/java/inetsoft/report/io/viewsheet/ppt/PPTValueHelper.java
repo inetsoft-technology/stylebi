@@ -201,6 +201,14 @@ public class PPTValueHelper {
 
       if(!format.isWrapping()) {
          inBounds.width -= 2; // must consider margin for ppt!
+
+         // bug #75992, ppt may still auto-wrap text that just barely
+         // fits, even with word-wrap disabled on the textbox, because ppt's
+         // own font metrics differ slightly from the server's. Use the same
+         // safety margin as the wrapping table cell case below.
+         if(isTableCell) {
+            inBounds.width -= WRAP_GAP;
+         }
       }
       else {
          // bug1166609586046, although the text can showed whole on textbox
@@ -232,7 +240,7 @@ public class PPTValueHelper {
          // if wrap is set to false, the lines will not be
          // chop off at the right bound, so we need to it explicitly
          if(!format.isWrapping()) {
-            int idx = Util.breakLine(txt, bounds.getWidth() - 1, txtFont, false);
+            int idx = Util.breakLine(txt, inBounds.width, txtFont, false);
             txt = (idx < 0) ? txt : txt.substring(0, idx);
          }
 
