@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -37,10 +38,15 @@ import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -478,6 +484,31 @@ class WorksheetAgentControllerTest {
    // are exercised only where core and inetsoft-xml-formats are both on the classpath,
    // i.e. the packaged server.
 
+   // NOTE: the framework-level blanket cap (spring.servlet.multipart.max-file-size /
+   // max-request-size, application.yaml) is enforced by Spring/Tomcat's multipart parsing
+   // before this controller method is ever invoked, converting an oversized upload to a
+   // MaxUploadSizeExceededException (handled by handleMaxUploadSizeException() below). That
+   // parsing isn't exercised by calling the controller method directly, so it has no unit
+   // test here — it's covered by the same structural gap noted above.
+
+   private static MockMultipartFile excelFile(byte[] content) {
+      return new MockMultipartFile("file", "workbook.xlsx",
+         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", content);
+   }
+
+   @Test
+   void importExcelRejectsMissingFile() {
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importExcel("TOK", null, "XLSX", null, null,
+                                TestPrincipals.user("alice", "host-org")));
+      assertEquals(400, ex.getStatusCode().value());
+   }
+
    @Test
    void importExcelRejectsUnknownFileType() {
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -485,25 +516,51 @@ class WorksheetAgentControllerTest {
          mock(WorksheetReadService.class), mock(WorksheetEditService.class),
          mock(WorksheetService.class));
 
+      MockMultipartFile file = excelFile(new byte[]{1, 2, 3, 4});
+
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.importExcel("TOK", new WorksheetAgentController.ImportExcelRequest(
-                                    null, "AAAA", "PDF", null),
+         () -> ctrl.importExcel("TOK", file, "PDF", null, null,
                                 TestPrincipals.user("alice", "host-org")));
       assertEquals(400, ex.getStatusCode().value());
    }
 
    @Test
-   void importExcelRejectsInvalidBase64() {
+   void importExcelRejectsFileTooLarge() {
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), mock(WorksheetEditService.class),
          mock(WorksheetService.class));
 
-      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.importExcel("TOK", new WorksheetAgentController.ImportExcelRequest(
-                                    null, "not base64 !!!", "XLSX", null),
-                                TestPrincipals.user("alice", "host-org")));
-      assertEquals(400, ex.getStatusCode().value());
+      MockMultipartFile file = excelFile(new byte[10]);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("excel.import.max")).thenReturn("5");
+
+         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> ctrl.importExcel("TOK", file, "XLSX", null, null,
+                                   TestPrincipals.user("alice", "host-org")));
+         assertEquals(400, ex.getStatusCode().value());
+      }
+   }
+
+   // ---------------------------------------------------------------------------
+   // Exception handling
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void handleResponseStatusExceptionIncludesReasonInBody() {
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = new ResponseStatusException(
+         HttpStatus.BAD_REQUEST, "fileType must be either \"XLS\" or \"XLSX\"");
+
+      ResponseEntity<Map<String, String>> response = ctrl.handleResponseStatusException(ex);
+
+      assertEquals(400, response.getStatusCode().value());
+      assertEquals("fileType must be either \"XLS\" or \"XLSX\"", response.getBody().get("error"));
    }
 
    // ---------------------------------------------------------------------------
