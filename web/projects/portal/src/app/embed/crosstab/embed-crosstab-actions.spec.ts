@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { TestUtils } from "../../common/test/test-utils";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
@@ -22,10 +23,80 @@ import { VSCrosstabModel } from "../../vsobjects/model/vs-crosstab-model";
 import { EmbedCrosstabActions } from "./embed-crosstab-actions";
 
 describe("EmbedCrosstabActions", () => {
-   const createActions: (model: VSCrosstabModel) => EmbedCrosstabActions = (model) => {
-      return new EmbedCrosstabActions(model, EmbedAssemblyContextProviderFactory(),
-         false, null, null, null, null, () => false, () => {});
+   /** A crosstab with one row header and one column header, i.e. data starts at (1, 1). */
+   const createModel: () => VSCrosstabModel = () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      model.headerRowCount = 1;
+      model.headerColCount = 1;
+      model.runtimeRowHeaderCount = 1;
+      model.runtimeColHeaderCount = 1;
+      return model;
    };
+
+   const createActions: (model: VSCrosstabModel) => EmbedCrosstabActions = (model) =>
+      new EmbedCrosstabActions(model, EmbedAssemblyContextProviderFactory(), false, null, null,
+         null, null, () => false, () => {});
+
+   /** {@link TestUtils.findAction}, aliased to keep the assertions below on one line. */
+   const find = TestUtils.findAction;
+
+   // Bug #75951: show-details and export are toolbar buttons and used to be listed in the menu as
+   // well, so "More" repeated them. Bug #75961 then added menu-only entries, so the menu is no
+   // longer empty - but every entry is selection-gated, which is what keeps "More" hidden on an
+   // untouched crosstab and what EmbedContextMenu.open's empty-menu guard relies on.
+   it("shows no menu action until something is selected, so the More button hides itself", () => {
+      const actions = createActions(createModel());
+
+      expect(AssemblyActionGroup.anyVisible(actions.menuActions)).toBeFalsy();
+      expect(find(actions.toolbarActions, "menu actions").visible()).toBeFalsy();
+   });
+
+   // Bug #75923
+   it("hides show-details until a cell is selected", () => {
+      const model = createModel();
+      const actions = createActions(model);
+      const showDetails = find(actions.toolbarActions, "crosstab show-details");
+
+      expect(showDetails.visible()).toBeFalsy();
+
+      model.selectedData = new Map<number, number[]>([[1, [1]]]);
+      expect(showDetails.visible()).toBeTruthy();
+   });
+
+   // Unlike a plain table, a crosstab row/column header stands for a group whose details can be
+   // shown, so selectedHeaders counts.
+   it("counts a row header selection as something to show details for", () => {
+      const model = createModel();
+      const actions = createActions(model);
+
+      model.selectedData = null;
+      model.selectedHeaders = new Map<number, number[]>([[1, [0]]]);
+      expect(find(actions.toolbarActions, "crosstab show-details").visible()).toBeTruthy();
+   });
+
+   // The corner block above the row headers / left of the column headers is not data and cannot
+   // be drilled into - the rule this inherits from ShowDetailEvent.
+   it("does not count a corner header cell", () => {
+      const model = createModel();
+      const actions = createActions(model);
+
+      model.selectedData = null;
+      model.selectedHeaders = new Map<number, number[]>([[0, [0]]]);
+      expect(find(actions.toolbarActions, "crosstab show-details").visible()).toBeFalsy();
+   });
+
+   it("keeps export and the wiz fullscreen toggle on the toolbar", () => {
+      const actions = createActions(createModel());
+
+      expect(find(actions.toolbarActions, "crosstab export").visible()).toBeTruthy();
+      expect(find(actions.toolbarActions, "crosstab wiz-fullscreen").visible()).toBeTruthy();
+   });
+
+   // ------------------------------------------------------------------ menu-only actions (#75961)
+   //
+   // These build their model with the bare TestUtils factory rather than createModel() above: the
+   // drill assertions read cells/selectedRegions directly and must not also inherit createModel()'s
+   // header counts, which would move which cell (0, 0) is.
 
    // Plain data/summary cell, no drill hierarchy defined on the field - e.g. a measure value,
    // not a date field grouped by Year/Month/Day.
