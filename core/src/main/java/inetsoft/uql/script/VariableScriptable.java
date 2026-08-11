@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.script;
 
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.graal.ScriptScope;
@@ -199,6 +200,13 @@ public class VariableScriptable implements ScriptScope {
 
          try {
             Object val = vars.get(name);
+
+            if(val instanceof Object[]) {
+               val = Arrays.asList((Object[]) val);
+            }
+            else if(val instanceof SRPrincipal) {
+               val = ((SRPrincipal) val).toString(false);
+            }
 
             if(sb.length() > 0) {
                sb.append(", ");
