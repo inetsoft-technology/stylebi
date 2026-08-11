@@ -398,6 +398,27 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateTreatsNullGroupsAsEmpty() throws Exception {
+      // WorksheetAgentController defaults a missing "aggregates" key to List.of() but
+      // passes a missing "groups" key through as null unchanged; a null groups list
+      // paired with a non-empty aggregates list must not NPE in the group loop below the
+      // (groups empty && aggregates empty) early-return guard.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", null,
+            List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(0, ai.getGroupCount());
+      assertEquals(1, ai.getAggregateCount());
+   }
+
+   @Test
    void setGroupAggregateAppliesDateLevelToDateColumn() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
@@ -415,11 +436,49 @@ class WorksheetEditServiceMutatorsTest {
       AggregateInfo ai = t.getAggregateInfo();
       assertEquals(1, ai.getGroupCount());
 
-      // This is what both the worksheet query engine (AssetQuery#getDateGroup) and the
-      // Composer's Group and Aggregate dialog (GroupRefModel#getDgroup) read to decide the
-      // grouping granularity — leaving it unset (as before this fix) is exactly Bug #75952:
-      // the date group silently shows/behaves as "None" instead of "Quarter".
+      // setDateGroup() alone is read by the Composer's Group and Aggregate dialog
+      // (GroupRefModel#getDgroup), but PreAssetQuery.mergeGroupBy() builds the actual
+      // GROUP BY SQL purely from the GroupRef's DataRef and never consults
+      // getDateGroup() — so on any regular JDBC-mergeable table, a GroupRef still
+      // wrapping the raw column would silently group by the exact date value instead of
+      // by quarter. The DataRef itself must be a DateRangeRef-wrapped column for the
+      // bucketing to actually take effect; setDateGroup() is only a round-trip marker.
       assertEquals(XConstants.QUARTER_DATE_GROUP, ai.getGroup(0).getDateGroup());
+      DataRef groupDataRef = ai.getGroup(0).getDataRef();
+      assertInstanceOf(ColumnRef.class, groupDataRef);
+      DataRef inner = ((ColumnRef) groupDataRef).getDataRef();
+      assertInstanceOf(DateRangeRef.class, inner);
+      assertEquals(XConstants.QUARTER_DATE_GROUP, ((DateRangeRef) inner).getDateOption());
+      assertEquals("orderDate", ((DateRangeRef) inner).getDataRef().getName());
+
+      // The raw "orderDate" column is kept alongside the new wrapped column — matching
+      // AggregateDialogService#processDateGrouping, which inserts rather than replaces —
+      // so it stays independently usable (e.g. still shows up in the Composer's Group
+      // and Aggregate dialog, still filterable) exactly as it would after applying a
+      // date level through the UI.
+      assertNotNull(t.getColumnSelection(false).getAttribute("orderDate"));
+      ColumnRef rawAfter = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      assertFalse(rawAfter.getDataRef() instanceof DateRangeRef);
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // An unrecognized dateLevel must fail loud instead of silently defaulting to a
+      // yearly grouping, matching the fail-loud stance already taken for unknown columns.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "MONTHLY")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("MONTHLY"));
    }
 
    @Test

@@ -775,7 +775,8 @@ public class WorksheetAgentController {
          case "remove_filter" ->
             editor.removeFilter(req.table(), req.field());
          case "set_group_aggregate" ->
-            editor.setGroupAggregate(req.table(), req.groups(),
+            editor.setGroupAggregate(req.table(),
+                                     req.groups() != null ? req.groups() : List.of(),
                                      req.aggregates() != null
                                         ? req.aggregates().stream()
                                             .map(a -> new WorksheetMutationSupport.AggregateSpec(

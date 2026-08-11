@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.WebConfig;
 import org.junit.jupiter.api.Tag;
@@ -69,5 +70,31 @@ class GroupSpecDeserializationTest {
       assertNull(req.groups().get(0).dateLevel());
       assertEquals("Order Date", req.groups().get(1).field());
       assertEquals("QUARTER", req.groups().get(1).dateLevel());
+   }
+
+   @Test
+   void deserializesDateOptionAsDateLevelAlias() throws Exception {
+      // "dateOption" is add_date_range_column's spelling of this same concept — a highly
+      // plausible agent near-miss that must not silently deserialize to an ungrouped date
+      // (it would otherwise fall through to the unmapped "dateLevel" key and be dropped).
+      EditRequest req = mapper.readValue(
+         "{\"op\": \"set_group_aggregate\", \"table\": \"T\", " +
+         "\"groups\": [{\"field\": \"Order Date\", \"dateOption\": \"QUARTER\"}]}",
+         EditRequest.class);
+
+      assertEquals(1, req.groups().size());
+      assertEquals("Order Date", req.groups().get(0).field());
+      assertEquals("QUARTER", req.groups().get(0).dateLevel());
+   }
+
+   @Test
+   void rejectsNonStringNonObjectGroupEntry() {
+      // A group entry that is neither a string nor an object (e.g. a bare number or null
+      // in the array) must fail loud at the deserializer, not silently become
+      // GroupSpec(null, null) and surface later as a confusing "Column not found for
+      // group: 'null'".
+      assertThrows(JsonMappingException.class, () -> mapper.readValue(
+         "{\"op\": \"set_group_aggregate\", \"table\": \"T\", \"groups\": [5]}",
+         EditRequest.class));
    }
 }

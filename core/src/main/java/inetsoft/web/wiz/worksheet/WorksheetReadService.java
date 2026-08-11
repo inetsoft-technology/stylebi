@@ -385,7 +385,17 @@ public class WorksheetReadService {
 
       for(GroupRef gr : groupRefs) {
          String dateLevel = WorksheetEditService.Editor.dateOptionName(gr.getDateGroup());
-         groups.add(new WorksheetModel.AggregateModel.GroupModel(gr.getName(), dateLevel));
+
+         // set_group_aggregate materializes a date-level group as a DateRangeRef-wrapped
+         // column (see WorksheetMutationSupport#applyAggregateInfo) — gr.getName() on that
+         // would return the internal bucketing name (e.g. "Quarter(orderDate)"), not the
+         // field the caller originally asked to group by. Report the wrapped base column's
+         // name instead so the round trip is faithful to what set_group_aggregate accepted.
+         DataRef base = gr.getDataRef();
+         String field =
+            base instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef dr
+               ? dr.getDataRef().getName() : gr.getName();
+         groups.add(new WorksheetModel.AggregateModel.GroupModel(field, dateLevel));
       }
 
       // Aggregates (primary + secondary)

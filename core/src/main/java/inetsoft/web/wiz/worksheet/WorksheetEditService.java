@@ -827,12 +827,13 @@ public class WorksheetEditService {
          t.setColumnSelection(cs, false);
       }
 
-      static int parseDateOption(String dateOption) {
+      static int parseDateOption(String dateOption) throws PairingException {
          if(dateOption == null) {
             return DateRangeRef.YEAR_INTERVAL;
          }
 
          return switch(dateOption.toUpperCase()) {
+            case "YEAR"    -> DateRangeRef.YEAR_INTERVAL;
             case "QUARTER" -> DateRangeRef.QUARTER_INTERVAL;
             case "MONTH"   -> DateRangeRef.MONTH_INTERVAL;
             case "WEEK"    -> DateRangeRef.WEEK_INTERVAL;
@@ -840,13 +841,19 @@ public class WorksheetEditService {
             case "HOUR"    -> DateRangeRef.HOUR_INTERVAL;
             case "MINUTE"  -> DateRangeRef.MINUTE_INTERVAL;
             case "SECOND"  -> DateRangeRef.SECOND_INTERVAL;
-            case "QUARTER_OF_YEAR" -> DateRangeRef.QUARTER_OF_YEAR_PART;
-            case "MONTH_OF_YEAR"   -> DateRangeRef.MONTH_OF_YEAR_PART;
-            case "WEEK_OF_YEAR"    -> DateRangeRef.WEEK_OF_YEAR_PART;
-            case "DAY_OF_MONTH"    -> DateRangeRef.DAY_OF_MONTH_PART;
-            case "DAY_OF_WEEK"     -> DateRangeRef.DAY_OF_WEEK_PART;
-            case "HOUR_OF_DAY"     -> DateRangeRef.HOUR_OF_DAY_PART;
-            default -> DateRangeRef.YEAR_INTERVAL;
+            case "QUARTER_OF_YEAR"   -> DateRangeRef.QUARTER_OF_YEAR_PART;
+            case "MONTH_OF_YEAR"     -> DateRangeRef.MONTH_OF_YEAR_PART;
+            case "WEEK_OF_YEAR"      -> DateRangeRef.WEEK_OF_YEAR_PART;
+            case "DAY_OF_MONTH"      -> DateRangeRef.DAY_OF_MONTH_PART;
+            case "DAY_OF_WEEK"       -> DateRangeRef.DAY_OF_WEEK_PART;
+            case "HOUR_OF_DAY"       -> DateRangeRef.HOUR_OF_DAY_PART;
+            case "MINUTE_OF_HOUR"    -> DateRangeRef.MINUTE_OF_HOUR_PART;
+            case "SECOND_OF_MINUTE"  -> DateRangeRef.SECOND_OF_MINUTE_PART;
+            default -> throw new PairingException(
+               "Unrecognized date level: '" + dateOption + "'. Valid values: YEAR, QUARTER, " +
+               "MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, QUARTER_OF_YEAR, MONTH_OF_YEAR, " +
+               "WEEK_OF_YEAR, DAY_OF_MONTH, DAY_OF_WEEK, HOUR_OF_DAY, MINUTE_OF_HOUR, " +
+               "SECOND_OF_MINUTE.");
          };
       }
 
@@ -854,10 +861,15 @@ public class WorksheetEditService {
        * Reverse of {@link #parseDateOption}: converts a {@link GroupRef#getDateGroup()} /
        * {@link DateRangeRef} option constant back to the option string accepted by
        * {@code dateOption} / {@code dateLevel}. Returns {@code null} for
-       * {@code NONE_DATE_GROUP} or an unrecognized constant.
+       * {@code NONE_DATE_GROUP}. A recognized {@code XConstants} date-group constant that
+       * this vocabulary cannot name (reachable from the Composer's Group and Aggregate
+       * dialog but not from {@link #parseDateOption}) is reported as
+       * {@code "UNKNOWN_DATE_GROUP(<n>)"} rather than {@code null}, so callers can tell
+       * "no date group" apart from "grouped at a level this API can't yet name".
        */
       static String dateOptionName(int dateOption) {
          return switch(dateOption) {
+            case DateRangeRef.NONE_INTERVAL -> null;
             case DateRangeRef.YEAR_INTERVAL -> "YEAR";
             case DateRangeRef.QUARTER_INTERVAL -> "QUARTER";
             case DateRangeRef.MONTH_INTERVAL -> "MONTH";
@@ -872,7 +884,9 @@ public class WorksheetEditService {
             case DateRangeRef.DAY_OF_MONTH_PART -> "DAY_OF_MONTH";
             case DateRangeRef.DAY_OF_WEEK_PART -> "DAY_OF_WEEK";
             case DateRangeRef.HOUR_OF_DAY_PART -> "HOUR_OF_DAY";
-            default -> null;
+            case DateRangeRef.MINUTE_OF_HOUR_PART -> "MINUTE_OF_HOUR";
+            case DateRangeRef.SECOND_OF_MINUTE_PART -> "SECOND_OF_MINUTE";
+            default -> "UNKNOWN_DATE_GROUP(" + dateOption + ")";
          };
       }
 
