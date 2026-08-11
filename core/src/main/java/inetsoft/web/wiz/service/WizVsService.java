@@ -42,6 +42,7 @@ import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.report.internal.graph.MapData;
+import inetsoft.report.internal.graph.MapHelper;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -2408,31 +2409,27 @@ public class WizVsService {
          }
 
          box = boxOpt.get();
-         VGraphPair pair = box.getVGraphPair(assemblyName, true);
-
-         if(pair == null) {
-            return new CreateViewsheetResult();
-         }
-
-         DataSet dset = pair.getData();
+         DataSet dset = fetchUnwrappedDataSet(box, assemblyName);
 
          if(dset == null) {
             return new CreateViewsheetResult();
          }
 
-         // Unwrap dataset wrappers to reach the aggregated data
-         while(true) {
-            if(dset instanceof VSDataSet) {
-               break;
-            }
-            else if(dset instanceof PairsDataSet) {
-               dset = ((PairsDataSet) dset).getDataSet();
-            }
-            else if(dset instanceof DataSetFilter) {
-               dset = ((DataSetFilter) dset).getDataSet();
-            }
-            else {
-               break;
+         // A wiz-guessed geo map type/layer (e.g. "province" in the prompt naively matched to
+         // Canada's "Province" layer) is never validated against the real data at creation time.
+         // Now that real data is available, re-check it and force a genuine re-detection if every
+         // real value failed to match. Correcting only the design geo column (what autoDetect
+         // touches) leaves other runtime-synced structures the graph generator also reads (e.g.
+         // VSMapInfo's runtime geo fields) stale, so a full re-execution -- the same binding-sync
+         // pipeline a normal chart load runs -- is needed to render with the corrected mapping
+         // instead of the wrong guess (a partial refresh here previously left rendering broken).
+         if(correctWizGeoMapping(rvs, assemblyName, dset)) {
+            box.clearGraph(assemblyName);
+            box.executeView(assemblyName, true);
+            dset = fetchUnwrappedDataSet(box, assemblyName);
+
+            if(dset == null) {
+               return new CreateViewsheetResult();
             }
          }
 
@@ -2515,6 +2512,186 @@ public class WizVsService {
       }
    }
 
+   /**
+    * Fetches the assembly's current graph data and unwraps it to the underlying aggregated
+    * dataset, or {@code null} if no graph/data is available yet.
+    */
+   private static DataSet fetchUnwrappedDataSet(ViewsheetSandbox box, String assemblyName)
+      throws Exception
+   {
+      VGraphPair pair = box.getVGraphPair(assemblyName, true);
+      DataSet dset = pair == null ? null : pair.getData();
+      return dset == null ? null : unwrapDataSet(dset);
+   }
+
+   /** Unwraps dataset wrappers (pair/filter chains) to reach the underlying aggregated data. */
+   private static DataSet unwrapDataSet(DataSet dset) {
+      while(true) {
+         if(dset instanceof VSDataSet) {
+            return dset;
+         }
+         else if(dset instanceof PairsDataSet) {
+            dset = ((PairsDataSet) dset).getDataSet();
+         }
+         else if(dset instanceof DataSetFilter) {
+            dset = ((DataSetFilter) dset).getDataSet();
+         }
+         else {
+            return dset;
+         }
+      }
+   }
+
+   /**
+    * Re-validates a wiz-guessed geo map type/layer against the real executed data, and forces a
+    * genuine data-driven re-detection if every real value fails to match -- mirrors what StyleBI's
+    * own {@code MapHelper.autoDetect} would do, except that it otherwise short-circuits whenever a
+    * recognized (but not necessarily correct) map type is already set on the chart. This is how a
+    * chart of real U.S. states (e.g. "NJ"/"CA"/"NY") ends up rendered as a map of Canada: wiz-services
+    * naively matches the word "province" in the user's prompt to Canada's "Province" layer -- the
+    * only StyleBI layer literally named that -- and {@code createGeoFields} writes that guess into
+    * the chart unconditionally, without ever checking it against the actual column values.
+    *
+    * <p>Resolves the geo field being corrected by name (not by the runtime-index alignment
+    * {@code VSChartHandler}'s own private {@code getGeoCol} uses) -- sufficient because wiz only
+    * ever creates a single geo dimension per map chart, with the same field name in both
+    * {@code createGeoFields}'s design geo column and {@code applyChartBinding}'s bound geo field.
+    * For the same reason, re-detection calls {@link MapHelper#autoDetect} directly with the
+    * already-resolved {@link GeographicOption} rather than going through
+    * {@code VSChartHandler.autoDetect}: that convenience wrapper re-resolves the geo ref itself via
+    * RT-index alignment between {@code getRTGeoColumns()} and {@code getGeoColumns()}, which on a
+    * real (post-execution) chart does not line up with this by-name resolution and silently no-ops
+    * -- leaving the mapping this method just cleared never re-populated (verified live: bug-75983's
+    * real data resolved correctly through {@code MapHelper.autoDetect} called directly, but through
+    * {@code VSChartHandler.autoDetect} it stayed cleared and this method's null-type rollback below
+    * kept firing).
+    *
+    * <p>Package-private (not private) so tests can call it directly without standing up a real
+    * {@link ViewsheetSandbox}, the same reason {@link #executeAndExtract} is.
+    *
+    * @return true if a correction was applied -- the caller must invalidate the cached graph.
+    */
+   boolean correctWizGeoMapping(RuntimeViewsheet rvs, String assemblyName, DataSet source) {
+      if(source == null) {
+         return false;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         return false;
+      }
+
+      VSChartInfo chartInfo = chart.getVSChartInfo();
+
+      if(!(chartInfo instanceof MapInfo mapInfo)) {
+         return false;
+      }
+
+      SourceInfo sourceInfo = chart.getSourceInfo();
+      boolean corrected = false;
+
+      for(ChartRef ref : mapInfo.getGeoFields()) {
+         if(!(ref instanceof VSChartGeoRef boundRef)) {
+            continue;
+         }
+
+         String refName = boundRef.getName();
+         DataRef designRef = chartInfo.getGeoColumns().getAttribute(refName);
+
+         if(!(designRef instanceof VSChartGeoRef geoRef)) {
+            continue;
+         }
+
+         GeographicOption geoOption = geoRef.getGeographicOption();
+         FeatureMapping mapping = geoOption.getMapping();
+
+         if(mapping == null) {
+            continue;
+         }
+
+         // A non-empty explicit mapping means a real person built it value-by-value via geo_apply
+         // (WizGeoService.apply -> FeatureMapping.addMapping) -- e.g. picking a layer whose real
+         // values are numeric/relabeled codes that will never textually match any auto-detected
+         // type. Respect that deliberate choice rather than re-litigating it on every render; only
+         // wiz's own unvalidated createGeoFields guess (always an empty mapping) is a candidate.
+         if(!mapping.getMappings().isEmpty()) {
+            continue;
+         }
+
+         // createGeoFields only ever sets the option's own DynamicValue layer (geoOption.getLayer())
+         // and the mapping's type -- never the mapping's own `layer` field, which then defaults to 0.
+         // getUnMatchedValues below reads mapping.getLayer(), so an out-of-sync 0 would look up an
+         // undefined layer and silently report every value as matched. Keep it in sync with the
+         // option's real layer before checking.
+         if(mapping.getLayer() != geoOption.getLayer()) {
+            mapping.setLayer(geoOption.getLayer());
+         }
+
+         int colIndex = GraphUtil.indexOfHeader(source, refName);
+
+         if(colIndex < 0) {
+            continue;
+         }
+
+         int distinct = MapHelper.distinctValueCount(source, colIndex);
+
+         if(distinct == 0) {
+            continue;
+         }
+
+         Map<String, Integer> unmatched =
+            MapHelper.getUnMatchedValues(source, colIndex, mapping, chartInfo);
+
+         // Unlike distinctValueCount above, getUnMatchedValues does not skip blank/null cells --
+         // a blank geo cell that matches nothing surfaces here as an unmatched "" entry. Left in,
+         // it would make an otherwise fully-matched (already-correct) mapping look unmatched
+         // whenever the data has even one blank row, needlessly clearing and re-detecting it.
+         List<String> realUnmatched = unmatched.keySet().stream()
+            .filter(v -> !Tool.isEmptyString(v)).collect(Collectors.toList());
+
+         if(realUnmatched.size() < distinct) {
+            // At least one real value matched the guessed type/layer -- trust it.
+            continue;
+         }
+
+         List<String> unmatchedSample = realUnmatched.stream()
+            .limit(LOGGED_UNMATCHED_VALUES).collect(Collectors.toList());
+         LOG.info("Wiz-guessed geo map type '{}' (layer {}) matched none of the {} real value(s) " +
+                  "for '{}' -- sample: {}; clearing and re-detecting the map type from data.",
+                  mapping.getType(), mapping.getLayer(), distinct, refName, unmatchedSample);
+         geoOption.setMapping(new FeatureMapping());
+         MapHelper.autoDetect(vs, sourceInfo, chartInfo, geoOption, refName, source);
+
+         // Real production data is messier than any one country's feature list -- autoDetect can
+         // fail to confidently settle on a type (e.g. mixed/unrecognized values) and leave the
+         // mapping's type null. Rendering a map with a null type throws ("X layer is not supported
+         // by null"), which is strictly worse than the original wrong-but-renderable guess. Only
+         // keep the correction if it actually produced a usable type; otherwise put the original
+         // guess back rather than leave the chart unable to render at all.
+         FeatureMapping redetected = geoOption.getMapping();
+         String redetectedType = redetected == null ? null : redetected.getType();
+
+         if(Tool.isEmptyString(redetectedType)) {
+            LOG.warn("Re-detection of the geo map type for '{}' from real data was inconclusive " +
+                     "({} distinct real value(s), sample: {}); keeping the original '{}' guess " +
+                     "instead of leaving it unrenderable.",
+                     refName, distinct, unmatchedSample, mapping.getType());
+            geoOption.setMapping(mapping);
+            continue;
+         }
+
+         corrected = true;
+      }
+
+      return corrected;
+   }
+
+   /** Caps how many unmatched geo values a single log line spells out (columns like ZIP/city can
+    * have thousands of distinct bad values). The unmatched-count check itself uses the full set. */
+   private static final int LOGGED_UNMATCHED_VALUES = 20;
+
    /** Outcome of executing a chart assembly for verification: did it render data, and how many rows. */
    public record VerifyResult(boolean hasData, int rowCount) {}
 
@@ -2545,22 +2722,7 @@ public class WizVsService {
       }
 
       // Unwrap dataset wrappers to reach the aggregated data (mirrors extractChartData).
-      DataSet unwrapped = dset;
-
-      while(true) {
-         if(unwrapped instanceof VSDataSet) {
-            break;
-         }
-         else if(unwrapped instanceof PairsDataSet) {
-            unwrapped = ((PairsDataSet) unwrapped).getDataSet();
-         }
-         else if(unwrapped instanceof DataSetFilter) {
-            unwrapped = ((DataSetFilter) unwrapped).getDataSet();
-         }
-         else {
-            break;
-         }
-      }
+      DataSet unwrapped = unwrapDataSet(dset);
 
       if(unwrapped instanceof VSDataSet vds) {
          // Throws IllegalArgumentException carrying the real cause when the query failed.
@@ -2950,27 +3112,11 @@ public class WizVsService {
       }
 
       try {
-         VGraphPair pair = boxOpt.get().getVGraphPair(assemblyName, true);
-         DataSet dset = pair == null ? null : pair.getData();
+         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
+         DataSet dset = fetchUnwrappedDataSet(boxOpt.get(), assemblyName);
 
          if(dset == null) {
             return null;
-         }
-
-         // Same unwrapping as fetchAssemblyData: the outer wrappers do not carry the aggregated columns.
-         while(true) {
-            if(dset instanceof VSDataSet) {
-               break;
-            }
-            else if(dset instanceof PairsDataSet) {
-               dset = ((PairsDataSet) dset).getDataSet();
-            }
-            else if(dset instanceof DataSetFilter) {
-               dset = ((DataSetFilter) dset).getDataSet();
-            }
-            else {
-               break;
-            }
          }
 
          int col = -1;

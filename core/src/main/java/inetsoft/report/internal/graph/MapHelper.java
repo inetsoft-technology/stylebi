@@ -919,6 +919,28 @@ public class MapHelper {
    }
 
    /**
+    * Distinct number of non-null values in the given data column. Used alongside
+    * {@link #getUnMatchedValues} to report a matched/unmatched count for a geo column.
+    */
+   public static int distinctValueCount(DataSet source, int colIndex) {
+      if(colIndex < 0) {
+         return 0;
+      }
+
+      Set<String> distinct = new HashSet<>();
+
+      for(int r = 0; r < source.getRowCount(); r++) {
+         Object v = source.getData(colIndex, r);
+
+         if(!Tool.isEmptyString(Tool.toString(v))) {
+            distinct.add(Tool.toString(v));
+         }
+      }
+
+      return distinct.size();
+   }
+
+   /**
     * Get supported match algorithm names.
     */
    public static String[] getAlgorithms(boolean containsNone) {
