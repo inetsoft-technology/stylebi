@@ -856,6 +856,13 @@ public class WizAutoBindingService {
    private void syncHighlightOnTypeChange(VSAssembly source, String runtimeId, String viewsheetIdentifier,
                                            String assemblyName, Principal user)
    {
+      // The common case: most type switches aren't touching a highlighted chart at all. Skip the RVS
+      // lookup and the graph-clear below (which forces the NEXT render to fully rebuild) when there is
+      // nothing on source to carry, rather than paying that cost on every single changeType call.
+      if(!hasHighlightToCarry(source)) {
+         return;
+      }
+
       try {
          RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
             viewsheetService, runtimeId, viewsheetIdentifier, user);
@@ -870,6 +877,35 @@ public class WizAutoBindingService {
       catch(Exception e) {
          LOG.warn("changeType: failed to sync highlight for '{}': {}", assemblyName, e.getMessage());
       }
+   }
+
+   /**
+    * Whether {@code source} carries any highlight worth the lookup + graph-clear in {@link
+    * #syncHighlightOnTypeChange(VSAssembly, String, String, String, Principal)} — checked upfront so
+    * the common no-highlight changeType call doesn't pay for either. Mirrors exactly what {@link
+    * SyncChartHandler#syncHighlight} would look for: a per-ref highlight/text-highlight group on any
+    * design ref, or (for a merged chart) the chart-level group.
+    */
+   private static boolean hasHighlightToCarry(VSAssembly source) {
+      if(!(source instanceof ChartVSAssembly chartAsm) || chartAsm.getVSChartInfo() == null) {
+         return false;
+      }
+
+      VSChartInfo info = chartAsm.getVSChartInfo();
+
+      if(info.getHighlightGroup() != null) {
+         return true;
+      }
+
+      for(ChartRef ref : info.getBindingRefs(false)) {
+         if(ref instanceof HighlightRef hlRef &&
+            (hlRef.getHighlightGroup() != null || hlRef.getTextHighlightGroup() != null))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
