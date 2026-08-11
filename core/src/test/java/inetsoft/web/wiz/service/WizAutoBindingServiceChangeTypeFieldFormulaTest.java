@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.PercentCalc;
+import inetsoft.report.filter.HighlightGroup;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -313,6 +314,95 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
       void nullAssembliesAreANoOp() {
          assertDoesNotThrow(() -> service.syncHighlightOnTypeChange(null, null));
          verify(syncChartHandler, never()).syncHighlight(any(), any());
+      }
+   }
+
+   /**
+    * hasHighlightToCarry(VSAssembly) — the upfront filter that lets changeType() skip the RVS lookup
+    * and sandbox graph-clear for the common case of switching a chart that was never highlighted.
+    * Must mirror SyncChartHandler#syncHighlight's own copy logic closely enough to never
+    * under-detect: a false negative here means a real highlight silently stops carrying across a
+    * type switch again, exactly the class of bug this fix exists for. Over-detecting (running the
+    * lookup when nothing actually matches on the target) is harmless by comparison.
+    */
+   @Tag("core")
+   static class HasHighlightToCarryTest {
+      @Test
+      void nonChartSourceIsFalse() {
+         TableVSAssembly table = mock(TableVSAssembly.class);
+
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(table));
+      }
+
+      @Test
+      void nullSourceIsFalse() {
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(null));
+      }
+
+      @Test
+      void chartWithNoChartInfoIsFalse() {
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(null);
+
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      @Test
+      void chartWithNoHighlightAnywhereIsFalse() {
+         VSChartAggregateRef agg = mock(VSChartAggregateRef.class);
+         when(agg.getHighlightGroup()).thenReturn(null);
+         when(agg.getTextHighlightGroup()).thenReturn(null);
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getHighlightGroup()).thenReturn(null);
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[] { agg });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      @Test
+      void aPerRefHighlightGroupIsTrue() {
+         VSChartAggregateRef agg = mock(VSChartAggregateRef.class);
+         when(agg.getHighlightGroup()).thenReturn(mock(HighlightGroup.class));
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[] { agg });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertTrue(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      @Test
+      void aPerRefTextHighlightGroupIsTrue() {
+         VSChartDimensionRef dim = mock(VSChartDimensionRef.class);
+         when(dim.getHighlightGroup()).thenReturn(null);
+         when(dim.getTextHighlightGroup()).thenReturn(mock(HighlightGroup.class));
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[] { dim });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertTrue(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      /** The merged-chart case: chart-level group, not any single ref's. */
+      @Test
+      void aChartLevelHighlightGroupIsTrue() {
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getHighlightGroup()).thenReturn(mock(HighlightGroup.class));
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[0]);
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertTrue(WizAutoBindingService.hasHighlightToCarry(chart));
       }
    }
 

@@ -885,8 +885,13 @@ public class WizAutoBindingService {
     * the common no-highlight changeType call doesn't pay for either. Mirrors exactly what {@link
     * SyncChartHandler#syncHighlight} would look for: a per-ref highlight/text-highlight group on any
     * design ref, or (for a merged chart) the chart-level group.
+    *
+    * <p>Package-private (not {@code private}) so this short-circuit can be unit-tested directly,
+    * mirroring {@link #syncHighlightOnTypeChange(VSAssembly, VSAssembly)} — a filter that silently
+    * starts under-detecting after some future change to {@code syncHighlight}'s matching rules would
+    * reintroduce the exact "highlight silently dropped" bug this class of fix exists for.
     */
-   private static boolean hasHighlightToCarry(VSAssembly source) {
+   static boolean hasHighlightToCarry(VSAssembly source) {
       if(!(source instanceof ChartVSAssembly chartAsm) || chartAsm.getVSChartInfo() == null) {
          return false;
       }
