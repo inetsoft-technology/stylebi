@@ -1,7 +1,7 @@
 # Chart Card — Slice 1 Design (Shell · Selection · Toolbar)
 
 **Date:** 2026-08-05
-**Source docs:** `chart-card-design/` (enterprise repo root) — `README.md`, `Open items - handoff.md`,
+**Source docs:** `chart-card-design/` (`docs/superpowers/specs/lookfeel/`) — `README.md`, `Open items - handoff.md`,
 `Chart Card Spec.html`, `Chart overlay surfaces - ticket.md`, `Shell surfaces - ticket.md`,
 `Chart overlay surfaces - decided visuals.html`, `Anchoring beyond charts - discussion.md`
 **Source docs verified against:** `c75c3fabdf64` (community, ancestor of current HEAD)

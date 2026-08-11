@@ -10,7 +10,7 @@
 
 **Design doc:** [`docs/superpowers/specs/lookfeel/chart-card-slice2-tables-design.md`](../specs/lookfeel/chart-card-slice2-tables-design.md)
 **Predecessor:** [`2026-08-05-chart-card-pr3-toolbar-chain.md`](./2026-08-05-chart-card-pr3-toolbar-chain.md) — the chart pilot whose patterns this copies
-**Source doc:** `chart-card-design/Anchoring beyond charts - discussion.md` (enterprise repo root) — read Cases 1–4 before starting
+**Source doc:** `chart-card-design/Anchoring beyond charts - discussion.md` (`docs/superpowers/specs/lookfeel/`) — read Cases 1–4 before starting
 
 ## Global Constraints
 
