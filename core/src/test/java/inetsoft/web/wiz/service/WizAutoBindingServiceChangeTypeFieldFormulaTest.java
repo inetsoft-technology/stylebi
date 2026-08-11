@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.PercentCalc;
+import inetsoft.report.filter.HighlightGroup;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -38,6 +39,7 @@ import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.web.vswizard.handler.SyncChartHandler;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.BindingFieldSettings;
@@ -207,7 +209,7 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
    @Tag("core")
    static class ApplyResolvedFormulaOverridesDispatchTest {
       private final WizAutoBindingService service =
-         new WizAutoBindingService(null, null, null, null, null, null, null);
+         new WizAutoBindingService(null, null, null, null, null, null, null, null);
 
       @Test
       void dispatchesChartAssemblyToApplyFieldConfigs() {
@@ -259,6 +261,152 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
    }
 
    /**
+    * syncHighlightOnTypeChange(VSAssembly, VSAssembly) — the fix for the reported bug: a highlight
+    * applied via /viewsheet/highlight disappeared after switching chart type through the GUI's
+    * "change chart style" action (candidate-type buttons), because changeType()'s fast path never
+    * ran SyncInfoHandler#syncConfigs (that only fires on the /viewsheet/autoBinding path — see
+    * WizVsService's syncSource block). Only the chart/chart dispatch is exercised here — the actual
+    * ref-matching and HighlightGroup copy is SyncChartHandler#syncHighlight's own concern, covered by
+    * its own tests.
+    */
+   @Tag("core")
+   static class SyncHighlightOnTypeChangeTest {
+      private SyncChartHandler syncChartHandler;
+      private WizAutoBindingService service;
+
+      @BeforeEach
+      void setUp() {
+         syncChartHandler = mock(SyncChartHandler.class);
+         service = new WizAutoBindingService(null, null, null, null, null, null, null, syncChartHandler);
+      }
+
+      @Test
+      void copiesHighlightWhenBothSidesAreCharts() {
+         ChartVSAssembly fromChart = mock(ChartVSAssembly.class);
+         ChartVSAssembly toChart = mock(ChartVSAssembly.class);
+
+         service.syncHighlightOnTypeChange(fromChart, toChart);
+
+         verify(syncChartHandler).syncHighlight(fromChart, toChart);
+      }
+
+      @Test
+      void sourceNotAChartIsANoOp() {
+         TableVSAssembly fromTable = mock(TableVSAssembly.class);
+         ChartVSAssembly toChart = mock(ChartVSAssembly.class);
+
+         service.syncHighlightOnTypeChange(fromTable, toChart);
+
+         verify(syncChartHandler, never()).syncHighlight(any(), any());
+      }
+
+      @Test
+      void targetNotAChartIsANoOp() {
+         ChartVSAssembly fromChart = mock(ChartVSAssembly.class);
+         TableVSAssembly toTable = mock(TableVSAssembly.class);
+
+         service.syncHighlightOnTypeChange(fromChart, toTable);
+
+         verify(syncChartHandler, never()).syncHighlight(any(), any());
+      }
+
+      @Test
+      void nullAssembliesAreANoOp() {
+         assertDoesNotThrow(() -> service.syncHighlightOnTypeChange(null, null));
+         verify(syncChartHandler, never()).syncHighlight(any(), any());
+      }
+   }
+
+   /**
+    * hasHighlightToCarry(VSAssembly) — the upfront filter that lets changeType() skip the RVS lookup
+    * and sandbox graph-clear for the common case of switching a chart that was never highlighted.
+    * Must mirror SyncChartHandler#syncHighlight's own copy logic closely enough to never
+    * under-detect: a false negative here means a real highlight silently stops carrying across a
+    * type switch again, exactly the class of bug this fix exists for. Over-detecting (running the
+    * lookup when nothing actually matches on the target) is harmless by comparison.
+    */
+   @Tag("core")
+   static class HasHighlightToCarryTest {
+      @Test
+      void nonChartSourceIsFalse() {
+         TableVSAssembly table = mock(TableVSAssembly.class);
+
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(table));
+      }
+
+      @Test
+      void nullSourceIsFalse() {
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(null));
+      }
+
+      @Test
+      void chartWithNoChartInfoIsFalse() {
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(null);
+
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      @Test
+      void chartWithNoHighlightAnywhereIsFalse() {
+         VSChartAggregateRef agg = mock(VSChartAggregateRef.class);
+         when(agg.getHighlightGroup()).thenReturn(null);
+         when(agg.getTextHighlightGroup()).thenReturn(null);
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getHighlightGroup()).thenReturn(null);
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[] { agg });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertFalse(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      @Test
+      void aPerRefHighlightGroupIsTrue() {
+         VSChartAggregateRef agg = mock(VSChartAggregateRef.class);
+         when(agg.getHighlightGroup()).thenReturn(mock(HighlightGroup.class));
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[] { agg });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertTrue(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      @Test
+      void aPerRefTextHighlightGroupIsTrue() {
+         VSChartDimensionRef dim = mock(VSChartDimensionRef.class);
+         when(dim.getHighlightGroup()).thenReturn(null);
+         when(dim.getTextHighlightGroup()).thenReturn(mock(HighlightGroup.class));
+
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[] { dim });
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertTrue(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+
+      /** The merged-chart case: chart-level group, not any single ref's. */
+      @Test
+      void aChartLevelHighlightGroupIsTrue() {
+         VSChartInfo info = mock(VSChartInfo.class);
+         when(info.getHighlightGroup()).thenReturn(mock(HighlightGroup.class));
+         when(info.getBindingRefs(false)).thenReturn(new ChartRef[0]);
+
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getVSChartInfo()).thenReturn(info);
+
+         assertTrue(WizAutoBindingService.hasHighlightToCarry(chart));
+      }
+   }
+
+   /**
     * applyFieldConfigsToTempChart(RuntimeViewsheet, Map) — records the caller's field settings on the
     * autoBinding RVS's TEMP CHART x/y refs, not just on the rendered assembly.
     *
@@ -276,7 +424,7 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
       @BeforeEach
       void setUp() {
          tempInfoService = mock(VSWizardTemporaryInfoService.class);
-         service = new WizAutoBindingService(null, null, tempInfoService, null, null, null, null);
+         service = new WizAutoBindingService(null, null, tempInfoService, null, null, null, null, null);
       }
 
       private static DimensionFieldInfo topN(String field, int n, String rankingCol) {
@@ -394,7 +542,7 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
       @BeforeEach
       void setUp() {
          tempInfoService = mock(VSWizardTemporaryInfoService.class);
-         service = new WizAutoBindingService(null, null, tempInfoService, null, null, null, null);
+         service = new WizAutoBindingService(null, null, tempInfoService, null, null, null, null, null);
       }
 
       private static VSChartDimensionRef rankedTempDim(String field) {
@@ -771,7 +919,7 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
 
       @BeforeEach
       void setUp() {
-         service = new WizAutoBindingService(null, null, null, null, null, null, null);
+         service = new WizAutoBindingService(null, null, null, null, null, null, null, null);
       }
 
       private static ChartVSAssembly chartBinding(String... columns) {
@@ -865,7 +1013,7 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
       @BeforeEach
       void setUp() {
          wizVsService = mock(WizVsService.class);
-         service = new WizAutoBindingService(null, null, null, null, null, wizVsService, null);
+         service = new WizAutoBindingService(null, null, null, null, null, wizVsService, null, null);
       }
 
       @Test

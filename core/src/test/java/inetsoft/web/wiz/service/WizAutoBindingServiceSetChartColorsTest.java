@@ -105,7 +105,7 @@ class WizAutoBindingServiceSetChartColorsTest {
       securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       service = new WizAutoBindingService(
-         viewsheetService, null, null, null, null, wizVsService, securityEngine);
+         viewsheetService, null, null, null, null, wizVsService, securityEngine, null);
 
       // Real Viewsheet/assembly/info objects need SreeEnv (Spring context), so mock the
       // whole chain and hand the service a mock measure ref to capture the applied frame.
