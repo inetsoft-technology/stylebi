@@ -4459,6 +4459,12 @@ public class WizVsService {
             VisualizationConditionModel.ConditionSpec spec = leaf.getCondition();
 
             if(spec == null || Tool.isEmptyString(spec.getField())) {
+               // canApplyConditions only refuses a list where EVERY node was unusable, so a PARTIAL
+               // drop is written as though it were complete — and a missing leaf widens the result
+               // instead of emptying it, which reads as a correct answer. Say so here or the reason
+               // is unrecoverable.
+               LOG.warn("Dropping a condition node with no field; the applied filter will be wider " +
+                           "than requested");
                continue;
             }
 
