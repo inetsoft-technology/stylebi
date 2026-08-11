@@ -462,6 +462,45 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateDropsStaleDateRangeColumnOnLevelChange() throws Exception {
+      // Re-grouping the same field at a different level (e.g. the agent changes
+      // "group by Quarter" to "group by Month") must not leave the previous level's
+      // materialized DateRangeRef column ("Quarter(orderDate)") behind as an orphan —
+      // each call resolves the field back to the untouched raw column, so without
+      // explicit cleanup a stale wrapped column accumulates per level change and
+      // pollutes read_worksheet_model's column list with phantom entries forever.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "MONTH")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("Quarter(orderDate)"),
+                 "stale Quarter(orderDate) column must be dropped when re-grouped to MONTH");
+      assertNotNull(cs.getAttribute("Month(orderDate)"));
+      assertNotNull(cs.getAttribute("orderDate"), "raw base column must still be present");
+      assertEquals(3, cs.getAttributeCount(),
+                    "expected exactly orderDate, Month(orderDate), total — no leftovers");
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getGroupCount());
+      assertEquals("Month(orderDate)", ai.getGroup(0).getDataRef().getName());
+   }
+
+   @Test
    void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");

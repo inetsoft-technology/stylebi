@@ -356,6 +356,27 @@ public final class WorksheetMutationSupport {
                availableColumns.keySet());
          }
 
+         // Drop any DateRangeRef-wrapped sibling already materialized for this same base
+         // column by a PRIOR call — e.g. re-grouping "orderDate" from QUARTER to MONTH
+         // would otherwise leave "Quarter(orderDate)" behind forever, since each call
+         // resolves spec.field() back to the untouched raw column (see below) and never
+         // revisits earlier wrapped columns. Harmless to the generated SQL (mergeGroupBy
+         // skips a visible column with no group/aggregate), but it pollutes
+         // read_worksheet_model's column list with a phantom entry per level change.
+         // Mirrors the net effect of AggregateDialogService's "remove useless range
+         // column" cleanup pass (its dateRef.isAutoCreate()-gated removal), simplified
+         // since every date-wrapped column this API creates is auto-named — there is no
+         // user-custom-alias case here to preserve.
+         for(int i = cs.getAttributeCount() - 1; i >= 0; i--) {
+            DataRef existing = cs.getAttribute(i);
+
+            if(existing instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef drr &&
+               drr.getDataRef().equals(resolved.getDataRef()))
+            {
+               cs.removeAttribute(i);
+            }
+         }
+
          GroupRef gr;
 
          if(spec.dateLevel() == null) {
