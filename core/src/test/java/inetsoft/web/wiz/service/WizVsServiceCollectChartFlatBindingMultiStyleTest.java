@@ -91,4 +91,42 @@ class WizVsServiceCollectChartFlatBindingMultiStyleTest {
       assertEquals(1, dimensions.size());
       assertEquals("PRODUCT_NAME", dimensions.get(0).getField());
    }
+
+   /**
+    * Regression for the fix itself: {@link VSChartInfo#getAggregateAestheticRefs} gates on
+    * {@code isMultiAesthetic()}, so a stale per-aggregate {@code colorField} left over from a
+    * chart that used to be multi-styles (see {@code ChangeSeparateStatusProcessor}, which clears
+    * the aesthetic only on the first aggregate when "separate" is turned off) must NOT resurface
+    * as a phantom dimension once {@code multiStyles} is false.
+    */
+   @Test
+   void collectFlatBindingIgnoresAStaleAggregateColorFieldWhenNotMultiStyles() {
+      WizVsService service = new WizVsService(
+         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null, null);
+
+      VSChartDimensionRef productName = new VSChartDimensionRef();
+      productName.setGroupColumnValue("PRODUCT_NAME");
+
+      VSAestheticRef colorField = new VSAestheticRef();
+      colorField.setDataRef(productName);
+
+      VSChartAggregateRef sumInStock = new VSChartAggregateRef();
+      sumInStock.setColumnValue("NUMBER_INSTOCK");
+      sumInStock.setFormulaValue("Sum");
+      // Stale leftover from a prior multi-styles binding -- setMultiStyles(false) below does not
+      // clear it (ChangeSeparateStatusProcessor only clears the first aggregate).
+      sumInStock.setColorField(colorField);
+
+      VSChartInfo info = new VSChartInfo();
+      info.setMultiStyles(false);
+      info.addYField(sumInStock);
+
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(info);
+
+      CreateViewsheetResult.FlatBinding binding = service.collectFlatBinding(assembly);
+
+      List<DimensionFieldInfo> dimensions = binding == null ? List.of() : binding.getDimensions();
+      assertEquals(0, dimensions.size());
+   }
 }

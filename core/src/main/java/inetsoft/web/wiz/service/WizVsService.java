@@ -2815,18 +2815,13 @@ public class WizVsService {
       // ChartAggregateRef, not on VSChartInfo above — that dimension was invisible here, so
       // deriving fields from a pie/donut source (a chart-type change that re-binds via this
       // method, e.g. re-slotting into a crosstab) silently dropped it and produced a
-      // dimension-less rebuild.
-      for(ChartRef ref : info.getBindingRefs(false)) {
-         if(ref instanceof ChartAggregateRef aggRef) {
-            for(AestheticRef aref : new AestheticRef[]{
-               aggRef.getColorField(), aggRef.getShapeField(),
-               aggRef.getSizeField(), aggRef.getTextField()
-            }) {
-               if(aref != null) {
-                  classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
-               }
-            }
-         }
+      // dimension-less rebuild. Delegate to getAggregateAestheticRefs(), which already gates on
+      // isMultiAesthetic() -- reading every aggregate's color/shape/size/text unconditionally
+      // would resurface a stale colorField that ChangeSeparateStatusProcessor leaves behind on
+      // non-first aggregates when a chart is switched OUT of multi-styles, reintroducing a
+      // phantom dimension.
+      for(AestheticRef aref : info.getAggregateAestheticRefs(false)) {
+         classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
       }
 
       // Path field
