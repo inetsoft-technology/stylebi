@@ -462,8 +462,38 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    // TEMPORARY, like AbstractVSActions.resident: both read the one rollout boundary in
    // mini-toolbar.service.ts and are deleted together with it when the last family slice lands. See
    // chart-card-design/Anchoring beyond charts - discussion.md.
+   // Excluded only for the selection family in max mode (isMaxModeSelection below): those models
+   // abandon objectFormat positioning there (see VSSelection.topPosition) and put padding constants
+   // in objectFormat.top/left instead, so the lane origin the anchored geometry assumes doesn't
+   // exist. Chart and table objectFormat is rewritten to true coordinates in max mode, so anchoring
+   // still works for them there. isKebabResident below is the type+gate condition alone, without
+   // this method's selection-max-mode exclusion — it is what keeps the kebab reachable on touch
+   // once this method stops anchoring it.
    public isToolbarAnchored(object: VSObjectModel): boolean {
+      return this.isKebabResident(object) && !VSObjectContainer.isMaxModeSelection(object);
+   }
+
+   /**
+    * Whether this assembly type carries the resident/kebab-only design at all, regardless of
+    * whether it can currently be geometrically anchored to a title lane (isToolbarAnchored above).
+    * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
+    * max mode, where anchoring is off — there is no lane — but the type still carries the design.
+    */
+   public isKebabResident(object: VSObjectModel): boolean {
       return GuiTool.isVizModern() && isAnchoredAssemblyType(object.objectType);
+   }
+
+   /**
+    * Selection list/tree in max mode: objectFormat.top/left hold VSSelectionBaseModel's
+    * TOP_PADDING/LEFT_PADDING constants (30/20), not the assembly's true origin — the assembly's
+    * own rendering ignores them too (see isToolbarAnchored above) and fills the container instead.
+    * Floating top math already lands correctly off that stale top (see getToolbarTop); only
+    * getToolbarLeft still needs an override, to compensate for the stale left.
+    */
+   private static isMaxModeSelection(object: VSObjectModel): boolean {
+      return !!(<any> object).maxMode &&
+         (Tool.equalsIgnoreCase(object.objectType, "VSSelectionList") ||
+            Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"));
    }
 
    public getToolbarTop(object: VSObjectModel, i: number): number {
@@ -510,6 +540,15 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return left + ((<VSChartModel> object).paddingLeft || 0);
       }
 
+      // .mini-toolbar-container is width: fit-content !important, so its true rendered width is not
+      // knowable here — there is no way to compute the real right edge directly. left + width
+      // deliberately overshoots it instead (objectFormat.left/width both carry the padding
+      // constants), and getToolbarLeft's overflow-viewport clamp below right-aligns the strip
+      // against that overshoot. Leaning on the clamp as an alignment primitive is the mechanism.
+      if(VSObjectContainer.isMaxModeSelection(object)) {
+         left = object.objectFormat.left + object.objectFormat.width;
+      }
+
       return this.miniToolbarService.getToolbarLeft(left, this.containerBounds,
          this.scaleService.getCurrentScale(),
          this.containerScrollLeft, this.checkContainerHasVerticalScrollbar(),
@@ -544,6 +583,16 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * costs 22px of empty plot corner and keeps one rule for the whole anchored set.
     */
    private static rightEdgeReserve(object: VSObjectModel): number {
+      // Exempt: the reserve is the table's sort control, which a selection cell has no equivalent
+      // of. A selection's right-edge occupant is the pending-Apply icon, which .pending-alert in
+      // vs-selection.component.scss offsets clear of the pill under the gate instead — reserving
+      // here too would make that CSS position depend on SORT_CONTROL_RESERVE below.
+      if(Tool.equalsIgnoreCase(object.objectType, "VSSelectionList") ||
+         Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"))
+      {
+         return 0;
+      }
+
       return (<any> object).titleVisible === false ? VSObjectContainer.SORT_CONTROL_RESERVE : 0;
    }
 
