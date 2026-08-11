@@ -38,7 +38,10 @@ import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.RemoveAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.wiz.service.GenerateWsService;
 import inetsoft.web.wiz.service.WizVisualizationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -132,6 +135,7 @@ public class RemoveAssetController {
             // Remove it directly from the AssetRepository instead, mirroring
             // WizVisualizationService#deleteVisualizations.
             assetRepository.removeFolder(entry, principal, true);
+            removeCompanionWorksheetFolder(entry, principal);
          }
          else if(entry.isRepositoryFolder()) {
             String rpath = entry.getPath();
@@ -268,6 +272,37 @@ public class RemoveAssetController {
          path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/");
    }
 
+   /**
+    * Removes the backing worksheet folder for a just-deleted {@code VISUALIZATION_COMPONENTS_FOLDER_PATH}
+    * folder, if one exists. Every saved visualization under that root has a parallel worksheet under
+    * {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH} (same path suffix) -- mirrors
+    * {@code WizVisualizationService#deleteVisualizations}'s identical cleanup, without which deleting a
+    * visualization folder through this generic composer path (unlike the wiz-native delete path) would
+    * leave its backing worksheet folder orphaned in the repository. A no-op for {@code
+    * VISUALIZATION_ROOT_FOLDER_PATH} ("Wiz Chats") folders, which have no such companion.
+    */
+   private void removeCompanionWorksheetFolder(AssetEntry entry, Principal principal) {
+      String path = entry.getPath();
+
+      if(!path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
+         return;
+      }
+
+      String suffix = path.substring(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.length());
+      String wsFolderPath = GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH + suffix;
+      AssetEntry wsFolderEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, wsFolderPath, null);
+
+      try {
+         if(assetRepository.containsEntry(wsFolderEntry)) {
+            assetRepository.removeFolder(wsFolderEntry, principal, true);
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to delete worksheet folder (visualization folder deleted): {}", wsFolderPath, e);
+      }
+   }
+
    private void checkScriptRemoveable(RemoveAssetEvent event, AssetEntry entry, Principal principal) {
       if(!event.confirmed()) {
          List<Object> aentries = new ArrayList<>();
@@ -297,4 +332,5 @@ public class RemoveAssetController {
    private final LibManagerProvider libManagerProvider;
    private final RecycleBin recycleBin;
    private final DependencyHandler dependencyHandler;
+   private static final Logger LOG = LoggerFactory.getLogger(RemoveAssetController.class);
 }

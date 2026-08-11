@@ -29,6 +29,7 @@ import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.composer.model.RemoveAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.wiz.service.GenerateWsService;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -106,6 +107,101 @@ class RemoveAssetControllerWizFolderTest {
       controller(assetRepository).removeAsset(event, principal);
 
       verify(assetRepository).removeFolder(folder, principal, true);
+   }
+
+   /**
+    * Every saved visualization under VISUALIZATION_COMPONENTS_FOLDER_PATH has a parallel backing
+    * worksheet under GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH (same path suffix) -- see
+    * WizVisualizationService#deleteVisualizations, which this fix is modeled on. Deleting the
+    * visualization folder must also remove that companion worksheet folder when one exists, or it
+    * is left orphaned in the repository.
+    */
+   @Test
+   void alsoRemovesTheCompanionWorksheetFolderWhenOneExists() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/f2", null);
+      String wsFolderPath = GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH + "/f2";
+      when(assetRepository.containsEntry(argThat(e ->
+         e != null && wsFolderPath.equals(e.getPath())))).thenReturn(true);
+      RemoveAssetEvent event = new RemoveAssetEvent.Builder()
+         .entry(folder)
+         .confirmed(true)
+         .build();
+      Principal principal = mock(Principal.class);
+
+      controller(assetRepository).removeAsset(event, principal);
+
+      verify(assetRepository).removeFolder(folder, principal, true);
+      verify(assetRepository).removeFolder(
+         argThat(e -> wsFolderPath.equals(e.getPath())), eq(principal), eq(true));
+   }
+
+   /** No backing worksheet folder to find -- must not attempt to remove one. */
+   @Test
+   void doesNotAttemptWorksheetFolderRemovalWhenNoneExists() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/f2", null);
+      RemoveAssetEvent event = new RemoveAssetEvent.Builder()
+         .entry(folder)
+         .confirmed(true)
+         .build();
+      Principal principal = mock(Principal.class);
+
+      controller(assetRepository).removeAsset(event, principal);
+
+      // Only the visualization folder itself -- containsEntry defaulted to false, so no second
+      // removeFolder call for a worksheet path.
+      verify(assetRepository, times(1)).removeFolder(any(), any(), anyBoolean());
+   }
+
+   /** A failure removing the companion worksheet folder must not fail the whole delete -- the
+    *  visualization folder is already gone by that point, mirroring deleteVisualizations'
+    *  best-effort try/catch around the same cleanup. */
+   @Test
+   void companionWorksheetFolderRemovalFailureIsSwallowed() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/f2", null);
+      String wsFolderPath = GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH + "/f2";
+      when(assetRepository.containsEntry(argThat(e ->
+         e != null && wsFolderPath.equals(e.getPath())))).thenReturn(true);
+      doThrow(new RuntimeException("boom")).when(assetRepository)
+         .removeFolder(argThat(e -> wsFolderPath.equals(e.getPath())), any(), anyBoolean());
+      RemoveAssetEvent event = new RemoveAssetEvent.Builder()
+         .entry(folder)
+         .confirmed(true)
+         .build();
+      Principal principal = mock(Principal.class);
+
+      MessageCommand result = controller(assetRepository).removeAsset(event, principal);
+
+      assertNull(result, "the worksheet-folder cleanup failure must not surface as an error");
+      verify(assetRepository).removeFolder(folder, principal, true);
+   }
+
+   /** "Wiz Chats" folders (VISUALIZATION_ROOT_FOLDER_PATH) have no backing worksheet folder --
+    *  deleting one must never even look for one. */
+   @Test
+   void wizChatFolderDeletionNeverLooksForAWorksheetFolder() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/thread-1", null);
+      RemoveAssetEvent event = new RemoveAssetEvent.Builder()
+         .entry(folder)
+         .confirmed(true)
+         .build();
+      Principal principal = mock(Principal.class);
+
+      controller(assetRepository).removeAsset(event, principal);
+
+      verify(assetRepository, never()).containsEntry(any());
+      verify(assetRepository, times(1)).removeFolder(any(), any(), anyBoolean());
    }
 
    /** A same-named ordinary repository folder outside the wiz roots keeps using today's
