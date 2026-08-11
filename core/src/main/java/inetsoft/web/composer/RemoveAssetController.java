@@ -38,6 +38,7 @@ import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.RemoveAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.wiz.service.WizVisualizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -119,6 +120,18 @@ public class RemoveAssetController {
             AssetEventUtil.removeStyleFolder(entry.getProperty("folder"), manager);
             manager.save();
             securityProvider.removePermission(ResourceType.TABLE_STYLE, entry.getProperty("folder"));
+         }
+         else if(isWizManagedFolder(entry)) {
+            // Wiz visualization/chat folders are created directly via
+            // assetRepository.addFolder() (see WizVisualizationService#ensureFolder), never
+            // through repletRepository.addFolder(), so they are never registered in the
+            // RepletRegistry's folder map. The RecycleUtils.moveRepositoryToRecycleBin() path
+            // below renames the entry inside the RepletRegistry -- for a folder that isn't
+            // registered there, RepletRegistry#changeFolder finds nothing to rename but still
+            // returns "true", so the delete silently no-ops while the folder stays in place.
+            // Remove it directly from the AssetRepository instead, mirroring
+            // WizVisualizationService#deleteVisualizations.
+            assetRepository.removeFolder(entry, principal, true);
          }
          else if(entry.isRepositoryFolder()) {
             String rpath = entry.getPath();
@@ -233,6 +246,26 @@ public class RemoveAssetController {
 
       messageCommand.setType(MessageCommand.Type.CONFIRM);
       return messageCommand;
+   }
+
+   /**
+    * @return {@code true} if {@code entry} is a repository folder under one of the wiz-managed
+    *         roots ({@code VISUALIZATION_ROOT_FOLDER_PATH}, {@code VISUALIZATION_COMPONENTS_FOLDER_PATH})
+    *         -- folders created via {@code assetRepository.addFolder()} and never registered in
+    *         the RepletRegistry, so they need the AssetRepository-direct removal path above
+    *         rather than the RepletRegistry-based recycle-bin path.
+    */
+   private boolean isWizManagedFolder(AssetEntry entry) {
+      if(!entry.isRepositoryFolder() || entry.getPath() == null) {
+         return false;
+      }
+
+      String path = entry.getPath();
+
+      return path.equals(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
+         path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+         path.equals(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH) ||
+         path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/");
    }
 
    private void checkScriptRemoveable(RemoveAssetEvent event, AssetEntry entry, Principal principal) {
