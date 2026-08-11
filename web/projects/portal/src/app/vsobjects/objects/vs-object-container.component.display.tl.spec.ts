@@ -388,16 +388,21 @@ describe("Group 11 — isActivePopComponent: active pop component, self and grou
 });
 
 // ---------------------------------------------------------------------------
-// Group 12 — anchored toolbar geometry (chart pilot), including max mode
+// Group 12 — anchored toolbar geometry (chart pilot + table family); max mode
+// anchored for both, excluded only for the selection family
 // ---------------------------------------------------------------------------
 
-// Final-review round, Important 4: the anchored branches of getToolbarTop/getToolbarLeft bypass
-// miniToolbarService.getToolbarLeft(), the only place maxMode participates in strip placement. These
-// pin why that is correct rather than an oversight: maxMode's sole effect there is to zero the
-// embedded-viewsheet x offset inside a viewport clamp, and the anchored branch has neither term —
-// it is expressed purely in the assembly's own objectFormat, which the server rewrites to origin
-// (0, 0) plus maxSize for a maximised chart (VSChartModel.VSChartModelFactory.createModel).
-describe("Group 12 — anchored toolbar geometry: objectFormat-only, max mode included", () => {
+// The anchored branches of getToolbarTop/getToolbarLeft are expressed purely in the assembly's own
+// objectFormat and bypass miniToolbarService.getToolbarLeft() entirely — the only place maxMode
+// participates in strip placement. A maximised chart's objectFormat really is rewritten to origin
+// (0, 0) plus maxSize (VSChartModel.VSChartModelFactory.createModel), and the table family carries
+// no max-mode override either, so the plain anchored math already lands correctly for both. Only
+// the selection family (VSSelectionList/VSSelectionTree) abandons objectFormat positioning in max
+// mode — see VSSelection.topPosition, which falls through to null — putting VSSelectionBaseModel's
+// TOP_PADDING/LEFT_PADDING constants in objectFormat instead, so anchoring is disabled for them and
+// the strip falls back to the floating path, which already compensates for max mode via
+// miniToolbarService.
+describe("Group 12 — anchored toolbar geometry: chart and table anchored in max mode, selection family excluded", () => {
    const anchoredChart = (overrides: any = {}) => {
       const obj: any = makeVSObject({
          objectType: "VSChart",
@@ -526,6 +531,27 @@ describe("Group 12 — anchored toolbar geometry: objectFormat-only, max mode in
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
    });
 
+   // A maximised table carries no padding-constant override the way selection does — its
+   // objectFormat is real coordinates in max mode too, so anchoring must stay on.
+   it("anchors a maximised table's strip inside the assembly, from objectFormat alone", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.maxMode = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
+      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
+   });
+
    // With the title hidden the strip overlays the column header row, whose last cell carries the
    // sort control at right: 2px, width: 20px (base-table.scss). The kebab landed exactly on it and
    // ate the click, so the column could not be sorted at all. The lane box gives that footprint up
@@ -559,6 +585,123 @@ describe("Group 12 — anchored toolbar geometry: objectFormat-only, max mode in
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+   });
+
+   // The reserve's whole purpose is the table's .vs-header-cell-button-sort, which a selection cell
+   // has no equivalent of. A selection's right-edge occupant is the pending-Apply icon, and the
+   // gated .pending-alert offset moves that clear of the pill instead — so the pill is flush here
+   // in both title states, and the CSS offset stays one value rather than two.
+   it("reserves nothing for a title-hidden selection list", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSSelectionList",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.titleVisible = false;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+   });
+
+   it("reserves nothing for a title-hidden selection tree either", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSSelectionTree",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.titleVisible = false;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+   });
+
+   // Selection carries no paddingTop/Left/Right either (those fields are on vs-chart-model only), so
+   // the same || 0 fallbacks that give a table a flush, full-width lane give a selection list one
+   // too: flush top/left, full width, right edge landing exactly on the assembly's own right edge.
+   it("anchors a non-max-mode selection list", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSSelectionList",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
+      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
+   });
+
+   it("does not anchor a maximised selection list, which abandons objectFormat positioning", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSSelectionList",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.maxMode = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
+   });
+
+   // Touch has no hover to reveal a non-resident strip, so isKebabResident must stay true here even
+   // though isToolbarAnchored (its maxMode-excluding sibling) is false — it is the input the mini-
+   // toolbar host uses on touch to keep the kebab reachable once anchoring, and the position it
+   // implies, is off.
+   it("still carries the resident-kebab design for a maximised selection list, unlike anchoring", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSSelectionList",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.maxMode = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
+      expect(comp.isKebabResident(obj)).toBe(true);
+   });
+
+   // objectFormat.top/left here are VSSelectionBaseModel's TOP_PADDING/LEFT_PADDING constants
+   // (30/20 in the real server model; 40/250 in this fixture stand in for "some non-zero value
+   // that isn't the assembly's true origin"), not real coordinates — the assembly's own rendering
+   // ignores them and fills the container. getToolbarTop's plain floating math already lands
+   // correctly off that stale top (see its own comment for why); getToolbarLeft still aims past
+   // the assembly's own right edge (left + width) and leans on the existing overflow clamp to land
+   // there instead of on the header's leading edge.
+   it("floats a maximised selection list's strip from ordinary floating top, and past the right edge on left", () => {
+      const { comp, miniToolbarSvc } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSSelectionList",
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.maxMode = true;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getToolbarTop(obj, 0)).toBe(40);   // ordinary floating top, no max-mode override
+      comp.getToolbarLeft(obj, 0);
+      expect(miniToolbarSvc.getToolbarLeft).toHaveBeenCalled();
+      const args = (miniToolbarSvc.getToolbarLeft as any).mock.calls[0];
+      expect(args[0]).toBe(250 + 600);   // left + width, past the visible edge
+      expect(args[args.length - 1]).toBe(true);   // maxMode still reaches the clamp
    });
 
    it("does not anchor a calendar, whose rollout slice has not landed", () => {

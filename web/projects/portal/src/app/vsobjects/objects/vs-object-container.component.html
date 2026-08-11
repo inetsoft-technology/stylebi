@@ -352,6 +352,7 @@
           [left]="getToolbarLeft(vsObject, i)"
           [width]="isToolbarAnchored(vsObject) ? getAnchoredToolbarWidth(vsObject) : getToolbarWidth(vsObject)"
           [anchorInTitleLane]="isToolbarAnchored(vsObject)"
+          [residentKebab]="isKebabResident(vsObject)"
           [zIndex]="getMiniToolbarZIndex(vsObject)"
           [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"

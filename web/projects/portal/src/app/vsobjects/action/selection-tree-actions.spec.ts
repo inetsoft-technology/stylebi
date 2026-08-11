@@ -213,4 +213,56 @@ describe("SelectionTreeActions", () => {
 
       expect(menuActions.length).toBe(0);
    });
+
+   // Max mode was toolbar-only on both selection types, so right-click reached the one action whose
+   // purpose is rescuing an assembly too small to read. Ungated: it adds reachability and removes
+   // nothing, and the gap predates the anchoring work.
+   describe("max mode is reachable from the menu", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      const viewerActions = (overrides: any = {}) => {
+         const model = Object.assign(createModel(), overrides);
+         return new SelectionTreeActions(model, ViewerContextProviderFactory(false));
+      };
+
+      it("adds the pair to the menu with the toolbar's own ids", () => {
+         const menu = ids(viewerActions().menuActions);
+
+         expect(menu).toContain("selection-tree open-max-mode");
+         expect(menu).toContain("selection-tree close-max-mode");
+      });
+
+      it("appends the pair last, so existing positional assertions do not shift", () => {
+         const groups = viewerActions().menuActions;
+         const last = ids([groups[groups.length - 1]]);
+
+         expect(last).toEqual(
+            ["selection-tree open-max-mode", "selection-tree close-max-mode"]);
+      });
+
+      it("shows exactly one of the pair at a time", () => {
+         const visible = (overrides: any) => viewerActions(overrides).menuActions
+            .reduce((acc, g) => acc.concat(g.actions), [] as any[])
+            .filter(a => a.id().endsWith("max-mode") && a.visible())
+            .map(a => a.id());
+
+         expect(visible({ maxMode: false })).toEqual(["selection-tree open-max-mode"]);
+         expect(visible({ maxMode: true })).toEqual(["selection-tree close-max-mode"]);
+      });
+
+      it("renders label-only, carrying no toolbar glyph", () => {
+         const entries = viewerActions().menuActions
+            .reduce((acc, g) => acc.concat(g.actions), [] as any[])
+            .filter(a => a.id().endsWith("max-mode"));
+
+         expect(entries.length).toBe(2);
+         entries.forEach(a => expect(a.icon()).toBeNull());
+      });
+
+      it("is present with the gate off, since the fix is ungated", () => {
+         expect(document.body.classList.contains("viz-modern")).toBe(false);
+         expect(ids(viewerActions().menuActions)).toContain("selection-tree open-max-mode");
+      });
+   });
 });
