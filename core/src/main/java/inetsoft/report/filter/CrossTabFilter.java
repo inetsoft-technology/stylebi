@@ -4472,11 +4472,25 @@ public class CrossTabFilter extends AbstractTableLens
 
       Formula formula = null;
 
-      try {
-         formula = (Formula) sum[k].clone();
+      // NoneFormula is a pass-through (last-value-wins) formula, only valid when exactly
+      // one raw row maps to a cell. Top-N + "group others" (or any other grouping that
+      // folds multiple already-aggregated rows into one merged cell, e.g. a pre-aggregated
+      // worksheet column bound with formula "none") forces multiple raw rows into this
+      // merged cell; replaying a cloned NoneFormula over them just overwrites the value on
+      // every addValue() call, so the merged cell silently ends up holding whichever row
+      // happened to be processed last instead of the total across the merged rows. Sum is
+      // the correct way to recombine values that are already per-row aggregates.
+      if(!(sum[k] instanceof NoneFormula)) {
+         try {
+            formula = (Formula) sum[k].clone();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to reset merged grand total formula", e);
+         }
       }
-      catch(Exception e) {
-         LOG.warn("Failed to reset merged grand total formula", e);
+
+      if(formula == null) {
+         formula = new SumFormula();
       }
 
       for(PairN cellPair : list) {
