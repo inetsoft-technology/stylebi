@@ -501,6 +501,68 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateDropsStaleDateRangeColumnWhenFieldRemovedFromGroups() throws Exception {
+      // set_group_aggregate fully replaces the AggregateInfo each call, so a field
+      // simply absent from a later call's `groups` (the agent restructures to group by
+      // something else entirely, without mentioning the date field again) is exactly as
+      // "no longer grouped" as one explicitly re-leveled — the previously materialized
+      // "Quarter(orderDate)" must not be left behind just because this call's cleanup
+      // only used to look at fields present in THIS call's groups.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "orderDate", "cat", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("Quarter(orderDate)"),
+                 "stale Quarter(orderDate) column must be dropped when orderDate is no " +
+                 "longer grouped at all");
+      assertNotNull(cs.getAttribute("orderDate"), "raw base column must still be present");
+   }
+
+   @Test
+   void setGroupAggregatePreservesAddDateRangeColumnCreatedColumn() throws Exception {
+      // A column created via add_date_range_column is a deliberate, standalone derived
+      // column (not tied to any group) — a later set_group_aggregate call that groups
+      // the SAME base date column at some level must not sweep it away just because it
+      // wraps the same base attribute as the new group's DateRangeRef column.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "YEAR"));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNotNull(cs.getAttribute("Year(orderDate)"),
+                    "add_date_range_column's standalone derived column must survive");
+      assertNotNull(cs.getAttribute("Quarter(orderDate)"));
+      assertNotNull(cs.getAttribute("orderDate"));
+   }
+
+   @Test
    void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");

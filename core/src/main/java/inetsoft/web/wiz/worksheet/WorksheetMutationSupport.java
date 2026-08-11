@@ -356,27 +356,6 @@ public final class WorksheetMutationSupport {
                availableColumns.keySet());
          }
 
-         // Drop any DateRangeRef-wrapped sibling already materialized for this same base
-         // column by a PRIOR call — e.g. re-grouping "orderDate" from QUARTER to MONTH
-         // would otherwise leave "Quarter(orderDate)" behind forever, since each call
-         // resolves spec.field() back to the untouched raw column (see below) and never
-         // revisits earlier wrapped columns. Harmless to the generated SQL (mergeGroupBy
-         // skips a visible column with no group/aggregate), but it pollutes
-         // read_worksheet_model's column list with a phantom entry per level change.
-         // Mirrors the net effect of AggregateDialogService's "remove useless range
-         // column" cleanup pass (its dateRef.isAutoCreate()-gated removal), simplified
-         // since every date-wrapped column this API creates is auto-named — there is no
-         // user-custom-alias case here to preserve.
-         for(int i = cs.getAttributeCount() - 1; i >= 0; i--) {
-            DataRef existing = cs.getAttribute(i);
-
-            if(existing instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef drr &&
-               drr.getDataRef().equals(resolved.getDataRef()))
-            {
-               cs.removeAttribute(i);
-            }
-         }
-
          GroupRef gr;
 
          if(spec.dateLevel() == null) {
@@ -444,6 +423,46 @@ public final class WorksheetMutationSupport {
          }
 
          ainfo.addGroup(gr);
+      }
+
+      // Drop any auto-created DateRangeRef-wrapped column left behind by a PRIOR call
+      // that is not one of THIS call's active groups — covers both re-grouping the same
+      // field at a different level (the old "Quarter(orderDate)" is no longer any
+      // group's DataRef once "Month(orderDate)" is built above) and dropping a
+      // previously date-grouped field out of `groups` entirely (set_group_aggregate
+      // fully replaces the AggregateInfo each call, so a field simply absent from this
+      // call's `groups` is exactly as "no longer grouped" as one explicitly re-leveled).
+      // Gated on isAutoCreate() — default true for a column WE materialize here, but
+      // explicitly false for one add_date_range_column created (see addDateRangeColumn)
+      // — so a column the caller deliberately kept as a standalone derived column is
+      // never swept just because it happens to wrap the same base attribute as a group.
+      // Mirrors AggregateDialogService's "remove useless range column" pass, including
+      // its isAutoRangeColumn()-equivalent gate.
+      Set<DataRef> activeGroupColumns = new HashSet<>();
+
+      for(int i = 0; i < ainfo.getGroupCount(); i++) {
+         activeGroupColumns.add(ainfo.getGroup(i).getDataRef());
+      }
+
+      boolean removedStaleRangeColumn = false;
+
+      for(int i = cs.getAttributeCount() - 1; i >= 0; i--) {
+         DataRef existing = cs.getAttribute(i);
+
+         if(existing instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef drr &&
+            drr.isAutoCreate() && !activeGroupColumns.contains(existing))
+         {
+            cs.removeAttribute(i);
+            removedStaleRangeColumn = true;
+         }
+      }
+
+      if(removedStaleRangeColumn) {
+         // A filter/ranking condition that referenced the removed column's synthetic
+         // name (e.g. add_filter on "Quarter(orderDate)", which read_worksheet_model
+         // does list) would otherwise be left pointing at a DataRef no longer in the
+         // selection. Matches AggregateDialogService's own post-cleanup call.
+         inetsoft.uql.asset.internal.AssetUtil.validateConditions(cs, t);
       }
 
       for(AggregateSpec spec : aggregates) {

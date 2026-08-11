@@ -784,6 +784,12 @@ public class WorksheetEditService {
          String rangeName = DateRangeRef.getName(column, option);
          DateRangeRef dateRef = new DateRangeRef(rangeName, baseRef, option);
          dateRef.setOriginalType(origType);
+         // Not auto-created: this is a deliberate, standalone derived column (matching
+         // ValueRangeService's own setAutoCreate(false) for the Composer's equivalent
+         // UI action), so WorksheetMutationSupport#applyAggregateInfo's stale-range-
+         // column sweep never removes it just because a later set_group_aggregate call
+         // groups the same base column at some date level.
+         dateRef.setAutoCreate(false);
 
          ColumnRef colRef = new ColumnRef(dateRef);
          colRef.setDataType(XSchema.STRING);
