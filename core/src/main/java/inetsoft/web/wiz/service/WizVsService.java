@@ -4531,9 +4531,13 @@ public class WizVsService {
     * Only base conditions are applied here; aggregate conditions require pushing to worksheet.
     */
    private void applyConditionModel(VSAssembly assembly, VisualizationConditionModel conditionModel) {
-      if(conditionModel == null || conditionModel.getBaseConditions() == null ||
-         conditionModel.getBaseConditions().isEmpty())
-      {
+      // The model itself is the boundary: absent means the request said nothing about conditions and
+      // whatever the assembly carries must be left alone, present means it IS the complete new
+      // condition state. Within a present model an empty list and a null list say the same thing —
+      // "no conditions" — matching hasAggregateConditions(), and both must therefore CLEAR. Treating
+      // an empty list as "nothing to do" is what made "delete this filter" a silent no-op that still
+      // reported success.
+      if(conditionModel == null) {
          return;
       }
 
@@ -4545,7 +4549,15 @@ public class WizVsService {
       // Resolve the assembly's candidate condition fields so condition values can be coerced
       // to each field's data type (see buildConditionItem).
       ColumnSelection columns = VSUtil.getBaseColumns(dataAssembly, true);
-      dataAssembly.setPreConditionList(buildConditionList(conditionModel, columns));
+      ConditionList conditions = buildConditionList(conditionModel, columns);
+
+      if(!canApplyConditions(conditions, conditionModel.getBaseConditions(), "base")) {
+         return;
+      }
+
+      // An empty ConditionList is normalized to null by setPreConditionList0, which is what clears the
+      // filter and flags INPUT_DATA_CHANGED so the chart re-executes.
+      dataAssembly.setPreConditionList(conditions);
    }
 
    /**
@@ -4593,6 +4605,12 @@ public class WizVsService {
             VisualizationConditionModel.ConditionSpec spec = leaf.getCondition();
 
             if(spec == null || Tool.isEmptyString(spec.getField())) {
+               // canApplyConditions only refuses a list where EVERY node was unusable, so a PARTIAL
+               // drop is written as though it were complete — and a missing leaf widens the result
+               // instead of emptying it, which reads as a correct answer. Say so here or the reason
+               // is unrecoverable.
+               LOG.warn("Dropping a condition node with no field; the applied filter will be wider " +
+                           "than requested");
                continue;
             }
 
@@ -5036,30 +5054,62 @@ public class WizVsService {
       // Candidate condition fields, used to coerce condition values to each field's data type.
       ColumnSelection columns = table.getColumnSelection(false);
 
-      // Apply base conditions as pre-conditions (WHERE equivalent)
-      if(conditionModel.getBaseConditions() != null && !conditionModel.getBaseConditions().isEmpty()) {
-         ConditionList preCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList,
-                              new boolean[]{ true }, null, columns);
+      // The model reaching here is the complete new condition state, so each half is replaced — an
+      // empty (or absent) half clears that half. Same rule as applyConditionModel, and it has to hold
+      // here too or a filter would be removable from the chart but not from the worksheet.
+      List<VisualizationConditionModel.ConditionNode> base = conditionModel.getBaseConditions();
+      ConditionList preCondList = new ConditionList();
 
-         if(!preCondList.isEmpty()) {
-            table.setPreConditionList(preCondList);
-         }
+      // Apply base conditions as pre-conditions (WHERE equivalent)
+      if(base != null) {
+         appendConditionNodes(base, 0, preCondList, new boolean[]{ true }, null, columns);
+      }
+
+      if(canApplyConditions(preCondList, base, "base")) {
+         table.setPreConditionList(preCondList);
       }
 
       // Apply aggregate conditions as post-conditions (HAVING equivalent)
       // Aggregate conditions are built as AggregateRef items (field+formula+secondaryField+nOrP)
       // so the engine matches them against post-aggregation (HAVING) result columns.
       // Use dimColumnMapping to translate dimension field+dateGroupLevel to DateRangeRef column names
-      if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
-         ConditionList postCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList,
-                              new boolean[]{ true }, dimColumnMapping, columns);
+      List<VisualizationConditionModel.ConditionNode> aggregate = conditionModel.getAggregateConditions();
+      ConditionList postCondList = new ConditionList();
 
-         if(!postCondList.isEmpty()) {
-            table.setPostConditionList(postCondList);
-         }
+      if(aggregate != null) {
+         appendConditionNodes(aggregate, 0, postCondList, new boolean[]{ true }, dimColumnMapping,
+                              columns);
       }
+
+      if(canApplyConditions(postCondList, aggregate, "aggregate")) {
+         table.setPostConditionList(postCondList);
+      }
+   }
+
+   /**
+    * Whether a compiled condition list may be written.
+    *
+    * An empty result is a legitimate write when the request itself carried no conditions — absent and
+    * empty say the same thing, and both are how a caller asks for every condition to be removed. An
+    * empty result from a NON-empty request is a different thing entirely: every node was unusable
+    * (unknown field, malformed spec), and writing it would clear conditions the request never asked
+    * to touch.
+    *
+    * @param compiled  the condition list built from {@code requested}
+    * @param requested the condition nodes the request carried; null when it carried none
+    * @param label     which half of the model this is, for the log line
+    */
+   private boolean canApplyConditions(ConditionList compiled,
+                                      List<VisualizationConditionModel.ConditionNode> requested,
+                                      String label)
+   {
+      if(!compiled.isEmpty() || requested == null || requested.isEmpty()) {
+         return true;
+      }
+
+      LOG.warn("None of the {} {} condition(s) could be built; leaving the existing conditions " +
+                  "untouched", requested.size(), label);
+      return false;
    }
 
    /**
