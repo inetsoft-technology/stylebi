@@ -4030,7 +4030,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(ass instanceof EmbeddedTableAssembly) {
             EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) ass;
-            DataRef column = iassembly.getColumn();
+            // resolve the column from the current column selection instead of relying on
+            // iassembly.getColumn(), which is only refreshed on a full sandbox reset and
+            // may be stale if the binding was changed without reopening the viewsheet
+            DataRef column = eassembly.getColumnSelection(false).getAttribute(iassembly.getColumnValue());
             int row = iassembly.getRow();
 
             if(column != null && row > 0) {
