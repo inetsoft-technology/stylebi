@@ -24,10 +24,21 @@ import userEvent from "@testing-library/user-event";
 import { EmbedDatasourceRegistrationComponent } from "./embed-datasource-registration.component";
 import { EmbedDatasourceRegistrationService } from "./embed-datasource-registration.service";
 
+/**
+ * A seed shaped like the real one.
+ *
+ * Every node carries `views: []` because the server always sends it: TabularView initializes the
+ * list in its constructor and getViews() returns an array, so a leaf serializes as `views: []`,
+ * never absent. The editor's getDependsOn recurses into `view.views` unconditionally and relies on
+ * that. A fixture that omits it does not reproduce a payload StyleBI can emit — it just crashes the
+ * editor before it renders.
+ */
 function seeded(type = "Cassandra"): any {
    return {
       name: "", type, description: "", parentPath: "",
-      tabularView: { views: [{ text: "host", value: "host", editor: { type: "TEXT" } }] },
+      tabularView: {
+         views: [{ text: "host", value: "host", editor: { type: "TEXT" }, views: [] }],
+      },
    };
 }
 
@@ -83,5 +94,113 @@ describe("EmbedDatasourceRegistrationComponent", () => {
       await waitFor(() => expect(emissions.length).toBe(1));
       // Still on the picker — a failed seed must not leave an empty editor on screen.
       expect(await screen.findByText("Apache Cassandra")).toBeTruthy();
+   });
+});
+
+describe("EmbedDatasourceRegistrationComponent — save lifecycle", () => {
+   async function seededSetup() {
+      const view = await render(EmbedDatasourceRegistrationComponent, {
+         providers: [
+            EmbedDatasourceRegistrationService, provideHttpClient(), provideHttpClientTesting(),
+         ],
+         componentProperties: { listingName: "Apache Cassandra" },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/portal/data/datasource-selection-view")
+         .flush({ dataSourceListings: [] });
+      http.expectOne("../api/data/datasources/browser")
+         .flush({ files: ["olist"].map((n) => ({ name: n })) });
+      http.expectOne("../api/portal/data/datasources/listing/Apache%20Cassandra").flush(seeded());
+
+      return { view, http, cmp: view.fixture.componentInstance };
+   }
+
+   it("emits registered with the saved name and type", async () => {
+      const { view, http, cmp } = await seededSetup();
+      const got: any[] = [];
+      cmp.registered.subscribe((r: any) => got.push(r));
+
+      cmp.datasource.name = "my-cassandra";
+      cmp.valid = true;
+      view.fixture.detectChanges();
+
+      await userEvent.click(await screen.findByRole("button", { name: /save/i }));
+      http.expectOne("../api/portal/data/datasources").flush({});
+
+      await waitFor(() => expect(got).toEqual([{ name: "my-cassandra", type: "Cassandra" }]));
+   });
+
+   // A rejected save must not discard what the operator typed. Clearing the form on error is the
+   // single most annoying failure mode a registration form can have.
+   it("keeps the form and its values when the save is rejected", async () => {
+      const { view, http, cmp } = await seededSetup();
+      const errors: string[] = [];
+      cmp.failed.subscribe((m: string) => errors.push(m));
+
+      cmp.datasource.name = "my-cassandra";
+      cmp.valid = true;
+      view.fixture.detectChanges();
+
+      await userEvent.click(await screen.findByRole("button", { name: /save/i }));
+      http.expectOne("../api/portal/data/datasources")
+         .flush({ message: "name already in use" }, { status: 400, statusText: "Bad Request" });
+
+      await waitFor(() => expect(errors).toEqual(["name already in use"]));
+      expect(cmp.datasource).not.toBeNull();
+      expect(cmp.datasource.name).toBe("my-cassandra");
+      expect(cmp.saving).toBe(false);
+   });
+
+   // Creating a data source is permission-checked in StyleBI. A refusal must READ as a refusal —
+   // appearing to succeed is the worst outcome, because the operator walks away believing the
+   // source exists.
+   it("surfaces a permission refusal instead of appearing to succeed", async () => {
+      const { view, http, cmp } = await seededSetup();
+      const errors: string[] = [];
+      const successes: any[] = [];
+      cmp.failed.subscribe((m: string) => errors.push(m));
+      cmp.registered.subscribe((r: any) => successes.push(r));
+
+      cmp.datasource.name = "my-cassandra";
+      cmp.valid = true;
+      view.fixture.detectChanges();
+
+      await userEvent.click(await screen.findByRole("button", { name: /save/i }));
+      http.expectOne("../api/portal/data/datasources")
+         .flush({ message: "Access denied" }, { status: 403, statusText: "Forbidden" });
+
+      await waitFor(() => expect(errors).toEqual(["Access denied"]));
+      expect(successes).toEqual([]);
+      expect(cmp.datasource).not.toBeNull();
+   });
+
+   it("does not fire a second save while one is in flight", async () => {
+      const { view, http, cmp } = await seededSetup();
+      cmp.datasource.name = "my-cassandra";
+      cmp.valid = true;
+      view.fixture.detectChanges();
+
+      const btn = await screen.findByRole("button", { name: /save/i });
+      await userEvent.click(btn);
+      cmp.save();
+
+      // One in-flight request only; expectOne throws if the guard let a second through.
+      http.expectOne("../api/portal/data/datasources").flush({});
+   });
+
+   it("emits cancelled and returns to the picker", async () => {
+      const { cmp } = await seededSetup();
+      const cancels: number[] = [];
+      cmp.cancelled.subscribe(() => cancels.push(1));
+
+      cmp.cancel();
+
+      expect(cancels.length).toBe(1);
+      expect(cmp.datasource).toBeNull();
+   });
+
+   it("passes existing names to the editor so a duplicate is caught before the server", async () => {
+      const { cmp } = await seededSetup();
+      expect(cmp.usedNames).toEqual(["olist"]);
    });
 });
