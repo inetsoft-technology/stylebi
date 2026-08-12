@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.model.ApplyHighlightModel;
+import inetsoft.web.wiz.model.ApplyWarning;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -37,11 +38,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -114,7 +117,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       assertNotEquals(agg.getName(), fullName);
 
       List<HighlightRef> refs = service.resolveRuleHighlightRefs(
-         ruleOn(fullName), allRefs, chartInfo, false);
+         ruleOn(fullName), allRefs, chartInfo, false, null);
 
       assertEquals(1, refs.size());
       assertSame(agg, refs.get(0));
@@ -123,7 +126,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
    @Test
    void aRuleNamingAMeasureByItsPlainNameNarrowsToThatRefAlone() {
       List<HighlightRef> refs = service.resolveRuleHighlightRefs(
-         ruleOn(agg.getName()), allRefs, chartInfo, false);
+         ruleOn(agg.getName()), allRefs, chartInfo, false, null);
 
       assertEquals(1, refs.size());
       assertSame(agg, refs.get(0));
@@ -134,7 +137,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       // The other half of the bug: naming the dimension must colour the axis only, leaving the measure —
       // and so the plot marks — untouched.
       List<HighlightRef> refs = service.resolveRuleHighlightRefs(
-         ruleOn(dim.getFullName()), allRefs, chartInfo, false);
+         ruleOn(dim.getFullName()), allRefs, chartInfo, false, null);
 
       assertEquals(1, refs.size());
       assertSame(dim, refs.get(0));
@@ -145,7 +148,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       // Deliberately lenient, unlike the case-sensitive crosstab path: a miss here silently widens to every
       // ref (i.e. reproduces this very bug) rather than failing loud the way applyTableHighlight does.
       List<HighlightRef> refs = service.resolveRuleHighlightRefs(
-         ruleOn(agg.getName().toUpperCase()), allRefs, chartInfo, false);
+         ruleOn(agg.getName().toUpperCase()), allRefs, chartInfo, false, null);
 
       assertEquals(1, refs.size());
       assertSame(agg, refs.get(0));
@@ -153,14 +156,14 @@ class WizVsServiceResolveRuleHighlightRefsTest {
 
    @Test
    void aRuleNamingNoFieldFallsBackToEveryRef() {
-      assertSame(allRefs, service.resolveRuleHighlightRefs(ruleOn(null), allRefs, chartInfo, false));
-      assertSame(allRefs, service.resolveRuleHighlightRefs(ruleOn("   "), allRefs, chartInfo, false));
+      assertSame(allRefs, service.resolveRuleHighlightRefs(ruleOn(null), allRefs, chartInfo, false, null));
+      assertSame(allRefs, service.resolveRuleHighlightRefs(ruleOn("   "), allRefs, chartInfo, false, null));
    }
 
    @Test
    void aRuleNamingAnUnboundFieldFallsBackToEveryRef() {
       assertSame(allRefs, service.resolveRuleHighlightRefs(
-         ruleOn("NoSuchColumn"), allRefs, chartInfo, false));
+         ruleOn("NoSuchColumn"), allRefs, chartInfo, false, null));
    }
 
    @Test
@@ -168,7 +171,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       // Its highlightable ref is the TEXT aesthetic, not the X/Y binding this narrowing understands, so
       // narrowing by an X/Y-shaped name would drop the highlight rather than merely widen it.
       assertSame(allRefs, service.resolveRuleHighlightRefs(
-         ruleOn(agg.getFullName()), allRefs, chartInfo, true));
+         ruleOn(agg.getFullName()), allRefs, chartInfo, true, null));
    }
 
    @Test
@@ -176,7 +179,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       chartInfo.setChartType(GraphTypes.CHART_TREEMAP);
 
       assertSame(allRefs, service.resolveRuleHighlightRefs(
-         ruleOn(agg.getFullName()), allRefs, chartInfo, false));
+         ruleOn(agg.getFullName()), allRefs, chartInfo, false, null));
    }
 
    @Test
@@ -188,7 +191,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       chartInfo.setRTChartType(GraphTypes.CHART_BAR);
 
       assertSame(allRefs, service.resolveRuleHighlightRefs(
-         ruleOn(agg.getFullName()), allRefs, chartInfo, false));
+         ruleOn(agg.getFullName()), allRefs, chartInfo, false, null));
    }
 
    @Test
@@ -197,7 +200,7 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       chartInfo.setChartType(GraphTypes.CHART_NETWORK);
 
       assertSame(allRefs, service.resolveRuleHighlightRefs(
-         ruleOn(agg.getFullName()), allRefs, chartInfo, false));
+         ruleOn(agg.getFullName()), allRefs, chartInfo, false, null));
    }
 
    @Test
@@ -215,7 +218,49 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       List<HighlightRef> matrixRefs = List.of(sales, profit);
 
       assertSame(matrixRefs, service.resolveRuleHighlightRefs(
-         ruleOn(sales.getFullName()), matrixRefs, matrix, false));
+         ruleOn(sales.getFullName()), matrixRefs, matrix, false, null));
+   }
+
+   /**
+    * Reporting the one fallback the caller cannot otherwise detect.
+    *
+    * <p>Falling back to every ref is deliberate and stays — narrowing wrongly would drop the highlight
+    * entirely, which is worse than widening it. But when the rule NAMED a field and nothing matched, the
+    * name the caller supplied did nothing and every series is highlighted instead of the one they asked
+    * about. Nothing in the 200 response said so, and the caller went on to report a clean success.
+    */
+   @Test
+   void aRuleNamingAnUnboundFieldReportsThatItWasWidened() {
+      List<ApplyWarning> warnings = new ArrayList<>();
+
+      assertSame(allRefs, service.resolveRuleHighlightRefs(
+         ruleOn("NoSuchColumn"), allRefs, chartInfo, false, warnings));
+
+      assertEquals(1, warnings.size());
+      assertEquals("highlight:NoSuchColumn", warnings.get(0).getOption());
+      assertTrue(warnings.get(0).getReason().contains("every series"),
+                 "the reason must say what happened INSTEAD, not just that the name was unknown");
+   }
+
+   @Test
+   void aRuleThatNarrowsSuccessfullyReportsNothing() {
+      List<ApplyWarning> warnings = new ArrayList<>();
+
+      service.resolveRuleHighlightRefs(ruleOn(agg.getFullName()), allRefs, chartInfo, false, warnings);
+
+      assertTrue(warnings.isEmpty());
+   }
+
+   @Test
+   void theFallbacksThatWereNeverAskedToNarrowReportNothing() {
+      // A rule naming no field never asked for one ref, and the special chart types cannot be narrowed
+      // at all — reporting those would fire on every rule those charts carry and bury the case above.
+      List<ApplyWarning> warnings = new ArrayList<>();
+
+      service.resolveRuleHighlightRefs(ruleOn(null), allRefs, chartInfo, false, warnings);
+      service.resolveRuleHighlightRefs(ruleOn("NoSuchColumn"), allRefs, chartInfo, true, warnings);
+
+      assertTrue(warnings.isEmpty());
    }
 
    @Test
@@ -224,6 +269,6 @@ class WizVsServiceResolveRuleHighlightRefsTest {
       List<HighlightRef> single = List.of(agg);
 
       assertSame(single, service.resolveRuleHighlightRefs(
-         ruleOn("NoSuchColumn"), single, chartInfo, false));
+         ruleOn("NoSuchColumn"), single, chartInfo, false, null));
    }
 }

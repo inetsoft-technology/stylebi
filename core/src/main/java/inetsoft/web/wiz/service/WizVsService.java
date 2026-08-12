@@ -519,6 +519,10 @@ public class WizVsService {
          ? VSUtil.getBaseColumns(dataAssembly, true) : null;
 
       CreateViewsheetResult result;
+      // Rules whose named target resolved to nothing, so they were widened to every ref. The highlight
+      // itself still applies, which is why this is collected rather than thrown — see
+      // resolveRuleHighlightRefs.
+      List<ApplyWarning> highlightWarnings = new ArrayList<>();
 
       // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary —
       // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing through persistViewsheet
@@ -590,7 +594,7 @@ public class WizVsService {
             // The refs THIS rule attaches to: only the one it names when that is unambiguous, otherwise
             // every ref (the long-standing behaviour). See resolveRuleHighlightRefs.
             List<HighlightRef> ruleRefs =
-               resolveRuleHighlightRefs(rule, highlightRefs, chartInfo, wordCloud);
+               resolveRuleHighlightRefs(rule, highlightRefs, chartInfo, wordCloud, highlightWarnings);
 
             // A rule that sets ONLY a font (no foreground) has no visible effect when the font cannot render:
             // not a data-label highlight AND no font-capable ref to carry it (all marks are continuous
@@ -714,6 +718,10 @@ public class WizVsService {
 
       if(copyNote != null) {
          result.setNote(copyNote);
+      }
+
+      if(!highlightWarnings.isEmpty()) {
+         result.setWarnings(highlightWarnings);
       }
 
       return result;
@@ -967,7 +975,10 @@ public class WizVsService {
 
       VisualizationConditionModel cm = new VisualizationConditionModel();
       cm.setBaseConditions(rule.getConditions());
-      ConditionList conditionGroup = buildConditionList(cm, columns);
+      // No collector: this path reports every condition problem by THROWING (naming the rule and the
+      // valid columns — see the checks right below), so warnings gathered here would either duplicate
+      // an exception the caller already gets or describe a call that never returns.
+      ConditionList conditionGroup = buildConditionList(cm, columns, null);
 
       if(chartRebind) {
          Set<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
@@ -1052,10 +1063,19 @@ public class WizVsService {
     *
     * Package-private (not private) only so {@code WizVsServiceResolveRuleHighlightRefsTest} can drive it
     * directly — the same reason executeAndExtract is.
+    *
+    * <p>{@code warnings} collects only the NO-MATCH fallback: the rule named a field, the chart has
+    * several highlightable refs, and none of them is that field. The name the caller supplied did
+    * nothing, and instead of the one series they asked about the chart highlights all of them — a
+    * visibly different result behind a clean 200, and the one case they can act on by correcting the
+    * name. The other two paths to the same {@code allRefs} return are deliberately silent: a rule that
+    * names no field never asked to be narrowed, and the special chart types below cannot be narrowed at
+    * all, so reporting them would fire on every rule those charts ever carry and bury the case above.
+    * May be null for a caller that reports by throwing instead.
     */
    List<HighlightRef> resolveRuleHighlightRefs(
       ApplyHighlightModel.Highlight rule, List<HighlightRef> allRefs, VSChartInfo chartInfo,
-      boolean wordCloud)
+      boolean wordCloud, List<ApplyWarning> warnings)
    {
       String field = rule.getField();
 
@@ -1083,6 +1103,10 @@ public class WizVsService {
             return List.of(hlRef);
          }
       }
+
+      addWarning(warnings, "highlight:" + target,
+         "'" + target + "' does not match anything this chart highlights, so the highlight was " +
+         "applied to every series instead of just that one.");
 
       return allRefs;
    }
@@ -1668,6 +1692,12 @@ public class WizVsService {
          Worksheet originWs = null;
          boolean wsModified = false;
          boolean removedPreviousPrimary = false;
+         // Options this request asked for that end up not taking effect (a filter condition that would
+         // not build, a field that is not in the data, an unrecognized aggregation). Declared out here
+         // because the three places that fill it — the pre-aggregation push, the worksheet condition
+         // write and the VS-assembly condition write — are mutually exclusive branches below, and only
+         // one shared collector keeps the response's shape independent of which branch ran.
+         List<ApplyWarning> applyWarnings = new ArrayList<>();
 
          try {
             // All mutations happen inside this try so the catch can roll back everything
@@ -1683,7 +1713,7 @@ public class WizVsService {
 
                   // Push aggregation and conditions to worksheet
                   PreAggregationMapping preAggMapping = pushAggregationToWorksheet(
-                     binding, conditionModel, tableAsm);
+                     binding, conditionModel, tableAsm, applyWarnings);
 
                   if(wsEntry != null) {
                      engine.setSheet(wsEntry, ws, user, true);
@@ -1700,12 +1730,12 @@ public class WizVsService {
                   // Fallback to original path if worksheet table not found
                   LOG.warn("Aggregate conditions specified but worksheet table '{}' not found; " +
                               "aggregate conditions will be ignored", wsTableName);
-                  applyConditionModel(assembly, conditionModel);
+                  applyConditionModel(assembly, conditionModel, applyWarnings);
                }
             }
             else {
                // Original path: apply base conditions to VS assembly
-               applyConditionModel(assembly, conditionModel);
+               applyConditionModel(assembly, conditionModel, applyWarnings);
             }
 
             // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
@@ -1871,6 +1901,13 @@ public class WizVsService {
 
             if(copyNote != null) {
                result.setNote(copyNote);
+            }
+
+            // Attached only on the success return: a request that rolls back applied nothing, so its
+            // partial-application warnings would describe a chart that does not exist. Kept off `note`,
+            // which means "your original chart was modified in place" and nothing else.
+            if(!applyWarnings.isEmpty()) {
+               result.setWarnings(applyWarnings);
             }
 
             return result;
@@ -4544,8 +4581,15 @@ public class WizVsService {
    /**
     * Applies base conditions from the condition model to the VS assembly.
     * Only base conditions are applied here; aggregate conditions require pushing to worksheet.
+    *
+    * @param warnings collects the conditions the request asked for that did not make it into the
+    *                 applied filter. A dropped condition WIDENS the result rather than emptying it, so
+    *                 the chart looks perfectly normal while answering a question nobody asked — the
+    *                 caller has no way to detect it and no way to reconstruct it afterwards.
     */
-   private void applyConditionModel(VSAssembly assembly, VisualizationConditionModel conditionModel) {
+   private void applyConditionModel(VSAssembly assembly, VisualizationConditionModel conditionModel,
+                                    List<ApplyWarning> warnings)
+   {
       // The model itself is the boundary: absent means the request said nothing about conditions and
       // whatever the assembly carries must be left alone, present means it IS the complete new
       // condition state. Within a present model an empty list and a null list say the same thing —
@@ -4564,9 +4608,9 @@ public class WizVsService {
       // Resolve the assembly's candidate condition fields so condition values can be coerced
       // to each field's data type (see buildConditionItem).
       ColumnSelection columns = VSUtil.getBaseColumns(dataAssembly, true);
-      ConditionList conditions = buildConditionList(conditionModel, columns);
+      ConditionList conditions = buildConditionList(conditionModel, columns, warnings);
 
-      if(!canApplyConditions(conditions, conditionModel.getBaseConditions(), "base")) {
+      if(!canApplyConditions(conditions, conditionModel.getBaseConditions(), "base", warnings)) {
          return;
       }
 
@@ -4579,13 +4623,14 @@ public class WizVsService {
     * Builds a ConditionList from the base conditions in the model.
     */
    private ConditionList buildConditionList(VisualizationConditionModel wizModel,
-                                            ColumnSelection columns)
+                                            ColumnSelection columns,
+                                            List<ApplyWarning> warnings)
    {
       ConditionList conditionList = new ConditionList();
 
       if(wizModel != null && wizModel.getBaseConditions() != null) {
          appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{ true },
-                              null, columns);
+                              null, columns, warnings);
       }
 
       return conditionList;
@@ -4603,13 +4648,16 @@ public class WizVsService {
     *                         used for validating dateGroupLevel to DateRangeRef column names
     * @param columns          optional candidate condition fields used to resolve each field's data
     *                         type so condition values are coerced correctly; may be null
+    * @param warnings         collects each node this drops or silently alters, so a partially applied
+    *                         filter can be reported instead of passing for a complete one
     */
    private void appendConditionNodes(List<VisualizationConditionModel.ConditionNode> nodes,
                                      int depth,
                                      ConditionList result,
                                      boolean[] isFirst,
                                      Set<String> dimColumnMapping,
-                                     ColumnSelection columns)
+                                     ColumnSelection columns,
+                                     List<ApplyWarning> warnings)
    {
       for(VisualizationConditionModel.ConditionNode node : nodes) {
          if(node == null) {
@@ -4626,6 +4674,9 @@ public class WizVsService {
                // is unrecoverable.
                LOG.warn("Dropping a condition node with no field; the applied filter will be wider " +
                            "than requested");
+               addWarning(warnings, "filter",
+                  "One of the requested filters named no column, so it was left out and the chart " +
+                  "shows more data than asked for.");
                continue;
             }
 
@@ -4633,7 +4684,7 @@ public class WizVsService {
                result.append(new JunctionOperator(parseJunction(leaf.getJunction()), depth));
             }
 
-            result.append(buildConditionItem(spec, depth, dimColumnMapping, columns));
+            result.append(buildConditionItem(spec, depth, dimColumnMapping, columns, warnings));
             isFirst[0] = false;
          }
          else if(node instanceof VisualizationConditionModel.ConditionGroup group) {
@@ -4647,7 +4698,7 @@ public class WizVsService {
             // whether it produced any valid items before committing a junction.
             ConditionList groupContents = new ConditionList();
             appendConditionNodes(items, depth + 1, groupContents, new boolean[]{ true },
-                                 dimColumnMapping, columns);
+                                 dimColumnMapping, columns, warnings);
 
             if(groupContents.isEmpty()) {
                continue;
@@ -4683,11 +4734,13 @@ public class WizVsService {
     *                         used for mapping dateGroupLevel to DateRangeRef column names
     * @param columns          optional candidate condition fields used to resolve the field's data
     *                         type; may be null
+    * @param warnings         collects a silently substituted aggregate formula (see below)
     */
    private ConditionItem buildConditionItem(VisualizationConditionModel.ConditionSpec spec,
                                             int level,
                                             Set<String> dimColumnMapping,
-                                            ColumnSelection columns)
+                                            ColumnSelection columns,
+                                            List<ApplyWarning> warnings)
    {
       Condition condition = new Condition();
       condition.setOperation(mapConditionOperation(spec.getOperation()));
@@ -4730,6 +4783,13 @@ public class WizVsService {
          if(formula == null) {
             LOG.warn("Aggregate formula '{}' for measure '{}' is null or unrecognized; " +
                         "defaulting to SUM", spec.getAggregateFormula(), spec.getField());
+            // The condition still applies, but against a different number than the one requested:
+            // "regions where the AVERAGE sale is over 100" silently becomes "where the TOTAL is over
+            // 100", which keeps a different set of rows. The chart looks filtered and is, just not by
+            // what was asked — so the fallback stays and the substitution is reported.
+            addWarning(warnings, "filter:" + spec.getField(),
+               "'" + spec.getAggregateFormula() + "' is not an aggregation I recognize, so the filter " +
+               "on " + spec.getField() + " compared the total instead.");
             formula = AggregateFormula.SUM;
          }
 
@@ -4933,7 +4993,8 @@ public class WizVsService {
    private PreAggregationMapping pushAggregationToWorksheet(
       CreateViewsheetResult.FlatBinding binding,
       VisualizationConditionModel conditionModel,
-      AbstractTableAssembly table)
+      AbstractTableAssembly table,
+      List<ApplyWarning> warnings)
    {
       ColumnSelection cols = table.getColumnSelection(false);
       AggregateInfo aggInfo = new AggregateInfo();
@@ -4949,6 +5010,12 @@ public class WizVsService {
             if(colRef == null) {
                LOG.warn("Dimension field '{}' not found in worksheet column selection; " +
                            "skipping from aggregation", dim.getField());
+               // Dropping a grouping level does not empty the chart, it COARSENS it — the same
+               // measures come back aggregated over fewer groups, which looks like a perfectly
+               // reasonable chart of a question the user did not ask.
+               addWarning(warnings, "dimension:" + dim.getField(),
+                  "'" + dim.getField() + "' is not a column in this chart's data, so it was left out " +
+                  "of the grouping.");
                continue;
             }
 
@@ -5007,6 +5074,9 @@ public class WizVsService {
             if(colRef == null) {
                LOG.warn("Measure field '{}' not found in worksheet column selection; " +
                            "skipping from aggregation", measure.getField());
+               addWarning(warnings, "measure:" + measure.getField(),
+                  "'" + measure.getField() + "' is not a column in this chart's data, so it was " +
+                  "left out.");
                continue;
             }
 
@@ -5015,6 +5085,14 @@ public class WizVsService {
             if(formula == null) {
                LOG.warn("Aggregate formula '{}' for measure '{}' is null or unrecognized; " +
                            "defaulting to SUM", measure.getAggregateFormula(), measure.getField());
+               // The one fallback here that changes what the NUMBERS MEAN rather than which of them
+               // appear: every value plotted is a total where an average was asked for, and nothing
+               // about the rendered chart gives that away. The default stays — an unrecognized formula
+               // name should not cost the user the whole chart — so the substitution must be named,
+               // including which default was taken.
+               addWarning(warnings, "aggregateFormula:" + measure.getField(),
+                  "'" + measure.getAggregateFormula() + "' is not an aggregation I recognize, so " +
+                  measure.getField() + " was summed instead.");
                formula = AggregateFormula.SUM;
             }
 
@@ -5045,7 +5123,7 @@ public class WizVsService {
       table.setAggregate(!aggInfo.isEmpty());
 
       // Apply base conditions as pre-conditions and aggregate conditions as post-conditions
-      applyConditionsToWorksheet(table, conditionModel, dimColumnMapping);
+      applyConditionsToWorksheet(table, conditionModel, dimColumnMapping, warnings);
 
       return new PreAggregationMapping(dimColumnMapping, pushedMeasureFullNames);
    }
@@ -5060,7 +5138,8 @@ public class WizVsService {
    private void applyConditionsToWorksheet(
       AbstractTableAssembly table,
       VisualizationConditionModel conditionModel,
-      Set<String> dimColumnMapping)
+      Set<String> dimColumnMapping,
+      List<ApplyWarning> warnings)
    {
       if(conditionModel == null) {
          return;
@@ -5077,10 +5156,10 @@ public class WizVsService {
 
       // Apply base conditions as pre-conditions (WHERE equivalent)
       if(base != null) {
-         appendConditionNodes(base, 0, preCondList, new boolean[]{ true }, null, columns);
+         appendConditionNodes(base, 0, preCondList, new boolean[]{ true }, null, columns, warnings);
       }
 
-      if(canApplyConditions(preCondList, base, "base")) {
+      if(canApplyConditions(preCondList, base, "base", warnings)) {
          table.setPreConditionList(preCondList);
       }
 
@@ -5093,10 +5172,10 @@ public class WizVsService {
 
       if(aggregate != null) {
          appendConditionNodes(aggregate, 0, postCondList, new boolean[]{ true }, dimColumnMapping,
-                              columns);
+                              columns, warnings);
       }
 
-      if(canApplyConditions(postCondList, aggregate, "aggregate")) {
+      if(canApplyConditions(postCondList, aggregate, "aggregate", warnings)) {
          table.setPostConditionList(postCondList);
       }
    }
@@ -5113,10 +5192,15 @@ public class WizVsService {
     * @param compiled  the condition list built from {@code requested}
     * @param requested the condition nodes the request carried; null when it carried none
     * @param label     which half of the model this is, for the log line
+    * @param warnings  collects the summary of a total failure. The per-node reasons are already
+    *                  recorded by {@link #appendConditionNodes}; this adds the consequence, which no
+    *                  individual node can state — the filter as a whole did not take effect, so the
+    *                  chart still shows everything.
     */
    private boolean canApplyConditions(ConditionList compiled,
                                       List<VisualizationConditionModel.ConditionNode> requested,
-                                      String label)
+                                      String label,
+                                      List<ApplyWarning> warnings)
    {
       if(!compiled.isEmpty() || requested == null || requested.isEmpty()) {
          return true;
@@ -5124,7 +5208,23 @@ public class WizVsService {
 
       LOG.warn("None of the {} {} condition(s) could be built; leaving the existing conditions " +
                   "untouched", requested.size(), label);
+      addWarning(warnings, "filter",
+         "None of the requested filters could be applied, so the chart still shows all the data.");
       return false;
+   }
+
+   /**
+    * Appends a warning to a collector that may be null.
+    *
+    * <p>Null-tolerant on purpose: several of the paths that build conditions are shared with callers
+    * that report failures by THROWING (the highlight builder), and forcing each of them to invent a
+    * list they discard is how a real collector eventually gets replaced by a throwaway one by
+    * accident.
+    */
+   private static void addWarning(List<ApplyWarning> warnings, String option, String reason) {
+      if(warnings != null) {
+         warnings.add(new ApplyWarning(option, reason));
+      }
    }
 
    /**

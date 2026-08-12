@@ -145,4 +145,53 @@ class WizAutoBindingServiceChartTypeCandidatesTest {
       assertTrue(WizAutoBindingService.buildChartTypeCandidates(null).isEmpty());
       assertTrue(WizAutoBindingService.buildChartTypeCandidates(List.<VSObjectRecommendation>of()).isEmpty());
    }
+
+   /**
+    * Naming the type a substituted recommendation actually renders as.
+    *
+    * <p>changeType falls back to the first recommendation when the requested type has no candidate,
+    * and returns 200 with ordinary coordinates — so the caller narrates the type it ASKED for and
+    * prints "changed to a pie" over a bar chart. The warning that fixes that is only as good as this
+    * lookup: name the wrong type and it is worse than saying nothing.
+    *
+    * <p>The index is the part worth pinning. {@code selectedIndex} addresses two lists through one
+    * number — below {@code chartInfos.size()} it means chartInfos, at or above it means prefInfos
+    * offset by that size (see setChartIndexForType, which writes it) — so reading it as a plain index
+    * into either list alone silently names a different chart.
+    */
+   @Test
+   void namesTheChartTypeAtASelectedIndexInChartInfos() {
+      VSChartRecommendation rec = chartRec(
+         List.of(info(GraphTypes.CHART_BAR), info(GraphTypes.CHART_LINE)), null);
+      // The fallback changeType applies when nothing matched the requested type.
+      when(rec.getSelectedIndex()).thenReturn(0);
+
+      assertEquals("bar", WizAutoBindingService.selectedRecommendationType(rec));
+   }
+
+   @Test
+   void namesTheChartTypeAtASelectedIndexThatAddressesPrefInfos() {
+      VSChartRecommendation rec = chartRec(
+         List.of(info(GraphTypes.CHART_BAR), info(GraphTypes.CHART_LINE)),
+         List.of(scored(GraphTypes.CHART_PIE, 90)));
+      // chartInfos.size() == 2, so index 2 is prefInfos[0] — not an out-of-range chartInfos read.
+      when(rec.getSelectedIndex()).thenReturn(2);
+
+      assertEquals("pie", WizAutoBindingService.selectedRecommendationType(rec));
+   }
+
+   @Test
+   void namesTheNonChartRecommendationTypes() {
+      assertEquals("table",
+                   WizAutoBindingService.selectedRecommendationType(mock(VSTableRecommendation.class)));
+   }
+
+   @Test
+   void returnsNullRatherThanGuessingWhenTheIndexAddressesNothing() {
+      // Better to say only that the requested type was unavailable than to name a chart at random.
+      VSChartRecommendation rec = chartRec(List.of(info(GraphTypes.CHART_BAR)), null);
+      when(rec.getSelectedIndex()).thenReturn(7);
+
+      assertNull(WizAutoBindingService.selectedRecommendationType(rec));
+   }
 }

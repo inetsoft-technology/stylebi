@@ -20,6 +20,7 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -141,6 +142,36 @@ public class CreateViewsheetResult {
       this.note = note;
    }
 
+   public List<ApplyWarning> getWarnings() {
+      return warnings;
+   }
+
+   public void setWarnings(List<ApplyWarning> warnings) {
+      this.warnings = warnings;
+   }
+
+   /**
+    * Append one warning, creating the list on first use. Callers collect these as they walk a request's
+    * options, so the alternative is the same null check repeated at every skip site — which is exactly
+    * where it would eventually be forgotten and the skip go back to being silent.
+    */
+   public void addWarning(ApplyWarning warning) {
+      if(warning == null) {
+         return;
+      }
+
+      if(warnings == null) {
+         warnings = new ArrayList<>();
+      }
+
+      warnings.add(warning);
+   }
+
+   /** Convenience for the common call shape; see {@link ApplyWarning} for what belongs here. */
+   public void addWarning(String option, String reason) {
+      addWarning(new ApplyWarning(option, reason));
+   }
+
    public String getTitle() {
       return title;
    }
@@ -164,8 +195,19 @@ public class CreateViewsheetResult {
    private Boolean hasData;
    /** Echoed back so the client can reuse the recommendation RVS on the next changeType call. */
    private String autoBindingRuntimeId;
+   /**
+    * The copy-then-apply fallback channel, and nothing else: set only when a {@code copy=true} request
+    * could not duplicate the chart and the change was applied to the original in place. It is the one
+    * thing that tells the caller its original chart is no longer untouched, so anything else written
+    * here is read as that — see {@code warnings} for options that simply did not take effect.
+    */
    private String note;
    private String title;
+   /**
+    * Options this request asked for that did not take effect while the rest of it applied. Absent
+    * (rather than empty) when everything applied, so a caller can test the field itself.
+    */
+   private List<ApplyWarning> warnings;
 
    // -------------------------------------------------------------------------
    // Nested model

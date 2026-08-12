@@ -27,8 +27,12 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.model.ChartFormatRequest;
 import inetsoft.web.wiz.model.CreateViewsheetResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,8 +43,10 @@ import java.security.Principal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -232,11 +238,12 @@ class WizAutoBindingServiceSetChartFormatTest {
    }
 
    @Test
-   void copyFailureNoteSurvivesAlongsideAnUnrelatedLegendNote() throws Exception {
-      // Regression: the copy-fallback note used to be stored in the SAME `note` local later
-      // reassigned unconditionally by the legend-validation logic, silently discarding the
-      // copy-failure warning whenever the legend position was ALSO invalid. Both must now
-      // survive, concatenated.
+   void copyFailureAndAnInvalidLegendAreReportedOnSEPARATEChannels() throws Exception {
+      // Both survive — that part is long-standing (the copy note used to be clobbered by the legend
+      // message) — but they no longer share the `note` field. They are different KINDS of fact and a
+      // caller has to act on them differently: `note` means the caller's original chart was modified
+      // in place, which nothing else does, so a legend typo landing there made a SUCCESSFUL copy read
+      // as a declined one.
       LegendsDescriptor legends = mock(LegendsDescriptor.class);
       ChartDescriptor desc = mock(ChartDescriptor.class);
       when(desc.getLegendsDescriptor()).thenReturn(legends);
@@ -251,10 +258,102 @@ class WizAutoBindingServiceSetChartFormatTest {
 
       CreateViewsheetResult result = service.setChartFormat(request, null);
 
+      assertEquals("Copy requested but could not be created; format applied in place.", result.getNote());
+      assertEquals(1, result.getWarnings().size());
+      assertEquals("legendPosition", result.getWarnings().get(0).getOption());
       assertEquals(
-         "Copy requested but could not be created; format applied in place. " +
          "Unknown legendPosition 'sideways'; valid: none, top, right, bottom, left, in_place. Legend left unchanged.",
-         result.getNote());
+         result.getWarnings().get(0).getReason());
+      // The legend was NOT set — behaviour is unchanged, only the reporting channel moved.
+      verify(legends, never()).setLayout(anyInt());
+   }
+
+   // ── Options accepted but not applied ─────────────────────────────────────────────────────────
+   //
+   // Each of these returns 200 with a chart that changed, so the response is the only thing that can
+   // say which part of the request did not take. The fallback behaviour itself is deliberately left
+   // exactly as it was: rejecting the whole call would discard the settings that DID apply.
+
+   @Test
+   void aScaleRequestOnAChartWithNoYAxisIsReportedWhileTheRestStillApplies() throws Exception {
+      // The pie case. getYFields() returns an EMPTY array, so the guarded loop runs zero times — there
+      // is no else branch to hang this on, which is why the applied axes are counted instead.
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getYFields()).thenReturn(new ChartRef[0]);
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setYAxisMax(1000.0);
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      // The title in the SAME request still lands: this is a partial success, not a failure.
+      verify(info).setTitleValue("Contacts per Account");
+      assertEquals(1, result.getWarnings().size());
+      assertEquals("yAxisScale", result.getWarnings().get(0).getOption());
+      assertNull(result.getNote(), "nothing to do with copying");
+   }
+
+   @Test
+   void aScaleRequestThatReachesAnAxisIsNotReported() throws Exception {
+      AxisDescriptor axis = mock(AxisDescriptor.class);
+      ChartRef yref = mock(ChartRef.class);
+      when(yref.getAxisDescriptor()).thenReturn(axis);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getYFields()).thenReturn(new ChartRef[]{ yref });
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setYAxisMax(1000.0);
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      verify(axis).setMaximum(1000.0);
+      assertNull(result.getWarnings());
+   }
+
+   @Test
+   void anUnrecognizedMarkerShapeIsReportedButStillPassedThrough() throws Exception {
+      // The renderer's own fallback decides what appears (GraphGenerator.mapMarkerShape defaults to a
+      // filled circle), and that is left alone — the value is still written. The check exists purely
+      // so the silent substitution can be named.
+      PlotDescriptor plot = mock(PlotDescriptor.class);
+      ChartDescriptor desc = mock(ChartDescriptor.class);
+      when(desc.getPlotDescriptor()).thenReturn(plot);
+      when(info.getChartDescriptor()).thenReturn(desc);
+
+      ChartFormatRequest request = new ChartFormatRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setMarkerShape("hexagon");
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      verify(plot).setMarkerShape("hexagon");
+      assertEquals(1, result.getWarnings().size());
+      assertEquals("markerShape", result.getWarnings().get(0).getOption());
+   }
+
+   @Test
+   void aRecognizedMarkerShapeIsNotReported() throws Exception {
+      PlotDescriptor plot = mock(PlotDescriptor.class);
+      ChartDescriptor desc = mock(ChartDescriptor.class);
+      when(desc.getPlotDescriptor()).thenReturn(plot);
+      when(info.getChartDescriptor()).thenReturn(desc);
+
+      ChartFormatRequest request = new ChartFormatRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      // Matched case-insensitively, like the renderer's own switch.
+      request.setMarkerShape("Square");
+
+      assertNull(service.setChartFormat(request, null).getWarnings());
+   }
+
+   @Test
+   void aFullyAppliedFormatRequestCarriesNoWarnings() throws Exception {
+      // Regression guard: the field stays ABSENT rather than becoming an empty list.
+      assertNull(service.setChartFormat(titleRequest("visualizations-xyz"), null).getWarnings());
    }
 
    @Test
