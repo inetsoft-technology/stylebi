@@ -47,7 +47,24 @@ The package publishes these custom elements:
 
 - `inetsoft-chart`
 - `inetsoft-crosstab`
+- `inetsoft-table`
+- `inetsoft-gauge`
+- `inetsoft-text`
+- `inetsoft-image`
+- `inetsoft-datasource-registration`
 - `inetsoft-viewer`
+
+All but the last are in `elements.js` (`registerElements()`); `inetsoft-viewer` is in
+`viewer-element.js` (`registerViewer()`).
+
+`inetsoft-datasource-registration` differs from the others: it authors content rather than
+displaying it. It registers a StyleBI data source, rendering whatever form the server describes for
+the chosen type.
+
+| | |
+|---|---|
+| Attribute | `listing-name` — skip the type picker and go straight to that type |
+| Events | `registered` (`{name, type}`), `cancelled`, `failed` (message) |
 
 ## Package Contents
 
