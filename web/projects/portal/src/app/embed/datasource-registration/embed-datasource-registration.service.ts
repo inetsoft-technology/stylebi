@@ -26,10 +26,31 @@ import {
    DataSourceDefinitionModel
 } from "../../../../../shared/util/model/data-source-definition-model";
 
-/** One entry in the "pick a data source type" list. */
+/** One entry in the "pick a data source type" list, as DataSourceSelectionController sends it. */
 export interface DatasourceListing {
    name: string;
+   category?: string;
    iconUrl?: string;
+   keywords?: string[];
+}
+
+/**
+ * Read a required array off a response.
+ *
+ * An absent key means the server contract moved, and the harmless-looking `?? []` reading of it
+ * renders an empty picker with no explanation -- the failure mode is a UI that looks like a
+ * deployment with no data source types installed. An empty ARRAY is legitimate and passes through.
+ */
+function requireArray<T>(body: any, key: string, uri: string): T[] {
+   const v = body?.[key];
+
+   if(!Array.isArray(v)) {
+      throw new Error(
+         `${uri} returned no "${key}" array (got ${v === undefined ? "no such key" : typeof v}). ` +
+         `The server contract has changed.`);
+   }
+
+   return v;
 }
 
 // Relative to the portal's base href, matching how the portal's own data pages address these.
@@ -48,9 +69,10 @@ export class EmbedDatasourceRegistrationService {
    constructor(private http: HttpClient) {
    }
 
+   /** The key is `listings` -- verified against a running server, which returns 130 of them. */
    listings(): Observable<DatasourceListing[]> {
-      return this.http.get<{ dataSourceListings?: DatasourceListing[] }>(SELECTION_VIEW_URI)
-         .pipe(map((r) => r?.dataSourceListings ?? []));
+      return this.http.get<unknown>(SELECTION_VIEW_URI)
+         .pipe(map((r) => requireArray<DatasourceListing>(r, "listings", SELECTION_VIEW_URI)));
    }
 
    /**
@@ -75,8 +97,10 @@ export class EmbedDatasourceRegistrationService {
       return this.http.post(DATASOURCES_URI, ds);
    }
 
+   /** The key is `dataSourceList`, and each entry carries `name` -- also verified against a server. */
    existingNames(): Observable<string[]> {
-      return this.http.get<{ files?: Array<{ name: string }> }>(BROWSER_URI)
-         .pipe(map((r) => (r?.files ?? []).map((f) => f.name)));
+      return this.http.get<unknown>(BROWSER_URI).pipe(
+         map((r) => requireArray<{ name: string }>(r, "dataSourceList", BROWSER_URI)
+            .map((d) => d.name)));
    }
 }

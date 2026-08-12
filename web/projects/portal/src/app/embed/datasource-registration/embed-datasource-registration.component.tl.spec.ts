@@ -56,8 +56,8 @@ describe("EmbedDatasourceRegistrationComponent", () => {
    it("offers the type picker on first render", async () => {
       const { http } = await setup();
       http.expectOne("../api/portal/data/datasource-selection-view")
-         .flush({ dataSourceListings: [{ name: "Apache Cassandra" }] });
-      http.expectOne("../api/data/datasources/browser").flush({ files: [] });
+         .flush({ listings: [{ name: "Apache Cassandra", category: "Big Data" }] });
+      http.expectOne("../api/data/datasources/browser").flush({ dataSourceList: [] });
 
       expect(await screen.findByText("Apache Cassandra")).toBeTruthy();
    });
@@ -67,8 +67,8 @@ describe("EmbedDatasourceRegistrationComponent", () => {
    it("seeds the editor from the server when a type is picked", async () => {
       const { http } = await setup();
       http.expectOne("../api/portal/data/datasource-selection-view")
-         .flush({ dataSourceListings: [{ name: "Apache Cassandra" }] });
-      http.expectOne("../api/data/datasources/browser").flush({ files: [] });
+         .flush({ listings: [{ name: "Apache Cassandra", category: "Big Data" }] });
+      http.expectOne("../api/data/datasources/browser").flush({ dataSourceList: [] });
 
       await userEvent.click(await screen.findByText("Apache Cassandra"));
 
@@ -84,8 +84,8 @@ describe("EmbedDatasourceRegistrationComponent", () => {
       view.fixture.componentInstance.failed.subscribe((m: string) => emissions.push(m));
 
       http.expectOne("../api/portal/data/datasource-selection-view")
-         .flush({ dataSourceListings: [{ name: "Apache Cassandra" }] });
-      http.expectOne("../api/data/datasources/browser").flush({ files: [] });
+         .flush({ listings: [{ name: "Apache Cassandra", category: "Big Data" }] });
+      http.expectOne("../api/data/datasources/browser").flush({ dataSourceList: [] });
 
       await userEvent.click(await screen.findByText("Apache Cassandra"));
       http.expectOne("../api/portal/data/datasources/listing/Apache%20Cassandra")
@@ -106,10 +106,9 @@ describe("EmbedDatasourceRegistrationComponent — save lifecycle", () => {
          componentProperties: { listingName: "Apache Cassandra" },
       });
       const http = TestBed.inject(HttpTestingController);
-      http.expectOne("../api/portal/data/datasource-selection-view")
-         .flush({ dataSourceListings: [] });
+      http.expectOne("../api/portal/data/datasource-selection-view").flush({ listings: [] });
       http.expectOne("../api/data/datasources/browser")
-         .flush({ files: ["olist"].map((n) => ({ name: n })) });
+         .flush({ dataSourceList: ["olist"].map((n) => ({ name: n })) });
       http.expectOne("../api/portal/data/datasources/listing/Apache%20Cassandra").flush(seeded());
 
       return { view, http, cmp: view.fixture.componentInstance };

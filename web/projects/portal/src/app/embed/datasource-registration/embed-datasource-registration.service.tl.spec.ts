@@ -39,22 +39,45 @@ describe("EmbedDatasourceRegistrationService", () => {
 
    afterEach(() => http.verify());
 
+   // The key is `listings`. Captured from a running server, which returns 130 of them, each with
+   // name/category/iconUrl/keywords. An earlier guess of `dataSourceListings` type-checked, passed
+   // its own test, and would have rendered an empty picker against every real deployment.
    it("reads the type picker from the selection-view endpoint", () => {
       const seen: any[] = [];
       service.listings().subscribe((l) => seen.push(...l));
 
       const req = http.expectOne("../api/portal/data/datasource-selection-view");
       expect(req.request.method).toBe("GET");
-      req.flush({ dataSourceListings: [{ name: "Apache Cassandra" }, { name: "MongoDB" }] });
+      req.flush({
+         listings: [
+            { name: "Apache Cassandra", category: "Big Data", iconUrl: "/i/c.svg", keywords: [] },
+            { name: "MongoDB", category: "Big Data", iconUrl: "/i/m.svg", keywords: [] },
+         ],
+         categories: ["Big Data"],
+      });
 
       expect(seen.map((l) => l.name)).toEqual(["Apache Cassandra", "MongoDB"]);
+      expect(seen[0].category).toBe("Big Data");
    });
 
-   it("tolerates a selection-view payload with no listings rather than throwing", () => {
+   it("passes an empty listings array through -- that is a legitimate answer", () => {
       const seen: any[] = [];
-      service.listings().subscribe((l) => seen.push(...l));
-      http.expectOne("../api/portal/data/datasource-selection-view").flush({});
+      let errored = false;
+      service.listings().subscribe({ next: (l) => seen.push(...l), error: () => errored = true });
+      http.expectOne("../api/portal/data/datasource-selection-view").flush({ listings: [] });
+
       expect(seen).toEqual([]);
+      expect(errored).toBe(false);
+   });
+
+   // Fail loud rather than render an empty picker: an absent key is a moved contract, and silently
+   // showing "no types available" makes a broken deployment look like an empty one.
+   it("errors when the payload has no listings key at all", () => {
+      let message = "";
+      service.listings().subscribe({ error: (e) => message = e.message });
+      http.expectOne("../api/portal/data/datasource-selection-view").flush({});
+
+      expect(message).toContain("listings");
    });
 
    // The seed path is listing/{name}. refreshView returns tabularView:null for a NEW datasource --
@@ -90,13 +113,27 @@ describe("EmbedDatasourceRegistrationService", () => {
       req.flush({});
    });
 
+   // The key is `dataSourceList` -- again captured from a running server, not guessed.
    it("lists existing names so the editor can reject a duplicate", () => {
       let names: string[] = [];
       service.existingNames().subscribe((n) => (names = n));
 
       const req = http.expectOne("../api/data/datasources/browser");
-      req.flush({ files: [{ name: "olist" }, { name: "sakila" }] });
+      req.flush({
+         dataSourceList: [
+            { name: "inventree", path: "inventree", type: { name: "DATABASE", label: "Database" } },
+            { name: "sakila", path: "sakila", type: { name: "DATABASE", label: "Database" } },
+         ],
+      });
 
-      expect(names).toEqual(["olist", "sakila"]);
+      expect(names).toEqual(["inventree", "sakila"]);
+   });
+
+   it("errors when the browser payload has no dataSourceList key", () => {
+      let message = "";
+      service.existingNames().subscribe({ error: (e) => message = e.message });
+      http.expectOne("../api/data/datasources/browser").flush({});
+
+      expect(message).toContain("dataSourceList");
    });
 });

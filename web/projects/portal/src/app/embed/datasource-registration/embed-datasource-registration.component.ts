@@ -69,10 +69,16 @@ export class EmbedDatasourceRegistrationComponent implements OnInit {
          error: (e) => this.failed.emit(this.message(e, "Could not load data source types")),
       });
 
-      // Names are needed by the editor to reject a duplicate BEFORE the server does.
+      // Names are needed by the editor to reject a duplicate BEFORE the server does. Losing them is
+      // degrading, not fatal — the server still rejects a duplicate — so registration stays open,
+      // but say so rather than silently dropping a validation the operator cannot see is missing.
       this.service.existingNames().subscribe({
          next: (n) => this.usedNames = n,
-         error: () => this.usedNames = [],
+         error: () => {
+            this.usedNames = [];
+            this.failed.emit(
+               "Could not list existing data sources; a duplicate name will only be caught on save");
+         },
       });
 
       if(this.listingName) {
