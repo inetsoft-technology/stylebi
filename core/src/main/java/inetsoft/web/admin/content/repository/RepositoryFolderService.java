@@ -58,7 +58,13 @@ public class RepositoryFolderService {
    {
       owner = owner != null && owner.name.length() > 0 ? owner : null;
       ResourceType resourceType = isWorksheetFolder ? ResourceType.ASSET : ResourceType.REPORT;
-      registryManager.checkPermission(path, resourceType, ResourceAction.ADMIN, principal);
+
+      // private/owned assets (e.g. a user's own "My Dashboards"/"Data Worksheets" folders)
+      // are not governed by the shared security policy grid, so skip the ADMIN check for
+      // them just like the security tab is hidden for them below.
+      if(owner == null && !Tool.MY_DASHBOARD.equals(path)) {
+         registryManager.checkPermission(path, resourceType, ResourceAction.ADMIN, principal);
+      }
       RepletRegistry registry = repletRegistryManager.getRegistry(owner);
       String folderName = "/".equals(path) ? "/" : registryManager.getName(path);
       int idx = path.lastIndexOf(folderName);
