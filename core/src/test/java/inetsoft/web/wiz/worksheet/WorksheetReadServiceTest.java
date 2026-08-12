@@ -25,6 +25,8 @@ import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.junit.jupiter.api.*;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -56,20 +58,21 @@ class WorksheetReadServiceTest {
    }
 
    @Test
-   void readsDateGroupLevelOnGroupedColumn() {
+   void readsDateGroupLevelOnGroupedColumn() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("orderDate"))
+         .setDataType(inetsoft.uql.schema.XSchema.DATE);
       ws.addAssembly(t);
 
-      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
-      ColumnRef sumCol = (ColumnRef) t.getColumnSelection(false).getAttribute("total");
-
-      GroupRef gref = new GroupRef(dateCol);
-      gref.setDateGroup(inetsoft.uql.XConstants.QUARTER_DATE_GROUP);
-      AggregateInfo ainfo = new AggregateInfo();
-      ainfo.addGroup(gref);
-      ainfo.addAggregate(new AggregateRef(sumCol, AggregateFormula.SUM));
-      t.setAggregateInfo(ainfo);
+      // Round-trip through the actual production mutator (not a hand-built GroupRef)
+      // so this exercises the real shape applyAggregateInfo produces for a dateLevel
+      // group - a GroupRef wrapping ColumnRef(DateRangeRef(...)), not a plain ColumnRef
+      // with only setDateGroup() called - which is what WorksheetReadService's
+      // field-extraction branch actually has to unwrap.
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);

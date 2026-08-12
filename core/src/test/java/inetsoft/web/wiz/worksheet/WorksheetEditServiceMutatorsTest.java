@@ -535,6 +535,36 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateDropsStaleDateRangeColumnOnFullClear() throws Exception {
+      // A call with both groups and aggregates empty (e.g. "show me the raw rows again")
+      // must clean up a stale DateRangeRef column exactly like a re-level or a
+      // field-dropped-from-groups call does — AggregateDialogService#applyAggregateInfo
+      // (the UI path this mirrors) runs its cleanup sweep unconditionally, even when the
+      // new AggregateInfo ends up completely empty, so this must too.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("Quarter(orderDate)"),
+                 "stale Quarter(orderDate) column must be dropped on a full clear");
+      assertNotNull(cs.getAttribute("orderDate"), "raw base column must still be present");
+      assertTrue(t.getAggregateInfo().isEmpty());
+      assertFalse(t.isAggregate());
+   }
+
+   @Test
    void setGroupAggregatePreservesAddDateRangeColumnCreatedColumn() throws Exception {
       // A column created via add_date_range_column is a deliberate, standalone derived
       // column (not tied to any group) — a later set_group_aggregate call that groups
@@ -1692,7 +1722,7 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups("a"),
          List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
 
       // "b" is a raw (non-expression) aggregate measure. The UI's isExpressionAggregate
@@ -1713,7 +1743,7 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups("a"),
          List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
 
       // The group-by column passes its value through unchanged (unlike an aggregate

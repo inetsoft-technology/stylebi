@@ -303,13 +303,13 @@ public final class WorksheetMutationSupport {
       // result — a plausible-looking but numerically wrong answer.
       clearAggregateAliases(t);
 
-      if(groups.isEmpty() && aggregates.isEmpty()) {
-         t.setProperty(AGGREGATE_OUTPUT_ALIASES, "");
-         t.setAggregateInfo(new AggregateInfo());
-         t.setAggregate(false);
-         return;
-      }
-
+      // Deliberately no early return for groups.isEmpty() && aggregates.isEmpty():
+      // AggregateDialogService#applyAggregateInfo runs its stale-range-column cleanup
+      // sweep and AssetUtil.validateConditions unconditionally, even when the new
+      // AggregateInfo is completely empty (a full clear), so a full clear here must
+      // too - otherwise a DateRangeRef-wrapped column materialized by an earlier
+      // dateLevel grouping (e.g. "Quarter(orderDate)") would be left behind forever,
+      // since the loops below produce the same empty-AggregateInfo end state either way.
       AggregateInfo ainfo = new AggregateInfo();
       ColumnSelection cs = t.getColumnSelection(false);
 
