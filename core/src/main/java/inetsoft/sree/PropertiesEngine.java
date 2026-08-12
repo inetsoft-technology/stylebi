@@ -349,20 +349,27 @@ public class PropertiesEngine {
    }
 
    private String computePropertyNameCase(String name) {
+      // organization-scoped property names carry the org ID as a case-insensitive segment;
+      // strip and lowercase it, then apply the case rules below to the remaining property name
+      // so it matches what useAvailableOrgProperty() looks up.
+      if(name.startsWith("inetsoft.org.")) {
+         int dot = name.indexOf('.', "inetsoft.org.".length());
+
+         if(dot >= 0) {
+            String orgPrefix = name.substring(0, dot + 1);
+            String suffix = name.substring(dot + 1);
+            return orgPrefix.toLowerCase() + computePropertyNameCase(suffix);
+         }
+
+         return name.toLowerCase();
+      }
+
       if(!name.startsWith("log.level.") &&
          !name.startsWith("plugin.extra.classpath.") &&
          !name.matches("^log\\.[A-Z_]+\\.level\\..+$") &&
          !name.matches("^inetsoft\\.uql\\.jdbc\\.pool\\..+\\.connectionTestQuery$"))
       {
          return name.toLowerCase();
-      }
-
-      if(name.startsWith("inetsoft.org.")) {
-         int index = name.substring(13).indexOf('.');
-
-         if(index >= 0) {
-            return name.substring(0, 14 + index) + name.substring(14 + index).toLowerCase();
-         }
       }
 
       return name;
