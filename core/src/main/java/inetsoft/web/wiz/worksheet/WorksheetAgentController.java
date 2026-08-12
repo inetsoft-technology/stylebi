@@ -875,7 +875,7 @@ public class WorksheetAgentController {
          case "remove_concat_subtable" ->
             editor.removeConcatSubtable(req.table(), req.name());
          case "add_named_group" ->
-            editor.addNamedGroup(req.name(), req.table(), req.column(),
+            editor.addNamedGroup(req.name(), req.table(), req.column(), req.type(),
                req.groupMappings(),
                req.groupOthers() != null && req.groupOthers());
          case "set_column_description" ->
