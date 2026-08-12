@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#F1EFEA"/><rect x="22" y="26" width="56" height="48" rx="3" fill="#FFFFFF" stroke="#D9D5CC"/><rect x="22" y="26" width="56" height="10" fill="#F1EFEA"/><rect x="27" y="30" width="16" height="2.5" rx="1" fill="#6A685F"/><g fill="#E8E5DE"><rect x="22" y="44" width="56" height="1"/><rect x="22" y="52" width="56" height="1"/><rect x="22" y="60" width="56" height="1"/></g><rect x="22" y="66" width="56" height="8" fill="#E9E4DA"/><rect x="27" y="38" width="20" height="2.5" rx="1" fill="#35342F"/><rect x="27" y="46" width="24" height="2.5" rx="1" fill="#35342F"/><rect x="27" y="54" width="18" height="2.5" rx="1" fill="#35342F"/><rect x="60" y="69" width="14" height="2.5" rx="1" fill="#35342F"/></svg>
+</template>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+<style>
+  body { margin:0; background:#F8F7F4; font-family:Inter, Roboto, system-ui, sans-serif; }
+  a { color:#C96F12; text-decoration:none; }
+  a:hover { color:#E58A2A; text-decoration:underline; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#F8F7F4; color:#35342F; font-family:Inter, Roboto, system-ui, sans-serif; padding:56px 48px 96px; display:flex; flex-direction:column; align-items:center">
+<div style="width:100%; max-width:1080px; display:flex; flex-direction:column; gap:56px">
+
+  <header style="display:flex; flex-direction:column; gap:14px; border-bottom:1px solid #D9D5CC; padding-bottom:28px">
+    <div style="display:flex; align-items:center; gap:10px; font-size:11px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:#99958C">
+      <span style="width:18px; height:2px; background:#E58A2A"></span>
+      <span>Visualization widgets · spec</span>
+    </div>
+    <h1 style="margin:0; font-size:38px; font-weight:600; letter-spacing:-0.6px; line-height:1.12; color:#1F1F1B; text-wrap:pretty">Everything that is not the chart<span style="font-weight:400; color:#99958C">, or an input</span></h1>
+    <p style="margin:0; max-width:64ch; font-size:15px; line-height:1.6; color:#6A685F; text-wrap:pretty">Table, crosstab, freehand table, selection list and tree, current selection, range slider, KPI outputs and the title bar they share. The chart card spec treated the chart as one chart-owned object; this does the same for the other eight, and states what the modern gate already resolves for each versus what is still drawn from a hardcoded literal.</p>
+    <div style="display:flex; flex-direction:column; gap:8px; background:#F1EFEA; border-radius:5px; padding:14px 16px; max-width:72ch">
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#1D5B39">Decided in this document</div>
+      <div style="display:flex; gap:8px; align-items:baseline"><span style="flex:0 0 auto; font-size:10.5px; font-weight:700; color:#E58A2A; letter-spacing:0.4px; min-width:22px">§03</span><span style="font-size:12.5px; line-height:1.5; color:#6A685F">The seed mark — a tri-state mark on the assembly, re-seeded onto a runtime clone, shipping as a condition of release. Card radius drops from 12px to 6px.</span></div>
+      <div style="display:flex; gap:8px; align-items:baseline"><span style="flex:0 0 auto; font-size:10.5px; font-weight:700; color:#E58A2A; letter-spacing:0.4px; min-width:22px">§04</span><span style="font-size:12.5px; line-height:1.5; color:#6A685F">Compact is the default mode, and vertical padding defers to an author-set row height while horizontal padding does not.</span></div>
+      <div style="display:flex; gap:8px; align-items:baseline"><span style="flex:0 0 auto; font-size:10.5px; font-weight:700; color:#E58A2A; letter-spacing:0.4px; min-width:22px">§05</span><span style="font-size:12.5px; line-height:1.5; color:#6A685F">The KPI hierarchy guidance drops, the title lane takes its own row at 20 / 26 / 30 so the anchored strip fits under compact, and the range slider is redrawn in CSS — its range band joining the derived selection fill, its handle gaining hover and press.</span></div>
+      <div style="display:flex; gap:8px; align-items:baseline"><span style="flex:0 0 auto; font-size:10.5px; font-weight:700; color:#E58A2A; letter-spacing:0.4px; min-width:22px">§07</span><span style="font-size:12.5px; line-height:1.5; color:#6A685F">Selection is derived from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code> rather than themed; both viz selection tokens retire. The export parity pass narrows to three combinations on PDF and PNG, owned by each implementer.</span></div>
+      <div style="display:flex; gap:8px; align-items:baseline"><span style="flex:0 0 auto; font-size:10.5px; font-weight:700; color:#E58A2A; letter-spacing:0.4px; min-width:22px">§09</span><span style="font-size:12.5px; line-height:1.5; color:#6A685F">The shell owns any value it has a token for; the viz layer declares one only for a distinction the shell does not make. Three viz tokens retire; cell padding becomes a new shell step.</span></div>
+      <div style="display:flex; gap:8px; align-items:baseline"><span style="flex:0 0 auto; font-size:10.5px; font-weight:700; color:#E58A2A; letter-spacing:0.4px; min-width:22px">Cal</span><span style="font-size:12.5px; line-height:1.5; color:#6A685F">Calendar gains a light-modern branch on the shared chrome property (§02), takes the derived selection fill with endpoint borders (§07), and joins density with two floored values (§04).</span></div>
+      <div style="font-size:12px; line-height:1.5; color:#99958C">Everything in §02 is branch state, not decision.</div>
+    </div>
+
+    <p style="margin:0; max-width:64ch; font-size:13px; line-height:1.6; color:#99958C">Ground truth is <code style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#6A685F">inetsoft-technology/stylebi</code> @ <code style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#6A685F">viz-updates</code>, read against <code style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#6A685F">epic-74519</code> as the pre-initiative baseline. Every value below was read from the branch.</p>
+  </header>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">01</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">Three render paths, one appearance</h2>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">The premise the shell and Composer specs are written on — a token changes a colour — does not hold here. A viewsheet widget's colour, type and row height reach the screen by three different routes, and only one of them is CSS. This is the fact that shapes every decision in this document.</p>
+
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px">
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:18px; display:flex; flex-direction:column; gap:10px">
+        <div style="font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#B54B6E">A · Server format</div>
+        <div style="font-size:14px; font-weight:600; color:#1F1F1B">VSFormat on the assembly</div>
+        <p style="margin:0; font-size:12.5px; line-height:1.6; color:#6A685F">Cell background, foreground, border and font are resolved server-side into <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSFormatModel</code> and written to the DOM as inline styles — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">[style.color]="cell.vsFormatModel.foreground"</code>, 35 such bindings in the table components alone.</p>
+        <div style="margin-top:auto; padding-top:10px; border-top:1px solid #E8E5DE; font-size:11.5px; line-height:1.55; color:#99958C">Appears in <strong style="color:#6A685F; font-weight:600">export</strong>. CSS cannot reach it without desyncing live view from PDF/Excel.</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:18px; display:flex; flex-direction:column; gap:10px">
+        <div style="font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#7455A8">B · Server painter</div>
+        <div style="font-size:14px; font-weight:600; color:#1F1F1B">Java2D / Batik draw</div>
+        <p style="margin:0; font-size:12.5px; line-height:1.6; color:#6A685F">Slider, gauge, calendar and chart are drawn by painter classes on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSFloatable.getImage()</code> — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">paintComponent(Graphics2D)</code> onto a <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">BufferedImage</code> — with colour constants compiled in. No user format sits behind them.</p>
+        <div style="margin-top:auto; padding-top:10px; border-top:1px solid #E8E5DE; font-size:11.5px; line-height:1.55; color:#99958C">Appears in <strong style="color:#6A685F; font-weight:600">export</strong>. Themed only by editing the constant.</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:18px; display:flex; flex-direction:column; gap:10px">
+        <div style="font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#1D8A86">C · Browser CSS</div>
+        <div style="font-size:14px; font-weight:600; color:#1F1F1B">Component SCSS</div>
+        <p style="margin:0; font-size:12.5px; line-height:1.6; color:#6A685F">Hover, focus, resize affordances, scrollbars, search boxes, drag lines, the mini toolbar. Everything transient and everything structural that never had a format behind it.</p>
+        <div style="margin-top:auto; padding-top:10px; border-top:1px solid #E8E5DE; font-size:11.5px; line-height:1.55; color:#99958C">Live view <strong style="color:#6A685F; font-weight:600">only</strong>. The one path <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-*</code> can drive.</div>
+      </div>
+    </div>
+
+    <div style="background:#FFFFFF; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:7px">
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">The paths are not exclusive</div>
+      <div style="font-size:12.5px; line-height:1.6; color:#6A685F">Calendar and range slider sit on <strong style="font-weight:600; color:#35342F">B and C at once</strong>: Angular components (<code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">vs-calendar.component.scss</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">vs-range-slider.component.scss</code>) render them in the live viewer while the painters render them for export and print. Two renderers in two languages, one appearance to keep in agreement — which is why <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSOutputChromeDefaults</code> carries slider track, handle and tick colours in Java <em>and</em> the range slider still needs CSS work. Neither side alone covers the widget.</div>
+      <div style="font-size:12px; line-height:1.55; color:#99958C">Unverified: which path the live viewer takes for gauges, thermometers and the painted slider. Confirm before relying on it.</div>
+    </div>
+
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+      <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The consequence</div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">A visualization token that changes an export-visible surface has to be resolved on the server, as a <em>format default</em>, not in CSS. That is why the initiative grew a family of Java resolvers rather than a stylesheet. Path C alone would produce a product whose printout no longer matches its screen.</p>
+    </div>
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">02</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">What the gate resolves today</h2>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">Six in-scope resolvers, one master property. Five of the sub-gates read <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">VSDensityDefaults.isModern() && !"false".equals(…)</code> — a sibling property that can only opt a feature back <em>out</em>, never in. The calendar is the exception in the branch: it reads <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">isDark()</code> alone, a real boolean defaulting off, so it is the one resolver a customer must opt <em>into</em> — which the decision below closes by moving it onto the shared property. Every substitution lands on the DEFAULT tier of a clone, so USER and format.css tiers still win and nothing is persisted.</p>
+
+    <div style="display:flex; flex-direction:column; gap:9px">
+      <div style="border:1px solid #D9D5CC; border-radius:6px; overflow:hidden; background:#FFFFFF">
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">
+          <div style="padding:10px 14px">Resolver</div>
+          <div style="padding:10px 14px">Property</div>
+          <div style="padding:10px 14px">Default</div>
+          <div style="padding:10px 14px">Owns</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSDensityDefaults</div>
+          <div style="padding:11px 14px; display:flex; flex-direction:column; gap:4px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F"><div>viewsheet.<wbr/>modernVisualization</div><div>viewsheet.<wbr/>density</div><div>viewsheet.<wbr/>darkMode</div></div>
+          <div style="padding:11px 14px; display:flex; flex-direction:column; gap:4px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700"><div style="color:#C84C4C">false</div><div style="color:#35342F">dense</div><div style="color:#C84C4C">false</div></div>
+          <div style="padding:11px 14px; color:#6A685F">The master gate. Row, header and selection-cell heights. Unset normalizes to dense, whose 20px row equals <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code>. Dark mode is a modifier, not a peer. §04 changes this default to compact and gates the heights on the seed mark; neither is in the branch yet.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSTableStructureDefaults</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F">viewsheet.<wbr/>modernTableStructure</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700; color:#4A7C59">unset → on</div>
+          <div style="padding:11px 14px; color:#6A685F">Gridline, header band, header rule, grand-total and subtotal bands. Overlaid on a clone of Default Style.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSTitleChromeDefaults</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F">viewsheet.<wbr/>modernObjectChrome</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700; color:#4A7C59">unset → on</div>
+          <div style="padding:11px 14px; color:#6A685F">The title bar on every titled assembly — background, text, bottom rule.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSObjectChromeDefaults</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F">viewsheet.<wbr/>modernObjectChrome</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700; color:#4A7C59">unset → on</div>
+          <div style="padding:11px 14px; color:#6A685F">Object frame, card background, page canvas, card radius (12px in the branch; §03 decides 6px). Seeded at creation, not at read.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSOutputChromeDefaults</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F">viewsheet.<wbr/>modernObjectChrome</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700; color:#4A7C59">unset → on</div>
+          <div style="padding:11px 14px; color:#6A685F">KPI value foreground and border; the painted slider's track, handle and ticks.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSCalendarChromeDefaults</div>
+          <div style="padding:11px 14px; display:flex; flex-direction:column; gap:4px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F">viewsheet.<wbr/>darkMode</div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700; color:#C84C4C">false</div>
+          <div style="padding:11px 14px; color:#6A685F">Calendar body text and surface, <strong style="font-weight:600">dark mode only</strong> in the branch — a no-op in light modern and legacy, gated on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">isDark()</code> alone rather than on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">modernObjectChrome</code>, so it is the one sub-gate that defaults <em>off</em>. Read-time, at both <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSCalendarModel</code> and the export painter. The decision below adds a light-modern branch and moves it onto <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">modernObjectChrome</code>; neither is in the branch yet.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.2fr 0.62fr 1.62fr; font-size:12.5px; line-height:1.5">
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#1F1F1B">VSChartChromeDefaults<br/>VSChartPaletteDefaults</div>
+          <div style="padding:11px 14px; display:flex; flex-direction:column; gap:4px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#6A685F"><div>viewsheet.<wbr/>modernChartChrome</div><div>viewsheet.<wbr/>modernChartPalette</div></div>
+          <div style="padding:11px 14px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; font-weight:700; color:#4A7C59">unset → on</div>
+          <div style="padding:11px 14px; color:#6A685F">Out of scope here — chart chrome and series colour belong to the chart card spec.</div>
+        </div>
+      </div>
+      <p style="margin:0; max-width:80ch; font-size:12.5px; line-height:1.6; color:#99958C">All are org-scoped <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">SreeEnv</code> properties. The master reads as a real boolean and defaults off. Most sub-gates test <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">!"false".equals(…)</code>, so unset reads as on and only the literal string <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">false</code> opts out — but <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">darkMode</code> is a real boolean like the master, which is why the calendar row alone defaults off. One <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">modernObjectChrome</code> covers object, title and output chrome — they modernize or defer together.</p>
+
+      <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px; max-width:92ch">
+        <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">Calendar chrome is not dark-only</div>
+          <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+        </div>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#35342F">The dark branch exists because the shared <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">MONTH_CALENDAR</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">YEAR_CALENDAR</code> formats default to black text with no fill, which is dark-on-dark once the dashboard goes dark — a legibility bug. Light modern has no bug to fix, which is why it was skipped. But <em>no bug</em> is not the same as <em>no work</em>: with the gate on and dark off, every other widget picks up the modern neutrals and the calendar keeps legacy black-on-nothing, so it is the one assembly that visibly does not belong.</p>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#6A685F">So it takes a light-modern branch on the same neutrals the title bar and table structure already use, and its gate moves from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">darkMode</code> to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">modernObjectChrome</code>. Dark stays a modifier layered on top, exactly as it is for the other five — which also removes the anomaly this section had to explain, that one sub-gate defaulted off and had to be opted into.</p>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#6A685F">The substitution shape does not change: DEFAULT tier of a clone, USER and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">format.css</code> tiers still winning, applied at both <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSCalendarModel</code> and the export painter. Only the palette and the gate change, so this is a branch inside an existing resolver rather than new machinery.</p>
+      </div>
+    </div>
+
+    <div style="background:#FBF3EC; border-left:2px solid #C84C4C; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+      <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C84C4C">One resolver behaves differently</div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">Five of the six compute their defaults <em>at read</em>, onto a clone the saved object never sees. <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">VSObjectChromeDefaults</code> instead seeds frame, radius and card background into the object <em>at creation</em> — correctly, because these are design-time defaults the author must be able to see and edit. The consequence is that seeding alone does not reverse when the gate turns off. Settled in <a href="#seed-mark" style="color:#C96F12; font-weight:600">§03 · the seed mark</a>, which ships in the same branch: the full argument, the six gate states and what was rejected are all there.</p>
+    </div>
+
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">Browser-side, <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">_viz-tokens.scss</code> declares 21 tokens under <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">.viz-modern</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">[data-viz-theme="v2"]</code>. Nine are consumed by a selector; twelve are vocabulary only. That ratio is the honest measure of how much of the widget set the CSS layer currently reaches.</p>
+  </section>
+
+  <section id="seed-mark" style="display:flex; flex-direction:column; gap:20px; scroll-margin-top:24px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">03</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">The seed mark</h2>
+      <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:3px 8px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">One mechanism the rest of this document depends on twice — for card chrome here, and for density in §04. It is a decision taken against the branch, not something the branch does yet, and it ships as a condition of release.</p>
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">Card radius is 6px</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">The seed writes <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">CARD_CORNER_RADIUS = 12</code>, justified in code as matching the annotation rectangle. <strong style="font-weight:600">It becomes 6px — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-radius-xl</code>.</strong> That is the value <em>Chart Card Spec v3</em> fixes for the same card, the value the shell ticket pulls the card tooltip onto so it matches, and the value the anchored toolbar pill already uses; 12px is off a scale that tops out at 6, and its cited precedent is author data set per annotation in the Format dialog rather than a card token.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">The title lane settles it beyond the scale argument. Drawn at both values, a 12px radius consumes 12 of the lane’s 26px at each end, so the band’s fill pinches away from the corners and reads as a lozenge rather than the top of a card — worse under dense, where the lane is 20px and the curve takes more than half of it. The cost is legibility of the title bar, not taste.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">Applies to all eight seeded assembly types, and because the seed already runs through <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code> it is a constant change, not new machinery. Nothing in the field carries either value, so there is no migration.<br/><br/>It does <strong style="font-weight:600">retire</strong> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">resolveSeededCorner()</code> rather than re-point it. That check works today only because 12 has no legitimate collision — the same off-the-scale property that makes it wrong as a card radius is what makes it safe as a sentinel. 6px has the opposite character: it is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-radius-xl</code>, and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code>’s own <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">format.css</code> TableStyle lookup can write it into the DEFAULT tier, so a 6px test would strip a customer’s stylesheet radius — the overwrite-real-choices failure this section cites as the reason colour sniffing is unsafe, in radius form. No value test is needed: the mark records what was written, and re-seeding reproduces the correct value including that lookup.<br/><br/>Retiring it also removes a performance smell. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">getRoundCorner()</code> reaches <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">SreeEnv</code> only by routing through <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">resolveSeededCorner()</code> to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">isModern()</code> — two org-scoped property reads inside a format getter callers treat as free, in code that runs in loops. With the check gone the lookup leaves the getter, and resolving the gate once per render (§08 step 4) covers what is left.</p>
+    </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px; max-width:96ch">
+        <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:5px">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span></div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Gate-off today is partial</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">Only the radius reverts. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">resolveSeededCorner()</code> strips the seeded radius when the gate is off; the seeded border colour and card and page backgrounds have no equivalent and stay modern. An object created under the gate and read with it off would be square-cornered with warm-neutral chrome — a state neither mode was designed to produce. Because <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">viz-updates</code> has never shipped, no such object exists in the field: this is a hazard in the design, not damage to repair.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">The asymmetry is defensible, not accidental: radius sniffing is safe because legacy is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">0</code> and nothing else writes the seeded value, while <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#D9D5CC</code> is a palette neutral a user could legitimately pick, so a colour strip would overwrite real choices. What is missing is not the strip — it is any statement that colours are deliberately one-way.</div>
+        </div>
+        <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:6px">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span></div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">How seeding behaves today</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">The seed itself is correct at creation — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code> reads the gate and writes modern or legacy accordingly, so a gate-off product seeds <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#DADADA</code> and radius <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">0</code> as it always has. What is frozen is the decision. The <strong style="font-weight:600">mirror gap</strong> is the consequence that matters for rollout: an assembly created while the gate was off never receives modern chrome afterwards, so enabling the gate modernizes only what a customer builds next, not what they already have.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">The two seeds also differ in reach. Border colour is written on every assembly type; the seeded radius is gated by <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">isCornerSeedTarget()</code>, an explicit positive list — table, crosstab, calc and embedded table, chart, selection list, selection tree, current selection. Range slider is deliberately excluded despite extending <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">SelectionVSAssemblyInfo</code>, and calendar carries its own radius. Those eight types are the population the 6px card radius in §03 applies to.</div>
+        </div>
+        <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:7px">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span></div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Why not simply move it to read time</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">It would gain clean reversibility and would modernize every existing dashboard with no migration. Those are real, and they are why the question keeps returning. Four things go wrong — the first is the one the seed mark is shaped to avoid.</div>
+          <div style="display:grid; grid-template-columns:auto 1fr; gap:7px 10px; font-size:12.5px; line-height:1.55">
+            <div style="font-weight:700; color:#C84C4C">1</div>
+            <div style="color:#6A685F"><strong style="font-weight:600; color:#35342F">Existing dashboards silently change shape.</strong> Every dashboard ever authored gains a 6px radius and a 1px frame on next open. Corner cells clip; assemblies butted edge to edge show page background through the rounded joins. Nobody opted in. A colour is forgivable that way — geometry is not.</div>
+            <div style="font-weight:700; color:#C84C4C">2</div>
+            <div style="color:#6A685F"><strong style="font-weight:600; color:#35342F">The format editor goes blank.</strong> The author sees a framed, rounded card and an empty border field, because the value exists only on a runtime clone the editor never sees. Nothing to click, no indication where the frame came from.</div>
+            <div style="font-weight:700; color:#C84C4C">3</div>
+            <div style="color:#6A685F"><strong style="font-weight:600; color:#35342F">Fixing that makes it permanent.</strong> To remove a radius with no visible source, the author sets radius <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">0</code> — which lands in the USER tier and outranks everything. That assembly now follows the gate in neither direction: the frozen state, manufactured at scale by frustrated users.</div>
+            <div style="font-weight:700; color:#C84C4C">4</div>
+            <div style="color:#6A685F"><strong style="font-weight:600; color:#35342F">The complexity relocates rather than disappears.</strong> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">isCornerSeedTarget()</code> is still needed or slider and calendar take radii they should not, and the <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">format.css</code> TableStyle radius lookup inside <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code> would have to run on every read or risk overriding a customer TableStyle.</div>
+          </div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">Not a problem either way: exports. Both paths are server-side, so PDF, Excel and PNG stay consistent. The trade is that seeding buys author visibility and layout stability and pays in reversibility, while read time buys reversibility and pays in silently redrawn customer content.</div>
+        </div>
+        <div style="border-top:1px dashed #D9D5CC; padding-top:9px; display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The decision</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F"><strong style="font-weight:600">The mark ships with the branch.</strong> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">viz-updates</code> does not release until it is implemented, so gate reversibility is total from the first version any customer sees and no release ever exists that seeds unmarked assemblies. That is the whole reason to settle it now: the option is free before release and unrecoverable after.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F"><strong style="font-weight:600">Mark the assembly, and re-seed onto a runtime clone.</strong> A tri-state mark in <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSAssemblyInfo</code>'s existing <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">writeAttributes</code>/<code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">parseAttributes</code> records the gate value that was in force when <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code> ran — <strong style="font-weight:600">gate-on</strong>, <strong style="font-weight:600">gate-off</strong>, or <strong style="font-weight:600">before gate</strong> for anything created by a release that had neither. It is read by the chrome path and, per §04, by the density path too — so it records whether an assembly was created under the modern gate, not merely which chrome branch ran. It states what happened, not what the content is: because the master gate defaults off, <em>gate-off</em> is the mark most new assemblies carry, while <em>before gate</em> is the genuinely old content. The name holds only because the mark ships with the gate — if it ever lagged behind, unmarked would stop meaning pre-gate. On load, when the mark and the gate disagree, recompute the DEFAULT tier on a clone — the same shape as the other five read-time resolvers — instead of stripping values or rewriting saved content.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F">This is what makes it work where "just move it to read time" failed. Blanket read-time application redraws pre-mark dashboards with chrome they were never laid out for — failure 1 above; <em>mark-keyed</em> application leaves an unmarked assembly untouched, so pre-mark content is unaffected while marked content follows the gate in both directions. It also closes the mirror gap — a gate-off assembly is re-seeded forward when the gate turns on.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F">Mark the assembly, not the dashboard: seeding is per-assembly at creation, so a dashboard-level flag mislabels the mixed case — one dashboard can hold both assemblies that predate the mark and assemblies created after it, and a single flag has to lie about one of them. Re-seeding also reproduces the <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">format.css</code> TableStyle radius lookup already inside <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code>, which <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">resolveSeededCorner()</code> currently has to dodge by exception, and a designer's own colour is safe because it lives in the USER tier.</div>
+        </div>
+        <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:7px">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span></div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Why “before gate” still needs its own state</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F">Every assembly in the field was created with the gate off, so treating <em>before gate</em> as gate-off would be factually accurate. Acting on it is the problem. With the gate on, mark ≠ gate then holds for every dashboard ever authored, all of them become eligible for forward re-seeding, and every one gains a frame and a 6px radius on next open: failure 1 of the read-time route above, arriving through the back door. So the third state is not about uncertainty, it is a policy switch — <em>before gate</em> means <strong style="font-weight:600">do not sweep</strong>, and pre-mark content stays as it is until someone decides otherwise. Keeping it separate from gate-off is what leaves that decision open rather than making it by default.</div>
+        </div>
+        <div style="border-top:1px dashed #D9D5CC; padding-top:9px; display:flex; flex-direction:column; gap:7px">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">The six states, in full</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">One comparison at load. Two of the six do work; the other four are no-ops, which is every read in normal operation.</div>
+          <div style="border:1px solid #E7E2D8; border-radius:5px; overflow:hidden; background:#FFFFFF">
+            <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; background:#F1EFEA; border-bottom:1px solid #E7E2D8; font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">
+            <div style="padding:8px 12px">Mark</div>
+            <div style="padding:8px 12px">Gate</div>
+            <div style="padding:8px 12px">Action</div>
+            <div style="padding:8px 12px">Result</div>
+            </div>
+          <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+            <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-off</div>
+            <div style="padding:10px 12px; color:#35342F; font-weight:600">off</div>
+            <div style="padding:10px 12px; color:#35342F">none</div>
+            <div style="padding:10px 12px; color:#6A685F">Agrees. The overwhelming majority of reads.</div>
+          </div>
+          <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+            <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-on</div>
+            <div style="padding:10px 12px; color:#35342F; font-weight:600">on</div>
+            <div style="padding:10px 12px; color:#35342F">none</div>
+            <div style="padding:10px 12px; color:#6A685F">Agrees. Renders modern, as seeded.</div>
+          </div>
+          <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+            <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-on</div>
+            <div style="padding:10px 12px; color:#35342F; font-weight:600">off</div>
+            <div style="padding:10px 12px; color:#35342F">re-seed gate-off values onto a clone</div>
+            <div style="padding:10px 12px; color:#6A685F">Reverts <em>everything</em> — radius, border, card and page background — not the radius alone. This is the case the current code half-handles.</div>
+          </div>
+          <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+            <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-off</div>
+            <div style="padding:10px 12px; color:#35342F; font-weight:600">on</div>
+            <div style="padding:10px 12px; color:#35342F">re-seed gate-on values onto a clone</div>
+            <div style="padding:10px 12px; color:#6A685F">Closes the forward gap: an assembly created while the gate was off picks up modern chrome when it is enabled.</div>
+          </div>
+          <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+            <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">before gate</div>
+            <div style="padding:10px 12px; color:#35342F; font-weight:600">off</div>
+            <div style="padding:10px 12px; color:#35342F">none</div>
+            <div style="padding:10px 12px; color:#6A685F">Pre-mark content, unchanged.</div>
+          </div>
+          <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; font-size:12px; line-height:1.5">
+            <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">before gate</div>
+            <div style="padding:10px 12px; color:#35342F; font-weight:600">on</div>
+            <div style="padding:10px 12px; color:#35342F">none</div>
+            <div style="padding:10px 12px; color:#6A685F">Pre-mark content, deliberately <strong style="font-weight:600">not</strong> swept. Sweeping is a separate decision, not a side effect of enabling the gate.</div>
+          </div>
+          </div>
+          <div style="font-size:12px; line-height:1.55; color:#99958C">Under the ship condition above, the two <em>before gate</em> rows describe content created by releases that predate the branch — which, if the mark ships with the branch, is nothing. They exist so the behaviour is defined rather than accidental.</div>
+        </div>
+        <div style="border-top:1px dashed #D9D5CC; padding-top:9px; display:flex; flex-direction:column; gap:7px">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">What this table does and does not cover</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F">The table governs <strong style="font-weight:600">seeded</strong> values only — the frame, radius and card background <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSObjectChromeDefaults</code> writes into the saved asset at creation. Everything else in this document is read-time: a resolver substituting onto a clone, or a <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern</code> CSS rule. Read-time values are unmarked and always reversible, because nothing was written down — turn the gate off and they revert on every dashboard at once, before-gate and gate-on alike.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">This is the distinction most easily misread across the two specs. The chart is one of the eight seeded types, so the chart card’s <em>card chrome</em> follows this table exactly; its tooltips, selection, type scale and toolbar are read-time CSS and the mark does not reach them. The visible consequence: a before-gate chart in a gate-on product is unmarked, so it keeps square corners and no frame while its tooltips and selection modernize anyway — modern overlays on a legacy card. That mixed object is what a designer actually sees, and it is the strongest argument for the Modernize bar below.</div>
+        </div>
+        <div style="border-top:1px dashed #D9D5CC; padding-top:9px; display:flex; flex-direction:column; gap:7px">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Opting a before-gate dashboard in</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F"><em>Before gate</em> is not a permanent sentence, but nothing in the machinery lets a designer leave it — author edits land in the USER tier and never touch the mark. The opt-in needs no new migration path, because an old assembly genuinely <em>was</em> created with the gate off: modernizing it means asserting that fact. Stamp <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">gate-off</code> onto its unmarked assemblies and the existing re-seed runs — mark ≠ gate, DEFAULT tier recomputed forward onto a clone, assembly renders modern. Read the third state as <strong style="font-weight:600">unclaimed</strong> rather than old, and migration is the moment someone claims it.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">Stamp the whole dashboard, not one assembly: a half-migrated dashboard is the mixed-appearance problem again. It is an ordinary document edit, so it saves with the dashboard, follows normal undo, and un-stamping returns the assembly to unclaimed. Afterwards that dashboard follows the gate in both directions like any other — turn the gate off and it returns to legacy chrome. It is no longer frozen.</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">What it must not be is implicit on save. Stamping silently when a designer opens and saves an old dashboard would change its appearance as a side effect of unrelated work — the retroactive-geometry failure with an extra step.</div>
+        </div>
+        <div style="border-top:1px dashed #D9D5CC; padding-top:9px; display:flex; flex-direction:column; gap:9px">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">Proposed — a dismissible bar above the canvas</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#35342F">A once-per-dashboard action should not hold permanent toolbar space. A bar carries the right meaning on its own: it is temporary, it is about <em>this</em> dashboard, and it leaves when the question is answered. It appears only while the open dashboard holds unmarked assemblies and the gate is on.</div>
+          <div style="background:#FBF3EC; border:1px solid #E7D9C4; border-radius:5px; padding:11px 14px; display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+            <div style="flex:1 1 300px; font-size:13px; line-height:1.5; color:#35342F">This dashboard was built before the modern defaults. <strong style="font-weight:600">14 assemblies</strong> would change appearance.</div>
+            <div style="flex:0 0 auto; display:flex; align-items:center; gap:8px">
+              <div style="display:flex; align-items:center; height:30px; padding:0 14px; border-radius:4px; background:#E58A2A; font-size:12.5px; font-weight:600; color:#FFFFFF; white-space:nowrap">Modernize</div>
+              <div style="display:flex; align-items:center; height:30px; padding:0 12px; border-radius:4px; font-size:12.5px; font-weight:600; color:#6A685F; white-space:nowrap">Not now</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:auto 1fr; gap:6px 10px; font-size:12px; line-height:1.55">
+              <div style="font-weight:700; color:#6A685F; white-space:nowrap">Count first</div><div style="color:#6A685F">The bar states how many assemblies change before it offers the action. Geometry moves, so the number is the honest warning and it costs one sentence.</div>
+              <div style="font-weight:700; color:#6A685F; white-space:nowrap">Count scope</div><div style="color:#6A685F">The count is every assembly the mark would touch, not just chrome. The chart card project (<code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">d9fe84bc</code>) is adding a third consumer: <em>Outlined chart text</em>'s outline→<code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">&lt;text&gt;</code> switch reads mark vs. gate the same way the chrome resolver does, and rides this same bar to opt in. Once that ships, a chart whose only change is text rendering — no geometry — still has to count, or the bar undersells what Modernize is about to do.</div>
+              <div style="font-weight:700; color:#6A685F; white-space:nowrap">Applies live</div><div style="color:#6A685F">No confirmation dialog. The change is visual, so the dashboard is its own preview — a modal describing it in prose is worse than showing it. Normal undo reverses it.</div>
+              <div style="font-weight:700; color:#6A685F; white-space:nowrap">Dismissal sticks</div><div style="color:#6A685F"><em>Not now</em> is remembered per dashboard, or the bar becomes a nag on every open. That makes it a real dismissal, not a delay.</div>
+              <div style="font-weight:700; color:#6A685F; white-space:nowrap">So it needs a way back</div><div style="color:#6A685F">Because dismissal sticks, the action must also live somewhere permanent and quiet — a menu item on the dashboard, enabled under the same condition. The bar is the prompt; the menu is the affordance.</div>
+              <div style="font-weight:700; color:#6A685F; white-space:nowrap">Never on open alone</div><div style="color:#6A685F">The bar offers; it does not act. Nothing stamps without the designer choosing it, which is what keeps an old dashboard from redrawing as a side effect of being opened.</div>
+          </div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">No admin bulk command. The stamp moves geometry, so it wants the one person who can judge the result — a bulk run modernizes dashboards nobody is looking at, which is the retroactive-geometry failure at repository scale rather than a convenience. Per dashboard, by whoever owns it, with the canvas as the preview. If a customer ever does want every old dashboard modernized at once, that is a request to sweep, and sweeping is the policy question the third state deliberately holds open — a decision to take deliberately, not a tool to ship in advance of it.</div>
+        </div>
+        <div style="border-top:1px dashed #D9D5CC; padding-top:9px; display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">What it costs</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">The mark is a day: a nullable field on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSAssemblyInfo</code>, one line each in <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">writeAttributes</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">parseAttributes</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">clone</code>/<code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">copyViewInfo</code> handling, and two lines in <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">setDefaultFormat</code> to record which branch ran. The re-seed is one resolver-shaped code path in the two places the other resolvers already run — runtime model build and the export painters — plus coverage for all six mark-and-gate states, two of which re-seed. No migration at all, since nothing in the field predates it, and no write against customer assets. Because it adds read-time work by design, resolve the gate <strong style="font-weight:600">once per render</strong> as part of the same change rather than as a follow-up.</div>
+        </div>
+        <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:5px">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span></div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Considered and not taken — persisting the re-seed</div>
+          <div style="font-size:12.5px; line-height:1.6; color:#6A685F">Rewriting the saved object instead of a clone would make the corrected values visible in the format editor, but it buys a versioning story on import and a write against saved customer content whose blast radius is every marked assembly at once. It acquires a migration obligation too, though only for content created after the branch ships — not, as things stand, for anything that exists now. This is the one place the clone route gives something up: §02 justifies seeding on format-editor visibility, and a corrected-on-clone assembly shows the stale seeded value in the dialog while rendering the corrected one. Narrow — it only occurs when the gate has changed since creation — but if that divergence is the complaint, persisting is the answer.</div>
+        </div>
+        <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:6px">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span></div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">What was weighed</div>
+          <div style="display:grid; grid-template-columns:auto 1fr; gap:5px 10px; font-size:12.5px; line-height:1.55">
+            <div style="font-weight:700; color:#99958C; white-space:nowrap">Against</div>
+            <div style="color:#6A685F">Nothing is broken in the field yet. The branch has not shipped, so the partial reversal has harmed no customer and no schedule is held by it — design debt paid before it is owed, which can legitimately sequence behind work that has users waiting.</div>
+            <div style="font-weight:700; color:#99958C; white-space:nowrap">Against</div>
+            <div style="color:#6A685F">It is a persisted attribute, serialized into saved assets and read on import — schema versioning, in a rollout whose first steps are deliberately export-safe. Shipping it pre-release is what keeps that a one-time cost instead of a versioned migration.</div>
+            <div style="font-weight:700; color:#1D5B39; white-space:nowrap">Decisive</div>
+            <div style="color:#6A685F">The cohort needing migration is currently <strong style="font-weight:600">empty</strong>, and only stays that way until the branch ships. Every assembly created after the gate reaches a customer without a mark is one that can never be reasoned about later without value-sniffing. There is no cheaper moment than before release, and no way back to one.</div>
+            <div style="font-weight:700; color:#1D5B39; white-space:nowrap">Decisive</div>
+            <div style="color:#6A685F">Every future seeded default would inherit the flaw, arriving one-way and unmarked. The mark makes seeding a reversible mechanism rather than a one-way write, so the next design-time default costs nothing extra.</div>
+          </div>
+        </div>
+      </div>
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">04</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">Density is a persisted number, not a token</h2>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">Before the initiative, one constant — <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">AssetUtil.defh = 20</code> — was the default data row height, header row height, title height, selection-list cell height and list-input cell height, for every assembly. It is a persisted model value: an author who has ever dragged a row edge owns that number forever, and no stylesheet can move it.</p>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">That is why <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">VSDensityDefaults</code> resolves height server-side and applies it <em>only where the assembly still carries the legacy default</em>. Dense is pinned to 20px rather than to the design spec's 26px for the same reason: it has to equal today.</p>
+
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px">
+      <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">Compact is the default, and the mark is what makes that safe</div>
+      <div style="font-size:13.5px; line-height:1.65; color:#35342F; max-width:76ch">The specified default is <strong style="font-weight:600">compact</strong>, not dense: 24px rows, the density the design intends. Dense is <strong style="font-weight:600">not</strong> legacy-exact, and it is worth being precise about that, because &ldquo;dense equals today&rdquo; is the claim both the seed mark and this default lean on. Of the six roles in the matrix below it preserves two — data row and selection cell, both 20px — and diverges in four: header row 20 &rarr; 22px, cell padding 8/6 &rarr; 4/3, the declared toolbar height 30 &rarr; 24, and font size 13 &rarr; 12px. All four are branch values, not decisions taken here. What dense does guarantee is the <em>server row height</em> an assembly is laid out against, which is why nothing reflows; the title lane joins that guarantee at 20px per §05, and list-input height comes from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code> rather than from this matrix.</div>
+      <div style="font-size:13.5px; line-height:1.65; color:#6A685F; max-width:76ch">On its own that would reflow the estate. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSDensityDefaults</code> is a read-time resolver with no per-assembly condition, so raising the default would grow every saved table 20 → 24 the moment the gate turned on — the retroactive-geometry failure, in the one dimension that pushes content down the page. So height resolves through the <a href="#seed-mark" style="color:#C96F12; font-weight:600">seed mark</a> as well:</div>
+      <div style="border:1px solid #E7E2D8; border-radius:5px; overflow:hidden; background:#FFFFFF; max-width:76ch">
+        <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; background:#F1EFEA; border-bottom:1px solid #E7E2D8; font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">
+          <div style="padding:8px 12px">Mark</div>
+          <div style="padding:8px 12px">Gate</div>
+          <div style="padding:8px 12px">Row height</div>
+          <div style="padding:8px 12px">Result</div>
+        </div>
+        <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+          <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-off</div>
+          <div style="padding:10px 12px; color:#35342F; font-weight:600">off</div>
+          <div style="padding:10px 12px; color:#35342F">20px</div>
+          <div style="padding:10px 12px; color:#6A685F">Agrees. Unchanged from today.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+          <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-on</div>
+          <div style="padding:10px 12px; color:#35342F; font-weight:600">on</div>
+          <div style="padding:10px 12px; color:#35342F">the configured mode — <strong style="font-weight:600">24px</strong> compact by default</div>
+          <div style="padding:10px 12px; color:#6A685F">Agrees. Header 26px, and the DOM padding tokens move with it — except <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">padding-y</code> where the author owns the row height.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+          <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-on</div>
+          <div style="padding:10px 12px; color:#35342F; font-weight:600">off</div>
+          <div style="padding:10px 12px; color:#35342F">20px</div>
+          <div style="padding:10px 12px; color:#6A685F">Re-seeded back. Heights revert with the chrome.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; border-bottom:1px solid #E8E5DE; font-size:12px; line-height:1.5">
+          <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">gate-off</div>
+          <div style="padding:10px 12px; color:#35342F; font-weight:600">on</div>
+          <div style="padding:10px 12px; color:#35342F">the configured mode — <strong style="font-weight:600">24px</strong> compact by default</div>
+          <div style="padding:10px 12px; color:#6A685F">Re-seeded forward. This is what <a href="#seed-mark" style="color:#C96F12; font-weight:600">Modernize</a> produces — the reason stamping moves row heights, not just chrome.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:0.7fr 0.5fr 1fr 1.7fr; font-size:12px; line-height:1.5">
+          <div style="padding:10px 12px; color:#1F1F1B; font-weight:600">before gate</div>
+          <div style="padding:10px 12px; color:#35342F; font-weight:600">either</div>
+          <div style="padding:10px 12px; color:#35342F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code> 20px</div>
+          <div style="padding:10px 12px; color:#6A685F">Never reflows, whatever the mode is set to. Old dashboards keep the geometry they were laid out for.</div>
+        </div>
+      </div>
+      <div style="font-size:12px; line-height:1.55; color:#6A685F; max-width:76ch">Every height above applies only where the assembly still carries the legacy default. An author-set row height overrides all five rows — the server layer stands down, and per the decision below so does <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">padding-y</code>.</div>
+      <div style="font-size:13.5px; line-height:1.65; color:#6A685F; max-width:76ch">Same comparison the chrome path already performs, applied at <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rowHeight()</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">headerRowHeight()</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">cellHeight()</code>. It broadens what the mark means — from "which chrome branch ran" to "was this assembly created under the modern gate" — which is what the name should have carried all along, and it extends the same protection to the next design-time default for free.</div>
+      <div style="font-size:13.5px; line-height:1.65; color:#6A685F; max-width:76ch">Two things follow. The guarantee that gate-on reflows nothing no longer rests on dense happening to equal <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code>; it rests on the mark, which is a mechanism rather than a coincidence of numbers. And <a href="#seed-mark" style="color:#C96F12; font-weight:600">Modernize</a> gets heavier — stamping a dashboard now moves row heights as well as chrome, so the affected-assembly count in that bar stops being a courtesy.</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#99958C">The density matrix</div>
+        <div style="font-size:12px; color:#99958C">values read from the branch, where server heights and DOM tokens agree by construction · compact is the <strong style="font-weight:600; color:#6A685F">specified</strong> default; §02 records the branch default as dense</div>
+      </div>
+      <div style="border:1px solid #D9D5CC; border-radius:6px; overflow:hidden; background:#FFFFFF">
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">
+          <div style="padding:10px 14px">Role</div>
+          <div style="padding:10px 14px">Legacy</div>
+          <div style="padding:10px 14px">Dense</div>
+          <div style="padding:10px 14px">Compact</div>
+          <div style="padding:10px 14px">Comfortable</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Data row height <span style="color:#99958C">· server</span></div>
+          <div style="padding:10px 14px; color:#99958C">20px</div>
+          <div style="padding:10px 14px; color:#6A685F">20px</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">24px</div>
+          <div style="padding:10px 14px; color:#6A685F">28px</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Header row height <span style="color:#99958C">· server</span></div>
+          <div style="padding:10px 14px; color:#99958C">20px</div>
+          <div style="padding:10px 14px; color:#6A685F">22px</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">26px</div>
+          <div style="padding:10px 14px; color:#6A685F">30px</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Selection cell height <span style="color:#99958C">· server</span></div>
+          <div style="padding:10px 14px; color:#99958C">20px</div>
+          <div style="padding:10px 14px; color:#6A685F">20px</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">24px</div>
+          <div style="padding:10px 14px; color:#6A685F">28px</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Cell padding x / y <span style="color:#99958C">· DOM</span></div>
+          <div style="padding:10px 14px; color:#99958C">8 / 6</div>
+          <div style="padding:10px 14px; color:#6A685F">4 / 3</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">6 / 4</div>
+          <div style="padding:10px 14px; color:#6A685F">8 / 6</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Toolbar / control height <span style="color:#99958C">· DOM</span></div>
+          <div style="padding:10px 14px; color:#99958C">30 / 24</div>
+          <div style="padding:10px 14px; color:#6A685F">24 / 24</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">28 / 28</div>
+          <div style="padding:10px 14px; color:#6A685F">30 / 30</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Font size <span style="color:#99958C">· DOM</span></div>
+          <div style="padding:10px 14px; color:#99958C">13px</div>
+          <div style="padding:10px 14px; color:#6A685F">12px</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">13px</div>
+          <div style="padding:10px 14px; color:#6A685F">13px</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); border-bottom:1px solid #E8E5DE; font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Selection-list item padding x <span style="color:#99958C">· DOM</span></div>
+          <div style="padding:10px 14px; color:#99958C">8</div>
+          <div style="padding:10px 14px; color:#6A685F">4</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">6</div>
+          <div style="padding:10px 14px; color:#6A685F">8</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr repeat(4, 1fr); font-size:12.5px">
+          <div style="padding:10px 14px; color:#35342F">Selection container header buttons height <span style="color:#99958C">· DOM</span></div>
+          <div style="padding:10px 14px; color:#99958C">18px</div>
+          <div style="padding:10px 14px; color:#6A685F">20px</div>
+          <div style="padding:10px 14px; color:#1F1F1B; font-weight:600">22px</div>
+          <div style="padding:10px 14px; color:#6A685F">26px</div>
+        </div>
+      </div>
+      <div style="font-size:12px; line-height:1.55; color:#6A685F; max-width:80ch">The toolbar row lists what <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-toolbar-height</code> declares, not what the anchored strip renders: that is a hardcoded <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">height: 24px</code> in every mode and reads neither token — see §05, which decides it becomes <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-control-height-sm</code>. The selection-list row shares cell-padding’s column values by design — same rhythm, one row instead of a duplicate — and is new here for §06’s search input, resize template and quick-switch overlay, none of which previously varied by density. The selection container header buttons row is a companion finding: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">vs-selection-container.component.scss</code> — the multi-select wrapper around a group of selection lists, not the list itself — hardcodes <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">height:18px</code> on its header button row, tracking neither the selection-list item height nor any other density row. This is a DOM value, not a server-persisted one, so the “dense equals today” rule that pins row height to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code> does not apply here — nothing about it risks reflowing a saved layout. It follows the same pattern as toolbar height and cell padding instead: dense gets its own tighter modern value, 20px, rather than repeating the legacy literal. Compact’s 22px keeps the row inside a 44px hit target once padding is added; comfortable’s 26px matches the header-row role it sits alongside.</div>
+    </div>
+
+    <div style="background:#FFFFFF; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:7px; max-width:82ch">
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Two floors the matrix does not scale</div>
+      <div style="font-size:12.5px; line-height:1.6; color:#6A685F">The matrix is keyed by role, not by widget, and every row above scales across all four columns. Two calendar values are deliberate exceptions: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.month-cell</code>’s numeral type and the two round buttons’ 32×32 box <strong style="font-weight:600; color:#35342F">hold at their compact values in every tier, including dense.</strong> Density elsewhere trades padding for rows — dense fits more data in the same space. The calendar cannot: a month view shows the same 7×6 cells at every tier, so dense can only shrink the cells rather than fit more of them, and shrinking them puts the numeral under the type minimum and the buttons under the interactive-target floor. Its title lane and cell padding follow the Toolbar/control height and Cell padding rows normally; only these two are floored. The range slider’s blanket exemption does not apply — that one is exempt because it is bitmap-rendered with nothing in the DOM to scale. The implied work is unpicking <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.child-calendar-title</code>’s 36px from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.day-table</code>’s <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">calc(100% - 36px)</code>, which must become a token reference before either can move.</div>
+    </div>
+
+    <div style="background:#FFFFFF; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:7px; max-width:82ch">
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">The CSS fallback mode is dense, not compact</div>
+      <div style="font-size:12.5px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_viz-tokens.scss</code> scopes the matrices as <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern.viz-density-<mode></code>, and bare <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern</code> shares its block with <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-density-dense</code> — so an element with the modern class but no density class resolves to dense. That was harmless while dense <em>was</em> the default. Under the compact default it is a split-brain risk: the server sizes rows at 24px while the DOM pays 4/3 padding and 12px type, which is the two-layer disagreement above arriving from the opposite direction. The density body class must be emitted unconditionally whenever <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">viz-modern</code> is, or the bare <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern</code> block has to carry compact’s values instead of dense’s. Pick one and state it in the ticket — this is exactly the class of defect that ships silently.</div>
+    </div>
+
+    <div style="background:#FFFFFF; border:1px solid #E7E2D8; border-radius:5px; padding:14px 16px; display:flex; flex-direction:column; gap:7px; max-width:82ch">
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6A685F">Title height needs its own row — decided in §05</div>
+      <div style="font-size:12.5px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">AssetUtil.defh</code> supplies title height alongside the data row, header row, selection cell and list-input heights, yet the matrix above carries no row for it — so nothing here states what compact does to the 20px lane, and §05 needed a number for the anchored-strip collision. §05 settles it — the lane is its own row at <strong style="font-weight:600; color:#35342F">20 / 26 / 30</strong> — dense pinned to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code> so it stays legacy-exact, compact’s 26px clearing the 24px anchored strip by construction. Add the row to the matrix above; its gate and mark conditions are the same as every other height here.</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div style="font-size:11px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#99958C">Live preview · {{ densityLabel }}</div>
+      <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap">
+        <div style="flex:1 1 380px; min-width:340px; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden; background:#FFFFFF; box-shadow:0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)">
+          <div style="background:#F1EFEA; color:#6A685F; font-size:12px; font-weight:600; padding:0 10px; height:22px; display:flex; align-items:center; border-bottom:1px solid #D9D5CC">Regional sales</div>
+          <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr; background:#F1EFEA; color:#6A685F; border-bottom:1px solid #D9D5CC; font-size:{{ demoFont }}; height:{{ demoHeaderH }}">
+            <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center">Territory</div>
+            <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; justify-content:flex-end; font-variant-numeric:tabular-nums">Units</div>
+            <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; justify-content:flex-end; font-variant-numeric:tabular-nums">Revenue</div>
+          </div>
+          <sc-for list="{{ demoRows }}" as="row" hint-placeholder-count="5">
+            <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr; border-bottom:1px solid #E8E5DE; font-size:{{ demoFont }}; height:{{ demoRowH }}; color:#35342F">
+              <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ row.name }}</div>
+              <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; justify-content:flex-end; font-variant-numeric:tabular-nums">{{ row.units }}</div>
+              <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; justify-content:flex-end; font-variant-numeric:tabular-nums">{{ row.revenue }}</div>
+            </div>
+          </sc-for>
+          <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr; background:#E9E4DA; font-size:{{ demoFont }}; height:{{ demoRowH }}; color:#35342F; font-weight:600">
+            <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center">Total</div>
+            <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; justify-content:flex-end; font-variant-numeric:tabular-nums">41,802</div>
+            <div style="padding:0 {{ demoPadX }}; display:flex; align-items:center; justify-content:flex-end; font-variant-numeric:tabular-nums">1,284,300</div>
+          </div>
+        </div>
+        <div style="flex:0 1 300px; display:flex; flex-direction:column; gap:12px; padding-top:4px">
+          <p style="margin:0; font-size:13px; line-height:1.65; color:#6A685F">Rendered at the values the active mode resolves to. Type moves once, at dense; everything else is height and padding — which is the rule the design spec asked for and the code keeps.</p>
+          <p style="margin:0; font-size:13px; line-height:1.65; color:#6A685F">The structure colours here are the shipped modern palette: gridline <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E8E5DE</code>, header band <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F1EFEA</code> on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#6A685F</code>, header rule <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#D9D5CC</code>, grand total <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E9E4DA</code>.</p>
+          <p style="margin:0; font-size:13px; line-height:1.65; color:#99958C">Switch modes in Tweaks.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The two density layers can disagree</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">Server height applies only to assemblies still on the legacy default; the DOM padding tokens apply unconditionally to any surface that consumes them. A table whose author set a 32px row height gets comfortable padding inside a dense row, or the reverse. The asymmetry is the defect — the server layer already stands down when an author owns the height, and the DOM layer stands down for nothing, because a token cannot see that a row was resized.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F"><strong style="font-weight:600">Vertical padding defers to an author-set height; horizontal padding does not.</strong> Where the author owns the row height, that assembly leaves the density system vertically and takes legacy <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">padding-y</code> 6px, so the proportions they set are the ones they keep. Column padding never interacts with row height, so compact’s 6px <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">padding-x</code> applies to a resized table exactly as it does anywhere else. Deferring both would opt a table out of half the density system for no reason.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">This is not free in CSS: the density scope has to be emitted <strong style="font-weight:600">per assembly</strong> rather than once per page, so the server can decline to emit it for assemblies that are not on the legacy default. That is the same shift to per-assembly resolution the <a href="#seed-mark" style="color:#C96F12; font-weight:600">seed mark</a> already requires, so it ships in that change rather than after it.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">One check belongs in the ticket: an author-set height that happens to equal <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code> 20 must be distinguishable from one never set. If it is not, deferral misfires on tables an author deliberately pinned to 20 — the value-sniffing trap of <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">resolveSeededCorner()</code> again, and the mark is the same answer.</p>
+    </div>
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">05</span>
+      <h2 id="widget-set" style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">The widget set, one at a time</h2>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">Which resolver reaches each widget today and what it lands there, against what the widget still draws from a hardcoded literal. Resolver names link back to §02; everything in the first column applies only with the master gate on. The second column is the evidence, not the plan — §06 is where these literals collapse into a shared vocabulary. Two entries below are not values to swap but calls — the KPI hierarchy and the title-lane geometry. Both are decided in the callouts at the end of this section.</p>
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden">
+        <div style="padding:14px 18px; border-bottom:1px solid #E8E5DE; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+          <div style="font-size:15px; font-weight:600; color:#1F1F1B">Table · Crosstab · Freehand table</div>
+          <div style="font-size:11.5px; color:#99958C; font-family:ui-monospace,Menlo,monospace">vs-table · vs-crosstab · vs-calctable</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="padding:16px 18px; border-right:1px solid #E8E5DE; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#2E8B57">Modern today</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSTableStructureDefaults</code> — full structure palette via the Default Style clone: gridline, header band and rule, grand-total and subtotal bands, all export-correct. Row and header heights from the density matrix. Row hover on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-hover-bg</code>, sort glyph on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-sorted-color</code>.</p>
+          </div>
+          <div style="padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#C84C4C">Still literal</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F">Selected cell fill and text — server-rendered, unbridged (§07). The sort control in <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">base-table.scss</code> is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">white / darkblue / 1px solid black</code>, active <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#bdbdbd</code>; <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">td { color:#333 }</code> shadows the token; resize handles, lines and labels are all bare <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">gray</code>; the loading message and crosstab drill tip are hand-mixed <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgba()</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden">
+        <div style="padding:14px 18px; border-bottom:1px solid #E8E5DE; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+          <div style="font-size:15px; font-weight:600; color:#1F1F1B">Selection list · Selection tree · Current selection</div>
+          <div style="font-size:11.5px; color:#99958C; font-family:ui-monospace,Menlo,monospace">vs-selection · selection-list-cell · current-selection</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="padding:16px 18px; border-right:1px solid #E8E5DE; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#2E8B57">Modern today</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSDensityDefaults</code> for cell height, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSTitleChromeDefaults</code> for the title bar. The current-selection title surface already binds <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code>.</p>
+          </div>
+          <div style="padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#C84C4C">Still literal</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F">The largest untouched surface in the set. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">vs-selection.component.scss</code> carries five separate greys — search box <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(80,80,80)</code> border on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(245,245,245)</code>, selected-text rule <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(192,192,192)</code>, header rule <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(218,218,218)</code>, resize template <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#eee</code> — plus a measure-bar baseline at <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#CFCFCF</code>, a <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">black</code> resize border, and a quick-switch overlay with its own <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgba</code> fill, border, radius and shadow. Selected item fill is server-rendered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden">
+        <div style="padding:14px 18px; border-bottom:1px solid #E8E5DE; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+          <div style="font-size:15px; font-weight:600; color:#1F1F1B">Range slider</div>
+          <div style="font-size:11.5px; color:#99958C; font-family:ui-monospace,Menlo,monospace">vs-range-slider</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="padding:16px 18px; border-right:1px solid #E8E5DE; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#2E8B57">Modern today</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F">No resolver reaches it. The file is unchanged from the baseline branch.</p>
+            <p style="margin:0; font-size:12.5px; line-height:1.6; color:#99958C">Redrawn in CSS and given interaction states — decided below.</p>
+          </div>
+          <div style="padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#C84C4C">Still literal</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F">The track, handle and middle thumb are <strong style="color:#35342F; font-weight:600">bitmap PNGs</strong> — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">assets/default/timeslider/track.png</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">button_up.png</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">thumb_middle_up.png</code> — so no token of any kind can recolour this control. All three are 129–235 byte tiled strips, not artwork. Only the <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_up</code> variants are referenced, so the handle has <strong style="color:#35342F; font-weight:600">no hover or press state</strong> — it looks identical while dragging. Frame is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">1px #bababa</code>, the tip is white-on-black and commented "left as not themeable", the tick is a 5px bold black glyph.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px; max-width:92ch">
+        <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The range slider is redrawn in CSS</div>
+          <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+        </div>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#35342F">The reason to do this rather than defer it is not that the control is untokenized — it is that <strong style="font-weight:600">one of the three images is a selection affordance.</strong> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.thumb-middle</code> is the band showing the selected interval, so a dashboard renders the range slider’s selection in grey while its tables and calendar render theirs in primary. That is the inconsistency §07 was decided to end, unnoticed because it lives in a PNG rather than a declaration.</p>
+        <div style="display:grid; grid-template-columns:auto 1fr; gap:7px 12px; font-size:13px; line-height:1.6; color:#6A685F">
+          <div style="font-weight:600; color:#35342F">Track</div><div>Flat token fill with its border from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code> in place of literal <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#bababa</code>. The PNG is a 1px tiled strip, so the result is pixel-equivalent.</div>
+          <div style="font-weight:600; color:#35342F">Range band</div><div>§07’s derived fill from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code>, the same value tables and the calendar use.</div>
+          <div style="font-weight:600; color:#35342F">Handle</div><div>A bordered circle on the control tokens, and — since only <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_up</code> exists today — this is where it gains hover and press. A drag handle with no press feedback is the weakest affordance in the set.</div>
+          <div style="font-weight:600; color:#35342F">Tooltip</div><div>The "left as not themeable" exemption on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.range-slider-tip</code> is dropped; it takes the same treatment the shell ticket applies to the card tooltip.</div>
+          <div style="font-weight:600; color:#35342F">Geometry</div><div>Unchanged and outside density — 9px track, 16px handle, the existing 30×36 <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">mobile-padding</code> variant for touch. The widget has no content to trade for padding.</div>
+        </div>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#6A685F">The eight-state <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">granite/timeslider/</code> set under <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">core/</code> is the server-side report painter and is not touched by this.</p>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden">
+        <div style="padding:14px 18px; border-bottom:1px solid #E8E5DE; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+          <div style="font-size:15px; font-weight:600; color:#1F1F1B">KPI outputs · Text · Gauge · Painted slider</div>
+          <div style="font-size:11.5px; color:#99958C; font-family:ui-monospace,Menlo,monospace">output/* · VSSlider</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="padding:16px 18px; border-right:1px solid #E8E5DE; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#2E8B57">Modern today</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSOutputChromeDefaults</code> — value foreground <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#35342F</code> and border <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#D9D5CC</code> as DEFAULT-tier substitutions; weight and size deliberately untouched, and a highlight still wins. The painted slider moves off <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E0E0E0 / #9E9E9E</code> onto the warm neutrals, matched to the live CSS so export and screen agree.</p>
+          </div>
+          <div style="padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#1D5B39">Decided below</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F">The design spec's KPI guidance — comparison and sparkline subordinate to the primary value — has no representation in code, because there is no KPI composite: text, gauge and image are independent assemblies an author arranges by hand. Nothing owns the relationship between the three, so no resolver can tell a comparison figure from a primary value. <strong style="font-weight:600; color:#35342F">The guidance drops</strong> — decided below.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden">
+        <div style="padding:14px 18px; border-bottom:1px solid #E8E5DE; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+          <div style="font-size:15px; font-weight:600; color:#1F1F1B">Calendar</div>
+          <div style="font-size:11.5px; color:#99958C; font-family:ui-monospace,Menlo,monospace">vs-calendar · month-calendar · year-calendar</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="padding:16px 18px; border-right:1px solid #E8E5DE; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#2E8B57">Modern today</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSCalendarChromeDefaults</code> — but <strong style="color:#35342F; font-weight:600">dark mode only</strong>: light modern gets nothing from it. On the DOM side the three <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--surface</code> classes (title label, month cell, day-title cell) already bind <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code> on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-surface-subtle</code>, and both round buttons hover on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-hover-secondary-bg-color</code>. Further along than the range slider, and the only widget here whose modern path is a colour scheme rather than a density one.</p>
+            <p style="margin:0; font-size:12.5px; line-height:1.6; color:#99958C">The audit raised three calls, all decided: light-modern coverage and the gate move in §02, the selection fill with endpoint borders in §07, density with two floored values in §04.</p>
+          </div>
+          <div style="padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#C84C4C">Still literal</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.calendar-selected-cell</code> is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">solid 2px gray</code> — a selection treatment nothing in §07 reaches, because it is a border rather than a fill. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.row-resize-label</code> repeats the <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">background-color: gray</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">color: white</code> plate for the sixth time. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.pending-alert.left</code> is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(245,245,245)</code>. Geometry is density-blind throughout: both round buttons are a fixed 32×32, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.child-calendar-title</code> is 36px with <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.day-table</code> hardcoding <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">calc(100% - 36px)</code> against it, and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.month-cell</code> pins <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">font-size: 14px</code> above every tier in the matrix.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; overflow:hidden">
+        <div style="padding:14px 18px; border-bottom:1px solid #E8E5DE; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+          <div style="font-size:15px; font-weight:600; color:#1F1F1B">Shared title bar · Mini toolbar</div>
+          <div style="font-size:11.5px; color:#99958C; font-family:ui-monospace,Menlo,monospace">vs-title · title-cell · mini-toolbar</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="padding:16px 18px; border-right:1px solid #E8E5DE; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#2E8B57">Modern today</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSTitleChromeDefaults</code> — one title bar across every titled assembly: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F1EFEA</code> on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#6A685F</code> with a <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#D9D5CC</code> rule, deliberately equal to the table header so chrome reads as one system. Substitution is keyed on whether the user or format.css set a value, not on matching a specific legacy colour — which is what lets white, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#f5f5f5</code> and transparent titles converge.</p>
+          </div>
+          <div style="padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#1D5B39">Decided below</div>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:#6A685F">The anchored strip is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">height: 24px</code> under <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern</code> while the title lane is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code> 20px — a 4px overflow, and 24 more under a coarse pointer. <strong style="font-weight:600; color:#35342F">Resolved by the lane, not the strip</strong> — decided below.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The KPI hierarchy has nothing to attach to</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">The design spec asks for comparison and sparkline to read as subordinate to the primary value. That is a hierarchy statement, and hierarchy needs a container to live in. There is no KPI composite — text, gauge and image are independent assemblies an author drags into place — so nothing in the product knows which value is primary.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F"><strong style="font-weight:600">The guidance drops.</strong> KPI is an authoring pattern, not a component. A rule no resolver can enforce is worse than no rule: it invites implementation against a promise the code will not keep, and it leaves this document carrying a permanent gap that is really a scope error. The subordination language comes out of the design spec, and this section stops claiming a KPI widget exists.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">A real KPI composite stays open as a product decision — value, comparison and sparkline as slots, with the hierarchy structural and therefore stylable. It is a new assembly type with its own editor, binding and export path, which is a different initiative from chrome defaults.</p>
+    </div>
+
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The anchored strip does not fit the title lane</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">First, the collision as previously written was wrong. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">min-width: --inet-control-height-md</code> is on the button and is <em>horizontal</em> — a 30px width floor for an icon target, making no claim on height. The strip’s height is a hardcoded <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">height: 24px</code> on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.mini-toolbar-container</code> under <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">:host-context(.viz-modern)</code>, coupled to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">GuiTool.MINI_TOOLBAR_HEIGHT_MODERN</code>. So the real figure is <strong style="font-weight:600">24 into 20</strong>, not 30 into 20 — and under a coarse pointer the strip already overrides to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">min-height: --inet-control-height-touch</code> with <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">overflow: visible</code>, overflowing the lane by 24px on purpose.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F"><strong style="font-weight:600">The lane grows; the strip keeps its size.</strong> Title height joins the density matrix as its own row at <strong style="font-weight:600">20 / 26 / 30</strong> — dense pinned to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">defh</code>, compact and comfortable borrowing the header row’s steps. Compact’s 26px lane holds the 24px strip with 1px clearance either side, so it fits by construction. Dense stays 20px, which is the point: it is the one mode that must equal today, and the anchored strip is unavailable there anyway.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">A 24px strip cannot fit a 20px lane, so <strong style="font-weight:600">dense drops below chrome entirely — no strip, no kebab, right-click only.</strong> This is not a density-specific carve-out: it is the same floor the chart card spec's own toolbar ladder already enforces on height alone (its §06) — a 24px control needs 4px of clearance above and below, so anything under 32px hosts no chrome at all, kebab included. Dense's 20px lane sits under that floor, so it inherits the ladder's bottom rung rather than inventing a new one. Floating does not reappear anywhere in this: the sibling project's model never falls back to a floating strip at any height or family, it only shrinks the strip, then drops to kebab-only, then drops to nothing.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">This floor is a lane-height problem, and touch is not measured against the lane: as the opening paragraph notes, the coarse-pointer override already sets <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">min-height: --inet-control-height-touch</code> with <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">overflow: visible</code>, so a touch kebab already overflows a comfortable 30px lane by 24px on purpose, and overflows a dense 20px lane the same way. But that only means touch does not go through <em>this</em> floor — the sibling project's own touch rule is a separate, still height-gated one, measured against the whole card's height rather than the lane: kebab renders at 52px of card height and above (the 44px target plus 4px clearance either side), and drops below it. <strong style="font-weight:600">Touch is governed by a different metric than the pointer strip, not exempted from a floor altogether</strong> — whether a given dense-mode card clears that 52px threshold is a separate, unanswered question here.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">One consequence for pointer users: on dense, gate-on dashboards, chart actions lose both their at-rest and hover-revealed routes — right-click becomes the only way in, same as the sibling ladder's own no-chrome state. Because heights move only for marked gate-on assemblies (§03, §04), a before-gate dashboard keeps its 20px lane and whatever it floats today; this floor only applies once an assembly is gate-on, where the anchored strip is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">isVizModern()</code>-gated regardless. And the hardcoded <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">24px</code> should become <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-control-height-sm</code> — the same step the chart card spec's own compact-height tier (56–96px of card height) already resolves its strip down to. It is the shared control-height scale §09 should bind to, not a value invented for this strip.</p>
+    </div>
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">06</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">One vocabulary for the affordances</h2>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">The literals in §05 are not per-widget decisions; they are the same eight affordances written across as many widgets. Resize line and label, structural rule, overlay scrim and pending alert appear in table, crosstab, calc table, selection list, selection cell, title cell, calendar and range slider — with a different grey each time. Three more (search input, resize template, quick-switch overlay) are selection-list-only, folded in below rather than ticketed separately — they bind to tokens this table already introduces, so there is no new decision to make, just three more literals to retire. Specify them once and the sweep becomes mechanical.</p>
+
+    <div style="border:1px solid #D9D5CC; border-radius:6px; overflow:hidden; background:#FFFFFF">
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">
+        <div style="padding:10px 14px">Affordance</div>
+        <div style="padding:10px 14px">Today</div>
+        <div style="padding:10px 14px">Bind to</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Resize line / handle</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">gray</code> in five files; <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">black</code> on the selection cell; <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#eee</code> on the resize template</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code>, 1px — an active drag is the one moment a widget earns the accent</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Resize label</div>
+        <div style="padding:11px 14px; color:#6A685F">Six copies of <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">background:gray; color:white; padding:2px</code>, min-width 35 or 40px</div>
+        <div style="padding:11px 14px; color:#6A685F">One shared rule: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-text-strong-color</code> on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-light-color</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-radius-sm</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-feedback-font-size</code></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Structural rule</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(192,192,192)</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(218,218,218)</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#CFCFCF</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#bababa</code> — four greys inside 0.05 of each other</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code>, or the gridline neutral inside a data surface</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Overlay scrim</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgba(255,255,255,0.8)</code> on the loading message, drag message and non-rendered placeholder; <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">0.88</code> on the quick-switch button; <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">0.7</code> on the drill tip</div>
+        <div style="padding:11px 14px; color:#6A685F">One value. The shipped <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-overlay-*</code> family already has the slots</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Pending alert</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(245,245,245)</code> plate, duplicated in the selection list and the calendar at different insets</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-surface-subtle</code>, one inset</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Search input</div>
+        <div style="padding:11px 14px; color:#6A685F">Selection list only: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(80,80,80)</code> border, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgb(245,245,245)</code> background — a second, undocumented use of the pending-alert plate colour on a different surface</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code> border, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-surface-subtle</code> background — same two tokens as structural rule and pending alert, no new value needed. Horizontal padding binds to §04’s new selection-list row, not a fixed value, so it breathes with density the way table padding already does.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Resize template</div>
+        <div style="padding:11px 14px; color:#6A685F">Selection list only: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#eee</code> border, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgba(180,180,180,.1)</code> fill on the drag-preview ghost</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-hover-bg</code> at reduced alpha for the fill, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code> for the border — a ghost is a hover state, not a new affordance</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1.1fr 1.5fr 1.4fr; font-size:12.5px; line-height:1.55">
+        <div style="padding:11px 14px; color:#35342F">Quick-switch overlay</div>
+        <div style="padding:11px 14px; color:#6A685F">Selection list only: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgba(255,255,255,.88)</code> button fill, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">rgba(0,0,0,.25)</code> border, literal <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">border-radius:3px</code> — off the <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">-sm/-md/-lg/-xl</code> scale used everywhere else in this document</div>
+        <div style="padding:11px 14px; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-surface-color</code> fill, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-default-border-color</code> border, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-radius-md</code> — the one entry here that also fixes an off-scale radius, not just a colour</div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="font-size:13px; font-weight:600; color:#1F1F1B">Which §05 literal each row above closes</div>
+      <div style="border:1px solid #D9D5CC; border-radius:6px; overflow:hidden; background:#FFFFFF">
+        <div style="display:grid; grid-template-columns:1.3fr 2.7fr; background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">
+          <div style="padding:10px 14px">Widget (§05)</div>
+          <div style="padding:10px 14px">Closed by</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.3fr 2.7fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+          <div style="padding:11px 14px; color:#35342F">Table · Crosstab · Freehand table</div>
+          <div style="padding:11px 14px; color:#6A685F">Sort-glyph border and active fill are the affordance table's <em>structural rule</em> and <em>resize label</em> rows — not addressed here. Selected cell fill stays open; that is §07, not §06.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.3fr 2.7fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+          <div style="padding:11px 14px; color:#35342F">Selection list · Selection cell</div>
+          <div style="padding:11px 14px; color:#6A685F">All eight rows above apply: <em>resize line/handle</em> and <em>resize label</em> close the selection-cell border and label; <em>structural rule</em> closes the divider greys; <em>search input</em>, <em>resize template</em> and <em>quick-switch overlay</em> — added to this table above, selection-list-specific — close the remaining three, and their horizontal spacing now scales with density via the new row in §04's matrix. Fully closed except the server-rendered selected-item fill, which is §07, not §06.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.3fr 2.7fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+          <div style="padding:11px 14px; color:#35342F">Title cell</div>
+          <div style="padding:11px 14px; color:#6A685F">Not closed by any row above — its literal was the 30px anchored-toolbar geometry, a size conflict rather than a colour, decided separately at the end of §05.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.3fr 2.7fr; border-bottom:1px solid #E8E5DE; font-size:12.5px; line-height:1.55">
+          <div style="padding:11px 14px; color:#35342F">Calendar</div>
+          <div style="padding:11px 14px; color:#6A685F"><em>Pending alert</em> row closes the plate colour and inset. Border and dark-mode gap are §07 items, not §06.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.3fr 2.7fr; font-size:12.5px; line-height:1.55">
+          <div style="padding:11px 14px; color:#35342F">Range slider</div>
+          <div style="padding:11px 14px; color:#6A685F">None of the five rows reach it — it is three bitmap PNGs, not CSS, so there is nothing here to bind. Its own ticket, per §08.</div>
+        </div>
+      </div>
+    </div>
+
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">All of it is path C — live view only, no export consequence, no persisted value. It can ship independently of everything else in this document, and it is the cheapest visible consistency win available.</p>
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">07</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">The selection-state bridge</h2>
+      <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:3px 8px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">Why the widget set still looks unfinished under the gate, and the last of the five decisions this document settles. <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">--inet-viz-selected-bg</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">--inet-viz-selected-text</code> are exposed and modern-valued, but their only consumer is the combo-box dropdown. On tables and selection lists — the surfaces the tokens were named for — selected fill and text come from <code style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px">VSFormat</code> and appear in every export format.</p>
+
+    <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap">
+      <div style="flex:1 1 300px; min-width:280px; border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+        <div style="padding:10px 14px; background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:11px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">What a customer sees today</div>
+        <div style="padding:16px 18px; display:flex; flex-direction:column; gap:10px">
+          <div style="display:flex; gap:10px; align-items:flex-start">
+            <span style="flex:0 0 auto; width:14px; height:14px; border-radius:3px; background:#DDF1F5; border:1px solid #BFDDE5; margin-top:2px"></span>
+            <div style="font-size:12.5px; line-height:1.55; color:#6A685F">Override <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-selected-bg</code> in the theme editor → the combo-box pick list changes.</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:flex-start">
+            <span style="flex:0 0 auto; width:14px; height:14px; border-radius:3px; background:#E7E2D8; border:1px solid #D9D5CC; margin-top:2px"></span>
+            <div style="font-size:12.5px; line-height:1.55; color:#6A685F">The table cell they were actually looking at does not.</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 300px; min-width:280px; border:1px solid #D9D5CC; border-radius:6px; background:#FFFFFF; overflow:hidden">
+        <div style="padding:10px 14px; background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:11px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">What the bridge costs now</div>
+        <div style="padding:16px 18px; font-size:12.5px; line-height:1.6; color:#6A685F">No sixth resolver. The two properties join the per-assembly DEFAULT-tier recompute the seed mark already builds (§03), so the work is two more values in an existing path rather than a new class with its own sub-gate. It still changes export output, so it still needs the manual pass the chart selection change needed — and it ships with the chart’s selection vocabulary, not separately, or the product carries two selection idioms in one dashboard.</div>
+      </div>
+    </div>
+
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:8px">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">Derive it, and ride the re-seed path</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F"><strong style="font-weight:600">Both tokens are withdrawn, and selection is derived instead.</strong> Data selection is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code> at 28% over the cell, with text left at its normal foreground — the same construction the chart card already ships. That retires <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-selected-bg</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-selected-text</code> rather than wiring them up: a derived value cannot drift from the shell’s focus family, and the theme editor still controls selection, through primary, with no dedicated control to keep honest. The viz layer’s teal <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#DDF1F5</code> family retires with them, which settles the first row of §09 by construction rather than by agreement.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F"><strong style="font-weight:600">No sixth resolver.</strong> The two derived values are two more properties in the per-assembly DEFAULT-tier recompute §03 already introduces. A standalone class was the right shape before the mark existed; it is now a second mechanism for the same job.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F"><strong style="font-weight:600">The tint is flattened against the assembly background, not composited per cell.</strong> This is the part that would otherwise be decided by whoever hits it: 28% alpha is free in CSS but <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSFormat</code> backgrounds are solid, so the server has to resolve the tint to one colour — and what sits underneath varies with banded rows and conditional fills. Flatten once against the assembly background. On a banded row the result is a few percent off a true composite, which is invisible next to the cost of per-cell compositing in the painters, and it keeps one selection colour per assembly instead of a family that shifts row to row.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">The calendar takes the same fill, with a border on range endpoints only, because an interval selection cannot show where it starts and stops from fill alone — reasoned below. One consequence to accept: a conditional fill dark enough to swallow a 28% tint will show selection weakly. That is already true of the chart’s treatment and is the correct trade — a selection highlight should not outrank data the author deliberately coloured.</p>
+
+      <div style="background:#F5F4F0; border:1px solid #E7E2D8; border-radius:5px; padding:16px 18px; display:flex; flex-direction:column; gap:9px; max-width:92ch">
+        <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+          <span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E7E4DC; color:#83807A">Design discussion</span>
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#83807A">Why the calendar needs a border as well</div>
+        </div>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#6A685F">Two of the three objections to putting the calendar on this fill do not survive inspection. Cell size favours it: a 2px border on a small day cell crowds the numeral where a tint does not. Compositing resolves cleanly too, because <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.day-cell</code> carries no background of its own — with the caveat that the <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--surface</code> classes put month and day-title cells on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-surface-subtle</code>, so one flattened tint lands a few percent off there. That is the same trade accepted above for banded rows.</p>
+        <p style="margin:0; font-size:13.5px; line-height:1.65; color:#35342F">The third is real. <strong style="font-weight:600">A fill loses range endpoints.</strong> Calendar selection is frequently an interval, and a flat 28% tint across contiguous cells reads as one continuous band with no indication of where it starts and stops. A table does not have this problem — a table selection is a set of rows, not a range. So the fill is right for the interior and insufficient on its own: all four borders on the endpoint cells, none in the interior, both values derived from primary. That keeps this vocabulary intact rather than forking it, and it mirrors how the chart card separates selected from focused.</p>
+      </div>
+    </div>
+
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">08</span>
+      <h2 style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">Order of work</h2>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div style="display:flex; gap:16px; align-items:flex-start; background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:16px 18px">
+        <span style="flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:#E58A2A; color:#FFFFFF; font-size:12px; font-weight:700; display:grid; place-items:center">1</span>
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:14px; font-weight:600; color:#1F1F1B">The affordance sweep · §06</div>
+          <div style="font-size:13px; line-height:1.6; color:#6A685F">Live-view only, no export risk, no decision needed. Deletions before bindings — the duplicated resize-label rule collapses to one before anything is retokenized.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-start; background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:16px 18px">
+        <span style="flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:#E58A2A; color:#FFFFFF; font-size:12px; font-weight:700; display:grid; place-items:center">2</span>
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:14px; font-weight:600; color:#1F1F1B">Selection list interior · §05</div>
+          <div style="font-size:13px; line-height:1.6; color:#6A685F">Search box, header rule, measure baseline, quick-switch overlay. The one widget the initiative has not touched at all, and the one most visible in a filter-heavy dashboard.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-start; background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:16px 18px">
+        <span style="flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:#E58A2A; color:#FFFFFF; font-size:12px; font-weight:700; display:grid; place-items:center">3</span>
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:14px; font-weight:600; color:#1F1F1B">Title lane and anchored strip · §05</div>
+          <div style="font-size:13px; line-height:1.6; color:#6A685F">Decided, and three small pieces of work: add the title-height row to the §04 matrix at 20 / 26 / 30, drop dense below the chrome floor entirely — no strip, no kebab, right-click only, matching the chart card spec’s own height-driven ladder rather than a density-specific fallback — and swap the hardcoded <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">height: 24px</code> for <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-control-height-sm</code>. Unblocks the chart card’s eight-assembly rollout.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-start; background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:16px 18px">
+        <span style="flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:#E58A2A; color:#FFFFFF; font-size:12px; font-weight:700; display:grid; place-items:center">4</span>
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:14px; font-weight:600; color:#1F1F1B">Seed mark and re-seed · §03</div>
+          <div style="font-size:13px; line-height:1.6; color:#6A685F">Decided, unblocked, and a ship condition — the branch does not release without it. A tri-state mark on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSAssemblyInfo</code>, one re-seed path, the density heights read through the same mark, and the density scope emitted per assembly so vertical padding can stand down for author-set heights (§04) — with the gate resolved once per render.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-start; background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:16px 18px">
+        <span style="flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:#E58A2A; border:1.5px solid #E58A2A; color:#FFFFFF; font-size:12px; font-weight:700; display:grid; place-items:center">5</span>
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:14px; font-weight:600; color:#1F1F1B">Derived selection · §07</div>
+          <div style="font-size:13px; line-height:1.6; color:#6A685F">Decided: withdraw both selection tokens, derive from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code> at 28% flattened against the assembly background, and carry the two values in the §03 re-seed rather than a sixth resolver. Ships with the chart’s selection vocabulary as one changeset. Export-affecting; budget the manual pass.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-start; background:#FFFFFF; border:1px solid #D9D5CC; border-radius:6px; padding:16px 18px">
+        <span style="flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:#FFFFFF; border:1.5px solid #D9D5CC; color:#99958C; font-size:12px; font-weight:700; display:grid; place-items:center">6</span>
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <div style="font-size:14px; font-weight:600; color:#1F1F1B">Range slider bitmaps · §05</div>
+          <div style="font-size:13px; line-height:1.6; color:#6A685F">Its own ticket. Three PNGs have to become drawn CSS before any token can reach the control, and the chart's Resize Plot slider decision is the precedent to copy rather than re-litigate.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="export-parity" style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px; max-width:92ch">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The export parity pass is scoped, not scheduled</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; font-size:13.5px; line-height:1.65; color:#35342F">The visualization layer renders twice — DOM in the browser, Java-painted graphics for PDF, PNG and scheduled reports — and the two paths do not share code, so a change to one diverges from the other silently rather than failing. The full cross-product of formats, widgets, tiers and modes is large enough that nobody finishes it. <strong style="font-weight:600">Parity is only at risk where a resolver writes the DEFAULT tier and the two renderers read it differently</strong>, which is three places, not a matrix.</p>
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:7px 12px; font-size:13px; line-height:1.6; color:#6A685F">
+        <div style="font-weight:600; color:#35342F">Combinations</div><div>Calendar chrome (light branch and dark, at the painter), the derived selection fill (computed in Java as well as CSS), and the range slider. Frame, radius, background and padding are format values both paths read from the same clone — one spot-check, not a row each.</div>
+        <div style="font-weight:600; color:#35342F">Formats</div><div>PDF and PNG. Excel carries neither chrome nor selection, so it cannot diverge on any of the three; scheduled reports use the same painter as PDF.</div>
+        <div style="font-weight:600; color:#35342F">Density</div><div>Compact and dense. Comfortable is the least-changed tier — agreement at the extremes implies the middle.</div>
+        <div style="font-weight:600; color:#35342F">Owner</div><div>Whoever implements each decision, not a separate reviewer. The person adding the calendar’s light branch is the only one who knows what it should look like at the painter; a dedicated parity owner would be auditing code they did not write against an intent they would have to reconstruct.</div>
+      </div>
+      <p style="margin:0; font-size:13.5px; line-height:1.65; color:#35342F">One of the three is a decision rather than a check. <strong style="font-weight:600">The range slider will diverge by construction:</strong> §05 redraws the DOM control in CSS while the painter keeps its eight-state <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">granite/timeslider/</code> bitmaps. Either the painter is redrawn with it, or the two renderers deliberately differ and the spec says so. That belongs in the §05 ticket before it opens, not in a parity pass afterwards.</p>
+    </div>
+
+  </section>
+
+  <section style="display:flex; flex-direction:column; gap:20px">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <span style="font-size:11px; font-weight:700; color:#E58A2A; letter-spacing:0.5px">09</span>
+      <h2 id="layer-ownership" style="margin:0; font-size:21px; font-weight:600; color:#1F1F1B; letter-spacing:-0.2px">Which layer owns a value</h2>
+    </div>
+    <p style="margin:0; max-width:70ch; font-size:14px; line-height:1.65; color:#6A685F">Both specs now live on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">viz-updates</code>, and the shell half has largely shipped there — the tooltip work is bound, and its modern values sit under a descendant selector on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern</code>. That matters more than it sounds. <strong style="font-weight:600; color:#35342F">The shell is not a peer layer with its own gate; its modern values are inside this one.</strong> So the rows below are not two systems meeting at a boundary — they are one gate turning on two answers to the same question, in the same stylesheet pass, on the same dashboard. Which means one answer in each pair is simply redundant.</p>
+
+    <div style="border:1px solid #D9D5CC; border-radius:6px; overflow:hidden; background:#FFFFFF">
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; background:#F1EFEA; border-bottom:1px solid #D9D5CC; font-size:10.5px; font-weight:700; letter-spacing:0.7px; text-transform:uppercase; color:#6A685F">
+        <div style="padding:10px 14px">Axis</div>
+        <div style="padding:10px 14px">Shell answer</div>
+        <div style="padding:10px 14px">Viz-layer answer</div>
+        <div style="padding:10px 14px">Reading</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Selection colour<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Resolved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Settled 2026-08-01 as one vocabulary: fill <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-focus-ring-color</code> (primary at 28%), stroke <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E58A2A</code>. The dotted grey and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#dc581e</code> were retired to end three ways of saying "selected".</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">A visualization-owned teal — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#DDF1F5</code> fill, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#123C44</code> text, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#BFDDE5</code> border — described in <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_viz-tokens.scss</code> as "kept distinct from shell/Composer selection".</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Was the sharpest conflict in the set: a chart and a table side by side showing orange selection on one and teal on the other, reinstating the multiple-idiom problem the chart decision was taken to end. §07 settles it — the teal family retires, and selection is derived from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code> rather than themed, so the two layers cannot diverge again by wiring. Narrower than it first read: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_viz-tokens.scss</code> already defines <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-selected-border</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-active-border</code> as <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">var(--inet-primary-color)</code>, so the borders match the chart’s stroke today. Only the fills diverge, and the retirement reaches those.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Control height<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Resolved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Three shipped steps used deliberately: 30px <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-control-height-md</code> in the title lane, 24px <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">-sm</code> for the overlaid strip, 44px touch floor.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-control-height</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-toolbar-height</code> resolve to 24 / 28 / 30px by density mode.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">28px is not a shipped step — the scale goes 24, 30, 36, 44 — and since §04 makes compact the default, it is a value that ships rather than one hypothetical of three. The anchored toolbar turns out to read neither token: its height is a hardcoded <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">24px</code> under <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">.viz-modern</code>. §05 decides that becomes <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-control-height-sm</code> — the same 24px as a shipped step, and the value the chart card spec already names for the overlaid strip. That part now agrees; what remains is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-toolbar-height</code>’s own 28px compact step, which no shipped scale contains.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Body type size<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Resolved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">The shell ticket explicitly moved tooltips off a 12px literal: "12px → <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-font-size-base</code> (13px) … no such token."</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-font-size</code> is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">12px</code> in dense — commented "only tier that reduces type" — and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-font-size-base</code> in the other two, which since §04 includes the default mode.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">A literal the shell just removed, reintroduced in the density matrix. It no longer reaches the default mode, so this is the mildest conflict in the set — but if dense genuinely needs a smaller step it should be named, not written as a number, or the next audit removes it again.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Hover fill<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Resolved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-surface-hover</code> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#ECE9E2</code> — a warm neutral, adopted in the chart card spec’s own §07 over the drawn <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F2F0EB</code>.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-hover-bg-modern</code> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#EEF4F6</code> — a cool blue-grey.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Chart chrome hovers warm, table rows hover cool, in one dashboard. Part of a wider temperature split: the shell/chart neutrals are warm (#F8F7F4, #D9D5CC, #35342F) while the modern viz states are cool. Decide whether the viz state family is deliberately a different temperature or drifted into one.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Cell padding<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Resolved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Every gap in the card is a shipped <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-space-*</code> step — 4 / 8 / 12 / 16px, "the Token column names the shipped steps, not a new namespace".</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-cell-padding-y</code> is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">3px</code> in dense; x uses <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-space-2</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">-3</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">-4</code>.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">One literal in an otherwise fully tokenized matrix. 3px falls between the two smallest steps (space-1 is 2px, space-2 is 4px), so it is a deliberate half-step — worth either naming or rounding to 4px and checking the row still fits 20px.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Structural neutrals<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">A four-value ramp, each bound: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#ECE9E2</code> hover, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E8E5DE</code> gridline (to add as <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-subtle-border-color</code>), <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#D9D5CC</code> border, plus the card edge.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Adds <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F7F3EA</code> context fill and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#C8C2B7</code> pinned divider.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Not a new neutral: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#C8C2B7</code> is <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">$shell-border-strong</code>, already piped through to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-pinned-divider</code> — confirmed on the branch. No ramp addition; it's the shell's own strong-border token reused here, not a fifth widget-set grey.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Conditional fills<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Agrees</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Badge family used throughout the spec drawings: warn <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F8E8CC</code>, bad <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F7DEDE</code>, lane <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F6E2C8</code>.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-warning-bg</code> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F8E8CC</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-anomaly-bg</code> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F7DEDE</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-filtered-bg</code> <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#F6E2C8</code>.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Exact matches on all three, independently arrived at. Nothing to do — worth recording so a future audit does not re-open it.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Gridline grey<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Retint to #E8E5DE</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">DOM's <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E8E5DE</code> against the server painter's <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#EEEEEE</code>, measured from an exported chart.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Painter side owned by <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">VSTableStructureDefaults</code>; DOM side is the widget-set token.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">No longer a guess: the two ruled their interiors differently, a cool grey against a warm one. Fix is a one-line retint of the painter to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E8E5DE</code>, filed as a ticket against §07's parity scope.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; border-bottom:1px solid #E8E5DE; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Dark palette<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E9E4F4; color:#5B3FA0">Moved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">No dark values. The chart card spec lists dark theme as a verification path, not a defined palette.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">A full dark set — <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#1C1B1F</code> canvas, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#252428</code> card, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#49454F</code> border, <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#E6E0E9</code> text.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Not this project's decision to make — it's a chart card spec absence, not a widget-set one. Moved to the chart card handoff patch (§7) as a decision the chart pilot must make: scope dark in, or defer it explicitly.</div>
+      </div>
+      <div style="display:grid; grid-template-columns:0.85fr 1.15fr 1.15fr 1.5fr; ">
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#1F1F1B; font-weight:600">Alignment rules<div style="margin-top:5px"><span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:3px; background:#E9E4F4; color:#5B3FA0">Moved</span></div></div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Five named anchors — card inset, plot box, tick, title lane, sibling — with every element assigned exactly one, and a stated 12px shared inset.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">No equivalent. Density fixes heights and padding; nothing states what a widget interior aligns to.</div>
+        <div style="padding:11px 14px; font-size:12.5px; line-height:1.55; color:#6A685F">Not this project's decision to make — the widget layer has no anchor model to fix without borrowing one. Moved to the chart card handoff patch (§7) as the larger of its two open decisions, since it's a missing model rather than a missing value.</div>
+      </div>
+    </div>
+
+    <div style="background:#F1EFEA; border-left:2px solid #E58A2A; border-radius:0 4px 4px 0; padding:16px 18px; display:flex; flex-direction:column; gap:9px">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#C96F12">The ownership rule</div>
+        <span style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:#E2F3E8; color:#1D5B39">Decided</span>
+      </div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">The four remaining conflicts were one mistake in four sets of clothes: a value chosen well inside one layer, with no rule saying which layer owns it. Because both layers answer to the same gate, there is no boundary to negotiate at.</p>
+      <div style="background:#FFFFFF; border:1px solid #D9D5CC; border-radius:5px; padding:14px 16px; font-size:14px; line-height:1.6; color:#1F1F1B">A value belongs to the <strong style="font-weight:600">shell</strong> whenever the shell has a shipped token for it. The visualization layer may declare a value only where it needs a distinction the shell does not make — density being the whole of that case. <em>Distinct because visualization is different</em> is a reason; <em>distinct because visualization is separate</em> is not, and on one gate it is not even true.</div>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">Read against that rule the four resolve without further argument. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-toolbar-height</code>’s 28px compact step is redundant — the shell scale goes 24/30/36/44 and §05 already put the anchored strip on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-control-height-sm</code> — so the token keeps only the steps the shell lacks, which is none, and retires. <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-font-size</code> at 12px restates <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-font-size-base</code>, which the shell ticket had just finished removing from the tooltips; it retires too. Hover fill’s cool <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#EEF4F6</code> restates the warm <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-hover-secondary-bg-color</code> with no distinction to point at. The audit’s "fifth structural neutral" turned out to be a fourth instance of the same thing, not a gap: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">#C8C2B7</code> is already <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">$shell-border-strong</code> in <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_variables.scss</code>, and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-viz-pinned-divider</code> merely restates its hex. And the binding already exists: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">$shell-border-strong</code> flows to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-shell-border-strong</code> to <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-border-strong-color</code>, which <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">_viz-tokens.scss</code> line 43 correctly assigns to the divider. The defect is that line 98 <strong style="font-weight:600">re-declares the same token as the literal</strong> inside a mode block, overriding the base block’s derivation — so the work is deleting one line, not adding a token. The gap was an artefact of auditing custom properties without the SCSS beneath them, and of reading a mode-block override as the definition. Cell padding is the one survivor with a real claim: <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">3px</code> is below the space scale, but a data grid genuinely needs a tighter step than any shell surface — so the answer is a new shell step, not a viz-local literal.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#35342F">Two earlier closures show why the rule is worded around tokens rather than authority. Selection colour was the fifth conflict and §07 closed it by <strong style="font-weight:600">derivation</strong> — deriving from <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">--inet-primary-color</code> retires both viz tokens, so the layers cannot restate each other at all. Card radius was the clearest instance and §03 settled it at 6px the same way. Where a value can be derived or borrowed, prefer that to adjudicating it: a precedence rule settles an argument, a shared token removes the ability to have one.</p>
+      <p style="margin:0; max-width:76ch; font-size:13.5px; line-height:1.65; color:#6A685F">The four gaps are not covered by this rule and stay open on their own terms; none is a disagreement, each is an absence, and they are tracked as rows in the table above.</p>
+    </div>
+  </section>
+
+
+  <footer style="border-top:1px solid #D9D5CC; padding-top:20px; display:flex; flex-direction:column; gap:6px">
+    <div style="font-size:12px; color:#99958C">Companion to <em>Chart Card Spec v3</em>. The chart is the pilot; this is the other eight.</div>
+    <div style="font-size:12px; color:#99958C">Read against <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5px">viz-updates</code> on 10 Aug 2026. Phases 0–9 of the visualization roadmap are landed on that branch, as is most of the chart card’s shell work.</div>
+  </footer>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;densityPreview&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dense&quot;,&quot;compact&quot;,&quot;comfortable&quot;],&quot;default&quot;:&quot;compact&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Density preview&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const mode = this.props.densityPreview ?? "compact";
+    const matrix = {
+      dense:       { row: 20, header: 22, padX: 4, font: 12 },
+      compact:     { row: 24, header: 26, padX: 6, font: 13 },
+      comfortable: { row: 28, header: 30, padX: 8, font: 13 }
+    };
+    const m = matrix[mode] || matrix.compact;
+    const labels = { dense: "Dense", compact: "Compact (default)", comfortable: "Comfortable" };
+    return {
+      densityLabel: labels[mode] || labels.dense,
+      demoRowH: m.row + "px",
+      demoHeaderH: m.header + "px",
+      demoPadX: m.padX + "px",
+      demoFont: m.font + "px",
+      demoRows: [
+        { name: "USA West", units: "12,480", revenue: "384,200" },
+        { name: "USA East", units: "10,915", revenue: "331,050" },
+        { name: "Canada Central", units: "7,240", revenue: "228,900" },
+        { name: "EMEA North", units: "6,102", revenue: "196,400" },
+        { name: "APAC South", units: "5,065", revenue: "143,750" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
