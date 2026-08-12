@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -1658,6 +1659,7 @@ public class WorksheetEditService {
          }
 
          String conditionType = ref != null ? ref.getDataType() : type != null ? type : XSchema.STRING;
+         DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
          NamedGroupInfo ngi = new NamedGroupInfo();
          ngi.setOthers(groupOthers
@@ -1679,7 +1681,7 @@ public class WorksheetEditService {
                   Condition c = new Condition(conditionType);
                   c.setOperation(XCondition.EQUAL_TO);
                   c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(ref, c, 0));
+                  conds.append(new ConditionItem(conditionRef, c, 0));
                }
 
                ngi.setGroupCondition(m.name(), conds);
@@ -1966,6 +1968,8 @@ public class WorksheetEditService {
 
          if(mappings != null) {
             DataRef ref = nga.getAttachedAttribute();
+            String conditionType = ref != null ? ref.getDataType() : XSchema.STRING;
+            DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ConditionList conds = new ConditionList();
@@ -1976,10 +1980,10 @@ public class WorksheetEditService {
                      conds.append(junc);
                   }
 
-                  Condition c = new Condition(ref != null ? ref.getDataType() : XSchema.STRING);
+                  Condition c = new Condition(conditionType);
                   c.setOperation(XCondition.EQUAL_TO);
                   c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(ref, c, 0));
+                  conds.append(new ConditionItem(conditionRef, c, 0));
                }
 
                ngi.setGroupCondition(m.name(), conds);
@@ -2129,6 +2133,24 @@ public class WorksheetEditService {
          if(cs.getAttribute(column) == null) {
             throw new PairingException("Column not found: " + column);
          }
+      }
+
+      /**
+       * Returns the {@link DataRef} to use inside a named group's {@link ConditionItem}s.
+       * {@code ConditionItem} requires a non-null attribute — a null one NPEs in
+       * {@code ConditionItem.toString()}, which runs whenever the worksheet is cloned (e.g. on
+       * touch/save). When the group isn't attached to a real column, the Composer's own Grouping
+       * Properties dialog ({@code grouping-condition-dialog.component.ts}) substitutes a "this"
+       * placeholder {@link BaseField} instead of leaving the ref null; this mirrors that.
+       */
+      private DataRef namedGroupConditionRef(DataRef ref, String dataType) {
+         if(ref != null) {
+            return ref;
+         }
+
+         BaseField thisField = new BaseField("this");
+         thisField.setDataType(dataType);
+         return thisField;
       }
 
       /**

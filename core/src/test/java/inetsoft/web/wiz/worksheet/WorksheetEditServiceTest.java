@@ -217,4 +217,78 @@ class WorksheetEditServiceTest {
          () -> svc.apply("TOK", agent,
                          ed -> ed.addNamedGroup("G", "T", null, null, List.of(), false)));
    }
+
+   @Test
+   void addNamedGroupStandaloneConditionUsesThisPlaceholderAndSurvivesClone() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ", "CT")),
+         new WorksheetMutationSupport.GroupMapping("West", List.of("CA")));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("StateRegion", null, null, "string", mappings, false));
+
+      DefaultNamedGroupAssembly nga = (DefaultNamedGroupAssembly) ws.getAssembly("StateRegion");
+      DataRef conditionRef = nga.getNamedGroupInfo().getGroupCondition("Northeast")
+         .getConditionItem(0).getAttribute();
+      assertNotNull(conditionRef);
+      assertEquals("this", conditionRef.getAttribute());
+
+      // Regression for NPE in ConditionItem.toString() (invoked via NamedGroupInfo.clone() during
+      // worksheet clone, e.g. TouchAssetService) when the condition's DataRef was left null.
+      assertDoesNotThrow(() -> ws.clone());
+   }
+
+   @Test
+   void editNamedGroupOnStandaloneGroupSurvivesClone() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("StateRegion", null, null, "string", List.of(), false));
+      svc.apply("TOK", agent,
+                ed -> ed.editNamedGroup("StateRegion",
+                                        List.of(new WorksheetMutationSupport.GroupMapping(
+                                           "West", List.of("CA"))),
+                                        false));
+
+      DefaultNamedGroupAssembly nga = (DefaultNamedGroupAssembly) ws.getAssembly("StateRegion");
+      DataRef conditionRef = nga.getNamedGroupInfo().getGroupCondition("West")
+         .getConditionItem(0).getAttribute();
+      assertNotNull(conditionRef);
+      assertEquals("this", conditionRef.getAttribute());
+
+      // NamedGroupInfo.clone() catches and swallows its own NPE (logging "Failed to clone
+      // object" and returning null) rather than propagating it, so this alone would not have
+      // caught the regression — the assertions above on the condition ref are what matter here.
+      assertDoesNotThrow(() -> ws.clone());
+   }
 }
