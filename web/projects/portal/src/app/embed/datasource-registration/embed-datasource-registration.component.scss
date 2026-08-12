@@ -1,0 +1,30 @@
+.embed-datasource-registration {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+
+  .type-picker ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 24rem;
+    overflow-y: auto;
+  }
+
+  .type-picker li button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: .35rem .5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .actions {
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+  }
+}

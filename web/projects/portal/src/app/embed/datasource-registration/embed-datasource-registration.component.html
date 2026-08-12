@@ -1,0 +1,31 @@
+<div class="embed-datasource-registration">
+  @if(loading) {
+    <div class="loading">Loading…</div>
+  }
+
+  @if(!datasource) {
+    <div class="type-picker">
+      <h3>Choose a data source type</h3>
+      <input class="filter" type="text" placeholder="Filter types"
+             [(ngModel)]="filter" [ngModelOptions]="{standalone: true}"/>
+      <ul>
+        @for(l of visibleListings(); track l.name) {
+          <li><button type="button" (click)="pick(l.name)">{{ l.name }}</button></li>
+        }
+      </ul>
+    </div>
+  } @else {
+    <datasources-datasource-editor
+      [datasource]="datasource"
+      [usedNames]="usedNames"
+      (datasourceChanged)="onChanged($event)"
+      (datasourceValid)="valid = $event"
+      (onWarning)="failed.emit($event)">
+    </datasources-datasource-editor>
+
+    <div class="actions">
+      <button type="button" (click)="cancel()">Cancel</button>
+      <button type="button" [disabled]="!valid || saving" (click)="save()">Save</button>
+    </div>
+  }
+</div>
