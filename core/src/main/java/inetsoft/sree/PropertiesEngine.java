@@ -358,6 +358,11 @@ public class PropertiesEngine {
          if(dot >= 0) {
             String orgPrefix = name.substring(0, dot + 1);
             String suffix = name.substring(dot + 1);
+            // recurse directly rather than through fixPropertyNameCase(): that would re-enter
+            // propertyNameCaseCache.computeIfAbsent() for a second key while the outer call for
+            // this name is still computing, which ConcurrentHashMap can reject with a recursive
+            // update IllegalStateException. Bypassing the cache here is deliberate; recursion is
+            // one level deep (org prefix, then the real name), so the cost is negligible.
             return orgPrefix.toLowerCase() + computePropertyNameCase(suffix);
          }
 

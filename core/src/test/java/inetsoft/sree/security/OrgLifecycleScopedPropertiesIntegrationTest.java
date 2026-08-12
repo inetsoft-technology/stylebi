@@ -161,6 +161,29 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
                   "old org id must fall back to the global default, not keep the migrated-away value");
    }
 
+   // ── Bug #76054: computePropertyNameCase() had an unreachable inetsoft.org. branch, so the
+   //    org-scoped write path (setProperty(name, val, true)) ran the whole already-prefixed
+   //    "inetsoft.org.<orgid>.<name>" string back through the plain lowercase rule, while the
+   //    read path (useAvailableOrgProperty) looked it up with the property name's case intact.
+   //    A mixed-case org-scoped name matching one of the case-preserving guards (log.level. here)
+   //    would be stored lowercased and never found on read. This locks in the fix: org id segment
+   //    is lowercased, the log.level. suffix's case survives storage and lookup. ──
+   @Test
+   void orgScoped_setProperty_mixedCaseLogLevelName_roundTripsWithCasePreserved() {
+      String orgId = "scopedprops_case_org";
+
+      actAs(orgId);
+      SreeEnv.setProperty("log.level.com.MyCompany.Service", "DEBUG", true);
+
+      assertEquals("DEBUG",
+                  SreeEnv.getProperty("log.level.com.MyCompany.Service", false, true),
+                  "org-scoped mixed-case log level property must be readable back under its own "
+                  + "org context");
+      assertEquals("DEBUG",
+                  SreeEnv.getProperty("inetsoft.org." + orgId + ".log.level.com.MyCompany.Service"),
+                  "the log.level. suffix's case must survive storage under the org-scoped key");
+   }
+
    private static void actAs(String orgId) {
       ThreadContext.setContextPrincipal(new SRPrincipal(new IdentityID("tester", orgId),
          new IdentityID[0], new String[0], orgId, 1L));
