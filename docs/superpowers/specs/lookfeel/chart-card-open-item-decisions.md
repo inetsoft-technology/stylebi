@@ -186,13 +186,57 @@ dependency is real and someone should confirm the seed mark's status before sche
 
 ---
 
+## 4. Dense draws no chrome at all — the v3 reversal is accepted
+
+**Decided 2026-08-12.** The `chart-card-design3` sync reversed widget spec §05. Both readings agree that a
+24px strip cannot anchor into dense's 20px lane; they disagree about what dense gets instead.
+
+| | Decision |
+|---|---|
+| §05 as of v2 | Dense falls back to "the existing hover-revealed overlay — the legacy `.mini-toolbar:hover` path, already shipping, no new code" |
+| §05 as of v3 | "Dense drops below chrome entirely — no strip, no kebab, right-click only" |
+
+**v3 is taken as current.** The reasoning that carries it is v3's own: the height ladder never falls back to
+a floating strip at any card size or family — it shrinks the strip, drops to kebab-only, then draws nothing.
+Reintroducing the floating strip at one density would be the only place in the model where a control that
+stopped fitting reappears somewhere else, which is a second idiom for the same state.
+
+**The argument v3 attaches to it does not hold, and does not need to.** §05 claims dense inherits this
+automatically from the existing 32px floor, so that no density-specific rule is needed. It does not: the
+floor measures the assembly, not the lane. `AbstractVSActions` tests
+`this.model.objectFormat.height < ACTION_FLOOR`, and the chart card spec's §06 is a card-height ladder
+throughout — "as the card shrinks", "a 200px title-hidden card is 24px." A 200px dense chart has a 20px lane
+and a 200px card, and the ladder reads 200px. See [corrections](./chart-card-source-doc-corrections.md) §1.1.
+
+So the outcome is adopted and the mechanism is written explicitly: `isAnchoredChromeSuppressed()` in
+`mini-toolbar.service.ts`, a sibling of `isAnchoredResident()` rather than its negation, consumed by
+`AbstractVSActions.showingActions` beside the existing floor test.
+
+### What this costs, and who should confirm it
+
+**Touch loses its only route.** v3's phrase is "right-click only," and touch has no right-click. Under the
+gate at dense, an anchored assembly on a tablet now has no way to reach its actions at all. The
+implementation matches the shipped floor branch, which suppresses below 32px regardless of pointer type, so
+this is consistent rather than novel — but the floor case is a card too small to be worth interacting with,
+and a dense dashboard is not. Chart card spec §06 says the 44px touch floor "overrides all of them," which
+would argue for keeping a touch kebab; read strictly that would also put a 44px control on a 20px lane.
+
+Neither document resolves it, so it is recorded here rather than decided: **dense plus touch has no
+affordance, and the sibling project should confirm that is intended.** One predicate changes it if not.
+
+**Two things that did not change.** Anchoring still stops under dense, which was never in dispute. And the
+`height: 24px` → `--inet-control-height-sm` swap stands — both versions of §05 ask for it.
+
+---
+
 ## Still open after this
 
-- **The seed mark's status.** A release condition for `viz-updates` per the widget spec §03, decided
-  there, absent from code, and now gating decision 3 as well as §04's density heights. Nothing in this
-  repo tracks it. This is a question for the sibling project, not work.
-- **The strip's density gating** (corrections doc §3.1) — decided by the widget spec §08 step 3, not yet
-  accepted or scheduled here, and it is what actually gates the container and calendar slices.
+- ~~**The seed mark's status.**~~ **Closed 2026-08-12.** A product decision set now specifies it in this
+  repo — see [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md). Still a
+  release condition, still absent from code, still gating decision 3 and §04's density heights, but no
+  longer an open question owned elsewhere. Note it departs from §03: persisted wholesale revert rather than
+  recompute-onto-a-clone, no automatic forward re-seed, and no stored `gate-off` state.
+- **Whether dense-plus-touch is meant to have no affordance** — decision 4 above.
 - **The card radius 12→6 and retiring `resolveSeededCorner()`** (corrections doc §3.3) — decided,
   sequenced behind the seed mark, and see decision 1 above for what just happened to half its rationale.
 - **Four cheap verifications** carried over: the 9pt→9px measurement gating the type scale, the nav bar's
