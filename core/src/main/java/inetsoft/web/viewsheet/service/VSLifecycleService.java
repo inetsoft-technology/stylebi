@@ -255,7 +255,8 @@ public class VSLifecycleService {
 
       // Add selection parameters if hyperlinkSourceID is set
       if(event.getHyperlinkSourceId() != null) {
-         serviceProxy.setRuntimeParameters(event.getHyperlinkSourceId(), parameters, principal);
+         parameters = serviceProxy.setRuntimeParameters(
+            event.getHyperlinkSourceId(), parameters, principal);
       }
 
       VariableTable variables = parameterService.readParameters(parameters);

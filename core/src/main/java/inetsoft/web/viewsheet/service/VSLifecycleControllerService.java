@@ -75,19 +75,12 @@ public class VSLifecycleControllerService {
                Object paramValue = hyperlinkRef.getParameter(pname);
                String[] values = new String[0];
 
+               // When adding parameters from selections, the parameter value can be an
+               // array with one entry per selected value.
                if(Tool.getDataType(paramValue).equals(Tool.ARRAY)) {
-                  if(((Object[]) paramValue).length > 0) {
-                     paramValue = ((Object[]) paramValue)[0].toString().split("\\^");
-                     Object[] params =
-                        (Object[]) Tool.getData(Tool.ARRAY, Tool.getDataString(paramValue));
-
-                     if(params != null && params.length > 0) {
-                        values = Arrays.stream(params)
-                           .map((param) -> Tool.getData(Tool.getDataType(param),
-                                                        Tool.getDataString(param)).toString())
-                           .toArray(String[]::new);
-                     }
-                  }
+                  values = Arrays.stream((Object[]) paramValue)
+                     .map(Tool::getDataString)
+                     .toArray(String[]::new);
                }
                else {
                   values = new String[]{ Tool.getDataString(paramValue) };
