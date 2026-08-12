@@ -28,6 +28,9 @@ import { EmbedTableComponent } from "./app/embed/table/embed-table.component";
 import { EmbedGaugeComponent } from "./app/embed/gauge/embed-gauge.component";
 import { EmbedTextComponent } from "./app/embed/text/embed-text.component";
 import { EmbedImageComponent } from "./app/embed/image/embed-image.component";
+import {
+   EmbedDatasourceRegistrationComponent
+} from "./app/embed/datasource-registration/embed-datasource-registration.component";
 
 import { FullScreenService } from "./app/common/services/full-screen.service";
 import { UIContextService } from "./app/common/services/ui-context.service";
@@ -94,6 +97,11 @@ createApplication({
       createCustomElement(EmbedTextComponent, { injector }));
    customElements.define("inetsoft-image",
       createCustomElement(EmbedImageComponent, { injector }));
+   // Unlike the others, this element authors content rather than displaying it: it registers a data
+   // source. Attribute `listing-name` skips the type picker; it emits `registered`, `cancelled` and
+   // `failed` as DOM CustomEvents.
+   customElements.define("inetsoft-datasource-registration",
+      createCustomElement(EmbedDatasourceRegistrationComponent, { injector }));
 }).catch(err => console.error(err));
 
 /**
