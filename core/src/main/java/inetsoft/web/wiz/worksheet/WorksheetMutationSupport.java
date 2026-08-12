@@ -17,10 +17,16 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.SelectTable;
@@ -65,6 +71,54 @@ public final class WorksheetMutationSupport {
     * @param alias   optional output alias; may be {@code null}
     */
    public record AggregateSpec(String field, String formula, String alias) {}
+
+   /**
+    * Describes a single group-by column for
+    * {@link #applyAggregateInfo(TableAssembly, List, List)}.
+    *
+    * <p>Accepted on the wire as either a bare column name string (equivalent to
+    * {@code dateLevel == null}) or an object {@code {"field": ..., "dateLevel": ...}} —
+    * see {@link Deserializer}.</p>
+    *
+    * @param field     the source column name
+    * @param dateLevel optional date grouping level applied directly to the group (no
+    *                  derived column needed) for date-type columns — one of the same
+    *                  option strings accepted by {@code add_date_range_column}'s
+    *                  {@code dateOption} (e.g. {@code "YEAR"}, {@code "QUARTER"},
+    *                  {@code "MONTH"}); {@code null} for a plain (non-date-bucketed) group
+    */
+   @JsonDeserialize(using = GroupSpec.Deserializer.class)
+   public record GroupSpec(String field, String dateLevel) {
+      public GroupSpec(String field) {
+         this(field, null);
+      }
+
+      /** Accepts either a plain JSON string (column name) or a {@code {field, dateLevel}} object. */
+      static final class Deserializer extends JsonDeserializer<GroupSpec> {
+         @Override
+         public GroupSpec deserialize(JsonParser p, DeserializationContext ctxt) throws java.io.IOException {
+            JsonNode node = p.getCodec().readTree(p);
+
+            if(node.isTextual()) {
+               return new GroupSpec(node.asText());
+            }
+
+            if(!node.isObject()) {
+               return ctxt.reportInputMismatch(GroupSpec.class,
+                  "Expected a group-by column name string or a {field, dateLevel} object, got: " +
+                  node);
+            }
+
+            String field = node.hasNonNull("field") ? node.get("field").asText() : null;
+            // "dateOption" is add_date_range_column's spelling of this same concept;
+            // accept it as an alias so that near-miss doesn't silently deserialize to an
+            // ungrouped date column.
+            String dateLevel = node.hasNonNull("dateLevel") ? node.get("dateLevel").asText() :
+               node.hasNonNull("dateOption") ? node.get("dateOption").asText() : null;
+            return new GroupSpec(field, dateLevel);
+         }
+      }
+   }
 
    /**
     * A named group mapping — group name to list of values that belong to that group.
@@ -216,17 +270,27 @@ public final class WorksheetMutationSupport {
     * Builds and sets a new {@link AggregateInfo} on the table from the supplied
     * group and aggregate specs.
     *
-    * <p>The column selection is not modified; columns referenced here must already
-    * exist in the private column selection.</p>
+    * <p>Columns referenced here must already exist in the private column selection,
+    * except that a group with a {@code dateLevel} replaces its base column with a
+    * {@link DateRangeRef}-wrapped one (see below).</p>
     *
     * @param t          the table assembly to mutate
-    * @param groups     column names to group by
-    * @param aggregates aggregate measures to apply
+    * @param groups     group-by column specs (name, plus optional date grouping level);
+    *                   {@code null} is treated as empty
+    * @param aggregates aggregate measures to apply; {@code null} is treated as empty
     */
-   public static void applyAggregateInfo(TableAssembly t, List<String> groups,
+   public static void applyAggregateInfo(TableAssembly t, List<GroupSpec> groups,
                                          List<AggregateSpec> aggregates)
       throws inetsoft.web.wiz.pairing.PairingException
    {
+      // Callers (e.g. WorksheetAgentController) may pass a null groups or aggregates
+      // list when the request omits that key entirely; normalize before either the
+      // emptiness check below or the per-spec loops run, so a null groups list paired
+      // with a non-empty aggregates list (or vice versa) can't NPE instead of being
+      // treated as "no groups".
+      groups = groups == null ? List.of() : groups;
+      aggregates = aggregates == null ? List.of() : aggregates;
+
       // Clear aliases left on the column selection by a PRIOR call's aggregate
       // outputs before resolving anything new. Those aliases exist purely to label
       // aggregate results; once the AggregateInfo is being replaced they become
@@ -239,17 +303,29 @@ public final class WorksheetMutationSupport {
       // result — a plausible-looking but numerically wrong answer.
       clearAggregateAliases(t);
 
-      if((groups == null || groups.isEmpty()) &&
-         (aggregates == null || aggregates.isEmpty()))
-      {
-         t.setProperty(AGGREGATE_OUTPUT_ALIASES, "");
-         t.setAggregateInfo(new AggregateInfo());
-         t.setAggregate(false);
-         return;
-      }
-
+      // Deliberately no early return for groups.isEmpty() && aggregates.isEmpty():
+      // AggregateDialogService#applyAggregateInfo runs its stale-range-column cleanup
+      // sweep and AssetUtil.validateConditions unconditionally, even when the new
+      // AggregateInfo is completely empty (a full clear), so a full clear here must
+      // too - otherwise a DateRangeRef-wrapped column materialized by an earlier
+      // dateLevel grouping (e.g. "Quarter(orderDate)") would be left behind forever,
+      // since the loops below produce the same empty-AggregateInfo end state either way.
       AggregateInfo ainfo = new AggregateInfo();
       ColumnSelection cs = t.getColumnSelection(false);
+
+      // The table's AggregateInfo as it stood before this call, captured before any
+      // mutation below — needed by the stale-range-column cleanup at the end, which
+      // (matching AggregateDialogService#processDateGrouping) treats a column as a
+      // candidate for removal only if it was one of THESE previous groups, not any
+      // DateRangeRef-wrapped column anywhere in the table's column selection.
+      AggregateInfo oaginfo = t.getAggregateInfo();
+      oaginfo = oaginfo == null ? new AggregateInfo() : oaginfo;
+
+      // The final DataRef for each of THIS call's groups, in order — mirrors
+      // AggregateDialogService's own `list`, used by the same cleanup to recognize a
+      // range column as still active even though it isn't reachable via `oaginfo`
+      // (e.g. it was just created a few lines above for this very call).
+      List<DataRef> activeGroupColumns = new ArrayList<>();
 
       // Aliases set by THIS call to label aggregate outputs; recorded on the table so
       // the next call's clearAggregateAliases() can tell them apart from aliases set
@@ -282,8 +358,8 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      for(String group : groups) {
-         ColumnRef resolved = availableColumns.get(group);
+      for(GroupSpec spec : groups) {
+         ColumnRef resolved = availableColumns.get(spec.field());
 
          if(resolved == null) {
             // Fail loud: a silently invalid GroupRef would be dropped by the next
@@ -291,13 +367,126 @@ public final class WorksheetMutationSupport {
             // practice because setting an aggregate alias RENAMES the base column, so
             // a later call referencing the old name misses.
             throw new inetsoft.web.wiz.pairing.PairingException(
-               "Column not found for group: '" + group + "'. Available columns: " +
+               "Column not found for group: '" + spec.field() + "'. Available columns: " +
                availableColumns.keySet());
          }
 
-         GroupRef gr = new GroupRef(resolved);
+         GroupRef gr;
+
+         if(spec.dateLevel() == null) {
+            gr = new GroupRef(resolved);
+         }
+         else {
+            // A GroupRef whose DataRef is still the raw column, with only setDateGroup()
+            // called, has no effect once the aggregate is mergeable into SQL:
+            // PreAssetQuery.mergeGroupBy() builds the GROUP BY list purely from
+            // findColumn()/getColumn() on the GroupRef's DataRef and never consults
+            // getDateGroup(), and isMergeableDataType() only excludes date columns on
+            // SQLite — so on any regular JDBC-backed table this would silently group by
+            // the raw date value instead of the requested bucket. The Composer's Group
+            // and Aggregate dialog (AggregateDialogService#processDateGrouping) avoids
+            // this by INSERTING a DateRangeRef-wrapped column as the group's actual
+            // DataRef right alongside the raw base column — it does not remove the raw
+            // column, so it stays available (e.g. still shows in the Group and Aggregate
+            // dialog's column list, still filterable). setDateGroup() is then only a
+            // round-trip marker so the level survives a reload. Mirror that mechanism
+            // exactly here, including keeping the raw column.
+            if(!XSchema.isDateType(resolved.getDataType())) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Column '" + spec.field() + "' is not a date type (type=" +
+                  resolved.getDataType() + "). dateLevel requires a date, time, or " +
+                  "timeInstant column.");
+            }
+
+            int dgroup = WorksheetEditService.Editor.parseDateOption(spec.dateLevel());
+            String colName = resolved.getName();
+            DateRangeRef dateRef = new DateRangeRef(
+               DateRangeRef.getName(colName, dgroup), resolved.getDataRef(), dgroup);
+            dateRef.setOriginalType(resolved.getDataType());
+
+            String dtype = dateRef.getDataType();
+
+            // Match AggregateDialogService's TIME special case: a plain time-of-day
+            // column keeps its TIME type for interval-style levels — DateRangeRef's
+            // default of TIME_INSTANT would be wrong since there is no date component.
+            if(XSchema.TIME.equals(dateRef.getOriginalType()) &&
+               dateRef.getDateOption() != DateRangeRef.HOUR_OF_DAY_DATE_GROUP)
+            {
+               dtype = dateRef.getOriginalType();
+            }
+
+            ColumnRef dateColumn = new ColumnRef(dateRef);
+            dateColumn.setDataType(dtype);
+
+            // Insert (not replace) at the raw column's position, exactly like
+            // AggregateDialogService#processDateGrouping — the raw column is left in
+            // the selection so it remains independently usable (e.g. add_filter on the
+            // raw date, or grouping it a second way later) and keeps showing up in the
+            // Composer's Group and Aggregate dialog the same way it would after a user
+            // applies a date level through the UI.
+            int bidx = cs.indexOfAttribute(resolved);
+
+            if(bidx >= 0) {
+               cs.addAttribute(bidx, dateColumn);
+            }
+            else {
+               cs.addAttribute(dateColumn);
+            }
+
+            gr = new GroupRef(dateColumn);
+            gr.setDateGroup(dgroup);
+         }
+
          ainfo.addGroup(gr);
+         activeGroupColumns.add(gr.getDataRef());
       }
+
+      // Remove a range column left over from a PRIOR call's grouping that is no longer
+      // referenced — ported directly from AggregateDialogService#processDateGrouping's
+      // "remove useless range column" pass (same two conditions, same oaginfo/list
+      // scoping), so this only ever touches a column this mechanism itself put there,
+      // never one created by an unrelated operation (e.g. add_date_range_column, or a
+      // range column serving some other still-active purpose).
+      for(int i = cs.getAttributeCount() - 1; i >= 0; i--) {
+         DataRef ref0 = cs.getAttribute(i);
+         String name0 = ref0.getName();
+         boolean range = ref0 instanceof DataRefWrapper &&
+            ((DataRefWrapper) ref0).getDataRef() instanceof DateRangeRef;
+
+         if(!range) {
+            for(int j = 0; j < oaginfo.getGroupCount(); j++) {
+               GroupRef gref = oaginfo.getGroup(j);
+               DateRangeRef dateRef = getDateRangeRef(gref);
+
+               if(dateRef != null && dateRef.isAutoCreate() && name0.equals(dateRef.getName())) {
+                  range = true;
+                  break;
+               }
+            }
+         }
+
+         if(range) {
+            if(activeGroupColumns.contains(ref0)) {
+               continue;
+            }
+
+            DateRangeRef dateRangeRef = getInnerDateRangeRef(ref0);
+
+            if(dateRangeRef != null && !isAutoRangeColumn(ref0) &&
+               cs.containsAttribute(dateRangeRef.getDataRef()))
+            {
+               continue;
+            }
+
+            cs.removeAttribute(i);
+         }
+      }
+
+      // Matches AggregateDialogService's own unconditional post-cleanup call: a filter/
+      // ranking condition that referenced a just-removed column's synthetic name (e.g.
+      // add_filter on "Quarter(orderDate)", which read_worksheet_model does list) would
+      // otherwise be left pointing at a DataRef no longer in the selection.
+      inetsoft.uql.asset.internal.AssetUtil.validateConditions(cs, t);
 
       for(AggregateSpec spec : aggregates) {
          AggregateFormula formula = AggregateFormula.getFormula(spec.formula());
@@ -404,6 +593,46 @@ public final class WorksheetMutationSupport {
                     appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+   }
+
+   /**
+    * Ported from {@code AggregateDialogService#getDateRangeRef}: walks a
+    * {@link DataRefWrapper} chain looking for a {@link DateRangeRef}, stopping at the
+    * outermost one found.
+    */
+   private static DateRangeRef getDateRangeRef(DataRef ref0) {
+      while(ref0 instanceof DataRefWrapper) {
+         if(ref0 instanceof DateRangeRef) {
+            break;
+         }
+
+         ref0 = ((DataRefWrapper) ref0).getDataRef();
+      }
+
+      return ref0 instanceof DateRangeRef ? (DateRangeRef) ref0 : null;
+   }
+
+   /**
+    * Ported from {@code AggregateDialogService#getInnerDateRangeRef}: walks a
+    * {@link DataRefWrapper} chain looking for the innermost {@link DateRangeRef} that
+    * does not itself wrap another one (relevant for chained/nested date ranges).
+    */
+   private static DateRangeRef getInnerDateRangeRef(DataRef ref0) {
+      while(ref0 instanceof DataRefWrapper) {
+         if(ref0 instanceof DateRangeRef && !(((DateRangeRef) ref0).getDataRef() instanceof DateRangeRef)) {
+            break;
+         }
+
+         ref0 = ((DataRefWrapper) ref0).getDataRef();
+      }
+
+      return ref0 instanceof DateRangeRef ? (DateRangeRef) ref0 : null;
+   }
+
+   /** Ported from {@code AggregateDialogService#isAutoRangeColumn}. */
+   private static boolean isAutoRangeColumn(DataRef group) {
+      DateRangeRef dateRangeRef = getDateRangeRef(group);
+      return dateRangeRef != null && dateRangeRef.isAutoCreate();
    }
 
    // =========================================================================

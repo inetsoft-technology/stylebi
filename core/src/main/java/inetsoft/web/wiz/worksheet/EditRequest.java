@@ -37,7 +37,8 @@ import java.util.Map;
  *   <li>{@code rename_column} — {@code table}, {@code column}, {@code newName}</li>
  *   <li>{@code add_filter} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code remove_filter} — {@code table}, {@code field}</li>
- *   <li>{@code set_group_aggregate} — {@code table}, {@code groups}, {@code aggregates}</li>
+ *   <li>{@code set_group_aggregate} — {@code table}, {@code groups} (each a column name or
+ *       {@code {field, dateLevel}}), {@code aggregates}</li>
  *   <li>{@code add_expression_column} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
@@ -115,8 +116,13 @@ public record EditRequest(
    List<String> values,
    /** Sort direction — {@code "ASC"} or {@code "DESC"} — for set_sort. */
    String direction,
-   /** Group-by column names for set_group_aggregate. */
-   List<String> groups,
+   /**
+    * Group-by column specs for set_group_aggregate. Each entry is either a bare column
+    * name string, or an object {@code {"field": ..., "dateLevel": ...}} where
+    * {@code dateLevel} groups a date column directly at a coarser granularity (e.g.
+    * {@code "QUARTER"}) — same option strings as add_date_range_column's dateOption.
+    */
+   List<WorksheetMutationSupport.GroupSpec> groups,
    /** Aggregate measure specs for set_group_aggregate. */
    List<WorksheetMutationSupport.AggregateSpec> aggregates,
    /** Expression body for add_expression_column. */

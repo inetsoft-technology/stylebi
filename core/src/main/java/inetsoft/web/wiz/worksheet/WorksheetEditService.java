@@ -468,11 +468,11 @@ public class WorksheetEditService {
        * Builds and sets a new {@link AggregateInfo} on the named table.
        *
        * @param table      the assembly name
-       * @param groups     column names to group by
+       * @param groups     group-by column specs (name, plus optional date grouping level)
        * @param aggregates aggregate measures to apply
        * @throws PairingException if no {@link TableAssembly} with {@code table} exists
        */
-      public void setGroupAggregate(String table, List<String> groups,
+      public void setGroupAggregate(String table, List<WorksheetMutationSupport.GroupSpec> groups,
                                     List<WorksheetMutationSupport.AggregateSpec> aggregates)
          throws PairingException
       {
@@ -784,6 +784,12 @@ public class WorksheetEditService {
          String rangeName = DateRangeRef.getName(column, option);
          DateRangeRef dateRef = new DateRangeRef(rangeName, baseRef, option);
          dateRef.setOriginalType(origType);
+         // Not auto-created: this is a deliberate, standalone derived column (matching
+         // ValueRangeService's own setAutoCreate(false) for the Composer's equivalent
+         // UI action), so WorksheetMutationSupport#applyAggregateInfo's stale-range-
+         // column sweep never removes it just because a later set_group_aggregate call
+         // groups the same base column at some date level.
+         dateRef.setAutoCreate(false);
 
          ColumnRef colRef = new ColumnRef(dateRef);
          colRef.setDataType(XSchema.STRING);
@@ -827,12 +833,13 @@ public class WorksheetEditService {
          t.setColumnSelection(cs, false);
       }
 
-      static int parseDateOption(String dateOption) {
+      static int parseDateOption(String dateOption) throws PairingException {
          if(dateOption == null) {
             return DateRangeRef.YEAR_INTERVAL;
          }
 
          return switch(dateOption.toUpperCase()) {
+            case "YEAR"    -> DateRangeRef.YEAR_INTERVAL;
             case "QUARTER" -> DateRangeRef.QUARTER_INTERVAL;
             case "MONTH"   -> DateRangeRef.MONTH_INTERVAL;
             case "WEEK"    -> DateRangeRef.WEEK_INTERVAL;
@@ -840,13 +847,52 @@ public class WorksheetEditService {
             case "HOUR"    -> DateRangeRef.HOUR_INTERVAL;
             case "MINUTE"  -> DateRangeRef.MINUTE_INTERVAL;
             case "SECOND"  -> DateRangeRef.SECOND_INTERVAL;
-            case "QUARTER_OF_YEAR" -> DateRangeRef.QUARTER_OF_YEAR_PART;
-            case "MONTH_OF_YEAR"   -> DateRangeRef.MONTH_OF_YEAR_PART;
-            case "WEEK_OF_YEAR"    -> DateRangeRef.WEEK_OF_YEAR_PART;
-            case "DAY_OF_MONTH"    -> DateRangeRef.DAY_OF_MONTH_PART;
-            case "DAY_OF_WEEK"     -> DateRangeRef.DAY_OF_WEEK_PART;
-            case "HOUR_OF_DAY"     -> DateRangeRef.HOUR_OF_DAY_PART;
-            default -> DateRangeRef.YEAR_INTERVAL;
+            case "QUARTER_OF_YEAR"   -> DateRangeRef.QUARTER_OF_YEAR_PART;
+            case "MONTH_OF_YEAR"     -> DateRangeRef.MONTH_OF_YEAR_PART;
+            case "WEEK_OF_YEAR"      -> DateRangeRef.WEEK_OF_YEAR_PART;
+            case "DAY_OF_MONTH"      -> DateRangeRef.DAY_OF_MONTH_PART;
+            case "DAY_OF_WEEK"       -> DateRangeRef.DAY_OF_WEEK_PART;
+            case "HOUR_OF_DAY"       -> DateRangeRef.HOUR_OF_DAY_PART;
+            case "MINUTE_OF_HOUR"    -> DateRangeRef.MINUTE_OF_HOUR_PART;
+            case "SECOND_OF_MINUTE"  -> DateRangeRef.SECOND_OF_MINUTE_PART;
+            default -> throw new PairingException(
+               "Unrecognized date level: '" + dateOption + "'. Valid values: YEAR, QUARTER, " +
+               "MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, QUARTER_OF_YEAR, MONTH_OF_YEAR, " +
+               "WEEK_OF_YEAR, DAY_OF_MONTH, DAY_OF_WEEK, HOUR_OF_DAY, MINUTE_OF_HOUR, " +
+               "SECOND_OF_MINUTE.");
+         };
+      }
+
+      /**
+       * Reverse of {@link #parseDateOption}: converts a {@link GroupRef#getDateGroup()} /
+       * {@link DateRangeRef} option constant back to the option string accepted by
+       * {@code dateOption} / {@code dateLevel}. Returns {@code null} for
+       * {@code NONE_DATE_GROUP}. A recognized {@code XConstants} date-group constant that
+       * this vocabulary cannot name (reachable from the Composer's Group and Aggregate
+       * dialog but not from {@link #parseDateOption}) is reported as
+       * {@code "UNKNOWN_DATE_GROUP(<n>)"} rather than {@code null}, so callers can tell
+       * "no date group" apart from "grouped at a level this API can't yet name".
+       */
+      static String dateOptionName(int dateOption) {
+         return switch(dateOption) {
+            case DateRangeRef.NONE_INTERVAL -> null;
+            case DateRangeRef.YEAR_INTERVAL -> "YEAR";
+            case DateRangeRef.QUARTER_INTERVAL -> "QUARTER";
+            case DateRangeRef.MONTH_INTERVAL -> "MONTH";
+            case DateRangeRef.WEEK_INTERVAL -> "WEEK";
+            case DateRangeRef.DAY_INTERVAL -> "DAY";
+            case DateRangeRef.HOUR_INTERVAL -> "HOUR";
+            case DateRangeRef.MINUTE_INTERVAL -> "MINUTE";
+            case DateRangeRef.SECOND_INTERVAL -> "SECOND";
+            case DateRangeRef.QUARTER_OF_YEAR_PART -> "QUARTER_OF_YEAR";
+            case DateRangeRef.MONTH_OF_YEAR_PART -> "MONTH_OF_YEAR";
+            case DateRangeRef.WEEK_OF_YEAR_PART -> "WEEK_OF_YEAR";
+            case DateRangeRef.DAY_OF_MONTH_PART -> "DAY_OF_MONTH";
+            case DateRangeRef.DAY_OF_WEEK_PART -> "DAY_OF_WEEK";
+            case DateRangeRef.HOUR_OF_DAY_PART -> "HOUR_OF_DAY";
+            case DateRangeRef.MINUTE_OF_HOUR_PART -> "MINUTE_OF_HOUR";
+            case DateRangeRef.SECOND_OF_MINUTE_PART -> "SECOND_OF_MINUTE";
+            default -> "UNKNOWN_DATE_GROUP(" + dateOption + ")";
          };
       }
 

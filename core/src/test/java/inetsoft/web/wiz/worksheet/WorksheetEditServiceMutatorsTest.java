@@ -91,6 +91,13 @@ class WorksheetEditServiceMutatorsTest {
       return rws;
    }
 
+   /** Plain (non-date-bucketed) group specs for the given column names. */
+   private static List<WorksheetMutationSupport.GroupSpec> groups(String... fields) {
+      return java.util.Arrays.stream(fields)
+         .map(WorksheetMutationSupport.GroupSpec::new)
+         .toList();
+   }
+
    // =========================================================================
    // Filter tests
    // =========================================================================
@@ -205,7 +212,7 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed ->
          ed.setGroupAggregate("T",
-                              List.of("cat"),
+                              groups("cat"),
                               List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)))
       );
 
@@ -226,7 +233,7 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed ->
          ed.setGroupAggregate("T",
-            List.of("cat"),
+            groups("cat"),
             List.of(new WorksheetMutationSupport.AggregateSpec("price", "MIN", "min_price"),
                     new WorksheetMutationSupport.AggregateSpec("price", "MAX", "max_price"),
                     new WorksheetMutationSupport.AggregateSpec("price", "COUNT", "n"))));
@@ -281,7 +288,7 @@ class WorksheetEditServiceMutatorsTest {
       // First pass: per-customer average, aliased "customer_avg". This sets the alias
       // directly on the shared "amount" ColumnRef (the output-naming mechanism).
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("cust", "store"),
+         ed.setGroupAggregate("T", groups("cust", "store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "AVG", "customer_avg"))));
 
       // Second pass on the SAME table (no mirror), attempting to chain by referencing
@@ -294,7 +301,7 @@ class WorksheetEditServiceMutatorsTest {
       // prior aggregate's aliases are cleared.
       PairingException ex = assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("store"),
+            ed.setGroupAggregate("T", groups("store"),
                List.of(new WorksheetMutationSupport.AggregateSpec(
                   "customer_avg", "AVG", "avg_of_avgs")))));
       assertTrue(ex.getMessage().contains("customer_avg"));
@@ -302,7 +309,7 @@ class WorksheetEditServiceMutatorsTest {
       // The raw "amount" column must be usable again under its own name — clearing the
       // stale alias must not leave the column unreachable.
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("store"),
+         ed.setGroupAggregate("T", groups("store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
       assertEquals(1, t.getAggregateInfo().getAggregateCount());
    }
@@ -324,10 +331,10 @@ class WorksheetEditServiceMutatorsTest {
       // indiscriminately, destroying the deliberate rename; it must now clear only the
       // aliases applyAggregateInfo itself recorded.
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("cust"),
+         ed.setGroupAggregate("T", groups("cust"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("store"),
+         ed.setGroupAggregate("T", groups("store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
 
       ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
@@ -346,7 +353,7 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("cust"),
+         ed.setGroupAggregate("T", groups("cust"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
 
       // A FAILED intermediate call must not consume the alias bookkeeping of the
@@ -354,11 +361,11 @@ class WorksheetEditServiceMutatorsTest {
       // into the unknown-provenance clear-all fallback and wipe the rename.
       assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("no_such_group"),
+            ed.setGroupAggregate("T", groups("no_such_group"),
                List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
 
       svc.apply("TOK", agent, ed ->
-         ed.setGroupAggregate("T", List.of("store"),
+         ed.setGroupAggregate("T", groups("store"),
             List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
 
       ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
@@ -379,15 +386,250 @@ class WorksheetEditServiceMutatorsTest {
       // silently dropped — a plausible-but-wrong result. It must fail loud instead.
       PairingException ex = assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("cat"),
+            ed.setGroupAggregate("T", groups("cat"),
                List.of(new WorksheetMutationSupport.AggregateSpec("no_such_col", "SUM", "x")))));
       assertTrue(ex.getMessage().contains("no_such_col"));
       assertTrue(ex.getMessage().contains("Available columns"));
 
       PairingException ex2 = assertThrows(PairingException.class, () ->
          svc.apply("TOK", agent, ed ->
-            ed.setGroupAggregate("T", List.of("no_such_group"), List.of())));
+            ed.setGroupAggregate("T", groups("no_such_group"), List.of())));
       assertTrue(ex2.getMessage().contains("no_such_group"));
+   }
+
+   @Test
+   void setGroupAggregateTreatsNullGroupsAsEmpty() throws Exception {
+      // WorksheetAgentController defaults a missing "aggregates" key to List.of() but
+      // passes a missing "groups" key through as null unchanged; a null groups list
+      // paired with a non-empty aggregates list must not NPE in the group loop below the
+      // (groups empty && aggregates empty) early-return guard.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", null,
+            List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(0, ai.getGroupCount());
+      assertEquals(1, ai.getAggregateCount());
+   }
+
+   @Test
+   void setGroupAggregateAppliesDateLevelToDateColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getGroupCount());
+
+      // setDateGroup() alone is read by the Composer's Group and Aggregate dialog
+      // (GroupRefModel#getDgroup), but PreAssetQuery.mergeGroupBy() builds the actual
+      // GROUP BY SQL purely from the GroupRef's DataRef and never consults
+      // getDateGroup() — so on any regular JDBC-mergeable table, a GroupRef still
+      // wrapping the raw column would silently group by the exact date value instead of
+      // by quarter. The DataRef itself must be a DateRangeRef-wrapped column for the
+      // bucketing to actually take effect; setDateGroup() is only a round-trip marker.
+      assertEquals(XConstants.QUARTER_DATE_GROUP, ai.getGroup(0).getDateGroup());
+      DataRef groupDataRef = ai.getGroup(0).getDataRef();
+      assertInstanceOf(ColumnRef.class, groupDataRef);
+      DataRef inner = ((ColumnRef) groupDataRef).getDataRef();
+      assertInstanceOf(DateRangeRef.class, inner);
+      assertEquals(XConstants.QUARTER_DATE_GROUP, ((DateRangeRef) inner).getDateOption());
+      assertEquals("orderDate", ((DateRangeRef) inner).getDataRef().getName());
+
+      // The raw "orderDate" column is kept alongside the new wrapped column — matching
+      // AggregateDialogService#processDateGrouping, which inserts rather than replaces —
+      // so it stays independently usable (e.g. still shows up in the Composer's Group
+      // and Aggregate dialog, still filterable) exactly as it would after applying a
+      // date level through the UI.
+      assertNotNull(t.getColumnSelection(false).getAttribute("orderDate"));
+      ColumnRef rawAfter = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      assertFalse(rawAfter.getDataRef() instanceof DateRangeRef);
+   }
+
+   @Test
+   void setGroupAggregateDropsStaleDateRangeColumnOnLevelChange() throws Exception {
+      // Re-grouping the same field at a different level (e.g. the agent changes
+      // "group by Quarter" to "group by Month") must not leave the previous level's
+      // materialized DateRangeRef column ("Quarter(orderDate)") behind as an orphan —
+      // each call resolves the field back to the untouched raw column, so without
+      // explicit cleanup a stale wrapped column accumulates per level change and
+      // pollutes read_worksheet_model's column list with phantom entries forever.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "MONTH")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("Quarter(orderDate)"),
+                 "stale Quarter(orderDate) column must be dropped when re-grouped to MONTH");
+      assertNotNull(cs.getAttribute("Month(orderDate)"));
+      assertNotNull(cs.getAttribute("orderDate"), "raw base column must still be present");
+      assertEquals(3, cs.getAttributeCount(),
+                    "expected exactly orderDate, Month(orderDate), total — no leftovers");
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(1, ai.getGroupCount());
+      assertEquals("Month(orderDate)", ai.getGroup(0).getDataRef().getName());
+   }
+
+   @Test
+   void setGroupAggregateDropsStaleDateRangeColumnWhenFieldRemovedFromGroups() throws Exception {
+      // set_group_aggregate fully replaces the AggregateInfo each call, so a field
+      // simply absent from a later call's `groups` (the agent restructures to group by
+      // something else entirely, without mentioning the date field again) is exactly as
+      // "no longer grouped" as one explicitly re-leveled — the previously materialized
+      // "Quarter(orderDate)" must not be left behind just because this call's cleanup
+      // only used to look at fields present in THIS call's groups.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "orderDate", "cat", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("Quarter(orderDate)"),
+                 "stale Quarter(orderDate) column must be dropped when orderDate is no " +
+                 "longer grouped at all");
+      assertNotNull(cs.getAttribute("orderDate"), "raw base column must still be present");
+   }
+
+   @Test
+   void setGroupAggregateDropsStaleDateRangeColumnOnFullClear() throws Exception {
+      // A call with both groups and aggregates empty (e.g. "show me the raw rows again")
+      // must clean up a stale DateRangeRef column exactly like a re-level or a
+      // field-dropped-from-groups call does — AggregateDialogService#applyAggregateInfo
+      // (the UI path this mirrors) runs its cleanup sweep unconditionally, even when the
+      // new AggregateInfo ends up completely empty, so this must too.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("Quarter(orderDate)"),
+                 "stale Quarter(orderDate) column must be dropped on a full clear");
+      assertNotNull(cs.getAttribute("orderDate"), "raw base column must still be present");
+      assertTrue(t.getAggregateInfo().isEmpty());
+      assertFalse(t.isAggregate());
+   }
+
+   @Test
+   void setGroupAggregatePreservesAddDateRangeColumnCreatedColumn() throws Exception {
+      // A column created via add_date_range_column is a deliberate, standalone derived
+      // column (not tied to any group) — a later set_group_aggregate call that groups
+      // the SAME base date column at some level must not sweep it away just because it
+      // wraps the same base attribute as the new group's DateRangeRef column.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "YEAR"));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNotNull(cs.getAttribute("Year(orderDate)"),
+                    "add_date_range_column's standalone derived column must survive");
+      assertNotNull(cs.getAttribute("Quarter(orderDate)"));
+      assertNotNull(cs.getAttribute("orderDate"));
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // An unrecognized dateLevel must fail loud instead of silently defaulting to a
+      // yearly grouping, matching the fail-loud stance already taken for unknown columns.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "MONTHLY")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("MONTHLY"));
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnDateLevelForNonDateColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // "cat" is a plain string column (the default type from TestWorksheets); a dateLevel
+      // silently applied to it would produce a plausible-but-meaningless grouping instead
+      // of failing loud.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("cat", "QUARTER")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("cat"));
+      assertTrue(ex.getMessage().contains("date type"));
    }
 
    // =========================================================================
@@ -403,7 +645,7 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("total", 3, "TOP_N", false));
@@ -433,7 +675,7 @@ class WorksheetEditServiceMutatorsTest {
       // Ranking need not target the aggregate — it can also rank by one of the
       // group-by (pre-aggregate) dimensions, e.g. top 3 employees alphabetically.
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false));
@@ -458,7 +700,7 @@ class WorksheetEditServiceMutatorsTest {
       // aggregate to rank it by. Both must resolve to their real AggregateInfo refs, not
       // a raw pre-aggregate ColumnRef, or the condition silently ranks by nothing.
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("employee", 3, "TOP_N", false, "total"));
@@ -541,7 +783,7 @@ class WorksheetEditServiceMutatorsTest {
       // resolvable column. Ranking by it must not be forced into an aggregate/group
       // match; it must resolve to its own raw ColumnRef.
       svc.apply("TOK", agent, ed -> {
-         ed.setGroupAggregate("T", List.of("employee"),
+         ed.setGroupAggregate("T", groups("employee"),
             List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
          ed.setRanking("T",
             new WorksheetMutationSupport.RankingSpec("orderNumber", 3, "TOP_N", false));
@@ -1480,7 +1722,7 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups("a"),
          List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
 
       // "b" is a raw (non-expression) aggregate measure. The UI's isExpressionAggregate
@@ -1501,7 +1743,7 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of("a"),
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", groups("a"),
          List.of(new WorksheetMutationSupport.AggregateSpec("b", "SUM", null))));
 
       // The group-by column passes its value through unchanged (unlike an aggregate

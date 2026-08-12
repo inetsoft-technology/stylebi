@@ -25,6 +25,8 @@ import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.junit.jupiter.api.*;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -49,9 +51,36 @@ class WorksheetReadServiceTest {
       assertTrue(tm.columns().stream().anyMatch(c -> "a".equals(c.name())));
       assertNotNull(tm.aggregates());
       assertEquals(1, tm.aggregates().groups().size());
-      assertEquals("a", tm.aggregates().groups().get(0));
+      assertEquals("a", tm.aggregates().groups().get(0).field());
+      assertNull(tm.aggregates().groups().get(0).dateLevel());
       assertEquals(1, tm.aggregates().aggregates().size());
       assertFalse(tm.sorts().isEmpty());
+   }
+
+   @Test
+   void readsDateGroupLevelOnGroupedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("orderDate"))
+         .setDataType(inetsoft.uql.schema.XSchema.DATE);
+      ws.addAssembly(t);
+
+      // Round-trip through the actual production mutator (not a hand-built GroupRef)
+      // so this exercises the real shape applyAggregateInfo produces for a dateLevel
+      // group - a GroupRef wrapping ColumnRef(DateRangeRef(...)), not a plain ColumnRef
+      // with only setDateGroup() called - which is what WorksheetReadService's
+      // field-extraction branch actually has to unwrap.
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("orderDate", "QUARTER")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.GroupModel group = m.tables().get(0).aggregates().groups().get(0);
+      assertEquals("orderDate", group.field());
+      assertEquals("QUARTER", group.dateLevel());
    }
 
    @Test
