@@ -124,6 +124,28 @@ export class EmbedCrosstabActions extends CrosstabActions {
    protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
+            // Copied verbatim from CrosstabActions.createToolbarActions - id/label/icon/enabled/
+            // visible unchanged. Click handling (drillAction()) already lives in the shared
+            // vs-crosstab.component.ts switch on the action id, and the resulting DrillEvent
+            // travels the same viewsheetClient/STOMP path the regular Viewer uses, so restoring
+            // these two entries is enough to make drill-down/up work in the embed too - nothing
+            // else needs to change.
+            id: () => "crosstab drilldown",
+            label: () => "_#(js:Drill Down Filter)",
+            icon: () => "drill-down-filter-icon",
+            enabled: () => true,
+            visible: () => this.drillActionVisible() && this.isActionVisibleInViewer("Drill Down Filter")
+               && !this.isDataTip() && !this.isPopComponent()
+         },
+         {
+            id: () => "crosstab drillup",
+            label: () => "_#(js:Drill Up Filter)",
+            icon: () => "drill-up-filter-icon",
+            enabled: () => true,
+            visible: () => this.drillActionVisible(true) && this.isActionVisibleInViewer("Drill Up Filter")
+               && !this.isDataTip() && !this.isPopComponent()
+         },
+         {
             // Deliberately independent of this.model.maxMode / openMaxMode()/closeMaxMode(): in
             // the embed context CoreLifecycleService.applyEmbedChartSize() always sets the
             // assembly's maxSize to whatever pixel size the embed container was given, so

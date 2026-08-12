@@ -404,6 +404,7 @@ export namespace TestUtils {
          timeSeriesNames: [],
          hasHiddenColumn: false,
          metadata: false,
+         filterFields: [],
          trendComparisonAggrNames: [],
          customPeriod: false,
          dateComparisonEnabled: false,

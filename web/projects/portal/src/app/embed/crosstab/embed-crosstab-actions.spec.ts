@@ -18,6 +18,7 @@
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { TestUtils } from "../../common/test/test-utils";
+import { DrillLevel } from "../../composer/data/vs/drill-level";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
 import { VSCrosstabModel } from "../../vsobjects/model/vs-crosstab-model";
 import { EmbedCrosstabActions } from "./embed-crosstab-actions";
@@ -157,6 +158,49 @@ describe("EmbedCrosstabActions", () => {
          isImage: false
       }]];
    };
+
+   // ---------------------------------------------------------------- toolbar drill actions
+   //
+   // Drill Down/Up Filter were toolbar buttons on CrosstabActions that createToolbarActions's
+   // full override had dropped - same shape as the menu-only gap above, just on the toolbar
+   // instead of "More".
+
+   it("hides drill down/up filter until a header cell with a drill level is selected", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+
+      expect(find(actions.toolbarActions, "crosstab drilldown").visible()).toBeFalsy();
+      expect(find(actions.toolbarActions, "crosstab drillup").visible()).toBeFalsy();
+   });
+
+   it("hides drill down/up filter for a plain data cell with no drill level", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      selectNonDrillableDataCell(model);
+
+      expect(find(actions.toolbarActions, "crosstab drilldown").visible()).toBeFalsy();
+      expect(find(actions.toolbarActions, "crosstab drillup").visible()).toBeFalsy();
+   });
+
+   it("shows drill down filter (not drill up) for a root-level drillable header cell", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      selectDrillableHeaderCell(model);
+      model.cells[0][0].drillLevel = DrillLevel.Root;
+
+      expect(find(actions.toolbarActions, "crosstab drilldown").visible()).toBeTruthy();
+      expect(find(actions.toolbarActions, "crosstab drillup").visible()).toBeFalsy();
+   });
+
+   it("shows both drill down and drill up filter for a middle-level drillable header cell", () => {
+      const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+      const actions = createActions(model);
+      selectDrillableHeaderCell(model);
+      model.cells[0][0].drillLevel = DrillLevel.Middle;
+
+      expect(find(actions.toolbarActions, "crosstab drilldown").visible()).toBeTruthy();
+      expect(find(actions.toolbarActions, "crosstab drillup").visible()).toBeTruthy();
+   });
 
    it("should not show Show Details or Export in the context menu", () => {
       const model = TestUtils.createMockVSCrosstabModel("Crosstab1");

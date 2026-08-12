@@ -577,7 +577,11 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
       return cell != null && cell.grouped && !dateRange;
    }
 
-   private drillActionVisible(drillUp: boolean = false): boolean {
+   /**
+    * Protected (rather than private) so EmbedCrosstabActions can reuse this verbatim - see
+    * getDrillContextMenuVisible above.
+    */
+   protected drillActionVisible(drillUp: boolean = false): boolean {
       if(this.vsWizardPreview || this.binding || this.model.dateComparisonDefined ||
          this.model.sourceType == SourceInfoType.VS_ASSEMBLY)
       {
