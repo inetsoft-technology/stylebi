@@ -56,7 +56,10 @@ public class TemplateLocalizationController {
       localizationService.rebuildCache();
    }
 
-   @GetMapping(value = { "/app/*.js", "/em/*.js" })
+   // "/elements/*.js" is here for the same reason as the other two: that bundle's templates carry
+   // _#(...) tokens, and anything served outside this route reaches the browser with the tokens
+   // intact. An embedded data source form rendered a "_#(Name)" label until this was added.
+   @GetMapping(value = { "/app/*.js", "/em/*.js", "/elements/*.js" })
    public void getLocalizedResource(HttpServletRequest request,
                                     HttpServletResponse response, Principal principal)
       throws IOException

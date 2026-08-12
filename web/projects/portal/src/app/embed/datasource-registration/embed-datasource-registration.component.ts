@@ -16,7 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import {
+   ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, OnInit, Output
+} from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import {
    DataSourceDefinitionModel
@@ -44,7 +46,7 @@ import {
    imports: [FormsModule, DatasourcesDatasourceEditorComponent],
    providers: [EmbedDatasourceRegistrationService],
 })
-export class EmbedDatasourceRegistrationComponent implements OnInit {
+export class EmbedDatasourceRegistrationComponent implements OnInit, OnDestroy {
    /** Skip the picker and go straight to this type. */
    @Input() listingName?: string;
 
@@ -60,12 +62,38 @@ export class EmbedDatasourceRegistrationComponent implements OnInit {
    saving = false;
    loading = false;
 
-   constructor(private service: EmbedDatasourceRegistrationService) {
+   private destroyed = false;
+
+   constructor(private service: EmbedDatasourceRegistrationService,
+               private cdRef: ChangeDetectorRef)
+   {
+   }
+
+   ngOnDestroy(): void {
+      this.destroyed = true;
+   }
+
+   /**
+    * Render what an async callback just changed.
+    *
+    * As a custom element this component gets no change-detection pass from the surrounding page, so
+    * state assigned in an HTTP callback is stored and never drawn. Verified in a browser: the
+    * picker held all 130 listings and showed none of them until a keystroke forced a pass.
+    * Guarded on `destroyed` because a response can outlive the element that asked for it, and
+    * detectChanges on a destroyed view throws.
+    */
+   private render(): void {
+      if(!this.destroyed) {
+         this.cdRef.detectChanges();
+      }
    }
 
    ngOnInit(): void {
       this.service.listings().subscribe({
-         next: (l) => this.listings = l,
+         next: (l) => {
+            this.listings = l;
+            this.render();
+         },
          error: (e) => this.failed.emit(this.message(e, "Could not load data source types")),
       });
 
@@ -73,7 +101,10 @@ export class EmbedDatasourceRegistrationComponent implements OnInit {
       // degrading, not fatal — the server still rejects a duplicate — so registration stays open,
       // but say so rather than silently dropping a validation the operator cannot see is missing.
       this.service.existingNames().subscribe({
-         next: (n) => this.usedNames = n,
+         next: (n) => {
+            this.usedNames = n;
+            this.render();
+         },
          error: () => {
             this.usedNames = [];
             this.failed.emit(
@@ -101,10 +132,12 @@ export class EmbedDatasourceRegistrationComponent implements OnInit {
             // Assigning `datasource` is what reveals the editor. On failure it stays null, so a
             // failed seed leaves the picker on screen rather than an empty form.
             this.datasource = d;
+            this.render();
          },
          error: (e) => {
             this.loading = false;
             this.failed.emit(this.message(e, `Could not load the form for "${listingName}"`));
+            this.render();
          },
       });
    }
@@ -130,11 +163,13 @@ export class EmbedDatasourceRegistrationComponent implements OnInit {
             this.saving = false;
             this.registered.emit({ name: this.datasource.name, type: this.datasource.type });
             this.datasource = null;
+            this.render();
          },
          error: (e) => {
             this.saving = false;
             // Stay on the form: the operator's input must survive a rejected save.
             this.failed.emit(this.message(e, "Could not save the data source"));
+            this.render();
          },
       });
    }

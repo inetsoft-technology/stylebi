@@ -19,6 +19,7 @@
 import { provideHttpClient } from "@angular/common/http";
 import { HttpTestingController, provideHttpClientTesting } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
+import { vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
 import { EmbedDatasourceRegistrationComponent } from "./embed-datasource-registration.component";
@@ -201,5 +202,53 @@ describe("EmbedDatasourceRegistrationComponent — save lifecycle", () => {
    it("passes existing names to the editor so a duplicate is caught before the server", async () => {
       const { cmp } = await seededSetup();
       expect(cmp.usedNames).toEqual(["olist"]);
+   });
+});
+
+/*
+ * Custom elements from this bundle do not get a change-detection pass for free.
+ *
+ * Measured in a real browser against a real server: the selection-view call returned all 130
+ * listings, the component stored them, and the <ul> stayed empty -- until a keystroke in the filter
+ * box, at which point 69 matches appeared at once. Assigning state inside an async callback marks
+ * nothing and schedules no tick, so the picker reads as "this deployment has no data source types".
+ * The same remedy the embedded chart needed: drive change detection explicitly.
+ *
+ * TestBed runs change detection itself, so it cannot reproduce the blank render. These tests pin
+ * the call instead -- remove the detectChanges and they fail, which is the point.
+ */
+describe("EmbedDatasourceRegistrationComponent — explicit change detection", () => {
+   it("runs change detection when the listings arrive", async () => {
+      const view = await render(EmbedDatasourceRegistrationComponent, {
+         providers: [
+            EmbedDatasourceRegistrationService, provideHttpClient(), provideHttpClientTesting(),
+         ],
+      });
+      const cmp: any = view.fixture.componentInstance;
+      const spy = vi.spyOn(cmp.cdRef, "detectChanges");
+      const http = TestBed.inject(HttpTestingController);
+
+      http.expectOne("../api/portal/data/datasource-selection-view")
+         .flush({ listings: [{ name: "Apache Cassandra" }] });
+
+      expect(spy).toHaveBeenCalled();
+   });
+
+   it("runs change detection when the seeded form arrives", async () => {
+      const view = await render(EmbedDatasourceRegistrationComponent, {
+         providers: [
+            EmbedDatasourceRegistrationService, provideHttpClient(), provideHttpClientTesting(),
+         ],
+         componentProperties: { listingName: "Apache Cassandra" },
+      });
+      const cmp: any = view.fixture.componentInstance;
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/portal/data/datasource-selection-view").flush({ listings: [] });
+      http.expectOne("../api/data/datasources/browser").flush({ dataSourceList: [] });
+
+      const spy = vi.spyOn(cmp.cdRef, "detectChanges");
+      http.expectOne("../api/portal/data/datasources/listing/Apache%20Cassandra").flush(seeded());
+
+      expect(spy).toHaveBeenCalled();
    });
 });

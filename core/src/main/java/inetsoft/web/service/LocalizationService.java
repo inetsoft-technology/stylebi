@@ -683,7 +683,11 @@ public class LocalizationService {
    private static final String RESOURCES_DIR = "/inetsoft/web/resources";
    private static final String[] TRANSLATED_RESOURCES = {
       "classpath*:/inetsoft/web/resources/app/*.js",
-      "classpath*:/inetsoft/web/resources/em/*.js"
+      "classpath*:/inetsoft/web/resources/em/*.js",
+      // The custom-elements bundle. It draws on the same templates as the portal, so it carries the
+      // same _#(...) tokens, but it built to a directory no glob here covered -- so nothing ever
+      // substituted them and they reached the browser verbatim.
+      "classpath*:/inetsoft/web/resources/elements/*.js"
    };
    private static final Logger LOG = LoggerFactory.getLogger(LocalizationService.class);
 
