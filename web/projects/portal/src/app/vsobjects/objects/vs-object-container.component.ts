@@ -512,8 +512,21 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    isActivePopComponent(vsObject: VSObjectModel): boolean {
+      const popComponent = this.popService.getPopComponent();
+
+      if(!popComponent) {
+         return false;
+      }
+
+      // Also boost the z-index of the children of a group container when the group
+      // container itself is the active pop component -- otherwise the children remain
+      // stacked below the container's own boosted, opaque background image/border and
+      // the pop-up appears blank. Mirrors DataTipService.isCurrentDataTip's
+      // container-match arm (see needsZIndexBoost's dataTip check just below).
       return this.popService.isPopComponent(vsObject.absoluteName) &&
-         this.popService.getPopComponent() === vsObject.absoluteName;
+            popComponent === vsObject.absoluteName ||
+         !!vsObject.container && this.popService.isPopComponent(vsObject.container) &&
+            popComponent === vsObject.container;
    }
 
    needsZIndexBoost(vsObject: VSObjectModel): boolean {
