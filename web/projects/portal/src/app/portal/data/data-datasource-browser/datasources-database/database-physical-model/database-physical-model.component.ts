@@ -1444,9 +1444,54 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          this.selectNode(null);
       }
       else {
+         if(nodes.length == 1) {
+            this.changeEditingTableByGraphPath(nodes[0]);
+         }
+         else {
+            this.changeEditingTableByName(null);
+         }
+
          this.resetSearchMode();
          this.selectAndExpandToPath(nodes);
       }
+   }
+
+   private changeEditingTableByGraphPath(path: string): void {
+      if(!path) {
+         this.changeEditingTableByName(null);
+         return;
+      }
+
+      const graph = this.graphViewModel?.graphs
+         ?.find(g => g?.node?.treeLink === path);
+      const tableName = this.getGraphTableName(graph);
+      const aliasName = this.getGraphAliasName(graph);
+
+      this.editingTable = this.physicalModel?.tables
+         ?.find(table => this.getTablePath(table) === path || table.path === path ||
+            table.qualifiedName === tableName ||
+            (!!graph?.node?.id && table.qualifiedName === graph.node.id) ||
+            (!!aliasName && table.qualifiedName === aliasName)) ?? null;
+   }
+
+   private getGraphTableName(graph: GraphModel | null | undefined): string | null {
+      if(!graph) {
+         return null;
+      }
+
+      if(graph.autoAlias) {
+         return graph.node.aliasSource;
+      }
+
+      if(graph.autoAliasByOutgoing) {
+         return graph.node.outgoingAliasSource;
+      }
+
+      return graph.node.name;
+   }
+
+   private getGraphAliasName(graph: GraphModel | null | undefined): string | null {
+      return graph?.autoAlias || graph?.autoAliasByOutgoing ? graph.node.name : null;
    }
 
    tableRemoved(tables: GraphModel[]): void {

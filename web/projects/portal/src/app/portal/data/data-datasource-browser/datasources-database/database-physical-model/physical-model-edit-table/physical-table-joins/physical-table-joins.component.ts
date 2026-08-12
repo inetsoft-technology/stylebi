@@ -25,6 +25,7 @@ import {
    IterableDiffer,
    OnInit, Output, EventEmitter, OnDestroy
 } from "@angular/core";
+import { NgIf } from "@angular/common";
 
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -66,7 +67,7 @@ class JoinTreeType {
     selector: "physical-table-joins",
     templateUrl: "physical-table-joins.component.html",
     styleUrls: ["physical-table-joins.component.scss"],
-    imports: [TreeComponent, AddJoinDialog, EditJoinDialog]
+    imports: [NgIf, TreeComponent, AddJoinDialog, EditJoinDialog]
 })
 export class PhysicalTableJoinsComponent implements DoCheck, OnDestroy {
    @Input() physicalModel: PhysicalModelDefinition;
