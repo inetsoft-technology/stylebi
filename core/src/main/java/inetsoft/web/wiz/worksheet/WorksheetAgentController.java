@@ -21,6 +21,8 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.internal.Util;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -35,8 +37,13 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.util.filereader.ExcelFileInfo;
+import inetsoft.uql.util.filereader.ExcelFileReader;
+import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -44,10 +51,15 @@ import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
@@ -595,10 +607,196 @@ public class WorksheetAgentController {
          }
       }
 
+      return createEmbeddedTable(sessionToken, user, body.name(), types, data, nrows, ncols);
+   }
+
+   /**
+    * Import an Excel file (.xls/.xlsx) as a new embedded table assembly in the worksheet.
+    *
+    * <p>Unlike {@link #importCsv}, column types are taken directly from the workbook's own
+    * cell types (via {@link ExcelFileReader}, the same POI-backed reader the Composer's
+    * "Import Data" dialog uses) rather than inferred from text, so numbers, dates, and
+    * booleans round-trip correctly.</p>
+    *
+    * @param sessionToken the token obtained at join time
+    * @param file         the uploaded workbook
+    * @param fileType     either {@code "XLS"} or {@code "XLSX"}
+    * @param sheet        sheet name to import (optional; defaults to the first sheet)
+    * @param name         table name (optional; defaults to a generated name)
+    * @param user         the authenticated agent principal
+    */
+   @PostMapping(value = "/api/wiz/v1/agent/worksheet/{sessionToken}/import-excel",
+                consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+   public ImportCsvResponse importExcel(@PathVariable String sessionToken,
+                                        @RequestPart(value = "file", required = false) MultipartFile file,
+                                        @RequestParam(required = false) String fileType,
+                                        @RequestParam(required = false) String sheet,
+                                        @RequestParam(required = false) String name,
+                                        Principal user) throws Exception
+   {
+      requireEnabled();
+
+      LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}",
+                file != null ? sanitizeForLog(file.getOriginalFilename()) : null,
+                file != null ? file.getSize() : null, sanitizeForLog(fileType),
+                sanitizeForLog(sheet), sanitizeForLog(name));
+
+      if(file == null || file.isEmpty()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
+      }
+
+      boolean xls = "XLS".equalsIgnoreCase(fileType);
+      boolean xlsx = "XLSX".equalsIgnoreCase(fileType);
+
+      if(!xls && !xlsx) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "fileType must be either \"XLS\" or \"XLSX\"");
+      }
+
+      checkExcelFileSize(file.getSize());
+
+      byte[] bytes = file.getBytes();
+
+      ExcelFileReader reader = xls
+         ? ExcelFileSupport.getInstance().createXLSReader()
+         : ExcelFileSupport.getInstance().createXLSXReader();
+
+      TextOutput output = new TextOutput();
+      ExcelFileInfo headerInfo = new ExcelFileInfo();
+      headerInfo.setSheet(sheet);
+      headerInfo.setStartRow(0);
+      headerInfo.setEndRow(0);
+      headerInfo.setStartColumn(0);
+      headerInfo.setEndColumn(-1);
+      output.setHeaderInfo(headerInfo);
+
+      ExcelFileInfo bodyInfo = new ExcelFileInfo();
+      bodyInfo.setSheet(sheet);
+      bodyInfo.setStartRow(1);
+      bodyInfo.setEndRow(-1);
+      bodyInfo.setStartColumn(0);
+      bodyInfo.setEndColumn(-1);
+      output.setBodyInfo(bodyInfo);
+
+      XTypeNode meta;
+
+      int colLimit = Util.getOrganizationMaxColumn() > 0 ? Util.getOrganizationMaxColumn() : -1;
+
+      try {
+         meta = reader.importHeader(new ByteArrayInputStream(bytes), "UTF-8", output, 0, colLimit);
+      }
+      catch(Exception e) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Failed to read Excel file: " + e.getMessage());
+      }
+
+      int ncols = meta.getChildCount();
+
+      if(ncols == 0) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Excel sheet must have a header row and at least one data row");
+      }
+
+      headerInfo.setEndColumn(ncols - 1);
+      bodyInfo.setEndColumn(ncols - 1);
+
+      String[] headers = new String[ncols];
+      String[] types = new String[ncols];
+
+      for(int c = 0; c < ncols; c++) {
+         XTypeNode col = (XTypeNode) meta.getChild(c);
+         headers[c] = col.getName();
+         types[c] = col.getType();
+      }
+
+      List<Object[]> dataRows = new ArrayList<>();
+      dataRows.add(headers);
+
+      // +1 to account for the header row, which reader.read() also counts against the row limit
+      // since firstRowHeader is true below.
+      int rowLimit = Util.getOrganizationMaxRow() > 0 ? Util.getOrganizationMaxRow() + 1 : -1;
+
+      XTableNode excelData = null;
+
+      try {
+         excelData = reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
+                                 rowLimit, ncols, true, null, false);
+
+         while(excelData.next()) {
+            Object[] row = new Object[ncols];
+
+            for(int c = 0; c < ncols; c++) {
+               row[c] = excelData.getObject(c);
+            }
+
+            dataRows.add(row);
+         }
+      }
+      catch(Exception e) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Failed to read Excel file: " + e.getMessage());
+      }
+      finally {
+         if(excelData != null) {
+            excelData.close();
+         }
+      }
+
+      if(dataRows.size() < 2) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Excel sheet must have a header row and at least one data row");
+      }
+
+      int nrows = dataRows.size();
+      Object[][] data = dataRows.toArray(new Object[0][]);
+
+      return createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
+   }
+
+   private void checkExcelFileSize(long size) {
+      String excelImportMax = SreeEnv.getProperty("excel.import.max");
+      String max = excelImportMax != null ? excelImportMax : SreeEnv.getProperty("csv.import.max");
+
+      if(max == null) {
+         return;
+      }
+
+      long maxBytes;
+
+      try {
+         maxBytes = Long.parseLong(max);
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Ignoring non-numeric excel.import.max/csv.import.max value: {}", max);
+         return;
+      }
+
+      if(size > maxBytes) {
+         long sizeK = maxBytes / 1024;
+         long sizeM = sizeK / 1024;
+         String sizeStr = sizeM > 0 ? sizeM + "M" : sizeK + "K";
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "Excel file exceeds the maximum allowed size (" + sizeStr + ")");
+      }
+   }
+
+   private static String sanitizeForLog(String value) {
+      return value == null ? null : value.replaceAll("[\r\n]", "_");
+   }
+
+   /**
+    * Shared tail of {@link #importCsv} and {@link #importExcel}: builds a new
+    * {@link EmbeddedTableAssembly} from already-typed header+data rows and adds it to the
+    * worksheet.
+    */
+   private ImportCsvResponse createEmbeddedTable(String sessionToken, Principal user, String name,
+                                                 String[] types, Object[][] data, int nrows, int ncols)
+      throws Exception
+   {
       return editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         String tableName = (body.name() != null && !body.name().isBlank())
-            ? body.name()
+         String tableName = (name != null && !name.isBlank())
+            ? name
             : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
 
          EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);
@@ -1830,6 +2028,15 @@ public class WorksheetAgentController {
    // Exception handling
    // ---------------------------------------------------------------------------
 
+   @ExceptionHandler(ResponseStatusException.class)
+   public ResponseEntity<Map<String, String>> handleResponseStatusException(ResponseStatusException e) {
+      String reason = e.getReason() != null ? e.getReason() : e.getMessage();
+      LOG.warn("Rejecting request: {} ({})", reason, e.getStatusCode());
+      Map<String, String> body = new LinkedHashMap<>();
+      body.put("error", reason);
+      return ResponseEntity.status(e.getStatusCode()).body(body);
+   }
+
    @ExceptionHandler(PairingException.class)
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {
@@ -1844,6 +2051,15 @@ public class WorksheetAgentController {
       body.put("error", e.getMessage());
       body.put("errorCode", e.getKind().name());
       return ResponseEntity.status(status).body(body);
+   }
+
+   @ExceptionHandler(MaxUploadSizeExceededException.class)
+   public ResponseEntity<Map<String, String>> handleMaxUploadSizeException(
+      MaxUploadSizeExceededException e)
+   {
+      Map<String, String> body = new LinkedHashMap<>();
+      body.put("error", "Request body too large");
+      return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
    }
 
    // ---------------------------------------------------------------------------
@@ -1865,4 +2081,5 @@ public class WorksheetAgentController {
    private final LayoutGraphService layoutGraphService;
    private final DataSourceService dataSourceService;
    private final SecurityEngine securityEngine;
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 }
