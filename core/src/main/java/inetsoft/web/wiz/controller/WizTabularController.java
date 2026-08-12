@@ -37,8 +37,10 @@ import inetsoft.web.wiz.model.WizTabularSaveResult;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
@@ -137,8 +139,6 @@ public class WizTabularController {
     * @param principal the current user.
     *
     * @return the seeded definition, including the form to render.
-    *
-    * @throws java.io.FileNotFoundException if no tabular listing has that name.
     */
    @GetMapping(value = "/tabular/listing", produces = MediaType.APPLICATION_JSON_VALUE)
    public DataSourceDefinition getTabularListing(@RequestParam("name") String name,
@@ -149,9 +149,12 @@ public class WizTabularController {
       // name, and this endpoint's key is the stable one.
       DataSourceListing listing = findTabularListing(name);
 
+      // 404 rather than a bare exception: unhandled ones fall through to a generic 500, and asking
+      // for a type that does not exist is the caller's mistake, not a server fault. Measured — a
+      // JDBC name such as "MySQL" reached here and returned 500.
       if(listing == null) {
-         throw new java.io.FileNotFoundException(
-            "No tabular data source listing named \"" + name + "\"");
+         throw new ResponseStatusException(
+            HttpStatus.NOT_FOUND, "No tabular data source listing named \"" + name + "\"");
       }
 
       return datasourcesService.getDataSourceFromListing(listing.getDisplayName());
