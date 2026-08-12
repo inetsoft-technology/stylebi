@@ -652,9 +652,9 @@ public class WorksheetAgentController {
                                            "fileType must be either \"XLS\" or \"XLSX\"");
       }
 
-      byte[] bytes = file.getBytes();
+      checkExcelFileSize(file.getSize());
 
-      checkExcelFileSize(bytes);
+      byte[] bytes = file.getBytes();
 
       ExcelFileReader reader = xls
          ? ExcelFileSupport.getInstance().createXLSReader()
@@ -715,9 +715,11 @@ public class WorksheetAgentController {
       // since firstRowHeader is true below.
       int rowLimit = Util.getOrganizationMaxRow() > 0 ? Util.getOrganizationMaxRow() + 1 : -1;
 
+      XTableNode excelData = null;
+
       try {
-         XTableNode excelData = reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
-                                            rowLimit, ncols, true, null, false);
+         excelData = reader.read(new ByteArrayInputStream(bytes), "UTF-8", null, output,
+                                 rowLimit, ncols, true, null, false);
 
          while(excelData.next()) {
             Object[] row = new Object[ncols];
@@ -733,6 +735,11 @@ public class WorksheetAgentController {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                            "Failed to read Excel file: " + e.getMessage());
       }
+      finally {
+         if(excelData != null) {
+            excelData.close();
+         }
+      }
 
       if(dataRows.size() < 2) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -745,11 +752,11 @@ public class WorksheetAgentController {
       return createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
    }
 
-   private void checkExcelFileSize(byte[] bytes) {
+   private void checkExcelFileSize(long size) {
       String excelImportMax = SreeEnv.getProperty("excel.import.max");
       String max = excelImportMax != null ? excelImportMax : SreeEnv.getProperty("csv.import.max");
 
-      if(max != null && bytes.length > Long.parseLong(max)) {
+      if(max != null && size > Long.parseLong(max)) {
          long sizeK = Long.parseLong(max) / 1024;
          long sizeM = sizeK / 1024;
          String sizeStr = sizeM > 0 ? sizeM + "M" : sizeK + "K";
