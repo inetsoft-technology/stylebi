@@ -197,6 +197,91 @@ class WizVsServiceFilterCopyTest {
       verify(assembly).setPreConditionList(any());
    }
 
+   // ── Conditions the request asked for that did not make it into the applied filter ─────────────
+   //
+   // A dropped condition WIDENS the result instead of emptying it, so the chart renders normally and
+   // answers a question nobody asked. The response is the only place that can say so: nothing about
+   // the applied ConditionList records which nodes were meant to be in it.
+
+   /** A leaf carrying no field name at all — the shape appendConditionNodes drops. */
+   private static VisualizationConditionModel.ConditionLeaf fieldlessLeaf(String junction) {
+      return new VisualizationConditionModel.ConditionLeaf(junction,
+         new VisualizationConditionModel.ConditionSpec(
+            null, null, null, null, null, false, "EQUAL_TO", null,
+            List.of(new VisualizationConditionModel.ValueSpec("VALUE", "A", null))));
+   }
+
+   private static VisualizationConditionModel.ConditionLeaf validLeaf(String junction, String field) {
+      return new VisualizationConditionModel.ConditionLeaf(junction,
+         new VisualizationConditionModel.ConditionSpec(
+            field, null, null, null, null, false, "EQUAL_TO", null,
+            List.of(new VisualizationConditionModel.ValueSpec("VALUE", "A", null))));
+   }
+
+   private static CreateVisualizationModel conditionRequest(
+      List<VisualizationConditionModel.ConditionNode> nodes)
+   {
+      VisualizationConditionModel cm = new VisualizationConditionModel();
+      cm.setBaseConditions(nodes);
+
+      CreateVisualizationModel model = new CreateVisualizationModel();
+      model.setRuntimeId("rt-1");
+      model.setConditionModel(cm);
+      return model;
+   }
+
+   @Test
+   void aPartiallyDroppedFilterStillAppliesAndReportsWhatWasDropped() throws Exception {
+      // The most dangerous of the two: canApplyConditions passes (the list is non-empty), so the
+      // partial filter is written as though it were the complete one and the call is an ordinary
+      // success. Only the warning distinguishes it.
+      CreateViewsheetResult result = service.createViewsheet(
+         conditionRequest(List.of(validLeaf(null, "Category"), fieldlessLeaf("AND"))), user);
+
+      verify(assembly).setPreConditionList(any());
+      assertEquals(1, result.getWarnings().size());
+      assertEquals("filter", result.getWarnings().get(0).getOption());
+      assertTrue(result.getWarnings().get(0).getReason().contains("more data than asked for"),
+                 "the reason must say the chart is WIDER than requested, which is the whole risk");
+   }
+
+   @Test
+   void aFilterThatCouldNotBeBuiltAtAllIsReportedPerNodeAndAsAWhole() throws Exception {
+      CreateViewsheetResult result = service.createViewsheet(
+         conditionRequest(List.of(fieldlessLeaf(null), fieldlessLeaf("AND"))), user);
+
+      // Behaviour is unchanged: an all-unusable list leaves the existing conditions alone rather than
+      // clearing them. Reporting it is the only thing that is new.
+      verify(assembly, never()).setPreConditionList(any());
+      // Two per-node reasons plus the consequence no single node can state.
+      assertEquals(3, result.getWarnings().size());
+      assertTrue(result.getWarnings().get(2).getReason().contains("still shows all the data"));
+   }
+
+   @Test
+   void anUnrecognizedAggregationInAFilterReportsWhatItComparedInstead() throws Exception {
+      // The formula falls back to SUM rather than failing, which keeps the chart — but "regions where
+      // the AVERAGE sale is over 100" then means "where the TOTAL is over 100", a different set of
+      // rows with nothing on screen to give it away.
+      CreateViewsheetResult result = service.createViewsheet(conditionRequest(List.of(
+         new VisualizationConditionModel.ConditionLeaf(null,
+            new VisualizationConditionModel.ConditionSpec(
+               "amount", "avg_value", null, null, null, false, "GREATER_THAN", null,
+               List.of(new VisualizationConditionModel.ValueSpec("VALUE", "100", null)))))), user);
+
+      verify(assembly).setPreConditionList(any());
+      assertEquals(1, result.getWarnings().size());
+      assertEquals("filter:amount", result.getWarnings().get(0).getOption());
+      assertTrue(result.getWarnings().get(0).getReason().contains("compared the total instead"));
+   }
+
+   @Test
+   void aFilterThatFullyAppliesReportsNoWarnings() throws Exception {
+      // Regression guard: the field must stay ABSENT on the ordinary path, so a caller can test it
+      // rather than having to check an always-present empty list.
+      assertNull(service.createViewsheet(request(false), user).getWarnings());
+   }
+
    @Test
    void copyTrueDuplicatesBeforeApplyingAndTargetsTheCopy() throws Exception {
       ChartVSAssembly copy = mock(ChartVSAssembly.class);

@@ -1868,6 +1868,62 @@ public class WizAutoBindingService {
       return false;
    }
 
+   /**
+    * The type name of the candidate {@code rec} currently has selected, or null when it cannot be
+    * named.
+    *
+    * <p>Exists so a substituted chart type can be REPORTED by the name the user will see rather than
+    * by the name they asked for. Reads {@code selectedIndex} through the same two-range scheme
+    * {@link #setChartIndexForType} writes it with — indexes below {@code chartInfos.size()} address
+    * chartInfos, the rest address prefInfos offset by that size — because reading it any other way
+    * would name a different chart than the one that actually renders.
+    *
+    * <p>Null rather than a placeholder when the type cannot be determined: a warning that names the
+    * wrong type is worse than one that only says the requested type was unavailable.
+    *
+    * <p>Package-private (not private) only so {@code WizAutoBindingServiceChartTypeCandidatesTest} can
+    * drive it directly, the same reason {@link #buildChartTypeCandidates} is — the index arithmetic
+    * below is exactly the part that would name the wrong chart without anyone noticing.
+    */
+   static String selectedRecommendationType(VSObjectRecommendation rec) {
+      if(rec instanceof VSCrosstabRecommendation) {
+         return "crosstab";
+      }
+
+      if(rec instanceof VSTableRecommendation) {
+         return "table";
+      }
+
+      if(rec instanceof VSGaugeRecommendation) {
+         return "gauge";
+      }
+
+      if(rec instanceof VSTextRecommendation) {
+         return "text";
+      }
+
+      if(!(rec instanceof VSChartRecommendation vcr)) {
+         return null;
+      }
+
+      List<ChartInfo> chartInfos = vcr.getChartInfos();
+      int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
+      int index = vcr.getSelectedIndex();
+
+      if(index >= 0 && index < chartInfosSize) {
+         return getChartTypeString(chartInfos.get(index).getChartType());
+      }
+
+      List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+      int prefIndex = index - chartInfosSize;
+
+      if(prefInfos != null && prefIndex >= 0 && prefIndex < prefInfos.size()) {
+         return getChartTypeString(prefInfos.get(prefIndex).getInfo().getChartType());
+      }
+
+      return null;
+   }
+
    /** Sets {@code selectedIndex} on {@code vcr} by identity-matching {@code info} in chartInfos then prefInfos. */
    private static void setChartSelectedIndex(VSChartRecommendation vcr, ChartInfo info) {
       List<ChartInfo> chartInfos = vcr.getChartInfos();
@@ -2679,6 +2735,11 @@ public class WizAutoBindingService {
       // 3. Select the recommendation for the requested type. changeType is an explicit user type
       // switch (no explicit-binding pins in play), so the unconstrained chartInfos fallback is fine.
       VSObjectRecommendation selectedRec = findRecByType(visualizationType, model, false);
+      // The requested type has no candidate for this data, so the first recommendation is used instead.
+      // The chart still changes and the call still returns 200 with ordinary coordinates, so the caller
+      // has no way to notice — and it narrates the type IT asked for, which is how "changed to a pie"
+      // ends up printed above a bar chart. Recorded here, where both names are still in hand.
+      String substitutedType = null;
 
       if(selectedRec == null) {
          selectedRec = model.getRecommendationList().stream()
@@ -2689,12 +2750,28 @@ public class WizAutoBindingService {
          if(selectedRec instanceof VSChartRecommendation vcr) {
             vcr.setSelectedIndex(0);
          }
+
+         if(selectedRec != null) {
+            substitutedType = selectedRecommendationType(selectedRec);
+         }
       }
 
       if(selectedRec == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
          LOG.warn("changeType skipped: selectedRec={}, worksheetId='{}', wizRuntimeId='{}'",
                   selectedRec, worksheetId, wizRuntimeId);
-         return new CreateViewsheetResult();
+
+         CreateViewsheetResult skipped = new CreateViewsheetResult();
+
+         // Only the recommendation-list case is reported: an empty list means this data supports no
+         // chart at all, which is about what the user asked for. Empty worksheetId/wizRuntimeId are
+         // defensive — the caller failed to send its own coordinates, which is a bug in the caller and
+         // belongs in the log, not in front of the user.
+         if(selectedRec == null) {
+            skipped.addWarning("chartType",
+               "No chart type could be applied to this data, so the chart was left unchanged.");
+         }
+
+         return skipped;
       }
 
       // Mirror the wizard path: update autoBindingRvs so its state stays consistent
@@ -2752,6 +2829,12 @@ public class WizAutoBindingService {
 
       // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
       result.setAutoBindingRuntimeId(autoBindingRuntimeId);
+
+      if(substitutedType != null) {
+         result.addWarning("chartType",
+            "A " + visualizationType + " chart is not available for this data, so a " +
+            substitutedType + " chart was used instead.");
+      }
 
       // Populate headers/rows so the caller can generate data insight.
       // createViewsheetSkipExecution omits row data for speed; fetch it here separately.
@@ -2815,8 +2898,11 @@ public class WizAutoBindingService {
          throw new IllegalArgumentException("Chart assembly not found: " + request.getAssemblyName());
       }
 
-      String note = null;
       String copyNote = null;
+      // Options this request asked for that end up not taking effect. Collected as the options are
+      // walked rather than derived afterwards: by the time the method returns, the reason a particular
+      // setting was skipped is no longer recoverable from the chart.
+      List<ApplyWarning> warnings = new ArrayList<>();
       String targetAssemblyName = request.getAssemblyName();
       VSAssembly demotedOriginal = null;
       VSAssembly rollbackCopy = null;
@@ -2881,6 +2967,13 @@ public class WizAutoBindingService {
          boolean scaleChange = request.getYAxisMin() != null || request.getYAxisMax() != null ||
             request.getYAxisIncrement() != null || request.getYAxisLogarithmic() != null;
 
+         // Counted rather than inferred from an else branch, because the two ways this silently does
+         // nothing are both INSIDE the success path: getYFields() can return an empty array (the outer
+         // condition holds and the loop runs zero times), or every ref can lack an AxisDescriptor and
+         // continue past. A pie chart asked to set a Y-axis maximum takes the first of those and
+         // returns a perfectly ordinary 200 with a chart that did not change.
+         int appliedAxes = 0;
+
          if(scaleChange && vsChartInfo != null && vsChartInfo.getYFields() != null) {
             for(ChartRef yref : vsChartInfo.getYFields()) {
                if(yref == null || yref.getAxisDescriptor() == null) {
@@ -2904,7 +2997,14 @@ public class WizAutoBindingService {
                if(request.getYAxisLogarithmic() != null) {
                   ax.setLogarithmicScale(request.getYAxisLogarithmic());
                }
+
+               appliedAxes++;
             }
+         }
+
+         if(scaleChange && appliedAxes == 0) {
+            warnings.add(new ApplyWarning("yAxisScale",
+               "This chart has no Y axis, so the axis scale settings were not applied."));
          }
 
          // Legend placement
@@ -2912,8 +3012,12 @@ public class WizAutoBindingService {
             int layout = legendLayout(request.getLegendPosition());
 
             if(layout < 0) {
-               note = "Unknown legendPosition '" + request.getLegendPosition() +
-                  "'; valid: none, top, right, bottom, left, in_place. Legend left unchanged.";
+               // Wording unchanged — it was already right. Moved off `note` because that field means
+               // "your original chart was modified in place", which this is not: the rest of the format
+               // request applied normally and only the legend was left alone.
+               warnings.add(new ApplyWarning("legendPosition",
+                  "Unknown legendPosition '" + request.getLegendPosition() +
+                  "'; valid: none, top, right, bottom, left, in_place. Legend left unchanged."));
             }
             else {
                desc.getLegendsDescriptor().setLayout(layout);
@@ -2933,6 +3037,17 @@ public class WizAutoBindingService {
 
                if(request.getMarkerShape() != null) {
                   plot.setMarkerShape(request.getMarkerShape());
+
+                  // The value is passed through unchanged — the renderer's own fallback is what decides
+                  // what appears, and changing that here would alter charts that render today. But that
+                  // fallback is silent: GraphGenerator.mapMarkerShape switches on the name and its
+                  // default arm returns FILLED_CIRCLE, so "hexagon" draws circles and reports success.
+                  // Validate only to SAY so.
+                  if(!MARKER_SHAPES.contains(request.getMarkerShape().toLowerCase())) {
+                     warnings.add(new ApplyWarning("markerShape",
+                        "'" + request.getMarkerShape() + "' is not a marker shape I recognize (" +
+                        String.join(", ", MARKER_SHAPES) + "), so the points are drawn as circles."));
+                  }
                }
 
                if(request.getMarkerSize() != null) {
@@ -3023,10 +3138,16 @@ public class WizAutoBindingService {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
       }
 
-      String combinedNote = combineNotes(copyNote, note);
+      // note carries the copy fallback alone; every other "asked for but not applied" goes to warnings.
+      // They used to be concatenated into this one field, which left the caller unable to tell the two
+      // apart: a legend typo made a SUCCESSFUL copy read as a declined one, so the next edit in the same
+      // turn duplicated the chart a second time.
+      if(copyNote != null) {
+         result.setNote(copyNote);
+      }
 
-      if(combinedNote != null) {
-         result.setNote(combinedNote);
+      if(!warnings.isEmpty()) {
+         result.setWarnings(warnings);
       }
 
       return result;
@@ -3204,21 +3325,15 @@ public class WizAutoBindingService {
    }
 
    /**
-    * Combines two independent, optional warning notes (e.g. a copy-fallback warning and a separate
-    * binding/legend validation warning) without either silently overwriting the other. Either or both
-    * may be null; returns null only when both are.
+    * The marker shapes the renderer actually distinguishes, lower-cased.
+    *
+    * <p>Must stay in step with {@code GraphGenerator.mapMarkerShape}, which is the only place a shape
+    * name is interpreted. Kept here rather than read from there because that method has no value set to
+    * expose — it is a switch whose default arm swallows everything else, which is exactly why this list
+    * is needed to notice a name it will swallow.
     */
-   private static String combineNotes(String first, String second) {
-      if(first == null) {
-         return second;
-      }
-
-      if(second == null) {
-         return first;
-      }
-
-      return first + " " + second;
-   }
+   private static final Set<String> MARKER_SHAPES =
+      Set.of("circle", "square", "diamond", "triangle", "cross", "x", "star");
 
    /** Maps a legend-position string to a {@link LegendsDescriptor} layout constant; -1 if unknown. */
    private static int legendLayout(String position) {
