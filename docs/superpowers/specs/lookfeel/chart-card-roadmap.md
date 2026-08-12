@@ -1,33 +1,43 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-11
-**Verified against:** community `viz-updates` @ `a038a30b5`
-**Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found
-through it, and the decisions that gate what remains
+**Date:** 2026-08-12
+**Verified against:** community `viz-updates` @ `881a9b049`, plus twelve uncommitted files in the working
+tree
+**Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
+it, and the decisions that gate what remains
 
-**Verify before trusting.** This branch moves daily; the selection-family slice shipped nine hours after
-the document set that called it unshipped. Every claim below cites a commit or a file so it can be
+**Before syncing the external design set, read
+[chart-card-source-doc-corrections.md](./chart-card-source-doc-corrections.md).** It records where that set
+has been wrong about this code, and corrections applied to the set itself have a lifetime of exactly one
+sync — the 2026-08-12 regeneration overwrote four of them. This pointer lives here, outside
+`chart-card-design3/`, because a pointer placed inside the set is deleted with the set.
+
+**Verify before trusting.** This branch moves daily. Every claim below cites a commit or a file so it can be
 checked rather than believed. If a claim and the branch disagree, the branch is right.
 
 ## How to read this
 
-The durable content is the **dependency picture** and the **seed-mark cluster** — those describe
-structure, and change only when something lands. The perishable content is what is done, so that section
-is a table of item → commit rather than a checklist: `git show` answers it better than a checkbox does.
+The durable content is the **dependency picture** and the **seed-mark cluster** — those describe structure
+and change only when something lands. The perishable content is what is done, so that section is a table of
+item → commit rather than a checklist: `git show` answers it better than a checkbox does.
 
 ---
 
 ## The dependency picture
 
 ```
-  L. Title lane row + strip density gating ──→ F. Rollout slices 4–5
-     widget spec §08 step 3                      container, calendar
-     READY NOW
+  L. Strip density gating ──→ F. Rollout slices 4–5
+     PARTLY BUILT, UNCOMMITTED     container, calendar
+     one decision reopened
 
-  M. Seed mark — widget spec §03 ──┬──→ §04 density heights read through the mark
+  L'. Title lane height row ──→ needs a design decision first, then M
+      NOT BUILDABLE AS SPECIFIED
+      no unset state in TitleInfo
+
+  M. Seed mark — widget spec §03 ──┬──→ §04 density heights, incl. L' above
      NOT BUILT · no owner here     │
      ALSO THE RELEASE GATE         ├──→ Card radius 12→6, retire resolveSeededCorner()
-                                   │
+     BLOCKED BY: version-blindness │
                                    ├──→ §07 derived selection, retire the teal family
                                    │         │
                                    │         └──→ Range slider — painter half
@@ -37,57 +47,165 @@ is a table of item → commit rather than a checklist: `git show` answers it bet
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
 
-  Ungated: dark (four surfaces) · affordance sweep · selection list interior · Resize Plot
-           sliders · nav bar · data-tip registry remainder · chart colour literals ·
-           drill and DC tips · zoom naming · dead menu icons · title band
+  Ungated: dark (four DOM surfaces) · chart interior dark palette · affordance sweep ·
+           selection list interior · Resize Plot sliders · nav bar · data-tip registry
+           remainder · chart colour literals · drill and DC tips · zoom naming ·
+           dead menu icons · title band
 ```
 
-Two corrections this picture carries against `Open items - handoff.md`, both recorded in
-[chart-card-source-doc-corrections.md](./chart-card-source-doc-corrections.md) §3.1 and §3.2:
+Three corrections this picture carries against the external set, all recorded in
+[the corrections doc](./chart-card-source-doc-corrections.md):
 
-- **M does not gate F.** The rollout writes no persisted state — every file in all three shipped slices is
-  under `web/projects/portal/src` — so there is no reversibility record for it to miss. The widget spec
-  agrees: its §08 names step 3, not the mark, as what "unblocks the chart card's eight-assembly rollout."
-- **Step 0's four `:root` tokens are one token.** Touch height and both icon sizes already ship; only a
-  gridline grey is genuinely absent from CSS. It is not a precondition — whichever of the colour literals
-  or the §08 `GDefaults` mapping goes first can declare it.
+- **M does not gate F.** The toolbar rollout writes no persisted state — every file in all three shipped
+  slices is under `web/projects/portal/src` — so there is no reversibility record for it to miss. Both v3
+  documents that draw this reverted to a pre-correction body, and the handoff went further: it now orders
+  `M precedes F (and H)` and says the calendar and container slices "should wait for the mark." They should
+  not, for the same reason the three shipped slices correctly did not. See §5.1 and §5.4.
+- **L vanished from the external dependency picture.** v3's handoff diagram has no node for the title lane
+  or the density gating, though widget spec §08 step 3 still claims to unblock the rollout. The one item
+  that does precede slices 4–5 was dropped in the sync that reinstated one that does not.
+- **M *does* gate the height row.** The widget spec's §05 says heights move only for marked gate-on
+  assemblies, and `titleHeight()` has no per-assembly condition because there is no field to condition on.
+  The 2026-08-11 edition of this roadmap said the row "needs no server change"; that was wrong twice over.
+  See §3.3.
+- **The 32px chrome floor does not reach dense.** It is a card-height rule, not a lane rule, so the v3
+  reversal in §05 does not follow from it. See §1.1 — this is the live decision below.
+
+---
+
+## In flight — uncommitted
+
+Twelve files in the working tree, reviewed clean, not yet committed.
+
+| Piece | State |
+|---|---|
+| Anchored strip gated to compact-and-above | Done. `GuiTool.vizDensityMode()` + `isVizDensityAtLeastCompact()`; one shared `isAnchoredResident()` in `mini-toolbar.service.ts` consumed by both `AbstractVSActions.resident` and `VSObjectContainer.isKebabResident` |
+| Dense draws no chrome at all | Done. `isAnchoredChromeSuppressed()`, consumed by `showingActions` beside the existing 32px floor test |
+| `height: 24px` → `--inet-control-height-sm` | Done. Value-identical; `_variables.scss:475` |
+| `VSDensityDefaults.titleHeight()` at defh/26/30 | Done, and deliberately **uncalled** |
+| Wiring that height into five assemblies | **Abandoned.** Not buildable as specified — see below |
+
+**The decision the v3 sync reopened is settled: v3 is accepted** —
+[decisions](./chart-card-open-item-decisions.md) §4. Dense no longer falls back to the legacy hover overlay;
+it draws nothing. The rule is written explicitly rather than inherited from the 32px floor, because that
+floor measures the card and not the lane (§1.1).
+
+**One consequence left open for the sibling project.** "Right-click only" has no meaning on touch, so under
+the gate at dense an anchored assembly on a tablet has no route to its actions. It matches how the shipped
+floor branch already behaves below 32px, and one predicate changes it if that is not intended.
+
+Tests: 255 action specs, 83 unit, 60 TL — all green.
 
 ---
 
 ## The long pole: the seed mark
 
+**Superseded by a product decision set, 2026-08-12. Read
+[seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
+anything in this section or in widget spec §03.** That file departs from §03 on three points: reversal is a
+**persisted wholesale revert** rather than a recompute onto a clone, there is **no automatic forward
+re-seed** (modernization is opt-in via a button), and `gate-off` is **not a stored state** — the mark is
+`unmarked` / `modern-light` / `modern-dark`. The analysis below is retained because its code citations hold
+and because it is the record of how the questions were framed; where it and the decisions file disagree, the
+decisions file is current.
+
 A tri-state mark on `VSAssemblyInfo` recording the gate state in force when `setDefaultFormat` ran —
 `gate-on`, `gate-off`, `before gate` — so that persisted format seeding becomes reversible.
-`VSObjectChromeDefaults` is the one resolver of six that writes at creation rather than at read, so
-without the mark a gate-off product cannot un-write the frame colour and card background it seeded while
-the gate was on.
+`VSObjectChromeDefaults` is the one resolver of six that writes at creation rather than at read, so without
+the mark a gate-off product cannot un-write the frame colour and card background it seeded while the gate
+was on.
 
-**Status: specified to implementation depth, not built.** No such field exists in `VSAssemblyInfo`; the
-only shipped seeding state is the corner-specific `PlotDescriptor.modernCornerSeed` plus
-`isCornerSeedTarget()`. But `chart-card-design2/Visualization Widget Spec.dc.html` §03 is build-ready —
-it gives the mechanism (a nullable field, one line each in `writeAttributes`/`parseAttributes`,
-`clone`/`copyViewInfo` handling, two lines in `setDefaultFormat`), the resolution rule (mark ≠ gate →
-recompute the DEFAULT tier on a clone, at the runtime model build and the export painters, where the
-other resolvers already run), coverage for all six mark-and-gate states, a performance requirement
-(resolve the gate once per render, in the same change), the rejected alternative with reasons, and its
-own estimate: *"The mark is a day."*
+**Status: specified to implementation depth, not built.** No such field exists in `VSAssemblyInfo`; the only
+shipped seeding state is the corner-specific `PlotDescriptor.modernCornerSeed` plus `isCornerSeedTarget()`
+(which is private on `VSAssemblyInfo.java:1232`, not on the chrome resolver, whatever the v3 shell ticket
+says). Widget spec §03 remains build-ready and is **byte-identical between v2 and v3**.
 
-**It gates five things and the release.** The four branches in the picture above, plus the range slider's
-painter half at one remove. The spec argues that the mark can legitimately sequence behind work with
-users waiting — "design debt paid before it is owed" — but is decisive that it must land **before
-release**, because the cohort needing migration is empty today and stays empty only until the branch
-ships.
+**Raised ahead of implementation: the mark is version-blind.** v3's
+`Seeded value reversibility - ticket.md` raises it and defers the answer to §03, which did not change.
+`resolveSeededCorner` asks *is this value the one I seed?*; the mark asks *was this assembly created under
+the gate?* Those coincide only while the set of seeded defaults never changes.
 
-**So what is open is ownership and scope, not design.** Three questions for the project that authored §03:
+**Milder than the ticket implies, and the fix it proposes may be unnecessary.** §03 line 215 makes reversal
+recomputational — "recompute the DEFAULT tier on a clone… instead of stripping values or rewriting saved
+content" — so nothing is subtracted and a stale mark produces the right answer anyway. The residual is the
+opposite failure: while mark and gate agree no recompute runs, so an assembly created before a default
+existed never picks it up, and two same-type assemblies render differently by age. Worth fixing; not the
+data-loss the ticket is arguing against. Versioning a mark is a migration you cannot undo cheaply.
 
-1. Is the mark being built, and when? Nothing in this repo produces it.
-2. If not, does this track build it? It is `core/` Java in code both tracks already touch, and the spec
-   is complete enough to implement from.
-3. **Does the Modernize bar ship with it?** This one is scope, not status. §03 specifies the bar in the
-   same section — count-first, applies live with no confirmation dialog, dismissal sticking per
-   dashboard, a permanent menu item as the way back, never acting on open alone, no admin bulk command —
-   and that is UI work well past "a day." The outlined-text switch is named there as a third consumer
-   whose charts must be counted once it ships.
+**Settle axis-blindness first — it fails today, on two axes.** The gate is three properties
+(`viewsheet.modernVisualization` `VSDensityDefaults:40`, `viewsheet.modernObjectChrome`
+`VSObjectChromeDefaults:44`, `viewsheet.darkMode` `VSDensityDefaults:48`) and the mark records one.
+
+- **Dark.** All three persisted colour seeds branch on `isDark()` (`:49`, `:54`, `:64`). Create with modern
+  and dark on, turn dark off: mark and master gate still agree, nothing recomputes, the dark card
+  background stays in a light dashboard forever.
+- **Chrome sub-gate.** The seeds guard on the *composed* `VSObjectChromeDefaults.isModern()`; the mark
+  records the *master* gate — and §04 line 381 defends that choice explicitly. Turn
+  `modernObjectChrome` off with master on and the same stranding occurs. §04's rationale is what makes the
+  mark insufficient for §03's own chrome path.
+
+Neither needs a future default or a schema change — both are reachable now by toggling one EM property
+twice. The answer determines the mark's field format, the one thing that is expensive to change after the
+field exists. **§03 as written is insufficient for three of the four values the gate persists.** Five
+options with costs are in §3.2; the choice belongs to the sibling project.
+
+**Both counts in the ticket are wrong, and they are what the decision needs.** It exempts the seeded colours
+as "computed live at read time." They are not — `objectBorderColor()` (`VSAssemblyInfo.java:1163→1180,1193`),
+`cardBackgroundCss()` (`ChartVSAssemblyInfo.java:89`, `TableDataVSAssemblyInfo.java:1568`) and
+`pageBackgroundCss()` (`ViewsheetVSAssemblyInfo.java:238`) are all `set…Value` calls on a default format at
+creation. **The gate seeds four values into the persisted DEFAULT tier and exactly one is reversible.** And
+it counts three reversal mechanisms where there are four: `modernSmoothSeed` (`PlotDescriptor:632`, field
+`:1996`) is a second stored flag of the same shape as `modernCornerSeed`, persisted at `:1531`/`:1718` and
+unmentioned. A question about which defaults existed when cannot be answered from a set of one. See §3.2.
+
+**And a hard sequencing rule the ticket understates.** `resolveSeededCorner` does not consult the mark, so
+it reverses the radius on unmarked assemblies; the mark cannot, because unmarked means *do not sweep* (§03
+line 222). Retiring the check therefore makes every assembly created with the gate on **before** the mark
+lands permanently modern. Not a release risk — the seeding has never shipped, `VSObjectChromeDefaults.java`
+is absent from `main`, `v1.1.x` and `v1.0.x` — but it means: **do not retire `resolveSeededCorner` until
+that population is stamped or discarded.** Discarding is cheap on this branch, which argues for doing it
+before the mark rather than after.
+
+**It gates five things and the release.** The four branches above plus the range slider's painter half at
+one remove. The spec argues the mark can sequence behind work with users waiting, but is decisive that it
+must land **before release**, because the cohort needing migration is empty today and stays empty only until
+the branch ships.
+
+**Open questions — all four now answered; kept as the record of what was asked.**
+
+1. ~~**Version-blindness.**~~ Answered: it needs no schema version. A mark records *when* an assembly was
+   made, not which defaults existed then, but recomputing under the current rules produces the correct
+   value regardless — reversal is not subtractive. Decisions file, "For the sibling project" §3.
+2. ~~Is the mark being built, and when?~~ It is a release condition, and the decision set specifies its
+   shape: per-assembly, storing the gate tuple. Decisions 1 and 9.
+3. ~~Does this track build it?~~ Yes — it is `core/` Java plus the per-assembly CSS scope, in code both
+   tracks already touch. Decision 4 is the largest piece and reverses shipped `viz-updates` behaviour.
+4. ~~**Does the Modernize bar ship with it?**~~ Yes, and its behaviour is decided rather than inherited from
+   §03: manual, per-dashboard, gate-on only, write permission required, one composer undo step, **no bulk
+   path**. Decision 5. §03's "applies live with no confirmation dialog" does not survive — decision 6's
+   revert is destructive and needs a confirmation and an automatic restore point.
+
+**Two things §03 does not account for, found while deciding.** Bookmarks carry formats —
+`TableVSAssembly` the whole `FormatInfo` (`:157-163`), `ChartVSAssembly` the `ChartDescriptor` and a
+`VSCompositeFormat` (`:474-490`) — so any reversal that ignores them is undone the next time a user opens an
+old bookmark (decision 10). And the dark axis has to be keyed off the mark too, or unchecking dark mode
+leaves persisted dark card backgrounds under read-time light chart chrome (decision 9).
+
+---
+
+## Needs a design decision before it can be scheduled
+
+**The title lane height row.** Specified at 20/26/30 in widget spec §04 and §08 step 3. Attempted and
+abandoned. All five `getTitleHeight()` overrides are the identical line `return titleInfo.getTitleHeight();`
+— there is no default branch to redirect — and shared `TitleInfo` seeds its dValue to `AssetUtil.defh` in
+both constructors (`TitleInfo.java:53,65`), so there is no unset state to distinguish an author's 20 from
+the default. `TitleInfo` is also shared with CheckBox, RadioButton and TimeSlider, which §05 excludes. And
+every saved assembly already carries an explicit height (`:260`, `:271`), so even given an unset state the
+row would reach newly created assemblies only.
+
+Two shapes, neither free: give `TitleInfo` an unset state plus an overload the five included types call, or
+value-sniff `AssetUtil.defh` the way `resolveSeededCorner` sniffs the card radius — cheaper, and the pattern
+the set is trying to delete. Specify it before scheduling it.
 
 ---
 
@@ -97,29 +215,36 @@ Nothing below is blocked.
 
 | Item | Source | Note |
 |---|---|---|
-| **Title lane row + strip density gating** | Widget spec §08 step 3 | **The leverage item** — the only pending work that unblocks other work. Needs no server change: `viz-density-<mode>` is already set on `body` by `portal/app.component.ts:271`, `composer/app.component.ts:144` and `viewer-app.component.ts:2795`. Retroactive across the three shipped slices |
-| **Dark — four browser-DOM surfaces** | [Decisions](./chart-card-open-item-decisions.md) §2 | CSS only. No server, no export, no parity pass |
-| Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk, no decision needed |
-| Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched; most visible in a filter-heavy dashboard |
+| **Dark — four browser-DOM surfaces** | [Decisions](./chart-card-open-item-decisions.md) §2, plan at `plans/2026-08-11-chart-card-dark-browser-surfaces.md` | CSS only. The v3 dark ticket's dependency claims apply to the server half, which is different work — see §4.2 |
+| **Chart interior dark palette** | `Chart card dark values - ticket.md` item 3 | New, unowned, and the most valuable thing in that ticket. `GDefaults` has no dark branch; nothing to reconcile against, so it is design work |
+| Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk |
+| Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched |
 | Resize Plot sliders | Handoff item 13 | `vs-chart.component.scss` untouched since `e8df3491b` (2024-07-15). Delete the 15 `-ms-` lines first — the file halves before anything is retokenized |
-| Nav bar | Handoff §02 | Reposition to lower right inset from the plot area, plus two cleanups: `z-index: 9999` and the off-scale `border-radius: 5px` (`chart-nav-bar.component.scss:20,26,32`). One open scope question below |
-| Data-tip registry remainder | Handoff 1c | One of three assignment paths is under the registry; `vs-pop-component.directive.ts:314,317` and the data tip still assign directly. Documented in-code at `_directives.scss:20-29` as a known partial state |
-| Chart colour literals | Handoff item 10 | Declare the gridline CSS token here |
-| Chart type scale | Handoff 4a | Gated only by measuring whether 9pt renders as 9px — one build |
-| Drill and DC tips · zoom naming · dead menu icons | Handoff step 5 | The "~50 dead icons" count has never been verified; treat it as an estimate |
+| Nav bar | Handoff §02 | Reposition to lower right inset from the plot area, plus `z-index: 9999` and the off-scale `border-radius: 5px` (`chart-nav-bar.component.scss:20,26,32`) |
+| Data-tip registry remainder | Handoff 1c | Two of three assignment paths still assign directly; documented in-code at `_directives.scss:20-29` as a known partial state. v3 re-escalated this to "highest-value single change in the whole set" on a misread constant — 9996 is the scrim, not the tip. See §5.6; it is a maintainability item |
+| Chart colour literals | Handoff item 10 | 11 occurrences of `#ff8d41`. Declare the gridline CSS token here |
+| Chart type scale | Handoff 4a | Gated only by measuring whether 9pt renders as 9px — one build. Its chrome tier is already fully shipped |
+| Drill and DC tips · zoom naming · dead menu icons | Handoff step 5 | The "~50 dead icons" count has never been verified |
 
-## After the leverage item
+## After the density gating commits
 
 **Rollout slices 4 and 5** — the container and the calendar. `ANCHORED_ASSEMBLY_TYPES`
 (`mini-toolbar.service.ts:41-53`) carries six types; the container is deliberately excluded as its own
 slice, and the calendar is expected to take the table treatment unmodified.
 
+Read `github.md`'s new in-project decision to scope the resting kebab by pointer capability first — it
+modifies already-shipped slice-3 behaviour.
+
 ## Decided, unscheduled
 
-**The title band becomes unfilled** — [decisions](./chart-card-open-item-decisions.md) §1. No dependency
-on the seed mark, so it can go whenever someone picks it up. Server-rendered and therefore
-export-affecting, so budget the manual pass, and show it to the sibling project first: it breaks the
-title-bar/table-header equality their §05 endorses.
+**The title band becomes unfilled** — [decisions](./chart-card-open-item-decisions.md) §1. No dependency on
+the seed mark. Server-rendered and therefore export-affecting, so budget the manual pass, and show it to the
+sibling project first: it breaks the title-bar/table-header equality their §05 endorses.
+
+**The card radius drops 12px → 6px** — `Chart Card Spec v3.dc.html` §01. Sequenced behind the mark, because
+retiring `resolveSeededCorner` without it leaves no reversal path. Confirm the seeded 12px cohort is empty
+before either constant moves — `resolveSeededCorner` keys on exact equality, so already-seeded assets stop
+being stripped the moment the constant changes.
 
 ---
 
@@ -130,9 +255,9 @@ title-bar/table-header equality their §05 endorses.
 | Phase 9B dark mode — every server-rendered surface, chart included | `3e7e52626` |
 | Inline-SVG chart rendering coupled to the modern gate | `aed8e6b22` |
 | Data-mark-anchored tooltip tail | `7e4a7c809` |
-| Shell tooltip retokenize + CARD ramp + data-tip layer declaration (handoff 1a, 1b, part of 1c) | `43a934add` |
-| Selection vocabulary — chart-owned surfaces and the annotation border (handoff step 2) | `052fe61f1` |
-| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart (handoff 3a, 3b, 3c) | `67c486d67` |
+| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `43a934add` |
+| Selection vocabulary — chart-owned surfaces and the annotation border | `052fe61f1` |
+| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `67c486d67` |
 | Right-click reaches max mode on tables | `b1eb8df8e` |
 | Rollout slice 2 — table, crosstab, calc table | `a4cd1e362` |
 | Max-mode mini-toolbar positioning fix | `1091bd178` |
@@ -140,27 +265,32 @@ title-bar/table-header equality their §05 endorses.
 
 ## Still undecided
 
-- **Does the nav bar render for maps only, or any zoomable chart?** Changes the reach of that item, not
-  the decision.
-- **Which render path gauges and thermometers take in the live viewer** — the widget spec flags this
-  itself as unverified.
+- **Dense: hover overlay, or no chrome at all?** The live one. See "In flight" above.
+- **How the seed mark handles defaults added after it ships.** See the seed-mark section.
+- **How the title height row reaches assemblies.** See "Needs a design decision."
+- **Does the nav bar render for maps only, or any zoomable chart?**
+- **Which render path gauges and thermometers take in the live viewer** — the widget spec flags this itself
+  as unverified.
 - **Whether the sibling project accepts the unfilled title band**, given they endorsed the fill for
   cross-widget consistency.
+- **Whether the teal selection family has an owner.** It is unchanged in `_viz-tokens.scss:51-53`, and v3
+  deleted the paragraphs that tracked it without resolving it.
 
 ---
 
 ## Related documents
 
-- [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) — the title band, dark scope,
-  and range slider decisions, with the consequences each triggers
-- [chart-card-source-doc-corrections.md](./chart-card-source-doc-corrections.md) — the running audit of
-  the external document set against the branch. **Read it before trusting `chart-card-design2/`**
+- [chart-card-source-doc-corrections.md](./chart-card-source-doc-corrections.md) — the running audit of the
+  external set against the branch. **Read it before trusting `chart-card-design3/`, and before requesting
+  the next sync**
+- [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) — the title band, dark scope and
+  range slider decisions, with the consequences each triggers
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
-  [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped
-  slice works
-- `chart-card-design2/` — the external source set: the chart card spec, the tickets, and the sibling
-  project's `Visualization Widget Spec.dc.html`. Regenerated wholesale on each sync, so nothing
-  authored there survives
+  [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice
+  works
+- `plans/2026-08-11-chart-card-strip-density-gating.md` · `plans/2026-08-11-chart-card-dark-browser-surfaces.md`
+- `chart-card-design3/` — the external source set. Regenerated wholesale on each sync, so nothing authored
+  there survives. `chart-card-design2/` and `chart-card-design/` are kept as history
 - [visualization-implementation-roadmap.md](./visualization-implementation-roadmap.md) — the wider
   initiative, decomposed by phase rather than by slice

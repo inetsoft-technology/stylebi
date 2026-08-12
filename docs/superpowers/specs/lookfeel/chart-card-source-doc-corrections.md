@@ -1,611 +1,957 @@
 # Chart Card Source Docs — Corrections and Their Effect on the Plan
 
-**Date:** 2026-08-11
-**Applies to:** the `chart-card-design2/` document set (`docs/superpowers/specs/lookfeel/`) — thirteen files, including
-the new `Visualization Widget Spec.dc.html`
-**Source docs were synced against:** community `viz-updates`, sync stamped 2026-08-11T01:23Z
-**This audit was verified against:** community `viz-updates` @ `a038a30b5`
+**Date:** 2026-08-12
+**Applies to:** the `chart-card-design3/` document set (`docs/superpowers/specs/lookfeel/`) — fifteen files,
+including two that are new this sync
+**Source docs were synced against:** commit `52c127c128c3`, 2026-08-12. The new reversibility ticket labels
+this "tree hash, not a commit sha"; it is a commit sha — the full sha of `52c127c12`, whose entire content
+is the in-repo decisions document. The tree at that commit also contains the previous edition of this file.
+**This audit was verified against:** community `viz-updates` @ `881a9b049`, plus twelve uncommitted files in
+the working tree (the density-gating work — see §3.1, which turns on them)
 
-**This supersedes the 2026-08-05 edition**, which audited the earlier `chart-card-design/` set against
-`aed8e6b22`. Every finding in that edition is accounted for in
-[the disposition table](#disposition-of-the-2026-08-05-findings) below — kept, closed, or superseded — so
-nobody has to diff two files to learn what happened to one.
+**This supersedes the 2026-08-11 edition**, which audited `chart-card-design2/` against `a038a30b5`. Every
+finding in that edition is accounted for in [the disposition table](#disposition-of-the-2026-08-11-findings)
+— kept, closed, regressed, or superseded.
 
-**What the new set is.** `chart-card-design2/` is the same twelve-file set re-synced against a new branch,
-plus one new document. The two HTML mockup files and three of the markdown tickets are byte-identical to
-the previous set; six markdown files changed; nothing was removed and no decision was reversed. The
-changes are a status overlay — what has since shipped — plus a small number of new items. The thirteenth
-file, `Visualization Widget Spec.dc.html`, is not a status overlay: it is a second decision-making
-document covering the eight non-chart assemblies, and several of its decisions land on chart-card work
-that has already shipped.
+**What the new set is.** `chart-card-design3/` is a wholesale regeneration, not a diff. Four ticket
+markdowns are byte-identical to v2; the two HTML documents were rebuilt without their embedded font and SVG
+payloads, which is why they shrank 60–75% while their prose *grew*; `github.md` gained 13KB of changelog;
+and two genuinely new tickets appeared — `Seeded value reversibility - ticket.md` and
+`Chart card dark values - ticket.md`. Both new tickets land on questions the previous edition of this file
+raised, and both are good. The set's technical quality is up. Its *bookkeeping* quality is down, and in a
+specific way: every correction that had been applied to the v2 files in place was lost when the files were
+regenerated.
 
-**Why this file exists separately.** The source docs are precise and confident, and they cite line
-numbers. That makes them easy to trust and hard to correct in passing. Each entry below therefore states
-what the doc says, what the code says, and how to confirm it.
+**The one thing to read if you read nothing else.** §1.1. A decision was reversed this sync on the strength
+of an argument that does not hold, and the reversal contradicts code already written. Everything else here
+is ordinary drift.
 
-**Reading order:** [§1](#1-factual-errors) is where a doc is wrong about the code.
+**Reading order.** [§1](#1-factual-errors) is where a doc is wrong about the code.
 [§2](#2-staleness) is where the code moved after the docs were written. [§3](#3-design-conflicts) is where
-two deliberate decisions disagree. [§4](#4-gaps) is where a doc leaves a decision unmade that its
-implementer needs. [§5](#5-regressions-from-the-last-audit) is new, and is the most important section for
-process: findings this file already made in August that the re-sync re-broke.
+two deliberate decisions disagree. [§4](#4-gaps) is where a decision the implementer needs is unmade.
+[§5](#5-regressions-from-the-last-audit) is corrections that were applied to v2 and did not survive
+regeneration. [§6](#6-why-the-fix-did-not-hold) is the process finding, and it is the one with a cheap fix.
 
-**Scoring.** Of the claims checked this pass: three factual errors, three points of staleness, four design
-conflicts, one gap, and three regressions. The set remains substantially accurate — the same verdict as
-August — but the failure mode has changed. In August the errors came from reading a large codebase
-quickly. This pass, the largest single category is claims that were already corrected here and came back.
+**Scoring.** Four factual errors, three points of staleness, four design conflicts, two gaps, **seven
+regressions**. Two prior findings were closed by the set improving.
+
+The regression count is up from three to seven, and their character has split in two. Three are conclusions
+re-derived from the branch — the same failure as last edition, where the sync read the code and not this
+file, and reached the reading this file had ruled out. Four are worse: corrections that had been written
+into the v2 source files were **overwritten** by regeneration, and in two cases the overturned claim came
+back *stronger* than before it was corrected. A correction that survives one sync and dies in the next is
+not a correction; it is a delay. That needs a different fix from the one prescribed last time — see §6.
 
 ---
 
 ## Scope of this audit
 
-**Audited in full.** The six changed markdown files: `README.md`, `Open items - handoff.md`,
+**Audited in full.** `README.md`, `github.md`, `Open items - handoff.md`,
 `Anchoring beyond charts - discussion.md`, `Chart overlay surfaces - ticket.md`,
-`Shell surfaces - ticket.md`, `Outlined chart text - ticket.md`.
+`Shell surfaces - ticket.md`, and both new tickets.
 
-**Audited where it lands on shipped chart-card work.** `Visualization Widget Spec.dc.html` — six
-decisions: the title lane's height row, gating the anchored strip on density, the hardcoded strip height,
-derived selection, the seed mark's dependency shape, and the card radius.
+**Audited where it lands on shipped or in-flight chart-card work.** `Visualization Widget Spec.dc.html`
+§03/§04/§05/§08, and `Chart Card Spec v3.dc.html` §01 and §06.
 
-**Not audited, and deliberately so.** The widget spec's §04 density matrix, its §05 per-widget literal
-inventories, and the range-slider bitmap work — none of it blocks the chart-card rollout, and auditing it
-would triple this file for no decision anyone is waiting on. Also not re-audited: `Chart type sizes -
-ticket.md`, `Dead menu icons - ticket.md` and `Zoom naming - ticket.md`, which are byte-identical to the
-previous set and whose August findings carry over unchanged.
+**Confirmed byte-identical to v2 and not re-audited.** `Chart type sizes - ticket.md`,
+`Dead menu icons - ticket.md`, `Outlined chart text - ticket.md`, `Zoom naming - ticket.md`. Their August
+findings carry over unchanged — including the one in §2.3 below, which is now three editions old.
+
+**Not audited.** The widget spec's §04 density matrix values and §06 per-widget affordance inventories, and
+the range-slider bitmap work.
 
 ---
 
-## Disposition of the 2026-08-05 findings
+## Disposition of the 2026-08-11 findings
 
 | Old § | Finding | Fate |
 |---|---|---|
-| 1.1 | The selection CSS override path is not dead | **Still true** — and contradicted again by the new set. See §5.1 |
-| 1.2 | The data-tip stacking item is not a live bug | **Still true** — and contradicted again by the new set. See §5.2 |
-| 1.3 | The two tooltip classes are not identical | **Closed** by `43a934add`. The mixin at `_directives.scss:215` holds the eleven shared properties and carries a comment stating why `max-width`/`max-height` are excluded; `.widget__default-tooltip` re-declares them at `:236-237`. The hidden-annotation tooltip did not acquire a viewport cap |
-| 1.4 | The mini-toolbar already renders a kebab | **Closed** by `67c486d67`, which made the existing overflow kebab resident rather than adding a second one |
-| 2.1 | The server-side chrome layer landed after the docs | **Still true**, and now extended — the widget spec decides to change one of those shipped constants. See §3.3 |
-| 2.2 | The modern gate is never mentioned | **Still true of the chart-card set.** The widget spec closes it from the other side: its §02 documents all six resolvers and the master property. The chart-card documents still specify unconditionally |
-| 2.3 | The strip is already 24px under the gate | **Still true** — and contradicted again by the new set. See §5.3, and §3.1 for how the widget spec resolves it |
-| 2.4 | The CARD tooltip grew a structure the docs do not know about | **Closed** by `43a934add` |
-| 2.5 | `chart-actions.spec.ts` asserts by index, not only by label | **Closed** by `67c486d67`, which appended the new menu group last |
-| 3.1 | Title band fill: spec says never filled, `VSTitleChromeDefaults` ships a fill | **Decided 2026-08-11 — unfilled, hairline rule only.** See [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §1, which also records the two consequences that reach past the chart card: the title bar stops matching the table header band, and the widget spec's 6px radius argument loses one of its two supports |
-| 3.2 | The legend is server-side, and the spec does not say so | **Still true.** Nothing in the sync diff touches it |
-| 4.1 | The anchoring mechanism is unspecified | **Closed.** Resolved as reposition-in-place and shipped across three slices |
+| 1.1 | Step 0's four `:root` tokens are one token | **Regressed by deletion.** Step 0 is simply gone from the handoff with no note. The correct conclusion and the incorrect one leave the same trace — see §5.2 |
+| 1.2 | Nineteen citations point at filenames that do not exist | **Closed, and recurred in a new form.** Every `.html`→`.dc.html` repair held. Two *different* phantom targets appeared instead — see §1.3. The orphan half also recurred, on a different document — see §5.7 |
+| 1.3 | The `#ff8d41` count is 11, not 7 | **Closed.** v3 makes no count claim; it calls `#ff8d41` one of four oranges, which is accurate |
+| 2.1 | Slice 3 shipped nine hours after the sync | **Still true, one sync later.** The widget spec's own read-against date still predates the slice-3 commit — see §2.1 |
+| 2.2 | `--inet-font-size-lg` already shipped | **Still true, unfixed.** `Chart type sizes - ticket.md` is byte-identical and still lists it as "to add" — see §2.3 |
+| 2.3 | The shell owns a token layer adjacent to the type-scale proposal | **Still true.** Unchanged in v3 |
+| 3.1 | The anchored strip's height, and whether it anchors under dense | **Superseded by §3.1 below.** The height half is settled and implemented; the anchoring half was reversed this sync, on a bad argument |
+| 3.2 | The seed mark blocks release, not the rollout | **Half kept, half corrected — by me.** Still right that the *toolbar rollout* writes no persisted state. Wrong to have generalised it: the widget spec's §05 said heights move only for marked assemblies, and the height work is therefore mark-coupled. See §3.3 |
+| 3.3 | The card radius is decided to change; the sentinel is decided to go | **Closed as a finding, promoted to a ticket.** v3's `Seeded value reversibility - ticket.md` covers it properly and adds a problem this file missed — see §3.2 |
+| 3.4 | Two selection idioms, in two token layers | **Still true, and the tracking was deleted.** The teal family is unchanged in code; the ticket paragraph that tracked it was removed — see §5.3 |
+| 4.1 | The dark gap is browser-DOM only | **Closed as a finding, promoted to a ticket** — and the ticket disagrees with the in-repo decision about scope and dependencies. See §4.2 |
+| 5.1 | "That CSS branch had never executed in production" | **Regressed, third edition running.** Verbatim in the v3 handoff, and now self-refuting — see §5.5 |
+| 5.2 | "The data tips sit two orders of magnitude below the dropdowns" | **Regressed and escalated** from "still open" to "highest-value single change in the whole set." See §5.6 |
+| 5.3 | The 30px strip | **Closed.** v3's ladder is consistent: 30px is the lane, 24px is the strip |
 
 ---
 
 ## 1. Factual errors
 
-### 1.1 Step 0's four `:root` tokens are one token, not four
+### 1.1 The 32px chrome floor is a card-height rule. Dense's 20px lane never reaches it
 
-**Where:** `Open items - handoff.md` step 0, which calls the four additions "a precondition, not a
-cleanup" and states that two later steps cannot start until they exist.
+**Where:** `Visualization Widget Spec.dc.html` §05, and again in §08 step 3.
 
-**The claim.** Four `:root` additions no other step owns: a gridline grey, a 44px touch control height,
-and two icon sizes — "the toolbar glyph and the kebab, currently literals at every call site."
+**The claim.** Verbatim:
 
-**What the code says.** Three of the four are already resolved.
+> A 24px strip cannot fit a 20px lane, so dense drops below chrome entirely — no strip, no kebab,
+> right-click only. This is not a density-specific carve-out: it is the same floor the chart card spec's
+> own toolbar ladder already enforces on height alone (its §06) — a 24px control needs 4px of clearance
+> above and below, so anything under 32px hosts no chrome at all, kebab included. Dense's 20px lane sits
+> under that floor, so it inherits the ladder's bottom rung rather than inventing a new one.
 
-- **Touch control height — already shipped and already consumed.** `--inet-control-height-touch: 44px` is
-  declared at `_variables.scss:480` and read by the mini-toolbar's own touch row at
-  `mini-toolbar.component.scss:202,207-208`. The step describes adding a token that the code it points at
-  is already using.
-- **The two icon sizes — not literals, and not two.** Both call sites in
-  `mini-toolbar.component.html` use the same shared class: the action glyph at `:47`
-  (`icon + ' icon-size-small'`) and the kebab at `:71` (`kebabAction.icon() + ' icon-size-small'`). There
-  is one size, already abstracted into the shipped icon system (`_icon-alias.scss` extends
-  `.icon-size-small` throughout). There is nothing to hoist.
-- **Gridline grey — genuinely absent from CSS, and narrower than described.** No
-  `--inet-subtle-border-color` or equivalent exists in `_variables.scss`. But the value is not missing
-  from the product: `VSChartChromeDefaults.GRIDLINE = 0xE8E5DE` shipped before the previous audit, with
-  `resolveGridlineColor()` implementing the gridline/axis-line split. What is missing is a CSS token for
-  a value the server already resolves.
+**What the code says.** The floor is real and the arithmetic is right, but it measures the **assembly**, not
+the lane. `AbstractVSActions.showingActions` at `abstract-vs-actions.ts:217`:
+
+```typescript
+if(modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR) {
+```
+
+`objectFormat.height` is the assembly's own height. `ACTION_FLOOR = 32` is declared at `:53` under a comment
+that matches the spec's reasoning exactly — "a 24px control needs 4px of clearance above and below, so below
+32px no control fits."
+
+**The chart card spec agrees with the code, not with the widget spec.** §06 is unambiguously a card-height
+ladder. Its own words: "How the strip thins out and finally disappears **as the card shrinks** is §06's
+ladder"; "a 200px title-hidden card is 24px and a 200px card with a title is 30px"; and the table row
+"`< 32px` — No chrome. A 24px control with 4px clearance does not fit; right-click is the only route."
+§10.1 refers to the same rule as "a **card** too short to host any control at all."
+
+**So the inheritance does not happen.** A 200px-tall chart in dense mode has a 20px title lane and a 200px
+card. §06's ladder reads 200px and yields the full strip. The lane's height and the card's height are
+different measurements of different things, and only one of them is on the ladder. Dense charts are not
+short cards.
 
 **Confirm it:**
 ```bash
 cd community/web/projects/portal/src && \
-  grep -n "control-height-touch\|subtle-border" scss/_variables.scss && \
-  grep -n "icon-size-small" app/vsobjects/objects/mini-toolbar/mini-toolbar.component.html
+  sed -n '48,54p;213,220p' app/vsobjects/action/abstract-vs-actions.ts
 ```
 
-**Effect on the plan.** Step 0 is not a precondition and should not be sequenced as one. It is one token,
-and it is only needed by whichever of item 10 (chart colour literals) or the §08 `GDefaults` mapping goes
-first — either can declare it. Fold it into that step. The dependency arrow `0 → J` in the handoff's
-diagram should be deleted, along with the two arrows it feeds.
+**Effect on the plan.** The reversal's *motive* survives this and is worth keeping: v3 also argues that
+falling back to a floating strip is inconsistent with a ladder that "only shrinks the strip, then drops to
+kebab-only, then drops to nothing," and that is a fair objection to the v2 decision. What does not survive
+is the claim that dense therefore needs no rule of its own. Whichever outcome is chosen, dense requires an
+explicit density condition — exactly the "density-specific carve-out" §05 says it is avoiding. The choice
+is live, and it is between two written decisions rather than between a decision and an oversight. See §3.1.
 
 ---
 
-### 1.2 Every citation to a companion drawing points at a filename that does not exist — resolved
+### 1.2 The README points at the wrong branch, and contradicts its own changelog
 
-**Where:** nineteen citations across four files — `Chart overlay surfaces - ticket.md` (3),
-`Shell surfaces - ticket.md` (2, one of them wrapped across a line break), `github.md` (13), and one
-stale `Chart Card Spec v1.dc.html`.
+**Where:** `README.md`, against `github.md` in the same folder.
 
-**The claim.** The tickets cite `Chart overlay surfaces - decided visuals.dc.html`; `github.md`'s
-changelog and screen map cite `Chart Card Spec v3.dc.html`.
+**The claim.** The README names `epic-74519` as the branch this work is read against. v2's README had been
+corrected to `viz-updates`.
 
-**What the folder contains.** `Chart overlay surfaces - decided visuals.html` and `Chart Card Spec.html`
-— the same two files as the previous set, byte-identical to it. The `.dc.html` suffix and the `v3` were
-added to the *references* during this sync without the files being renamed. The previous set's references
-were correct.
+**What the folder says.** `github.md` states `branch: viz-updates` and carries five sync entries dated
+against it through 2026-08-12T04:10Z. The two files disagree about the most basic fact in the set.
 
-**Why it matters more than a typo.** Both tickets instruct the implementer to read the drawing before
-writing any CSS — "a layout described in prose gets built two ways" — and the shell ticket makes it a
-precondition of item 4. An implementer who follows the citation finds nothing and either proceeds without
-the drawing or stops.
+**How it happened.** v2's handoff opened with a "What changed since the last handoff" block whose first
+clause was "branch moved from `epic-74519` to `viz-updates`." v3 deletes that block and replaces it with a
+dated sync note that does not restate the move. The one sentence recording the branch change was removed,
+and the README reverted to the pre-change value — the same mechanism as §5.1 and §5.4, on a smaller fact.
 
-**Decided, 2026-08-11: there are two canonical visual sources, and these are their names.**
-
-| Cite this | Not this | Covers |
-|---|---|---|
-| `Chart overlay surfaces - decided visuals.html` | `…decided visuals.dc.html` | §01 selection, §02 the card tooltip ramp, §03 the Resize Plot sliders |
-| `Visualization Widget Spec.dc.html` | — | The eight non-chart assemblies: title lane geometry, density, derived selection, the range slider redraw |
-
-`Chart Card Spec.html` is the specification, not a drawing; the ten `Chart Card Spec v3.dc.html`
-references in `github.md` resolve to it. The `.dc.html` suffix is correct on the widget spec, which is the
-filename on disk, and wrong everywhere else.
-
-**The orphan.** No markdown file in the set cites `Visualization Widget Spec.dc.html` at all — not the
-README, not the handoff, not `github.md`'s screen map, which has no rows for it. It is the newest and most
-decision-dense document in the folder and nothing points at it. An implementer working from the handoff
-would never learn that the title lane, the strip's density gating and the card radius were decided
-elsewhere, which is the mechanism behind §3.1, §3.3 and §3.4.
-
-**Confirm it:**
-```bash
-cd community/docs/superpowers/specs/lookfeel/chart-card-design2 && ls *.html && grep -c "dc\.html" *.md
-```
-
-**Effect on the plan.** No plan change. **Applied to the source set on 2026-08-11**: the citations were
-rewritten per the table above (the two remaining `.dc.html` strings in `github.md` are records of files
-that were genuinely deleted — `Chart Card Spec v1.dc.html` and `Resize Plot slider - proposal.dc.html` —
-and are correct as history); the widget spec was added to `README.md`'s changelog and "Also here", to
-`github.md`'s changelog, and to the screen map as eight new rows; and the four items it overrides now
-carry cross-references — the strip's sizing and the seed-mark precondition in `Anchoring beyond charts -
-discussion.md`, the dependency picture, step 3c and the alignment-anchor gap in `Open items - handoff.md`,
-and the surviving second selection idiom in `Chart overlay surfaces - ticket.md`.
+**Effect on the plan.** No plan change; the work is on `viz-updates` and everything else in the set assumes
+it. Recorded because a reader who trusts the README will diff against a branch that does not contain any of
+this, find nothing, and reasonably conclude the set is fantasy. It is also the exact class of drift the
+deleted pointer existed to catch — see §6.
 
 ---
 
-### 1.3 The `#ff8d41` count in the Resize Plot slider ticket is 11, not 7
+### 1.3 Two citations name documents that have never existed
 
-**Where:** `Chart overlay surfaces - ticket.md` item 13, and the previous edition of this file, whose
-appendix recorded "7 occurrences. Confirmed."
+**Where:** `README.md:57,64` and `github.md:130,134-135` cite **`Corrections since handoff.md`**;
+`github.md:127-128` cites **`Chart card handoff - mark impact patch.md`** as living "in the Visualization
+Widget Spec project."
 
-**What the code says.** Eleven, all `background:` declarations, at
-`vs-chart.component.scss:72,76,85,119,123,131,171,207,212,217,222`. The file has not been modified since
-`e8df3491b` (2024-07-15), so the count was eleven when the ticket was written and eleven when this file
-first claimed to have confirmed seven.
+**What exists.** Neither file exists anywhere in this repository, and there is no "Visualization Widget Spec
+project" folder under `lookfeel/`. `Corrections since handoff.md` is cited four times as a live, current
+document — it is described as changed this turn.
+
+Two other `.dc.html` references (`Resize Plot slider - proposal.dc.html`, `Chart Card Spec v1.dc.html`) are
+explicitly marked superseded or deleted and are correct as history, as they were last edition.
+
+**Why it recurs.** This is the third consecutive sync in which the set cites documents by names they do not
+have. The previous instance was a suffix drift on real files and was repaired; this one invents two
+documents outright. The repair held for the files it touched, which is evidence the corrections *work* when
+they survive — see §6 for why these did not.
 
 **Confirm it:**
 ```bash
-cd community/web/projects/portal/src && \
-  grep -c "ff8d41" app/vsobjects/objects/chart/vs-chart.component.scss
+cd community/docs/superpowers/specs/lookfeel/chart-card-design3 && \
+  grep -rn "Corrections since handoff\|mark impact patch" . && \
+  find ../../../../.. -name "Corrections since handoff.md"
 ```
 
-**Effect on the plan.** Trivial for the work — item 13 replaces all of them either way. Recorded because
-it is a mis-verification in *this file*, and the appendix's value depends on its entries being
-trustworthy. It also suggests the previous appendix's counts were sampled rather than run; treat the
-uncounted claims in it as unverified rather than verified.
+**Effect on the plan.** None on the work. An implementer chasing `Corrections since handoff.md` finds
+nothing. If that title describes a document the design project keeps on its own side, it needs to ship with
+the set or stop being cited.
+
+---
+
+### 1.4 Two class attributions are wrong
+
+**Where:** `Shell surfaces - ticket.md`'s new calendar-radius paragraph, and `github.md`'s property list.
+
+- `isCornerSeedTarget()` is attributed to `VSObjectChromeDefaults`. It is a **private method on
+  `VSAssemblyInfo`**, at `VSAssemblyInfo.java:1232`, whose own comment already documents the calendar's
+  exclusion and the range slider's.
+- `viewsheet.modernObjectChrome` is listed as a sibling property inside `VSDensityDefaults.java`. It is
+  declared in `VSObjectChromeDefaults.java:44`.
+
+Every underlying *value* in both passages checks out — the calendar's 10px seed, `PlotDescriptor
+.modernCornerSeed`, the chart's `0.3` bar radius, the 12px/6px conflict, the dark hex values. Only the
+homes are wrong.
+
+**Effect on the plan.** Minor, but both send a reader to the wrong file, and `VSAssemblyInfo` versus
+`VSObjectChromeDefaults` is precisely the distinction the seed mark's design turns on — the mark lives on
+the assembly, the resolvers do not.
 
 ---
 
 ## 2. Staleness
 
-Not errors. The docs were accurate at the 01:23Z sync. The code moved.
+Not errors. The docs were accurate when written.
 
-### 2.1 Slice 3 shipped nine hours after the sync
+### 2.1 The widget spec is still read against a date that predates slice 3
 
-**What the docs say.** The new set is unambiguous and repeats it in four places: the selection family is
-"not yet shipped" and "still undecided," the rollout's "remaining, still undecided" work is "the selection
-family (list, tree, container), calendar," and the anchoring document's sequencing puts "confirm the seed
-mark has landed" before "write the remaining rollout properly, per assembly family: the selection family…"
+**What the docs say.** §08 frames the "eight-assembly rollout" as blocked future work that step 3 unblocks.
 
-**What the code says.** `a038a30b5`, "feat(vsobjects): anchor the selection family, kebab-only", committed
-2026-08-11 10:28:13 −0400 — after the 01:23Z sync. `ANCHORED_ASSEMBLY_TYPES` in
-`mini-toolbar.service.ts:41-53` now reads `vschart`, `vstable`, `vscrosstab`, `vscalctable`,
-`vsselectionlist`, `vsselectiontree`, with the slice-3 entries commented "anchored but not capped:
-`AbstractVSActions.kebabOnly` makes the kebab the whole strip at any width. The container is deliberately
-absent; it is its own slice."
+**What the code says.** Six of the eight seeded types are already anchored: `67c486d67` (chart),
+`a4cd1e362` (table, crosstab, calc table), `a038a30b5` (selection list, tree). The widget spec's stated
+read-against date is 2026-08-10, which predates the 2026-08-11 selection-family commit, so the document is
+stale by its own baseline — the same finding as last edition, one sync later.
 
-It shipped without the seed mark, and correctly so — see §3.2.
-
-**Confirm it:**
-```bash
-cd community && sed -n '41,53p' web/projects/portal/src/app/vsobjects/objects/mini-toolbar/mini-toolbar.service.ts
-```
-
-**Effect on the plan.** The remaining rollout is **the container and the calendar**, not four families.
-The anchoring document's per-family inventory for "selection list, tree, container — not yet shipped" is
-now half a description of shipped code; its predictions are testable rather than pending. One prediction
-in it is already contradicted: it says the container "owns it; children inside one get none," while the
-shipped slice excludes the container entirely as its own slice.
-
-Also note what slice 3 decided that the documents do not record: selection list and tree are **exempt**
-from the 22px sort-control reserve. `VSObjectContainer.rightEdgeReserve` (`:585-600`) returns 0 for both,
-because a selection's right-edge occupant is the pending-Apply icon, handled by `.pending-alert` in
-`vs-selection.component.scss` instead.
+**Effect on the plan.** The remaining rollout is the container and the calendar. "Unblocks the
+eight-assembly rollout" overstates by six.
 
 ---
 
-### 2.2 `--inet-font-size-lg` already shipped
+### 2.2 Step 3's token swap is already done
 
-**Where:** `Open items - handoff.md` step 1b, "Adds `--inet-font-size-lg: 16px`", and
-`Chart type sizes - ticket.md`, which lists it as "to add".
+`mini-toolbar.component.scss:82` now reads `height: var(--inet-control-height-sm)` in the working tree —
+the exact change §08 step 3 lists as outstanding. `--inet-control-height-sm` is `24px` at
+`_variables.scss:475`, so it is value-identical. Committed `HEAD` still carries the literal; only the
+working tree has the swap.
 
-**What the code says.** `_variables.scss:239` declares `--inet-font-size-lg: 16px`. The CARD ramp that
-consumes it shipped in `43a934add`.
-
-**Effect on the plan.** Remove it from step 1b's deliverables. The type-scale ticket's chrome tier
-(11/13/16) now has all three values shipped, which shrinks that ticket to the interior tier alone.
+**Effect on the plan.** One of step 3's three pieces is finished. See §3.1 for the other two.
 
 ---
 
-### 2.3 The shell now owns a token layer adjacent to the type-scale proposal
+### 2.3 `--inet-font-size-lg` is still listed as "to add", three editions on
 
-**What the docs say.** `github.md` flags `scss/_viz-tokens.scss` as "new, unticketed" and says the overlap
-with `Chart type sizes - ticket.md`'s `--inet-font-size-chart-*` proposal is "not yet reconciled."
+`Chart type sizes - ticket.md` is byte-identical to v2 and still lists `--inet-font-size-lg: 16px` as a
+token to add. It shipped in `43a934add` and is live at `_variables.scss:239`.
 
-**What the code says.** The flag is correct and the overlap is smaller than it reads. `_viz-tokens.scss`
-declares one font-size token, `--inet-viz-font-size`, resolved by density mode — a row-text size for
-browser-DOM data surfaces. The type-scale ticket proposes `--inet-font-size-chart-sm/-base/-title` for
-the chart's *interior*, which is server-rendered into SVG and which the viz layer explicitly disclaims
-("chart-color tokens reserved as server-rendered/conceptual-only"). They do not collide.
-
-**Effect on the plan.** The reconciliation pass the sync asks for is a ten-minute read, not a
-negotiation. The real overlap is elsewhere and is settled by the widget spec's §09 rather than by this
-ticket — see §3.4.
+**Effect on the plan.** Unchanged from last edition: remove it from the deliverable, which shrinks that
+ticket's chrome tier to nothing and leaves only the interior tier. Recorded again because a byte-identical
+file is not an unchanged fact — the four untouched tickets should be re-read against the branch at some
+point rather than assumed stable.
 
 ---
 
 ## 3. Design conflicts
 
-Four. In each case neither side is an error; two deliberate decisions disagree, and someone has to choose.
-Three of the four are new, and all three come from the widget spec landing beside a set that had already
-shipped code.
-
-### 3.1 The anchored strip's height, and whether it anchors at all under dense
+### 3.1 §05 reverses the dense decision, against code already written to the previous one
 
 | Source | Decision |
 |---|---|
-| `Anchoring beyond charts - discussion.md`, new "what changes visually, per family" section | "The whole visual story is two sizes: **30px where the lane is a card title** (chart, table family, calendar) and **24px `--inet-control-height-sm` where it is a header** (selection family, and every title-hidden overlay)" |
-| Shipped code | `GuiTool.MINI_TOOLBAR_HEIGHT_MODERN = 24` for every anchored type, pinned at `mini-toolbar.component.scss:82` as a hardcoded `height: 24px` |
-| `Visualization Widget Spec.dc.html` §09 | "Three shipped steps used deliberately: 30px `--inet-control-height-md` in the title lane, 24px `-sm` for the overlaid strip, 44px touch floor" |
+| `Visualization Widget Spec.dc.html` §05, **v2** | Dense loses the anchored strip and "falls back to the existing hover-revealed overlay — the legacy `.mini-toolbar:hover` path, already shipping, no new code" |
+| `Visualization Widget Spec.dc.html` §05, **v3** | "Dense drops below chrome entirely — no strip, no kebab, right-click only." Floating "does not reappear anywhere in this" |
+| Working tree, uncommitted | v2's decision, implemented. `GuiTool.isVizDensityAtLeastCompact()` and the shared `isAnchoredResident()` in `mini-toolbar.service.ts` gate anchoring to compact-and-above; dense returns to the hover path. The source comments quote v2's wording |
 
-**The reading.** The chart-card document and the widget spec agree on the *ladder* and disagree with the
-code on which rung the anchored strip takes. The widget spec's §08 step 3 states the intended end state
-directly: add a title-height row to the density matrix at **20 / 26 / 30**, gate the anchored strip to
-**compact and above** with **dense falling back to the existing hover-revealed overlay**, and replace the
-hardcoded `height: 24px` with `--inet-control-height-sm`.
+**Both readings are defensible and they are not close.** v2 keeps an affordance that exists today. v3
+removes it, on the argument that a fallback to floating is inconsistent with a ladder that never floats.
+That argument is real. The argument *attached* to it — that dense inherits this automatically from the 32px
+floor — is not; see §1.1.
 
-**This reaches code that has already shipped.** Slices 1–3 anchor unconditionally whenever
-`GuiTool.isVizModern()` is true, with no density condition anywhere in
-`VSObjectContainer.isToolbarAnchored` / `isKebabResident` (`:472-484`). Under dense — which is today's
-default density — the shipped behaviour is the one the widget spec decides against.
+**What is not in dispute.** Anchoring must stop under dense, because a 24px strip does not fit a 20px lane.
+Both versions agree, and that half is implemented.
 
-**That is not a complication.** `viz-updates` is an integration branch that has never shipped to
-customers and is not merged into `epic-74519` until the initiative is complete, so revising an earlier
-slice is ordinary work on this branch. No compatibility shim, and no reason to scope the density
-condition to new slices only — apply it across all six anchored types at once, or the product carries two
-anchoring rules for as long as the split lasts.
+**Resolved 2026-08-12: v3 is accepted.** See
+[chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §4. The reasoning that carries it
+is v3's own — the ladder never falls back to a floating strip anywhere else, so reintroducing one at a
+single density would be a second idiom for the same state. The claim in §1.1 is not what carries it, and
+the implementation therefore writes the density rule explicitly rather than relying on inheritance:
+`isAnchoredChromeSuppressed()` in `mini-toolbar.service.ts`, a sibling of `isAnchoredResident()` rather
+than its negation, consumed by `showingActions` beside the existing floor test.
 
-**Effect on the plan.** This, not the seed mark, is what stands between the current state and the
-container/calendar slice; the widget spec says so in the same breath ("unblocks the chart card's
-eight-assembly rollout"). Schedule it before slice 4, covering the shipped slices in the same change. The
-`height: 24px` → `--inet-control-height-sm` swap is mechanical and rides along.
-
-**Confirm it:**
-```bash
-cd community/web/projects/portal/src && \
-  sed -n '80,84p' app/vsobjects/objects/mini-toolbar/mini-toolbar.component.scss && \
-  sed -n '472,484p' app/vsobjects/objects/vs-object-container.component.ts
-```
+Two consequences recorded with the decision. **Touch has no route under dense** — "right-click only" has no
+meaning on a tablet, and this is left flagged for the sibling project rather than decided here. And gating
+`resident` had already meant dense assemblies shorter than 32px would **regain** chrome the floor used to
+remove; suppressing dense outright closes that hole in the same change rather than leaving it open.
 
 ---
 
-### 3.2 The seed mark blocks release, not the rollout — and the two new documents disagree about which
+### 3.2 The seed mark is version-blind, and the two documents that know it defer to each other
 
-| Source | Decision |
+**Where:** `Seeded value reversibility - ticket.md`, against `Visualization Widget Spec.dc.html` §03.
+
+**The problem, in the ticket's words.** `resolveSeededCorner` asks *is this value the one I seed?* The mark
+asks *was this assembly created under the gate?* Those coincide only while the set of seeded defaults never
+changes. Add a second seeded default after the mark ships, and an assembly marked `gate-on` from before that
+default existed is assumed to carry it. Value-sniffing is immune to this by construction.
+
+**Why it is unresolved.** The ticket names two ways out — version the mark, or keep a per-value check for
+defaults added after it — and defers the choice to the sibling project's §03. **§03 is byte-identical
+between v2 and v3.** It has not been updated to answer the question, and it does not mention
+version-blindness at all. The ticket is explicit that this must be decided "before the mark is the only
+mechanism, because it is the failure that surfaces later and quietly."
+
+**But it is milder than the ticket implies, because §03's reversal is recomputational.** §03 line 215: "On
+load, when the mark and the gate disagree, **recompute the DEFAULT tier on a clone** — the same shape as the
+other five read-time resolvers — instead of stripping values or rewriting saved content." Nothing is
+subtracted. An assembly marked `gate-on` from before a default existed, opened with the gate off, has its
+whole DEFAULT tier recomputed under gate-off rules — which produces the right answer for every value,
+including ones the gate never seeded into it. §03 line 180 confirms the recompute reproduces
+`setDefaultFormat`'s own `format.css` TableStyle lookup, so a customer stylesheet value survives too.
+
+So version-blindness does not destroy anything. It manifests as **staleness in the other direction**: while
+the mark and the gate agree, no recompute runs, so an assembly created before a default existed never picks
+it up. Two assemblies of the same type, both marked `gate-on`, both opened under the gate, render
+differently depending on when they were made. That is worth fixing and it is not the data-loss failure the
+ticket's framing suggests. "Version the mark" is a schema decision being proposed against the severe reading.
+
+### The count the ticket gets wrong, which is what version-blindness actually needs
+
+The ticket exempts the seeded colours: "The seeded colours (`objectBorderColor`, `pageBackgroundCss`,
+`cardBackgroundCss`) are computed live at read time rather than written and sniffed, so they need nothing
+from this ticket."
+
+**All three are written, not read.** Every one is a `set…Value` call on a default format, at creation:
+
+| Value | Written at | Gate-dependence |
+|---|---|---|
+| `objectBorderColor()` | `VSAssemblyInfo.java:1163` → `:1180` (title) and `:1193` (object) | Direct ternary on `isModern()` |
+| `cardBackgroundCss()` | `ChartVSAssemblyInfo.java:89`, `TableDataVSAssemblyInfo.java:1568` | Via `VSDensityDefaults.isDark()`, which is itself modern-gated |
+| `pageBackgroundCss()` | `ViewsheetVSAssemblyInfo.java:238` | Ternary on `isModern()`, `#f5f5f5` otherwise |
+
+The hex string is computed at the moment of the call; the call happens inside `setDefaultFormat` and the
+result is persisted. "Computed live at read time" describes the five substituting resolvers (§03 line 92,
+"lands on the DEFAULT tier of a clone… nothing is persisted"), not these.
+
+Grepping the whole of `core` for reversal machinery returns exactly one path —
+`VSObjectChromeDefaults.resolveSeededCorner`, reached only through
+`VSCompositeFormat.resolveDefaultTierCorner` (`:334-337`). **So the gate seeds four values into the
+persisted DEFAULT tier and one of them is reversible.**
+
+The ticket's *conclusion* about the colours is still right — under a recomputational mark they need no
+separate mechanism, because the recompute rewrites the whole tier. But it is right for the wrong reason, and
+the reason is what matters here: version-blindness is a question about *which defaults existed when*, and
+answering it requires knowing what the seeded set is. Nobody has counted it. The ticket's own scenario —
+"add a second seeded default after the mark ships" — already happened three times before the mark was
+written.
+
+### Axis-blindness: the same failure, but it happens today
+
+Version-blindness needs a future default to be added before it bites. There is a sibling problem that does
+not wait, and neither document names it.
+
+**The gate is three properties. The mark records one.**
+
+| Property | Read at | Composed into |
+|---|---|---|
+| `viewsheet.modernVisualization` | `VSDensityDefaults.java:40` | the master gate |
+| `viewsheet.modernObjectChrome` | `VSObjectChromeDefaults.java:44` | ANDed into `VSObjectChromeDefaults.isModern()` |
+| `viewsheet.darkMode` | `VSDensityDefaults.java:48` | `isDark()` = `isModern() && darkMode` |
+
+All three persisted seeds branch on `isDark()`, not on the master gate: `objectBorderColor()` at `:49`,
+`pageBackgroundCss()` at `:54`, `cardBackgroundCss()` at `:64`. The mark, per §03 line 215, records "the
+gate value that was in force when `setDefaultFormat` ran."
+
+**So the failure runs like this, with today's code and the mark exactly as specified:**
+
+1. Create an assembly with modern **and** dark on. `#252428` and its two companions are written into the
+   persisted DEFAULT tier. Mark = `gate-on`.
+2. Turn dark off. Modern is still on, so **the mark and the gate agree** — and §03 recomputes only when they
+   disagree.
+3. No recompute runs. The dark card background, page background and object border stay in a light-mode
+   dashboard, permanently.
+
+That is not a question about *when* the assembly was made. It is a question about *which switch* it was made
+under, and a tri-state mark on one axis cannot answer it. Unlike version-blindness it needs no future
+default and no schema evolution — it is reachable now, by toggling one EM property twice.
+
+**Confirm it:**
+```bash
+cd community/core/src/main/java/inetsoft/uql/viewsheet/internal && \
+  grep -n "modernVisualization\|modernObjectChrome\|darkMode" VSDensityDefaults.java VSObjectChromeDefaults.java && \
+  grep -n "isDark()" VSObjectChromeDefaults.java
+```
+
+**The second axis is worse, because the spec chooses it deliberately.** The seeds do not guard on the master
+gate. `VSAssemblyInfo:1162` and `:1166` and `ViewsheetVSAssemblyInfo:238` all guard on
+`VSObjectChromeDefaults.isModern()`, which ANDs in `viewsheet.modernObjectChrome` at `:44`. The mark does
+not. §03 line 215 says it "records whether an assembly was created under the modern gate, not merely which
+chrome branch ran," and §04 line 381 defends that as a widening: "It broadens what the mark means — from
+'which chrome branch ran' to 'was this assembly created under the modern gate' — which is what the name
+should have carried all along."
+
+So: set `viewsheet.modernObjectChrome=false` with the master gate still on. The composed gate is now off and
+the seeds should reverse — but the mark records the master gate, which has not moved, so mark and gate agree
+and nothing recomputes. **§04's rationale for reading the master gate is exactly what makes the mark
+insufficient for §03's own chrome path.** The density path needs the master gate; the chrome path needs the
+composed one; one tri-state cannot serve both, and the spec commits to the density path's reading without
+noting the cost to the other.
+
+**What each seed actually depends on:**
+
+| Seed | Guarded by | Value branches on |
+|---|---|---|
+| Object border colour `VSAssemblyInfo:1162`→`:1180`,`:1193` | composed chrome gate | `isDark()` |
+| Card corner radius `:1166`→`:1194` | composed chrome gate | — (constant) |
+| Page background `ViewsheetVSAssemblyInfo:238` | composed chrome gate | `isDark()` |
+| Card background `ChartVSAssemblyInfo:89`, `TableDataVSAssemblyInfo:1568` | **nothing — unguarded** | `isDark()` |
+
+The card background is written on every creation regardless of any gate. In light mode it writes white,
+matching the legacy default at `VSAssemblyInfo:1198`, so it diverges only under dark — a seed no gate check
+protects, reachable by the dark toggle alone.
+
+**The one resolver that is immune cannot be copied.** `applyDarkForeground` (`:99-114`) reads `isDark()` at
+call time, defers to USER and CSS (`:104-108`), clones rather than mutating, and writes the clone's DEFAULT
+tier (`:110-112`). Its immunity comes from persisting nothing — the value is re-derived on every read. That
+is not a technique the mark can adopt; the mark exists for values that *are* persisted. The pattern is
+available to them only by ceasing to persist them.
+
+**Options, with what each costs.** Recorded without a recommendation — this is the sibling project's call.
+
+- **A — master gate only, as §03 specifies.** Already written. Insufficient for three of the four seeds.
+- **B — the composed chrome gate.** Fixes the sub-gate stranding, still strands dark, and contradicts §04's
+  rationale — the density path is not chrome-gated, so §04 would need its own reading.
+- **C — a tuple or bitfield over every axis a persisted seed reads.** Covers both. The schema stops being a
+  tri-state, and it reintroduces version-blindness on a new dimension: marks written before an axis is added
+  carry no value for it.
+- **D — per-value provenance flags**, the `modernCornerSeed`/`modernSmoothSeed` shape. Immune to both
+  blindnesses by construction, since the flag records *that* the gate seeded a value without reference to
+  which switch, and it self-clears on user write. Costs one field per seeded value. The ticket rejects
+  generalising this; note its stated reason — "gives no answer for content created before any of them" — is
+  equally true of the mark, since unmarked content reads as `before gate`.
+- **E — stop persisting, resolve at read.** Removes the problem class rather than tracking it. Costs a
+  resolver per value on both the live model and the export painters, which is the shape the other five
+  already have, and it gives up the format-editor visibility the ticket cites as the reason the radius is
+  stored. Note the radius is already read-filtered by `resolveSeededCorner`, so its stored value is not
+  authoritative today.
+
+E applied to the three colours would leave the mark responsible for one persisted value, the radius — at
+which point the choice between A, B, C and D is a much smaller decision.
+
+**Effect on the plan.** This displaces version-blindness as the question to settle first. Version-blindness
+is largely answered by §03's recompute rule and by fixing the seeded-set count. Axis-blindness is answered
+nowhere, it fails today rather than after a future change, and the answer determines the mark's field
+format — which is the one thing that is expensive to change after the field exists. **§03 as written is
+option A, and option A is insufficient for three of the four values the gate currently persists.** That is a
+finding about the spec, not a preference among the options.
+
+### And the mechanism count is four, not three
+
+The ticket's title is "Consolidate seeded-value reversibility on the seed mark" and it enumerates three
+mechanisms. There are four.
+
+| # | Mechanism | Protects | Where |
+|---|---|---|---|
+| 1 | Value check | card corner radius | `VSObjectChromeDefaults.resolveSeededCorner` `:79` |
+| 2 | Stored flag `modernCornerSeed` | bar corner radius | `PlotDescriptor:1315`, field `:2005` |
+| 3 | **Stored flag `modernSmoothSeed`** | **smooth lines** | **`PlotDescriptor:632`, field `:1996`** |
+| 4 | The mark | everything, in principle | widget spec §03 — not built |
+
+Number 3 is missing from the ticket. It is the same shape as number 2 —
+`return modernSmoothSeed && !VSObjectChromeDefaults.isModern() ? false : smoothLines;` — persisted in XML
+at `:1531` and `:1718`, and compared in `equals` at `:1873`. The ticket calls `modernCornerSeed` "the
+best-designed of the three"; there are two of it.
+
+**Effect on the plan.** Three decisions were taken against this on 2026-08-12 and are recorded, with the
+options rejected and why, in
+[seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md): the pre-mark cohort is
+written off; the value check and its tab carve-out are deleted once the mark lands; and the DEFAULT-tier
+computation is extracted so creation and recompute share one definition of the seeded set. Four items remain
+open there, two of them the sibling project's.
+
+The blocker is not version-blindness. It is the **pre-mark cohort** — assemblies created with the gate on
+before the mark exists, which parse as unmarked, read as *before gate* (§03 line 216), and are therefore
+never recomputed. Writing them off is defensible only while the branch is unreleased.
+
+The codebase already noticed. `PlotDescriptor:1994`: "Independent of `modernCornerSeed` by design — the two
+mark disjoint chart families and must not un-gate each other." That is the comment of a codebase observing
+it has two copies of one idea and documenting why they stay separate. The pattern self-replicates, which is
+the ticket's own argument for consolidating, strengthened by one.
+
+**Worth stealing from the flags before they are deleted.** Both clear themselves on explicit write —
+`setSmoothLines` at `:648`, `setBarCornerRadius` at `:1334` — so an author's write ends the gate's claim on
+that value. Neither the value check nor the mark has that property. The mark does not need it in the same
+way (author edits land in the USER tier, which already wins), but the behaviour is the cleanest expression
+of "the gate owns this until someone else claims it" in the codebase, and it should be a deliberate
+omission rather than an accidental one.
+
+**Confirm it:**
+```bash
+cd community/core/src/main/java/inetsoft/uql/viewsheet/graph && \
+  grep -n "modernSmoothSeed\|modernCornerSeed" PlotDescriptor.java
+```
+
+### The recompute cannot be implemented the obvious way, and neither document says so
+
+§03 line 180 says re-seeding "reproduces the correct value including that lookup" — the `format.css`
+TableStyle branch. It does not say how, and the obvious route is a trap.
+
+`setDefaultFormat` writes three kinds of value into one tier:
+
+| Kind | Where |
 |---|---|
-| `Open items - handoff.md`, dependency diagram and step 3c | `M. Seed mark ──→ F. Eight-assembly rollout`, "must land first." "Skip the mark and those assemblies ship with no reversibility record — the exact partial-reversal state the mark exists to prevent, and unrecoverable after release. Check the mark's status with that project before starting F" |
-| `Visualization Widget Spec.dc.html` §08 | Step 3 is the title lane, and it is what "unblocks the chart card's eight-assembly rollout." Step 4 is the seed mark: "decided, unblocked, and a ship condition — the branch does not release without it." The rollout is not mentioned in step 4 |
+| Gate-dependent | object border colour `:1162`→`:1193`, corner radius `:1166`→`:1194`, title border colour `:1180` |
+| Customer stylesheet, overriding the gate, tables only | `:1182-1188` |
+| Fixed constants | border widths, fonts, backgrounds, alignment — `:1179`, `:1192`, `:1195`, `:1198`, `:1211-1213` |
 
-**What the mark is.** A tri-state field in `VSAssemblyInfo`'s existing `writeAttributes`/`parseAttributes`
-recording the gate value in force when `setDefaultFormat` ran — `gate-on`, `gate-off`, or `before gate`.
-It exists to make **persisted format seeding** reversible: `VSObjectChromeDefaults` is the one resolver of
-six that writes at creation rather than at read, so a gate-off product cannot currently un-write the frame
-colour and card background it seeded while the gate was on. It is decided, and it is not built — there is
-no such field in `VSAssemblyInfo`, and the only shipped seeding state is the corner-specific
-`PlotDescriptor.modernCornerSeed` plus `isCornerSeedTarget()`.
+**Calling `setDefaultFormat` again would destroy user formatting.** It does not mutate the existing format —
+it builds `format = new VSCompositeFormat()` at `:1156` and installs it wholesale via `setFormat(format)`
+at `:1207`, which is `fmtInfo.setFormat(OBJECTPATH, fmt)` at `:290`. The new composite's USER tier is empty.
+At creation that is correct, because nothing has been formatted yet. Run it on an assembly a user has
+styled and every USER-tier value on the object path is replaced. The tier model that makes DEFAULT-tier
+recomputation safe (§03 line 92, "USER and format.css tiers still win") depends on the USER tier surviving,
+and this path does not preserve it.
 
-**Why the handoff's version is wrong.** The anchoring rollout writes no persisted state. Every file in
-all three shipped slices — `67c486d67`, `a4cd1e362`, `a038a30b5` — is under `web/projects/portal/src`;
-there is no Java, no `VSAssemblyInfo`, no `setDefaultFormat` path. The rollout is render-time gating on
-`.viz-modern`, and turning the gate off restores the floating strip immediately with nothing left behind.
-There is no reversibility record to miss because nothing is recorded. Slice 3 shipping without the mark
-was not an oversight.
+So the recompute must either reimplement the gate-derived subset — a second place computing the same
+defaults, which drifts the first time someone adds a seeded default and updates one of them, which is how
+three mechanisms happened — or `setDefaultFormat` must be split so the default-tier computation is callable
+on its own and both creation and recompute use it. The second forces the seeded set to be written down in
+one place, which is what §3.2 needs anyway; it costs a refactor of a method every assembly type inherits.
 
 **Confirm it:**
 ```bash
-cd community && git show --stat 67c486d67 a4cd1e362 a038a30b5 | grep -v "^ web/projects/portal/src" | grep "|"
+cd community/core/src/main/java/inetsoft/uql/viewsheet/internal && \
+  sed -n '1156p;1207p' VSAssemblyInfo.java && sed -n '289,291p' VSAssemblyInfo.java
 ```
-(expects no output — every changed file is under the portal source tree)
 
-**Effect on the plan.** Delete the `M → F` arrow. Keep M, correctly placed: it gates release, and it gates
-the two workstreams that do write the DEFAULT tier — the widget spec's §04 density heights and §07 derived
-selection fill. Anyone starting the container or calendar slice should be reading §3.1, not chasing the
-mark's status.
+**A pre-existing asymmetry a refactor will surface.** The title border colour is written at `:1180`, before
+the stylesheet override reassigns `bcolors` at `:1183`. So a table's stylesheet border colour reaches the
+object border (`:1193`) but never the title border. That may be deliberate. It is worth knowing before
+someone extracts this method and "tidies" the ordering, because doing so changes rendering.
+
+### The pre-mark cohort: not a release risk, but it constrains the delete order
+
+Assemblies created with the gate on **before** the mark ships will parse as unmarked, read as `before gate`,
+and never be recomputed — §03 line 216, "mark-keyed application leaves an unmarked assembly untouched," and
+line 222, `before gate` means *do not sweep*. So they carry the gate's seeded values with no record that the
+gate put them there.
+
+**As a release risk this is already handled.** The gate defaults off (`viewsheet.modernVisualization`, read
+with no true-default; §03 line 215 states it), and the seeding has never shipped —
+`VSObjectChromeDefaults.java` is absent from `main`, `origin/main`, `v1.1.x` and `v1.0.x`, so no release
+contains the code that writes these values. The population is internal test content by construction. §03
+line 306 agrees: "no migration at all, since nothing in the field predates it, and no write against customer
+assets." The spec's stated requirement — land the mark **before release** — is the mitigation, and both
+editions of this file already record it.
+
+**What is not handled is the order of the delete.** `resolveSeededCorner` is a read-time value check and
+does not consult the mark, so it reverses the radius on unmarked assemblies today. The mark cannot: unmarked
+means *do not sweep*. So retiring the check, which is this ticket's whole purpose, converts the unmarked
+gate-on population from *reversible* to *permanently modern* — for the radius as well as the colour it
+already cannot reach.
+
+The ticket half-sees this. Its sequencing says "deleting before step 1 leaves a window with no reversibility
+at all," which treats the exposure as a window that closes when the mark lands. For unmarked content the
+window does not close; the mark ships and steps over it. §03 line 280 supplies the only recovery — "stamp
+`gate-off` onto its unmarked assemblies and the existing re-seed runs" — but that is the opt-in migration
+path, framed there for genuinely old content, and it is a deliberate action rather than something the mark
+does on its own.
+
+**So the rule is sharper than the ticket states.** Do not retire `resolveSeededCorner` until the unmarked
+gate-on population has been either stamped or discarded. On this branch discarding is cheap, which is the
+argument for doing it before the mark rather than after.
+
+**Confirm it:**
+```bash
+cd community && for b in origin/main origin/v1.1.x origin/v1.0.x; do \
+  git cat-file -e "$b:core/src/main/java/inetsoft/uql/viewsheet/internal/VSObjectChromeDefaults.java" \
+    2>/dev/null && echo "$b HAS it" || echo "$b absent"; done
+```
+
+**Effect on the plan.** Three corrections to the ticket, none fatal to it. Count the seeded set before
+deciding anything about versioning, because the ticket is reasoning from a set of one. Name the recompute's
+property set and mechanism. And put the recomputational reading to the sibling project explicitly: if §03
+line 215 stands, versioning the mark is a migration bought against a failure that mostly does not occur, and
+the residual is staleness rather than loss.
+
+A third option the ticket does not cost: **stop persisting the radius.** It is the only one of the four that
+needs machinery, and the ticket says why it is written — "to be visible in the format editor." It is already
+filtered at read time by `resolveSeededCorner`, so the stored number is not authoritative anyway. If the
+editor can show a computed default as a placeholder, the sentinel, the tab carve-out and the 12→6 collision
+all disappear for the one property that has them.
 
 ---
 
-### 3.3 The card radius the branch seeds is decided to change, and the sentinel it relies on is decided to go
+### 3.3 The title-height work cannot honour "marked gate-on assemblies only", because the mark does not exist
 
-**Where:** `Visualization Widget Spec.dc.html` §03, against shipped Java.
+**Where:** `Visualization Widget Spec.dc.html` §05's "Two consequences" paragraph, which states that heights
+move "only for marked gate-on assemblies (§03, §04)".
 
-**What the code says.** `VSObjectChromeDefaults.java:129` sets `CARD_CORNER_RADIUS = 12`, and
-`resolveSeededCorner(int radius)` at `:79-80` reads `radius == CARD_CORNER_RADIUS && !isModern() ? 0 :
-radius` — a value test that strips the seeded radius when the gate is off.
+**What the working tree does.** `VSDensityDefaults.titleHeight()` resolves purely on the org-level
+`isModern()` and `mode()`. There is no per-assembly condition, because there is no per-assembly field to
+condition on — no tri-state provenance mark exists anywhere in `VSAssemblyInfo`. Wired up as-is, turning the
+org gate on would reflow the title lane of **every** assembly, marked or not.
 
-**What the widget spec decides.** The radius becomes **6px** (`--inet-radius-xl`), and
-`resolveSeededCorner()` is **retired rather than re-pointed**. Its reasoning is worth preserving because
-it is not obvious: the value test works today only because 12 has no legitimate collision, and the same
-off-the-scale property that makes 12 wrong as a card radius is what makes it safe as a sentinel. 6px has
-the opposite character — `setDefaultFormat`'s own `format.css` TableStyle lookup can write it into the
-DEFAULT tier, so a 6px test would strip a customer's stylesheet radius. The mark replaces the test.
+**This corrects a claim in the previous edition of this file.** §3.2 last edition concluded that the mark
+"blocks release, not the rollout." That is still right about the *toolbar* rollout, which writes no
+persisted state and shipped correctly without the mark. It was wrong to leave the impression that the
+density work was likewise independent: §05 had already said the heights are mark-coupled, and this file did
+not carry that through to the height row. The in-repo roadmap inherited the error and said the title lane
+row "needs no server change"; it has been corrected.
 
-**Why it lands here.** The chart card spec fixes 6px for the same card, the shell ticket pulls the card
-tooltip onto it, and the anchored toolbar pill already uses it. The chart-card set does not record that
-the shipped seed disagrees with all three.
-
-**Effect on the plan.** Sequenced with the seed mark (§3.2), not before it — retiring the sentinel
-without the mark leaves the gate with no reversal path at all. Note the coupling for whoever implements
-it: `getRoundCorner()` currently reaches `SreeEnv` only by routing through `resolveSeededCorner()` to
-`isModern()`, so retiring the test also removes two org-scoped property reads from a format getter that
-runs in loops.
+**Effect on the plan.** `titleHeight()` is safe as it stands only because nothing calls it. Its first call
+site is the point at which the mark becomes a hard dependency. See §4.1 for the separate reason the call
+site cannot be written yet.
 
 ---
 
-### 3.4 Two selection idioms, in two token layers, on one gate
+### 3.4 The card radius is decided, and the code still seeds the old value
 
-**Where:** `Visualization Widget Spec.dc.html` §09, against `_viz-tokens.scss` and the chart-card
-selection decision that shipped in `052fe61f1`.
+**What the docs decide.** `Chart Card Spec v3.dc.html` §01 states the server seed drops to 6px, matching
+`--inet-radius-xl`. `Seeded value reversibility - ticket.md` attributes the decision to §01 correctly and
+adds the consequence: `resolveSeededCorner` keys on exact equality with the seed constant, so any
+already-seeded 12px asset stops being stripped the moment the constant moves. It asks for the seeded cohort
+to be confirmed empty before either change lands.
 
-**What the code says.** Both are live simultaneously. The chart-card vocabulary: fill
-`--inet-focus-ring-color` (`_variables.scss:539`, `rgba(229, 138, 42, 0.28)` — primary at 28%), stroke
-`--inet-primary-color`. The viz layer: `--inet-viz-selected-bg-modern: #DDF1F5`,
-`--inet-viz-selected-text-modern: #123C44`, `--inet-viz-selected-border-modern: #BFDDE5`
-(`_viz-tokens.scss:51-53`), described in that file as "kept distinct from shell/Composer selection."
+**What the code says.** `VSObjectChromeDefaults.CARD_CORNER_RADIUS` is still `12` (`:129`), and
+`resolveSeededCorner` still reads `radius == CARD_CORNER_RADIUS && !isModern() ? 0 : radius` (`:80`).
+`--inet-radius-xl: 6px` is at `_variables.scss:523`, as cited.
 
-A chart and a table side by side render selection in orange and teal respectively — reinstating exactly
-the multiple-idiom problem the chart-card decision was taken to end.
-
-**Narrower than it first reads.** `_viz-tokens.scss:37-38` and `:93` already define
-`--inet-viz-selected-border` and `--inet-viz-active-border` as `var(--inet-primary-color)`, so the borders
-match the chart's stroke today. Only the fills diverge.
-
-**What the widget spec decides.** §07 retires the teal family and derives selection from
-`--inet-primary-color` at 28% flattened against the assembly background, carrying the two values in the
-§03 re-seed rather than adding a sixth resolver — and ships it as one changeset with the chart's selection
-vocabulary, "or the product carries two selection idioms in one dashboard."
-
-**Effect on the plan.** The chart-card set records the selection decision as shipped and closed. It is
-shipped for chart-owned surfaces and open for table, selection and calendar surfaces, which are
-server-rendered. Add it to the plan as an open item under the widget spec's ownership, and note that it is
-export-affecting — it needs the manual pass, which is the same pass §3.3 and the calendar branch need.
+**Effect on the plan.** Unchanged from last edition and now better documented by the source set than by this
+file. Sequenced behind the mark. The cohort check is the new instruction and it is cheap — do it before
+either constant moves, not after.
 
 ---
 
 ## 4. Gaps
 
-### 4.1 The dark gap is real, but it is browser-DOM only — the chart's server-rendered half already has dark values
+### 4.1 The title lane has no unset state to attach a density row to — unaddressed in both versions
 
-**Where:** `Open items - handoff.md`, "Two decisions this ticket can't make alone," which asks for a
-decision on whether dark is in scope for the chart pilot.
+**Where:** `Visualization Widget Spec.dc.html` §05 and §08 step 3 specify a title-height row at 20/26/30 for
+the eight seeded assembly types. Neither version says how it reaches them.
 
-**What the code says.** Dark is not a future state to opt into, and the chart is not outside it.
-`3e7e52626` (2026-07-28, "Visualization Phase 9B: org-scoped dark mode") landed a full dark treatment
-across every **server-rendered** visualization surface, gated on
-`VSDensityDefaults.isDark()` — `isModern()` and the new org-scoped `viewsheet.darkMode` property. For the
-chart card specifically it covers:
+**What the code says.** It cannot, as specified. All five relevant `getTitleHeight()` overrides —
+`ChartVSAssemblyInfo:2636`, `TableDataVSAssemblyInfo:241`, `SelectionBaseVSAssemblyInfo:299`,
+`CurrentSelectionVSAssemblyInfo:205`, `CalendarVSAssemblyInfo:629` — are the identical single line
+`return titleInfo.getTitleHeight();`. There is no default branch to redirect. The value lives in a shared
+`TitleInfo`, whose two constructors seed the dValue to `AssetUtil.defh` (`TitleInfo.java:53,65`), so
+`getTitleHeightValue()`'s fallback at `:167` is unreachable and an author who set 20 is indistinguishable
+from one who never touched it.
 
-| Chart card section | Dark values shipped by 9B |
-|---|---|
-| §08 GDefaults greys | `VSChartChromeDefaults` — `GRIDLINE_DARK 0x3A383D`, `LABEL_DARK 0xCAC4D0`, `TITLE_DARK 0xE6E0E9`, applied through `resolveAxisLineColor()` / `resolveGridlineColor()` |
-| §05 legend | `legendBackground()` → `LEGEND_BG_DARK 0x252428`, seeded via `LegendDescriptor` / `LegendsDescriptor` |
-| §01 title band | `VSTitleChromeDefaults` — `TITLE_BG_DARK`, `TITLE_FG_DARK`, `TITLE_BORDER_DARK` |
-| The card itself | `VSObjectChromeDefaults` — object border and page background; series colour via `VSChartPaletteDefaults` |
+Two further consequences:
 
-**The gap is what 9B deliberately scoped out.** Its browser-DOM half is narrow and says so: a `.viz-dark`
-block in `_viz-tokens.scss` that redefines only `--inet-viz-*` tokens — the data-grid state overlays —
-plus three named exceptions outside it (`vs-slider`, the empty-image placeholder, the table header sort
-button in `_themeable.scss:1269`). **No shell neutral is redefined anywhere under `.viz-dark`.**
-
-And the chart card spec's own contribution is almost entirely browser-DOM. What that leaves unconverted:
-
-- **The anchored strip** — `background-color: var(--inet-shell-surface-default)`
-  (`mini-toolbar.component.scss:31`), which has one definition and no dark variant, so a light pill sits
-  on a server-darkened card. §02 and §03 both.
-- **Every tooltip, including the CARD ramp** — `plain-tooltip-surface` binds `--inet-text-color`,
-  `--inet-dialog-bg-color`, `--inet-default-border-color` and `--inet-shadow-low`
-  (`_directives.scss:215-229`); none of them flip. §07.
-- **Chart selection** — `.viz-modern .chart-object-canvas` binds `--inet-focus-ring-color` and
-  `--inet-primary-color` (`_themeable.scss:1410-1413`). Brand accents, so not broken, but the 28% fill was
-  calibrated against a light plot.
-- **Nav bar, Resize Plot sliders, annotation selection border** — no `.viz-dark` rule in any of them.
+- **`TitleInfo` is shared with the assemblies §05 excludes.** `CheckBoxVSAssemblyInfo`,
+  `RadioButtonVSAssemblyInfo` and `TimeSliderVSAssemblyInfo` all carry one. An edit there reaches them.
+- **Every saved assembly already carries an explicit height.** `writeAttributes` always writes
+  `titleHeight` (`:260`) and `parseAttributes` always reads it (`:271`). Even given an unset state, the
+  density row would reach newly created assemblies only. Existing dashboards would need the mark and the
+  Modernize bar to move — which is §3.3's coupling arriving from the other direction.
 
 **Confirm it:**
 ```bash
-cd community/web/projects/portal/src && \
-  sed -n '140,159p' scss/_viz-tokens.scss && \
-  grep -rn "viz-dark" scss/ app/ --include=*.scss | grep -v _viz-tokens.scss
+cd community/core/src/main/java/inetsoft/uql/viewsheet/internal && \
+  grep -n "getTitleHeight()" ChartVSAssemblyInfo.java TableDataVSAssemblyInfo.java \
+    SelectionBaseVSAssemblyInfo.java CurrentSelectionVSAssemblyInfo.java CalendarVSAssemblyInfo.java && \
+  sed -n '48,66p;145,170p' TitleInfo.java
 ```
 
-**So the handoff's framing is too broad.** "This chart card spec has no dark values at all… a dashboard
-in dark mode would ship modern widgets next to an unconverted chart" was already false when it was
-written — the chart's chrome, legend, title band and palette had been dark-aware for three weeks. The
-real decision is smaller and more answerable: **do the chart card's browser-DOM surfaces take dark, or is
-dark explicitly deferred for them?** Four surfaces, one gate, no server or export involvement.
+**Effect on the plan.** Step 3's height row is not implementable as written and was attempted and abandoned
+on that basis. It needs a design decision first — give `TitleInfo` an unset state and an overload the five
+included types call, or accept value-sniffing on `AssetUtil.defh` the way `resolveSeededCorner` sniffs the
+card radius, with the same false-positive cost. The second is cheaper and is the pattern the set is trying
+to delete. Either way it is a change to a shared class, and it should be specified before it is scheduled.
 
-**Decided 2026-08-11 — in scope, implement it.** See
-[chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §2 for the four surfaces, the
-choice between per-surface `.viz-dark` rules and dark-aware shell neutrals, and the note that the 28%
-selection fill was calibrated over a light plot.
+---
 
-**The handoff's other stated gap is smaller than it says.** "No alignment-anchor model" — the widget spec
-§09 supplies the missing rule: three shipped control-height steps used deliberately (30 `-md` in a title
-lane, 24 `-sm` overlaid, 44 touch floor), plus the title-lane height row at 20/26/30 in §08 step 3. That
-is the model the handoff says does not exist. What remains genuinely underived is the selection family's
-lane, which is `titleRatio` of the assembly rather than a fixed step — and slice 3 shipped without
-resolving it, by making the kebab the whole strip at any width.
+### 4.2 Dark: two documents, two scopes, and they are not the same work
 
-**Effect on the plan.** Dark for the chart card stays an open decision and should be recorded as one —
-deferring is fine, leaving it unstated is not, and the handoff is right about that. The anchor-model gap
-can be closed by citing §09 rather than by new work.
+| Source | Scope | Dependencies claimed |
+|---|---|---|
+| `chart-card-open-item-decisions.md` §2 (in-repo, 2026-08-11) | The four **browser-DOM** surfaces 9B left light: the anchored strip, the tooltip surfaces, the chart selection fill, the nav bar and annotation body | None. CSS only, no server, no export |
+| `Chart card dark values - ticket.md` (new in v3) | The **card's server-side** dark values — binding this spec's light literals to the four shipped `VSObjectChromeDefaults` constants, plus the chart interior via `GDefaults` | The card-radius conflict, and "the seed mark reaching this card the same way it reaches modern" |
+
+**They do not conflict; they are disjoint.** The new ticket is explicit that it is "a reconciliation, not a
+blank page," and it is right about the server half — `VSObjectChromeDefaults` has shipped dark values since
+`3e7e52626`. It correctly identifies the chart interior (`GDefaults` gridlines and axis lines) as the one
+genuinely undecided piece, since no server value exists there to reconcile against.
+
+**But its item 4 asks for something already answered.** It asks to "verify, don't assume, that
+selection/annotation/tooltip tokens already resolve under dark," and guesses they "likely already resolve."
+They do not. `plain-tooltip-surface` binds `--inet-text-color`, `--inet-dialog-bg-color`,
+`--inet-default-border-color` and `--inet-shadow-low` (`_directives.scss:215-229`), none of which flip under
+`.viz-dark`; the anchored strip binds `--inet-shell-surface-default` (`mini-toolbar.component.scss:31`),
+which has one definition and no dark variant. **No shell neutral is redefined anywhere under `.viz-dark`** —
+9B's browser-DOM half deliberately redefines only `--inet-viz-*` tokens. That verification is exactly what
+the in-repo decision already performed, and its answer is the four-surface list above.
+
+**Effect on the plan.** Keep both. The in-repo plan
+(`docs/superpowers/plans/2026-08-11-chart-card-dark-browser-surfaces.md`) covers the DOM half and is
+unblocked — the new ticket's dependency claims apply to the server half it is actually about, not to CSS
+rules on shell surfaces. The ticket's item 3, the chart interior palette, is new work nobody owns and is the
+most valuable thing in it.
 
 ---
 
 ## 5. Regressions from the last audit
 
-Three claims corrected in the 2026-08-05 edition of this file returned in the 2026-08-11 sync. In each
-case the sync re-derived the claim from the branch and reached the reading this file had already ruled
-out. None of the three is a new error; all three are the same error a second time.
+Seven, in two kinds.
 
-### 5.1 "That CSS branch had never executed in production"
+**§5.1 to §5.4 are overwritten edits.** Corrections were applied directly to the `chart-card-design2/`
+files on 2026-08-11; the regeneration carried none of them forward. This failure is new this edition and is
+the more serious of the two, because the corrected text existed and was discarded.
 
-**Where it returned:** `Open items - handoff.md` §2, in the bullet making the manual pass mandatory:
-"that CSS branch had never executed in production before this shipped, so this is the first time it has."
+**§5.5 to §5.7 are re-derivations** — the failure from the last edition, unchanged: the sync read the branch
+and not this file, and reached the reading this file had already ruled out. In both of §5.5 and §5.6 the
+claim returned *stronger* than the version that was corrected, which is what happens when a conclusion is
+re-derived from ambiguous evidence by someone who has not seen it refuted.
 
-**Why it is wrong** — unchanged from §1.1 of the previous edition. `_themeable.scss:1401` sets both
-`color` and `border-color` on `.chart-object-canvas`, globally, on exactly the class the
-`getComputedStyle` branch reads. The branch has always executed. The reading survives because the values
-in that rule are identical to the TypeScript defaults at `chart-tool.ts:778-779`, so no observation
-distinguishes the two.
+### 5.1 The anchoring discussion reverted to its pre-correction body
 
-**Confirm it:**
-```bash
-cd community/web/projects/portal/src && grep -n "chart-object-canvas" scss/_themeable.scss
-```
+**Where:** `Anchoring beyond charts - discussion.md`.
 
-**Effect on the plan.** The manual pass is still worth running, but for item 7's fill/stroke split, not
-because a dead branch is executing for the first time. The risk framing should not be used to schedule it.
+v2's copy carried an applied correction — a paragraph headed "Corrected — the precondition is not the seed
+mark," the shipped detail for Case 1, and dated sequencing. v3 prepends accurate new sync notes and then
+reverts the body beneath them to the stale draft. The seed-mark correction is gone entirely.
 
----
+The result is a document that contradicts itself two paragraphs apart: the sync notes record slices 1–3 as
+shipped, and the body then says the work "Depends on: §02 shipping first" and "1. Ship the chart card as the
+pilot. It is nearly ready."
 
-### 5.2 "Item 12 is still open — the data tips sit two orders of magnitude below the dropdowns"
-
-**Where it returned:** `Open items - handoff.md` step 1c and `Shell surfaces - ticket.md`'s sync note,
-both stating that a "ceiling, not a registration" landed and "the underlying bug… is still open."
-
-**What is right about it.** The observation is accurate: two of the three assignment paths still bypass
-the registry. `vs-pop-component.directive.ts:314,317` still sets `this.popZIndex + 99998` / `+ 99999`
-inline, and the scrim and source are still assigned at runtime in `date-tip-helper.ts`.
-
-**What is wrong about it.** The premise — that sitting below the dropdown layer is a bug — was corrected
-in §1.2 of the previous edition and remains corrected. A dropdown opened inside a data tip must render
-above it; the relative order was already right, and the defect was that it was accidental rather than
-declared. The clamp the sync reads as an incomplete fix is the deliberate one: `POP_UP_CONTENT_MAX_ZINDEX
-= 999899` exists so a large natural z-index cannot carry pop content over `.fixed-dropdown`, with a unit
-test asserting it across naturals from 0 to 100000.
-
-**The shipped code already says all of this.** `_directives.scss:20-29` documents the registry's scope in
-seven lines, ending "The pop directive's and data-tip's own z-index offsets still assign directly and are
-not governed by this registry. Change both together." `date-tip-helper.ts:20-27` mirrors it, including the
-effective order. The remaining work is recorded in the code as a known partial state, not hidden.
-
-**Confirm it:**
-```bash
-cd community/web/projects/portal/src && \
-  sed -n '20,36p' scss/internal/_directives.scss && \
-  sed -n '18,40p' app/vsobjects/objects/data-tip/date-tip-helper.ts
-```
-
-**Effect on the plan.** Item 12 keeps its downgraded value claim. It is a maintainability item — bring the
-two remaining paths under the registry — and it is not a reason to sequence it ahead of the colour work.
-The instruction "do not let this wait behind the colour work" should be dropped.
+**Effect on the plan.** The precondition correction from §3.2 of the last edition has to be re-applied, or
+the next reader re-learns that the rollout is blocked on the mark. It is not.
 
 ---
 
-### 5.3 The 30px strip
+### 5.2 Step 0 vanished rather than being corrected
 
-**Where it returned:** the anchoring document's new per-family section, "30px where the lane is a card
-title."
+**Where:** `Open items - handoff.md`.
 
-**Why it is wrong** — unchanged from §2.3 of the previous edition, which recorded that the strip is
-already 24px under the gate and that the plan deliberately dropped §06's comfortable row, collapsing a
-four-row ladder to three. The August audit's reasoning still holds: §06 already specifies that collapse
-for the title-hidden case, so one ladder serves both placements.
+The last edition found that step 0's "four `:root` tokens, a precondition not a cleanup" was one token, not
+four — touch height and both icon sizes already ship. v3 deletes step 0 entirely, with no note.
 
-**Confirm it:**
-```bash
-cd community/web/projects/portal/src && sed -n '58,75p' app/common/util/gui-tool.ts
-```
-
-**Effect on the plan.** See §3.1 — the widget spec supplies the resolution, and it is not "30px for card
-titles." The strip is `-sm` at 24px; 30px `-md` is the *lane*, not the strip in it.
+The outcome is right and the record is not. A deleted step and a corrected step read identically to the next
+sync, which is how a corrected claim becomes available for re-derivation. Two of the three tokens are still
+described as absent elsewhere in the set.
 
 ---
 
-### Why this section exists
+### 5.3 The teal selection finding was deleted, not resolved
 
-The three regressions share one cause. The sync was performed by reading the branch, which is the right
-primary source and was the right instruction. It was not performed against this file, so every conclusion
-this file had already overturned was available to be re-derived from the same evidence that produced it
-the first time — and in all three cases the evidence is genuinely ambiguous without the correction:
-identical colour values, a correct-but-undeclared stacking order, and a ladder whose top rung was dropped
-by decision rather than by omission.
+**Where:** `Chart overlay surfaces - ticket.md`.
 
-The fix is cheap and belongs in the source set rather than here: `README.md`'s "changed since the last
-handoff" section should name this file as required reading for the next sync, and the next sync should
-diff its conclusions against it before publishing. A document set that is re-synced on a fast-moving
-branch will keep regenerating these unless something points at the corrections.
+v2's copy carried two paragraphs, added in the last correction pass, flagging that `_viz-tokens.scss` still
+defines a second selection idiom — `--inet-viz-selected-bg-modern: #DDF1F5`,
+`--inet-viz-selected-text-modern: #123C44`, `--inet-viz-selected-border-modern: #BFDDE5` at `:51-53` —
+alongside the shipped orange focus-family vocabulary. v3 removes both paragraphs and, with them, the
+ticket's only reference to `Visualization Widget Spec.dc.html`, which is where §07's fix lives.
+
+**The tokens are unchanged in the code.** A chart and a table side by side still render selection in orange
+and teal. The problem is exactly as live as it was; only its tracking is gone.
+
+**Effect on the plan.** Unchanged from §3.4 last edition — it is open, it is owned by the widget spec's §07,
+and it is export-affecting. It now has no owner in the chart-card set.
+
+---
+
+### 5.4 The seed-mark correction was reverted in the handoff too — and inverted
+
+**Where:** `Open items - handoff.md`, dependency diagram and ordering list.
+
+§5.1 above records the correction being lost from the anchoring discussion. It was applied to the handoff as
+well, and the handoff did not merely lose it — it restored the claim the correction overturned and extended
+it.
+
+| | Text |
+|---|---|
+| **v2, corrected** | `M. Seed mark … gates RELEASE and the two workstreams that write persisted format (§04 density heights, §07 derived selection) — **not F**`, under a paragraph headed "Corrected — an earlier draft ordered M before F instead" |
+| **v3** | `M. Seed mark (sibling spec, Visualization Widget Spec §03) ─┘ **should land first**`, and "Five things are ordered: … **M precedes F** (and H)" |
+
+v3 also adds a justification: "Calendar and the container — the two slices still open — should wait for the
+mark: it records whether an assembly's seeded chrome ran under gate-on or gate-off, and skipping it means
+those two slices ship with no reversibility record."
+
+**Why it is wrong, unchanged.** The rollout writes no persisted state. Every file in all three shipped
+slices is under `web/projects/portal/src` — no Java, no `VSAssemblyInfo`, no `setDefaultFormat` path. There
+is no reversibility record for the calendar and container slices to miss, for the same reason there was none
+for the three that shipped. The mark is real, decided and unbuilt; it gates release and the workstreams that
+write the DEFAULT tier, and it does not gate this.
+
+**And L disappeared from the diagram entirely.** v2's dependency picture carried
+`L. Title lane + strip density gating … must land first` as an explicit node preceding F. v3's diagram has
+D→E→F, M, G→H, plus two new nodes K and N for the new tickets — and no L at all. The widget spec's §08 step
+3 still exists and still claims to unblock the rollout; the handoff simply stopped drawing it. So the one
+item that genuinely does precede slices 4 and 5 was dropped from the picture in the same sync that
+reinstated an item that does not.
+
+**Confirm it:**
+```bash
+cd community && git show --stat 67c486d67 a4cd1e362 a038a30b5 | grep "|" | grep -v "web/projects/portal/src"
+```
+(expects no output)
+
+---
+
+### 5.5 "That CSS branch has never executed in production" — third edition, now self-refuting
+
+**Where it returned:** `Open items - handoff.md` §2, "Manual pass required."
+
+> That CSS branch has never executed in production: nothing currently sets `color`/`border-color` on those
+> canvases, so every selection today is on the hardcoded `#dc581e`. This is the first time the code path
+> runs.
+
+**What the code says.** `_themeable.scss:1401-1403`:
+
+```scss
+.chart-object-canvas {
+  color: rgba(220, 88, 30, 0.3);
+  border-color: #dc581e;
+}
+```
+
+Global, unscoped, on exactly the class the `getComputedStyle` branch reads. The branch has always executed.
+
+**The claim now contradicts itself.** It names `#dc581e` as the hardcoded value the product falls back to
+"because nothing sets `border-color`" — and `#dc581e` is the `border-color` in the rule it says does not
+exist, at `:1403`. The value could not be reaching the render by the route described.
+
+**Effect on the plan.** Unchanged from the last two editions. Run the manual pass for item 7's fill/stroke
+split, not because a dead branch is executing for the first time. The risk framing should not be used to
+schedule it.
+
+---
+
+### 5.6 The data-tip z-index claim returned, escalated, and misreads the constant
+
+**Where it returned:** `Open items - handoff.md` step 1c, now headed **"Highest-value single change in the
+whole set"** — up from v2's "still open, despite looking touched."
+
+> a live bug, not a cleanup: the registry holds two entries (`.fixed-dropdown` 999900, `w-tooltip` 999901)
+> while the data tips sit at 9996, two orders of magnitude below, so any dropdown or tooltip renders over a
+> data tip.
+
+**What the code says.** 9996 is not the data tip. It is `POP_UP_BACKGROUND_ZINDEX`
+(`date-tip-helper.ts:28`) — the **scrim**, the dim layer painted behind pop content. The content layer is
+computed at `:61-62`:
+
+```typescript
+return Math.min(POP_UP_CONTENT_MAX_ZINDEX,
+                POP_UP_CONTENT_BOOST_ZINDEX + (naturalZIndex || 0));
+```
+
+`99999 + natural`, capped at `999899` — one below `.fixed-dropdown` at 999900, deliberately. The file's own
+comment at `:26` states the effective order: `scrim 9996 < source 9997 < content (99999 + natural, capped)
+< .fixed-dropdown 999900 < w-tooltip 999901`.
+
+**So the premise fails twice.** The number quoted belongs to a different layer, and the relative order it
+calls a bug is the decided one: a dropdown opened inside a data tip must render above it. The clamp exists
+to guarantee that against a large natural z-index, with a unit test asserting it across naturals from 0 to
+100000.
+
+**What is true.** Two of three assignment paths still bypass the registry —
+`vs-pop-component.directive.ts:314,317` and the runtime scrim/source assignment. That is a maintainability
+item, and `_directives.scss:20-29` documents it in the shipped code as a known partial state.
+
+**Effect on the plan.** The escalation to "highest-value single change in the whole set" is not supported.
+Item 12 keeps its downgraded value claim, and "do not let this wait behind the colour work" — which v3
+restored verbatim — should be dropped again.
+
+---
+
+### 5.7 The orphan pattern recurred, on the newest document
+
+The last edition found that `Visualization Widget Spec.dc.html` — the most decision-dense file in the set —
+was cited by no markdown in its own folder, and added it to the README, the changelog and eight screen-map
+rows. Those citations held.
+
+`Chart card dark values - ticket.md` is now in the same position: **nothing in the set references it.**
+`Seeded value reversibility - ticket.md`, added in the same sync, is referenced from both `README.md` and
+`github.md`. One of the two new documents was indexed and the other was not.
+
+---
+
+## 6. Why the fix did not hold
+
+The last edition diagnosed the regressions correctly and prescribed the wrong remedy. It said:
+
+> The fix is cheap and belongs in the source set rather than here: `README.md`'s "changed since the last
+> handoff" section should name this file as required reading for the next sync.
+
+That was done. `chart-card-design2/README.md` gained a "Required reading before the next sync" section
+naming this file. **v3's README deletes the section and every reference to it**, and the v3 set as a whole
+contains no reference to any in-repo document at all:
+
+```bash
+cd community/docs/superpowers/specs/lookfeel && \
+  grep -rn "chart-card-source-doc-corrections\|chart-card-open-item-decisions\|chart-card-roadmap" \
+    chart-card-design3/          # no output
+```
+
+The remedy could not work, for a reason that was visible at the time and that this file had already
+written down two paragraphs earlier: the set is **regenerated wholesale on each sync**, so nothing authored
+inside it survives. A pointer placed in the regenerated set is deleted by the next regeneration, along with
+every other in-place correction — which is precisely what §5.1 through §5.4 record.
+
+**What is now known about the delivery path.** The sync read commit `52c127c128c3`. That commit's tree
+contains both `chart-card-source-doc-corrections.md` and `chart-card-open-item-decisions.md`, at the top
+level of the same `lookfeel/` directory the design folder sits in. Availability is not the problem.
+Discoverability is: nothing the design process reads points at them, and the one thing that did was inside
+the file it overwrites.
+
+**So the pointer has to live where regeneration cannot reach.** Three candidates, cheapest first:
+
+1. **The sync request itself.** Whoever asks for the next sync names this file in the ask. Costs nothing,
+   survives everything, depends on a person remembering.
+2. **`lookfeel/README.md` or the initiative roadmap** — outside the design folder, in the directory the
+   design folder sits in, so a sync that reads the tree at all can find it.
+3. **A checked-in note the design tooling reads by convention**, if such a convention exists on that side.
+
+Option 2 is the one this repository can implement unilaterally, and
+[chart-card-roadmap.md](./chart-card-roadmap.md) now names this file in its first section for that reason.
+None of the three is reliable on its own. What is reliable is the observation that **corrections applied to
+the design set have a lifetime of one sync**, so anything worth keeping has to be stated here, in the
+roadmap, or in the decisions document — never only in the source files.
 
 ---
 
 ## Appendix — what was checked and held
 
-Verified this pass against `a038a30b5`. Counts were run, not sampled.
+Verified this pass against `881a9b049` plus the uncommitted working tree. Counts were run, not sampled.
 
-- `ANCHORED_ASSEMBLY_TYPES` contents and the slice-3 comment — `mini-toolbar.service.ts:41-53`. Confirmed.
-- `stableFirst` gated toolbar ordering in all four action files — `chart-actions.ts:568,580`,
-  `table-actions.ts:322,326`, `crosstab-actions.ts:382,392`, `calc-table-actions.ts:366,370`. Confirmed.
-- `VSObjectContainer.rightEdgeReserve` and `SORT_CONTROL_RESERVE = 22`, with the selection-family
-  exemption — `:585-600`. Confirmed.
-- `isToolbarAnchored` / `isKebabResident` read `GuiTool.isVizModern()` and the type set, with no density
-  condition — `:472-484`. Confirmed.
-- `GuiTool.MINI_TOOLBAR_HEIGHT = 28`, `MINI_TOOLBAR_HEIGHT_MODERN = 24`, `getMiniToolbarHeight()` —
-  `gui-tool.ts:58-75`. Confirmed.
-- The tooltip mixin's excluded `max-width`/`max-height`, and their re-declaration on
-  `.widget__default-tooltip` only — `_directives.scss:215,236-237`. Confirmed; this closes old §1.3.
-- `--inet-font-size-lg: 16px`, `--inet-control-height-sm/-md/-lg` at 24/30/36, `--inet-control-height-touch:
-  44px`, `--inet-focus-ring-color: rgba(229, 138, 42, 0.28)` — `_variables.scss:239,475-477,480,539`.
-  Confirmed.
-- The annotation selection border under `.viz-modern`, with the comment naming the retired third idiom —
-  `vs-annotation.component.scss:98-104`. Confirmed, matching the decision exactly.
-- `VSTitleChromeDefaults` `TITLE_BG/FG/BORDER` at `0xF1EFEA / 0x6A685F / 0xD9D5CC` plus dark variants —
-  `:143-149`. Confirmed; old §3.1 is still open.
-- `VSObjectChromeDefaults.CARD_CORNER_RADIUS = 12` and `resolveSeededCorner()` — `:79-80,129`. Confirmed.
-- `VSAssemblyInfo.isCornerSeedTarget()`'s explicit positive list, and the comments explaining the range
-  slider's exclusion and the calendar's absence — `:1227-1239`. Confirmed, and it matches the widget
-  spec's eight-type population exactly.
-- No tri-state provenance field anywhere in `VSAssemblyInfo`, and no `modernSeeded`/`legacySeeded`
-  identifier in any `.java` or `.ts` file. Confirmed absent.
-- `vs-chart.component.scss` untouched since `e8df3491b` (2024-07-15); 15 lines matching `-ms-`. Item 13 is
-  exactly as described, and the sync's "not in the diff — still open" is right.
-- `chart-nav-bar.component.scss` still carries `z-index: 9999` (`:20`) and the off-scale `border-radius:
-  5px` (`:26,32`). Both cleanups still outstanding, as the sync says.
-- `SVGUtil.getSVGDocument()` returns `new SVGGraphics2D(ctx, true)` — `SVGUtil.java:55-63`. The outlined
-  text ticket's "a single global boolean at one choke point" is accurate; the boolean is the positional
-  second argument, which is why it does not grep as `textAsShapes`.
-- `_viz-tokens.scss` declares one font-size token, `--inet-viz-font-size`, and no chart interior sizes.
-  The overlap flagged with `Chart type sizes - ticket.md` does not exist as described.
+- `ACTION_FLOOR = 32` and its use against `objectFormat.height` — `abstract-vs-actions.ts:53,217`.
+  Confirmed; this is §1.1.
+- Chart Card Spec §06's ladder is card-height throughout, including the `< 32px` row and §10.1's "a card
+  too short to host any control at all." Confirmed.
+- `ANCHORED_ASSEMBLY_TYPES` still carries the six types; the container is still deliberately absent —
+  `mini-toolbar.service.ts:41-53`. Confirmed.
+- `isAnchoredResident()` is the single shared gate, consumed by both `AbstractVSActions.resident` and
+  `VSObjectContainer.isKebabResident` — working tree only. Confirmed.
+- `VSDensityDefaults.titleHeight()` returns `AssetUtil.defh`/26/30 with no per-assembly condition, and has
+  no call site — working tree only. Confirmed; this is §3.3.
+- All five `getTitleHeight()` overrides are one-line delegations to `titleInfo`; `TitleInfo` seeds
+  `AssetUtil.defh` in both constructors and is shared with CheckBox, RadioButton and TimeSlider —
+  `TitleInfo.java:53,65`. Confirmed; this is §4.1.
+- `VSObjectChromeDefaults.CARD_CORNER_RADIUS = 12` and `resolveSeededCorner()` unchanged — `:80,129`.
+  `--inet-radius-xl: 6px` — `_variables.scss:523`. Confirmed.
+- No tri-state provenance field anywhere in `VSAssemblyInfo`. Confirmed absent, third pass running.
+- `isCornerSeedTarget()` is private on `VSAssemblyInfo.java:1232`; `viewsheet.modernObjectChrome` is
+  declared in `VSObjectChromeDefaults.java:44`. Confirmed; this is §1.4.
+- The teal family is unchanged — `_viz-tokens.scss:51-53`. Confirmed; this is §5.3.
+- No shell neutral is redefined under `.viz-dark`; `plain-tooltip-surface` binds four unflipped tokens
+  (`_directives.scss:215-229`) and the strip binds `--inet-shell-surface-default`
+  (`mini-toolbar.component.scss:31`). Confirmed; this is §4.2.
+- `.chart-object-canvas` sets both `color` and `border-color` globally at `_themeable.scss:1401-1403`, and
+  `#dc581e` is the `border-color` in that rule. Confirmed; this is §5.5.
+- `POP_UP_BACKGROUND_ZINDEX = 9996` is the scrim (`date-tip-helper.ts:28`); pop content resolves to
+  `min(999899, 99999 + natural)` at `:61-62`, one below `.fixed-dropdown`. Confirmed; this is §5.6.
+- The v3 handoff's dependency diagram contains D→E→F, M, G→H, K and N, and no L. Confirmed; this is §5.4.
+- `--inet-font-size-lg: 16px` — `_variables.scss:239`. Confirmed shipped; this is §2.3.
+- `#ff8d41` appears 11 times in `vs-chart.component.scss`. Confirmed; v3 makes no competing claim.
+- `52c127c128c3` resolves to a commit, not a tree. `git cat-file -t` returns `commit`. Confirmed.
+- The two HTML documents lost only embedded assets: after tag-stripping, the chart card spec's prose grew
+  97,987 → 110,312 bytes and the overlay document's is byte-identical. Confirmed; no content was lost in
+  the rebuild.
 
 ### Not checked this pass
 
-- The widget spec's §04 density matrix values and §05 per-widget literal inventories.
-- The range slider's three PNGs and the `granite/timeslider/` painter set — but the divergence question
-  the widget spec §08 left open by name is now answered: the painter is redrawn with the CSS control. See
-  [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) §3, which carries the scope on
-  both sides and the sequencing note that its range band waits on §07, which waits on the seed mark.
-- `Dead menu icons - ticket.md`'s "~50 unreachable `icon()` declarations" — unchanged since the previous
-  set and not re-counted. Given §1.3, treat the number as unverified.
-- Whether the live viewer renders gauges and thermometers through the painter or the DOM — the widget
-  spec flags this as unverified and it remains so.
+- The widget spec's §04 density matrix values, and the two rows and three affordances added to §04/§06 this
+  sync.
+- `Dead menu icons - ticket.md`'s "~50 unreachable `icon()` declarations" — byte-identical since v1 and
+  never counted. Still treat as unverified.
+- Whether the live viewer renders gauges and thermometers through the painter or the DOM.
+- `github.md`'s new in-project decision to scope the resting kebab by pointer capability, which modifies
+  already-shipped slice-3 behaviour. Read it before the container slice.
