@@ -950,6 +950,12 @@ public class ScheduleTaskService {
          .flatMap(ScheduleTask::getConditionStream)
          .filter(TimeCondition.class::isInstance)
          .count();
+
+      if(count == 0) {
+         throw new MessageException(Catalog.getCatalog(principal)
+            .getString("em.schedule.distribution.noTimeConditions"));
+      }
+
       long duration = Duration.between(startTime, endTime).get(ChronoUnit.SECONDS) / 60L;
       int concurrency;
       long interval = duration / count;
