@@ -1286,6 +1286,15 @@ public class MetadataApiService {
       TreeNodeModel.Builder builder = TreeNodeModel.builder().from(node);
       builder.children(new ArrayList<>());
 
+      // A non-relational source has no catalog/schema/table metadata to hand back, so expanding it
+      // returns an empty child list forever -- it looks identical to a database that is still
+      // loading. Marking it a leaf says plainly that there is nothing to open. It stays in the tree
+      // on purpose: the source IS usable, through a worksheet built on it, and hiding it would send
+      // the operator hunting for something they can see in StyleBI.
+      if(isNonJdbcDataSource(entry)) {
+         builder.leaf(true);
+      }
+
       for(TreeNodeModel child : node.children()) {
          TreeNodeModel filteredChild = filterWizTree(child, filterCache, partitionCache);
 
@@ -1295,6 +1304,35 @@ public class MetadataApiService {
       }
 
       return builder.build();
+   }
+
+   /**
+    * Whether this entry is a data source that is not relational.
+    *
+    * Tabular/NoSQL sources extend TabularDataSource rather than JDBCDataSource; the metadata calls
+    * behind a tree expansion have nothing to return for them.
+    *
+    * Answers false when the source cannot be resolved. A lookup failure is not evidence that a
+    * source is non-relational, and treating it as such would collapse a real database to a leaf and
+    * make its tables unreachable -- far worse than leaving one node expandable.
+    */
+   // Package-private so the tree-filtering decision can be tested directly.
+   boolean isNonJdbcDataSource(AssetEntry entry) {
+      if(entry == null || !entry.isDataSource()) {
+         return false;
+      }
+
+      try {
+         XDataSource dataSource = xrepository.getDataSource(entry.getPath());
+
+         return dataSource != null && !(dataSource instanceof JDBCDataSource);
+      }
+      catch(Exception e) {
+         log.debug("Could not resolve data source '{}' while filtering the wiz tree: {}",
+                   entry.getPath(), e.getMessage());
+
+         return false;
+      }
    }
 
    private boolean shouldHideWizTreeNode(
