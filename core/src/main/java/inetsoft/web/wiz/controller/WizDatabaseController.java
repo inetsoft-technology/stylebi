@@ -19,6 +19,9 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
@@ -37,6 +40,9 @@ import inetsoft.web.portal.data.DataSourceStatus;
 import inetsoft.web.portal.data.ImmutableDataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.PortalDataType;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
+import inetsoft.web.security.PermissionPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.request.*;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
@@ -75,6 +81,16 @@ import java.util.*;
  * empty one), a null password is translated here into the mask constant that triggers that recovery,
  * and {@code permissions} is always left null so a save can never write permissions as a side
  * effect.</p>
+ *
+ * <p>Authorization is this controller's own responsibility, not the services'. {@code
+ * DataSourceBrowserService} filters what it lists by READ, but {@code DatabaseDatasourcesService}
+ * and {@code DataSourceStatusService} do not gate their reads at all — the native controllers gate
+ * them with {@code @Secured} before delegating, and the equivalent gates are repeated here. Where
+ * the rule is conditional and an annotation cannot express it — the connection test, which only
+ * needs a permission when it names an existing database — {@code SecurityEngine} is consulted
+ * directly. Every denial leaves as a {@code SecurityException}, which
+ * {@code WizControllerErrorHandler} turns into a 403; this class must therefore never declare a
+ * local {@code @ExceptionHandler}, which would take precedence over that advice.</p>
  */
 @RestController
 @RequestMapping("/api/wiz")
@@ -83,6 +99,7 @@ public class WizDatabaseController {
                                 DataSourceStatusService dataSourceStatusService,
                                 DatabaseDatasourcesService databaseDatasourcesService,
                                 DatabaseTypeService databaseTypeService,
+                                SecurityEngine securityEngine,
                                 Config uqlConfig,
                                 XRepository xrepository)
    {
@@ -90,6 +107,7 @@ public class WizDatabaseController {
       this.dataSourceStatusService = dataSourceStatusService;
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.databaseTypeService = databaseTypeService;
+      this.securityEngine = securityEngine;
       this.uqlConfig = uqlConfig;
       this.xrepository = xrepository;
    }
@@ -162,10 +180,16 @@ public class WizDatabaseController {
     * to every listed data source and write the outcome back to the repository. Browsing a folder
     * must not have that side effect, so this reads the stored status only.</p>
     *
+    * <p>{@code DataSourceStatusService} performs no permission check of its own, so the requested
+    * paths are filtered to those the caller can read before it is handed anything. A path the
+    * caller cannot read is dropped rather than rejected: the client pairs results with requests by
+    * path, so a short answer degrades to "no status known" instead of failing the whole listing,
+    * and a probe learns nothing it did not already supply.</p>
+    *
     * @param request   the data source paths to report on.
     * @param principal the current user.
     *
-    * @return one status per requested path, in the order requested.
+    * @return one status per readable requested path, in the order requested.
     */
    @PostMapping(value = "/datasources/statuses", produces = MediaType.APPLICATION_JSON_VALUE)
    public List<WizDatasourceStatus> getDatasourceStatuses(
@@ -173,9 +197,23 @@ public class WizDatabaseController {
       Principal principal)
       throws Exception
    {
-      List<String> paths = request == null ? null : request.paths();
+      List<String> requested = request == null ? null : request.paths();
 
-      if(paths == null || paths.isEmpty()) {
+      if(requested == null || requested.isEmpty()) {
+         return List.of();
+      }
+
+      List<String> paths = new ArrayList<>();
+
+      for(String path : requested) {
+         if(path != null && securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, path, ResourceAction.READ))
+         {
+            paths.add(path);
+         }
+      }
+
+      if(paths.isEmpty()) {
          return List.of();
       }
 
@@ -211,21 +249,10 @@ public class WizDatabaseController {
    public WizDatabaseMeta getDatabaseMeta() {
       DriverAvailability availability = databaseDatasourcesService.getDriverAvailability();
       List<WizDatabaseTypeInfo> types = new ArrayList<>();
-      Set<String> seen = new HashSet<>();
 
-      if(availability.getDrivers() != null) {
-         for(DriverAvailability.DriverInfo driver : availability.getDrivers()) {
-            String type = driver == null ? null : driver.getType();
-
-            // Several driver beans can share one type identifier (DB2 and Sybase each ship more
-            // than one driver class), and the editor offers the type, not the driver.
-            if(type == null || EXCLUDED_DATABASE_TYPES.contains(type) || !seen.add(type)) {
-               continue;
-            }
-
-            types.add(
-               new WizDatabaseTypeInfo(type, driver.isInstalled(), driver.getDefaultPort()));
-         }
+      for(DriverAvailability.DriverInfo driver : offeredDrivers(availability)) {
+         types.add(new WizDatabaseTypeInfo(driver.getType(), driver.isInstalled(),
+                                           driver.getDefaultPort()));
       }
 
       String[] driverClasses = availability.getDriverClasses();
@@ -252,6 +279,13 @@ public class WizDatabaseController {
    /**
     * Reads an existing database's connection settings.
     *
+    * <p>Gated on WRITE rather than READ, matching the native
+    * {@code DatabaseDatasourcesController.getDataSourceModel}: the response is the connection's
+    * configuration — host, port, user name, driver class, JDBC or custom URL, pool properties —
+    * which is what an editor needs and what a reader of the data has no business seeing.
+    * {@code DatabaseDatasourcesService} does not check this itself; it uses the principal only to
+    * decide the {@code deletable} flag.</p>
+    *
     * @param path      the database's full repository path.
     * @param principal the current user.
     *
@@ -262,8 +296,13 @@ public class WizDatabaseController {
     *                                        and is edited elsewhere.
     */
    @GetMapping(value = "/databases/definition", produces = MediaType.APPLICATION_JSON_VALUE)
-   public WizDatabaseDefinition getDatabaseDefinition(@RequestParam("path") String path,
-                                                      Principal principal)
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.WRITE
+      )
+   })
+   public WizDatabaseDefinition getDatabaseDefinition(
+      @PermissionPath @RequestParam("path") String path, Principal principal)
       throws Exception
    {
       String database = requirePath(path);
@@ -273,6 +312,11 @@ public class WizDatabaseController {
 
    /**
     * Suggests the connection test query for a database type.
+    *
+    * <p>The type is checked against the list {@code getDatabaseMeta} offers before it is used.
+    * {@code SQLHelper} answers an unrecognized type with its generic base helper, so an unchecked
+    * value would come back as a plausible {@code SELECT 1} attributed to a database the editor
+    * cannot even configure; a rejection is the honest answer.</p>
     *
     * @param type   the database type identifier.
     * @param driver the JDBC driver class. Only consulted for {@code CUSTOM}, whose real product is
@@ -285,6 +329,10 @@ public class WizDatabaseController {
       @RequestParam("type") String type,
       @RequestParam(value = "driver", required = false) String driver)
    {
+      if(!offeredDatabaseTypes().contains(type)) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown database type: " + type);
+      }
+
       String dbType = type;
 
       if(CustomDatabaseType.TYPE.equals(dbType)) {
@@ -299,6 +347,19 @@ public class WizDatabaseController {
    /**
     * Opens a connection with the supplied settings without saving them.
     *
+    * <p>Requires WRITE on {@code path} whenever one is given, and nothing at all when it is
+    * omitted. The asymmetry is the whole point: naming an existing database turns this into a
+    * credential read. The password of an unchanged connection is recovered server-side (see
+    * {@code oldName} below) and then used to connect to whatever host the request's own definition
+    * names, so without the check a caller who cannot read the database at all could recover its
+    * password by pointing the test at a host they control. A request with no path is creating a
+    * connection that does not exist yet: there is no stored credential to recover and the whole
+    * definition, password included, is already the caller's own.</p>
+    *
+    * <p>The condition is why this is an explicit {@code SecurityEngine} call and not a
+    * {@code @Secured} annotation, which would have to demand the permission unconditionally and
+    * would then reject the legitimate "test before creating" case outright.</p>
+    *
     * @param request   the settings to test, and the path of the database they came from when it
     *                  already exists.
     * @param principal the current user.
@@ -308,6 +369,7 @@ public class WizDatabaseController {
    @PostMapping(value = "/databases/test", produces = MediaType.APPLICATION_JSON_VALUE)
    public WizConnectionTestResult testDatabaseConnection(
       @RequestBody WizDatabaseTestRequest request, Principal principal)
+      throws Exception
    {
       WizDatabaseDefinition definition = request == null ? null : request.definition();
 
@@ -316,6 +378,10 @@ public class WizDatabaseController {
       }
 
       String path = normalizePath(request.path());
+
+      if(path != null) {
+         requireDataSourcePermission(path, ResourceAction.WRITE, principal);
+      }
 
       // Same reason as on update: without oldName the stored password cannot be recovered, so a
       // test of an otherwise-unchanged connection would connect with an empty password and fail.
@@ -335,6 +401,10 @@ public class WizDatabaseController {
     * parent folder as its path, which cannot ever succeed — that lookup necessarily finds no data
     * source and reports "Datasource Lost" — so it is not reproduced here.</p>
     *
+    * <p>The permission check up front is defence in depth rather than the only gate:
+    * {@code saveDatabase} refuses an unauthorized create on its own, but only after it has resolved
+    * the folder and read the repository.</p>
+    *
     * @param request   the parent folder and the new database.
     * @param principal the current user.
     *
@@ -349,6 +419,8 @@ public class WizDatabaseController {
       String name = requireName(definition);
       String parentPath = normalizePath(request.parentPath());
 
+      requireCreatePermission(parentPath, principal);
+
       // oldName stays null: a database that does not exist yet has no stored password to recover,
       // and a non-null value would send the recovery lookup after an unrelated data source.
       DatabaseDefinition database = toDatabaseDefinition(definition, null);
@@ -362,6 +434,11 @@ public class WizDatabaseController {
    /**
     * Updates an existing database's connection settings.
     *
+    * <p>Gated the same way as the read, and for a reason the internal check does not cover:
+    * {@code saveDatabase} does verify WRITE, but this method has by then already read the stored
+    * definition in order to carry {@code unasgn} and the credential reference forward. The gate
+    * belongs at the entry point, before anything is read.</p>
+    *
     * @param path       the database's current full repository path. Also the sole source of
     *                   {@code oldName} — see the class javadoc.
     * @param definition the new settings.
@@ -374,7 +451,12 @@ public class WizDatabaseController {
     *                                        database.
     */
    @PostMapping(value = "/databases/update", produces = MediaType.APPLICATION_JSON_VALUE)
-   public WizDatabaseSaveResult updateDatabase(@RequestParam("path") String path,
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.WRITE
+      )
+   })
+   public WizDatabaseSaveResult updateDatabase(@PermissionPath @RequestParam("path") String path,
                                                @RequestBody WizDatabaseDefinition definition,
                                                Principal principal)
       throws Exception
@@ -399,6 +481,84 @@ public class WizDatabaseController {
       int index = database.lastIndexOf('/');
 
       return toSaveResult(status, index < 0 ? name : database.substring(0, index + 1) + name);
+   }
+
+   /**
+    * Fails unless the caller holds the action on a data source.
+    *
+    * <p>Throws {@code java.lang.SecurityException}, which is what {@code SecuredAspect} throws for
+    * the annotated endpoints, so a denial from here and a denial from an annotation reach
+    * {@code WizControllerErrorHandler} — and the client — as the same 403.</p>
+    */
+   private void requireDataSourcePermission(String path, ResourceAction action, Principal principal)
+      throws Exception
+   {
+      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path, action)) {
+         throw new SecurityException(
+            "Unauthorized access to data source \"" + path + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Fails unless the caller may create a database in a folder.
+    *
+    * <p>The rule is the one {@code DataSourceController} applies to its {@code newDatasourceEnabled}
+    * flag: WRITE on the parent folder, or, at the root only, the standalone
+    * {@code CREATE_DATA_SOURCE} grant that lets a user own data sources without holding the root
+    * folder. The native controller's fuller rule set is not reproduced — this is a guard in front of
+    * {@code saveDatabase}, which enforces the real thing.</p>
+    */
+   private void requireCreatePermission(String parentPath, Principal principal) throws Exception {
+      boolean root = parentPath == null;
+      boolean allowed = securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE_FOLDER, root ? "/" : parentPath, ResourceAction.WRITE);
+
+      if(!allowed && root) {
+         allowed = securityEngine.checkPermission(
+            principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
+      }
+
+      if(!allowed) {
+         throw new SecurityException("Unauthorized access to data source folder \"" +
+                                        (root ? "/" : parentPath) + "\" by user " + principal);
+      }
+   }
+
+   /** The database type identifiers the editor offers, i.e. what {@code getDatabaseMeta} returns. */
+   private Set<String> offeredDatabaseTypes() {
+      Set<String> types = new LinkedHashSet<>();
+
+      for(DriverAvailability.DriverInfo driver :
+         offeredDrivers(databaseDatasourcesService.getDriverAvailability()))
+      {
+         types.add(driver.getType());
+      }
+
+      return types;
+   }
+
+   private static List<DriverAvailability.DriverInfo> offeredDrivers(DriverAvailability availability)
+   {
+      List<DriverAvailability.DriverInfo> drivers = new ArrayList<>();
+      Set<String> seen = new HashSet<>();
+
+      if(availability == null || availability.getDrivers() == null) {
+         return drivers;
+      }
+
+      for(DriverAvailability.DriverInfo driver : availability.getDrivers()) {
+         String type = driver == null ? null : driver.getType();
+
+         // Several driver beans can share one type identifier (DB2 and Sybase each ship more than
+         // one driver class), and the editor offers the type, not the driver.
+         if(type == null || EXCLUDED_DATABASE_TYPES.contains(type) || !seen.add(type)) {
+            continue;
+         }
+
+         drivers.add(driver);
+      }
+
+      return drivers;
    }
 
    private List<WizDatasourceEntry> toEntries(List<DataSourceInfo> infos) {
@@ -798,9 +958,13 @@ public class WizDatabaseController {
    /**
     * Database types the wiz editor cannot configure. Access needs a file upload for the .mdb, and
     * ODBC needs the server to enumerate its DSNs; neither has a form here, so neither is offered.
+    *
+    * <p>Only the Access entry currently does anything: no ODBC {@code DatabaseType} bean is
+    * registered, so no driver ever reports that identifier. It is kept so that registering one
+    * would not silently put an unconfigurable type in the dropdown.</p>
     */
    private static final Set<String> EXCLUDED_DATABASE_TYPES =
-      Set.of(AccessDatabaseType.TYPE, "ODBC");
+      Set.of(AccessDatabaseType.TYPE, JDBCDataSource.ODBC);
 
    /** The save path's status strings, mapped to codes the client can branch on. */
    private static final Map<String, String> SAVE_FAILURE_REASONS = Map.of(
@@ -815,6 +979,7 @@ public class WizDatabaseController {
    private final DataSourceStatusService dataSourceStatusService;
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final DatabaseTypeService databaseTypeService;
+   private final SecurityEngine securityEngine;
    private final Config uqlConfig;
    private final XRepository xrepository;
 }
