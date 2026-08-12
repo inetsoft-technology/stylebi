@@ -637,8 +637,9 @@ public class WorksheetAgentController {
       requireEnabled();
 
       LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}",
-                file != null ? file.getOriginalFilename() : null,
-                file != null ? file.getSize() : null, fileType, sheet, name);
+                file != null ? sanitizeForLog(file.getOriginalFilename()) : null,
+                file != null ? file.getSize() : null, sanitizeForLog(fileType),
+                sanitizeForLog(sheet), sanitizeForLog(name));
 
       if(file == null || file.isEmpty()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
@@ -756,13 +757,31 @@ public class WorksheetAgentController {
       String excelImportMax = SreeEnv.getProperty("excel.import.max");
       String max = excelImportMax != null ? excelImportMax : SreeEnv.getProperty("csv.import.max");
 
-      if(max != null && size > Long.parseLong(max)) {
-         long sizeK = Long.parseLong(max) / 1024;
+      if(max == null) {
+         return;
+      }
+
+      long maxBytes;
+
+      try {
+         maxBytes = Long.parseLong(max);
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Ignoring non-numeric excel.import.max/csv.import.max value: {}", max);
+         return;
+      }
+
+      if(size > maxBytes) {
+         long sizeK = maxBytes / 1024;
          long sizeM = sizeK / 1024;
          String sizeStr = sizeM > 0 ? sizeM + "M" : sizeK + "K";
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                            "Excel file exceeds the maximum allowed size (" + sizeStr + ")");
       }
+   }
+
+   private static String sanitizeForLog(String value) {
+      return value == null ? null : value.replaceAll("[\r\n]", "_");
    }
 
    /**
