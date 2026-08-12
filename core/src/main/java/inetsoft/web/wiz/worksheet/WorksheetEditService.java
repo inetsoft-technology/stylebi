@@ -1634,8 +1634,9 @@ public class WorksheetEditService {
        *                   {@code table}/{@code column} are provided
        * @param mappings   group name → value list mappings
        * @param groupOthers whether to group unmapped values as "Others"
-       * @throws PairingException if the table or column is not found, or if only one of
-       *                          {@code table}/{@code column} is provided
+       * @throws PairingException if the table or column is not found, if only one of
+       *                          {@code table}/{@code column} is provided, or if
+       *                          {@code type} is not a recognized primitive type
        */
       public void addNamedGroup(String name, String table, String column, String type,
                                 List<WorksheetMutationSupport.GroupMapping> mappings,
@@ -1644,6 +1645,13 @@ public class WorksheetEditService {
          if((table == null) != (column == null)) {
             throw new PairingException(
                "table and column must both be specified, or both omitted for a standalone grouping");
+         }
+
+         if(type != null && !XSchema.isPrimitiveType(type)) {
+            throw new PairingException(
+               "Invalid type: \"" + type + "\". Valid types: " +
+               "string, boolean, float, double, integer, long, short, byte, " +
+               "char, date, time, timeInstant.");
          }
 
          DataRef ref = null;
