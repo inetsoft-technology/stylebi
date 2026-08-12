@@ -206,6 +206,38 @@ describe("EmbedDatasourceRegistrationComponent — save lifecycle", () => {
 });
 
 /*
+ * All 130 listing names the server offers seed successfully -- swept against a running deployment.
+ * The 500s an earlier spike saw came from "MongoDB" and "REST", which are not listing names at all
+ * (the real ones are "MongoDB REST", "REST JSON", "REST XML"). The picker cannot produce a bad name
+ * because it only ever clicks names from the selection view.
+ *
+ * The `listingName` attribute is the one route by which a bad name can arrive, since an embedder
+ * types it. It must name the type it could not load -- "something went wrong" would leave the
+ * embedder guessing which of their attributes was wrong.
+ */
+describe("EmbedDatasourceRegistrationComponent — unknown listing name", () => {
+   it("names the type it could not load when listingName is not a real listing", async () => {
+      const view = await render(EmbedDatasourceRegistrationComponent, {
+         providers: [
+            EmbedDatasourceRegistrationService, provideHttpClient(), provideHttpClientTesting(),
+         ],
+         componentProperties: { listingName: "MongoDB" },
+      });
+      const errors: string[] = [];
+      view.fixture.componentInstance.failed.subscribe((m: string) => errors.push(m));
+
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/portal/data/datasource-selection-view").flush({ listings: [] });
+      http.expectOne("../api/data/datasources/browser").flush({ dataSourceList: [] });
+      http.expectOne("../api/portal/data/datasources/listing/MongoDB")
+         .flush("boom", { status: 500, statusText: "Server Error" });
+
+      await waitFor(() => expect(errors.length).toBeGreaterThan(0));
+      expect(errors[0]).toContain("MongoDB");
+   });
+});
+
+/*
  * Custom elements from this bundle do not get a change-detection pass for free.
  *
  * Measured in a real browser against a real server: the selection-view call returned all 130
