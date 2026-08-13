@@ -87,6 +87,15 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * The title lane's height. Compact and comfortable borrow the header row's steps so the lane can
+    * hold the 24px anchored strip with clearance; dense stays at defh, which is the one tier that
+    * must equal legacy and the one where the strip does not anchor at all.
+    */
+   public static int titleHeight() {
+      return isModern() ? titleHeightForMode(mode()) : AssetUtil.defh;
+   }
+
+   /**
     * Data-row height for a density mode. Unrecognized modes fall back to dense.
     */
    static int rowHeightForMode(String mode) {
@@ -111,6 +120,20 @@ public final class VSDensityDefaults {
          return 26;
       default:
          return 22;
+      }
+   }
+
+   /**
+    * Title-lane height for a density mode. Unrecognized modes fall back to dense.
+    */
+   static int titleHeightForMode(String mode) {
+      switch(mode) {
+      case COMFORTABLE:
+         return 30;
+      case COMPACT:
+         return 26;
+      default:
+         return AssetUtil.defh;
       }
    }
 

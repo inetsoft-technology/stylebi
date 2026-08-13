@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { isAnchoredAssemblyType, MiniToolbarService } from "./mini-toolbar.service";
+import { isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+   from "./mini-toolbar.service";
 
 // The rollout boundary, asserted explicitly rather than left implied. Each family slice moves types
 // from the second test to the first; the last one deletes the predicate entirely and the gate
@@ -53,6 +54,90 @@ describe("isAnchoredAssemblyType", () => {
       expect(isAnchoredAssemblyType(null)).toBe(false);
       expect(isAnchoredAssemblyType(undefined)).toBe(false);
       expect(isAnchoredAssemblyType("")).toBe(false);
+   });
+});
+
+// The single source of truth VSObjectContainerComponent.isKebabResident and AbstractVSActions.
+// resident both delegate to, so the two cannot drift apart the way they once did (resident stayed
+// true under dense after the container started opting out).
+describe("isAnchoredResident", () => {
+   afterEach(() => {
+      document.body.classList.remove(
+         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   });
+
+   it("is false when the modern gate is off, regardless of type", () => {
+      expect(isAnchoredResident("VSChart")).toBe(false);
+   });
+
+   it("is false under dense, even for an anchored type with the gate on", () => {
+      document.body.classList.add("viz-modern", "viz-density-dense");
+      expect(isAnchoredResident("VSChart")).toBe(false);
+   });
+
+   it("is true under compact and comfortable, for an anchored type with the gate on", () => {
+      document.body.classList.add("viz-modern", "viz-density-compact");
+      expect(isAnchoredResident("VSChart")).toBe(true);
+      document.body.classList.remove("viz-density-compact");
+      document.body.classList.add("viz-density-comfortable");
+      expect(isAnchoredResident("VSChart")).toBe(true);
+   });
+
+   it("is false under compact for a type outside the anchored set", () => {
+      document.body.classList.add("viz-modern", "viz-density-compact");
+      expect(isAnchoredResident("VSCalendar")).toBe(false);
+   });
+});
+
+// The other half of the density split. Deliberately not the negation of isAnchoredResident: dense
+// removes chrome from anchored types only, so the two predicates are both false for a calendar
+// under compact and both false for anything with the gate off.
+describe("isAnchoredChromeSuppressed", () => {
+   afterEach(() => {
+      document.body.classList.remove(
+         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   });
+
+   it("is true under dense for an anchored type with the gate on", () => {
+      document.body.classList.add("viz-modern", "viz-density-dense");
+      expect(isAnchoredChromeSuppressed("VSChart")).toBe(true);
+      expect(isAnchoredChromeSuppressed("VSSelectionList")).toBe(true);
+   });
+
+   it("treats a bare modern gate as dense, matching the token fallback", () => {
+      document.body.classList.add("viz-modern");
+      expect(isAnchoredChromeSuppressed("VSChart")).toBe(true);
+   });
+
+   it("is false when the modern gate is off, so gate-off output is untouched", () => {
+      document.body.classList.add("viz-density-dense");
+      expect(isAnchoredChromeSuppressed("VSChart")).toBe(false);
+   });
+
+   it("is false under compact and comfortable", () => {
+      document.body.classList.add("viz-modern", "viz-density-compact");
+      expect(isAnchoredChromeSuppressed("VSChart")).toBe(false);
+      document.body.classList.remove("viz-density-compact");
+      document.body.classList.add("viz-density-comfortable");
+      expect(isAnchoredChromeSuppressed("VSChart")).toBe(false);
+   });
+
+   it("is false under dense for a type outside the anchored set", () => {
+      document.body.classList.add("viz-modern", "viz-density-dense");
+      expect(isAnchoredChromeSuppressed("VSCalendar")).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSRangeSlider")).toBe(false);
+   });
+
+   it("is never true at the same time as isAnchoredResident", () => {
+      for(const density of ["viz-density-dense", "viz-density-compact", "viz-density-comfortable"]) {
+         document.body.classList.add("viz-modern", density);
+
+         for(const type of ["VSChart", "VSSelectionList", "VSCalendar"]) {
+            expect(isAnchoredResident(type) && isAnchoredChromeSuppressed(type)).toBe(false);
+         }
+
+         document.body.classList.remove(density);
+      }
    });
 });
 

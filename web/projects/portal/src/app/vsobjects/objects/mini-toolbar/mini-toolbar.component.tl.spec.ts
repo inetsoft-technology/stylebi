@@ -380,11 +380,11 @@ describe("MiniToolbar rendered - coarse-pointer touch target (compiled CSS only;
 // the browser actually renders, driven by a real ChartActions rather than hand-built groups.
 describe("MiniToolbar rendered - three action buttons plus the kebab under the gate", () => {
    afterEach(() => {
-      document.body.classList.remove("viz-modern");
+      document.body.classList.remove("viz-modern", "viz-density-compact");
    });
 
    async function renderChartStrip(width: number, height: number) {
-      document.body.classList.add("viz-modern");
+      document.body.classList.add("viz-modern", "viz-density-compact");
       const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
