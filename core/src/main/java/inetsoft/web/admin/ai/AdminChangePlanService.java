@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -74,14 +75,35 @@ public class AdminChangePlanService {
                "changes: duplicate entry for " + name.key() + "; list each property once");
          }
 
+         boolean credential = AdminPropertyCatalog.isEncryptedCredential(name.baseName());
+
          // Unlike the read path in AdminPropertiesController (which withholds the value but still
          // shows the property exists), a change is refused outright: this service exists to WRITE
          // a value, and blanking a secret through it would make every stored encrypted credential
          // undecryptable. See AdminPropertyCatalog.isSecret for why this is an egress/blast-radius
          // control rather than a privilege boundary.
-         if(AdminPropertyCatalog.isSecret(name.baseName())) {
+         //
+         // The exception is the small allow-list of application credentials whose accessors
+         // encrypt at rest: those are written through SreeEnv.setPassword, which encrypts exactly
+         // as the Enterprise Manager field does. Reading them is still refused - the egress
+         // rationale is about values LEAVING the host, and is untouched by letting one in.
+         if(AdminPropertyCatalog.isSecret(name.baseName()) && !credential) {
             throw new IllegalArgumentException(
                name.key() + ": secret properties cannot be changed through admin-chat");
+         }
+
+         // With cloud secrets configured, these properties hold the NAME of a secret rather than a
+         // secret - getPassword resolves it through Tool.loadCredentials and reads a client_secret
+         // field out of the JSON. Enterprise Manager swaps its Client Secret field for a Secret ID
+         // one in that mode for exactly this reason. An agent handed a literal secret would store
+         // it where a reference belongs, and nothing downstream could resolve it, so refuse rather
+         // than write a value that cannot work.
+         if(credential && Tool.isCloudSecrets()) {
+            throw new IllegalArgumentException(
+               name.key() + ": this deployment uses cloud secrets, so this property holds the ID "
+               + "of a secret rather than the secret itself. Set it from Enterprise Manager's "
+               + "Settings > Security > SSO page, whose Secret ID field writes the reference "
+               + "correctly.");
          }
 
          CatalogEntry entry = catalog.getEntry(name);
@@ -94,7 +116,16 @@ public class AdminChangePlanService {
          requireHashSafe("property", name.key());
          requireHashSafe("value", proposed);
 
-         String currentValue = SreeEnv.getProperty(name.key(), false, false);
+         // A credential's stored form is ciphertext, and the plan is relayed to a model provider by
+         // the caller. Ciphertext is not the secret, but there is no reason to ship it either, and
+         // an operator reading the plan is served better by whether one is already set than by a
+         // base64 blob. Note the consequence for the drift gate: replacing one secret with a
+         // different one is not detected between preview and apply, only set <-> unset is. That is
+         // tolerable here because the human approved "set this property to the value I supplied",
+         // which is what executes either way.
+         String currentValue = credential
+            ? (SreeEnv.getProperty(name.key(), false, false) == null ? "(not set)" : "(set)")
+            : SreeEnv.getProperty(name.key(), false, false);
          requireHashSafe("currentValue", currentValue);
 
          changes.add(new PlanChange(name.key(), name.orgId(),

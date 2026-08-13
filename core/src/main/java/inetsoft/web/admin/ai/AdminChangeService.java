@@ -75,11 +75,25 @@ public class AdminChangeService {
          // (beforeRead stays false) - see AdminChangeResult.isBeforeRead().
          result.setBeforeRead(true);
 
+         // An allow-listed credential is stored encrypted, so an apply must write it through
+         // setPassword - the same encryption the Enterprise Manager field applies - or the store
+         // would hold plaintext where every reader calls Tool.decryptPassword.
+         //
+         // A ROLLBACK must not. Its value is the stored form captured by the getProperty read
+         // above, i.e. already ciphertext, and re-encrypting it would double-encrypt and restore
+         // something that never decrypts back to the original secret. The action is what separates
+         // the two: only an apply carries a plaintext value.
+         boolean encryptOnWrite = AdminPropertyCatalog.isEncryptedCredential(name.baseName())
+            && !AdminChangeRecord.ACTION_ROLLBACK.equals(req.getAction());
+
          if(desired == null) {
             // Side-effect hooks match exact literals (e.g. "security.exposedefaultorgtoall"), so
             // they must receive the base name; an org-qualified name would silently never fire.
             sideEffects.applyPreRemoveSideEffects(name.baseName());
             SreeEnv.remove(name.key());
+         }
+         else if(encryptOnWrite) {
+            SreeEnv.setPassword(name.key(), desired);
          }
          else {
             SreeEnv.setProperty(name.key(), desired);
@@ -94,9 +108,20 @@ public class AdminChangeService {
             sideEffects.applyEditSideEffects(name.baseName());
          }
 
+         // beforeValue and afterValue stay the STORED form on every path - ciphertext for a
+         // credential. That is deliberate and load-bearing, not an oversight: the changeset apply
+         // service replays getBeforeValue() as the rollback value, so masking or decrypting either
+         // one would break rollback. Ciphertext is not the secret, so nothing sensitive is
+         // recorded by keeping it.
          String after = SreeEnv.getProperty(name.key(), false, false);
          result.setAfterValue(after);
-         status = Objects.equals(after, desired)
+
+         // The comparison has to speak the same language as the write. An encrypting write stores
+         // ciphertext while `desired` is plaintext, so comparing the raw read would report FAILED
+         // for every successful credential write and roll it straight back; getPassword reverses
+         // the encryption so like is compared with like.
+         String verified = encryptOnWrite ? SreeEnv.getPassword(name.key()) : after;
+         status = Objects.equals(verified, desired)
             ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       }
       catch(Exception ex) {
