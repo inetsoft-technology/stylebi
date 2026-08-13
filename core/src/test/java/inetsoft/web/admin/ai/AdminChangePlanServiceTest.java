@@ -354,8 +354,14 @@ class AdminChangePlanServiceTest {
                () -> service.resolve(request("set it", prop, "value")));
             assertTrue(ex.getMessage().contains(prop), "message should name " + prop);
             assertTrue(ex.getMessage().contains("cloud secrets"));
+            // The message must describe only what admin-chat will not do. Every claim about how a
+            // property is configured elsewhere is a claim per property, and this is one string for
+            // seven of them - two review rounds caught exactly that, first the page name and then
+            // the Secret ID field, which only three of the seven actually have.
             assertFalse(ex.getMessage().contains("Security > SSO"),
                         "message must not name an SSO page for " + prop);
+            assertFalse(ex.getMessage().contains("Secret ID"),
+                        "message must not promise a Secret ID field for " + prop);
          }
       }
    }

@@ -294,20 +294,31 @@ public class AdminPropertyCatalog {
     * The refusal both the plan and the apply path give when an encrypted credential is set on a
     * deployment using cloud secrets.
     *
-    * <p>Built here rather than written out at each site so the two cannot drift apart, and
-    * deliberately does NOT name an Enterprise Manager page. It used to say "Settings > Security >
-    * SSO", which was true while the allow-list held only the two OpenID credentials and became
-    * wrong the moment mail and logging credentials joined them - they are configured on entirely
-    * different pages. Sending an operator to the wrong page is worse than sending them to none,
-    * and a page-per-property mapping maintained here would be a second name-keyed table to drift
-    * out of date, which is the failure this class has already had once.
+    * <p>Built here rather than written out at each site so the two cannot drift apart - they
+    * already did once, which is how an obsolete page name survived the change that invalidated it.
+    *
+    * <p><b>It describes what admin-chat will not do, and nothing about the Enterprise Manager
+    * UI.</b> Two rounds of review caught the same drift at successively finer grain: first it named
+    * "Settings > Security > SSO", true only while the list held the two OpenID credentials; then it
+    * promised "a Secret ID field", which exists for {@code openid.client.secret},
+    * {@code stylebi.google.openid.client.secret} and {@code mail.smtp.pass} - and for nothing else
+    * on the list. {@code EmailSettingsService} has no cloud-secrets branch for
+    * {@code mail.smtp.clientsecret}, {@code mail.smtp.accesstoken} or
+    * {@code mail.smtp.refreshtoken}, and {@code LogSettingService} does not mention
+    * {@code Tool.isCloudSecrets} at all.
+    *
+    * <p>The pattern is worth naming, because a third wording would fail the same way: any claim
+    * about how a property is configured elsewhere is a claim per property, and this method has one
+    * string for seven of them. Describing only this component's own behaviour is the wording that
+    * stays true as the list grows. If per-property guidance is ever wanted, the corpus already
+    * records {@code emBinding.page} for each - drive it from there rather than from a second
+    * name-keyed table maintained by hand beside {@link #ENCRYPTED_CREDENTIALS}.
     */
-   public static String cloudSecretsRefusal(String key) {
-      return key + ": this deployment uses cloud secrets, so this property holds the ID of a "
-         + "secret rather than the secret itself. Set it from the Enterprise Manager page that "
-         + "owns this setting - under cloud secrets those pages present a Secret ID field, which "
-         + "writes the reference correctly. admin-chat cannot, because it would store the literal "
-         + "value where nothing downstream can resolve it.";
+   static String cloudSecretsRefusal(String key) {
+      return key + ": this deployment uses cloud secrets, so a value stored under this property is "
+         + "resolved as a reference to a secret rather than used directly. admin-chat will not set "
+         + "it - it can only write the literal value it was given, which nothing downstream could "
+         + "resolve. Configure it through Enterprise Manager instead.";
    }
 
    private static final Set<String> ENCRYPTED_CREDENTIALS = Set.of(
