@@ -407,7 +407,10 @@ public class ChartPropertyDialogService {
       if(!viewsheet.isViewer()) {
          dialogService.setAssemblySize(assemblyInfo, sizePositionPaneModel);
          dialogService.setAssemblyPosition(assemblyInfo, sizePositionPaneModel);
-         assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+            assemblyInfo.setUserTitleHeight(true);
+            assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
       }
 
       String[] flyovers = VSUtil.getValidFlyovers(tipPaneModel.getFlyOverViews(),

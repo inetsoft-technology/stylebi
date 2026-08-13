@@ -1442,6 +1442,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
                if(cssDictionary.isHeightDefined(objectCssParam, titleCssParam)) {
                   ((TitledVSAssemblyInfo) this).setTitleHeightValue(
                      cssDictionary.getHeight(objectCssParam, titleCssParam));
+                  // a stylesheet height is the customer's choice, not a default
+                  ((TitledVSAssemblyInfo) this).setUserTitleHeight(true);
                }
             }
          }

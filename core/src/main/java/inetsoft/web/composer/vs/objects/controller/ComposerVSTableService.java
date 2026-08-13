@@ -411,6 +411,7 @@ public class ComposerVSTableService {
       info.setExplicitTableWidthValue(false);
       info.setUserHeaderRowHeight(false);
       info.setUserDataRowHeight(false);
+      info.setUserTitleHeight(false);
       rvs.getViewsheetSandbox().ifPresent(b -> b.resetDataMap(table.getAbsoluteName()));
       BaseTableService.loadTableData(rvs, table.getAbsoluteName(), 0, 0, 100, "",
                                         dispatcher);

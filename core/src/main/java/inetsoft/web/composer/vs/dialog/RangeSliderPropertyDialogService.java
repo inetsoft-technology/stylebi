@@ -258,7 +258,10 @@ public class RangeSliderPropertyDialogService {
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
 
       if(sizePositionPaneModel.getTitleHeight() > 0) {
-         info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         if(sizePositionPaneModel.getTitleHeight() != info.getTitleHeightValue()) {
+            info.setUserTitleHeight(true);
+            info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
       }
 
       info.setEnabledValue(generalPropPaneModel.getEnabled());
