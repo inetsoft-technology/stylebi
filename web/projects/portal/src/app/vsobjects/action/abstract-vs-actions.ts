@@ -24,7 +24,8 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { isAnchoredAssemblyType, MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
+import { isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+   from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
 
 /**
@@ -135,10 +136,11 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.assemblyMenuActions;
    }
 
-   // TEMPORARY, like the container's isToolbarAnchored: both read the one rollout boundary in
-   // mini-toolbar.service.ts and are deleted together with it when the last family slice lands.
+   // TEMPORARY, like the container's isKebabResident: both delegate to isAnchoredResident, the one
+   // rollout boundary in mini-toolbar.service.ts, so the two cannot drift apart. Deleted together
+   // with it when the last family slice lands.
    private get resident(): boolean {
-      return GuiTool.isVizModern() && isAnchoredAssemblyType(this.model.objectType);
+      return isAnchoredResident(this.model.objectType);
    }
 
    /**
@@ -213,7 +215,13 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
 
       // No chrome at all below the control floor — a 24px control with 4px clearance does not fit,
       // and right-click becomes the only route. This is the one rung that removes the kebab.
-      if(modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR) {
+      //
+      // An anchored type reaches the same rung by the lane rather than the card: a lane too short
+      // to host a control draws none. Checked separately because resident is already false in that
+      // case, which skips the height test below.
+      if(isAnchoredChromeSuppressed(this.model.objectType) ||
+         (modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR))
+      {
          ToolbarActionsHandler.copyActions([], this.showing);
          return this.showing;
       }

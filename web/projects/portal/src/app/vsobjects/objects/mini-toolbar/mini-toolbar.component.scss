@@ -79,7 +79,7 @@
 }
 
 :host-context(.viz-modern) .mini-toolbar .mini-toolbar-container {
-  height: 24px;
+  height: var(--inet-control-height-sm);
 
   button {
     height: 100%;

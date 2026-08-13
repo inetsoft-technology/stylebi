@@ -54,7 +54,7 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { isAnchoredAssemblyType, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { isAnchoredResident, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
 import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
@@ -466,7 +466,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    // abandon objectFormat positioning there (see VSSelection.topPosition) and put padding constants
    // in objectFormat.top/left instead, so the lane origin the anchored geometry assumes doesn't
    // exist. Chart and table objectFormat is rewritten to true coordinates in max mode, so anchoring
-   // still works for them there. isKebabResident below is the type+gate condition alone, without
+   // still works for them there. isKebabResident below is the type+gate+density condition alone, without
    // this method's selection-max-mode exclusion — it is what keeps the kebab reachable on touch
    // once this method stops anchoring it.
    public isToolbarAnchored(object: VSObjectModel): boolean {
@@ -478,9 +478,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * whether it can currently be geometrically anchored to a title lane (isToolbarAnchored above).
     * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
     * max mode, where anchoring is off — there is no lane — but the type still carries the design.
+    * A lane too short to hold the strip opts out entirely, so this is false regardless of type —
+    * approximated by density for now, so dense alone. Such an assembly draws no chrome at all
+    * rather than falling back to the floating strip; that is enforced in the action layer, not here.
     */
    public isKebabResident(object: VSObjectModel): boolean {
-      return GuiTool.isVizModern() && isAnchoredAssemblyType(object.objectType);
+      return isAnchoredResident(object.objectType);
    }
 
    /**
