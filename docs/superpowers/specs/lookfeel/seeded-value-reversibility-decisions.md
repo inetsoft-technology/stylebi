@@ -1,10 +1,11 @@
 # Seeded Value Reversibility — Decisions
 
-**Date:** 2026-08-12 (v2 — supersedes the 2026-08-12 v1 decision set in this file)
-**Verified against:** community `viz-updates` @ `881a9b049`
+**Date:** 2026-08-12 (v2 — supersedes the 2026-08-12 v1 decision set in this file); addendum 2026-08-13
+**Verified against:** community `viz-updates` @ `881a9b049` for v2; the addendum against `c8011beca`
 **Concerns:** the seed mark (`Visualization Widget Spec.dc.html` §03, sibling-owned, not built) and
 `chart-card-design3/Seeded value reversibility - ticket.md`
-**Status:** twelve decisions taken; three items open, all small
+**Status:** twelve decisions taken; three items open, all small. **Read the addendum below before planning
+the mark** — `userTitleHeight` has shipped since v2 and changes how decisions 4 and 11 should be read
 
 ## Why this file exists, and what changed in v2
 
@@ -22,6 +23,60 @@ The three substantive departures from §03:
 | Mark states | tri-state: `gate-on` / `gate-off` / absent | **unmarked / modern-light / modern-dark**; `gate-off` is not stored |
 
 Everything below cites a file and line. Where this contradicts the ticket or §03, the code was read.
+
+---
+
+## What changed since this was written — read before planning the mark
+
+**Added 2026-08-13.** This file predates the `userTitleHeight` work and does not mention it anywhere. Four
+things have happened that change how decision 4 and decision 11 should be read. Nothing below invalidates a
+decision; it narrows what remains to build.
+
+**1. One of "the density heights" now exists, and it needed a second flag the mark does not replace.**
+Decision 4 keys "the density heights" off the mark. The first of those heights — the title lane row, item
+L' in [chart-card-roadmap.md](./chart-card-roadmap.md) — turned out to need *two* conditions, not one:
+
+| Question | Answered by | Why the other cannot answer it |
+|---|---|---|
+| Is this assembly modern? | the mark | a flag on one property says nothing about the assembly |
+| Did an author choose this height? | `userTitleHeight` | the mark records *when* an assembly was made, not which of its properties a person later set |
+
+`userTitleHeight` shipped in `07c91926e` and `307a6ee09` — a persisted boolean on `TitleInfo`, derived on
+parse for older files against each type's own default, and stamped at the fourteen sites where a height is
+chosen. [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 8 records the
+consequence: **the row is scheduled after the mark**, because on the flag alone it would resize every
+dashboard ever saved, and shipping it inert beside the mark defers rather than parallelises its verification.
+
+Expect the same shape for the other §04 heights. Row height and selection cell height already carry
+`userDataRowHeight`, `userHeaderRowHeight` and `userCellHeight` from 13.3 and earlier, for the same reason.
+The mark does not subsume any of them.
+
+**None of these belongs in decision 12's deletion sweep**, and the resemblance is close enough to be worth
+saying out loud. The four mechanisms decision 12 deletes are *gate*-provenance — they record that the gate
+seeded a value, so the value can be un-seeded, and the mark replaces all four. `userTitleHeight` and its
+siblings are *author*-provenance: they record that a person set a value, which the mark never knows and
+never will. They survive the mark and are still needed after it.
+
+**2. Decision 4's per-assembly CSS scope has a second consumer waiting.** Strip and lane decision 5 puts a
+"follow the default density" checkbox in the Size and Position pane, covering title height and table row
+height. It needs to know an assembly's effective height, which is density-derived and therefore
+mark-conditioned — so the per-assembly scope decision 4 already requires is a prerequisite for that control
+too, not only for the CSS. Worth knowing while sizing decision 4, which this file already calls the largest
+single piece of work in the set.
+
+**3. `TitleInfo.equals()` is about to change, and decision 11's enumeration point should know.** Strip and
+lane decision 7 adds `userTitleHeight` to `TitleInfo.equals()`, because every assembly info's
+`copyViewInfo` transfers the whole `TitleInfo` only when it compares unequal — so a change touching only a
+provenance flag is otherwise dropped when the property dialog applies its edited clone. Any per-assembly
+provenance the mark introduces has the same exposure through the same eight `copyViewInfo` guards. The audit
+is done and recorded there: `TitleInfo.equals()` has exactly eight consumers repo-wide, all of them that
+guard.
+
+**4. The pre-mark cohort now has a second member, and the write-off still holds.** "Accepted costs" below
+writes off assemblies created with the gate on before the mark exists. Assemblies created since
+`307a6ee09` may also carry `userTitleHeight` without a mark. Same disposition, same reasoning — `viz-updates`
+has never shipped, so every member is a disposable dev or test dashboard — and the same expiry: it holds
+**only while the branch is unreleased**.
 
 ---
 
