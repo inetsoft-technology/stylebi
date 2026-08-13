@@ -971,6 +971,17 @@ public class TabularUtil {
       TabularUtil.sessionId.set(sessionId);
    }
 
+   /**
+    * The session id bound to the current thread, or null.
+    *
+    * Note this is a ThreadLocal that callers only ever set, so on a pooled request thread a
+    * non-null answer may belong to an earlier request. An entry point that hands this to connector
+    * code should set it for its own request rather than inherit whatever is here.
+    */
+   public static String getSessionId() {
+      return sessionId.get();
+   }
+
    public static int getMaxRows(XQuery query, VariableTable params) {
       try {
          String previewMax = (String) params.get(XQuery.HINT_MAX_ROWS);

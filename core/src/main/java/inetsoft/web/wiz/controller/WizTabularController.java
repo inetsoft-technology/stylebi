@@ -23,7 +23,9 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.DataSourceListing;
 import inetsoft.uql.DataSourceListingService;
 import inetsoft.uql.XDataSource;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.web.portal.data.DataSourceDefinition;
@@ -35,6 +37,9 @@ import inetsoft.web.wiz.model.WizTabularListing;
 import inetsoft.web.wiz.model.WizTabularListings;
 import inetsoft.web.wiz.model.WizTabularSaveResult;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
+import inetsoft.web.wiz.service.UnsupportedDatasourceException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -77,9 +82,10 @@ import java.util.*;
 @RequestMapping("/api/wiz")
 public class WizTabularController {
    public WizTabularController(DatasourcesService datasourcesService,
-                               SecurityEngine securityEngine)
+                               XRepository xrepository, SecurityEngine securityEngine)
    {
       this.datasourcesService = datasourcesService;
+      this.xrepository = xrepository;
       this.securityEngine = securityEngine;
    }
 
@@ -201,7 +207,24 @@ public class WizTabularController {
     * @return the recomputed definition.
     */
    @PostMapping(value = "/tabular/refresh", produces = MediaType.APPLICATION_JSON_VALUE)
-   public DataSourceDefinition refreshTabularView(@RequestBody DataSourceDefinition definition) {
+   public DataSourceDefinition refreshTabularView(@RequestBody DataSourceDefinition definition,
+                                                  HttpServletRequest request, Principal principal)
+      throws Exception
+   {
+      if(definition == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "definition is required");
+      }
+
+      requireEditorPermission(definition, principal);
+
+      // TabularUtil.sessionId is a static ThreadLocal that is only ever set, never cleared, and is
+      // handed to connector button methods. Leaving it alone does not mean "no session" on a pooled
+      // thread -- it means whatever the PREVIOUS request left there, possibly another user's. This
+      // always overwrites it, so a connector sees this caller's session or null, never a stranger's.
+      // getSession(false) deliberately: a server-to-server caller should not mint sessions.
+      HttpSession session = request == null ? null : request.getSession(false);
+      TabularUtil.setSessionId(session == null ? null : session.getId());
+
       DataSourceDefinition refreshed = datasourcesService.refreshTabularView(definition);
       refreshed.setSequenceNumber(definition.getSequenceNumber());
 
@@ -220,13 +243,32 @@ public class WizTabularController {
    public WizTabularSaveResult createTabularDataSource(
       @RequestBody WizTabularCreateRequest request, Principal principal) throws Exception
    {
-      DataSourceDefinition definition = request.definition();
+      // On the record itself, not on a field of it: a body that deserializes to literal null would
+      // otherwise NPE here and become a 500 before reaching the guard below.
+      DataSourceDefinition definition = request == null ? null : request.definition();
 
       if(definition == null) {
          return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
       }
 
+      requireName(definition);
+
+      // The definition's own parentPath is honored when the request omits one. Reading only the
+      // request field silently created at the root for any client that set the parent on the
+      // definition -- which is the field update DOES read, and the one this method overwrites two
+      // lines down. Disagreement is rejected rather than silently resolved.
       String parentPath = emptyToNull(request.parentPath());
+      String definitionParent = emptyToNull(definition.getParentPath());
+
+      if(parentPath == null) {
+         parentPath = definitionParent;
+      }
+      else if(definitionParent != null && !parentPath.equals(definitionParent)) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "parentPath disagrees with definition.parentPath: \"" +
+               parentPath + "\" vs \"" + definitionParent + "\"");
+      }
+
       requireCreatePermission(parentPath, principal);
 
       // Carried on the definition because that is where createNewDataSource reads it from; the
@@ -245,6 +287,17 @@ public class WizTabularController {
       }
       catch(MessageException e) {
          return toFailure(e, "create", fullPath);
+      }
+
+      // createNewDataSource no-ops silently when the type is unknown or its connector is
+      // unavailable: createDataSource returns null and nothing is thrown. Without this the editor
+      // reports success and navigates to a data source that does not exist. The duplicate check
+      // above already proved it was absent beforehand, so presence now means the write landed.
+      if(!datasourcesService.checkDuplicate(fullPath)) {
+         LOG.info("Tabular create for \"{}\" wrote nothing; type \"{}\" may be unavailable",
+                  fullPath, definition.getType());
+
+         return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
       }
 
       return WizTabularSaveResult.ok(fullPath);
@@ -279,6 +332,13 @@ public class WizTabularController {
          return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
       }
 
+      requireName(definition);
+
+      // The write side is at least as strict as the read side: getTabularDefinition 422s on a
+      // non-tabular path, and without this the same request would rewrite a JDBC database from a
+      // tabular definition -- renaming it, discarding every JDBC setting -- and report ok.
+      requireTabular(path);
+
       // It vanished between load and save. A 200 carrying this reason, not a 404: the request was
       // well formed and the caller was authorized; what failed is the save.
       if(!datasourcesService.checkDuplicate(path)) {
@@ -294,8 +354,25 @@ public class WizTabularController {
          return WizTabularSaveResult.failed(WizTabularSaveResult.DUPLICATE_NAME);
       }
 
+      // A rename additionally needs DELETE on the old path. The service checks it, but reports the
+      // denial as a MessageException, which would land in toFailure and reach the caller as a 200
+      // carrying UNKNOWN -- a permission denial disguised as a save failure. Checked here so it
+      // leaves as a SecurityException and WizControllerErrorHandler turns it into a 403.
+      if(!fullPath.equals(path) &&
+         !securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path,
+                                         ResourceAction.DELETE))
+      {
+         throw new SecurityException(
+            "Unauthorized rename of data source \"" + path + "\" by user " + principal);
+      }
+
       try {
-         datasourcesService.updateDataSource(path, definition, principal);
+         // The BARE name, not the full path. updateDataSource re-prefixes definition.parentPath
+         // itself (`oldName = parentPath + name`), so passing the full path resolves a
+         // folder-scoped source to "folder/folder/name", finds nothing, and fails as
+         // saveDataSourceLost -> UNKNOWN. Root-level sources only worked because the prefix was
+         // empty. Verified live: every folder-scoped edit was broken.
+         datasourcesService.updateDataSource(baseName(path), definition, principal);
       }
       catch(MessageException e) {
          return toFailure(e, "update", fullPath);
@@ -313,7 +390,15 @@ public class WizTabularController {
     * @return a single-key object rather than a bare boolean, so the response stays extensible.
     */
    @GetMapping(value = "/tabular/check-duplicate", produces = MediaType.APPLICATION_JSON_VALUE)
-   public Map<String, Boolean> checkDuplicate(@RequestParam("name") String name) throws Exception {
+   public Map<String, Boolean> checkDuplicate(@RequestParam("name") String name,
+                                              Principal principal)
+      throws Exception
+   {
+      // Scoped to a folder the caller may write to. Ungated this answers "does a data source exist
+      // at this arbitrary path" for any logged-in user, which enumerates the whole tree including
+      // sources they cannot read. The editor only ever asks about a name it is about to save.
+      requireCreatePermission(emptyToNull(parentOf(name)), principal);
+
       return Map.of("duplicate", datasourcesService.checkDuplicate(name));
    }
 
@@ -337,6 +422,67 @@ public class WizTabularController {
       LOG.info("Tabular data source {} rejected for \"{}\": {}", operation, path, e.getMessage());
 
       return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
+   }
+
+   /**
+    * Reject a missing, blank or path-bearing name with a 400 naming the field.
+    *
+    * Without this a null name builds the literal path "parent/null", a blank one builds "parent/",
+    * and a name containing a slash silently relocates the source — each surfacing downstream as a
+    * 200 carrying {@code UNKNOWN}, which tells the caller nothing. Mirrors
+    * {@code WizDatabaseController.requireName}.
+    */
+   private void requireName(DataSourceDefinition definition) {
+      String name = definition.getName();
+
+      if(name == null || name.isBlank()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "definition.name is required");
+      }
+
+      if(name.indexOf('/') >= 0) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "definition.name must not contain \"/\": " + name);
+      }
+   }
+
+   /**
+    * The gate for the two endpoints that are neither a plain read nor a save.
+    *
+    * "Touches no stored data" answers data exposure, not side effects: refreshing a view invokes
+    * connector button and editor methods with a caller-supplied type, values and clicked flag, and
+    * those are what reach a remote endpoint. Left ungated the effective gate is "is logged in".
+    *
+    * The definition tells us which of the two real flows this is. Editing something that exists
+    * needs WRITE on it; anything else is the new-source flow and needs the create rule.
+    */
+   private void requireEditorPermission(DataSourceDefinition definition, Principal principal)
+      throws Exception
+   {
+      String parentPath = emptyToNull(definition.getParentPath());
+      String name = definition.getName();
+      String path = name == null || name.isBlank() ? null : fullPath(parentPath, name);
+
+      if(path != null && xrepository.getDataSource(path) != null) {
+         if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path,
+                                            ResourceAction.WRITE))
+         {
+            throw new SecurityException(
+               "Unauthorized edit of data source \"" + path + "\" by user " + principal);
+         }
+
+         return;
+      }
+
+      requireCreatePermission(parentPath, principal);
+   }
+
+   /** Reject a write aimed at a data source that is not tabular. */
+   private void requireTabular(String path) throws Exception {
+      XDataSource dataSource = xrepository.getDataSource(path);
+
+      if(dataSource != null && !(dataSource instanceof TabularDataSource)) {
+         throw new UnsupportedDatasourceException(path, dataSource.getType());
+      }
    }
 
    /**
@@ -404,11 +550,19 @@ public class WizTabularController {
       return i < 0 ? null : path.substring(0, i);
    }
 
+   /** The last segment of a repository path — what the service layer means by a data source name. */
+   private static String baseName(String path) {
+      int i = path == null ? -1 : path.lastIndexOf('/');
+
+      return i < 0 ? path : path.substring(i + 1);
+   }
+
    private static String emptyToNull(String value) {
       return value == null || value.isEmpty() || "/".equals(value) ? null : value;
    }
 
    private final DatasourcesService datasourcesService;
+   private final XRepository xrepository;
    private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(WizTabularController.class);
 }
