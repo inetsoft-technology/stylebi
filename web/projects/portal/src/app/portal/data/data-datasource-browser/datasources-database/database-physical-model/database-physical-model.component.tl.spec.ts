@@ -472,6 +472,41 @@ describe("DatabasePhysicalModelComponent - graphNodesSelected - outgoing joins p
       expect(comp.editingTable).toBe(orders);
    });
 
+   it("should resolve an outgoing auto-alias graph node to its outgoing source table", async () => {
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+      });
+      const ordersAlias = createTable({
+         qualifiedName: "Orders_Alias",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias",
+         aliasSource: "Orders",
+         joins: [{ foreignTable: "Customers" } as any],
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [ordersAlias, orders],
+      }));
+      const comp = fixture.componentInstance;
+      const aliasGraph = createGraph({
+         autoAliasByOutgoing: true,
+         node: {
+            id: "Orders_Alias",
+            name: "Orders_Alias",
+            treeLink: "SalesDB/NoMatchingTablePath",
+            outgoingAliasSource: "Orders",
+         },
+      });
+      (comp as any).graphViewModel = {
+         graphs: [aliasGraph],
+      };
+      comp.databaseRoot.children = [];
+
+      comp.graphNodesSelected([aliasGraph]);
+
+      expect(comp.editingTable).toBe(orders);
+   });
+
    it("should not re-resolve a graph selection through a loaded tree node", async () => {
       const orders = createTable({
          qualifiedName: "Orders",
