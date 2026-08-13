@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -74,14 +75,50 @@ public class AdminChangePlanService {
                "changes: duplicate entry for " + name.key() + "; list each property once");
          }
 
+         boolean credential = AdminPropertyCatalog.isEncryptedCredential(name.baseName());
+
          // Unlike the read path in AdminPropertiesController (which withholds the value but still
          // shows the property exists), a change is refused outright: this service exists to WRITE
          // a value, and blanking a secret through it would make every stored encrypted credential
          // undecryptable. See AdminPropertyCatalog.isSecret for why this is an egress/blast-radius
          // control rather than a privilege boundary.
-         if(AdminPropertyCatalog.isSecret(name.baseName())) {
+         //
+         // The exception is the small allow-list of application credentials whose accessors
+         // encrypt at rest: those are written through SreeEnv.setPassword, which encrypts exactly
+         // as the Enterprise Manager field does. Reading them is still refused - the egress
+         // rationale is about values LEAVING the host, and is untouched by letting one in.
+         if(AdminPropertyCatalog.isSecret(name.baseName()) && !credential) {
             throw new IllegalArgumentException(
                name.key() + ": secret properties cannot be changed through admin-chat");
+         }
+
+         // With cloud secrets configured, these properties hold the NAME of a secret rather than a
+         // secret - getPassword resolves it through Tool.loadCredentials and reads a client_secret
+         // field out of the JSON. Enterprise Manager swaps its Client Secret field for a Secret ID
+         // one in that mode for exactly this reason. An agent handed a literal secret would store
+         // it where a reference belongs, and nothing downstream could resolve it, so refuse rather
+         // than write a value that cannot work.
+         if(credential && Tool.isCloudSecrets()) {
+            throw new IllegalArgumentException(
+               name.key() + ": this deployment uses cloud secrets, so this property holds the ID "
+               + "of a secret rather than the secret itself. Set it from Enterprise Manager's "
+               + "Settings > Security > SSO page, whose Secret ID field writes the reference "
+               + "correctly.");
+         }
+
+         // Every other property in this service takes "" as an explicit set-to-empty, with null
+         // meaning reset-to-default. A credential cannot honour that: SreeEnv.setPassword guards
+         // on Tool.isEmptyString and returns without writing, so "" would leave the existing
+         // secret in place. That does fail safe - the read-back verify compares the old secret
+         // against "" and reports FAILED - but an operator trying to blank a secret would get a
+         // bare failure and no idea why, having asked for something this path cannot do. Refuse it
+         // here, where the message can say what to use instead. An empty client secret is not a
+         // valid credential in any case, so nothing legitimate is being turned away.
+         if(credential && "".equals(requested.getValue())) {
+            throw new IllegalArgumentException(
+               name.key() + ": an empty value cannot be written to a credential - the property "
+               + "would keep its current secret. Pass a null value to reset the property to its "
+               + "default, or a non-empty value to change it.");
          }
 
          CatalogEntry entry = catalog.getEntry(name);
@@ -94,7 +131,31 @@ public class AdminChangePlanService {
          requireHashSafe("property", name.key());
          requireHashSafe("value", proposed);
 
-         String currentValue = SreeEnv.getProperty(name.key(), false, false);
+         // A credential's stored form is ciphertext, and the plan is relayed to a model provider by
+         // the caller. Ciphertext is not the secret, but there is no reason to ship it either, and
+         // an operator reading the plan is served better by whether one is already set than by a
+         // base64 blob. Note the consequence for the drift gate: replacing one secret with a
+         // different one is not detected between preview and apply, only set <-> unset is. That is
+         // tolerable here because the human approved "set this property to the value I supplied",
+         // which is what executes either way.
+         //
+         // proposedValue is deliberately NOT masked, and the asymmetry with currentValue is the
+         // point rather than an oversight. Masking a value only helps if withholding it keeps it
+         // from somewhere it would otherwise reach. currentValue qualifies: it is read off the
+         // server here and would reach the caller for the first time. proposedValue does not - it
+         // arrived IN this request, and apply requires the caller to send the identical changes
+         // array back, because the request body is the plan and the hash is recomputed from it. So
+         // the caller necessarily holds the plaintext before and after this response, and blanking
+         // it in between would remove nothing while destroying the operator's ability to see WHICH
+         // secret a plan writes, which is what the review gate exists to show them.
+         //
+         // That reasoning depends on the value always arriving through the request. If an
+         // out-of-band channel is ever added - a placeholder the server resolves from somewhere
+         // the caller never sees - then echoing the resolved value here WOULD be a new disclosure,
+         // and this must be revisited along with it.
+         String currentValue = credential
+            ? (SreeEnv.getProperty(name.key(), false, false) == null ? "(not set)" : "(set)")
+            : SreeEnv.getProperty(name.key(), false, false);
          requireHashSafe("currentValue", currentValue);
 
          changes.add(new PlanChange(name.key(), name.orgId(),

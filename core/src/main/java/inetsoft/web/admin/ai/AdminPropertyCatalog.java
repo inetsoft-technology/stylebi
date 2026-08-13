@@ -221,6 +221,53 @@ public class AdminPropertyCatalog {
          lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
    }
 
+   /**
+    * True when {@code baseName} names an application credential whose accessors encrypt on write
+    * and decrypt on read, so admin-chat can set it through {@code SreeEnv.setPassword}.
+    *
+    * <p>An <b>allow-list, deliberately not a pattern.</b> {@link #isSecret} matches sixteen
+    * properties and they do not behave alike: {@code log.fluentd.security.password},
+    * {@code google.maps.key}, {@code sso.rsa.public.key} and {@code auth0.client.secret} are all
+    * read with a plain {@code SreeEnv.getProperty}, so an encrypting write would hand each of them
+    * ciphertext where they expect a literal - a broken deployment that still reports success.
+    * {@code enable.changepassword} is not a secret at all; it matches on the substring
+    * "password" and holds a boolean. And {@code password.encryption.key},
+    * {@code password.hash.key}, {@code jwt.signing.key}, {@code sso.rsa.private.key} and the
+    * {@code license.*} keys are generated or licensed material that must not be written here on
+    * any path.
+    *
+    * <p>So membership is not inferable from the name, and every entry must be verified against its
+    * accessor before it is added - the same discipline this class's javadoc requires of a catalog
+    * entry, and for the same reason: the failure is silent. Both current entries were checked:
+    *
+    * <ul>
+    *   <li>{@code openid.client.secret} - {@code inetsoft.web.admin.security.OpenIDConfig}, in this
+    *       module. {@code setClientSecret} writes {@code encryptPassword(...)} and
+    *       {@code getClientSecret} reverses it with {@code Tool.decryptPassword}.</li>
+    *   <li>{@code stylebi.google.openid.client.secret} - {@code StyleBIGoogleOpenIDConfig}, at
+    *       {@code enterprise/src/main/java/inetsoft/enterprise/sso/} in the <b>enterprise</b>
+    *       superproject, which is NOT part of this repository. Same shape:
+    *       {@code setClientSecret} writes
+    *       {@code PasswordEncryption.newInstance().encryptPassword(...)} and
+    *       {@code getClientSecret} reverses it. A reader who greps only this repository will not
+    *       find that class and should not conclude the entry is unverified - note also that
+    *       {@code SreeEnv.getPassword} carries a case-sensitive literal check for this property's
+    *       cloud-secrets branch, which is the only trace of it visible from here.</li>
+    * </ul>
+    *
+    * <p>An entry whose accessor lives in the enterprise superproject is still correct to list here:
+    * on a Community build the property is simply never written, because nothing reads it.</p>
+    *
+    * <p>Reading these is still refused - see {@link #isSecret} for the egress rationale, which is
+    * unaffected. This governs the write path alone.
+    */
+   public static boolean isEncryptedCredential(String baseName) {
+      return baseName != null && ENCRYPTED_CREDENTIALS.contains(baseName.toLowerCase());
+   }
+
+   private static final Set<String> ENCRYPTED_CREDENTIALS = Set.of(
+      "openid.client.secret", "stylebi.google.openid.client.secret");
+
    private static final String RESOURCE = "admin-property-catalog.json";
    private final List<CatalogEntry> entries;
    private final Map<String, CatalogEntry> byKey;

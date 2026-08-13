@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
@@ -270,5 +271,70 @@ class AdminChangePlanServiceTest {
 
       sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false)).thenReturn("null");
       assertNotEquals(unsetHash, service.resolve(request("t", "mail.smtp.host", "x")).planHash());
+   }
+
+   @Test void allowsAnAllowListedCredentialIntoThePlan() {
+      // The change that unblocks configuring OIDC SSO end to end. Reading it is still refused;
+      // this is the write path only.
+      PlanRequest req = request("set the OIDC client secret",
+                                    "openid.client.secret", "s3cret");
+      ResolvedPlan plan = service.resolve(req);
+      assertEquals(1, plan.changes().size());
+      assertEquals("s3cret", plan.changes().get(0).proposedValue());
+   }
+
+   @Test void masksACredentialsCurrentValueInThePlan() {
+      // The plan is relayed to a model provider. Ciphertext is not the secret, but there is no
+      // reason to ship it, and "(set)" is what actually helps an operator reading the diff.
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn("ENC(cipher)");
+      ResolvedPlan plan = service.resolve(
+         request("rotate it", "openid.client.secret", "new"));
+      assertEquals("(set)", plan.changes().get(0).currentValue());
+   }
+
+   @Test void stillRefusesASecretThatIsNotAnAllowListedCredential() {
+      // password.encryption.key is the master key; log.fluentd.security.password is read with a
+      // plain getProperty. Neither may be written here, and the allow-list is why.
+      for(String prop : new String[] { "password.encryption.key", "jwt.signing.key",
+                                       "log.fluentd.security.password", "license.key" })
+      {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("try it", prop, "x")));
+         assertTrue(ex.getMessage().contains(prop), "expected the error to name " + prop);
+      }
+   }
+
+   @Test void refusesACredentialWhenCloudSecretsAreConfigured() {
+      // In that mode the property holds the NAME of a secret, not the secret, so writing a literal
+      // value would store something nothing downstream can resolve. Scoped to this test: a
+      // class-wide Tool mock would silently change every other test's environment.
+      try(MockedStatic<Tool> tool = mockStatic(Tool.class, withSettings().strictness(
+             Strictness.LENIENT)))
+      {
+         tool.when(Tool::isCloudSecrets).thenReturn(true);
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("set it", "openid.client.secret", "s3cret")));
+         assertTrue(ex.getMessage().contains("cloud secrets"));
+      }
+   }
+
+   @Test void refusesAnEmptyValueForACredentialAndSaysWhatToUseInstead() {
+      // "" is an explicit set-to-empty everywhere else, but SreeEnv.setPassword guards on
+      // isEmptyString and returns without writing, so it would silently leave the old secret in
+      // place. Refused here so the message can point at null, rather than surfacing as a bare
+      // FAILED from the read-back verify at apply time.
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("blank it", "openid.client.secret", "")));
+      assertTrue(ex.getMessage().contains("openid.client.secret"));
+      assertTrue(ex.getMessage().contains("null"));
+   }
+
+   @Test void stillAllowsResettingACredentialWithANullValue() {
+      // Reset goes through SreeEnv.remove, not setPassword, so it is unaffected by the guard above
+      // and remains the supported way to clear a credential.
+      ResolvedPlan plan = service.resolve(request("clear it", "openid.client.secret", null));
+      assertEquals(1, plan.changes().size());
+      assertNull(plan.changes().get(0).proposedValue());
    }
 }

@@ -276,4 +276,116 @@ class AdminChangeServiceTest {
       assertEquals(ActionRecord.OBJECT_TYPE_EMPROPERTY, record.getObjectType());
       assertEquals("host-1", record.getServerHostName());
    }
+
+   @Test void writesAnAllowListedCredentialThroughSetPasswordSoItIsEncryptedAtRest() {
+      // openid.client.secret is read by OpenIDConfig.getClientSecret via Tool.decryptPassword, so
+      // a raw setProperty would leave plaintext where every reader expects ciphertext.
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn(null)              // before
+             .thenReturn("ENC(cipher)");    // after read-back, stored form
+      sreeEnv.when(() -> SreeEnv.getPassword("openid.client.secret")).thenReturn("s3cret");
+
+      AdminChangeResult res = service.applyChange(req("openid.client.secret", "s3cret"), principal);
+
+      sreeEnv.verify(() -> SreeEnv.setPassword("openid.client.secret", "s3cret"));
+      sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "s3cret"), never());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+   }
+
+   @Test void verifiesACredentialThroughGetPasswordNotTheRawStoredValue() {
+      // Comparing the ciphertext read-back against the plaintext desired value would mark every
+      // successful credential write FAILED and roll it straight back.
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn(null)
+             .thenReturn("ENC(cipher)");
+      sreeEnv.when(() -> SreeEnv.getPassword("openid.client.secret")).thenReturn("s3cret");
+
+      AdminChangeResult res = service.applyChange(req("openid.client.secret", "s3cret"), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+      // The stored form is what is reported and audited, because rollback replays it verbatim.
+      assertEquals("ENC(cipher)", res.getAfterValue());
+   }
+
+   @Test void rollingBackACredentialWritesTheStoredFormVerbatimWithoutReEncrypting() {
+      // The rollback value came from a getProperty read, so it is ALREADY ciphertext. Sending it
+      // through setPassword would encrypt it a second time and restore something that never
+      // decrypts back to the original secret.
+      AdminChangeRequest r = req("openid.client.secret", "ENC(previous)");
+      r.setAction(AdminChangeRecord.ACTION_ROLLBACK);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn("ENC(cipher)")
+             .thenReturn("ENC(previous)");
+
+      AdminChangeResult res = service.applyChange(r, principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "ENC(previous)"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+   }
+
+   @Test void writesASecretNamedPropertyThatIsNotAnAllowListedCredentialVerbatim() {
+      // log.fluentd.security.password matches isSecret but is read with a plain getProperty.
+      // Encrypting it would hand the fluentd client ciphertext as its password. (The plan service
+      // refuses this property outright; this pins the write path regardless of how it is reached.)
+      sreeEnv.when(() -> SreeEnv.getProperty("log.fluentd.security.password", false, false))
+             .thenReturn(null)
+             .thenReturn("literal");
+
+      service.applyChange(req("log.fluentd.security.password", "literal"), principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("log.fluentd.security.password", "literal"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+   }
+
+   @Test void refusesToWriteACredentialAtApplyTimeWhenCloudSecretsAreOn() {
+      // The plan service refuses this at preview, but a plan is approved then executed later. If
+      // cloud secrets came on in between, setPassword would skip encryption and write the literal
+      // secret into a property everything downstream reads as a secret-manager reference - and
+      // report success. The apply path re-checks for that reason.
+      toolStatic.when(Tool::isCloudSecrets).thenReturn(true);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn(null);
+
+      AdminChangeResult res = service.applyChange(req("openid.client.secret", "s3cret"), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
+      assertTrue(res.getError().contains("cloud secrets"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+      sreeEnv.verify(() -> SreeEnv.setProperty(eq("openid.client.secret"), anyString()), never());
+   }
+
+   @Test void stillRollsBackACredentialUnderCloudSecrets() {
+      // A rollback writes the stored form verbatim and never encrypts, so the cloud-secrets hazard
+      // does not apply to it - and blocking it would strand a half-applied changeset.
+      toolStatic.when(Tool::isCloudSecrets).thenReturn(true);
+      AdminChangeRequest r = req("openid.client.secret", "secret-ref");
+      r.setAction(AdminChangeRecord.ACTION_ROLLBACK);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn("other-ref")
+             .thenReturn("secret-ref");
+
+      AdminChangeResult res = service.applyChange(r, principal);
+
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+      sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "secret-ref"));
+   }
+
+   @Test void doesNotReEncryptACredentialOnRestoreEither() {
+      // RESTORE is accepted by requireValidAction and issued by nothing today, but by its name it
+      // replays a stored value the way rollback does. encryptOnWrite therefore names APPLY rather
+      // than excluding ROLLBACK: a deny-list would encrypt this and double-encrypt the credential,
+      // in a path with no caller to notice.
+      AdminChangeRequest r = req("openid.client.secret", "ENC(fromBackup)");
+      r.setAction(AdminChangeRecord.ACTION_RESTORE);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn("ENC(current)")
+             .thenReturn("ENC(fromBackup)");
+
+      AdminChangeResult res = service.applyChange(r, principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "ENC(fromBackup)"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+   }
 }
