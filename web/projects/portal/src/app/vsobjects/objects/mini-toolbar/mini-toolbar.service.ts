@@ -63,6 +63,35 @@ export function isAnchoredAssemblyType(objectType: string): boolean {
    return !!objectType && ANCHORED_ASSEMBLY_TYPES.has(objectType.toLowerCase());
 }
 
+/**
+ * Whether an assembly type's anchored/resident strip design is in effect right now: the modern
+ * gate is on, the title lane can hold the 24px strip, and the type is in the anchored set. Lane
+ * fit is approximated by density for now — see GuiTool.isVizDensityAtLeastCompact. Shared by
+ * VSObjectContainerComponent.isKebabResident and AbstractVSActions.resident so the two conditions
+ * cannot drift apart; both are TEMPORARY and are deleted together with this predicate (see
+ * ANCHORED_ASSEMBLY_TYPES above).
+ */
+export function isAnchoredResident(objectType: string): boolean {
+   return GuiTool.isVizModern() && GuiTool.isVizDensityAtLeastCompact() &&
+      isAnchoredAssemblyType(objectType);
+}
+
+/**
+ * The other side of the split: an anchored type whose lane cannot hold the strip draws no chrome
+ * at all — no strip, no kebab, right-click only. It is not a fallback to the floating strip. The
+ * height ladder removes every control once a control plus its clearance stops fitting; anchoring
+ * and floating are two placements of a control that is not drawn here either way.
+ *
+ * Approximated by density like isAnchoredResident, so this is dense alone today.
+ *
+ * Deliberately a separate predicate rather than !isAnchoredResident: that would be true for every
+ * non-anchored type and gate-off, stripping toolbars users have today.
+ */
+export function isAnchoredChromeSuppressed(objectType: string): boolean {
+   return GuiTool.isVizModern() && !GuiTool.isVizDensityAtLeastCompact() &&
+      isAnchoredAssemblyType(objectType);
+}
+
 @Injectable()
 export class MiniToolbarService {
    private listeners = new Map<HTMLElement, Observable<any>>();

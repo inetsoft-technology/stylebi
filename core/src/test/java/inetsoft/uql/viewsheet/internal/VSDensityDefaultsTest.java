@@ -40,6 +40,7 @@ class VSDensityDefaultsTest {
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
       SreeEnv.setProperty("viewsheet.darkMode", null);
+      SreeEnv.setProperty("viewsheet.density", null);
    }
 
    @Test
@@ -108,5 +109,31 @@ class VSDensityDefaultsTest {
    void isDarkOffWhenModernOnButDarkOff() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       assertFalse(VSDensityDefaults.isDark());
+   }
+
+   @Test
+   void titleHeightIsDefhWhenGateIsOff() {
+      assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight());
+   }
+
+   @Test
+   void titleHeightIsDefhUnderDense() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight());
+   }
+
+   @Test
+   void titleHeightGrowsToHoldTheStripUnderCompact() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      assertEquals(26, VSDensityDefaults.titleHeight());
+   }
+
+   @Test
+   void titleHeightIsThirtyUnderComfortable() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      assertEquals(30, VSDensityDefaults.titleHeight());
    }
 }

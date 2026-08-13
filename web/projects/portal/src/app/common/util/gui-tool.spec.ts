@@ -50,3 +50,33 @@ describe("GuiTool.isVizModern", () => {
       expect(GuiTool.isVizModern()).toBe(true);
    });
 });
+
+describe("GuiTool density mode", () => {
+   afterEach(() => {
+      document.body.classList.remove(
+         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   });
+
+   it("defaults to dense when no density class is present", () => {
+      document.body.classList.add("viz-modern");
+      expect(GuiTool.vizDensityMode()).toBe("dense");
+   });
+
+   it("reads the density class when one is present", () => {
+      document.body.classList.add("viz-modern", "viz-density-compact");
+      expect(GuiTool.vizDensityMode()).toBe("compact");
+      document.body.classList.remove("viz-density-compact");
+      document.body.classList.add("viz-density-comfortable");
+      expect(GuiTool.vizDensityMode()).toBe("comfortable");
+   });
+
+   it("reports compact and comfortable as at-least-compact, dense as not", () => {
+      document.body.classList.add("viz-modern");
+      expect(GuiTool.isVizDensityAtLeastCompact()).toBe(false);
+      document.body.classList.add("viz-density-compact");
+      expect(GuiTool.isVizDensityAtLeastCompact()).toBe(true);
+      document.body.classList.remove("viz-density-compact");
+      document.body.classList.add("viz-density-comfortable");
+      expect(GuiTool.isVizDensityAtLeastCompact()).toBe(true);
+   });
+});

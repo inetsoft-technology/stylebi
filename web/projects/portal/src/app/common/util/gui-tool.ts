@@ -57,8 +57,9 @@ export class GuiTool {
 
    static readonly MINI_TOOLBAR_HEIGHT = 28;
 
-   // Compact mini-toolbar footprint under the modern visualization gate. Coupled to the pinned
-   // container height in mini-toolbar.component.scss (:host-context(.viz-modern)); change both together.
+   // Compact mini-toolbar footprint under the modern visualization gate. Coupled to
+   // --inet-control-height-sm, the height the pinned container in mini-toolbar.component.scss
+   // (:host-context(.viz-modern)) binds to; change both together.
    static readonly MINI_TOOLBAR_HEIGHT_MODERN = 24;
 
    // Read the modern visualization gate live: the .viz-modern body class toggles at runtime.
@@ -72,6 +73,24 @@ export class GuiTool {
       return GuiTool.isVizModern()
          ? GuiTool.MINI_TOOLBAR_HEIGHT_MODERN
          : GuiTool.MINI_TOOLBAR_HEIGHT;
+   }
+
+   // Density reaches the browser as a viz-density-<mode> body class, set by the portal, composer
+   // and viewer shells. Bare .viz-modern means dense, matching the _viz-tokens.scss fallback.
+   static vizDensityMode(): "dense" | "compact" | "comfortable" {
+      if(document.body.classList.contains("viz-density-comfortable")) {
+         return "comfortable";
+      }
+
+      return document.body.classList.contains("viz-density-compact") ? "compact" : "dense";
+   }
+
+   // Stands in for a lane-fit test: the 24px strip needs a 26px lane, and density selects the
+   // lane's default height, which only dense puts below that. A proxy, not the rule — the server
+   // does not yet vary title height by density, so every assembly reports the same lane today.
+   // Replaced by comparing the assembly's own title height once it does.
+   static isVizDensityAtLeastCompact(): boolean {
+      return GuiTool.vizDensityMode() !== "dense";
    }
 
    // Must stay in sync with the base .mini-toolbar z-index in mini-toolbar.component.scss.
