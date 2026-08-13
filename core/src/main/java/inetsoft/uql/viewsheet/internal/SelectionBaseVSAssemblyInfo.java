@@ -318,6 +318,16 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the selection title height.
     * @param value the specified selection title height.
@@ -638,7 +648,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
 
       Element node = Tool.getChildNodeByTagName(elem, "measureValue");
       measureValue.setDValue(Tool.getValue(node));

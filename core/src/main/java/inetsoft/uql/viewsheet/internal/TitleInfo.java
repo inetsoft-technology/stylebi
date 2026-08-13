@@ -176,6 +176,59 @@ public class TitleInfo implements AssetObject {
       titleHeight.setDValue(height + "");
    }
 
+   /**
+    * Check whether the title height was set by the author rather than left at the default.
+    *
+    * <p>The property dialogs currently set this flag only when the incoming height differs
+    * from the stored {@link #getTitleHeightValue()}. If the displayed default height ever
+    * becomes density-derived rather than fixed, that guard must move from comparing against
+    * the stored height to comparing against the effective (density-derived) height. Two
+    * things follow from that change, not just one:
+    *
+    * <ol>
+    *   <li>the dialog guards' comparison must be rewritten to use the effective height; and</li>
+    *   <li>the flag must be made to propagate. {@link #equals(Object)} deliberately excludes
+    *       this flag, and each assembly info's {@code copyViewInfo} only transfers the whole
+    *       {@code TitleInfo} when {@code !Tool.equals(titleInfo, cinfo.titleInfo)}, so two
+    *       {@code TitleInfo}s differing only in this flag would not transfer. That cannot
+    *       happen under today's stored-height guard, because the guard only fires when the
+    *       height also changes. Under an effective-height guard it becomes routine: stored 20,
+    *       effective 26, the author types 20 — the flag would be set on the clone and silently
+    *       dropped on apply.</li>
+    * </ol>
+    *
+    * <p>What the stored-height guard does and does not capture. An author who changes the height
+    * to a value that happens to equal the default is captured, because the guard compares against
+    * the stored value rather than against the default — changing 25 to 20 fires it and the flag
+    * sticks. What cannot be captured is an author re-affirming a height already stored: typing 20
+    * when 20 is stored produces state identical to never touching the field, so "keep this height
+    * fixed" and "I did not touch it" arrive as the same input. It is read as the latter,
+    * deliberately, because treating a no-op edit as an assertion would mark every assembly whose
+    * dialog was ever opened.
+    *
+    * <p>An effective-height comparison narrows that further: an author could no longer pin the
+    * value the dialog is showing them, because typing it would be indistinguishable from accepting
+    * it. Resolving the ambiguity needs a signal the dialog does not carry — the title height is a
+    * plain integer field with no unset state — so it would take an explicit use-the-default
+    * affordance beside it, with this flag read from that directly rather than inferred from what
+    * changed.
+    *
+    * <p>The flag is also one-way for most types. The only path that clears it is the table
+    * reset-layout action, which exists on table infos alone, so a chart, calendar, selection list,
+    * selection tree or range slider that acquires the flag has no route back to tracking the
+    * default. The same affordance would close that.
+    */
+   public boolean isUserTitleHeight() {
+      return userTitleHeight;
+   }
+
+   /**
+    * Set whether the title height was set by the author.
+    */
+   public void setUserTitleHeight(boolean userTitleHeight) {
+      this.userTitleHeight = userTitleHeight;
+   }
+
    public Insets getPadding() {
       return padding.get();
    }
@@ -235,18 +288,30 @@ public class TitleInfo implements AssetObject {
     */
    @Override
    public final void parseXML(Element elem) throws Exception {
+      parseXML(elem, AssetUtil.defh);
+   }
+
+   /**
+    * Method to parse an xml segment.
+    * @param elem the specified xml element.
+    * @param defaultTitleHeight the owning type's default title height.
+    */
+   public final void parseXML(Element elem, int defaultTitleHeight) throws Exception {
       Element node = Tool.getChildNodeByTagName(elem, "titleInfo");
 
       if(node != null) {
-         parseAttributes(node);
+         parseAttributes(node, defaultTitleHeight);
          parseContents(node);
       }
       else {// for bc
          node = Tool.getChildNodeByTagName(elem, "titleValue");
          setTitleValue(node == null ? null : Tool.getValue(node));
          setTitleVisibleValue(Tool.getAttribute(elem, "titleVisible"));
+
+         String heightAttr = VSUtil.getAttributeStr(elem, "titleHeight", null);
          setTitleHeightValue(Integer.parseInt(
-            VSUtil.getAttributeStr(elem, "titleHeight", AssetUtil.defh + "")));
+            heightAttr != null ? heightAttr : AssetUtil.defh + ""));
+         setUserTitleHeight(heightAttr != null && getTitleHeightValue() != defaultTitleHeight);
       }
    }
 
@@ -259,6 +324,7 @@ public class TitleInfo implements AssetObject {
       writer.print(" titleVisibleValue=\"" + getTitleVisibleValue() + "\"");
       writer.print(" titleHeight=\"" + getTitleHeight() + "\"");
       writer.print(" titleHeightValue=\"" + getTitleHeightValue() + "\"");
+      writer.print(" userTitleHeight=\"" + isUserTitleHeight() + "\"");
       writer.print(" padding=\"" + padding + "\"");
    }
 
@@ -267,9 +333,26 @@ public class TitleInfo implements AssetObject {
     * @param elem the specified xml element.
     */
    protected void parseAttributes(Element elem) {
+      parseAttributes(elem, AssetUtil.defh);
+   }
+
+   /**
+    * Parse attributes.
+    * @param elem the specified xml element.
+    * @param defaultTitleHeight the owning type's default title height.
+    */
+   protected void parseAttributes(Element elem, int defaultTitleHeight) {
       setTitleVisibleValue(Tool.getAttribute(elem, "titleVisibleValue"));
-      setTitleHeightValue(Integer.parseInt(VSUtil.getAttributeStr(elem, "titleHeight", AssetUtil.defh + "")));
+
+      String heightAttr = VSUtil.getAttributeStr(elem, "titleHeight", null);
+      setTitleHeightValue(Integer.parseInt(
+         heightAttr != null ? heightAttr : AssetUtil.defh + ""));
       padding.parse(Tool.getAttribute(elem, "padding"));
+
+      // absent in files saved before the flag existed; derive from the type's default
+      boolean derived = heightAttr != null && getTitleHeightValue() != defaultTitleHeight;
+      String prop = Tool.getAttribute(elem, "userTitleHeight");
+      setUserTitleHeight(prop == null ? derived : "true".equalsIgnoreCase(prop));
    }
 
    /**
@@ -387,5 +470,6 @@ public class TitleInfo implements AssetObject {
    private DynamicValue2 titleVisible;
    private DynamicValue2 titleHeight;
    private CompositeValue<Insets> padding = new CompositeValue<>(Insets.class, null);
+   private boolean userTitleHeight = false;
    private static final Logger LOG = LoggerFactory.getLogger(TitleInfo.class);
 }

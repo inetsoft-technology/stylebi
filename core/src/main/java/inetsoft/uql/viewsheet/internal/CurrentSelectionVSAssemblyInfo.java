@@ -224,6 +224,16 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the current selection title height.
     * @param value the specified current selection title height.
@@ -437,7 +447,7 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
 
       Element snode = Tool.getChildNodeByTagName(elem, "names");
 
