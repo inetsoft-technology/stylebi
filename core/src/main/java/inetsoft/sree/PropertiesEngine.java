@@ -349,20 +349,32 @@ public class PropertiesEngine {
    }
 
    private String computePropertyNameCase(String name) {
+      // organization-scoped property names carry the org ID as a case-insensitive segment;
+      // strip and lowercase it, then apply the case rules below to the remaining property name
+      // so it matches what useAvailableOrgProperty() looks up.
+      if(name.startsWith("inetsoft.org.")) {
+         int dot = name.indexOf('.', "inetsoft.org.".length());
+
+         if(dot >= 0) {
+            String orgPrefix = name.substring(0, dot + 1);
+            String suffix = name.substring(dot + 1);
+            // recurse directly rather than through fixPropertyNameCase(): that would re-enter
+            // propertyNameCaseCache.computeIfAbsent() for a second key while the outer call for
+            // this name is still computing, which ConcurrentHashMap can reject with a recursive
+            // update IllegalStateException. Bypassing the cache here is deliberate; recursion is
+            // one level deep (org prefix, then the real name), so the cost is negligible.
+            return orgPrefix.toLowerCase() + computePropertyNameCase(suffix);
+         }
+
+         return name.toLowerCase();
+      }
+
       if(!name.startsWith("log.level.") &&
          !name.startsWith("plugin.extra.classpath.") &&
          !name.matches("^log\\.[A-Z_]+\\.level\\..+$") &&
          !name.matches("^inetsoft\\.uql\\.jdbc\\.pool\\..+\\.connectionTestQuery$"))
       {
          return name.toLowerCase();
-      }
-
-      if(name.startsWith("inetsoft.org.")) {
-         int index = name.substring(13).indexOf('.');
-
-         if(index >= 0) {
-            return name.substring(0, 14 + index) + name.substring(14 + index).toLowerCase();
-         }
       }
 
       return name;
