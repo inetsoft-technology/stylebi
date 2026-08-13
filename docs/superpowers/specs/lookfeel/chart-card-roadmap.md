@@ -1,8 +1,9 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-12
-**Verified against:** community `viz-updates` @ `881a9b049`, plus twelve uncommitted files in the working
-tree
+**Date:** 2026-08-13
+**Verified against:** community `viz-updates` @ `2310cea37`, plus twelve uncommitted code files in the
+working tree. The commit before it, `ae511b8b7`, is the code baseline — `2310cea37` is docs-only (it
+committed the v3 set and the seeded-value decisions), so every code claim below was checked against both.
 **Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
 it, and the decisions that gate what remains
 
@@ -14,6 +15,14 @@ sync — the 2026-08-12 regeneration overwrote four of them. This pointer lives 
 
 **Verify before trusting.** This branch moves daily. Every claim below cites a commit or a file so it can be
 checked rather than believed. If a claim and the branch disagree, the branch is right.
+
+**Hashes go stale when the branch is rewritten, and it has been.** The rebase that produced `2310cea37`
+gave every commit in the Done table a new hash; the ones this file cited until 2026-08-13 still resolved
+with `git show`, because the old objects were still in the repo, while being unreachable from `HEAD` —
+they would fail in a fresh clone and after a `gc`. The table below carries the current hashes. When
+checking any hash in this tree, use `git merge-base --is-ancestor <hash> HEAD` rather than `git show`;
+`git show` succeeding proves nothing. Other files under `docs/superpowers/` still carry the pre-rebase
+hashes.
 
 ## How to read this
 
@@ -28,16 +37,18 @@ item → commit rather than a checklist: `git show` answers it better than a che
 ```
   L. Strip density gating ──→ F. Rollout slices 4–5
      PARTLY BUILT, UNCOMMITTED     container, calendar
-     one decision reopened
+     ships as the interim · L'' replaces it
 
-  L'. Title lane height row ──→ needs a design decision first, then M
-      NOT BUILDABLE AS SPECIFIED
-      no unset state in TitleInfo
+  N. userTitleHeight flag ──→ L'. Title lane height row ──→ L''. Geometric suppression
+     UNGATED, NOT BUILT           DECIDED 2026-08-13            DECIDED 2026-08-13
+     the 13.3 pattern             20/26/30 · titleHeight()       MUST NOT PRECEDE L'
+     (M also unblocks L',          exists but is uncalled        replaces L's density test
+      N is the cheaper route)
 
   M. Seed mark — widget spec §03 ──┬──→ §04 density heights, incl. L' above
-     NOT BUILT · no owner here     │
-     ALSO THE RELEASE GATE         ├──→ Card radius 12→6, retire resolveSeededCorner()
-     BLOCKED BY: version-blindness │
+     DECIDED IN FULL, NOT BUILT    │
+     seeded-value decisions 1–12   ├──→ Card radius 12→6, retire resolveSeededCorner()
+     ALSO THE RELEASE GATE         │
                                    ├──→ §07 derived selection, retire the teal family
                                    │         │
                                    │         └──→ Range slider — painter half
@@ -50,8 +61,16 @@ item → commit rather than a checklist: `git show` answers it better than a che
   Ungated: dark (four DOM surfaces) · chart interior dark palette · affordance sweep ·
            selection list interior · Resize Plot sliders · nav bar · data-tip registry
            remainder · chart colour literals · drill and DC tips · zoom naming ·
-           dead menu icons · title band
+           dead menu icons · title band · N above
 ```
+
+**The one hard sequencing rule in this picture: L'' must not ship before L'.** Geometric suppression
+compares the assembly's real lane against a 26px threshold (24px strip plus 1px of clearance above and
+below). Until the lane row lands, every assembly still carrying `AssetUtil.defh` has a 20px lane at
+*every* density, so the threshold fails everywhere and the strip disappears from the whole anchored set —
+not just dense. L as written is density-keyed and does not have this property, which is why it ships as
+the interim and is replaced rather than amended. See
+[chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) decision 3.
 
 Three corrections this picture carries against the external set, all recorded in
 [the corrections doc](./chart-card-source-doc-corrections.md):
@@ -75,7 +94,9 @@ Three corrections this picture carries against the external set, all recorded in
 
 ## In flight — uncommitted
 
-Twelve files in the working tree, reviewed clean, not yet committed.
+Twelve code files in the working tree, reviewed clean, not yet committed — two under `core/` and ten
+under `web/projects/portal/src`. Re-counted 2026-08-13. The docs that were uncommitted alongside them are
+now in `2310cea37`; `CLAUDE.md` and this file are separately modified and are not part of this changeset.
 
 | Piece | State |
 |---|---|
@@ -195,7 +216,14 @@ leaves persisted dark card backgrounds under read-time light chart chrome (decis
 
 ## Needs a design decision before it can be scheduled
 
-**The title lane height row.** Specified at 20/26/30 in widget spec §04 and §08 step 3. Attempted and
+**The title lane height row — answered 2026-08-13.** See
+[chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md): the widget
+spec's values are taken, the strip stays 24px and contained, suppression becomes geometric, and a hidden
+title suppresses the strip. The paragraph below records why the first attempt was abandoned; the 13.3
+`userDataRowHeight` pattern is the mechanism it was missing, and the row is gated on the seed mark or on
+an equivalent `userTitleHeight` flag rather than on a design question.
+
+Specified at 20/26/30 in widget spec §04 and §08 step 3. Attempted and
 abandoned. All five `getTitleHeight()` overrides are the identical line `return titleInfo.getTitleHeight();`
 — there is no default branch to redirect — and shared `TitleInfo` seeds its dValue to `AssetUtil.defh` in
 both constructors (`TitleInfo.java:53,65`), so there is no unset state to distinguish an author's 20 from
@@ -216,6 +244,7 @@ Nothing below is blocked.
 | Item | Source | Note |
 |---|---|---|
 | **Dark — four browser-DOM surfaces** | [Decisions](./chart-card-open-item-decisions.md) §2, plan at `plans/2026-08-11-chart-card-dark-browser-surfaces.md` | CSS only. The v3 dark ticket's dependency claims apply to the server half, which is different work — see §4.2 |
+| **The `userTitleHeight` flag** — N in the picture above | [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md), "What this costs to build" | Self-contained `core/` change and the cheapest thing that unblocks L'. Mirror `userDataRowHeight`: a persisted boolean on `TitleInfo`, stamped at the property-dialog `setTitleHeightValue` call sites, derived for older files on parse as `getTitleHeight() != AssetUtil.defh` (`TableDataVSAssemblyInfo.java:997` is the 13.3 precedent). No behaviour change on its own — it only makes an author's 20px distinguishable from the default 20px |
 | **Chart interior dark palette** | `Chart card dark values - ticket.md` item 3 | New, unowned, and the most valuable thing in that ticket. `GDefaults` has no dark branch; nothing to reconcile against, so it is design work |
 | Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk |
 | Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched |
@@ -235,6 +264,14 @@ slice, and the calendar is expected to take the table treatment unmodified.
 Read `github.md`'s new in-project decision to scope the resting kebab by pointer capability first — it
 modifies already-shipped slice-3 behaviour.
 
+**Not this — L'' waits for L'.** The geometric suppression that replaces the density test is decided but
+must not land until the lane row does, or the strip vanishes from every assembly carrying the default
+title height. See the sequencing rule under the dependency picture. When it does land it also retires
+`rightEdgeReserve()` and `SORT_CONTROL_RESERVE` (`vs-object-container.component.ts:588-603`), because a
+hidden title suppresses the strip rather than overlaying it — a reversal of the slice-2 and slice-3
+title-hidden decisions, costed in
+[the strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 4.
+
 ## Decided, unscheduled
 
 **The title band becomes unfilled** — [decisions](./chart-card-open-item-decisions.md) §1. No dependency on
@@ -250,24 +287,34 @@ being stripped the moment the constant changes.
 
 ## Done
 
-| Item | Commit |
-|---|---|
-| Phase 9B dark mode — every server-rendered surface, chart included | `3e7e52626` |
-| Inline-SVG chart rendering coupled to the modern gate | `aed8e6b22` |
-| Data-mark-anchored tooltip tail | `7e4a7c809` |
-| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `43a934add` |
-| Selection vocabulary — chart-owned surfaces and the annotation border | `052fe61f1` |
-| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `67c486d67` |
-| Right-click reaches max mode on tables | `b1eb8df8e` |
-| Rollout slice 2 — table, crosstab, calc table | `a4cd1e362` |
-| Max-mode mini-toolbar positioning fix | `1091bd178` |
-| Rollout slice 3 — selection list and tree, kebab-only at any width | `a038a30b5` |
+Hashes re-resolved 2026-08-13 after the rebase; each is an ancestor of `HEAD`. The pre-rebase hash is
+kept alongside because the rest of this tree still cites it.
+
+| Item | Commit | Cited before the rebase |
+|---|---|---|
+| Phase 9B dark mode — every server-rendered surface, chart included | `8f138595a` | `3e7e52626` |
+| Inline-SVG chart rendering coupled to the modern gate | `6e803a702` | `aed8e6b22` |
+| Data-mark-anchored tooltip tail | `c4cfa342b` | `7e4a7c809` |
+| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `8b6b006ae` | `43a934add` |
+| Selection vocabulary — chart-owned surfaces and the annotation border | `d627ec403` | `052fe61f1` |
+| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `6da9c024f` | `67c486d67` |
+| Right-click reaches max mode on tables | `0db62036f` | `b1eb8df8e` |
+| Rollout slice 2 — table, crosstab, calc table | `931bdb02b` | `a4cd1e362` |
+| Max-mode mini-toolbar positioning fix | `f3a299cd0` | `1091bd178` |
+| Rollout slice 3 — selection list and tree, kebab-only at any width | `5ed02f6ed` | `a038a30b5` |
+
+The v3 design set and the seeded-value decisions were committed in `2310cea37`, and the three earlier
+docs commits — `2b08a0492`, `a479ba921`, `ae511b8b7` — carry the design sets, the open-item decisions and
+this roadmap.
 
 ## Still undecided
 
 - **Dense: hover overlay, or no chrome at all?** The live one. See "In flight" above.
 - **How the seed mark handles defaults added after it ships.** See the seed-mark section.
-- **How the title height row reaches assemblies.** See "Needs a design decision."
+- ~~**How the title height row reaches assemblies.**~~ Answered 2026-08-13: the widget spec's 20/26/30,
+  applied in the per-type read path the way `rowHeight()` is, conditioned on a `userTitleHeight` flag or on
+  the mark. [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decisions 1 and 3.
+  What is left open there is the clearance value at compact and the 44px touch target against a 26px lane.
 - **Does the nav bar render for maps only, or any zoomable chart?**
 - **Which render path gauges and thermometers take in the live viewer** — the widget spec flags this itself
   as unverified.
@@ -285,6 +332,12 @@ being stripped the moment the constant changes.
   the next sync**
 - [chart-card-open-item-decisions.md](./chart-card-open-item-decisions.md) — the title band, dark scope and
   range slider decisions, with the consequences each triggers
+- [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) — which v3
+  document governs the title lane, the strip's size and containment, and what suppresses it. **Overrides
+  `Chart Card Spec v3.dc.html` §04's lane model and §03's title-hidden overlay**
+- [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) — the seed mark,
+  the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
+  below**, which still lists version-blindness as the open question
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice
