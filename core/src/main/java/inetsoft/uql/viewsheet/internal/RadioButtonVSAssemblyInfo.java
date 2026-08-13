@@ -175,6 +175,16 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the radiobutton title height.
     * @param value the specified radiobutton title height.
@@ -313,7 +323,7 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObject");
 
       if(snode != null) {

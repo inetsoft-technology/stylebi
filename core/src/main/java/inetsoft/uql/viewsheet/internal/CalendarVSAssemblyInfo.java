@@ -91,6 +91,11 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       titleInfo.setTitleHeightValue(36);
    }
 
+   @Override
+   public int getDefaultTitleHeight() {
+      return 36;
+   }
+
    /**
     * Get the data ref.
     * @return the data ref.
@@ -648,6 +653,16 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the calendar title height.
     * @param value the specified calendar title height.
@@ -915,7 +930,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       }
 
       titleInfo = new TitleInfo();
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
    }
 
    /**
