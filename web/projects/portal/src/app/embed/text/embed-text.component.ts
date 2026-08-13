@@ -134,7 +134,8 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
                private debounceService: DebounceService,
-               private cdRef: ChangeDetectorRef)
+               private cdRef: ChangeDetectorRef,
+               private elementRef: ElementRef)
    {
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
@@ -151,6 +152,17 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
 
    getAssemblyName(): string {
       return null;
+   }
+
+   /**
+    * Dispatches a plain DOM CustomEvent on this component's own host element right after a
+    * model update has been applied via detectChanges(). A text assembly has no async loading of
+    * its own - its content is plain DOM (innerHTML) rendered synchronously from the model by
+    * Angular change detection - so "rendered" here just means "the model this command carried
+    * has been applied and change detection has run", with nothing further to wait for.
+    */
+   dispatchLoaded(): void {
+      this.elementRef.nativeElement.dispatchEvent(new CustomEvent("loaded", { bubbles: true, composed: true }));
    }
 
    ngOnInit(): void {
@@ -286,6 +298,7 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
          this.contextProvider, false, null, null, null, this.miniToolbarService);
       // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
       this.cdRef.detectChanges();
+      this.dispatchLoaded();
    }
 
    processRefreshVSObjectCommand(command: RefreshVSObjectCommand): void {
@@ -305,6 +318,7 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
          this.contextProvider, false, null, null, null, this.miniToolbarService);
       // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
       this.cdRef.detectChanges();
+      this.dispatchLoaded();
    }
 
    processCollectParametersCommand(command: CollectParametersCommand): void {

@@ -161,6 +161,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    @Output() public maxModeChange = new EventEmitter<{assembly: string, maxMode: boolean}>();
    @Output() public onOpenFormatPane = new EventEmitter<VSChartModel>();
    @Output() public onLoadFormatModel = new EventEmitter<VSChartModel>();
+   // Fires whenever clearChartLoading() actually transitions loading -> not-loading, i.e. the
+   // chart's tiles (or its no-data/retry-exhausted/timeout fallback path) have settled. This is
+   // the same signal chartLoading/chartLoadingIcon already drive for this component's own
+   // template; it exists as an @Output so a consumer embedding this component (e.g.
+   // EmbedChartComponent, wrapped as a plain custom element with no Angular APIs available) can
+   // learn when the chart has actually finished rendering instead of guessing.
+   @Output() public onChartLoaded = new EventEmitter<void>();
    @ViewChild("chartContainer") chartContainer: ElementRef;
    @ViewChild("chartArea") chartArea: ChartArea;
    public scrollTop = 0;
@@ -1130,6 +1137,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.loadingStateChanged(this.chartLoading);
          this.clearChartSnapshot();
          this.detectChanges();
+         this.onChartLoaded.emit();
       }
    }
 

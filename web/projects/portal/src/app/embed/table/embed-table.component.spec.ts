@@ -18,6 +18,7 @@
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { TestUtils } from "../../common/test/test-utils";
 import { EmbedAssemblyContextProviderFactory } from "../../vsobjects/context-provider.service";
+import { AddVsObjectMode } from "../../vsobjects/command/add-vs-object-command";
 import { VSTableModel } from "../../vsobjects/model/vs-table-model";
 import { EmbedTableActions } from "./embed-table-actions";
 import { EmbedTableComponent } from "./embed-table.component";
@@ -73,5 +74,79 @@ describe("EmbedTableComponent.onOpenContextMenu", () => {
       // The browser's own context menu stays suppressed either way - having nothing of our own
       // to show is not a reason to offer the embedding page's users Reload/Save As.
       expect(event.preventDefault).toHaveBeenCalled();
+   });
+});
+
+/**
+ * Regression coverage for the stylebi-side half of bug-75975: <inetsoft-table> (like every other
+ * embed element) never dispatched any DOM event a consumer could use to learn when it actually
+ * finished rendering - a plain custom-element consumer had nothing but a fixed client-side
+ * timeout to fall back on. A table has no async per-tile image loading of its own (its cells are
+ * plain DOM rendered synchronously from the model by Angular change detection), so "rendered"
+ * here is just "the model this command carried has been applied and change detection has run".
+ * Built off the prototype for the same reason as the suite above: standing up the full DI graph
+ * would test the websocket wiring instead of the dispatch.
+ */
+describe("EmbedTableComponent.dispatchLoaded", () => {
+   let component: any;
+   let host: HTMLElement;
+   let table: VSTableModel;
+
+   beforeEach(() => {
+      table = TestUtils.createMockVSTableModel("Table1");
+      host = document.createElement("div");
+      component = Object.create(EmbedTableComponent.prototype);
+      component.assemblyName = "Table1";
+      component.contextProvider = EmbedAssemblyContextProviderFactory();
+      component.miniToolbarService = { hiddenFreeze: vi.fn(), hiddenUnfreeze: vi.fn() };
+      component.cdRef = { detectChanges: vi.fn() };
+      component.elementRef = { nativeElement: host };
+      component.updateVSInfo = () => {};
+   });
+
+   it("dispatches a bubbling, composed 'loaded' CustomEvent on the host element", () => {
+      const listener = vi.fn();
+      host.addEventListener("loaded", listener);
+
+      component.dispatchLoaded();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      const event: CustomEvent = listener.mock.calls[0][0];
+      expect(event.bubbles).toBe(true);
+      expect(event.composed).toBe(true);
+   });
+
+   it("dispatches 'loaded' after applying a fresh AddVSObjectCommand", () => {
+      const listener = vi.fn();
+      host.addEventListener("loaded", listener);
+
+      component.processAddVSObjectCommand({
+         name: "Table1", mode: AddVsObjectMode.RUNTIME_MODE, model: table, parent: null
+      });
+
+      expect(component.cdRef.detectChanges).toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledTimes(1);
+   });
+
+   it("dispatches 'loaded' after applying a RefreshVSObjectCommand", () => {
+      const listener = vi.fn();
+      host.addEventListener("loaded", listener);
+      component.vsObject = table;
+
+      component.processRefreshVSObjectCommand({ info: table });
+
+      expect(component.cdRef.detectChanges).toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledTimes(1);
+   });
+
+   it("does not dispatch 'loaded' for a command addressed to a different assembly", () => {
+      const listener = vi.fn();
+      host.addEventListener("loaded", listener);
+
+      component.processAddVSObjectCommand({
+         name: "SomeOtherTable", mode: AddVsObjectMode.RUNTIME_MODE, model: table, parent: null
+      });
+
+      expect(listener).not.toHaveBeenCalled();
    });
 });

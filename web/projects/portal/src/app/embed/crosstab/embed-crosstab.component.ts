@@ -275,6 +275,18 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
       );
    }
 
+   /**
+    * Dispatches a plain DOM CustomEvent on this component's own host element right after a
+    * model update has been applied via detectChanges(). Unlike chart/gauge/image, a crosstab has
+    * no async per-tile image loading of its own - its cells are plain DOM rendered synchronously
+    * from the model by Angular change detection - so "rendered" here just means "the model this
+    * command carried has been applied and change detection has run", with nothing further to
+    * wait for. See toggleWizFullscreen() above for the same host-dispatch pattern.
+    */
+   dispatchLoaded(): void {
+      this.elementRef.nativeElement.dispatchEvent(new CustomEvent("loaded", { bubbles: true, composed: true }));
+   }
+
    ngOnDestroy() {
       this.dialogService.ngOnDestroy();
       this.clearServerUpdateInterval();
@@ -348,6 +360,7 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
          () => this.wizMaximized, () => this.toggleWizFullscreen());
       // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
       this.cdRef.detectChanges();
+      this.dispatchLoaded();
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -369,6 +382,7 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
          () => this.wizMaximized, () => this.toggleWizFullscreen());
       // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
       this.cdRef.detectChanges();
+      this.dispatchLoaded();
    }
 
    // noinspection JSUnusedGlobalSymbols

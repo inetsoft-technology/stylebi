@@ -261,4 +261,49 @@ describe("VSChart Tests", () => {
             expect(action.action).not.toHaveBeenCalled();
       });
    });
+
+   // Regression coverage for the stylebi-side half of bug-75975: a consumer embedding
+   // <inetsoft-chart> as a plain custom element (e.g. wiz) had no DOM event to learn when the
+   // chart actually finished rendering, only a fixed client-side timeout. onChartLoaded is the
+   // new @Output that makes clearChartLoading()'s existing "tiles have settled" signal (already
+   // driving this component's own chartLoading/chartLoadingIcon state) observable from outside.
+   //
+   // clearChartLoading() calls this.detectChanges(), which forces a real
+   // ChangeDetectorRef.detectChanges() - triggering the SAME broken template render every other
+   // test in this suite is .skip'd for (VSDataTipDirective.ngOnInit needs a real Observable on
+   // the stubbed dataTipService.scrolled, which isn't set up here). That gap is pre-existing and
+   // orthogonal to onChartLoaded, so it's stubbed out here rather than fixing the whole suite's
+   // template-rendering setup.
+   it("emits onChartLoaded when clearChartLoading transitions loading to not-loading", () => {
+      let fixture = TestBed.createComponent(VSChart);
+      // Stub BEFORE setting .model: the model setter itself calls showChartLoading(), which
+      // calls detectChanges() synchronously - this must be in place first or that earlier call
+      // hits the same template-rendering gap.
+      vi.spyOn(fixture.componentInstance as any, "detectChanges").mockImplementation(() => {});
+      fixture.componentInstance.model = TestUtils.createMockVSChartModel("Chart1");
+      let spy = vi.fn();
+      fixture.componentInstance.onChartLoaded.subscribe(spy);
+
+      fixture.componentInstance.chartLoading = true;
+      fixture.componentInstance.clearChartLoading();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(fixture.componentInstance.chartLoading).toBe(false);
+   });
+
+   it("does not emit onChartLoaded when clearChartLoading runs while already not loading", () => {
+      let fixture = TestBed.createComponent(VSChart);
+      // Stub BEFORE setting .model: the model setter itself calls showChartLoading(), which
+      // calls detectChanges() synchronously - this must be in place first or that earlier call
+      // hits the same template-rendering gap.
+      vi.spyOn(fixture.componentInstance as any, "detectChanges").mockImplementation(() => {});
+      fixture.componentInstance.model = TestUtils.createMockVSChartModel("Chart1");
+      let spy = vi.fn();
+      fixture.componentInstance.onChartLoaded.subscribe(spy);
+
+      fixture.componentInstance.chartLoading = false;
+      fixture.componentInstance.clearChartLoading();
+
+      expect(spy).not.toHaveBeenCalled();
+   });
 });
