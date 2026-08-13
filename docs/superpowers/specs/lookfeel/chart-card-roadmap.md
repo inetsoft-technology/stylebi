@@ -1,9 +1,9 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-13
-**Verified against:** community `viz-updates` @ `2310cea37`, plus twelve uncommitted code files in the
-working tree. The commit before it, `ae511b8b7`, is the code baseline — `2310cea37` is docs-only (it
-committed the v3 set and the seeded-value decisions), so every code claim below was checked against both.
+**Date:** 2026-08-13 (second revision — the density gating committed between them)
+**Verified against:** community `viz-updates` @ `1c0ace705`, which is `HEAD` and is docs-only. The code
+baseline is `55c3bad1a`, which committed the twelve density-gating files this file previously described as
+in flight. Every code claim below was re-checked against it.
 **Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
 it, and the decisions that gate what remains
 
@@ -30,14 +30,18 @@ The durable content is the **dependency picture** and the **seed-mark cluster** 
 and change only when something lands. The perishable content is what is done, so that section is a table of
 item → commit rather than a checklist: `git show` answers it better than a checkbox does.
 
+**"What to pick up next" is the most perishable thing here.** It is a ranking derived from the picture at
+one moment, carrying the date and commit it was derived at. When it and the picture disagree, re-derive it
+rather than repairing it — the whole of its content is one reading of the two paragraphs above it.
+
 ---
 
 ## The dependency picture
 
 ```
   L. Strip density gating ──→ F. Rollout slices 4–5
-     PARTLY BUILT, UNCOMMITTED     container, calendar
-     ships as the interim · L'' replaces it
+     SHIPPED 55c3bad1a          NO LONGER BLOCKED · container, calendar
+     the interim · L'' replaces it
 
   N. userTitleHeight flag ──→ L'. Title lane height row ──→ L''. Geometric suppression
      UNGATED, NOT BUILT           DECIDED 2026-08-13            DECIDED 2026-08-13
@@ -72,7 +76,7 @@ not just dense. L as written is density-keyed and does not have this property, w
 the interim and is replaced rather than amended. See
 [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) decision 3.
 
-Three corrections this picture carries against the external set, all recorded in
+Four corrections this picture carries against the external set, all recorded in
 [the corrections doc](./chart-card-source-doc-corrections.md):
 
 - **M does not gate F.** The toolbar rollout writes no persisted state — every file in all three shipped
@@ -88,23 +92,80 @@ Three corrections this picture carries against the external set, all recorded in
   The 2026-08-11 edition of this roadmap said the row "needs no server change"; that was wrong twice over.
   See §3.3.
 - **The 32px chrome floor does not reach dense.** It is a card-height rule, not a lane rule, so the v3
-  reversal in §05 does not follow from it. See §1.1 — this is the live decision below.
+  reversal in §05 does not follow from it. See §1.1. This was the live decision until 2026-08-12; the
+  outcome was adopted and the mechanism written explicitly rather than inherited, and it shipped in
+  `55c3bad1a`.
 
 ---
 
-## In flight — uncommitted
+## What to pick up next
 
-Twelve code files in the working tree, reviewed clean, not yet committed — two under `core/` and ten
-under `web/projects/portal/src`. Re-counted 2026-08-13. The docs that were uncommitted alongside them are
-now in `2310cea37`; `CLAUDE.md` and this file are separately modified and are not part of this changeset.
+**Ranked 2026-08-13, against `1c0ace705`.** This is a reading of the picture above, not a new decision —
+it goes stale as things land, and the picture is what to re-derive it from. Effort is relative to this
+track, not absolute.
 
-| Piece | State |
+| # | Item | Impact | Effort | Unblocks | Risk |
+|---|---|---|---|---|---|
+| 1 | **N — the `userTitleHeight` flag** | none on its own | **S** — one `core/` field | **L' → L''** | very low: no behaviour change |
+| 2 | **L' — the title lane height row** | high, visible | **M** | L'' | export-affecting: needs the manual pass |
+| 3 | **M — the seed mark** | **highest** — the release gate | **XL** | five items | reverses shipped `viz-updates` behaviour |
+| 4 | **Rollout slices 4–5** | closes the rollout | **S–M** | nothing | modifies shipped slice-3 behaviour |
+| 5 | **Dark — four browser surfaces** | fixes a visible defect | **S** — plan written | nothing | reworked when M lands, see below |
+| 6 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+
+**N is the most leverage per unit of work in the tree, and it is not close.** It is the only item where a
+small, self-contained, zero-behaviour-change `core/` edit unblocks two downstream items — and one of those,
+L'', retires an interim that shipped in `55c3bad1a`, so the approximation does not calcify into the thing
+everyone reads as the rule. The 13.3 pattern is in the codebase to copy: `TableDataVSAssemblyInfo.java:897-901`
+(accessors), `:941` (write), `:997` (derive on parse), consumed at `VSTableLens.java:1634-1637, 1761`.
+
+**One trap N has that `userDataRowHeight` did not.** `setTitleHeightValue` has 36 references, and they are
+not all author intent. The ten in `web/composer/vs/dialog/*PropertyDialogService.java` are — that is the
+property dialog's Size and Position pane, and they are the sites to stamp. But `CalendarVSAssemblyInfo.java:91`
+seeds `36` and `TableDataVSAssemblyInfo.java:1558` seeds `AssetUtil.defh`, both as internal defaults at
+construction. Stamping those ships every calendar and every table pre-marked as author-set, and L' then
+reaches nothing. `setDataRowHeight` has no internal-default caller, which is why the 13.3 precedent is
+silent on this. Check `VSAssemblyInfo.java:1443` too.
+
+**M is the largest impact and the wrong thing to start cold.** It gates five items and the release, and
+[the decisions](./seeded-value-reversibility-decisions.md) note the pre-mark cohort write-off holds *only
+while the branch is unreleased*. But decision 4 alone is called the largest single piece of work in that
+set — all five read-time resolvers, the export painters, and `viz-dark` moving from one body class
+(`viewer-app.component.ts:2798`) to a per-assembly scope — and decisions 6 and 7 add a resumable org-wide
+async sweep with a restore point, composer-session blocking and scheduler interaction. It wants its own
+plan and its own branch. **If a release date is set, M's schedule is the thing to work backwards from**,
+because after release the cohort is customer data and the write-off is no longer available.
+
+**The interaction to know before taking #5.** The dark browser-surfaces plan declares its four tokens in
+the existing `.viz-dark` block at `_viz-tokens.scss:143-159`. Seeded-value decision 4 turns `viz-dark`
+from a body class into a per-assembly scope. The rework is mechanical rather than structural, but if M is
+imminent the dark work is cheaper after it than before it.
+
+**Two that look ready and are not.** The unfilled title band is M-independent and decided, but it breaks
+the title-bar/table-header equality the sibling project endorses — its blocker is sign-off, not code, so
+raise it now and it clears by the time it is wanted. And the range slider's browser half must not ship
+without its painter half ([decisions](./chart-card-open-item-decisions.md) §3), which sits behind M.
+
+---
+
+## The density gating — shipped in `55c3bad1a`
+
+Twelve files, two under `core/` and ten under `web/projects/portal/src`. This section described them as
+in flight until 2026-08-13; they are committed, and the two things that outlive the commit are the
+decision it records and the interim it leaves behind.
+
+| Piece | Where it landed |
 |---|---|
-| Anchored strip gated to compact-and-above | Done. `GuiTool.vizDensityMode()` + `isVizDensityAtLeastCompact()`; one shared `isAnchoredResident()` in `mini-toolbar.service.ts` consumed by both `AbstractVSActions.resident` and `VSObjectContainer.isKebabResident` |
-| Dense draws no chrome at all | Done. `isAnchoredChromeSuppressed()`, consumed by `showingActions` beside the existing 32px floor test |
-| `height: 24px` → `--inet-control-height-sm` | Done. Value-identical; `_variables.scss:475` |
-| `VSDensityDefaults.titleHeight()` at defh/26/30 | Done, and deliberately **uncalled** |
-| Wiring that height into five assemblies | **Abandoned.** Not buildable as specified — see below |
+| Anchored strip gated to compact-and-above | `GuiTool.vizDensityMode()` + `isVizDensityAtLeastCompact()`; one shared `isAnchoredResident()` in `mini-toolbar.service.ts` consumed by both `AbstractVSActions.resident` and `VSObjectContainer.isKebabResident` |
+| Dense draws no chrome at all | `isAnchoredChromeSuppressed()`, consumed by `showingActions` beside the existing 32px floor test |
+| `height: 24px` → `--inet-control-height-sm` | Value-identical; `_variables.scss:475` |
+| `VSDensityDefaults.titleHeight()` at defh/26/30 | `:94`, and deliberately **uncalled** — `grep` finds no caller but its own test |
+| Wiring that height into five assemblies | **Not in the commit.** The first attempt was abandoned; the work itself is superseded by N → L', not dropped |
+
+**What shipped is the interim, not the rule.** The commit message is explicit: "the lane test is
+approximated by density for now." Density selects the lane's default height, which puts dense alone below
+the bound; the direct comparison is L'' and still waits on L'. Do not read `55c3bad1a` as having
+implemented [strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 3.
 
 **The decision the v3 sync reopened is settled: v3 is accepted** —
 [decisions](./chart-card-open-item-decisions.md) §4. Dense no longer falls back to the legacy hover overlay;
@@ -115,7 +176,7 @@ floor measures the card and not the lane (§1.1).
 the gate at dense an anchored assembly on a tablet has no route to its actions. It matches how the shipped
 floor branch already behaves below 32px, and one predicate changes it if that is not intended.
 
-Tests: 255 action specs, 83 unit, 60 TL — all green.
+Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
 
 ---
 
@@ -214,7 +275,7 @@ leaves persisted dark card backgrounds under read-time light chart chrome (decis
 
 ---
 
-## Needs a design decision before it can be scheduled
+## Was blocked on a design decision — now answered
 
 **The title lane height row — answered 2026-08-13.** See
 [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md): the widget
@@ -244,7 +305,7 @@ Nothing below is blocked.
 | Item | Source | Note |
 |---|---|---|
 | **Dark — four browser-DOM surfaces** | [Decisions](./chart-card-open-item-decisions.md) §2, plan at `plans/2026-08-11-chart-card-dark-browser-surfaces.md` | CSS only. The v3 dark ticket's dependency claims apply to the server half, which is different work — see §4.2 |
-| **The `userTitleHeight` flag** — N in the picture above | [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md), "What this costs to build" | Self-contained `core/` change and the cheapest thing that unblocks L'. Mirror `userDataRowHeight`: a persisted boolean on `TitleInfo`, stamped at the property-dialog `setTitleHeightValue` call sites, derived for older files on parse as `getTitleHeight() != AssetUtil.defh` (`TableDataVSAssemblyInfo.java:997` is the 13.3 precedent). No behaviour change on its own — it only makes an author's 20px distinguishable from the default 20px |
+| **The `userTitleHeight` flag** — N in the picture above | [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md), "What this costs to build" | Self-contained `core/` change and the cheapest thing that unblocks L'. Mirror `userDataRowHeight`: a persisted boolean on `TitleInfo`, stamped at the property-dialog `setTitleHeightValue` call sites, derived for older files on parse as `getTitleHeight() != AssetUtil.defh` (`TableDataVSAssemblyInfo.java:997` is the 13.3 precedent). No behaviour change on its own — it only makes an author's 20px distinguishable from the default 20px. **Not every `setTitleHeightValue` caller is author intent** — see the trap under "What to pick up next" |
 | **Chart interior dark palette** | `Chart card dark values - ticket.md` item 3 | New, unowned, and the most valuable thing in that ticket. `GDefaults` has no dark branch; nothing to reconcile against, so it is design work |
 | Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk |
 | Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched |
@@ -255,11 +316,14 @@ Nothing below is blocked.
 | Chart type scale | Handoff 4a | Gated only by measuring whether 9pt renders as 9px — one build. Its chrome tier is already fully shipped |
 | Drill and DC tips · zoom naming · dead menu icons | Handoff step 5 | The "~50 dead icons" count has never been verified |
 
-## After the density gating commits
+## Unblocked by `55c3bad1a`
+
+This section read "after the density gating commits" until 2026-08-13. It has.
 
 **Rollout slices 4 and 5** — the container and the calendar. `ANCHORED_ASSEMBLY_TYPES`
-(`mini-toolbar.service.ts:41-53`) carries six types; the container is deliberately excluded as its own
-slice, and the calendar is expected to take the table treatment unmodified.
+(`mini-toolbar.service.ts:41-53`, re-checked at `1c0ace705`) carries six types; the container is
+deliberately excluded as its own slice, and the calendar is expected to take the table treatment
+unmodified.
 
 Read `github.md`'s new in-project decision to scope the resting kebab by pointer capability first — it
 modifies already-shipped slice-3 behaviour.
@@ -302,14 +366,20 @@ kept alongside because the rest of this tree still cites it.
 | Rollout slice 2 — table, crosstab, calc table | `931bdb02b` | `a4cd1e362` |
 | Max-mode mini-toolbar positioning fix | `f3a299cd0` | `1091bd178` |
 | Rollout slice 3 — selection list and tree, kebab-only at any width | `5ed02f6ed` | `a038a30b5` |
+| Strip suppression where the lane cannot hold it — L, density-approximated | `55c3bad1a` | postdates the rebase |
 
-The v3 design set and the seeded-value decisions were committed in `2310cea37`, and the three earlier
-docs commits — `2b08a0492`, `a479ba921`, `ae511b8b7` — carry the design sets, the open-item decisions and
-this roadmap.
+The v3 design set and the seeded-value decisions were committed in `2310cea37`, the strip and lane
+decisions in `1c0ace705`, and the three earlier docs commits — `2b08a0492`, `a479ba921`, `ae511b8b7` —
+carry the design sets, the open-item decisions and this roadmap.
 
 ## Still undecided
 
-- **Dense: hover overlay, or no chrome at all?** The live one. See "In flight" above.
+- ~~**Dense: hover overlay, or no chrome at all?**~~ Answered 2026-08-12 and now shipped in `55c3bad1a`:
+  no chrome at all. [Decisions](./chart-card-open-item-decisions.md) §4. What remains open from it is
+  dense-plus-touch, below.
+- **Whether dense-plus-touch is meant to have no affordance**, and now title-hidden-plus-touch with it —
+  [strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 4 widens the same
+  question to a larger population.
 - **How the seed mark handles defaults added after it ships.** See the seed-mark section.
 - ~~**How the title height row reaches assemblies.**~~ Answered 2026-08-13: the widget spec's 20/26/30,
   applied in the per-type read path the way `rowHeight()` is, conditioned on a `userTitleHeight` flag or on

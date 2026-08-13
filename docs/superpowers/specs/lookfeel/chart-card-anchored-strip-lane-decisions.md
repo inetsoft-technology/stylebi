@@ -1,10 +1,12 @@
 # The Anchored Strip and the Title Lane — Decisions
 
-**Date:** 2026-08-13
-**Verified against:** community `viz-updates` @ `881a9b049`, plus the twelve uncommitted density-gating
-files in the working tree
-**Decides:** which v3 document governs the title lane, how the anchored strip relates to it, and what
-suppresses the strip
+**Date:** 2026-08-13 (decisions 1–4); decision 5 added later the same day, after `userTitleHeight` was
+built and surfaced two problems the lane row inherits
+**Verified against:** community `viz-updates` @ `881a9b049` for decisions 1–4, plus the twelve
+density-gating files then uncommitted and since shipped as `55c3bad1a`. Decision 5 is verified against the
+`userTitleHeight` work in the working tree, which is complete and reviewed but not yet committed
+**Decides:** which v3 document governs the title lane, how the anchored strip relates to it, what
+suppresses the strip, and how an author tells the lane row to leave a title height alone
 **Supersedes:** `chart-card-design3/Chart Card Spec v3.dc.html` §04's lane model, for the anchored strip
 
 ## Why this file exists
@@ -200,6 +202,60 @@ a larger population. One predicate changes it if that is not intended.
 
 ---
 
+## Decision 5 — the lane row ships with a use-the-default affordance on the title height
+
+**Added 2026-08-13**, after `userTitleHeight` was built. That flag is what makes the row possible, and
+building it surfaced two problems the row inherits. Both have the same fix, and it is UI work rather than
+a resolver change, so it has to be scheduled with the row rather than after it.
+
+**The question.** The flag records whether an author chose a title height. It is inferred from whether the
+property dialog's value changed, because the dialog carries no other signal:
+`SizePositionPaneModel.titleHeight` is a primitive `int` and the control is a plain `number-stepper`
+(`size-position-pane.component.html:73-76`) — no blank, no auto, no checkbox. Inference is adequate today
+and stops being adequate when the row lands.
+
+**Problem 1 — an author cannot pin the height the dialog is showing them.** Today the guard compares the
+incoming value against the *stored* height, so changing 25 to 20 is captured even though 20 is also the
+default. Once the row makes the displayed height density-derived, the comparison has to move to the
+effective height (see "What this costs to build" below and `TitleInfo.isUserTitleHeight()`'s javadoc).
+After that move, an author who sees 26 at compact and wants 26 permanently has no way to say so: typing 26
+is indistinguishable from accepting 26. The sibling `userCellHeight` accepts exactly this
+(`SelectionListPropertyDialogService.java:220-221` — "accepting the org density default leaves the stored
+height at its default and the flag clean"), which is right for a flag nobody has asked to pin, and wrong
+for a lane whose height authors have been setting by hand for fifteen years.
+
+**Problem 2 — the flag is one-way for five of the eight titled types.** The only path that clears it is
+the table reset-layout action (`ComposerVSTableService.java:414`), which lives on
+`TableDataVSAssemblyInfo`. A chart, calendar, selection list, selection tree or range slider that acquires
+the flag has no route back to tracking the default — the author can opt out of the density row but cannot
+opt back in.
+
+**Decided: give the title height an explicit use-the-default control, and read the flag from it.** The
+flag stops being inferred from what changed and becomes a direct record of what the author said. Ticking
+the control clears the flag and lets the row resolve the height; unticking it and entering a number sets
+the flag. That answers both problems at once — pinning the displayed value becomes expressible, and every
+type gains the opt-back-in that only tables have.
+
+**What it costs.** `SizePositionPaneModel.titleHeight` becomes nullable or gains a paired boolean; the
+dialog template gains the control beside the stepper; the eleven dialog services read the control instead
+of comparing values. The comparison-based guards are deleted rather than amended — with a real signal
+there is nothing left to infer.
+
+**Rejected — keep inferring, and accept that the displayed value cannot be pinned.** It is free, and it is
+what the sibling does. It fails the population this row exists for: authors who have set title heights
+deliberately are exactly the ones the row must not disturb, and telling them to set a value one pixel off
+and back again to make it stick is not a design.
+
+**Rejected — infer, but treat any dialog OK as intent.** Marks every assembly whose dialog was ever
+opened, so the row reaches almost nothing. This was tried during the flag's implementation and reversed.
+
+**Still open within this decision:** whether the control is a checkbox or a blank-means-default field;
+whether cell height gets the same treatment for consistency, which would mean revisiting the sibling; and
+what happens to assemblies already carrying the flag when the control ships — most plausibly they read
+back as unticked, which is accurate.
+
+---
+
 ## What this costs to build
 
 **It is export-affecting.** Title height is a persisted model value read by the Java painters as well as
@@ -242,6 +298,8 @@ pattern shows an unset state was never the requirement.
   the chart card track is taking them.
 - **`--inet-viz-chrome-row-height` is 22px at dense while the lane row is 20px** (`_viz-tokens.scss:112`).
   The token has no consumers today, so nothing disagrees yet; it will the moment something binds it.
+- **The shape of decision 5's control**, whether cell height should get the same treatment, and how
+  already-marked assemblies read back when it ships. Listed in full at the end of that decision.
 
 ---
 
