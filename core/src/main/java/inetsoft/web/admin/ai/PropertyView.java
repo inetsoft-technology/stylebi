@@ -19,10 +19,29 @@ package inetsoft.web.admin.ai;
 
 import java.util.List;
 
-/** Catalog metadata plus the current value, for plugin/agent discovery. */
+/**
+ * Catalog metadata plus the current value, for plugin/agent discovery.
+ *
+ * @param exists   whether the property demonstrably exists in StyleBI: {@code confirmed} when it is
+ *                 catalogued or has a stored value, {@code unknown} otherwise. Two distinct things
+ *                 produce a null {@code currentValue} on an uncatalogued property — a real property
+ *                 nobody has set yet, and a name that does not exist at all — and the server cannot
+ *                 tell them apart, because the only evidence a bare {@code SreeEnv} property exists
+ *                 is a read site in Java source. Reporting that ambiguity is the point: a caller
+ *                 that reads a null value as "no such property" will conclude the setting lives
+ *                 somewhere else, and a caller that reads it as "exists, unset" will happily write a
+ *                 typo. Both have happened.
+ * @param guidance what to do about an {@code unknown} property; null when {@code exists} is
+ *                 {@code confirmed}.
+ */
 public record PropertyView(String name, List<String> aliases, String type,
                            List<String> allowedValues, Integer min, Integer max,
                            String description, String risk, String snapshotScope,
-                           String currentValue, boolean recognized)
+                           String currentValue, boolean recognized,
+                           String exists, String guidance)
 {
+   /** The property is catalogued, or holds a value; either way it is real. */
+   public static final String EXISTS_CONFIRMED = "confirmed";
+   /** Uncatalogued and unset — indistinguishable from a name that does not exist. */
+   public static final String EXISTS_UNKNOWN = "unknown";
 }

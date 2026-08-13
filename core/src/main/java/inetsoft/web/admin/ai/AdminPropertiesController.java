@@ -105,21 +105,41 @@ public class AdminPropertiesController {
    private PropertyView view(AdminPropertyName name, CatalogEntry entry) {
       AdminRiskClassifier.RiskClassification risk = classifier.classify(name);
       String description = entry == null ? null : entry.description();
-      String current;
+      boolean secret = AdminPropertyCatalog.isSecret(name.baseName());
+      // A secret's value is not read AT ALL, not merely omitted from the response - see the test
+      // that asserts SreeEnv is never called for one. Determining existence by reading it would
+      // trade that invariant for a signal the catalog supplies properly, so the secret path stays
+      // blind and reports what it actually knows.
+      //
+      // orgScope=false so the value shown is the one an apply would actually change.
+      String stored = secret ? null : SreeEnv.getProperty(name.key(), false, false);
 
       // Secret properties (e.g. password.encryption.key) are still LISTED - an operator
       // legitimately needs to know the property exists - but the value is withheld rather than
       // forwarded to the model provider that this endpoint's caller relays responses through. Not
       // a 403: the same operator role can already read this unmasked via PropertiesController, so
       // refusing to even acknowledge the property's existence would just be confusing.
-      if(AdminPropertyCatalog.isSecret(name.baseName())) {
-         current = null;
-         description = "Value withheld: secret properties are not exposed through admin-chat.";
+      //
+      // The old phrasing said "Value withheld", which asserts there is a value to withhold. This
+      // branch is reached on nothing more than a name match, so an invented name ending .key came
+      // back claiming a secret had been withheld - manufacturing evidence that the property exists
+      // out of a string suffix.
+      //
+      // The replacement is worded about the NAME rather than the property for the same reason. A
+      // name match is all that is known here, so "Secret property: ..." would still assert the
+      // category, and a caller who stopped reading at the colon would take it as confirmation the
+      // property exists - the very inference `exists` was added to prevent.
+      if(secret) {
+         description = "This name matches admin-chat's secret pattern, so its value is neither "
+            + "read nor changed here - not even read to test whether one is present, so this says "
+            + "nothing about whether the property exists or is set.";
       }
-      else {
-         // orgScope=false so the value shown is the one an apply would actually change.
-         current = SreeEnv.getProperty(name.key(), false, false);
-      }
+
+      // A catalogued name is authoritative; a stored value is proof by demonstration, and covers
+      // anything declared in defaults.properties, since the defaults chain resolves through
+      // getProperty. Neither means the server cannot say whether the name is real - which is
+      // always the case for a secret, since this path deliberately never looks.
+      boolean confirmed = entry != null || stored != null;
 
       return new PropertyView(name.key(),
          entry == null ? List.of() : (entry.aliases() == null ? List.of() : entry.aliases()),
@@ -129,8 +149,19 @@ public class AdminPropertiesController {
          entry == null ? null : entry.min(),
          entry == null ? null : entry.max(),
          description,
-         risk.risk(), risk.snapshotScope(), current, risk.recognized());
+         risk.risk(), risk.snapshotScope(), stored, risk.recognized(),
+         confirmed ? PropertyView.EXISTS_CONFIRMED : PropertyView.EXISTS_UNKNOWN,
+         confirmed ? null : UNKNOWN_GUIDANCE);
    }
+
+   private static final String UNKNOWN_GUIDANCE =
+      "admin-chat cannot tell whether this property exists: it is not in the admin catalog and has "
+      + "no stored value, and a real property that nobody has set yet looks exactly like a "
+      + "misspelled name. Do NOT conclude from this that the setting is stored somewhere other "
+      + "than server properties. Confirm the spelling against the property reference "
+      + "(search_product_docs with corpus \"properties\") before including it in a change: an "
+      + "unrecognised name is written verbatim, so a typo becomes an inert property that nothing "
+      + "reads, while the change reports success.";
 
    /** See {@code AdminAiController.requireSiteAdmin} for why both checks are needed. */
    private void requireSiteAdmin(Principal user) {
