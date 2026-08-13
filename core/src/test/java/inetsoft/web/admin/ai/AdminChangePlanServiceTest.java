@@ -318,4 +318,23 @@ class AdminChangePlanServiceTest {
          assertTrue(ex.getMessage().contains("cloud secrets"));
       }
    }
+
+   @Test void refusesAnEmptyValueForACredentialAndSaysWhatToUseInstead() {
+      // "" is an explicit set-to-empty everywhere else, but SreeEnv.setPassword guards on
+      // isEmptyString and returns without writing, so it would silently leave the old secret in
+      // place. Refused here so the message can point at null, rather than surfacing as a bare
+      // FAILED from the read-back verify at apply time.
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("blank it", "openid.client.secret", "")));
+      assertTrue(ex.getMessage().contains("openid.client.secret"));
+      assertTrue(ex.getMessage().contains("null"));
+   }
+
+   @Test void stillAllowsResettingACredentialWithANullValue() {
+      // Reset goes through SreeEnv.remove, not setPassword, so it is unaffected by the guard above
+      // and remains the supported way to clear a credential.
+      ResolvedPlan plan = service.resolve(request("clear it", "openid.client.secret", null));
+      assertEquals(1, plan.changes().size());
+      assertNull(plan.changes().get(0).proposedValue());
+   }
 }

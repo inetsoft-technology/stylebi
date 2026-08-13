@@ -106,6 +106,21 @@ public class AdminChangePlanService {
                + "correctly.");
          }
 
+         // Every other property in this service takes "" as an explicit set-to-empty, with null
+         // meaning reset-to-default. A credential cannot honour that: SreeEnv.setPassword guards
+         // on Tool.isEmptyString and returns without writing, so "" would leave the existing
+         // secret in place. That does fail safe - the read-back verify compares the old secret
+         // against "" and reports FAILED - but an operator trying to blank a secret would get a
+         // bare failure and no idea why, having asked for something this path cannot do. Refuse it
+         // here, where the message can say what to use instead. An empty client secret is not a
+         // valid credential in any case, so nothing legitimate is being turned away.
+         if(credential && "".equals(requested.getValue())) {
+            throw new IllegalArgumentException(
+               name.key() + ": an empty value cannot be written to a credential - the property "
+               + "would keep its current secret. Pass a null value to reset the property to its "
+               + "default, or a non-empty value to change it.");
+         }
+
          CatalogEntry entry = catalog.getEntry(name);
          // An uncatalogued property cannot be validated or canonicalized, so its value passes
          // through verbatim; the classifier marks it high risk so review flags it.
