@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Directive, Input, NgZone, OnDestroy } from "@angular/core";
+import { Directive, EventEmitter, Input, NgZone, OnDestroy, Output } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -58,6 +58,13 @@ extends AbstractVSObject<T> implements OnDestroy
    private _actions: AbstractVSActions<T>;
    private _selected: boolean;
    loading: boolean = false;
+
+   // Fires whenever the assembly's underlying <img> (see getSrc()) finishes loading, successfully
+   // or not. This is the same signal `loading` already drives for this component's own template;
+   // it exists as an @Output so a consumer embedding this component (e.g. EmbedGaugeComponent /
+   // EmbedImageComponent, wrapped as a plain custom element with no Angular APIs available) can
+   // learn when the image has actually finished rendering instead of guessing.
+   @Output() onLoad = new EventEmitter<boolean>();
 
    @Input()
    set actions(actions: AbstractVSActions<T>) {
@@ -152,5 +159,6 @@ extends AbstractVSObject<T> implements OnDestroy
 
    loaded(success: boolean) {
       this.loading = false;
+      this.onLoad.emit(success);
    }
 }

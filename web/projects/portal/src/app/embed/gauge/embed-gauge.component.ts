@@ -134,7 +134,8 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
                private debounceService: DebounceService,
-               private cdRef: ChangeDetectorRef)
+               private cdRef: ChangeDetectorRef,
+               private elementRef: ElementRef)
    {
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
@@ -151,6 +152,16 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
 
    getAssemblyName(): string {
       return null;
+   }
+
+   /**
+    * Dispatches a plain DOM CustomEvent on this component's own host element once the wrapped
+    * <vs-gauge> reports it has actually finished rendering (see AbstractImageComponent.onLoad) -
+    * so a consumer embedding <inetsoft-gauge> as a plain custom element (no Angular APIs
+    * available) can learn when the gauge is done instead of guessing.
+    */
+   dispatchLoaded(): void {
+      this.elementRef.nativeElement.dispatchEvent(new CustomEvent("loaded", { bubbles: true, composed: true }));
    }
 
    ngOnInit(): void {

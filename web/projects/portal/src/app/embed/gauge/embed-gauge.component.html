@@ -26,7 +26,8 @@
     <vs-gauge
             [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions"
             [container]="viewerRoot"
-            (contextmenu)="onOpenContextMenu($event)">
+            (contextmenu)="onOpenContextMenu($event)"
+            (onLoad)="dispatchLoaded()">
     </vs-gauge>
   }
   @if (showError) {

@@ -221,4 +221,30 @@ describe("VSGauge", () => {
       let gauge = fixture.nativeElement.querySelector("img.vs-gauge__image");
       expect(gauge.style["opacity"]).toBe("0.3");
    });
+
+   // Regression coverage for the stylebi-side half of bug-75975: a consumer embedding
+   // <inetsoft-gauge> as a plain custom element (e.g. wiz) had no DOM event to learn when the
+   // gauge's underlying <img> (see getSrc()) actually finished loading, only a fixed client-side
+   // timeout. AbstractImageComponent.onLoad is the new @Output that makes loaded()'s existing
+   // "image settled" signal (already driving this component's own `loading` state) observable
+   // from outside.
+   it("emits onLoad with the load outcome when the underlying image finishes loading", () => {
+      let fixture = TestBed.createComponent(VSGauge);
+      fixture.componentInstance.model = model;
+      fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
+      fixture.detectChanges();
+
+      let successSpy = vi.fn();
+      let failureSpy = vi.fn();
+      fixture.componentInstance.onLoad.subscribe((success: boolean) => {
+         (success ? successSpy : failureSpy)(success);
+      });
+
+      fixture.componentInstance.loaded(true);
+      expect(successSpy).toHaveBeenCalledWith(true);
+      expect(fixture.componentInstance.loading).toBe(false);
+
+      fixture.componentInstance.loaded(false);
+      expect(failureSpy).toHaveBeenCalledWith(false);
+   });
 });

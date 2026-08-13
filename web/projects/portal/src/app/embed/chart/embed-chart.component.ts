@@ -280,6 +280,17 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       );
    }
 
+   /**
+    * Dispatches a plain DOM CustomEvent on this component's own host element once the wrapped
+    * <vs-chart> reports it has actually finished rendering (see VSChart.onChartLoaded) - so a
+    * consumer embedding <inetsoft-chart> as a plain custom element (no Angular APIs available)
+    * can learn when the chart is done instead of guessing from unrelated DOM signals or a fixed
+    * timeout. See toggleWizFullscreen() above for the same host-dispatch pattern.
+    */
+   dispatchLoaded(): void {
+      this.elementRef.nativeElement.dispatchEvent(new CustomEvent("loaded", { bubbles: true, composed: true }));
+   }
+
    ngOnDestroy() {
       this.dialogService.ngOnDestroy();
       this.clearServerUpdateInterval();

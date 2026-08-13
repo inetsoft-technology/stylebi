@@ -28,7 +28,8 @@
       [appSize]="appSize"
       [container]="viewerRoot"
       [variableValues]="variableValuesFunction"
-      (contextmenu)="onOpenContextMenu($event)">
+      (contextmenu)="onOpenContextMenu($event)"
+      (onChartLoaded)="dispatchLoaded()">
     </vs-chart>
   }
   @if (showError) {
