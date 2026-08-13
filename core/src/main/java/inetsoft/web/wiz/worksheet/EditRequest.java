@@ -69,7 +69,9 @@ import java.util.Map;
  *   <li>{@code reorder_columns} — {@code table}, {@code columnOrder}</li>
  *   <li>{@code add_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to add)</li>
  *   <li>{@code remove_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to remove)</li>
- *   <li>{@code add_named_group} — {@code name}, {@code table}, {@code column}, {@code groupMappings}, {@code groupOthers}</li>
+ *   <li>{@code add_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}; either
+ *       {@code table} + {@code column} (attach to a column) or {@code type} (standalone grouping,
+ *       matched by data type; defaults to {@code "string"})</li>
  *   <li>{@code set_column_description} — {@code table}, {@code column}, {@code description}</li>
  *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value)</li>
  *   <li>{@code set_mirror_auto_update} — {@code table}, {@code visible} (true=auto-update on, false=off)</li>

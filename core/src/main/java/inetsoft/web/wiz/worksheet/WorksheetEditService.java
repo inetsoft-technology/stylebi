@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -1663,26 +1664,56 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
-       * Creates a {@link DefaultNamedGroupAssembly} with simple value-list mappings.
+       * Creates a {@link DefaultNamedGroupAssembly} with simple value-list mappings. When
+       * {@code table} and {@code column} are both provided, the grouping is attached to that
+       * column. When both are omitted, a standalone grouping is created instead, matched at
+       * runtime by data type rather than by column — mirroring the "Type" option in the
+       * Composer's Grouping Properties dialog.
        *
        * @param name       the assembly name
-       * @param table      the table containing the column to group
-       * @param column     the column to attach the grouping to
+       * @param table      the table containing the column to group, or {@code null} for a
+       *                   standalone grouping
+       * @param column     the column to attach the grouping to, or {@code null} for a
+       *                   standalone grouping
+       * @param type       output data type for a standalone grouping (defaults to
+       *                   {@link XSchema#STRING} if not specified); ignored when
+       *                   {@code table}/{@code column} are provided
        * @param mappings   group name → value list mappings
        * @param groupOthers whether to group unmapped values as "Others"
-       * @throws PairingException if the table or column is not found
+       * @throws PairingException if the table or column is not found, if only one of
+       *                          {@code table}/{@code column} is provided, or if
+       *                          {@code type} is not a recognized primitive type
        */
-      public void addNamedGroup(String name, String table, String column,
+      public void addNamedGroup(String name, String table, String column, String type,
                                 List<WorksheetMutationSupport.GroupMapping> mappings,
                                 boolean groupOthers) throws PairingException
       {
-         TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
-         DataRef ref = cs.getAttribute(column);
-
-         if(ref == null) {
-            throw new PairingException("Column not found: " + column);
+         if((table == null) != (column == null)) {
+            throw new PairingException(
+               "table and column must both be specified, or both omitted for a standalone grouping");
          }
+
+         if(type != null && !XSchema.isPrimitiveType(type)) {
+            throw new PairingException(
+               "Invalid type: \"" + type + "\". Valid types: " +
+               "string, boolean, float, double, integer, long, short, byte, " +
+               "char, date, time, timeInstant.");
+         }
+
+         DataRef ref = null;
+
+         if(table != null) {
+            TableAssembly t = requireTable(table);
+            ColumnSelection cs = t.getColumnSelection(false);
+            ref = cs.getAttribute(column);
+
+            if(ref == null) {
+               throw new PairingException("Column not found: " + column);
+            }
+         }
+
+         String conditionType = ref != null ? ref.getDataType() : type != null ? type : XSchema.STRING;
+         DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
          NamedGroupInfo ngi = new NamedGroupInfo();
          ngi.setOthers(groupOthers
@@ -1701,10 +1732,10 @@ public class WorksheetEditService {
                      conds.append(junc);
                   }
 
-                  Condition c = new Condition(ref.getDataType());
+                  Condition c = new Condition(conditionType);
                   c.setOperation(XCondition.EQUAL_TO);
                   c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(ref, c, 0));
+                  conds.append(new ConditionItem(conditionRef, c, 0));
                }
 
                ngi.setGroupCondition(m.name(), conds);
@@ -1713,9 +1744,16 @@ public class WorksheetEditService {
 
          DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
          assembly.setNamedGroupInfo(ngi);
-         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
-         assembly.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, table));
-         assembly.setAttachedAttribute(ref);
+
+         if(ref != null) {
+            assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+            assembly.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, table));
+            assembly.setAttachedAttribute(ref);
+         }
+         else {
+            assembly.setAttachedType(AttachedAssembly.DATA_TYPE_ATTACHED);
+            assembly.setAttachedDataType(conditionType);
+         }
 
          placeAssembly(assembly);
       }
@@ -1984,6 +2022,8 @@ public class WorksheetEditService {
 
          if(mappings != null) {
             DataRef ref = nga.getAttachedAttribute();
+            String conditionType = ref != null ? ref.getDataType() : XSchema.STRING;
+            DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ConditionList conds = new ConditionList();
@@ -1994,10 +2034,10 @@ public class WorksheetEditService {
                      conds.append(junc);
                   }
 
-                  Condition c = new Condition(ref != null ? ref.getDataType() : XSchema.STRING);
+                  Condition c = new Condition(conditionType);
                   c.setOperation(XCondition.EQUAL_TO);
                   c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(ref, c, 0));
+                  conds.append(new ConditionItem(conditionRef, c, 0));
                }
 
                ngi.setGroupCondition(m.name(), conds);
@@ -2147,6 +2187,24 @@ public class WorksheetEditService {
          if(cs.getAttribute(column) == null) {
             throw new PairingException("Column not found: " + column);
          }
+      }
+
+      /**
+       * Returns the {@link DataRef} to use inside a named group's {@link ConditionItem}s.
+       * {@code ConditionItem} requires a non-null attribute — a null one NPEs in
+       * {@code ConditionItem.toString()}, which runs whenever the worksheet is cloned (e.g. on
+       * touch/save). When the group isn't attached to a real column, the Composer's own Grouping
+       * Properties dialog ({@code grouping-condition-dialog.component.ts}) substitutes a "this"
+       * placeholder {@link BaseField} instead of leaving the ref null; this mirrors that.
+       */
+      private DataRef namedGroupConditionRef(DataRef ref, String dataType) {
+         if(ref != null) {
+            return ref;
+         }
+
+         BaseField thisField = new BaseField("this");
+         thisField.setDataType(dataType);
+         return thisField;
       }
 
       /**
