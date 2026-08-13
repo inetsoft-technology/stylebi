@@ -239,9 +239,24 @@ public class AdminPropertyCatalog {
     * <p>So membership is not inferable from the name, and every entry must be verified against its
     * accessor before it is added - the same discipline this class's javadoc requires of a catalog
     * entry, and for the same reason: the failure is silent. Both current entries were checked:
-    * {@code OpenIDConfig.setClientSecret} and
-    * {@code StyleBIGoogleOpenIDConfig.setClientSecret} each write
-    * {@code encryptPassword(...)} and their getters reverse it with {@code Tool.decryptPassword}.
+    *
+    * <ul>
+    *   <li>{@code openid.client.secret} - {@code inetsoft.web.admin.security.OpenIDConfig}, in this
+    *       module. {@code setClientSecret} writes {@code encryptPassword(...)} and
+    *       {@code getClientSecret} reverses it with {@code Tool.decryptPassword}.</li>
+    *   <li>{@code stylebi.google.openid.client.secret} - {@code StyleBIGoogleOpenIDConfig}, at
+    *       {@code enterprise/src/main/java/inetsoft/enterprise/sso/} in the <b>enterprise</b>
+    *       superproject, which is NOT part of this repository. Same shape:
+    *       {@code setClientSecret} writes
+    *       {@code PasswordEncryption.newInstance().encryptPassword(...)} and
+    *       {@code getClientSecret} reverses it. A reader who greps only this repository will not
+    *       find that class and should not conclude the entry is unverified - note also that
+    *       {@code SreeEnv.getPassword} carries a case-sensitive literal check for this property's
+    *       cloud-secrets branch, which is the only trace of it visible from here.</li>
+    * </ul>
+    *
+    * <p>An entry whose accessor lives in the enterprise superproject is still correct to list here:
+    * on a Community build the property is simply never written, because nothing reads it.</p>
     *
     * <p>Reading these is still refused - see {@link #isSecret} for the egress rationale, which is
     * unaffected. This governs the write path alone.

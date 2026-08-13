@@ -337,4 +337,37 @@ class AdminChangeServiceTest {
       sreeEnv.verify(() -> SreeEnv.setProperty("log.fluentd.security.password", "literal"));
       sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
    }
+
+   @Test void refusesToWriteACredentialAtApplyTimeWhenCloudSecretsAreOn() {
+      // The plan service refuses this at preview, but a plan is approved then executed later. If
+      // cloud secrets came on in between, setPassword would skip encryption and write the literal
+      // secret into a property everything downstream reads as a secret-manager reference - and
+      // report success. The apply path re-checks for that reason.
+      toolStatic.when(Tool::isCloudSecrets).thenReturn(true);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn(null);
+
+      AdminChangeResult res = service.applyChange(req("openid.client.secret", "s3cret"), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
+      assertTrue(res.getError().contains("cloud secrets"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+      sreeEnv.verify(() -> SreeEnv.setProperty(eq("openid.client.secret"), anyString()), never());
+   }
+
+   @Test void stillRollsBackACredentialUnderCloudSecrets() {
+      // A rollback writes the stored form verbatim and never encrypts, so the cloud-secrets hazard
+      // does not apply to it - and blocking it would strand a half-applied changeset.
+      toolStatic.when(Tool::isCloudSecrets).thenReturn(true);
+      AdminChangeRequest r = req("openid.client.secret", "secret-ref");
+      r.setAction(AdminChangeRecord.ACTION_ROLLBACK);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn("other-ref")
+             .thenReturn("secret-ref");
+
+      AdminChangeResult res = service.applyChange(r, principal);
+
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+      sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "secret-ref"));
+   }
 }

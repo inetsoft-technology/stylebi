@@ -123,6 +123,21 @@ public class AdminChangePlanService {
          // different one is not detected between preview and apply, only set <-> unset is. That is
          // tolerable here because the human approved "set this property to the value I supplied",
          // which is what executes either way.
+         //
+         // proposedValue is deliberately NOT masked, and the asymmetry with currentValue is the
+         // point rather than an oversight. Masking a value only helps if withholding it keeps it
+         // from somewhere it would otherwise reach. currentValue qualifies: it is read off the
+         // server here and would reach the caller for the first time. proposedValue does not - it
+         // arrived IN this request, and apply requires the caller to send the identical changes
+         // array back, because the request body is the plan and the hash is recomputed from it. So
+         // the caller necessarily holds the plaintext before and after this response, and blanking
+         // it in between would remove nothing while destroying the operator's ability to see WHICH
+         // secret a plan writes, which is what the review gate exists to show them.
+         //
+         // That reasoning depends on the value always arriving through the request. If an
+         // out-of-band channel is ever added - a placeholder the server resolves from somewhere
+         // the caller never sees - then echoing the resolved value here WOULD be a new disclosure,
+         // and this must be revisited along with it.
          String currentValue = credential
             ? (SreeEnv.getProperty(name.key(), false, false) == null ? "(not set)" : "(set)")
             : SreeEnv.getProperty(name.key(), false, false);

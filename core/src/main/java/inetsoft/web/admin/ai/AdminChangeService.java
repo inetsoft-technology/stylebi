@@ -86,6 +86,20 @@ public class AdminChangeService {
          boolean encryptOnWrite = AdminPropertyCatalog.isEncryptedCredential(name.baseName())
             && !AdminChangeRecord.ACTION_ROLLBACK.equals(req.getAction());
 
+         // AdminChangePlanService refuses a credential under cloud secrets, but a plan is approved
+         // at preview and executed later, so that check is not the one that protects the write.
+         // Cloud secrets turning on in between would leave setPassword skipping encryption and
+         // writing the literal secret into a property everything downstream reads as a
+         // secret-manager reference - succeeding silently, which is the exact failure this class
+         // otherwise refuses to leave open. Re-check at the point of the write.
+         if(encryptOnWrite && desired != null && Tool.isCloudSecrets()) {
+            throw new IllegalStateException(
+               name.key() + ": this deployment uses cloud secrets, so this property holds the ID "
+               + "of a secret rather than the secret itself. Set it from Enterprise Manager's "
+               + "Settings > Security > SSO page, whose Secret ID field writes the reference "
+               + "correctly.");
+         }
+
          if(desired == null) {
             // Side-effect hooks match exact literals (e.g. "security.exposedefaultorgtoall"), so
             // they must receive the base name; an org-qualified name would silently never fire.
