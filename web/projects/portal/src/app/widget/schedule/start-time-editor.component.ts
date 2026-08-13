@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
+import { NgIf } from "@angular/common";
 import { ControlValueAccessor, UntypedFormBuilder, UntypedFormGroup, NG_VALUE_ACCESSOR, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TimeRange } from "../../../../../shared/schedule/model/time-condition-model";
 import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
@@ -34,7 +35,7 @@ import { NgbTimepicker } from "@ng-bootstrap/ng-bootstrap";
             multi: true
         }
     ],
-    imports: [FormsModule, ReactiveFormsModule, NgbTimepicker, CustomSelectComponent]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, NgbTimepicker, CustomSelectComponent]
 })
 export class StartTimeEditor implements OnInit, ControlValueAccessor {
    @Input() timeRanges: TimeRange[] = [];

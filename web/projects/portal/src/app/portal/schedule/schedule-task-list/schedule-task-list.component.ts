@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { NgClass } from "@angular/common";
 import {
    AfterContentChecked,
    AfterViewInit,
@@ -106,7 +107,7 @@ declare const window: any;
     templateUrl: "./schedule-task-list.component.html",
     styleUrls: ["./schedule-task-list.component.scss"],
     providers: [ScheduleChangeService],
-    imports: [SplitPane, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective]
+    imports: [SplitPane, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective, NgClass]
 })
 export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked, AfterViewInit {
    @ViewChild("tree") tree: TreeComponent;
@@ -196,7 +197,13 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    get schedulerHealthPillClass(): string {
-      return this.schedulerHealth?.detailMessage ? "is-unavailable" : "is-ready";
+      const statusLabel = this.schedulerHealth?.statusLabel;
+
+      if(statusLabel === "_#(Unavailable)" || statusLabel === "Unavailable") {
+         return "is-unavailable";
+      }
+
+      return this.schedulerHealth?.detailMessage ? "is-warning" : "is-ready";
    }
 
    refreshSchedulerHealth(): void {
