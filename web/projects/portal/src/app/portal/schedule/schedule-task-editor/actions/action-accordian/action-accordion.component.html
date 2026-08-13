@@ -164,8 +164,7 @@
                       [ngbTypeahead]="searchFrom"
                       [resultTemplate]="emailAutocompleteResult"
                       [inputFormatter]="formatEmails"
-                      title="_#(from.email.tooltip)"
-                      (ngModelChange)="updateFromEmails($event)">
+                      title="_#(from.email.tooltip)">
                     <label>_#(From)</label>
                   </div>
                 </div>
@@ -307,7 +306,6 @@
                     <div class="col-auto form-floating">
                       <input type="text" class="form-control" id="secretId"
                         formControlName="secretId"
-                        [(ngModel)]="action.secretId"
                         title="_#(schedule.zip.secretId)">
                       <label>_#(Secret ID)</label>
                     </div>
@@ -317,7 +315,6 @@
                       <input type="password" class="form-control" id="password"
                         formControlName="password"
                         [class.is-invalid]="form && form.hasError('passwordsDoNotMatch')"
-                        [(ngModel)]="action.password"
                         title="_#(schedule.zip.password)">
                       <label>_#(Password)</label>
                     </div>
@@ -325,7 +322,6 @@
                       <input type="password" class="form-control" id="confirmPassword"
                         formControlName="confirmPassword"
                         [class.is-invalid]="form && form.hasError('passwordsDoNotMatch')"
-                        [(ngModel)]="confirmPassword"
                         title="_#(confirm.zip.password)">
                       <label>_#(Confirm Password)</label>
                       @if (form && form.hasError('passwordsDoNotMatch')) {
@@ -415,7 +411,6 @@
                     <input type="text" class="form-control" id="attachmentName"
                       formControlName="attachmentName"
                       [class.is-invalid]="!form.controls['attachmentName'].valid"
-                      [(ngModel)]="action.attachmentName"
                       title="_#(Attachment name Tooltip)">
                     <label>_#(Attachment Name)</label>
                     @if (form && !!form.controls['attachmentName'] &&
@@ -433,12 +428,10 @@
                     @if (!isIE) {
                       <ckeditor-wrapper [(ngModel)]="deliveryMessage" [advanced]="true" [ngModelOptions]="{standalone: true}" class="schedule-delivery-message"></ckeditor-wrapper>
                     } @else {
-                      <textarea class="form-control" formControlName="deliveryMessage"
-                      (ngModelChange)="updateDeliverMessage($event)"></textarea>
+                      <textarea class="form-control" formControlName="deliveryMessage"></textarea>
                     }
                     <ng-template #plainTextArea>
-                      <textarea class="form-control" formControlName="deliveryMessage"
-                      (ngModelChange)="updateDeliverMessage($event)"></textarea>
+                      <textarea class="form-control" formControlName="deliveryMessage"></textarea>
                     </ng-template>
                     <label>_#(Message)</label>
                   </div>

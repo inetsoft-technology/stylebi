@@ -27,7 +27,7 @@
           @if (nameControl) {
             <div class="shell-form-group shell-form-row one-col-form-flex">
               <div class="form-floating col">
-                <input class="form-control dashboard_name_id" type="text" trim [(ngModel)]="name" [formControl]="nameControl"
+                <input class="form-control dashboard_name_id" type="text" trim [formControl]="nameControl"
                   placeholder="_#(Dashboard Name)"
                   defaultFocus [autoSelect]="false" aria-required="true"
                   [class.is-invalid]="!nameControl.valid && nameControl.dirty">

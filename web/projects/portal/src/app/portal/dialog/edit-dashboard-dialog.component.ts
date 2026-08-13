@@ -121,7 +121,7 @@ export class EditDashboardDialog implements OnInit {
 
    okClicked(): void {
       let newDashboard = Tool.clone(this.dashboard);
-      newDashboard.name = this.name;
+      newDashboard.name = this.nameControl ? this.nameControl.value : this.name;
 
       // new dashboard
       if(this.isNew) {
