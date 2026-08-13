@@ -1,7 +1,11 @@
 [
   {
     "name": "query.runtime.maxrow",
-    "aliases": ["max.rows", "max.row", "query.max.rows"],
+    "aliases": [
+      "max.rows",
+      "max.row",
+      "query.max.rows"
+    ],
     "type": "int",
     "min": 0,
     "max": 10000000,
@@ -11,16 +15,27 @@
   },
   {
     "name": "log.detail.level",
-    "aliases": ["log.level", "logging.level"],
+    "aliases": [
+      "log.level",
+      "logging.level"
+    ],
     "type": "enum",
-    "allowedValues": ["debug", "info", "warn", "error", "off"],
+    "allowedValues": [
+      "debug",
+      "info",
+      "warn",
+      "error",
+      "off"
+    ],
     "description": "Global log detail level. 'debug' is verbose and can grow log storage quickly; 'off' disables logging.",
     "risk": "low",
     "snapshotScope": "value"
   },
   {
     "name": "mail.smtp.host",
-    "aliases": ["smtp.host"],
+    "aliases": [
+      "smtp.host"
+    ],
     "type": "string",
     "description": "Outgoing SMTP host used for scheduled reports and alerts. A wrong value fails delivery silently until the next send.",
     "risk": "high",
@@ -28,10 +43,362 @@
   },
   {
     "name": "security.exposedefaultorgtoall",
-    "aliases": ["expose.default.org"],
+    "aliases": [
+      "expose.default.org"
+    ],
     "type": "boolean",
     "description": "Exposes the default organization's assets to all users. Changing it fires repository side effects and alters what every user can see.",
     "risk": "high",
     "snapshotScope": "storage"
+  },
+  {
+    "name": "openid.audience",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.audience is the expected aud claim value that OpenIDFilterBaseFilter.createSessionFromToken requires on every verified ID token, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.authorization.endpoint",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.authorization.endpoint is the URL of the identity provider's OAuth 2.0 authorization endpoint \u2014 the address a user's browser is redirected to first, to begin an OpenID Connect login \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.callback.url",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.callback.url is not a URL on the identity provider at all \u2014 it is the context-relative path on this StyleBI server that receives the provider's redirect after login, and defaults, when unset, to /openid/login.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.client.id",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.client.id is the client identifier StyleBI registered with the identity provider for this OpenID application, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.client.secret",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.client.secret is the client secret StyleBI presents to the identity provider's token endpoint, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.group.claim",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.group.claim names the ID-token claim StyleBI reads to assign StyleBI groups to a logging-in user, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.issuer",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.issuer is the identity provider's issuer identifier, checked against the returned ID token's iss claim after the token is already parsed \u2014 unlike the endpoint properties, it never builds a URL StyleBI calls \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.jwk.cert",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.jwk.cert holds a PEM-encoded certificate StyleBI parses into a local signature-verification key, used only as a fallback when openid.jwks.uri is unset, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.jwks.uri",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.jwks.uri is the URL of the identity provider's JSON Web Key Set \u2014 fetched only after a token comes back, to verify the token's signature, not to start the login \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.name.claim",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.name.claim names the ID-token claim StyleBI reads as the logging-in user's identity, and defaults, when unset, to email.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.orgid.claim",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.orgid.claim names the ID-token claim StyleBI reads to place a logging-in user in a StyleBI organization, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.postprocessor",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.postprocessor is meant to name a class StyleBI instantiates to adjust the SRPrincipal built from an OpenID login, given the token's claims, and is unset by default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.property.provider",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.property.provider names a class StyleBI instantiates to compute the OpenID configuration for each request, overriding the stored OpenIDConfig values, and is unset by default, so no override runs.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.role.claim",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.role.claim names the ID-token claim StyleBI reads to assign StyleBI roles to a logging-in user, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.scopes",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.scopes is the space-separated list of OAuth scopes StyleBI requests in the authorization redirect \u2014 a request parameter sent alongside the endpoint URLs, not an address or key of its own \u2014 and defaults, when unset, to openid email.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "openid.token.endpoint",
+    "aliases": [],
+    "type": "string",
+    "description": "openid.token.endpoint is the URL of the identity provider's OAuth 2.0 token endpoint \u2014 the address this StyleBI server itself calls, server to server, to exchange an authorization code for an ID token \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "double.sso",
+    "aliases": [],
+    "type": "boolean",
+    "description": "double.sso is the Allow Default Form Login checkbox on Enterprise Manager's Settings > Security > SSO page \u2014 it keeps StyleBI's own login form reachable while single sign-on is active, instead of every request being handed to the SSO provider.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.custom.class",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.custom.class is the fully-qualified Java class name of a custom Filter implementation, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.default.roles",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.default.roles is a comma-separated list of role names granted to every user on their first SSO login, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.heartbeat.url",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.heartbeat.url is a URL the client is told to poll to detect that an SSO session has ended elsewhere, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.logout.path",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.logout.path is the application path the identity provider's own single sign-out request targets, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.logout.url",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.logout.url is the Single Sign-Out URL the portal's and EM's Log Out control sends the browser to, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.protocol.type",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "None",
+      "SAML",
+      "OpenID",
+      "Custom"
+    ],
+    "description": "sso.protocol.type selects the active SSO mechanism. Unset or unrecognised reads as NONE, so a typo silently disables single sign-on; this catalog entry rejects one instead.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.rsa.private.key",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.rsa.private.key is the Base64-encoded, master-key-encrypted RSA private key SSOTokenService uses to sign cross-app SSO JWTs, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "sso.rsa.public.key",
+    "aliases": [],
+    "type": "string",
+    "description": "sso.rsa.public.key is the Base64-encoded RSA public key paired with sso.rsa.private.key, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "stylebi.google.openid.client.id",
+    "aliases": [],
+    "type": "string",
+    "description": "stylebi.google.openid.client.id is the Client ID field on Enterprise Manager's Settings > Security > Sign In With Google page \u2014 the OAuth client ID StyleBI was issued when its Google project was registered \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "stylebi.google.openid.scopes",
+    "aliases": [],
+    "type": "string",
+    "description": "stylebi.google.openid.scopes is the Scopes field on Enterprise Manager's Settings > Security > Sign In With Google page \u2014 the OAuth scopes StyleBI asks Google for when a visitor signs in \u2014 and defaults to openid email profile.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "onelogin.saml2.idp.entityid",
+    "aliases": [],
+    "type": "string",
+    "description": "onelogin.saml2.idp.entityid is the identity provider's SAML entity ID, checked as the issuer of every incoming SAML message, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "onelogin.saml2.idp.single_logout_service.url",
+    "aliases": [],
+    "type": "string",
+    "description": "onelogin.saml2.idp.single_logout_service.url is the identity provider's Single Logout Service endpoint \u2014 where this server sends a SAML LogoutRequest on logout \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "onelogin.saml2.idp.single_sign_on_service.url",
+    "aliases": [],
+    "type": "string",
+    "description": "onelogin.saml2.idp.single_sign_on_service.url is the identity provider's Single Sign-On Service endpoint \u2014 where this server redirects a user to start SAML login \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "onelogin.saml2.idp.x509cert",
+    "aliases": [],
+    "type": "string",
+    "description": "onelogin.saml2.idp.x509cert is the identity provider's PEM-encoded signing certificate, used to verify every SAML response and logout message it signs, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "onelogin.saml2.sp.assertion_consumer_service.url",
+    "aliases": [],
+    "type": "string",
+    "description": "onelogin.saml2.sp.assertion_consumer_service.url is the callback URL where the identity provider must POST the SAML response after login \u2014 the Assertion Consumer Service (ACS) URL \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "onelogin.saml2.sp.entityid",
+    "aliases": [],
+    "type": "string",
+    "description": "onelogin.saml2.sp.entityid is this server's SAML Service Provider entity ID, sent to the identity provider, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "saml.groups.attribute",
+    "aliases": [],
+    "type": "string",
+    "description": "saml.groups.attribute is the Group Claim field of the SAML form on Enterprise Manager's Settings > Security > SSO page \u2014 the name of the assertion attribute StyleBI reads to put a user logging in through SAML into groups \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "saml.orgid.attribute",
+    "aliases": [],
+    "type": "string",
+    "description": "saml.orgid.attribute is the Organization Id Claim field of the SAML form on Enterprise Manager's Settings > Security > SSO page \u2014 the name of the assertion attribute StyleBI reads to decide which organization a user logging in through SAML belongs to \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "saml.roles.attribute",
+    "aliases": [],
+    "type": "string",
+    "description": "saml.roles.attribute is the Role Claim field of the SAML form on Enterprise Manager's Settings > Security > SSO page \u2014 the name of the assertion attribute StyleBI reads to assign roles to a user logging in through SAML \u2014 and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.client.id",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.client.id is the OAuth client identifier a legacy Auth0 installation stored, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.client.secret",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.client.secret is the OAuth client secret a legacy Auth0 installation stored, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.domain",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.domain is the Auth0 tenant domain a legacy installation stored to build its Auth0 login endpoints, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.jwk.url",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.jwk.url is the JWKS URL a legacy Auth0 installation stored, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.jwt.claim",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.jwt.claim is the ID-token claim name a legacy Auth0 installation stored as the login identity, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.logout.url",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.logout.url is the single sign-out URL a legacy Auth0 installation stored, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "auth0.openid.scope",
+    "aliases": [],
+    "type": "string",
+    "description": "auth0.openid.scope is the space-separated OAuth scope list a legacy Auth0 installation stored, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "value"
   }
 ]
