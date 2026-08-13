@@ -418,11 +418,11 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
    const scrollless = { scrollHeight: 600, clientHeight: 600 } as any;
 
    beforeEach(() => {
-      document.body.classList.add("viz-modern");
+      document.body.classList.add("viz-modern", "viz-density-compact");
    });
 
    afterEach(() => {
-      document.body.classList.remove("viz-modern");
+      document.body.classList.remove("viz-modern", "viz-density-compact");
    });
 
    it("anchors a maximised chart's strip inside the assembly, from objectFormat alone", () => {
@@ -716,5 +716,28 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(false);
+   });
+});
+
+describe("Group 12 — isKebabResident: anchoring is a compact-and-above affordance", () => {
+   afterEach(() => {
+      document.body.classList.remove(
+         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   });
+
+   it("does not anchor an anchored-type assembly under dense", () => {
+      document.body.classList.add("viz-modern", "viz-density-dense");
+      const { comp } = makeComponent();
+      const obj = makeVSObject({ objectType: "VSChart" });
+
+      expect(comp.isKebabResident(obj)).toBe(false);
+   });
+
+   it("anchors the same assembly under compact", () => {
+      document.body.classList.add("viz-modern", "viz-density-compact");
+      const { comp } = makeComponent();
+      const obj = makeVSObject({ objectType: "VSChart" });
+
+      expect(comp.isKebabResident(obj)).toBe(true);
    });
 });
