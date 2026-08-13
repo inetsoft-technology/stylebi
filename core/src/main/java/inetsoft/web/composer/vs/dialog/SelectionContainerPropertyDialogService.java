@@ -146,7 +146,10 @@ public class SelectionContainerPropertyDialogService {
       //When moving selection container, also move  selection container children
       dialogService.setContainerPosition(selectionContainerAssemblyInfo, sizePositionPaneModel,
                                          selectionContainerAssembly.getAssemblies(), vs);
-      selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != selectionContainerAssemblyInfo.getTitleHeightValue()) {
+         selectionContainerAssemblyInfo.setUserTitleHeight(true);
+         selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
       //When resizing selection container, also resize selection container children
       dialogService.setContainerSize(selectionContainerAssemblyInfo, sizePositionPaneModel,
                                      selectionContainerAssembly.getAssemblies(), vs);

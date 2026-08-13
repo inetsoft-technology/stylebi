@@ -214,7 +214,10 @@ public class SelectionListPropertyDialogService {
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
-      selectionListAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != selectionListAssemblyInfo.getTitleHeightValue()) {
+         selectionListAssemblyInfo.setUserTitleHeight(true);
+         selectionListAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       // store + mark user-set only when the value differs from the displayed effective height, so
       // accepting the org density default leaves the stored height at its default and the flag clean

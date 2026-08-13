@@ -204,7 +204,10 @@ public class TableViewPropertyDialogService {
 
       dialogService.setAssemblySize(tableAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(tableAssemblyInfo, sizePositionPaneModel);
-      tableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != tableAssemblyInfo.getTitleHeightValue()) {
+         tableAssemblyInfo.setUserTitleHeight(true);
+         tableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       if(!tableAssemblyInfo.isForm() && tableAdvancedPaneModel.isForm()) {
          ColumnSelection columnSelection = tableAssemblyInfo.getColumnSelection();

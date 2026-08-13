@@ -240,7 +240,10 @@ public class SelectionTreePropertyDialogService {
 
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);
-      streeInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != streeInfo.getTitleHeightValue()) {
+         streeInfo.setUserTitleHeight(true);
+         streeInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       // store + mark user-set only when the value differs from the displayed effective height, so
       // accepting the org density default leaves the stored height at its default and the flag clean
