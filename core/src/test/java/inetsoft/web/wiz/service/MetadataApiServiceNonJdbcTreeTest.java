@@ -24,15 +24,21 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.xmla.XMLADataSource;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A non-relational data source has no catalog/schema/table metadata behind it, so expanding it in
@@ -106,5 +112,39 @@ class MetadataApiServiceNonJdbcTreeTest {
    @Test
    void nullEntryIsNotFlagged() {
       assertFalse(service(mock(XRepository.class)).isNonJdbcDataSource(null));
+   }
+
+   private TreeNodeModel node(String name) {
+      return TreeNodeModel.builder().label(name).data(dataSourceEntry(name)).leaf(false).build();
+   }
+
+   /*
+    * Drives the real filter, which the per-predicate cases above cannot: they call the helper
+    * directly, so deleting the production change leaves every one of them green. This one fails if
+    * the filter stops marking a non-relational source as a leaf, or starts marking a JDBC one.
+    *
+    * XMLA is here because it is the other non-JDBC family in this tree and was previously untested.
+    */
+   @Test
+   void filterMarksOnlyNonRelationalSourcesAsLeaves() throws Exception {
+      XRepository repo = mock(XRepository.class);
+      when(repo.getDataSource("sakila")).thenReturn(mock(JDBCDataSource.class));
+      when(repo.getDataSource("cassandra")).thenReturn(mock(TabularDataSource.class));
+      when(repo.getDataSource("cube")).thenReturn(mock(XMLADataSource.class));
+
+      TreeNodeModel root = TreeNodeModel.builder()
+         .label("Data Source")
+         .addChildren(node("sakila"), node("cassandra"), node("cube"))
+         .build();
+
+      Map<String, Boolean> leafByLabel = new HashMap<>();
+
+      for(TreeNodeModel child : service(repo).filterWizTree(root).children()) {
+         leafByLabel.put(child.label(), child.leaf());
+      }
+
+      assertEquals(Boolean.FALSE, leafByLabel.get("sakila"), "a JDBC source stays expandable");
+      assertEquals(Boolean.TRUE, leafByLabel.get("cassandra"), "a tabular source becomes a leaf");
+      assertEquals(Boolean.TRUE, leafByLabel.get("cube"), "an XMLA source becomes a leaf");
    }
 }

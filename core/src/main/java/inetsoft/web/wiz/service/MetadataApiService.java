@@ -1264,7 +1264,8 @@ public class MetadataApiService {
       return response;
    }
 
-   private TreeNodeModel filterWizTree(TreeNodeModel node) {
+   // Package-private so a test can drive the real filter rather than only its helper.
+   TreeNodeModel filterWizTree(TreeNodeModel node) {
       return filterWizTree(node, new HashMap<>(), new HashMap<>());
    }
 
