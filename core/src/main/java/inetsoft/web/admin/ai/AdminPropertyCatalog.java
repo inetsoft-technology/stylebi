@@ -225,48 +225,75 @@ public class AdminPropertyCatalog {
     * True when {@code baseName} names an application credential whose accessors encrypt on write
     * and decrypt on read, so admin-chat can set it through {@code SreeEnv.setPassword}.
     *
-    * <p>An <b>allow-list, deliberately not a pattern.</b> {@link #isSecret} matches sixteen
-    * properties and they do not behave alike: {@code log.fluentd.security.password},
-    * {@code google.maps.key}, {@code sso.rsa.public.key} and {@code auth0.client.secret} are all
-    * read with a plain {@code SreeEnv.getProperty}, so an encrypting write would hand each of them
-    * ciphertext where they expect a literal - a broken deployment that still reports success.
-    * {@code enable.changepassword} is not a secret at all; it matches on the substring
-    * "password" and holds a boolean. And {@code password.encryption.key},
-    * {@code password.hash.key}, {@code jwt.signing.key}, {@code sso.rsa.private.key} and the
-    * {@code license.*} keys are generated or licensed material that must not be written here on
-    * any path.
+    * <p><b>Classify by the WRITER, never by the reader.</b> An earlier version of this javadoc
+    * excluded {@code log.fluentd.security.password} on the grounds that it is "read with a plain
+    * {@code SreeEnv.getProperty}". That reasoning was wrong, even though the exclusion happened to
+    * be right. {@code LogSettingService} reads it with {@code getProperty} and then calls
+    * {@code Tool.decryptPassword} on the result two lines later - so by the reader it looks
+    * encrypted. It is not: the save path writes it with a bare {@code SreeEnv.setProperty}.
     *
-    * <p>So membership is not inferable from the name, and every entry must be verified against its
-    * accessor before it is added - the same discipline this class's javadoc requires of a catalog
-    * entry, and for the same reason: the failure is silent. Both current entries were checked:
+    * <p>The reader cannot settle this because {@code Tool.decryptPassword} passes an unrecognised
+    * (i.e. plaintext) value straight through - see {@code LocalPasswordEncryption.decryptPassword},
+    * whose final branch is literally {@code // clear text}. A defensive decrypt on read is
+    * therefore compatible with BOTH storage forms, usually because something wrote the value
+    * encrypted at some point in the past. Only the writer is authoritative.
+    *
+    * <p>An <b>allow-list, deliberately not a pattern</b>, because {@link #isSecret} sorts on the
+    * name and the name does not correlate with the storage form in either direction:
     *
     * <ul>
-    *   <li>{@code openid.client.secret} - {@code inetsoft.web.admin.security.OpenIDConfig}, in this
-    *       module. {@code setClientSecret} writes {@code encryptPassword(...)} and
-    *       {@code getClientSecret} reverses it with {@code Tool.decryptPassword}.</li>
-    *   <li>{@code stylebi.google.openid.client.secret} - {@code StyleBIGoogleOpenIDConfig}, at
-    *       {@code enterprise/src/main/java/inetsoft/enterprise/sso/} in the <b>enterprise</b>
-    *       superproject, which is NOT part of this repository. Same shape:
-    *       {@code setClientSecret} writes
-    *       {@code PasswordEncryption.newInstance().encryptPassword(...)} and
-    *       {@code getClientSecret} reverses it. A reader who greps only this repository will not
-    *       find that class and should not conclude the entry is unverified - note also that
-    *       {@code SreeEnv.getPassword} carries a case-sensitive literal check for this property's
-    *       cloud-secrets branch, which is the only trace of it visible from here.</li>
+    *   <li><b>Matched but plaintext</b> - {@code log.fluentd.security.password} (bare
+    *       {@code setProperty}), {@code google.maps.key}, {@code sso.rsa.public.key} (a PUBLIC
+    *       key), {@code auth0.client.secret} (read plain, then copied into
+    *       {@code openid.client.secret} by the legacy migration, which encrypts on the way).
+    *       Encrypting any of these would store ciphertext where a literal is expected.</li>
+    *   <li><b>Matched but not a secret at all</b> - {@code enable.changepassword} holds a boolean
+    *       and matches on the substring "password".</li>
+    *   <li><b>Matched and must never be written</b> - {@code password.encryption.key},
+    *       {@code password.hash.key}, {@code jwt.signing.key}, {@code sso.rsa.private.key} and
+    *       {@code license.*} are generated or licensed material.</li>
+    *   <li><b>NOT matched, yet genuinely encrypted</b> - {@code mail.smtp.pass},
+    *       {@code mail.smtp.accesstoken}, {@code mail.smtp.refreshtoken} and
+    *       {@code log.fluentd.security.sharedkey}. These are the dangerous direction: before they
+    *       were listed here, admin-chat wrote them with a plain {@code setProperty} while
+    *       Enterprise Manager writes them with {@code setPassword}, silently downgrading a stored
+    *       credential to plaintext at rest. It still "worked", because the defensive decrypt above
+    *       passes plaintext through.</li>
     * </ul>
     *
-    * <p>An entry whose accessor lives in the enterprise superproject is still correct to list here:
-    * on a Community build the property is simply never written, because nothing reads it.</p>
+    * <p>Every entry below was verified against its writer:
     *
-    * <p>Reading these is still refused - see {@link #isSecret} for the egress rationale, which is
-    * unaffected. This governs the write path alone.
+    * <ul>
+    *   <li>{@code openid.client.secret} - {@code OpenIDConfig.setClientSecret}, this module,
+    *       writes {@code encryptPassword(...)}.</li>
+    *   <li>{@code stylebi.google.openid.client.secret} - {@code StyleBIGoogleOpenIDConfig} at
+    *       {@code enterprise/src/main/java/inetsoft/enterprise/sso/} in the <b>enterprise</b>
+    *       superproject, which is NOT part of this repository, writes
+    *       {@code PasswordEncryption.newInstance().encryptPassword(...)}. A reader who greps only
+    *       this repository will not find that class and should not conclude the entry is
+    *       unverified; the only trace visible from here is the case-sensitive literal in
+    *       {@code SreeEnv.getPassword}'s cloud-secrets branch. Listing an enterprise-only property
+    *       is still correct - on a Community build nothing reads it, so nothing writes it.</li>
+    *   <li>{@code mail.smtp.pass}, {@code mail.smtp.clientsecret}, {@code mail.smtp.accesstoken},
+    *       {@code mail.smtp.refreshtoken} - {@code EmailSettingsService} writes all four with
+    *       {@code SreeEnv.setPassword}. Note {@code mail.smtp.tokenuri} sits beside them in the
+    *       same save block and is written with a plain {@code setProperty}, so it is NOT here.</li>
+    *   <li>{@code log.fluentd.security.sharedkey} - {@code LogSettingService} writes it through
+    *       its {@code toPassword} helper, which calls {@code Tool.encryptPassword}. Its sibling
+    *       {@code log.fluentd.security.password} does not, which is why one is listed and the
+    *       other is not despite the adjacent names.</li>
+    * </ul>
+    *
+    * <p>Reading is governed separately by {@link #isSecret} and is unaffected by this method.
     */
    public static boolean isEncryptedCredential(String baseName) {
       return baseName != null && ENCRYPTED_CREDENTIALS.contains(baseName.toLowerCase());
    }
 
    private static final Set<String> ENCRYPTED_CREDENTIALS = Set.of(
-      "openid.client.secret", "stylebi.google.openid.client.secret");
+      "openid.client.secret", "stylebi.google.openid.client.secret",
+      "mail.smtp.pass", "mail.smtp.clientsecret", "mail.smtp.accesstoken",
+      "mail.smtp.refreshtoken", "log.fluentd.security.sharedkey");
 
    private static final String RESOURCE = "admin-property-catalog.json";
    private final List<CatalogEntry> entries;
