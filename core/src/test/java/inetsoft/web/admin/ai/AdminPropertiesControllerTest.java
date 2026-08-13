@@ -142,6 +142,71 @@ class AdminPropertiesControllerTest {
    }
 
    @Test
+   void confirmsExistenceOfACataloguedProperty() {
+      sreeEnv.when(() -> SreeEnv.getProperty("query.runtime.maxrow", false, false))
+         .thenReturn(null);
+      PropertyView view = controller.get("query.runtime.maxrow", principal);
+      // Catalogued but unset: the catalog alone settles that the name is real.
+      assertEquals(PropertyView.EXISTS_CONFIRMED, view.exists());
+      assertNull(view.guidance());
+   }
+
+   @Test
+   void confirmsExistenceOfAnUncataloguedPropertyThatHoldsAValue() {
+      // Covers anything declared in defaults.properties: the defaults chain resolves through
+      // getProperty, so a declared-but-never-set property still reads non-null.
+      sreeEnv.when(() -> SreeEnv.getProperty("role.administrator", false, false))
+         .thenReturn("Administrator");
+      PropertyView view = controller.get("role.administrator", principal);
+      assertFalse(view.recognized());
+      assertEquals(PropertyView.EXISTS_CONFIRMED, view.exists());
+      assertNull(view.guidance());
+   }
+
+   @Test
+   void reportsExistenceAsUnknownWhenUncataloguedAndUnset() {
+      // The regression this whole field exists for. openid.client.id is a real property with a
+      // read site in OpenIDConfig, but on a server where SSO has never been configured it is
+      // unset and uncatalogued - byte-identical to a name that does not exist. An agent read that
+      // as "OIDC settings are not stored in server properties" and abandoned the task.
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.id", false, false)).thenReturn(null);
+      PropertyView view = controller.get("openid.client.id", principal);
+      assertFalse(view.recognized());
+      assertNull(view.currentValue());
+      assertEquals(PropertyView.EXISTS_UNKNOWN, view.exists());
+      assertNotNull(view.guidance());
+   }
+
+   @Test
+   void doesNotClaimAValueWasWithheldForANameThatMerelyLooksSecret() {
+      // isSecret matches on the name alone, so an invented name ending .key took the secret
+      // branch and came back asserting a secret had been withheld - inventing evidence that the
+      // property exists out of a string suffix. It must report that it does not know instead.
+      PropertyView invented = controller.get("openid.completely.made.up.key", principal);
+      assertEquals(PropertyView.EXISTS_UNKNOWN, invented.exists());
+      assertNotNull(invented.guidance());
+      assertFalse(invented.description().contains("Value withheld"));
+      sreeEnv.verify(
+         () -> SreeEnv.getProperty("openid.completely.made.up.key", false, false), never());
+   }
+
+   @Test
+   void distinguishesARealUnsetPropertyFromAnInventedOneOnlyByGuidance() {
+      // Both are unknown - the server genuinely cannot tell them apart, and the fix is to say so
+      // rather than to guess. This pins that the ambiguity is reported, not silently resolved.
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.issuer", false, false)).thenReturn(null);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.not.a.real.property", false, false))
+         .thenReturn(null);
+
+      PropertyView real = controller.get("openid.issuer", principal);
+      PropertyView invented = controller.get("openid.not.a.real.property", principal);
+
+      assertEquals(PropertyView.EXISTS_UNKNOWN, real.exists());
+      assertEquals(PropertyView.EXISTS_UNKNOWN, invented.exists());
+      assertEquals(real.guidance(), invented.guidance());
+   }
+
+   @Test
    void refusesANonSiteAdmin() {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
       assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
