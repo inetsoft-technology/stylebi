@@ -102,10 +102,7 @@ public class AdminChangeService {
          // otherwise refuses to leave open. Re-check at the point of the write.
          if(encryptOnWrite && desired != null && Tool.isCloudSecrets()) {
             throw new IllegalStateException(
-               name.key() + ": this deployment uses cloud secrets, so this property holds the ID "
-               + "of a secret rather than the secret itself. Set it from Enterprise Manager's "
-               + "Settings > Security > SSO page, whose Secret ID field writes the reference "
-               + "correctly.");
+               AdminPropertyCatalog.cloudSecretsRefusal(name.key()));
          }
 
          if(desired == null) {

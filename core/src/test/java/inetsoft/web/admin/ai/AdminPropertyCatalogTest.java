@@ -148,4 +148,48 @@ class AdminPropertyCatalogTest {
       CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse("query.runtime.maxrow"));
       assertNull(catalog.canonicalizeValue(entry, null));
    }
+
+   @Test
+   void classifiesEncryptedCredentialsByTheirWriterNotTheirName() {
+      // The four properties the name predicate does NOT match but which Enterprise Manager writes
+      // with setPassword. Before they were listed, admin-chat wrote them plain and silently
+      // downgraded a stored credential to plaintext at rest.
+      for(String name : new String[] { "mail.smtp.pass", "mail.smtp.clientsecret",
+                                       "mail.smtp.accesstoken", "mail.smtp.refreshtoken",
+                                       "log.fluentd.security.sharedkey",
+                                       "openid.client.secret",
+                                       "stylebi.google.openid.client.secret" })
+      {
+         assertTrue(AdminPropertyCatalog.isEncryptedCredential(name),
+                    name + " is written with setPassword/encryptPassword and must be listed");
+      }
+   }
+
+   @Test
+   void excludesAdjacentPropertiesWhoseWriterDoesNotEncrypt() {
+      // Each of these sits beside a listed property and reads like it belongs. None does.
+      //   mail.smtp.tokenuri              same save block as the four above, plain setProperty
+      //   log.fluentd.security.password   sibling of sharedkey, plain setProperty - its reader
+      //                                   calls decryptPassword, which proves nothing, because
+      //                                   decryptPassword passes plaintext straight through
+      //   auth0.client.secret             read plain; the legacy migration encrypts on the way out
+      //   sso.rsa.public.key              a PUBLIC key
+      for(String name : new String[] { "mail.smtp.tokenuri", "log.fluentd.security.password",
+                                       "auth0.client.secret", "sso.rsa.public.key",
+                                       "google.maps.key", "enable.changepassword",
+                                       "password.encryption.key", "jwt.signing.key" })
+      {
+         assertFalse(AdminPropertyCatalog.isEncryptedCredential(name),
+                     name + " is not written encrypted and must not be listed");
+      }
+   }
+
+   @Test
+   void matchesAnEncryptedCredentialRegardlessOfTheCasingTheCallerUses() {
+      // Source spells several of these camelCase (mail.smtp.clientSecret,
+      // styleBI.google.openid.client.secret); the store lowercases via computePropertyNameCase.
+      assertTrue(AdminPropertyCatalog.isEncryptedCredential("mail.smtp.clientSecret"));
+      assertTrue(AdminPropertyCatalog.isEncryptedCredential("styleBI.google.openid.client.secret"));
+      assertTrue(AdminPropertyCatalog.isEncryptedCredential("log.fluentd.security.sharedKey"));
+   }
 }

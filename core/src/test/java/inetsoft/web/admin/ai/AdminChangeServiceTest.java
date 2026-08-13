@@ -388,4 +388,35 @@ class AdminChangeServiceTest {
       sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
       assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
    }
+
+   @Test void encryptsAMailCredentialThatTheNamePredicateDoesNotMatch() {
+      // mail.smtp.pass is not caught by isSecret, so before it was allow-listed admin-chat wrote
+      // it with a plain setProperty while EmailSettingsService writes it with setPassword -
+      // storing the SMTP password unencrypted at rest, and "succeeding" because the defensive
+      // decrypt on read passes plaintext through.
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.pass", false, false))
+             .thenReturn(null)
+             .thenReturn("ENC(cipher)");
+      sreeEnv.when(() -> SreeEnv.getPassword("mail.smtp.pass")).thenReturn("hunter2");
+
+      AdminChangeResult res = service.applyChange(req("mail.smtp.pass", "hunter2"), principal);
+
+      sreeEnv.verify(() -> SreeEnv.setPassword("mail.smtp.pass", "hunter2"));
+      sreeEnv.verify(() -> SreeEnv.setProperty(eq("mail.smtp.pass"), anyString()), never());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+   }
+
+   @Test void writesTheAdjacentPlaintextMailPropertyVerbatim() {
+      // mail.smtp.tokenuri sits in the same save block as the four encrypted ones and is written
+      // with a plain setProperty. Encrypting it would store ciphertext where a URL is expected.
+      sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.tokenuri", false, false))
+             .thenReturn(null)
+             .thenReturn("https://oauth2.example/token");
+
+      service.applyChange(req("mail.smtp.tokenuri", "https://oauth2.example/token"), principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("mail.smtp.tokenuri",
+                                               "https://oauth2.example/token"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+   }
 }

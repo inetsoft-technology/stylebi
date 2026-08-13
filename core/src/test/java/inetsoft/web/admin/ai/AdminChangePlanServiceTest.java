@@ -337,4 +337,32 @@ class AdminChangePlanServiceTest {
       assertEquals(1, plan.changes().size());
       assertNull(plan.changes().get(0).proposedValue());
    }
+
+   @Test void refusesAMailCredentialUnderCloudSecretsWithoutNamingTheSsoPage() {
+      // The guard became reachable for mail and logging credentials when they joined the
+      // allow-list. Its message used to say "Settings > Security > SSO", which is the wrong page
+      // for every one of them - and a wrong page is worse guidance than none.
+      try(MockedStatic<Tool> tool = mockStatic(Tool.class, withSettings().strictness(
+             Strictness.LENIENT)))
+      {
+         tool.when(Tool::isCloudSecrets).thenReturn(true);
+
+         for(String prop : new String[] { "mail.smtp.pass", "log.fluentd.security.sharedkey",
+                                          "openid.client.secret" })
+         {
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+               () -> service.resolve(request("set it", prop, "value")));
+            assertTrue(ex.getMessage().contains(prop), "message should name " + prop);
+            assertTrue(ex.getMessage().contains("cloud secrets"));
+            // The message must describe only what admin-chat will not do. Every claim about how a
+            // property is configured elsewhere is a claim per property, and this is one string for
+            // seven of them - two review rounds caught exactly that, first the page name and then
+            // the Secret ID field, which only three of the seven actually have.
+            assertFalse(ex.getMessage().contains("Security > SSO"),
+                        "message must not name an SSO page for " + prop);
+            assertFalse(ex.getMessage().contains("Secret ID"),
+                        "message must not promise a Secret ID field for " + prop);
+         }
+      }
+   }
 }
