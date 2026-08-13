@@ -1,9 +1,9 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-13 (second revision — the density gating committed between them)
-**Verified against:** community `viz-updates` @ `1c0ace705`, which is `HEAD` and is docs-only. The code
-baseline is `55c3bad1a`, which committed the twelve density-gating files this file previously described as
-in flight. Every code claim below was re-checked against it.
+**Date:** 2026-08-13 (third revision — the density gating and the userTitleHeight flag both committed)
+**Verified against:** community `viz-updates` @ `8357e05d8`, which is `HEAD`. The code baseline is
+`307a6ee09`; `55c3bad1a` shipped the density gating and `07c91926e`/`307a6ee09` the userTitleHeight flag.
+Every code claim below was re-checked against it.
 **Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
 it, and the decisions that gate what remains
 
@@ -43,13 +43,18 @@ rather than repairing it — the whole of its content is one reading of the two 
      SHIPPED 55c3bad1a          NO LONGER BLOCKED · container, calendar
      the interim · L'' replaces it
 
-  N. userTitleHeight flag ──→ L'. Title lane height row ──→ L''. Geometric suppression
-     UNGATED, NOT BUILT           DECIDED 2026-08-13            DECIDED 2026-08-13
-     the 13.3 pattern             20/26/30 · titleHeight()       MUST NOT PRECEDE L'
-     (M also unblocks L',          exists but is uncalled        replaces L's density test
-      N is the cheaper route)
+  N. userTitleHeight flag ──┐
+     SHIPPED 07c91926e      │
+     307a6ee09              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
+                            │    DESIGN ANSWERED, NOT BUILT      DECIDED 2026-08-13
+  M. Seed mark (below) ─────┘    20/26/30 · titleHeight() exists  MUST NOT PRECEDE L'
+                                 but is uncalled                  replaces L's density test
+                                 decisions 5-8 · SCHEDULED AFTER M
 
-  M. Seed mark — widget spec §03 ──┬──→ §04 density heights, incl. L' above
+     N answers "did the author choose this height" · M answers "is this assembly modern"
+     The row needs both. On the flag alone it resizes every dashboard ever saved.
+
+  M. Seed mark — widget spec §03 ──┬──→ L' above, and §04's other density heights
      DECIDED IN FULL, NOT BUILT    │
      seeded-value decisions 1–12   ├──→ Card radius 12→6, retire resolveSeededCorner()
      ALSO THE RELEASE GATE         │
@@ -65,7 +70,7 @@ rather than repairing it — the whole of its content is one reading of the two 
   Ungated: dark (four DOM surfaces) · chart interior dark palette · affordance sweep ·
            selection list interior · Resize Plot sliders · nav bar · data-tip registry
            remainder · chart colour literals · drill and DC tips · zoom naming ·
-           dead menu icons · title band · N above
+           dead menu icons · title band
 ```
 
 **The one hard sequencing rule in this picture: L'' must not ship before L'.** Geometric suppression
@@ -100,32 +105,76 @@ Four corrections this picture carries against the external set, all recorded in
 
 ## What to pick up next
 
-**Ranked 2026-08-13, against `1c0ace705`.** This is a reading of the picture above, not a new decision —
-it goes stale as things land, and the picture is what to re-derive it from. Effort is relative to this
-track, not absolute.
+**Ranked 2026-08-13, re-derived against `8357e05d8` after N shipped.** This is a reading of the picture
+above, not a new decision — it goes stale as things land, and the picture is what to re-derive it from.
+Effort is relative to this track, not absolute.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **N — the `userTitleHeight` flag** | none on its own | **S** — one `core/` field | **L' → L''** | very low: no behaviour change |
-| 2 | **L' — the title lane height row** | high, visible | **M** | L'' | export-affecting: needs the manual pass |
-| 3 | **M — the seed mark** | **highest** — the release gate | **XL** | five items | reverses shipped `viz-updates` behaviour |
-| 4 | **Rollout slices 4–5** | closes the rollout | **S–M** | nothing | modifies shipped slice-3 behaviour |
-| 5 | **Dark — four browser surfaces** | fixes a visible defect | **S** — plan written | nothing | reworked when M lands, see below |
-| 6 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | **M — the seed mark** | **highest** — the release gate, and now L''s blocker too | **XL** | six items | reverses shipped `viz-updates` behaviour |
+| 2 | **L' — the title lane height row** | high, visible | **M–L** | L'' | scheduled after M (decision 8); export-affecting; carries UI work |
+| 3 | **Rollout slices 4–5** | closes the rollout | **S–M** | nothing | modifies shipped slice-3 behaviour |
+| 4 | **Dark — four browser surfaces** | fixes a visible defect | **S** — plan written | nothing | reworked when M lands, see below |
+| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**N is the most leverage per unit of work in the tree, and it is not close.** It is the only item where a
-small, self-contained, zero-behaviour-change `core/` edit unblocks two downstream items — and one of those,
-L'', retires an interim that shipped in `55c3bad1a`, so the approximation does not calcify into the thing
-everyone reads as the rule. The 13.3 pattern is in the codebase to copy: `TableDataVSAssemblyInfo.java:897-901`
-(accessors), `:941` (write), `:997` (derive on parse), consumed at `VSTableLens.java:1634-1637, 1761`.
+**M moved to the top in this revision.** It was third when L' looked startable on its own. It is not: the
+row needs the mark to avoid resizing legacy content, so the mark now gates six things rather than five,
+and every one of the track's remaining large items sits behind it.
 
-**One trap N has that `userDataRowHeight` did not.** `setTitleHeightValue` has 36 references, and they are
-not all author intent. The ten in `web/composer/vs/dialog/*PropertyDialogService.java` are — that is the
-property dialog's Size and Position pane, and they are the sites to stamp. But `CalendarVSAssemblyInfo.java:91`
-seeds `36` and `TableDataVSAssemblyInfo.java:1558` seeds `AssetUtil.defh`, both as internal defaults at
-construction. Stamping those ships every calendar and every table pre-marked as author-set, and L' then
-reaches nothing. `setDataRowHeight` has no internal-default caller, which is why the 13.3 precedent is
-silent on this. Check `VSAssemblyInfo.java:1443` too.
+**L' is the highest-value item, and its four design questions are now answered — but it is not startable
+on its own.** `VSDensityDefaults.titleHeight()` resolves defh/26/30 and is still uncalled, and
+`userTitleHeight` now tells an author's height from a default one. That is one half of what the row needs.
+
+**The other half is the seed mark, and it is the correction this ranking previously got wrong.** An
+earlier revision called the flag a cheaper alternative to the mark. They answer different questions:
+the flag says *did an author choose this height*, so the row does not overwrite a deliberate choice; the
+mark says *is this assembly modern*, so the row does not reach dashboards nobody opted in.
+[Seeded-value decisions](./seeded-value-reversibility-decisions.md) decision 4 keys the density heights
+off the mark, and decision 2 protects unmarked content from every automatic behaviour. **Shipping the row
+on the flag alone would resize fifteen years of saved dashboards on next open.**
+
+**Decided 2026-08-13: L' waits for M** ([strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md)
+decision 8). Shipping it dormant looks like free parallelism and is not — nothing would be marked, so the
+manual export pass could not run, the checkbox would ship doing nothing observable, and the only question
+a dormant build answers early is the cheapest part of the work. The cost is accepted: the title lane keeps
+its legacy 20px everywhere until the mark lands, the anchored strip's density approximation
+(`55c3bad1a`) stays in place longer, and L'' stays behind L'.
+
+### The four L' design questions — answered 2026-08-13
+
+All four are recorded in
+[chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) decisions 5,
+6 and 7. Summarised here because this is where an implementer will look first.
+
+**1. The calendar is included** (decision 6). Its 36px default is legacy, not structural: the painter
+already floors the lane at the font height (`VSCalendar.java:562`) and the navigation band is a separate
+header, so a 20px lane cannot clip it. Existing calendars keep 36 regardless, because the mark protects
+unmarked content — only newly created ones take the density sizing. One naming consequence: with two
+defaults in play, `getDefaultTitleHeight()` wants renaming to say it means the *legacy* one, or someone
+will later "correct" the 36 and break the derive for every calendar ever saved.
+
+**2. The affordance ships with the row** (decision 5). L' is therefore a resolver change **plus** a
+dialog-model change, a template change and eleven call-site rewrites — budget it as M–L, not M.
+
+**3. The flag joins `TitleInfo.equals()`** (decision 7). The audit that makes this safe is done:
+`equals()` has exactly eight consumers repo-wide, all of them the `copyViewInfo` guard, and nothing
+outside `uql/viewsheet/internal/` compares a `TitleInfo` at all. Adding one line fixes the cause;
+copying explicitly in eight places would patch the symptoms and leave `equals()` lying.
+
+**4. The control is a checkbox — "follow the default density" — and it covers table row height as well as
+title height** (decision 5). Row height already carries `userDataRowHeight` and selection cell height
+carries `userCellHeight`; all three infer authorship the same way and inherit the same defects. The
+checkbox also gives every type the opt-back-in that today exists only through the table reset-layout
+action. One sub-question stays open: what an assembly already carrying the flag shows the first time the
+control appears.
+
+Three smaller ones can be settled while writing rather than before: whether 1px of clearance is enough at
+compact, the 44px touch target against a 26px lane, and `--inet-viz-chrome-row-height` sitting at 22px
+while the dense lane row is 20px (`_viz-tokens.scss:112`, no consumers yet). All three are in the strip and
+lane decisions' "Still open".
+
+**And budget the export pass.** Title height is a persisted value the Java painters read, so the row moves
+PDF, PNG, Excel and scheduled output and shifts everything below the title. This is not a CSS change.
 
 **M is the largest impact and the wrong thing to start cold.** It gates five items and the release, and
 [the decisions](./seeded-value-reversibility-decisions.md) note the pre-mark cohort write-off holds *only
@@ -281,8 +330,9 @@ leaves persisted dark card backgrounds under read-time light chart chrome (decis
 [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md): the widget
 spec's values are taken, the strip stays 24px and contained, suppression becomes geometric, and a hidden
 title suppresses the strip. The paragraph below records why the first attempt was abandoned; the 13.3
-`userDataRowHeight` pattern is the mechanism it was missing, and the row is gated on the seed mark or on
-an equivalent `userTitleHeight` flag rather than on a design question.
+`userDataRowHeight` pattern is the mechanism it was missing. That mechanism now exists — `userTitleHeight`
+shipped in `07c91926e`/`307a6ee09` — so the row is no longer gated on the seed mark or on anything else.
+What it still needs is the four decisions listed under "Decide before writing the L' plan" above.
 
 Specified at 20/26/30 in widget spec §04 and §08 step 3. Attempted and
 abandoned. All five `getTitleHeight()` overrides are the identical line `return titleInfo.getTitleHeight();`
@@ -305,7 +355,6 @@ Nothing below is blocked.
 | Item | Source | Note |
 |---|---|---|
 | **Dark — four browser-DOM surfaces** | [Decisions](./chart-card-open-item-decisions.md) §2, plan at `plans/2026-08-11-chart-card-dark-browser-surfaces.md` | CSS only. The v3 dark ticket's dependency claims apply to the server half, which is different work — see §4.2 |
-| **The `userTitleHeight` flag** — N in the picture above | [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md), "What this costs to build" | Self-contained `core/` change and the cheapest thing that unblocks L'. Mirror `userDataRowHeight`: a persisted boolean on `TitleInfo`, stamped at the property-dialog `setTitleHeightValue` call sites, derived for older files on parse as `getTitleHeight() != AssetUtil.defh` (`TableDataVSAssemblyInfo.java:997` is the 13.3 precedent). No behaviour change on its own — it only makes an author's 20px distinguishable from the default 20px. **Not every `setTitleHeightValue` caller is author intent** — see the trap under "What to pick up next" |
 | **Chart interior dark palette** | `Chart card dark values - ticket.md` item 3 | New, unowned, and the most valuable thing in that ticket. `GDefaults` has no dark branch; nothing to reconcile against, so it is design work |
 | Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk |
 | Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched |
@@ -367,13 +416,20 @@ kept alongside because the rest of this tree still cites it.
 | Max-mode mini-toolbar positioning fix | `f3a299cd0` | `1091bd178` |
 | Rollout slice 3 — selection list and tree, kebab-only at any width | `5ed02f6ed` | `a038a30b5` |
 | Strip suppression where the lane cannot hold it — L, density-approximated | `55c3bad1a` | postdates the rebase |
+| `userTitleHeight` — N, the flag and its per-type default | `07c91926e` | postdates the rebase |
+| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `307a6ee09` | postdates the rebase |
 
 The v3 design set and the seeded-value decisions were committed in `2310cea37`, the strip and lane
-decisions in `1c0ace705`, and the three earlier docs commits — `2b08a0492`, `a479ba921`, `ae511b8b7` —
-carry the design sets, the open-item decisions and this roadmap.
+decisions in `1c0ace705`, the `userTitleHeight` plan and strip-and-lane decision 5 in `8357e05d8`, and the
+three earlier docs commits — `2b08a0492`, `a479ba921`, `ae511b8b7` — carry the design sets, the open-item
+decisions and this roadmap.
 
 ## Still undecided
 
+- **The four L' decisions** — which types the row covers and what the calendar's 36px default does,
+  whether the use-the-default affordance ships with the row, how the flag reaches the live assembly, and
+  the affordance's shape. Listed in full under "Decide before writing the L' plan" above. These are the
+  live ones: nothing else blocks L'.
 - ~~**Dense: hover overlay, or no chrome at all?**~~ Answered 2026-08-12 and now shipped in `55c3bad1a`:
   no chrome at all. [Decisions](./chart-card-open-item-decisions.md) §4. What remains open from it is
   dense-plus-touch, below.
@@ -381,10 +437,11 @@ carry the design sets, the open-item decisions and this roadmap.
   [strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 4 widens the same
   question to a larger population.
 - **How the seed mark handles defaults added after it ships.** See the seed-mark section.
-- ~~**How the title height row reaches assemblies.**~~ Answered 2026-08-13: the widget spec's 20/26/30,
-  applied in the per-type read path the way `rowHeight()` is, conditioned on a `userTitleHeight` flag or on
-  the mark. [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decisions 1 and 3.
-  What is left open there is the clearance value at compact and the 44px touch target against a 26px lane.
+- ~~**How the title height row reaches assemblies.**~~ Answered 2026-08-13 and the mechanism now shipped:
+  the widget spec's 20/26/30, applied in the per-type read path the way `rowHeight()` is, conditioned on
+  `userTitleHeight` (`07c91926e`/`307a6ee09`).
+  [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decisions 1 and 3. What is left
+  open there is the clearance value at compact and the 44px touch target against a 26px lane.
 - **Does the nav bar render for maps only, or any zoomable chart?**
 - **Which render path gauges and thermometers take in the live viewer** — the widget spec flags this itself
   as unverified.

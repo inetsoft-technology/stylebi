@@ -249,10 +249,118 @@ and back again to make it stick is not a design.
 **Rejected — infer, but treat any dialog OK as intent.** Marks every assembly whose dialog was ever
 opened, so the row reaches almost nothing. This was tried during the flag's implementation and reversed.
 
-**Still open within this decision:** whether the control is a checkbox or a blank-means-default field;
-whether cell height gets the same treatment for consistency, which would mean revisiting the sibling; and
-what happens to assemblies already carrying the flag when the control ships — most plausibly they read
-back as unticked, which is accurate.
+**Decided 2026-08-13, closing two of the three sub-questions.** The control is a **checkbox** — "follow the
+default density" — and it is given to **table row height as well as title height**, not to title height
+alone. Row height already carries `userDataRowHeight` from 13.3 and selection cell height carries
+`userCellHeight`; both infer authorship the same way and inherit the same two problems. One control shape
+across all three is the point.
+
+The checkbox also closes problem 2 for every type at once. Ticking it clears the flag, which is the
+opt-back-in that exists nowhere today except the table reset-layout action.
+
+**It ships with the row**, per the reasoning above: deferring it means authors cannot pin a density-derived
+height in the interim, and the interim is however long the next scheduling decision takes.
+
+**Still open:** what an assembly already carrying the flag shows when the control first appears. Most
+plausibly unticked, which is accurate — the flag means an author set the height.
+
+---
+
+## Decision 6 — the calendar joins the row, and existing calendars are protected by the mark
+
+**Added 2026-08-13.**
+
+**The question.** Widget spec §05 excludes CheckBox, RadioButton and TimeSlider from the height row and
+says nothing about the calendar, whose own default title height is **36**, not `AssetUtil.defh`
+(`CalendarVSAssemblyInfo.initDefaultFormat` `:91`, and `getDefaultTitleHeight()` `:87-90`). So does the
+calendar take 20/26/30 like everything else, or keep 36 and sit the row out?
+
+**Decided: the calendar is included.** The uniformity the row exists to create is the argument, and there
+is nothing structural on the other side. `VSCalendar.getTitleHeight()` already floors the lane at the
+font height — `Math.max(info.getTitleHeight(), Common.getHeight(format0.getFont()))` (`:562`) — so a 20px
+lane cannot clip the title, and the navigation and range band is a separate header (`header2H`,
+`paintRangeTitle` `:166`), not part of the title lane. 36 is a legacy default, not a layout requirement.
+
+**Existing calendars do not change, and that is the mark's doing rather than this decision's.**
+[Seeded-value decisions](./seeded-value-reversibility-decisions.md) decision 4 keys the density heights off
+the assembly's mark, and decision 2 says an unmarked assembly is never touched by anything automatic. So a
+calendar saved before the mark keeps its 36px lane until someone presses Modernize; only newly created
+calendars take the density sizing. **An earlier draft of this decision claimed every existing calendar
+would shrink from 36 to 20 at dense. That was wrong** — it read the row as gate-keyed when it is
+mark-keyed.
+
+**Consequence for naming.** Once the calendar is in, there are two defaults: 36 is the *legacy* default,
+which is what the derive tests when parsing an old file, and 20/26/30 is the *modern* default the row
+applies to marked assemblies. `getDefaultTitleHeight()` should be renamed to say which one it means —
+`getLegacyDefaultTitleHeight()` or similar — or someone will later "correct" the 36 to match the row and
+silently break the derive for every calendar ever saved.
+
+**Rejected — exclude the calendar and keep 36 everywhere.** It leaves one widget visibly outside the
+system for a reason no document can point at, and it costs one more entry in an exclusion list that has to
+exist regardless.
+
+## Decision 7 — `userTitleHeight` joins `TitleInfo.equals()`
+
+**Added 2026-08-13.**
+
+**The question.** `TitleInfo.equals()` excludes the flag, and every assembly info's `copyViewInfo`
+transfers the whole `TitleInfo` only when it compares unequal. A change touching only the flag is
+therefore dropped when the property dialog applies its edited clone. Harmless while the dialog guard fires
+only on a height change; routine the moment the comparison moves to an effective height, or the checkbox
+of decision 5 lets an author change the flag without changing the number.
+
+**Decided: add the flag to `equals()`.** Two `TitleInfo`s with different provenance are different objects,
+and the method should say so.
+
+**The audit that makes this safe, and that was missing when the flag was built.** `TitleInfo.equals()` has
+exactly eight consumers repo-wide — the `copyViewInfo` guard in each of the eight titled infos
+(`CalendarVSAssemblyInfo:1090`, `ChartVSAssemblyInfo:1724`, `CheckBoxVSAssemblyInfo:377`,
+`CurrentSelectionVSAssemblyInfo:506`, `RadioButtonVSAssemblyInfo:344`, `SelectionBaseVSAssemblyInfo:818`,
+`TableDataVSAssemblyInfo:1378`, `TimeSliderVSAssemblyInfo:753`). Nothing outside
+`uql/viewsheet/internal/` compares a `TitleInfo` at all: no change detection, no undo, no dirty-checking.
+So the only behaviour the addition changes is the eight guards, which is exactly the behaviour that needs
+changing.
+
+**Why it was rejected once.** The flag's own implementation had to be provably behaviour-neutral, and that
+audit had not been done, so the note went onto `TitleInfo.isUserTitleHeight()`'s javadoc instead. The row
+is not behaviour-neutral and the audit is now done.
+
+**Rejected — copy the flag explicitly in each `copyViewInfo`,** the way `SelectionBaseVSAssemblyInfo`
+handles its own flags with `result = true`. Eight blocks instead of one line, `equals()` keeps lying, and
+a ninth consumer added later silently reintroduces the defect.
+
+## Decision 8 — the row ships after the seed mark, not dormant beside it
+
+**Added 2026-08-13.**
+
+**The question.** The row needs the mark: `userTitleHeight` stops it overwriting an author's height, and
+the mark stops it reaching dashboards nobody opted in
+([seeded-value decisions](./seeded-value-reversibility-decisions.md) decisions 2 and 4). The mark is not
+built. So the row either waits, or ships mark-gated and inert until the mark lands.
+
+**Decided: it waits.** L' is scheduled after M.
+
+**Why, rather than shipping it dormant to parallelise the work.** Nothing would be marked, so no dashboard
+would render the new heights and no one could look at them. Three things follow that make the
+parallelisation illusory:
+
+- **The export pass cannot run.** The row moves PDF, PNG, Excel and scheduled output for every titled
+  assembly, and that pass is manual. There is no marked content to export, so the pass would have to be
+  done after M regardless — the largest verification cost is deferred, not parallelised.
+- **The checkbox would ship doing nothing visible.** Decision 5 puts a user-facing control in the Size and
+  Position pane. Shipping a control whose effect nobody can observe is worse than shipping it late.
+- **The interim behaviour is not the target behaviour**, so anything learned from it is provisional. The
+  one question the dormant build could answer early — does the resolver wire up correctly — is the
+  cheapest part of the work.
+
+**What this costs.** L' sits behind an XL item that is also the release gate, so the title lane keeps its
+legacy 20px everywhere until M lands. The anchored strip's density approximation
+(`55c3bad1a`) therefore stays in place longer, and L'' stays blocked behind L' — the sequencing rule in
+decision 3 is unchanged, just further out.
+
+**Rejected — ship the resolver dormant now and add the mark condition later.** It reads like free
+progress and is not: the verification that makes the row trustworthy all happens after M either way, and
+a dormant resolver in the tree is one more thing whose correctness is asserted rather than seen.
 
 ---
 
@@ -267,8 +375,18 @@ conditions are the same as every other height here" — it resolves through the 
 exist in `VSAssemblyInfo` and which nothing in this repo produces. See
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md).
 
+**Corrected 2026-08-13: the mark and the flag answer different questions, and the row needs both.** The
+paragraph below called the flag a *cheaper unblock* than the mark, as though they were alternatives. They
+are not. `userTitleHeight` answers "did an author choose this height?", so the row does not overwrite a
+deliberate choice. The mark answers "is this assembly modern?", so the row does not reach dashboards nobody
+opted in — [seeded-value decisions](./seeded-value-reversibility-decisions.md) decision 4 keys the density
+heights off the mark, and decision 2 protects unmarked content from every automatic behaviour. Shipping the
+row on the flag alone would resize fifteen years of saved dashboards on next open. The flag was still worth
+building first: it is small, it is done, and the row cannot be correct without it either.
+
 **There is a cheaper unblock, and it is already in the codebase.** The row does not strictly need the
-mark; it needs a way to tell an author's 20px from the default 20px. `TableDataVSAssemblyInfo` solved the
+mark *for the author-choice half*; it needs a way to tell an author's 20px from the default 20px.
+`TableDataVSAssemblyInfo` solved the
 identical problem in 13.3 with a persisted `userDataRowHeight` boolean plus an `== AssetUtil.defh` test
 at read time (`VSTableLens.java:1780`, `BaseTableService.java:462`), and derives the flag for older files
 on parse as `getDataRowHeight() != AssetUtil.defh` (`TableDataVSAssemblyInfo.java:997`). A
