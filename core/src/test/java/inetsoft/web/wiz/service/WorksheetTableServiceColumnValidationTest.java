@@ -144,7 +144,7 @@ class WorksheetTableServiceColumnValidationTest {
    }
 
    @Test
-   void aColumnTheRequestDerivesItselfIsExempt() throws Exception {
+   void aColumnTheRequestDerivesItselfIsNeitherRejectedNorKept() throws Exception {
       WorksheetTable req = request("""
          {
            "tableName": "t", "tableType": "physical table",
@@ -157,10 +157,48 @@ class WorksheetTableServiceColumnValidationTest {
          }
          """);
 
-      // discount_status is derived by this same request, so the source's metadata cannot know it.
-      assertEquals(List.of("ORDER_ID", "discount_status"),
+      // discount_status is derived by this same request, so the source's metadata cannot know it —
+      // it must not be reported as missing. It must ALSO not be returned: buildColumnSelection would
+      // turn it into a plain AttributeRef, and ColumnSelection.addAttribute is exclusive with
+      // ColumnRef equality by name, so that attribute would shadow the ExpressionRef that
+      // applyExpressionColumns adds next — silently discarding the expression and leaving a phantom
+      // column that validateColumnSelection then drops from the query.
+      assertEquals(List.of("ORDER_ID"),
                    names(service().resolveRequestedColumns(
                       req.getColumns(), ORDERS_COLUMNS, Set.of("discount_status"))));
+   }
+
+   @Test
+   void aDerivedColumnIsRecognizedRegardlessOfSpelling() {
+      // The caller may spell it differently in columns than in expressionColumns; reporting that as
+      // "not found in source table" would misdirect.
+      List<WorksheetTable.ColumnInfo> requested = columns("ORDER_ID", "Discount_Status");
+
+      assertEquals(List.of("ORDER_ID"),
+                   names(service().resolveRequestedColumns(
+                      requested, ORDERS_COLUMNS, Set.of("discount_status"))));
+   }
+
+   @Test
+   void aDerivedNameThatIsAlsoARealSourceColumnStillResolvesToTheSourceColumn() {
+      // The derived branch is reached ONLY when the source has no such column, so an expression
+      // named after a real column leaves the existing resolution untouched.
+      List<WorksheetTable.ColumnInfo> requested = columns("ORDER_ID", "discount");
+
+      assertEquals(List.of("ORDER_ID", "DISCOUNT"),
+                   names(service().resolveRequestedColumns(
+                      requested, ORDERS_COLUMNS, Set.of("DISCOUNT"))));
+   }
+
+   @Test
+   void aHallucinatedColumnIsStillReportedWhenTheRequestDerivesOtherColumns() {
+      List<WorksheetTable.ColumnInfo> requested = columns("ORDER_AMOUNT", "discount_status");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         service().resolveRequestedColumns(requested, ORDERS_COLUMNS, Set.of("discount_status")));
+
+      assertTrue(e.getMessage().contains("ORDER_AMOUNT"), e.getMessage());
+      assertFalse(e.getMessage().contains("discount_status"), e.getMessage());
    }
 
    @Test

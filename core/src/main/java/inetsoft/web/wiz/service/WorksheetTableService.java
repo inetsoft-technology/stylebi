@@ -417,9 +417,10 @@ public class WorksheetTableService {
          " column(s) but its query produces only " + produced.size() + ": " +
          (dropped.isEmpty() ? String.join(", ", produced)
             : "the query cannot produce " + String.join(", ", dropped)) +
-         ". A column the source does not have is dropped from the query instead of failing it, so " +
-         "this table would render as an empty or partial result. Check the column names against " +
-         "the source (a derived value belongs in expressionColumns, not columns).");
+         ". A column the query cannot resolve is dropped from it instead of failing it, so this " +
+         "table would render as an empty or partial result. Check each column resolves against " +
+         "what this table is built on — the source table for a physical table, the SELECT list for " +
+         "a sql query table, the base table for a mirror or join.");
    }
 
    /** The columns this table promises its callers — exactly what {@link #extractColumnsFromSelection} reports. */
@@ -498,7 +499,8 @@ public class WorksheetTableService {
          return Set.of();
       }
 
-      String upper = name.toUpperCase();
+      // Locale.ROOT: these are datasource/lens identifiers, not display text.
+      String upper = name.toUpperCase(Locale.ROOT);
       int dot = upper.lastIndexOf('.');
 
       return dot > 0 && dot < upper.length() - 1
@@ -820,7 +822,9 @@ public class WorksheetTableService {
 
       if(request.getColumns() != null && !request.getColumns().isEmpty()) {
          // Explicit column list from the LLM — reconciled against the source's real columns so a
-         // name the table does not have fails loud here (see resolveRequestedColumns).
+         // name the table does not have fails loud here (see resolveRequestedColumns). A name this
+         // same request derives is dropped from the result: applyExpressionColumns /
+         // applyWindowColumns below contribute the real derived column.
          List<WorksheetTable.ColumnInfo> cols = resolveRequestedColumns(
             request.getColumns(), sourceColumnNames(metaData), derivedColumnNames(request));
          ColumnSelection cs = buildColumnSelection(cols);
@@ -1169,7 +1173,9 @@ public class WorksheetTableService {
     * The names (and aliases) of the columns this same request DERIVES rather than reads from the
     * source — {@code expressionColumns} and {@code windowColumns}. A request that also lists a
     * derived column in {@code columns} is naming something the source's metadata cannot know about,
-    * so it is exempt from source reconciliation.
+    * so {@link #resolveRequestedColumns} neither rejects it nor keeps it: the entry is dropped and
+    * the real derived column is contributed by {@link #applyExpressionColumns} /
+    * {@link #applyWindowColumns}.
     */
    private static Set<String> derivedColumnNames(WorksheetTable request) {
       Set<String> names = new HashSet<>();
@@ -1223,7 +1229,8 @@ public class WorksheetTableService {
     * @param sourceColumns   the source table's real column names; empty means "metadata unavailable",
     *                        which skips reconciliation rather than failing the create
     * @param derivedColumns  columns this request derives itself (see {@link #derivedColumnNames})
-    * @return {@code requested}, with every name canonicalized to the source's spelling
+    * @return the source-backed subset of {@code requested}, each name canonicalized to the source's
+    *         spelling — a name only this request derives is DROPPED, not passed through
     * @throws IllegalArgumentException if any name cannot be resolved to a source column
     */
    // Package-private for unit testing (WorksheetTableServiceColumnValidationTest).
@@ -1238,13 +1245,24 @@ public class WorksheetTableService {
       }
 
       // Upper-cased name → the source's exact spelling. First spelling wins, so a source that
-      // reports two columns differing only in case keeps the one it listed first.
+      // reports two columns differing only in case keeps the one it listed first. Locale.ROOT
+      // because these are datasource identifiers, not display text — a Turkish default locale
+      // would otherwise fold "i" to "İ" and break the match for any column containing an i.
       Map<String, String> canonical = new HashMap<>();
 
       for(String name : sourceColumns) {
-         canonical.putIfAbsent(name.toUpperCase(), name);
+         canonical.putIfAbsent(name.toUpperCase(Locale.ROOT), name);
       }
 
+      // Case-insensitive: the caller can spell a derived column differently in `columns` than in
+      // `expressionColumns`, and reporting that as "not found in source" would misdirect.
+      Set<String> derived = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+
+      if(derivedColumns != null) {
+         derived.addAll(derivedColumns);
+      }
+
+      List<WorksheetTable.ColumnInfo> resolved = new ArrayList<>(requested.size());
       List<String> unresolved = new ArrayList<>();
 
       for(WorksheetTable.ColumnInfo col : requested) {
@@ -1255,26 +1273,40 @@ public class WorksheetTableService {
             continue;
          }
 
-         // Derived by this same request — the source's metadata cannot know it.
-         if(derivedColumns.contains(name)) {
-            continue;
-         }
-
-         String match = canonical.get(name.toUpperCase());
+         String match = canonical.get(name.toUpperCase(Locale.ROOT));
          int dot = name.lastIndexOf('.');
 
          // "ORDERS.ORDER_AMOUNT" — a table-qualified name. Unqualify ONLY when the exact name is
          // not itself a column, so a source column whose own name contains a dot still wins.
          if(match == null && dot > 0 && dot < name.length() - 1) {
-            match = canonical.get(name.substring(dot + 1).toUpperCase());
+            match = canonical.get(name.substring(dot + 1).toUpperCase(Locale.ROOT));
          }
 
          if(match == null) {
+            // Derived by this same request — the source's metadata cannot know it, so it is not an
+            // unresolvable name. It is DROPPED here rather than passed through: the derived column
+            // is contributed by applyExpressionColumns / applyWindowColumns, and a plain
+            // AttributeRef of the same name reaching the selection first would SHADOW it —
+            // ColumnSelection.addAttribute is exclusive and ColumnRef equality is by name alone
+            // (AbstractDataRef.equals), so the real expression would be silently discarded and the
+            // phantom attribute then dropped from the query by validateColumnSelection.
+            //
+            // Only a derived name the source does NOT have takes this branch, so a derived column
+            // that shadows a real source column keeps resolving to the source column, exactly as
+            // before.
+            if(derived.contains(name)) {
+               continue;
+            }
+
             unresolved.add(name);
+            continue;
          }
-         else if(!match.equals(name)) {
+
+         if(!match.equals(name)) {
             col.setName(match);
          }
+
+         resolved.add(col);
       }
 
       if(!unresolved.isEmpty()) {
@@ -1286,7 +1318,7 @@ public class WorksheetTableService {
             "in columns.");
       }
 
-      return requested;
+      return resolved;
    }
 
    private ColumnSelection buildColumnSelectionFromMeta(OsiDataset metaData) {
