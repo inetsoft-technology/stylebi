@@ -614,7 +614,16 @@ public class VSFrameVisitor {
       // if a dimension is bound to both x and color, the sorting order of x dimension will
       // be used in VSDataSet since it comes first, and the aesthetic dimension sorting is
       // ignored. we find and apply the aesthetic dimension sorting here. (43336)
-      if(aref != null && aref.getRTDataRef() instanceof ChartDimensionRef) {
+      //
+      // Guarded on dataset.indexOfHeader(field, true) >= 0: when multiple charts share one
+      // dashboard-wide color-frame sync pass, `dataset` here is not guaranteed to be THIS
+      // dimension's own chart's data (see VSDimensionRef#createComparator's analogous guard for
+      // the same underlying issue). Without this check, `new SortedDataSet(dataset, field)`'s
+      // constructor -> addSortColumn() throws MessageException("Column not found: <field>") and
+      // aborts the entire export/render instead of just skipping this aesthetic-dimension sort.
+      if(aref != null && aref.getRTDataRef() instanceof ChartDimensionRef &&
+         dataset.indexOfHeader(field, true) >= 0)
+      {
          Comparator comp = ((ChartDimensionRef) aref.getRTDataRef()).createComparator(data);
          Comparator comp0 = dataset.getComparator(field);
 
