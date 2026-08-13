@@ -370,4 +370,22 @@ class AdminChangeServiceTest {
       assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
       sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "secret-ref"));
    }
+
+   @Test void doesNotReEncryptACredentialOnRestoreEither() {
+      // RESTORE is accepted by requireValidAction and issued by nothing today, but by its name it
+      // replays a stored value the way rollback does. encryptOnWrite therefore names APPLY rather
+      // than excluding ROLLBACK: a deny-list would encrypt this and double-encrypt the credential,
+      // in a path with no caller to notice.
+      AdminChangeRequest r = req("openid.client.secret", "ENC(fromBackup)");
+      r.setAction(AdminChangeRecord.ACTION_RESTORE);
+      sreeEnv.when(() -> SreeEnv.getProperty("openid.client.secret", false, false))
+             .thenReturn("ENC(current)")
+             .thenReturn("ENC(fromBackup)");
+
+      AdminChangeResult res = service.applyChange(r, principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("openid.client.secret", "ENC(fromBackup)"));
+      sreeEnv.verify(() -> SreeEnv.setPassword(anyString(), anyString()), never());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+   }
 }

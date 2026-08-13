@@ -83,8 +83,16 @@ public class AdminChangeService {
          // above, i.e. already ciphertext, and re-encrypting it would double-encrypt and restore
          // something that never decrypts back to the original secret. The action is what separates
          // the two: only an apply carries a plaintext value.
+         //
+         // Written as "is APPLY" rather than "is not ROLLBACK" deliberately. requireValidAction
+         // also accepts RESTORE, which nothing issues today but which would, by its name, replay a
+         // stored value exactly as rollback does - so excluding only ROLLBACK would encrypt it and
+         // reintroduce the double-encryption this branch exists to prevent, in a path with no test
+         // to catch it. Naming the one action that carries plaintext fails closed for RESTORE and
+         // for any action added later; the deny-list spelling failed open for both. That is the
+         // same argument as isEncryptedCredential being an allow-list, applied to actions.
          boolean encryptOnWrite = AdminPropertyCatalog.isEncryptedCredential(name.baseName())
-            && !AdminChangeRecord.ACTION_ROLLBACK.equals(req.getAction());
+            && AdminChangeRecord.ACTION_APPLY.equals(req.getAction());
 
          // AdminChangePlanService refuses a credential under cloud secrets, but a plan is approved
          // at preview and executed later, so that check is not the one that protects the write.
