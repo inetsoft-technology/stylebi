@@ -290,6 +290,26 @@ public class AdminPropertyCatalog {
       return baseName != null && ENCRYPTED_CREDENTIALS.contains(baseName.toLowerCase());
    }
 
+   /**
+    * The refusal both the plan and the apply path give when an encrypted credential is set on a
+    * deployment using cloud secrets.
+    *
+    * <p>Built here rather than written out at each site so the two cannot drift apart, and
+    * deliberately does NOT name an Enterprise Manager page. It used to say "Settings > Security >
+    * SSO", which was true while the allow-list held only the two OpenID credentials and became
+    * wrong the moment mail and logging credentials joined them - they are configured on entirely
+    * different pages. Sending an operator to the wrong page is worse than sending them to none,
+    * and a page-per-property mapping maintained here would be a second name-keyed table to drift
+    * out of date, which is the failure this class has already had once.
+    */
+   public static String cloudSecretsRefusal(String key) {
+      return key + ": this deployment uses cloud secrets, so this property holds the ID of a "
+         + "secret rather than the secret itself. Set it from the Enterprise Manager page that "
+         + "owns this setting - under cloud secrets those pages present a Secret ID field, which "
+         + "writes the reference correctly. admin-chat cannot, because it would store the literal "
+         + "value where nothing downstream can resolve it.";
+   }
+
    private static final Set<String> ENCRYPTED_CREDENTIALS = Set.of(
       "openid.client.secret", "stylebi.google.openid.client.secret",
       "mail.smtp.pass", "mail.smtp.clientsecret", "mail.smtp.accesstoken",

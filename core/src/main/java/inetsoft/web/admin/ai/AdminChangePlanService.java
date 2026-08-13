@@ -100,10 +100,7 @@ public class AdminChangePlanService {
          // than write a value that cannot work.
          if(credential && Tool.isCloudSecrets()) {
             throw new IllegalArgumentException(
-               name.key() + ": this deployment uses cloud secrets, so this property holds the ID "
-               + "of a secret rather than the secret itself. Set it from Enterprise Manager's "
-               + "Settings > Security > SSO page, whose Secret ID field writes the reference "
-               + "correctly.");
+               AdminPropertyCatalog.cloudSecretsRefusal(name.key()));
          }
 
          // Every other property in this service takes "" as an explicit set-to-empty, with null
