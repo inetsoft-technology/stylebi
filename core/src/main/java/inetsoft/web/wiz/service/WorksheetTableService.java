@@ -353,7 +353,9 @@ public class WorksheetTableService {
     * {@code getTableLens} (LIVE re-swallows it at doGetTableLens), so {@code checkFailedQuery} must
     * be called actively.
     */
-   private void probeExecutable(Worksheet worksheet, Assembly table, Principal user) throws Exception {
+   private void probeExecutable(Worksheet worksheet, AbstractTableAssembly table, Principal user)
+      throws Exception
+   {
       AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
       box.setBaseUser(user);
 
@@ -371,11 +373,136 @@ public class WorksheetTableService {
             // message, which would misdirect for a raw SQL query table or an infra error.
             // WizVsService is in this same package.
             WizVsService.checkFailedQuery(lens, false);
+
+            // A query that runs is not yet a query that produces what this table promises — see
+            // checkProducedColumns.
+            checkProducedColumns(table, lens);
          }
       }
       finally {
          box.dispose();
       }
+   }
+
+   /**
+    * Fail when the probe's query produces FEWER columns than the table assembly advertises.
+    *
+    * <p>{@link #probeExecutable} on its own only answers "did the query run". It cannot see a column
+    * quietly going missing, because that is not an error anywhere in the query layer:
+    * {@code PreAssetQuery.validateColumnSelection} REMOVES a column the source does not have and
+    * carries on, so the generated SQL stays valid and the probe passes. The assembly still holds the
+    * removed column in its stored selection, so every read-back this API serves ({@code /ws/table}'s
+    * response, {@code /ws/structure}) keeps advertising a column no query can ever produce — a chart
+    * bound to it renders empty with no error, and the column disappears from the worksheet as soon as
+    * Composer refreshes it.
+    *
+    * <p>This is the backstop for that class of silent loss in general. The known cause — an explicit
+    * {@code columns} entry the physical source does not have — is rejected up front by
+    * {@link #resolveRequestedColumns}; this catches whatever else reaches the same end state
+    * (a stale mirror base, an expression referencing a vanished column) for the tables that are
+    * probed at all.
+    */
+   private void checkProducedColumns(AbstractTableAssembly table, TableLens lens) {
+      List<String> advertised = advertisedColumnNames(table);
+      List<String> produced = producedColumnNames(lens);
+
+      if(produced.size() >= advertised.size()) {
+         return;
+      }
+
+      List<String> dropped = droppedColumns(advertised, produced);
+
+      throw new IllegalArgumentException(
+         "Table '" + table.getName() + "' advertises " + advertised.size() +
+         " column(s) but its query produces only " + produced.size() + ": " +
+         (dropped.isEmpty() ? String.join(", ", produced)
+            : "the query cannot produce " + String.join(", ", dropped)) +
+         ". A column the source does not have is dropped from the query instead of failing it, so " +
+         "this table would render as an empty or partial result. Check the column names against " +
+         "the source (a derived value belongs in expressionColumns, not columns).");
+   }
+
+   /** The columns this table promises its callers — exactly what {@link #extractColumnsFromSelection} reports. */
+   private static List<String> advertisedColumnNames(AbstractTableAssembly table) {
+      ColumnSelection cs = table.getColumnSelection(true);
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; cs != null && i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr && cr.isVisible()) {
+            names.add(cr.getName());
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * The columns the executed query actually produced. {@code AssetQuery} only stamps a column
+    * identifier when it differs from the header (see {@code AssetQuery.getMetaDataTableLens}), so the
+    * header is the fallback, not a second-class source.
+    */
+   private static List<String> producedColumnNames(TableLens lens) {
+      List<String> names = new ArrayList<>();
+
+      for(int col = 0; col < Math.max(0, lens.getColCount()); col++) {
+         String id = lens.getColumnIdentifier(col);
+
+         if(id == null || id.isBlank()) {
+            Object header = lens.getObject(0, col);
+            id = header == null ? null : header.toString();
+         }
+
+         names.add(id);
+      }
+
+      return names;
+   }
+
+   /**
+    * The {@code advertised} columns absent from {@code produced}.
+    *
+    * <p>Called only once the counts prove something was dropped, so a mere spelling difference
+    * between a {@code ColumnRef}'s name and a lens header can never by itself fail a create — at
+    * worst it makes this list empty and the caller reports the counts instead.
+    */
+   // Package-private for unit testing (WorksheetTableServiceProducedColumnsTest).
+   static List<String> droppedColumns(List<String> advertised, List<String> produced) {
+      Set<String> producedKeys = new HashSet<>();
+
+      for(String name : produced) {
+         producedKeys.addAll(matchKeys(name));
+      }
+
+      List<String> dropped = new ArrayList<>();
+
+      for(String name : advertised) {
+         Set<String> keys = matchKeys(name);
+
+         // A nameless advertised column cannot be matched either way, so it is no evidence — the
+         // caller's count-based message covers it rather than this list naming a "null" column.
+         if(!keys.isEmpty() && Collections.disjoint(keys, producedKeys)) {
+            dropped.add(name);
+         }
+      }
+
+      return dropped;
+   }
+
+   /**
+    * The forms a column name may be matched by: its own spelling, case-insensitively, plus the bare
+    * attribute after the last dot — a lens reports a mirror's column bare where the assembly's
+    * {@code ColumnRef} names it {@code BaseTable.col}.
+    */
+   private static Set<String> matchKeys(String name) {
+      if(name == null || name.isBlank()) {
+         return Set.of();
+      }
+
+      String upper = name.toUpperCase();
+      int dot = upper.lastIndexOf('.');
+
+      return dot > 0 && dot < upper.length() - 1
+         ? Set.of(upper, upper.substring(dot + 1)) : Set.of(upper);
    }
 
    // Delete tables.
@@ -687,20 +814,20 @@ public class WorksheetTableService {
       sinfo.setProperty(SourceInfo.TABLE_TYPE, (String) tableMetaData.getAttribute("type"));
       table.setSourceInfo(sinfo);
 
-      // Build column selection.
+      // Build column selection. Both branches need the source's real columns — the explicit branch
+      // to reconcile the caller's list against them, the implicit branch to build the list from them.
+      OsiDataset metaData = fetchSourceMetaData(src, user);
+
       if(request.getColumns() != null && !request.getColumns().isEmpty()) {
-         // Explicit column list from the LLM.
-         ColumnSelection cs = buildColumnSelection(request.getColumns());
+         // Explicit column list from the LLM — reconciled against the source's real columns so a
+         // name the table does not have fails loud here (see resolveRequestedColumns).
+         List<WorksheetTable.ColumnInfo> cols = resolveRequestedColumns(
+            request.getColumns(), sourceColumnNames(metaData), derivedColumnNames(request));
+         ColumnSelection cs = buildColumnSelection(cols);
          table.setColumnSelection(cs);
       }
       else {
-         // No explicit columns → fetch all from datasource metadata.
-         GetDatabaseTableMetaRequest metaReq = new GetDatabaseTableMetaRequest();
-         metaReq.setDsName(src.getDatasourcePath());
-         metaReq.setCatalog(src.getCatalog());
-         metaReq.setSchema(src.getSchema());
-         metaReq.setTableName(src.getTableName());
-         OsiDataset metaData = metadataApiService.getMetaData(metaReq, user);
+         // No explicit columns → take all of them from datasource metadata.
          ColumnSelection cs = buildColumnSelectionFromMeta(metaData);
          table.setColumnSelection(cs);
       }
@@ -1002,6 +1129,164 @@ public class WorksheetTableService {
       }
 
       return cs;
+   }
+
+   /**
+    * The source table's metadata (column names + types), as {@link #buildColumnSelectionFromMeta}
+    * consumes it. A failure propagates: building a physical table on column names that were never
+    * reconciled against the source is exactly the silent-phantom-column failure
+    * {@link #resolveRequestedColumns} exists to prevent.
+    */
+   private OsiDataset fetchSourceMetaData(WorksheetTable.PhysicalSource src, Principal user)
+      throws Exception
+   {
+      GetDatabaseTableMetaRequest metaReq = new GetDatabaseTableMetaRequest();
+      metaReq.setDsName(src.getDatasourcePath());
+      metaReq.setCatalog(src.getCatalog());
+      metaReq.setSchema(src.getSchema());
+      metaReq.setTableName(src.getTableName());
+      return metadataApiService.getMetaData(metaReq, user);
+   }
+
+   /** The source table's real column names, in metadata order. */
+   private static List<String> sourceColumnNames(OsiDataset metaData) {
+      if(metaData == null || metaData.getFields() == null) {
+         return Collections.emptyList();
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(OsiField field : metaData.getFields()) {
+         if(field != null && !Tool.isEmptyString(field.getName())) {
+            names.add(field.getName());
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * The names (and aliases) of the columns this same request DERIVES rather than reads from the
+    * source — {@code expressionColumns} and {@code windowColumns}. A request that also lists a
+    * derived column in {@code columns} is naming something the source's metadata cannot know about,
+    * so it is exempt from source reconciliation.
+    */
+   private static Set<String> derivedColumnNames(WorksheetTable request) {
+      Set<String> names = new HashSet<>();
+
+      if(request.getExpressionColumns() != null) {
+         for(WorksheetTable.ExpressionColumnInfo col : request.getExpressionColumns()) {
+            if(col == null) {
+               continue;
+            }
+
+            if(!Tool.isEmptyString(col.getName())) {
+               names.add(col.getName());
+            }
+
+            if(!Tool.isEmptyString(col.getAlias())) {
+               names.add(col.getAlias());
+            }
+         }
+      }
+
+      if(request.getWindowColumns() != null) {
+         for(WorksheetTable.WindowColumnInfo col : request.getWindowColumns()) {
+            if(col != null && !Tool.isEmptyString(col.getName())) {
+               names.add(col.getName());
+            }
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Reconcile a caller-declared {@code columns} list against the source table's real column names,
+    * canonicalizing each name to the source's exact spelling.
+    *
+    * <p>Forgiving where the intent is unambiguous: a case-only difference, or a name qualified with
+    * a table prefix ({@code ORDERS.ORDER_AMOUNT}) whose remainder is a real column, resolves to the
+    * source's spelling. Fail loud otherwise — and the error names both the unresolvable columns and
+    * the ones the table does have, so a caller (LLM or human) can correct itself in one step.
+    *
+    * <p>Why this must fail rather than pass through: {@link #buildColumnSelection} turns any string
+    * into an {@link AttributeRef}, so a column the source does not have used to enter the assembly's
+    * stored column selection unchallenged, and every read-back this API serves ({@code /ws/table}'s
+    * response, {@code /ws/structure}) then advertised the phantom column as real. Nothing failed
+    * later either: at query time {@code PreAssetQuery.validateColumnSelection} silently REMOVES
+    * columns the source does not have, so the generated SQL is valid and even the execution probe
+    * passes. The caller binds a chart to a column no query can ever produce and gets an empty chart
+    * with no error, and the column disappears from the worksheet as soon as Composer refreshes it.
+    *
+    * @param requested       the caller's column list; resolvable names are canonicalized in place
+    * @param sourceColumns   the source table's real column names; empty means "metadata unavailable",
+    *                        which skips reconciliation rather than failing the create
+    * @param derivedColumns  columns this request derives itself (see {@link #derivedColumnNames})
+    * @return {@code requested}, with every name canonicalized to the source's spelling
+    * @throws IllegalArgumentException if any name cannot be resolved to a source column
+    */
+   // Package-private for unit testing (WorksheetTableServiceColumnValidationTest).
+   List<WorksheetTable.ColumnInfo> resolveRequestedColumns(
+      List<WorksheetTable.ColumnInfo> requested, List<String> sourceColumns,
+      Set<String> derivedColumns)
+   {
+      if(sourceColumns == null || sourceColumns.isEmpty()) {
+         LOG.warn("No source metadata to reconcile the requested columns against; " +
+                  "accepting them as declared.");
+         return requested;
+      }
+
+      // Upper-cased name → the source's exact spelling. First spelling wins, so a source that
+      // reports two columns differing only in case keeps the one it listed first.
+      Map<String, String> canonical = new HashMap<>();
+
+      for(String name : sourceColumns) {
+         canonical.putIfAbsent(name.toUpperCase(), name);
+      }
+
+      List<String> unresolved = new ArrayList<>();
+
+      for(WorksheetTable.ColumnInfo col : requested) {
+         String name = col == null ? null : col.getName();
+
+         if(name == null || name.isBlank()) {
+            unresolved.add("<empty>");
+            continue;
+         }
+
+         // Derived by this same request — the source's metadata cannot know it.
+         if(derivedColumns.contains(name)) {
+            continue;
+         }
+
+         String match = canonical.get(name.toUpperCase());
+         int dot = name.lastIndexOf('.');
+
+         // "ORDERS.ORDER_AMOUNT" — a table-qualified name. Unqualify ONLY when the exact name is
+         // not itself a column, so a source column whose own name contains a dot still wins.
+         if(match == null && dot > 0 && dot < name.length() - 1) {
+            match = canonical.get(name.substring(dot + 1).toUpperCase());
+         }
+
+         if(match == null) {
+            unresolved.add(name);
+         }
+         else if(!match.equals(name)) {
+            col.setName(match);
+         }
+      }
+
+      if(!unresolved.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Column(s) not found in source table: " + String.join(", ", unresolved) +
+            ". Available columns: " + String.join(", ", sourceColumns) +
+            ". Use the exact column names the datasource reports; a value the source does not " +
+            "store must be derived in expressionColumns (on a mirror of this table), not listed " +
+            "in columns.");
+      }
+
+      return requested;
    }
 
    private ColumnSelection buildColumnSelectionFromMeta(OsiDataset metaData) {
