@@ -48,7 +48,7 @@
           @if (!model.scaleInfo.tiled) {
             <img #imageElement class="image-content"
               (click)="clicked($event)"
-              (load)="onImageLoad()" (error)="finishLoad()"
+              (load)="onImageLoad()" (error)="finishLoad(false)"
               [class.image-content-shadow]="model.shadow && model.animateGif"
               [style.width.px]="imageSize.width"
               [style.height.px]="imageSize.height"

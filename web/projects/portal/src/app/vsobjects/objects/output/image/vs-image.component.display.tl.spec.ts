@@ -28,7 +28,9 @@
  *                       scaling, border subtraction
  *   Group 4 [Risk 2] — hasPopComponentChange: popComponent value diffing
  *   Group 5 [Risk 1] — isForceTab: composer-context boolean getter
- *   Group 6 [Risk 1] — finishLoad: loading cleared + change detection
+ *   Group 6 [Risk 1] — finishLoad: loading cleared + change detection + onLoad emission
+ *                       (bug #75975 follow-up: VSImage doesn't route through the base class's
+ *                       loaded(), so finishLoad() must emit onLoad itself)
  *   Group 7 [Risk 1] — isPopupOrDataTipSource: pop-source boolean getter
  *   Group 8 [Risk 3] — Legacy DOM regressions ported verbatim from vs-image.component.spec.ts
  *                       (bugs #17807, #17228, #20755): uses a real TestBed render (not direct
@@ -302,6 +304,33 @@ describe("VSImage — Pass 3: Display", () => {
 
          expect(comp.loading).toBe(false);
          expect(changeDetectorRef.detectChanges).toHaveBeenCalled();
+      });
+
+      // Bug #75975 follow-up: unlike VSGauge, VSImage doesn't route its <img> load/error through
+      // the base AbstractImageComponent.loaded() - it manages `loading` directly, so finishLoad()
+      // must emit the inherited onLoad @Output itself (defaulting to success=true, matching every
+      // pre-existing no-arg call site: onImageLoad()'s own success path, and the tiled-image
+      // immediate-completion paths in ngOnInit/modelChanged). Otherwise EmbedImageComponent's
+      // (onLoad)="dispatchLoaded()" binding never fires and <inetsoft-image> embeds never
+      // dispatch the "loaded" DOM event this PR is meant to add.
+      it("should emit onLoad(true) by default", () => {
+         const { comp } = createImageComponent();
+         const spy = vi.fn();
+         comp.onLoad.subscribe(spy);
+
+         comp.finishLoad();
+
+         expect(spy).toHaveBeenCalledWith(true);
+      });
+
+      it("should emit onLoad(false) when called from the <img> error handler", () => {
+         const { comp } = createImageComponent();
+         const spy = vi.fn();
+         comp.onLoad.subscribe(spy);
+
+         comp.finishLoad(false);
+
+         expect(spy).toHaveBeenCalledWith(false);
       });
    });
 

@@ -269,11 +269,16 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
          this.imageSize = size;
       }
 
-      this.finishLoad();
+      this.finishLoad(true);
    }
 
-   finishLoad() {
+   finishLoad(success: boolean = true) {
       this.loading = false;
+      // Unlike VSGauge, VSImage doesn't route its <img> load/error through the base
+      // AbstractImageComponent.loaded() - it manages `loading` directly, so it must emit onLoad
+      // itself too, or EmbedImageComponent's (onLoad)="dispatchLoaded()" binding never fires and
+      // <inetsoft-image> embeds never dispatch the "loaded" DOM event. (Bug #75975 follow-up.)
+      this.onLoad.emit(success);
       this.changeRef.detectChanges();
    }
 
