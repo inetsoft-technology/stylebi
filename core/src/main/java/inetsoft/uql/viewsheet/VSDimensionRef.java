@@ -840,7 +840,17 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
       int order = getOrder();
       boolean string = XSchema.STRING.equals(getDataType());
 
-      if(data != null) {
+      // Prefer the runtime data set's actual column type over the declared one -- but only when
+      // this dimension's column is actually PRESENT in `data`. When multiple charts are composed
+      // into one dashboard viewsheet (WizDashboardService#composeDashboard, or an ordinary
+      // Composer-built dashboard with several charts), `data` passed to createComparator() during
+      // categorical color-frame sync (VSFrameVisitor#syncColors -> sortValues) is not guaranteed
+      // to be THIS dimension's own chart's data set -- e.g. a shared/cloned CategoricalColorFrame
+      // context carried over from a sibling chart. Calling getType() unconditionally then throws
+      // ColumnNotFoundException (e.g. "Column not found: project_name in
+      // date_type,None(event_month),work_package_count") and aborts the entire export/render
+      // instead of just this one dimension falling back to its already-computed declared type.
+      if(data != null && data.indexOfHeader(getFullName(), true) >= 0) {
          string = data.getType(getFullName()) == String.class;
       }
 
