@@ -24,6 +24,7 @@
  *   Group 2 [Risk 3] - isDuplicateTableName: optional backend fields must not crash duplicate checks
  *   Group 3 [Risk 3] - refreshWarnings0: warning confirmation must persist warning state and callback ownership
  *   Group 4 [Risk 2] - showTreeContextMenu: context menu must keep the original DOM source event
+ *   Group 5 [Risk 2] - graphNodesSelected: graph clicks must update the outgoing-joins pane
  *
  * Confirmed bugs (it.failing - remove wrapper once fixed Issue #75158):
  *
@@ -62,6 +63,7 @@ import { DataPhysicalModelService } from "../../../services/data-physical-model.
 import { PhysicalModelDefinition } from "../../../model/datasources/database/physical-model/physical-model-definition";
 import { PhysicalTableModel } from "../../../model/datasources/database/physical-model/physical-table-model";
 import { PhysicalTableType } from "../../../model/datasources/database/physical-model/physical-table-type.enum";
+import { GraphModel } from "../../../model/datasources/database/physical-model/graph/graph-model";
 import { FixedDropdownService } from "../../../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { DatabasePhysicalModelComponent } from "./database-physical-model.component";
 
@@ -113,6 +115,37 @@ function createTable(overrides: Partial<PhysicalTableModel> = {}): PhysicalTable
       baseTable: false,
       ...overrides,
    };
+}
+
+function createGraph(
+   overrides: Partial<Omit<GraphModel, "node">> & { node?: Partial<GraphModel["node"]> } = {}
+): GraphModel {
+   const id = overrides.node?.id ?? overrides.node?.name ?? "Orders";
+
+   return {
+      edge: { input: [], output: [] },
+      cols: [],
+      bounds: null,
+      showColumns: false,
+      alias: false,
+      autoAlias: false,
+      sql: false,
+      baseTable: false,
+      autoAliasByOutgoing: false,
+      designModeAlias: false,
+      ...overrides,
+      node: {
+         id,
+         name: id,
+         tableName: id,
+         label: id,
+         tooltip: id,
+         treeLink: `SalesDB/${id}`,
+         aliasSource: null,
+         outgoingAliasSource: null,
+         ...overrides.node,
+      },
+   } as GraphModel;
 }
 
 function createPhysicalModel(overrides: Partial<PhysicalModelDefinition> = {}): PhysicalModelDefinition {
@@ -359,5 +392,252 @@ describe("DatabasePhysicalModelComponent - showTreeContextMenu - source event ow
       expect(dropdownService.open).toHaveBeenCalledTimes(1);
       expect(contextmenu["sourceEvent"]).toBe(domEvent);
       expect(contextmenu["actions"].length).toBeGreaterThan(0);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 5 - graphNodesSelected: outgoing joins pane table ownership [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("DatabasePhysicalModelComponent - graphNodesSelected - outgoing joins pane [Group 5, Risk 2]", () => {
+
+   // Regression-sensitive: graph selection should drive the joins pane even when the
+   // lazy table tree cannot resolve and re-emit the selected node synchronously.
+   it("should set editingTable from a single selected source graph node identity", async () => {
+      const ordersAlias = createTable({
+         qualifiedName: "Orders_Alias",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias",
+         aliasSource: "Orders",
+      });
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+         joins: [{ foreignTable: "Customers" } as any],
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [ordersAlias, orders],
+      }));
+      const comp = fixture.componentInstance;
+      const graph = createGraph({
+         node: {
+            id: "Orders",
+            name: "Orders",
+            treeLink: "SalesDB/Orders",
+         },
+      });
+      (comp as any).graphViewModel = {
+         graphs: [graph],
+      };
+      comp.databaseRoot.children = [];
+
+      comp.graphNodesSelected([graph]);
+
+      expect(comp.editingTable).toBe(orders);
+      expect(comp.selectedGraphModels).toEqual([graph]);
+   });
+
+   it("should resolve an auto-alias graph node to its source table", async () => {
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+      });
+      const ordersAlias = createTable({
+         qualifiedName: "Orders_Alias",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias",
+         aliasSource: "Orders",
+         joins: [{ foreignTable: "Customers" } as any],
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [ordersAlias, orders],
+      }));
+      const comp = fixture.componentInstance;
+      const aliasGraph = createGraph({
+         autoAlias: true,
+         node: {
+            id: "Orders_Alias",
+            name: "Orders_Alias",
+            treeLink: "SalesDB/NoMatchingTablePath",
+            aliasSource: "Orders",
+         },
+      });
+      (comp as any).graphViewModel = {
+         graphs: [aliasGraph],
+      };
+      comp.databaseRoot.children = [];
+
+      comp.graphNodesSelected([aliasGraph]);
+
+      expect(comp.editingTable).toBe(orders);
+   });
+
+   it("should resolve an outgoing auto-alias graph node to its outgoing source table", async () => {
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+      });
+      const ordersAlias = createTable({
+         qualifiedName: "Orders_Alias",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias",
+         aliasSource: "Orders",
+         joins: [{ foreignTable: "Customers" } as any],
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [ordersAlias, orders],
+      }));
+      const comp = fixture.componentInstance;
+      const aliasGraph = createGraph({
+         autoAliasByOutgoing: true,
+         node: {
+            id: "Orders_Alias",
+            name: "Orders_Alias",
+            treeLink: "SalesDB/NoMatchingTablePath",
+            outgoingAliasSource: "Orders",
+         },
+      });
+      (comp as any).graphViewModel = {
+         graphs: [aliasGraph],
+      };
+      comp.databaseRoot.children = [];
+
+      comp.graphNodesSelected([aliasGraph]);
+
+      expect(comp.editingTable).toBe(orders);
+   });
+
+   it("should not re-resolve a graph selection through a loaded tree node", async () => {
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+      });
+      const ordersAlias = createTable({
+         qualifiedName: "Orders_Alias",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias",
+         aliasSource: "Orders",
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [ordersAlias, orders],
+      }));
+      const comp = fixture.componentInstance;
+      const aliasGraph = createGraph({
+         autoAlias: true,
+         node: {
+            id: "Orders_Alias",
+            name: "Orders_Alias",
+            treeLink: "SalesDB/Orders",
+            aliasSource: "Orders",
+         },
+      });
+      comp.databaseRoot.children = [{
+         label: "Orders",
+         leaf: true,
+         data: {
+            path: "SalesDB/Orders",
+            qualifiedName: "Orders",
+         },
+      }];
+
+      comp.graphNodesSelected([aliasGraph]);
+
+      expect(comp.editingTable).toBe(orders);
+      expect(comp.tableTree.selectNode).not.toHaveBeenCalled();
+      expect(comp.tableTree.selectedNodes).toEqual([comp.databaseRoot.children[0]]);
+   });
+
+   it("should resolve multiple auto-alias graph nodes with a shared path to the same source table", async () => {
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+      });
+      const ordersAlias = createTable({
+         qualifiedName: "Orders_Alias",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias",
+         aliasSource: "Orders",
+      });
+      const ordersAlias2 = createTable({
+         qualifiedName: "Orders_Alias_2",
+         path: "SalesDB/Orders",
+         alias: "Orders_Alias_2",
+         aliasSource: "Orders",
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [ordersAlias, ordersAlias2, orders],
+      }));
+      const comp = fixture.componentInstance;
+      const aliasGraph = createGraph({
+         autoAlias: true,
+         node: {
+            id: "Orders_Alias",
+            name: "Orders_Alias",
+            treeLink: "SalesDB/Orders",
+            aliasSource: "Orders",
+         },
+      });
+      const aliasGraph2 = createGraph({
+         autoAlias: true,
+         node: {
+            id: "Orders_Alias_2",
+            name: "Orders_Alias_2",
+            treeLink: "SalesDB/Orders",
+            aliasSource: "Orders",
+         },
+      });
+      (comp as any).graphViewModel = {
+         graphs: [aliasGraph, aliasGraph2],
+      };
+      comp.databaseRoot.children = [];
+
+      comp.graphNodesSelected([aliasGraph2]);
+
+      expect(comp.editingTable).toBe(orders);
+   });
+
+   it("should keep editingTable cleared for multi-select when only one selected path is loaded in the tree", async () => {
+      const orders = createTable({
+         qualifiedName: "Orders",
+         path: "SalesDB/Orders",
+      });
+      const customers = createTable({
+         qualifiedName: "Customers",
+         path: "SalesDB/Customers",
+      });
+      const { fixture } = await renderPhysical(createPhysicalModel({
+         tables: [orders, customers],
+      }));
+      const comp = fixture.componentInstance;
+      const ordersGraph = createGraph({
+         node: {
+            id: "Orders",
+            name: "Orders",
+            treeLink: "SalesDB/Orders",
+         },
+      });
+      const customersGraph = createGraph({
+         node: {
+            id: "Customers",
+            name: "Customers",
+            treeLink: "SalesDB/Customers",
+         },
+      });
+      comp.editingTable = orders;
+      comp.databaseRoot.children = [{
+         label: "Orders",
+         leaf: true,
+         data: {
+            path: "SalesDB/Orders",
+            qualifiedName: "Orders",
+         },
+      }];
+
+      comp.graphNodesSelected([ordersGraph, customersGraph]);
+
+      expect(comp.editingTable).toBeNull();
+      expect(comp.selectedGraphModels).toEqual([ordersGraph, customersGraph]);
+      expect(comp.tableTree.selectNode).not.toHaveBeenCalled();
+      expect(comp.tableTree.selectedNodes).toEqual([comp.databaseRoot.children[0]]);
    });
 });

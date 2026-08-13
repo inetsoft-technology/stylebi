@@ -27,6 +27,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
    var $loginAsNameField = $("#loginAsName");
 
    var $loginButton = $("#loginButton");
+   var $activeSession = $("#activeSession");
    var $confirmLogin = $("#confirmLogin");
    var $terminateSessionButton = $("#terminateSessionButton");
    var $sessionLimitTableBody = $("#sessionLimitTableBody");
@@ -94,7 +95,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       }
 
       if(!!currentUser && !!userName && currentUser != userName && !logoutCurrent) {
-         $("#activeSession").modal("show");
+         $activeSession.modal("show");
          return;
       }
 
@@ -188,6 +189,10 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       authenticate(false);
    });
 
+   $activeSession.on("shown.bs.modal", function() {
+      $confirmLogin.trigger("focus");
+   });
+
    $togglePassword.click(function() {
       var show = $passwordField.attr("type") === "password";
       $passwordField.attr("type", show ? "text" : "password");
@@ -208,7 +213,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
    });
 
    $confirmLogin.click(function() {
-      $("#activeSession").modal("hide");
+      $activeSession.modal("hide");
       authenticate(true);
    });
 

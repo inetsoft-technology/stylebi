@@ -257,7 +257,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
             this.parent = Tool.byteDecode(params.get("parent"));
             this.refreshSupportFullOuterJoin();
             //edit table should be hidden when open another(create/editing) physical model.
-            this.editingTable = null;
+            this.setEditingTable(null);
 
             if(this.editing) {
                this.dataPhysicalModelService.resetModel();
@@ -991,7 +991,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
             .subscribe(() => this.dataPhysicalModelService.emitModelChange());
 
          if(this.tableTree.selectedNodes?.length == 1 &&  this.tableTree.selectedNodes[0] == node) {
-            this.editingTable = newTable;
+            this.setEditingTable(newTable);
          }
       }
       else {
@@ -1059,12 +1059,16 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
    private changeEditingTableByName(qualifiedName: string) {
       if(!!qualifiedName) {
-         this.editingTable = this.physicalModel.tables
-            .find(table => qualifiedName === table.qualifiedName);
+         this.setEditingTable(this.physicalModel.tables
+            .find(table => qualifiedName === table.qualifiedName));
       }
       else {
-         this.editingTable = null;
+         this.setEditingTable(null);
       }
+   }
+
+   private setEditingTable(table: PhysicalTableModel | null | undefined): void {
+      this.editingTable = table ?? null;
    }
 
    get databaseParr(): string {
@@ -1226,7 +1230,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
       if(!!this.editingTable && this.editingTable.qualifiedName == nodeData.qualifiedName) {
          // if the removed table was selected, set selected table to null
-         this.editingTable = null;
+         this.setEditingTable(null);
       }
    }
 
@@ -1436,17 +1440,63 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       this.isModified = this.isModified || isModified;
    }
 
-   graphNodesSelected(nodes: string[]) {
+   graphNodesSelected(nodes: GraphModel[]) {
       this.tableTree.selectedNodes = [];
+      this.selectedGraphModels = nodes ? [...nodes] : [];
 
       if(!nodes || nodes.length == 0) {
          this.tableTree.selectedNodes = [];
          this.selectNode(null);
       }
       else {
+         if(nodes.length == 1) {
+            this.changeEditingTableByGraph(nodes[0]);
+         }
+         else {
+            this.changeEditingTableByName(null);
+         }
+
          this.resetSearchMode();
-         this.selectAndExpandToPath(nodes);
+         const emitTreeSelection = false;
+         this.selectAndExpandToPath(nodes
+            .map(graph => graph?.node?.treeLink)
+            .filter((path): path is string => !!path), this.databaseRoot, emitTreeSelection);
       }
+   }
+
+   private changeEditingTableByGraph(graph: GraphModel): void {
+      if(!graph?.node) {
+         this.changeEditingTableByName(null);
+         return;
+      }
+
+      const tables = this.physicalModel?.tables ?? [];
+      this.setEditingTable(tables.find(table => this.matchesGraphNode(table, graph)));
+   }
+
+   private matchesGraphNode(table: PhysicalTableModel, graph: GraphModel): boolean {
+      if(!table || !graph?.node) {
+         return false;
+      }
+
+      if(graph.autoAlias) {
+         return table.qualifiedName === graph.node.aliasSource;
+      }
+
+      if(graph.autoAliasByOutgoing) {
+         return table.qualifiedName === graph.node.outgoingAliasSource;
+      }
+
+      if(graph.alias || graph.node.aliasSource || graph.node.outgoingAliasSource) {
+         return table.qualifiedName === (graph.node.id || graph.node.name);
+      }
+
+      if(table.qualifiedName === (graph.node.id || graph.node.name)) {
+         return true;
+      }
+
+      return !table.alias &&
+         (this.getTablePath(table) === graph.node.treeLink || table.path === graph.node.treeLink);
    }
 
    tableRemoved(tables: GraphModel[]): void {
@@ -1471,7 +1521,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                   this.editingTable.qualifiedName == tableData.qualifiedName)
                {
                   // if the removed table was selected, set selected table to null
-                  this.editingTable = null;
+                  this.setEditingTable(null);
                }
             }
          }
@@ -1483,12 +1533,18 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
     * @param paths    the path to find
     * @param parent  the current parent node to search
     */
-   private selectAndExpandToPath(paths: string[], parent: TreeNodeModel = this.databaseRoot): void {
+   private selectAndExpandToPath(paths: string[], parent: TreeNodeModel = this.databaseRoot,
+                                 emitSelection: boolean = true): void {
       for(let child of parent.children) {
          const childPath: string = (<DatabaseTreeNodeModel> child.data).path;
 
          if(paths.includes(childPath)) {
-            this.tableTree.selectNode(child);
+            if(emitSelection) {
+               this.tableTree.selectNode(child);
+            }
+            else {
+               this.tableTree.selectedNodes.push(child);
+            }
          }
          else if(paths.some(p => !!p && p.indexOf(childPath + "/") === 0)) {
             child.expanded = true;
@@ -1498,11 +1554,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                   .subscribe(
                      data => {
                         this.setExpandedNodeChildren(child, data);
-                        this.selectAndExpandToPath(paths, child);
+                        this.selectAndExpandToPath(paths, child, emitSelection);
                      });
             }
             else {
-               this.selectAndExpandToPath(paths, child);
+               this.selectAndExpandToPath(paths, child, emitSelection);
             }
          }
       }
@@ -1562,10 +1618,10 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          });
 
          if(newTable) {
-            this.editingTable = newTable;
+            this.setEditingTable(newTable);
          }
          else {
-            this.editingTable = null;
+            this.setEditingTable(null);
          }
       }
    }

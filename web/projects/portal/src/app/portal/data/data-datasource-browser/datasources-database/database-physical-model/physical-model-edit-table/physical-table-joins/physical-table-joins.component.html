@@ -47,19 +47,22 @@
     </div>
   </div>
   <div class="outgoing-tree-pane flex-fixed-content content-overflow-all d-inline-flex p-1">
-    <div class="physical-table-joins-pane__empty" *ngIf="!foreignTableRoot.children?.length">
-      _#(No joins yet. Add a join to connect this table to another table in the physical view.)
-    </div>
-    <tree *ngIf="foreignTableRoot.children?.length"
-          #joinsTree class="outgoing-tree"
-          [root]="foreignTableRoot"
-          [showRoot]="false"
-          [showIcon]="false"
-          [multiSelect]="true"
-          [disabled]="disabled"
-          [selectedNodes]="selectedNodes"
-          (nodesSelected)="selectNode($event)">
-    </tree>
+    @if (!foreignTableRoot.children?.length) {
+      <div class="physical-table-joins-pane__empty">
+        _#(No joins yet. Add a join to connect this table to another table in the physical view.)
+      </div>
+    }
+    @if (foreignTableRoot.children?.length) {
+      <tree #joinsTree class="outgoing-tree"
+            [root]="foreignTableRoot"
+            [showRoot]="false"
+            [showIcon]="false"
+            [multiSelect]="true"
+            [disabled]="disabled"
+            [selectedNodes]="selectedNodes"
+            (nodesSelected)="selectNode($event)">
+      </tree>
+    }
   </div>
 </div>
 <ng-template #addJoinDialog let-close="close" let-dismiss="dismiss">

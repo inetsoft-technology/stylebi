@@ -91,7 +91,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    @Output() onEditInlineView = new EventEmitter<string>();
    @Output() onRefreshPhysicalGraph = new EventEmitter<TableJoinInfo>();
    @Output() onModified: EventEmitter<boolean> = new EventEmitter<boolean>();
-   @Output() onNodeSelected: EventEmitter<string[]> = new EventEmitter<string[]>();
+   @Output() onNodeSelected: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
    @Output() onRemoveTable: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
 
    @ViewChild("jspContainerMain") jspContainerMain: ElementRef<HTMLDivElement>;
@@ -695,15 +695,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    }
 
    private fireSelectedNodesChanged(): void {
-      let selectedPath: string[] = [];
-
-      this.dragNodes.forEach(node => {
-         if(node && node.node) {
-            selectedPath.push(node.node.treeLink);
-         }
-      });
-
-      this.onNodeSelected.emit(selectedPath);
+      this.onNodeSelected.emit(this.dragNodes.filter(node => !!node?.node));
    }
 
    @HostListener("contextmenu", ["$event"])
