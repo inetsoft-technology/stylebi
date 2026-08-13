@@ -153,6 +153,16 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the checkbox title height.
     * @param value the specified checkbox title height.
@@ -336,7 +346,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
 
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObjects");
 

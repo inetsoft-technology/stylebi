@@ -447,6 +447,16 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the time slider title height.
     * @param value the specified time slider title height.
@@ -630,7 +640,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          timeSliderSelection.parseXML(tslnode, slist);
       }
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
    }
 
    /**
