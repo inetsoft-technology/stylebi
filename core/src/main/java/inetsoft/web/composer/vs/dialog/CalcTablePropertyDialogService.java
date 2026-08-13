@@ -372,7 +372,12 @@ public class CalcTablePropertyDialogService {
 
       dialogService.setAssemblySize(calcTableAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(calcTableAssemblyInfo, sizePositionPaneModel);
-      calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      // see TitleInfo.isUserTitleHeight() for what this guard must become if the
+      // effective title height ever diverges from the stored one
+      if(sizePositionPaneModel.getTitleHeight() != calcTableAssemblyInfo.getTitleHeightValue()) {
+         calcTableAssemblyInfo.setUserTitleHeight(true);
+         calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       calcTableAssemblyInfo.setShrinkValue(advPane.isShrink());
       calcTableAssemblyInfo.setHeaderRowCount(advPane.getHeaderRowCount());

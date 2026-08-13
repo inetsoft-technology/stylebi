@@ -295,7 +295,10 @@ public class CrosstabPropertyDialogService {
 
       dialogService.setAssemblySize(assemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(assemblyInfo, sizePositionPaneModel);
-      assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+         assemblyInfo.setUserTitleHeight(true);
+         assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       if(vsCrossTabInfo != null) {
          vsCrossTabInfo.setFillBlankWithZeroValue(advancePane.isFillBlankWithZero());

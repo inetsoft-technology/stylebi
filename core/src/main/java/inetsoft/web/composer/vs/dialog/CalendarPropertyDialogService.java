@@ -233,7 +233,10 @@ public class CalendarPropertyDialogService {
 
       dialogService.setAssemblySize(info, sizePositionPaneModel);
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
-      info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      if(sizePositionPaneModel.getTitleHeight() != info.getTitleHeightValue()) {
+         info.setUserTitleHeight(true);
+         info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       info.setEnabledValue(generalPropPaneModel.getEnabled());
 
