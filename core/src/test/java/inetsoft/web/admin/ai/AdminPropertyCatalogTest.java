@@ -17,6 +17,9 @@
  */
 package inetsoft.web.admin.ai;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -191,5 +194,71 @@ class AdminPropertyCatalogTest {
       assertTrue(AdminPropertyCatalog.isEncryptedCredential("mail.smtp.clientSecret"));
       assertTrue(AdminPropertyCatalog.isEncryptedCredential("styleBI.google.openid.client.secret"));
       assertTrue(AdminPropertyCatalog.isEncryptedCredential("log.fluentd.security.sharedKey"));
+   }
+
+   @Test
+   void everyCatalogueEntryIsWellFormed() {
+      // The class javadoc's hard rule: a catalogued name that does not exist in StyleBI would be
+      // snapshotted as null, applied, read back as null, and reported as success for a property
+      // nothing reads. That existence check cannot run here - it is a source-tree grep, done when
+      // entries are added - but the shape checks that CAN run should, because a malformed entry
+      // fails the same silent way.
+      AdminPropertyCatalog catalog = new AdminPropertyCatalog();
+      Set<String> seen = new HashSet<>();
+
+      for(CatalogEntry entry : catalog.entries()) {
+         String name = entry.name();
+         assertNotNull(name, "every entry needs a name");
+         assertEquals(name.toLowerCase(), name,
+                      name + ": catalogued names are looked up lowercased, so store them that way");
+         assertTrue(seen.add(name), name + ": duplicated catalog entry");
+         assertNotNull(entry.description(), name + ": needs a description; it is shown in the plan");
+         assertTrue(List.of("string", "int", "boolean", "enum").contains(entry.type()),
+                    name + ": type must be one AdminPropertyCatalog.canonicalizeValue handles");
+         assertTrue(List.of("low", "high").contains(entry.risk()), name + ": risk must be low/high");
+         assertTrue(List.of("value", "storage").contains(entry.snapshotScope()),
+                    name + ": snapshotScope must be value/storage");
+
+         if("enum".equals(entry.type())) {
+            assertNotNull(entry.allowedValues(), name + ": an enum needs allowedValues");
+            assertFalse(entry.allowedValues().isEmpty(),
+                        name + ": an enum with no allowed values rejects every value");
+         }
+      }
+   }
+
+   @Test
+   void theSsoAreaIsCataloguedAndClassifiedConsistently() {
+      // Catalogued so a from-scratch SSO setup reports exists:"confirmed" and gets its values
+      // validated, instead of every property looking indistinguishable from a typo.
+      AdminPropertyCatalog catalog = new AdminPropertyCatalog();
+
+      for(String name : new String[] { "sso.protocol.type", "openid.client.id", "openid.issuer",
+                                       "openid.jwks.uri", "openid.scopes", "openid.name.claim",
+                                       "saml.roles.attribute", "onelogin.saml2.sp.entityid" })
+      {
+         CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse(name));
+         assertNotNull(entry, name + " should be catalogued");
+         // No property in this area appears in PropertyChangeSideEffects or
+         // PropertiesEngine.applyProperty, so a write reaches nothing beyond the value itself and
+         // does not need a Tier-2 storage snapshot.
+         assertEquals("value", entry.snapshotScope(), name + ": no side-effect channel reaches it");
+         // Under-classifying here would skip review on a change that can lock every user out.
+         assertEquals("high", entry.risk(), name + ": SSO changes govern who can log in");
+      }
+   }
+
+   @Test
+   void ssoProtocolTypeRejectsATypoThatWouldSilentlyDisableSso() {
+      // SSOType.forName folds anything unrecognised to NONE, so "OpenId Connect" would turn SSO
+      // off with no error. As an enum it is refused, and a recognised value is canonicalised to
+      // the exact casing - which matters, because EmNavBarController compares the raw string.
+      AdminPropertyCatalog catalog = new AdminPropertyCatalog();
+      CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse("sso.protocol.type"));
+
+      assertEquals("OpenID", catalog.canonicalizeValue(entry, "openid"));
+      assertEquals("SAML", catalog.canonicalizeValue(entry, "  saml  "));
+      assertThrows(IllegalArgumentException.class,
+                   () -> catalog.canonicalizeValue(entry, "OpenId Connect"));
    }
 }
