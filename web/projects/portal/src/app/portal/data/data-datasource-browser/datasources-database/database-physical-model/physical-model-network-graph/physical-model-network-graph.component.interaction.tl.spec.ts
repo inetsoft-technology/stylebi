@@ -21,7 +21,7 @@
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — selectNode(): already-selected guard; ctrl/shift append; plain replace;
- *                        emits correct treeLinks via onNodeSelected
+ *                        emits selected graph models via onNodeSelected
  *   Group 2 [Risk 2] — selectAll(), onSelectionBox(), clearSelection()
  *   Group 3 [Risk 2] — removeSelectTables(): no-confirm path; confirm path (ok / cancel);
  *                        baseTable exclusion
@@ -113,7 +113,7 @@ describe("PhysicalModelNetworkGraphComponent — selectNode()", () => {
       expect((comp as any).dragNodes).toEqual([g1, g2]);
    });
 
-   it("should emit onNodeSelected with treeLinks of all dragNodes after selection", async () => {
+   it("should emit onNodeSelected with all selected graph models after selection", async () => {
       const g1 = makeGraph("t1");
       const g2 = makeGraph("t2");
       const { comp, onNodeSelectedSpy } = await renderComp({ graphViewModel: makeViewModel([g1, g2]) });
@@ -122,9 +122,7 @@ describe("PhysicalModelNetworkGraphComponent — selectNode()", () => {
 
       comp.selectNode({ ctrlKey: true, shiftKey: false } as MouseEvent, g2);
 
-      expect(onNodeSelectedSpy).toHaveBeenCalledWith(
-         [g1.node.treeLink, g2.node.treeLink]
-      );
+      expect(onNodeSelectedSpy).toHaveBeenCalledWith([g1, g2]);
    });
 
    // 🔁 Regression-sensitive: this is the bug this file's changes fix -- plain-clicking one
@@ -161,16 +159,14 @@ describe("PhysicalModelNetworkGraphComponent — selectAll()", () => {
       expect((comp as any).dragNodes).toBe(graphs);
    });
 
-   it("should emit onNodeSelected with all treeLinks after selectAll()", async () => {
+   it("should emit onNodeSelected with all graph models after selectAll()", async () => {
       const graphs = [makeGraph("t1"), makeGraph("t2")];
       const { comp, onNodeSelectedSpy } = await renderComp({ graphViewModel: makeViewModel(graphs) });
       vi.spyOn(comp as any, "refreshDragSelection").mockImplementation(() => {});
 
       comp.selectAll();
 
-      expect(onNodeSelectedSpy).toHaveBeenCalledWith(
-         graphs.map(g => g.node.treeLink)
-      );
+      expect(onNodeSelectedSpy).toHaveBeenCalledWith(graphs);
    });
 });
 
@@ -188,7 +184,7 @@ describe("PhysicalModelNetworkGraphComponent — onSelectionBox()", () => {
       comp.onSelectionBox({ box: new Rectangle(0, 0, 50, 50) } as any);
 
       expect((comp as any).dragNodes).toEqual([g1]);
-      expect(onNodeSelectedSpy).toHaveBeenCalledWith([g1.node.treeLink]);
+      expect(onNodeSelectedSpy).toHaveBeenCalledWith([g1]);
    });
 
    it("should clear dragNodes when no graphs intersect the selection box", async () => {

@@ -64,7 +64,7 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    @Output() onJoinEditing: EventEmitter<boolean> = new EventEmitter<boolean>();
    @Output() onPhysicalGraph: EventEmitter<GraphViewModel> = new EventEmitter<GraphViewModel>();
    @Output() onModified: EventEmitter<boolean> = new EventEmitter<boolean>();
-   @Output() onNodeSelected: EventEmitter<string[]> = new EventEmitter<string[]>();
+   @Output() onNodeSelected: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
    @Output() onRemoveTable: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
    @Output() onZoom: EventEmitter<number> = new EventEmitter<number>();
 
