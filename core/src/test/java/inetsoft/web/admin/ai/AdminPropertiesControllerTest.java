@@ -186,6 +186,10 @@ class AdminPropertiesControllerTest {
       assertEquals(PropertyView.EXISTS_UNKNOWN, invented.exists());
       assertNotNull(invented.guidance());
       assertFalse(invented.description().contains("Value withheld"));
+      // The description must be about the NAME, not the property: a caller who stops reading at
+      // the first clause must not come away with "this exists and is a secret".
+      assertFalse(invented.description().startsWith("Secret property"));
+      assertTrue(invented.description().contains("name"));
       sreeEnv.verify(
          () -> SreeEnv.getProperty("openid.completely.made.up.key", false, false), never());
    }

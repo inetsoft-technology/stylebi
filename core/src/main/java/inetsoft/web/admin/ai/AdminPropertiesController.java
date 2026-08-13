@@ -124,9 +124,15 @@ public class AdminPropertiesController {
       // branch is reached on nothing more than a name match, so an invented name ending .key came
       // back claiming a secret had been withheld - manufacturing evidence that the property exists
       // out of a string suffix.
+      //
+      // The replacement is worded about the NAME rather than the property for the same reason. A
+      // name match is all that is known here, so "Secret property: ..." would still assert the
+      // category, and a caller who stopped reading at the colon would take it as confirmation the
+      // property exists - the very inference `exists` was added to prevent.
       if(secret) {
-         description = "Secret property: admin-chat can neither read nor change it. Its value is "
-            + "not read here at all, so this says nothing about whether one is set.";
+         description = "This name matches admin-chat's secret pattern, so its value is neither "
+            + "read nor changed here - not even read to test whether one is present, so this says "
+            + "nothing about whether the property exists or is set.";
       }
 
       // A catalogued name is authoritative; a stored value is proof by demonstration, and covers
