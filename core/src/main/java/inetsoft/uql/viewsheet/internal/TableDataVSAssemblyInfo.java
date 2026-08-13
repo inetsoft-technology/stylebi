@@ -260,6 +260,16 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       titleInfo.setTitleHeightValue(value);
    }
 
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
+   }
+
    /**
     * Set the table title height.
     * @param value the specified table title height.
@@ -1129,7 +1139,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       super.parseContents(elem, isSiteAdminImport);
 
       styleValue.setDValue(getContentsStr(elem, "style", null));
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
       Element node = Tool.getChildNodeByTagName(elem, "hyperlinkAttr");
 
       if(node != null) {

@@ -1475,7 +1475,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem);
+      titleInfo.parseXML(elem, getDefaultTitleHeight());
 
       Element anode = Tool.getChildNodeByTagName(elem, "tipViewValue");
       anode = anode == null ? Tool.getChildNodeByTagName(elem, "tipView") : anode;
@@ -2659,6 +2659,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     */
    public void setTitleHeightValue(int value) {
       titleInfo.setTitleHeightValue(value);
+   }
+
+   @Override
+   public boolean isUserTitleHeight() {
+      return titleInfo.isUserTitleHeight();
+   }
+
+   @Override
+   public void setUserTitleHeight(boolean user) {
+      titleInfo.setUserTitleHeight(user);
    }
 
    @Override
