@@ -25,7 +25,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.wiz.script.ScriptImageService;
+
 import java.security.Principal;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -44,7 +48,9 @@ public class ViewsheetAgentController {
                                    SheetSessionService sessionService,
                                    ViewsheetSessionService sessions,
                                    ViewsheetReadService readService,
-                                   ViewsheetEditService editService)
+                                   ViewsheetEditService editService,
+                                   ViewsheetFormatService formatService,
+                                   ScriptImageService imageService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -52,6 +58,8 @@ public class ViewsheetAgentController {
       this.sessions = sessions;
       this.readService = readService;
       this.editService = editService;
+      this.formatService = formatService;
+      this.imageService = imageService;
    }
 
    public record JoinRequest(String code) {}
@@ -81,6 +89,38 @@ public class ViewsheetAgentController {
    {
       requireEnabled();
       editService.apply(sessionToken, user, request, linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/format")
+   public void format(@PathVariable String sessionToken,
+                      @RequestBody ViewsheetFormatService.FormatRequest request,
+                      @RequestParam(required = false, defaultValue = "") String linkUri,
+                      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      formatService.setFormat(sessionToken, user, request, linkUri);
+   }
+
+   public record ImageResponse(String image, String format, int width, int height, String note) {}
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/image")
+   public ImageResponse image(@PathVariable String sessionToken,
+                              @RequestParam(required = false) String target,
+                              @RequestParam(required = false) Integer width,
+                              @RequestParam(required = false) Integer height,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ScriptImageService.ChartImage image = target == null || target.isBlank()
+         ? imageService.getViewsheetImage(rvs, width, height, user)
+         : imageService.getAssemblyImage(rvs, target, width, height, user);
+
+      return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
+                               image.isPng() ? "png" : "svg",
+                               image.width(), image.height(), image.note());
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/detach")
@@ -117,4 +157,6 @@ public class ViewsheetAgentController {
    private final ViewsheetSessionService sessions;
    private final ViewsheetReadService readService;
    private final ViewsheetEditService editService;
+   private final ViewsheetFormatService formatService;
+   private final ScriptImageService imageService;
 }
