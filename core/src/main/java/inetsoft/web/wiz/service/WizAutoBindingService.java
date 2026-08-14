@@ -2325,7 +2325,7 @@ public class WizAutoBindingService {
          case GraphTypes.CHART_TREEMAP -> "treemap";
          case GraphTypes.CHART_SUNBURST -> "sunburst";
          case GraphTypes.CHART_CIRCLE_PACKING -> "circle_packing";
-         case GraphTypes.CHART_ICICLE -> "icircle";
+         case GraphTypes.CHART_ICICLE -> "icicle";
          case GraphTypes.CHART_MEKKO -> "marimekko";
          case GraphTypes.CHART_GANTT -> "gantt";
          case GraphTypes.CHART_FUNNEL -> "funnel";
@@ -2377,7 +2377,7 @@ public class WizAutoBindingService {
          case "treemap" -> GraphTypes.CHART_TREEMAP;
          case "sunburst" -> GraphTypes.CHART_SUNBURST;
          case "circle_packing" -> GraphTypes.CHART_CIRCLE_PACKING;
-         case "icircle" -> GraphTypes.CHART_ICICLE;
+         case "icicle" -> GraphTypes.CHART_ICICLE;
          case "marimekko" -> GraphTypes.CHART_MEKKO;
          case "gantt" -> GraphTypes.CHART_GANTT;
          case "funnel" -> GraphTypes.CHART_FUNNEL;

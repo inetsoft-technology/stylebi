@@ -3622,7 +3622,7 @@ public class WizVsService {
          case "treemap" -> GraphTypes.CHART_TREEMAP;
          case "sunburst" -> GraphTypes.CHART_SUNBURST;
          case "circle_packing" -> GraphTypes.CHART_CIRCLE_PACKING;
-         case "icircle" -> GraphTypes.CHART_ICICLE;
+         case "icicle" -> GraphTypes.CHART_ICICLE;
          case "marimekko" -> GraphTypes.CHART_MEKKO;
          case "gantt" -> GraphTypes.CHART_GANTT;
          case "funnel" -> GraphTypes.CHART_FUNNEL;
@@ -3888,7 +3888,7 @@ public class WizVsService {
             }
          }
       }
-      // TreeMap group: Tree Map, Sun Burst, Circle Packing, ICircle
+      // TreeMap group: Tree Map, Sun Burst, Circle Packing, Icicle
       // x (dimension), y (measure), t (dimension hierarchy → added to X)
       else if(isTreeMapChartType(chartType)) {
          if(binding.getX() != null) {
