@@ -102,11 +102,16 @@ public class WizExportController {
          throw new SecurityException("Permission denied: viewsheet export");
       }
 
-      // The individual @RequestParam("runtimeId") this replaced was required (no defaultValue),
-      // so Spring 400'd automatically on a missing value; the implicit-bean binding above does
-      // not, so that same "fail loud on a missing required param" guarantee has to be explicit.
+      // runtimeId and format were both individually @RequestParam-required (no defaultValue), so
+      // Spring 400'd automatically on a missing value; @RequestBody's JSON binding does not, so
+      // that same "fail loud on a missing required field" guarantee has to be explicit here (see
+      // ExportViewsheetRequest's class doc).
       if(Tool.isEmptyString(request.getRuntimeId())) {
          throw new IllegalArgumentException("Missing required parameter: runtimeId");
+      }
+
+      if(request.getFormat() == null) {
+         throw new IllegalArgumentException("Missing required parameter: format");
       }
 
       String bookmarksParam = request.getBookmarks();

@@ -28,7 +28,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * <p>The field initializers below reproduce the {@code defaultValue} each replaced
  * {@code @RequestParam} used to declare: Jackson only overwrites a property when the
  * corresponding JSON key is actually present, so an absent field keeps the value initialized
- * here.
+ * here. {@code runtimeId} and {@code format} are the two exceptions — both used to be declared
+ * with no {@code defaultValue} (i.e. required, auto-rejected by Spring with a 400 when missing),
+ * so they are left unset (null) here and explicitly checked in
+ * {@link inetsoft.web.wiz.controller.WizExportController#exportViewsheet} instead, to reproduce
+ * that same fail-fast behavior rather than silently proceeding with a null/zero value.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ExportViewsheetRequest {
@@ -40,11 +44,11 @@ public class ExportViewsheetRequest {
       this.runtimeId = runtimeId;
    }
 
-   public int getFormat() {
+   public Integer getFormat() {
       return format;
    }
 
-   public void setFormat(int format) {
+   public void setFormat(Integer format) {
       this.format = format;
    }
 
@@ -137,7 +141,7 @@ public class ExportViewsheetRequest {
    }
 
    private String runtimeId;
-   private int format;
+   private Integer format;
    private boolean match = true;
    private boolean expandSelections = false;
    private boolean current = true;

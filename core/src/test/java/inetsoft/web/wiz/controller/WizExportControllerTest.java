@@ -67,8 +67,8 @@ class WizExportControllerTest {
    }
 
    /** Mirrors the field defaults ExportViewsheetRequest itself declares (i.e. what an absent
-    *  query param would leave in place), so each test only sets what it actually cares about. */
-   private static ExportViewsheetRequest request(String runtimeId, int format) {
+    *  JSON field would leave in place), so each test only sets what it actually cares about. */
+   private static ExportViewsheetRequest request(String runtimeId, Integer format) {
       ExportViewsheetRequest request = new ExportViewsheetRequest();
       request.setRuntimeId(runtimeId);
       request.setFormat(format);
@@ -253,6 +253,27 @@ class WizExportControllerTest {
 
       assertThrows(IllegalArgumentException.class, () -> ctrl.exportViewsheet(
          request(null, FileFormatInfo.EXPORT_TYPE_EXCEL), principal, mock(HttpServletResponse.class)));
+
+      verifyNoInteractions(exportControllerServiceProxy);
+   }
+
+   @Test
+   void throwsWhenFormatIsMissing() throws Exception {
+      // Same category of regression as throwsWhenRuntimeIdIsMissing: format used to be
+      // @RequestParam("format") int format with no defaultValue (required, auto-400 on missing).
+      // ExportViewsheetRequest.format must reject a missing value just as loudly instead of
+      // silently defaulting to 0 (FileFormatInfo.EXPORT_TYPE_EXCEL) and exporting the wrong format.
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+      ExportControllerServiceProxy exportControllerServiceProxy = mock(ExportControllerServiceProxy.class);
+
+      WizExportController ctrl = new WizExportController(
+         mock(ExportDialogServiceProxy.class), exportControllerServiceProxy,
+         mock(AssemblyImageServiceProxy.class), mock(BinaryTransferService.class), sec);
+
+      assertThrows(IllegalArgumentException.class, () -> ctrl.exportViewsheet(
+         request("rt1", null), principal, mock(HttpServletResponse.class)));
 
       verifyNoInteractions(exportControllerServiceProxy);
    }
