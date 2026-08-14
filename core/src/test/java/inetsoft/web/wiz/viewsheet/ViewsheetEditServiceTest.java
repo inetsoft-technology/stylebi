@@ -17,7 +17,11 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
+import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
+import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.event.AddNewVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MultiMoveVsObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ResizeVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ResizeVSObjectTitleEvent;
@@ -26,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -104,6 +109,83 @@ class ViewsheetEditServiceTest {
       assertTrue(thrown.getMessage().contains("x"));
    }
 
+   @Test
+   void removeDelegatesTheAssemblyNameToComposerObjectService() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects);
+
+      service.apply("tok", principal(), request("remove", "Gauge1"), "");
+
+      verify(objects).removeObject(eq("rt1"), eq("Gauge1"), anyString(), any(Principal.class),
+                                   any());
+   }
+
+   @Test
+   void addRequiresATypeAndFailsLoudWithoutOne() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+      EditRequest request = new EditRequest("add", null, 10, 10, null, null, null, null,
+                                            null, null, null, null, null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("type"));
+   }
+
+   @Test
+   void addDelegatesTheAssetTypeAndPosition() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects);
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 111, null);
+
+      service.apply("tok", principal(), request, "");
+
+      ArgumentCaptor<AddNewVSObjectEvent> captor =
+         ArgumentCaptor.forClass(AddNewVSObjectEvent.class);
+      verify(objects).addNewObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals(111, captor.getValue().getType());
+      assertEquals(40, captor.getValue().getxOffset());
+   }
+
+   @Test
+   void renameRequiresANewNameAndFailsLoudWithoutOne() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request("rename", "Gauge1"), ""));
+      assertTrue(thrown.getMessage().contains("newName"));
+   }
+
+   @Test
+   void copyDelegatesTheAssemblyNames() throws Exception {
+      ClipboardControllerService clipboard = mock(ClipboardControllerService.class);
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), clipboard);
+      EditRequest request = new EditRequest("copy", null, null, null, null, null, null, null,
+                                            null, null, List.of("Gauge1", "Text1"), null,
+                                            null, null);
+
+      service.apply("tok", principal(), request, "");
+
+      ArgumentCaptor<CopyVSObjectsEvent> captor =
+         ArgumentCaptor.forClass(CopyVSObjectsEvent.class);
+      verify(clipboard).copyOrCut(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      assertArrayEquals(new String[]{ "Gauge1", "Text1" }, captor.getValue().getObjects());
+   }
+
+   @Test
+   void pasteDelegatesTheTargetPosition() throws Exception {
+      ClipboardControllerService clipboard = mock(ClipboardControllerService.class);
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), clipboard);
+
+      service.apply("tok", principal(), edit("paste", null, 15, 25), "");
+
+      verify(clipboard).pasteObject(eq("rt1"), eq(15), eq(25), any(Principal.class), any(),
+                                    anyString());
+   }
+
    private static EditRequest request(String op, String assembly) {
       return new EditRequest(op, assembly, null, null, null, null, null, null, null, null,
                              null, null, null, null);
@@ -123,6 +205,12 @@ class ViewsheetEditServiceTest {
     * so these tests exercise op dispatch and validation without a live runtime.
     */
    private static ViewsheetEditService serviceWith(ComposerObjectService objects) {
+      return serviceWith(objects, mock(ClipboardControllerService.class));
+   }
+
+   private static ViewsheetEditService serviceWith(ComposerObjectService objects,
+                                                   ClipboardControllerService clipboard)
+   {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
@@ -136,6 +224,7 @@ class ViewsheetEditServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new ViewsheetEditService(sessions, objects);
+      return new ViewsheetEditService(sessions, objects, clipboard,
+                                     mock(VSObjectPropertyService.class));
    }
 }
