@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.util.Tool;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.composer.vs.controller.ExportControllerService;
 import inetsoft.web.composer.vs.controller.ExportControllerServiceProxy;
@@ -33,6 +34,7 @@ import inetsoft.web.viewsheet.controller.dialog.ExportDialogServiceProxy;
 import inetsoft.web.viewsheet.model.dialog.ExportDialogModel;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.model.ExportViewsheetRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -84,21 +86,11 @@ public class WizExportController {
       return assemblyImageServiceProxy.checkExporting(runtimeId, principal);
    }
 
+   // request is an unannotated bean parameter — Spring binds it implicitly from the same query
+   // params the old per-field @RequestParam list declared (see ExportViewsheetRequest's own doc).
    @GetMapping("/viewsheet/export")
-   public void exportViewsheet(@RequestParam("runtimeId") String runtimeId,
-                               @RequestParam("format") int format,
-                               @RequestParam(value = "match", defaultValue = "true") boolean match,
-                               @RequestParam(value = "expandSelections", defaultValue = "false") boolean expandSelections,
-                               @RequestParam(value = "current", defaultValue = "true") boolean current,
-                               @RequestParam(value = "bookmarks", defaultValue = "") String bookmarksParam,
-                               @RequestParam(value = "onlyDataComponents", defaultValue = "false") boolean onlyDataComponents,
-                               @RequestParam(value = "exportAllTabbedTables", defaultValue = "false") boolean exportAllTabbedTables,
-                               @RequestParam(value = "delimiter", required = false) String delimiter,
-                               @RequestParam(value = "quote", required = false) String quote,
-                               @RequestParam(value = "keepHeader", defaultValue = "true") boolean keepHeader,
-                               @RequestParam(value = "tabDelimited", defaultValue = "false") boolean tabDelimited,
-                               @RequestParam(value = "tableAssemblies", defaultValue = "") String tableAssembliesParam,
-                               Principal principal, HttpServletResponse response) throws Exception
+   public void exportViewsheet(ExportViewsheetRequest request, Principal principal,
+                               HttpServletResponse response) throws Exception
    {
       if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
          "Export", ResourceAction.READ))
@@ -106,8 +98,20 @@ public class WizExportController {
          throw new SecurityException("Permission denied: viewsheet export");
       }
 
+      // The individual @RequestParam("runtimeId") this replaced was required (no defaultValue),
+      // so Spring 400'd automatically on a missing value; the implicit-bean binding above does
+      // not, so that same "fail loud on a missing required param" guarantee has to be explicit.
+      if(Tool.isEmptyString(request.getRuntimeId())) {
+         throw new IllegalArgumentException("Missing required parameter: runtimeId");
+      }
+
+      String bookmarksParam = request.getBookmarks();
+      String tableAssembliesParam = request.getTableAssemblies();
       String[] bookmarks = bookmarksParam.isEmpty() ? new String[0] : bookmarksParam.split(",");
       String[] tables = tableAssembliesParam.isEmpty() ? new String[0] : tableAssembliesParam.split(",");
+
+      int format = request.getFormat();
+      boolean match = request.isMatch();
 
       // Mirrors ExportController.exportViewsheet0()'s override: CSV data must always be fully
       // expanded rather than clipped to the on-screen layout, regardless of what the caller asked
@@ -118,23 +122,24 @@ public class WizExportController {
 
       CSVConfig csvConfig = new CSVConfig();
 
-      if(delimiter != null) {
-         csvConfig.setDelimiter(delimiter);
+      if(request.getDelimiter() != null) {
+         csvConfig.setDelimiter(request.getDelimiter());
       }
 
-      if(quote != null) {
-         csvConfig.setQuote(quote);
+      if(request.getQuote() != null) {
+         csvConfig.setQuote(request.getQuote());
       }
 
-      csvConfig.setKeepHeader(keepHeader);
-      csvConfig.setTabDelimited(tabDelimited);
+      csvConfig.setKeepHeader(request.isKeepHeader());
+      csvConfig.setTabDelimited(request.isTabDelimited());
       csvConfig.setExportAssemblies(Arrays.asList(tables));
 
       // type=null (no output-extension override), matchesAssetIdFormat=false (see class doc),
       // previewPrintLayout=false, print=false — wiz never sets either of the last two.
       ExportControllerService.ViewsheetExportResult result = exportControllerServiceProxy.exportViewsheet(
-         runtimeId, format, null, false, match, expandSelections, current, false, false,
-         bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, principal);
+         request.getRuntimeId(), format, null, false, match, request.isExpandSelections(),
+         request.isCurrent(), false, false, bookmarks, request.isOnlyDataComponents(),
+         request.isExportAllTabbedTables(), csvConfig, principal);
 
       VSExportService.setResponseHeader(new ExportResponse(response), result.getSuffix(),
          "attachment", result.getFileName(), result.getMime());

@@ -31,6 +31,7 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.AssemblyImageServiceProxy;
 import inetsoft.web.viewsheet.controller.dialog.ExportDialogServiceProxy;
 import inetsoft.web.viewsheet.model.dialog.ExportDialogModel;
+import inetsoft.web.wiz.model.ExportViewsheetRequest;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
@@ -63,6 +64,15 @@ class WizExportControllerTest {
             sink.write(b);
          }
       };
+   }
+
+   /** Mirrors the field defaults ExportViewsheetRequest itself declares (i.e. what an absent
+    *  query param would leave in place), so each test only sets what it actually cares about. */
+   private static ExportViewsheetRequest request(String runtimeId, int format) {
+      ExportViewsheetRequest request = new ExportViewsheetRequest();
+      request.setRuntimeId(runtimeId);
+      request.setFormat(format);
+      return request;
    }
 
    @Test
@@ -107,9 +117,7 @@ class WizExportControllerTest {
          mock(AssemblyImageServiceProxy.class), mock(BinaryTransferService.class), sec);
 
       assertThrows(SecurityException.class, () -> ctrl.exportViewsheet(
-         "rt1", FileFormatInfo.EXPORT_TYPE_EXCEL, true, false, true, "",
-         false, false, null, null, true, false, "",
-         principal, mock(HttpServletResponse.class)));
+         request("rt1", FileFormatInfo.EXPORT_TYPE_EXCEL), principal, mock(HttpServletResponse.class)));
 
       verifyNoInteractions(exportControllerServiceProxy);
    }
@@ -142,8 +150,11 @@ class WizExportControllerTest {
          mock(AssemblyImageServiceProxy.class), mock(BinaryTransferService.class), sec);
 
       // match=true is explicitly requested, but format=CSV must override it to false.
-      ctrl.exportViewsheet("rt1", FileFormatInfo.EXPORT_TYPE_CSV, true, false, true, "",
-         false, false, ",", "\"", true, false, "", principal, response);
+      ExportViewsheetRequest request = request("rt1", FileFormatInfo.EXPORT_TYPE_CSV);
+      request.setMatch(true);
+      request.setDelimiter(",");
+      request.setQuote("\"");
+      ctrl.exportViewsheet(request, principal, response);
 
       verify(exportControllerServiceProxy).exportViewsheet(
          eq("rt1"), eq(FileFormatInfo.EXPORT_TYPE_CSV), isNull(), eq(false), eq(false),
@@ -177,8 +188,9 @@ class WizExportControllerTest {
 
       // match=true (Match Layout) requested for a non-CSV format must reach the service
       // unchanged -- only CSV forces an override to false, so this must NOT be flipped.
-      ctrl.exportViewsheet("rt1", FileFormatInfo.EXPORT_TYPE_EXCEL, true, false, true, "",
-         false, false, null, null, true, false, "", principal, response);
+      ExportViewsheetRequest request = request("rt1", FileFormatInfo.EXPORT_TYPE_EXCEL);
+      request.setMatch(true);
+      ctrl.exportViewsheet(request, principal, response);
 
       verify(exportControllerServiceProxy).exportViewsheet(
          eq("rt1"), eq(FileFormatInfo.EXPORT_TYPE_EXCEL), isNull(), eq(false), eq(true),
@@ -210,9 +222,12 @@ class WizExportControllerTest {
          mock(ExportDialogServiceProxy.class), exportControllerServiceProxy,
          mock(AssemblyImageServiceProxy.class), mock(BinaryTransferService.class), sec);
 
-      ctrl.exportViewsheet("rt1", FileFormatInfo.EXPORT_TYPE_CSV, true, false, true,
-         "(Home),My Bookmark", false, false, ",", "\"", true, false,
-         "Table1,Table2", principal, response);
+      ExportViewsheetRequest request = request("rt1", FileFormatInfo.EXPORT_TYPE_CSV);
+      request.setBookmarks("(Home),My Bookmark");
+      request.setDelimiter(",");
+      request.setQuote("\"");
+      request.setTableAssemblies("Table1,Table2");
+      ctrl.exportViewsheet(request, principal, response);
 
       verify(exportControllerServiceProxy).exportViewsheet(
          eq("rt1"), anyInt(), any(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
@@ -220,5 +235,25 @@ class WizExportControllerTest {
          eq(new String[] { "(Home)", "My Bookmark" }), anyBoolean(), anyBoolean(),
          argThat(cfg -> cfg.getExportAssemblies().equals(java.util.List.of("Table1", "Table2"))),
          eq(principal));
+   }
+
+   @Test
+   void throwsWhenRuntimeIdIsMissing() throws Exception {
+      // Switching from individual @RequestParam("runtimeId") (required, auto-400) to a single
+      // bound request object loses Spring's automatic "missing required parameter" rejection --
+      // this must fail just as loudly instead of silently calling the proxy with a null runtimeId.
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+      ExportControllerServiceProxy exportControllerServiceProxy = mock(ExportControllerServiceProxy.class);
+
+      WizExportController ctrl = new WizExportController(
+         mock(ExportDialogServiceProxy.class), exportControllerServiceProxy,
+         mock(AssemblyImageServiceProxy.class), mock(BinaryTransferService.class), sec);
+
+      assertThrows(IllegalArgumentException.class, () -> ctrl.exportViewsheet(
+         request(null, FileFormatInfo.EXPORT_TYPE_EXCEL), principal, mock(HttpServletResponse.class)));
+
+      verifyNoInteractions(exportControllerServiceProxy);
    }
 }
