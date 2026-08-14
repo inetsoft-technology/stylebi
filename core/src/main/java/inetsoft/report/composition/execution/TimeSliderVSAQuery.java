@@ -1545,8 +1545,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
 
             // a null value (e.g. a member with no aggregate/measure data) can't be a
             // meaningful min/max anchor for a single-value slider, so skip the row
-            // instead of showing a blank label
-            if(refs.length == 1 && obj == null) {
+            // instead of showing a blank label. only applies to SingleTimeInfo, which
+            // is the binding that used to exclude nulls in the query; a composite
+            // slider (which may also have a single ref) still shows null members.
+            if(tinfo instanceof SingleTimeInfo && obj == null) {
                continue rows;
             }
 
