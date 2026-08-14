@@ -43,13 +43,15 @@ public class ViewsheetAgentController {
                                    SheetJoinService joinService,
                                    SheetSessionService sessionService,
                                    ViewsheetSessionService sessions,
-                                   ViewsheetReadService readService)
+                                   ViewsheetReadService readService,
+                                   ViewsheetEditService editService)
    {
       this.feature = feature;
       this.joinService = joinService;
       this.sessionService = sessionService;
       this.sessions = sessions;
       this.readService = readService;
+      this.editService = editService;
    }
 
    public record JoinRequest(String code) {}
@@ -68,6 +70,17 @@ public class ViewsheetAgentController {
    {
       requireEnabled();
       return readService.read(sessions.resolve(sessionToken, user));
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/edit")
+   public void edit(@PathVariable String sessionToken,
+                    @RequestBody EditRequest request,
+                    @RequestParam(required = false, defaultValue = "") String linkUri,
+                    Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      editService.apply(sessionToken, user, request, linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/detach")
@@ -103,4 +116,5 @@ public class ViewsheetAgentController {
    private final SheetSessionService sessionService;
    private final ViewsheetSessionService sessions;
    private final ViewsheetReadService readService;
+   private final ViewsheetEditService editService;
 }
