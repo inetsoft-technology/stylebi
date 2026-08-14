@@ -66,4 +66,41 @@ class WizardRecommenderUtilTest {
       WizardRecommenderUtil.applyNumericBin(ref);
       assertNull(ref.getGroupColumnValue());
    }
+
+   /**
+    * Regression: found live sweeping openproject F1 ("distribution of estimated hours"). A bare
+    * "field &lt; min" for the first bucket, and a bare unconditional "else" for the last, both
+    * silently admit a null value — JS coerces null to 0 in a relational comparison, so
+    * "null &lt; 20" is true. With ~18% of work packages having no estimate, the first bucket read
+    * 803 instead of the true 629 — inflated by exactly the null count (verified live via an
+    * explicit IS NOT NULL filter, which reproduced 629 unchanged).
+    *
+    * <p>Only the first and last buckets need an explicit "field != null" guard — the middle,
+    * range-bounded buckets ("field &gt;= X &amp;&amp; field &lt; Y") are already safe for any
+    * positive X, since null-as-0 cannot satisfy a positive lower bound. Asserting the guard on
+    * every branch would be a stricter (and less accurate) claim than the actual fix makes.
+    */
+   @Test
+   void theFirstAndLastBucketsGuardAgainstNull() {
+      WizardRecommenderUtil.RangeExpression built =
+         WizardRecommenderUtil.buildRangeExpression(20, 20, 6, "estimated_hours");
+      String expr = built.expression();
+      String[] branches = expr.split("(?=\\belse\\b|^if\\()");
+
+      assertTrue(branches[0].contains("!= null"),
+         "first bucket must guard field != null: " + branches[0]);
+      assertTrue(branches[branches.length - 1].contains("!= null"),
+         "last bucket must guard field != null: " + branches[branches.length - 1]);
+   }
+
+   @Test
+   void theTrailingBucketIsNoLongerAnUnconditionalElse() {
+      WizardRecommenderUtil.RangeExpression built =
+         WizardRecommenderUtil.buildRangeExpression(20, 20, 6, "estimated_hours");
+
+      // A bare "else {" with no "if" is exactly the shape that used to catch every null the
+      // (now-guarded) first bucket correctly rejects -- relocating the bug rather than fixing it.
+      assertFalse(built.expression().contains("else {\n"),
+         "trailing bucket must not be an unconditional else: " + built.expression());
+   }
 }
