@@ -367,6 +367,31 @@ class SVGAnimationDOMInjectorTest {
                   "noanim hint must leave data-animated unset");
    }
 
+   /**
+    * A "pie:noanim" hint (donut in the binding/wizard pane) must still reclassify the center-hole
+    * overlay. The overlay is an inetsoft-bar group like any slice, so without the reclassification
+    * the bar hover-dim rule fades it out and the full pie underneath shows through the middle
+    * (bug #75876). No entrance animation may be injected.
+    */
+   @Test
+   void noAnimHintReclassifiesDonutHole() throws Exception {
+      Document doc = newDocument();
+      addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element hole = addHoleOverlay(doc, 100, 100, 30);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
+         SVGSupport.ANIMATION_PIE + ":" + SVGSupport.ANIMATION_FLAG_NOANIM);
+
+      assertEquals(SVGSupport.ANNOTATION_DONUT_HOLE, hole.getAttribute("class"),
+                   "noanim hint must still reclassify the donut center-hole overlay");
+      assertTrue(hole.getAttribute("style").contains("opacity:1!important"),
+                 "the donut hole must be pinned opaque so hover dim cannot fade it");
+      assertFalse(allStyleContent(doc.getDocumentElement()).contains("@keyframes"),
+                  "noanim hint must not inject any animation @keyframes");
+      assertFalse(doc.getDocumentElement().hasAttribute("data-animated"),
+                  "noanim hint must leave data-animated unset");
+   }
+
    // -------------------------------------------------------------------------
    // Treemap animation tests
    // -------------------------------------------------------------------------
