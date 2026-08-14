@@ -150,6 +150,13 @@ public final class PropertyAliases {
       Map<String, TypeAliases> registry = new LinkedHashMap<>();
       register(registry, "gauge", GaugePropertyDialogModel.class, gauge());
       register(registry, "text", TextPropertyDialogModel.class, text());
+      register(registry, "chart", ChartPropertyDialogModel.class, chart());
+      register(registry, "table", TableViewPropertyDialogModel.class, table());
+      register(registry, "crosstab", CrosstabPropertyDialogModel.class, crosstab());
+      register(registry, "selectionlist", SelectionListPropertyDialogModel.class,
+               selectionList());
+      register(registry, "selectiontree", SelectionTreePropertyDialogModel.class,
+               selectionTree());
       return Collections.unmodifiableMap(registry);
    }
 
@@ -159,15 +166,37 @@ public final class PropertyAliases {
       registry.put(type, new TypeAliases(type, modelClass, Collections.unmodifiableMap(aliases)));
    }
 
-   /** The general pane every output assembly shares, under a given prefix. */
+   /**
+    * The general pane an <i>output</i> assembly shares — gauge, text and friends nest it one
+    * level deeper, under {@code outputGeneralPaneModel}.
+    */
    private static void outputGeneral(Map<String, String> aliases, String prefix) {
-      String basic = prefix + ".outputGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel";
+      basicGeneral(aliases, prefix + ".outputGeneralPaneModel.generalPropPaneModel");
+   }
+
+   /**
+    * The general pane a <i>data</i> assembly shares — chart, table, crosstab and the selection
+    * assemblies hold {@code generalPropPaneModel} directly. The two shapes differ by exactly
+    * one level, which is the kind of near-miss the invariant test exists to catch.
+    */
+   private static void dataGeneral(Map<String, String> aliases, String prefix) {
+      basicGeneral(aliases, prefix + ".generalPropPaneModel");
+   }
+
+   private static void basicGeneral(Map<String, String> aliases, String generalPrefix) {
+      String basic = generalPrefix + ".basicGeneralPaneModel";
       aliases.put("name", basic + ".name");
       aliases.put("visible", basic + ".visible");
       aliases.put("enabled", basic + ".enabled");
       aliases.put("shadow", basic + ".shadow");
       aliases.put("primary", basic + ".primary");
       aliases.put("refresh", basic + ".refresh");
+   }
+
+   /** Title bar, on the assemblies that have one. */
+   private static void title(Map<String, String> aliases, String prefix) {
+      aliases.put("titleVisible", prefix + ".titlePropPaneModel.visible");
+      aliases.put("title", prefix + ".titlePropPaneModel.title");
    }
 
    private static void sizePosition(Map<String, String> aliases, String prefix) {
@@ -198,5 +227,72 @@ public final class PropertyAliases {
       aliases.put("alpha", "textGeneralPaneModel.alpha");
       aliases.put("popComponent", "textGeneralPaneModel.popComponent");
       return aliases;
+   }
+
+   private static Map<String, String> chart() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "chartGeneralPaneModel");
+      sizePosition(aliases, "chartGeneralPaneModel");
+      title(aliases, "chartGeneralPaneModel");
+      aliases.put("enableAdhocEditing", "chartAdvancedPaneModel.enableAdhocEditing");
+      aliases.put("glossyEffect", "chartAdvancedPaneModel.glossyEffect");
+      aliases.put("sparkline", "chartAdvancedPaneModel.sparkline");
+      return aliases;
+   }
+
+   private static Map<String, String> table() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "tableViewGeneralPaneModel");
+      sizePosition(aliases, "tableViewGeneralPaneModel");
+      title(aliases, "tableViewGeneralPaneModel");
+      aliases.put("maxRows", "tableViewGeneralPaneModel.maxRows");
+      aliases.put("submitOnChange", "tableViewGeneralPaneModel.submitOnChange");
+      aliases.put("shrink", "tableAdvancedPaneModel.shrink");
+      aliases.put("form", "tableAdvancedPaneModel.form");
+      aliases.put("enableAdhoc", "tableAdvancedPaneModel.enableAdhoc");
+      return aliases;
+   }
+
+   private static Map<String, String> crosstab() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "tableViewGeneralPaneModel");
+      sizePosition(aliases, "tableViewGeneralPaneModel");
+      title(aliases, "tableViewGeneralPaneModel");
+      aliases.put("maxRows", "tableViewGeneralPaneModel.maxRows");
+      aliases.put("fillBlankWithZero", "crosstabAdvancedPaneModel.fillBlankWithZero");
+      aliases.put("summarySideBySide", "crosstabAdvancedPaneModel.summarySideBySide");
+      aliases.put("mergeSpan", "crosstabAdvancedPaneModel.mergeSpan");
+      aliases.put("shrink", "crosstabAdvancedPaneModel.shrink");
+      aliases.put("drillEnabled", "crosstabAdvancedPaneModel.drillEnabled");
+      return aliases;
+   }
+
+   private static Map<String, String> selectionList() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "selectionGeneralPaneModel");
+      sizePosition(aliases, "selectionGeneralPaneModel");
+      title(aliases, "selectionGeneralPaneModel");
+      selectionGeneral(aliases);
+      return aliases;
+   }
+
+   private static Map<String, String> selectionTree() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "selectionGeneralPaneModel");
+      sizePosition(aliases, "selectionGeneralPaneModel");
+      title(aliases, "selectionGeneralPaneModel");
+      selectionGeneral(aliases);
+      aliases.put("selectChildren", "selectionTreePaneModel.selectChildren");
+      aliases.put("mode", "selectionTreePaneModel.mode");
+      return aliases;
+   }
+
+   private static void selectionGeneral(Map<String, String> aliases) {
+      aliases.put("showType", "selectionGeneralPaneModel.showType");
+      aliases.put("listHeight", "selectionGeneralPaneModel.listHeight");
+      aliases.put("sortType", "selectionGeneralPaneModel.sortType");
+      aliases.put("singleSelection", "selectionGeneralPaneModel.singleSelection");
+      aliases.put("submitOnChange", "selectionGeneralPaneModel.submitOnChange");
+      aliases.put("suppressBlank", "selectionGeneralPaneModel.suppressBlank");
    }
 }

@@ -19,8 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.web.composer.vs.dialog.GaugePropertyDialogService;
-import inetsoft.web.composer.vs.dialog.TextPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,26 +36,58 @@ import java.util.*;
  * keeps their validation and normalization, which is the whole reason the Phase 0 gate asked
  * whether they could be driven headlessly.
  *
- * <p><b>Dispatch is by naming convention</b> — every service exposes
- * {@code get<Type>PropertyDialogModel(runtimeId, objectId, principal)} and
- * {@code set<Type>PropertyDialogModel(runtimeId, objectId, model, linkUri, principal,
- * dispatcher)}. That convention is asserted by {@code AssemblyPropertyServiceTest} against
- * every registered service, so a break surfaces at build time rather than against a live
- * viewsheet. The alternative — 25 hand-written bindings — was rejected as more code guarding
- * the same convention less legibly. See docs/superpowers/plans/2026-08-13-needs-your-input.md.
+ * <p><b>Dispatch names both methods explicitly per type</b>, because the convention they
+ * appear to follow does not actually hold. The signatures are uniform — getters take
+ * {@code (runtimeId, objectId, principal)}, setters take
+ * {@code (runtimeId, objectId, model, linkUri, principal, dispatcher)} — but the names are not:
+ *
+ * <pre>
+ *   gauge          getGaugePropertyDialogModel      setGaugePropertyDialogModel
+ *   chart          getChartPropertyDialogModel      setChartPropertyModel        (no "Dialog")
+ *   table          getTableViewPropertyDialogModel  setTablePropertyModel        (View / no View)
+ *   selectionlist  getSelectionListPropertyModel    setSelectionListPropertyModel(no "Dialog")
+ * </pre>
+ *
+ * <p>Deriving the names from the assembly type worked for gauge and text and would have failed
+ * on every type added after them — silently for the getter, since a missing method would only
+ * surface on the first live call. So each binding states both names, and
+ * {@code AssemblyPropertyServiceTest} resolves every one of them reflectively, which turns a
+ * composer rename into a build failure.
  *
  * <p>A patch is validated <b>whole</b> before anything is applied, so a typo in the fourth key
  * does not leave the first three written.
  */
 @Service
 public class AssemblyPropertyService {
+   /** One assembly type's dialog service and the two method names it actually uses. */
+   record Binding(Object service, String getter, String setter) {}
+
    @Autowired
    public AssemblyPropertyService(ViewsheetSessionService sessions,
                                   GaugePropertyDialogService gaugeService,
-                                  TextPropertyDialogService textService)
+                                  TextPropertyDialogService textService,
+                                  ChartPropertyDialogService chartService,
+                                  TableViewPropertyDialogService tableService,
+                                  CrosstabPropertyDialogService crosstabService,
+                                  SelectionListPropertyDialogService selectionListService,
+                                  SelectionTreePropertyDialogService selectionTreeService)
    {
       this.sessions = sessions;
-      this.services = Map.of("gauge", gaugeService, "text", textService);
+      this.bindings = Map.of(
+         "gauge", new Binding(gaugeService, "getGaugePropertyDialogModel",
+                              "setGaugePropertyDialogModel"),
+         "text", new Binding(textService, "getTextPropertyDialogModel",
+                             "setTextPropertyDialogModel"),
+         "chart", new Binding(chartService, "getChartPropertyDialogModel",
+                              "setChartPropertyModel"),
+         "table", new Binding(tableService, "getTableViewPropertyDialogModel",
+                              "setTablePropertyModel"),
+         "crosstab", new Binding(crosstabService, "getCrosstabPropertyDialogModel",
+                                 "setCrosstabPropertyModel"),
+         "selectionlist", new Binding(selectionListService, "getSelectionListPropertyModel",
+                                      "setSelectionListPropertyModel"),
+         "selectiontree", new Binding(selectionTreeService, "getSelectionTreePropertyModel",
+                                      "setSelectionTreePropertyModel"));
    }
 
    /** The alias vocabulary for an assembly's type, with its current values. */
@@ -143,11 +174,11 @@ public class AssemblyPropertyService {
    private Object readModel(RuntimeViewsheet rvs, String type, String assemblyName,
                             Principal user)
    {
-      Object service = serviceFor(type);
-      Method getter = method(service, "get" + capitalize(type) + "PropertyDialogModel", 3);
+      Binding binding = bindingFor(type);
+      Method getter = method(binding.service(), binding.getter(), 3);
 
       try {
-         return getter.invoke(service, rvs.getID(), assemblyName, user);
+         return getter.invoke(binding.service(), rvs.getID(), assemblyName, user);
       }
       catch(IllegalAccessException | InvocationTargetException e) {
          throw new IllegalArgumentException(
@@ -159,11 +190,12 @@ public class AssemblyPropertyService {
    private void writeModel(String runtimeId, String type, String assemblyName, Object model,
                            String linkUri, Principal user, CommandDispatcher dispatcher)
    {
-      Object service = serviceFor(type);
-      Method setter = method(service, "set" + capitalize(type) + "PropertyDialogModel", 6);
+      Binding binding = bindingFor(type);
+      Method setter = method(binding.service(), binding.setter(), 6);
 
       try {
-         setter.invoke(service, runtimeId, assemblyName, model, linkUri, user, dispatcher);
+         setter.invoke(binding.service(), runtimeId, assemblyName, model, linkUri, user,
+                       dispatcher);
       }
       catch(IllegalAccessException | InvocationTargetException e) {
          throw new IllegalArgumentException(
@@ -172,16 +204,16 @@ public class AssemblyPropertyService {
       }
    }
 
-   Object serviceFor(String type) {
-      Object service = services.get(type);
+   Binding bindingFor(String type) {
+      Binding binding = bindings.get(type);
 
-      if(service == null) {
+      if(binding == null) {
          throw new IllegalArgumentException(
             "No property service wired for assembly type '" + type + "'. Wired types: " +
-            String.join(", ", new TreeSet<>(services.keySet())) + ".");
+            String.join(", ", new TreeSet<>(bindings.keySet())) + ".");
       }
 
-      return service;
+      return binding;
    }
 
    /** Package-visible so the convention test can assert every wired service satisfies it. */
@@ -194,12 +226,12 @@ public class AssemblyPropertyService {
 
       throw new IllegalStateException(
          service.getClass().getSimpleName() + " has no " + name + " taking " + parameterCount +
-         " arguments. The property dispatch relies on that naming convention; if the composer " +
-         "has changed it, this service needs an explicit binding.");
+         " arguments. The binding for this type names that method explicitly; if the composer " +
+         "has renamed it, update the binding.");
    }
 
-   Map<String, Object> wiredServices() {
-      return services;
+   Map<String, Binding> wiredBindings() {
+      return bindings;
    }
 
    private String typeOf(RuntimeViewsheet rvs, String assemblyName) {
@@ -231,11 +263,7 @@ public class AssemblyPropertyService {
       return cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
    }
 
-   private static String capitalize(String value) {
-      return value.isEmpty() ? value
-         : Character.toUpperCase(value.charAt(0)) + value.substring(1);
-   }
 
    private final ViewsheetSessionService sessions;
-   private final Map<String, Object> services;
+   private final Map<String, Binding> bindings;
 }

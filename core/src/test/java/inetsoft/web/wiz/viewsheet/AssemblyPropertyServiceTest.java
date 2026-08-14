@@ -20,8 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
-import inetsoft.web.composer.vs.dialog.GaugePropertyDialogService;
-import inetsoft.web.composer.vs.dialog.TextPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -36,27 +35,45 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class AssemblyPropertyServiceTest {
    /**
-    * <b>The convention guard.</b> Dispatch is by method name rather than 25 hand-written
-    * bindings, so this asserts every wired service actually satisfies the convention. If the
-    * composer renames a method, this fails at build time instead of against a live viewsheet.
+    * <b>The binding guard.</b> Every binding names its two methods explicitly, because the
+    * convention they look like they follow does not hold — {@code setChartPropertyModel} has no
+    * "Dialog", {@code getTableViewPropertyDialogModel} has a "View" its setter does not, and the
+    * selection services drop "Dialog" from both. This resolves every declared name reflectively,
+    * so a composer rename fails the build rather than the first live call.
     */
    @Test
-   void everyWiredServiceSatisfiesTheNamingConvention() {
+   void everyDeclaredMethodNameResolvesOnItsService() {
       AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
 
-      for(Map.Entry<String, Object> wired : service.wiredServices().entrySet()) {
-         String type = wired.getKey();
-         String suffix = Character.toUpperCase(type.charAt(0)) + type.substring(1);
+      for(Map.Entry<String, AssemblyPropertyService.Binding> wired :
+          service.wiredBindings().entrySet())
+      {
+         AssemblyPropertyService.Binding binding = wired.getValue();
 
          assertNotNull(
-            AssemblyPropertyService.method(
-               wired.getValue(), "get" + suffix + "PropertyDialogModel", 3),
-            type + "'s service has no 3-argument get" + suffix + "PropertyDialogModel");
+            AssemblyPropertyService.method(binding.service(), binding.getter(), 3),
+            wired.getKey() + "'s service has no 3-argument " + binding.getter());
          assertNotNull(
-            AssemblyPropertyService.method(
-               wired.getValue(), "set" + suffix + "PropertyDialogModel", 6),
-            type + "'s service has no 6-argument set" + suffix + "PropertyDialogModel");
+            AssemblyPropertyService.method(binding.service(), binding.setter(), 6),
+            wired.getKey() + "'s service has no 6-argument " + binding.setter());
       }
+   }
+
+   /**
+    * The names really are irregular. If someone later "tidies" the bindings by deriving them
+    * from the type, this fails and says why.
+    */
+   @Test
+   void theMethodNamesAreNotDerivableFromTheAssemblyType() {
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
+
+      assertEquals("setChartPropertyModel", service.bindingFor("chart").setter(),
+                   "chart's setter has no 'Dialog' — do not derive these names");
+      assertEquals("getTableViewPropertyDialogModel", service.bindingFor("table").getter(),
+                   "table's getter says TableView while its setter says Table");
+      assertEquals("getSelectionListPropertyModel",
+                   service.bindingFor("selectionlist").getter(),
+                   "the selection services drop 'Dialog' from both names");
    }
 
    @Test
@@ -64,7 +81,7 @@ class AssemblyPropertyServiceTest {
       AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
 
       for(String type : PropertyAliases.coveredTypes()) {
-         assertDoesNotThrow(() -> service.serviceFor(type),
+         assertDoesNotThrow(() -> service.bindingFor(type),
                             "'" + type + "' has aliases but no property service wired, so " +
                             "every call for it would fail at runtime");
       }
@@ -167,8 +184,12 @@ class AssemblyPropertyServiceTest {
          }
       }
 
-      return new AssemblyPropertyService(sessions, gauge,
-                                         mock(TextPropertyDialogService.class));
+      return new AssemblyPropertyService(
+         sessions, gauge, mock(TextPropertyDialogService.class),
+         mock(ChartPropertyDialogService.class), mock(TableViewPropertyDialogService.class),
+         mock(CrosstabPropertyDialogService.class),
+         mock(SelectionListPropertyDialogService.class),
+         mock(SelectionTreePropertyDialogService.class));
    }
 
    private static Principal principal() {
