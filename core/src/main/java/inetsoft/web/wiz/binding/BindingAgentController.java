@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,15 +34,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST surface for agent-driven binding discovery and reads.
+ * REST surface for agent-driven binding discovery, reads, and chart data-binding writes.
  *
  * <p>Pairs against a VIEWSHEET runtime exactly as {@code ViewsheetAgentController} does. The
  * {@code /join} endpoint here is a second door to the same {@link SheetJoinService}, not a
  * second session model — it exists so the binding plugin can be installed and paired on its
  * own, without the viewsheet plugin.
  *
- * <p>Phase 1 is read-only: every endpoint below is a pure read, so none of them takes a
- * capturing dispatcher, adds a checkpoint, or broadcasts.
+ * <p>The discovery and read endpoints are pure reads — no dispatcher, checkpoint, or
+ * broadcast. The chart endpoints mutate, and each is exactly one
+ * {@code ViewsheetSessionService.mutate}, so one call is one undo checkpoint in the user's
+ * Composer.
  */
 @RestController
 public class BindingAgentController {
@@ -51,7 +54,8 @@ public class BindingAgentController {
                                  SheetSessionService sessionService,
                                  ViewsheetSessionService sessions,
                                  BindableFieldsService fieldsService,
-                                 BindingReadService readService)
+                                 BindingReadService readService,
+                                 ChartBindingService chartService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -59,6 +63,7 @@ public class BindingAgentController {
       this.sessions = sessions;
       this.fieldsService = fieldsService;
       this.readService = readService;
+      this.chartService = chartService;
    }
 
    public record JoinRequest(String code) {}
@@ -89,6 +94,53 @@ public class BindingAgentController {
    {
       requireEnabled();
       return readService.read(sessions.resolve(sessionToken, user), assembly);
+   }
+
+   public record ShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}
+   public record ChartTypeRequest(String assembly, Integer type, Boolean multi,
+                                  Boolean stackMeasures, Boolean separate) {}
+   public record SwapRequest(String assembly) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/shelf")
+   public void setChartShelf(@PathVariable String sessionToken,
+                             @RequestBody ShelfRequest request,
+                             @RequestParam(required = false, defaultValue = "") String linkUri,
+                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
+                            request.fields(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
+   public void setChartType(@PathVariable String sessionToken,
+                            @RequestBody ChartTypeRequest request,
+                            @RequestParam(required = false, defaultValue = "") String linkUri,
+                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(request.type() == null) {
+         throw new IllegalArgumentException(
+            "set_chart_type requires 'type' — the GraphTypes chart-type code.");
+      }
+
+      chartService.setChartType(sessionToken, user, request.assembly(), request.type(),
+                                request.multi(), request.stackMeasures(), request.separate(),
+                                linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/swap-axes")
+   public void swapChartAxes(@PathVariable String sessionToken,
+                             @RequestBody SwapRequest request,
+                             @RequestParam(required = false, defaultValue = "") String linkUri,
+                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartService.swapAxes(sessionToken, user, request.assembly(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
@@ -125,4 +177,5 @@ public class BindingAgentController {
    private final ViewsheetSessionService sessions;
    private final BindableFieldsService fieldsService;
    private final BindingReadService readService;
+   private final ChartBindingService chartService;
 }
