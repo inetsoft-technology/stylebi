@@ -936,7 +936,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    public moveTasks(): void {
-      if(this.showTasksAsList || !this.removeEnable()) {
+      if(this.showTasksAsList || !this.removeEnable() || !this.parentFolder) {
          return;
       }
 

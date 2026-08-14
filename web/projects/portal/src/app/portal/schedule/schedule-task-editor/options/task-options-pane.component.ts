@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbDateStruct, NgbModal, NgbInputDatepicker, NgbDatepicker } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDateStruct, NgbModal, NgbInputDatepicker, NgbDatepicker, NgbDatepickerMonth } from "@ng-bootstrap/ng-bootstrap";
 import { IdentityIdWithLabel } from "../../../../../../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -37,7 +37,7 @@ import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/mo
     selector: "task-options-pane",
     templateUrl: "./task-options-pane.component.html",
     styleUrls: ["./task-options-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, CustomSelectComponent]
+    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, NgbDatepickerMonth, CustomSelectComponent]
 })
 export class TaskOptionsPane implements OnInit {
    private readonly defaultYearWindow: number = 10;

@@ -55,7 +55,6 @@
       background-color: var(--inet-shell-surface-default);
       color: var(--inet-text-color);
       border-color: var(--inet-default-border-color);
-      box-shadow: inset 0 -2px 0 var(--inet-navbar-selected-border-color);
     }
   }
 
@@ -102,6 +101,7 @@
 .condition-edit-view__type-link:hover {
   background-color: var(--inet-ui-neutral-hover-bg-color);
   color: var(--inet-text-color);
+  text-decoration: none;
 }
 
 .condition-edit-view__card {
@@ -228,6 +228,19 @@
 
 .scheduler-form.input-group:focus-within .input-group-text {
   border-color: var(--inet-primary-color);
+}
+
+// custom-select draws its own complete focus ring around just the dropdown
+// (see custom-select.component.scss ':host(.is-focused)'), unlike number-stepper
+// which relies on this group-level ring. Suppress the group-level ring here so it
+// doesn't double up and bleed over the adjacent "day of the month" / "of the month" label.
+.scheduler-form.input-group.condition-edit-view__monthly-input-group:focus-within {
+  box-shadow: none;
+  outline: none;
+}
+
+.scheduler-form.input-group.condition-edit-view__monthly-input-group:focus-within .input-group-text {
+  border-color: var(--inet-input-border-color);
 }
 
 .sm-dropdown {

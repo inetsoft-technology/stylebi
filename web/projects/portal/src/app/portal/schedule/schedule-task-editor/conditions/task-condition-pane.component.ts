@@ -26,7 +26,7 @@ import {
    SimpleChanges
 } from "@angular/core";
 import { UntypedFormArray, UntypedFormControl, UntypedFormGroup, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbDateStruct, NgbModal, NgbTimeStruct, NgbTimepicker, NgbInputDatepicker, NgbDatepicker } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDateStruct, NgbModal, NgbTimeStruct, NgbTimepicker, NgbInputDatepicker, NgbDatepicker, NgbDatepickerMonth } from "@ng-bootstrap/ng-bootstrap";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -67,7 +67,7 @@ dayjs.extend(utc);
     selector: "task-condition-pane",
     templateUrl: "./task-condition-pane.component.html",
     styleUrls: ["./task-condition-pane.component.scss"],
-    imports: [NgIf, NgFor, NgSwitch, NgSwitchCase, FormsModule, ReactiveFormsModule, StartTimeEditor, NgbTimepicker, NgbInputDatepicker, EditableTableComponent, CustomSelectComponent, NumberStepperComponent]
+    imports: [NgIf, NgFor, NgSwitch, NgSwitchCase, FormsModule, ReactiveFormsModule, StartTimeEditor, NgbTimepicker, NgbInputDatepicker, NgbDatepickerMonth, EditableTableComponent, CustomSelectComponent, NumberStepperComponent]
 })
 export class TaskConditionPane implements OnInit, OnChanges {
    private readonly defaultYearWindow: number = 10;
