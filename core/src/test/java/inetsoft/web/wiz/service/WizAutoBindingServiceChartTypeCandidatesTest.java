@@ -194,4 +194,23 @@ class WizAutoBindingServiceChartTypeCandidatesTest {
 
       assertNull(WizAutoBindingService.selectedRecommendationType(rec));
    }
+
+   /**
+    * Regression: {@code getChartTypeString}/{@code graphTypeForName} used to spell
+    * {@link GraphTypes#CHART_ICICLE} as "icircle" — not StyleBI's own name for this chart type
+    * (every other surface, including this class's own {@link GraphTypes} javadoc and its catalog
+    * label "Icicle", spells it "icicle"). Found live from the wiz-services side, where a caller
+    * asking for an "icicle" chart got silently substituted with a different chart type because the
+    * bridge only recognized "icircle". Fixed at the source: this candidate menu (and the inverse
+    * name→type lookup it shares logic with) must use the same spelling as the rest of the product.
+    */
+   @Test
+   void spellsTheIcicleChartTypeCorrectly() {
+      List<ChartTypeCandidate> candidates = WizAutoBindingService.buildChartTypeCandidates(List.of(
+         chartRec(List.of(info(GraphTypes.CHART_ICICLE), info(GraphTypes.CHART_TREEMAP)), null)));
+
+      assertTrue(typesOf(candidates).contains("icicle"),
+                 "CHART_ICICLE must be spelled \"icicle\", not \"icircle\": " + typesOf(candidates));
+      assertFalse(typesOf(candidates).contains("icircle"));
+   }
 }
