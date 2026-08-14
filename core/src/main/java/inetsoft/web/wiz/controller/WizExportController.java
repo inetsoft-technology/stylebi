@@ -22,6 +22,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.composer.vs.controller.ExportControllerService;
 import inetsoft.web.composer.vs.controller.ExportControllerServiceProxy;
@@ -108,6 +109,13 @@ public class WizExportController {
       String[] bookmarks = bookmarksParam.isEmpty() ? new String[0] : bookmarksParam.split(",");
       String[] tables = tableAssembliesParam.isEmpty() ? new String[0] : tableAssembliesParam.split(",");
 
+      // Mirrors ExportController.exportViewsheet0()'s override: CSV data must always be fully
+      // expanded rather than clipped to the on-screen layout, regardless of what the caller asked
+      // for via `match`.
+      if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
+         match = false;
+      }
+
       CSVConfig csvConfig = new CSVConfig();
 
       if(delimiter != null) {
@@ -122,6 +130,8 @@ public class WizExportController {
       csvConfig.setTabDelimited(tabDelimited);
       csvConfig.setExportAssemblies(Arrays.asList(tables));
 
+      // type=null (no output-extension override), matchesAssetIdFormat=false (see class doc),
+      // previewPrintLayout=false, print=false — wiz never sets either of the last two.
       ExportControllerService.ViewsheetExportResult result = exportControllerServiceProxy.exportViewsheet(
          runtimeId, format, null, false, match, expandSelections, current, false, false,
          bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, principal);
