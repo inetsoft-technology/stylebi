@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +65,38 @@ public class SVGCoordinateHelper extends CoordinateHelper {
     */
    Graphics2D getGraphics() {
       return svgGraphics;
+   }
+
+   /**
+    * Clip subsequent drawing to a rounded-corner rectangle, so square cell
+    * backgrounds/text don't stick out past the rounded border drawn on top afterward.
+    * @param roundCorner the round corner radius; a value &lt;= 0 leaves the clip unchanged.
+    */
+   void beginRoundCornerClip(Rectangle2D bounds, int roundCorner) {
+      if(roundCorner <= 0) {
+         return;
+      }
+
+      // getClip() legitimately returns null when no clip is currently set - don't use
+      // savedClip's null-ness to decide whether to restore, or a null prior clip (the
+      // common case) will look like "nothing to restore" and leave this clip stuck.
+      savedClip = svgGraphics.getClip();
+      roundCornerClipped = true;
+      double r = roundCorner * 2d;
+      svgGraphics.setClip(new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),
+                                                       bounds.getWidth(), bounds.getHeight(),
+                                                       r, r));
+   }
+
+   /**
+    * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
+    */
+   void endRoundCornerClip() {
+      if(roundCornerClipped) {
+         svgGraphics.setClip(savedClip);
+         savedClip = null;
+         roundCornerClipped = false;
+      }
    }
 
    /**
@@ -365,6 +398,8 @@ public class SVGCoordinateHelper extends CoordinateHelper {
    }
 
    private Graphics2D svgGraphics;
+   private Shape savedClip;
+   private boolean roundCornerClipped;
    private final Rectangle svgBounds;
    private static final Logger LOG = LoggerFactory.getLogger(SVGCoordinateHelper.class);
 }

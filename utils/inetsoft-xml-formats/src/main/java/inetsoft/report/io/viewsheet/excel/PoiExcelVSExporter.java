@@ -1140,32 +1140,52 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          return;
       }
 
-      // Mask the square cell background/content that would otherwise stick out past the
-      // curve at each corner (e.g. a shaded title-row fill, or the corner-most cell's
-      // text) with a plain white square, the same way the viewer's overflow:hidden clips
-      // it. This must happen before the border outline below so the outline's curve is
-      // drawn on top of the mask, not under it. Applies regardless of whether a border is
-      // configured, since it only affects background/content, not border lines.
-      maskTableCorners(pixelBounds, radius);
-
-      Insets borders = format.getBorders();
-
       // A single roundRect shape can only stroke a uniform outline around all four sides
       // - unlike the per-side PDF/SVG/PPT border drawing (see ExportUtil.drawBorders), it
-      // can't selectively skip a side. Only draw the outline when every side actually has
-      // a border configured; otherwise skip it, so e.g. a top-only border doesn't
-      // incorrectly get a full box outline in Excel.
-      if(borders == null || borders.top == 0 || borders.left == 0 ||
-         borders.right == 0 || borders.bottom == 0)
-      {
+      // can't selectively skip a side. Approximate by using whichever side has a border
+      // configured first (top, then left/right/bottom) for the whole outline's style and
+      // color; a table with only a partial border will get a full box outline as a result,
+      // an accepted tradeoff for a uniformly-rounded look in the common case.
+      Insets borders = format.getBorders();
+      int type;
+      java.awt.Color color;
+      BorderColors bcolors = format.getBorderColors();
+
+      if(borders != null && borders.top != 0) {
+         type = borders.top;
+         color = bcolors == null ? null : bcolors.topColor;
+      }
+      else if(borders != null && borders.left != 0) {
+         type = borders.left;
+         color = bcolors == null ? null : bcolors.leftColor;
+      }
+      else if(borders != null && borders.right != 0) {
+         type = borders.right;
+         color = bcolors == null ? null : bcolors.rightColor;
+      }
+      else if(borders != null && borders.bottom != 0) {
+         type = borders.bottom;
+         color = bcolors == null ? null : bcolors.bottomColor;
+      }
+      else {
+         // No border configured at all: there's no outline to compensate the mask with a
+         // curve, so skip masking too rather than leaving an unrounded white square with
+         // no border and no explanation.
          return;
       }
 
-      int lineStyle = PoiExcelVSUtil.getLineStyle(borders.top);
+      int lineStyle = PoiExcelVSUtil.getLineStyle(type);
 
       if(lineStyle == ExcelVSUtil.EXCEL_NO_BORDER) {
          return;
       }
+
+      // Mask the square cell background/content that would otherwise stick out past the
+      // curve at each corner (e.g. a shaded title-row fill, or the corner-most cell's
+      // text) with a plain white square, the same way the viewer's overflow:hidden clips
+      // it. This must happen before the border outline below so the outline's curve is
+      // drawn on top of the mask, not under it.
+      maskTableCorners(pixelBounds, radius);
 
       XSSFSimpleShape shape = patriarch.createSimpleShape(
          (XSSFClientAnchor) getAnchorFromPixelRect(pixelBounds));
@@ -1175,9 +1195,6 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       if(lineStyle != ExcelVSUtil.EXCEL_SOLID_BORDER) {
          shape.setLineStyle(lineStyle);
       }
-
-      BorderColors bcolors = format.getBorderColors();
-      java.awt.Color color = bcolors == null ? null : bcolors.topColor;
 
       if(color != null) {
          shape.setLineStyleColor(color.getRed(), color.getGreen(), color.getBlue());

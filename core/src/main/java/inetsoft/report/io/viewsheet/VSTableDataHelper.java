@@ -345,16 +345,45 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       int infoWidth = CoordinateHelper.getAssemblySize(
          assembly, CoordinateHelper.getLensSize(lens, true)).width;
       calculateColumnsPosition(info, lens);
-      drawObjectFormat(info, lens, false);
-      writeTitle(info, infoWidth);
+      // clip the background fill too, not just the title/data drawn after it - the
+      // background is a plain unclipped fillRect (see ExportUtil.drawTextBox) that
+      // otherwise sticks out square past the rounded border at each corner.
+      beginRoundCornerClip(info, lens);
 
-      if(lens != null) {
-         writeData(info, lens);
+      try {
+         drawObjectFormat(info, lens, false);
+         writeTitle(info, infoWidth);
+
+         if(lens != null) {
+            writeData(info, lens);
+         }
+      }
+      finally {
+         // always restore the clip, even on failure, so a bad cell/title write doesn't
+         // leave the shared Graphics device (PDF/SVG) clipped for whatever is drawn next.
+         endRoundCornerClip();
       }
 
       // @by stephenwebster, draw after the data so the object borders are on top
       // of the data borders.
       drawObjectFormat(info, lens, true);
+   }
+
+   /**
+    * Clip subsequent drawing (the object's own background fill, title, and cell data) to
+    * the object's rounded-corner bounds, so none of it sticks out past the rounded border
+    * drawn afterward by {@link #drawObjectFormat}. No-op by default: cell content is
+    * written directly to a native grid (Excel) or shape-based slide (PowerPoint) in some
+    * export formats, neither of which support clipping; only Graphics2D-based exports
+    * (PDF/SVG) override this.
+    */
+   protected void beginRoundCornerClip(TableDataVSAssemblyInfo info, VSTableLens lens) {
+   }
+
+   /**
+    * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
+    */
+   protected void endRoundCornerClip() {
    }
 
    /**

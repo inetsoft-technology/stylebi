@@ -355,10 +355,13 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          buffer.append("box-sizing:border-box;");
       }
 
-      if(format.getRoundCornerValue() != 0) {
+      if(format.getRoundCorner() != 0) {
          buffer.append(";border-radius:");
-         buffer.append(format.getRoundCornerValue());
+         buffer.append(format.getRoundCorner());
          buffer.append("px;");
+         // clip the square cell content to the rounded corner, matching the viewer
+         // (vs-table.component.html pairs border-radius with overflow:hidden the same way).
+         buffer.append("overflow:hidden;");
       }
 
       return buffer.toString();
