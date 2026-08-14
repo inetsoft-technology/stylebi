@@ -105,8 +105,39 @@
         padding-left: 24px;
       }
 
-      .match-massage {
-         margin-top: 1em;
+      .group-label {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: rgba(0, 0, 0, .6);
+      }
+
+      .option-group {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        width: 100%;
+      }
+
+      .option-indent {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        margin-left: 26px;
+      }
+
+      .option-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .option-reason {
+        font-size: 12px;
+        color: rgba(0, 0, 0, .6);
       }
 
       .mat-mdc-mini-fab {

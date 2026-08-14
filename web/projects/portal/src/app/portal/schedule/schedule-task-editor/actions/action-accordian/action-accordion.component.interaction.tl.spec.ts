@@ -493,11 +493,29 @@ describe("ActionAccordion — isDashboard, bundledDisabled, dataSizeOptionVisibl
       expect(comp.dataSizeOptionVisible).toBe(false);
    });
 
-   it("dataSizeOptionVisible is false for dashboard with HTML format", async () => {
+   it("dataSizeOptionVisible stays true for dashboard with HTML format (shown disabled, not hidden)", async () => {
       const { comp } = await renderActionAccordion({
          action: makeAction({ actionType: "ViewsheetAction", format: "HTML" }),
       });
-      expect(comp.dataSizeOptionVisible).toBe(false);
+      expect(comp.dataSizeOptionVisible).toBe(true);
+      expect(comp.emailLayoutUnavailable).toBe(true);
+      expect(comp.emailLayoutReason).toBe("_#(js:Not applied to HTML)");
+   });
+
+   it("emailLayoutReason reflects CSV format", async () => {
+      const { comp } = await renderActionAccordion({
+         action: makeAction({ actionType: "ViewsheetAction", format: "CSV" }),
+      });
+      expect(comp.emailLayoutUnavailable).toBe(true);
+      expect(comp.emailLayoutReason).toBe("_#(js:Not applied to CSV)");
+   });
+
+   it("emailLayoutReason is empty for a format the layout choice applies to", async () => {
+      const { comp } = await renderActionAccordion({
+         action: makeAction({ actionType: "ViewsheetAction", format: "Excel" }),
+      });
+      expect(comp.emailLayoutUnavailable).toBe(false);
+      expect(comp.emailLayoutReason).toBe("");
    });
 });
 

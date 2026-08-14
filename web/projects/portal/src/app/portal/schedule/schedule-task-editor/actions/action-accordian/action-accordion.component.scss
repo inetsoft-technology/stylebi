@@ -52,6 +52,15 @@
   flex-direction: column;
   gap: var(--inet-space-3);
   padding: 0;
+
+  // <fieldset> defaults to min-width: min-content in the UA stylesheet, and as a flex
+  // item its automatic minimum size falls back to that same content-based floor. With
+  // any unshrinkable descendant, that lets the fieldset (and everything stretched to
+  // its width) balloon far past the card — override it so the fieldset actually
+  // respects the flex column's width instead of sizing to its widest content.
+  > fieldset {
+    min-width: 0;
+  }
 }
 
 .action-accordion__row,
@@ -78,6 +87,11 @@
   margin-bottom: 0;
 }
 
+.action-accordion__section-toggle + fieldset,
+.action-accordion__section-toggle + .action-accordion-highlights {
+  margin-top: 0.75rem;
+}
+
 .action-accordion-highlights {
   margin-bottom: 0;
 }
@@ -90,6 +104,57 @@
 
 .action-accordion-bookmark-row {
   --bs-gutter-x: var(--inet-space-3);
+}
+
+// ── Deliver/Save content-as group (grouped radio + indented checkbox pattern) ──
+
+.action-accordion__group-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--inet-text-muted-color);
+}
+
+.action-accordion__option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 0.75rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.action-accordion__option-group--radios {
+  gap: 14px;
+}
+
+.action-accordion__option-indent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  margin: 2px 0 0 26px;
+}
+
+.action-accordion__option-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  margin-bottom: 0;
+
+  // Keep Bootstrap's floated/negative-margin .form-check checkbox model isolated from
+  // this flex row — combining them on one element let the float's -1.5em margin blow
+  // out this row's (and its flex-column ancestors') measured width.
+  > .form-check {
+    min-width: 0;
+  }
+}
+
+.action-accordion__option-reason {
+  font-size: 12px;
+  color: var(--inet-text-muted-color);
 }
 
 .action-accordion-bookmark-select-col {

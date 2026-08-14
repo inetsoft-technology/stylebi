@@ -264,7 +264,7 @@ describe("ActionAccordion — Match Layout / Expand Components radios (email sec
       expect(document.getElementById("onlyDataComponents")).not.toBeNull();
    });
 
-   it("'Only Data Elements' checkbox is absent when format=PDF", async () => {
+   it("'Only Data Elements' checkbox is present but disabled with an 'Excel only' reason when format=PDF", async () => {
       const action = makeAction({
          actionType: "ViewsheetAction",
          deliverEmailsEnabled: true,
@@ -275,7 +275,10 @@ describe("ActionAccordion — Match Layout / Expand Components radios (email sec
          vsMailFormats: [{ type: "PDF", label: "PDF" }],
       });
       await renderActionAccordion({ action, model });
-      expect(document.getElementById("onlyDataComponents")).toBeNull();
+      const checkbox = document.getElementById("onlyDataComponents") as HTMLInputElement;
+      expect(checkbox).not.toBeNull();
+      expect(checkbox.disabled).toBe(true);
+      expect(checkbox.closest(".action-accordion__option-row")?.textContent).toContain("_#(js:Excel only)");
    });
 });
 
@@ -415,13 +418,12 @@ describe("ActionAccordion — showMatchAndExpand radios (Save section)", () => {
    });
 });
 
-// ── Group 9: showMatchMessage HTML warning ────────────────────────────────────
+// ── Group 9: post-save warning replaced by inline per-control reasons ─────────
 
-describe("ActionAccordion — .html-match-message visibility", () => {
+describe("ActionAccordion — .html-match-message removed in favor of inline reasons", () => {
 
-   it("html-match-message is visible when saveFormats mixes HTML and non-HTML entries", async () => {
+   it("the old combined html-match-message warning never renders", async () => {
       // FileTypes.HTML=5 → "5"; Excel save format → "0"
-      // hasHtml=true + hasOther=true → showMatchMessage=true
       const action = makeAction({
          actionType: "ViewsheetAction",
          saveToServerEnabled: true,
@@ -433,22 +435,31 @@ describe("ActionAccordion — .html-match-message visibility", () => {
          ],
       });
       await renderActionAccordion({ action });
-      expect(document.querySelector(".html-match-message")).not.toBeNull();
+      expect(document.querySelector(".html-match-message")).toBeNull();
    });
 
-   it("html-match-message is absent when saveFormats has only Excel entries", async () => {
+   it("'Only Data Elements' / 'Export All Tabbed Tables' are present but disabled with an 'Excel only' reason when saveFormats has no Excel entries", async () => {
+      // "5" = HTML, "9" = PDF (neither is Excel's "0"); mixing them keeps showMatchAndExpand
+      // true (not every format is HTML/CSV) while hasExcelFormat() stays false.
       const action = makeAction({
          actionType: "ViewsheetAction",
          saveToServerEnabled: true,
-         saveFormats: ["0"],
-         filePaths: ["r.xlsx"],
-         serverFilePaths: [{
-            path: "r.xlsx", ftp: false, useCredential: false,
-            secretId: null, username: null, password: null, oldFormat: -1,
-         }],
+         saveFormats: ["5", "9"],
+         filePaths: ["r.html", "r.pdf"],
+         serverFilePaths: [
+            { path: "r.html", ftp: false, useCredential: false, secretId: null, username: null, password: null, oldFormat: -1 },
+            { path: "r.pdf", ftp: false, useCredential: false, secretId: null, username: null, password: null, oldFormat: -1 },
+         ],
       });
       await renderActionAccordion({ action });
-      expect(document.querySelector(".html-match-message")).toBeNull();
+      const onlyData = document.getElementById("onlyDataComponents2") as HTMLInputElement;
+      const tabbedTables = document.getElementById("saveExportAllTabbedTables") as HTMLInputElement;
+      expect(onlyData).not.toBeNull();
+      expect(onlyData.disabled).toBe(true);
+      expect(onlyData.closest(".action-accordion__option-row")?.textContent).toContain("_#(js:Excel only)");
+      expect(tabbedTables).not.toBeNull();
+      expect(tabbedTables.disabled).toBe(true);
+      expect(tabbedTables.closest(".action-accordion__option-row")?.textContent).toContain("_#(Excel only)");
    });
 });
 

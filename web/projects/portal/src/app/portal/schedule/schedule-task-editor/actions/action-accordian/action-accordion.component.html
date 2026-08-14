@@ -345,65 +345,84 @@
                   </div>
                 </div>
                 @if (dataSizeOptionVisible) {
-                  <div class="form-check mb-2 flex-wrap">
-                    <div class="col-auto emailSpacing">
-                      <input class="form-check-input" type="radio" id="match" name="emailMatch"
-                        [ngModelOptions]="{standalone: true}"
-                        [(ngModel)]="action.emailMatchLayout"
-                        [value]="true" (ngModelChange)="updateEmailDataOnlyFormat()">
-                      <label class="form-check-label match-layout-id" for="match">
-                        _#(Match Layout)
-                      </label>
-                    </div>
-                    <div class="col-auto emailSpacing">
-                      <input class="form-check-input" type="radio" id="expand" name="emailMatch"
-                        [attr.disabled]="model.expandEnabled ? null : ''"
-                        [ngModelOptions]="{standalone: true}"
-                        [(ngModel)]="action.emailMatchLayout"
-                        [value]="false">
-                      <label class="form-check-label expand-tables-and-charts-id" for="expand">
-                        _#(Expand Components)
-                      </label>
-                    </div>
-                    <div class="col-auto emailSpacing">
-                      <div class="form-check form-switch action-accordion__section-toggle">
-                        <input type="checkbox" class="form-check-input"
-                          id="expandSelections"
-                          [disabled]="!model.expandEnabled || action.emailMatchLayout || action.emailOnlyDataComponents"
-                          [ngModelOptions]="{standalone: true}"
-                          [(ngModel)]="action.emailExpandSelections">
-                        <label class="form-check-label" for="expandSelections">
-                          _#(Expand Selection List/Tree)
-                        </label>
+                  <div class="action-accordion__option-group">
+                    <div class="action-accordion__group-label">_#(Deliver content as)</div>
+                    <div class="action-accordion__option-group action-accordion__option-group--radios">
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" id="match" name="emailMatch"
+                            [disabled]="emailLayoutUnavailable"
+                            [ngModelOptions]="{standalone: true}"
+                            [(ngModel)]="action.emailMatchLayout"
+                            [value]="true" (ngModelChange)="updateEmailDataOnlyFormat()">
+                          <label class="form-check-label match-layout-id" for="match">
+                            _#(Match Layout)
+                          </label>
+                        </div>
+                      </div>
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" id="expand" name="emailMatch"
+                            [disabled]="emailLayoutUnavailable || !model.expandEnabled"
+                            [ngModelOptions]="{standalone: true}"
+                            [(ngModel)]="action.emailMatchLayout"
+                            [value]="false">
+                          <label class="form-check-label expand-tables-and-charts-id" for="expand">
+                            _#(Expand Components)
+                          </label>
+                        </div>
+                        @if (emailLayoutReason) {
+                          <span class="action-accordion__option-reason">{{ emailLayoutReason }}</span>
+                        }
                       </div>
                     </div>
-                    @if (action.format === 'Excel') {
-                      <div class="col-auto emailSpacing">
-                        <div class="form-check form-switch action-accordion__section-toggle">
+                    <div class="action-accordion__option-indent">
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input"
+                            id="expandSelections"
+                            [disabled]="emailExpandSelectionsDisabled"
+                            [ngModelOptions]="{standalone: true}"
+                            [(ngModel)]="action.emailExpandSelections">
+                          <label class="form-check-label" for="expandSelections">
+                            _#(Expand Selection List/Tree)
+                          </label>
+                        </div>
+                        @if (emailExpandSelectionsReason) {
+                          <span class="action-accordion__option-reason">{{ emailExpandSelectionsReason }}</span>
+                        }
+                      </div>
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
                           <input type="checkbox" class="form-check-input"
                             id="onlyDataComponents"
-                            [disabled]="!model.expandEnabled || action.emailMatchLayout"
+                            [disabled]="emailOnlyDataDisabled"
                             [ngModelOptions]="{standalone: true}"
                             [(ngModel)]="action.emailOnlyDataComponents">
                           <label class="form-check-label" for="onlyDataComponents">
                             _#(Only Data Elements)
                           </label>
                         </div>
+                        @if (emailOnlyDataReason) {
+                          <span class="action-accordion__option-reason">{{ emailOnlyDataReason }}</span>
+                        }
                       </div>
-                    }
-                    @if (action.format === 'Excel') {
-                      <div class="col-auto emailSpacing">
-                        <div class="form-check form-switch action-accordion__section-toggle">
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
                           <input type="checkbox" class="form-check-input"
                             id="exportAllTabbedTables"
+                            [disabled]="emailTabbedTablesDisabled"
                             [ngModelOptions]="{standalone: true}"
                             [(ngModel)]="action.exportAllTabbedTables">
                           <label class="form-check-label" for="exportAllTabbedTables">
                             _#(Export All Tabbed Tables)
                           </label>
                         </div>
+                        @if (emailTabbedTablesDisabled) {
+                          <span class="action-accordion__option-reason">_#(Excel only)</span>
+                        }
                       </div>
-                    }
+                    </div>
                   </div>
                 }
                 <div class="action-accordion__row row">
@@ -596,70 +615,80 @@
                   </div>
                 </div>
                 @if (showMatchAndExpand) {
-                  <div class="row">
-                    <div class="col-auto">
-                      <input class="form-check-input" type="radio" id="match2" name="saveMatch"
-                        [ngModelOptions]="{standalone: true}"
-                        [(ngModel)]="action.saveMatchLayout"
-                        [value]="true" (ngModelChange)="updateDataOnlyFormat()">
-                      <label class="form-check-label match-layout-id" for="match2">
-                        _#(Match Layout)
-                      </label>
-                    </div>
-                    <div class="col-auto">
-                      <input class="form-check-input" type="radio" id="expand2" name="saveMatch"
-                        [attr.disabled]="model.expandEnabled ? null : ''"
-                        [ngModelOptions]="{standalone: true}"
-                        [(ngModel)]="action.saveMatchLayout"
-                        [value]="false">
-                      <label class="form-check-label expand-tables-and-charts-id" for="expand2">
-                        _#(Expand Components)
-                      </label>
-                    </div>
-                    <div class="col-auto">
-                      <div class="form-check form-switch action-accordion__section-toggle">
-                        <input type="checkbox" class="form-check-input"
-                          id="expandSelections2"
-                          [disabled]="!model.expandEnabled || action.saveMatchLayout || action.saveOnlyDataComponents"
-                          [ngModelOptions]="{standalone: true}"
-                          [(ngModel)]="action.saveExpandSelections">
-                        <label class="form-check-label" for="expandSelections2">
-                          _#(Expand Selection List/Tree)
-                        </label>
+                  <div class="action-accordion__option-group">
+                    <div class="action-accordion__group-label">_#(Save content as)</div>
+                    <div class="action-accordion__option-group action-accordion__option-group--radios">
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" id="match2" name="saveMatch"
+                            [ngModelOptions]="{standalone: true}"
+                            [(ngModel)]="action.saveMatchLayout"
+                            [value]="true" (ngModelChange)="updateDataOnlyFormat()">
+                          <label class="form-check-label match-layout-id" for="match2">
+                            _#(Match Layout)
+                          </label>
+                        </div>
+                      </div>
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" id="expand2" name="saveMatch"
+                            [attr.disabled]="model.expandEnabled ? null : ''"
+                            [ngModelOptions]="{standalone: true}"
+                            [(ngModel)]="action.saveMatchLayout"
+                            [value]="false">
+                          <label class="form-check-label expand-tables-and-charts-id" for="expand2">
+                            _#(Expand Components)
+                          </label>
+                        </div>
                       </div>
                     </div>
-                    @if (hasExcelFormat()) {
-                      <div class="col-auto">
-                        <div class="form-check form-switch action-accordion__section-toggle">
+                    <div class="action-accordion__option-indent">
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input"
+                            id="expandSelections2"
+                            [disabled]="saveExpandSelectionsDisabled"
+                            [ngModelOptions]="{standalone: true}"
+                            [(ngModel)]="action.saveExpandSelections">
+                          <label class="form-check-label" for="expandSelections2">
+                            _#(Expand Selection List/Tree)
+                          </label>
+                        </div>
+                        @if (saveExpandSelectionsReason) {
+                          <span class="action-accordion__option-reason">{{ saveExpandSelectionsReason }}</span>
+                        }
+                      </div>
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
                           <input type="checkbox" class="form-check-input"
                             id="onlyDataComponents2"
-                            [disabled]="!model.expandEnabled || action.saveMatchLayout"
+                            [disabled]="saveOnlyDataDisabled"
                             [ngModelOptions]="{standalone: true}"
                             [(ngModel)]="action.saveOnlyDataComponents">
                           <label class="form-check-label" for="onlyDataComponents2">
                             _#(Only Data Elements)
                           </label>
                         </div>
+                        @if (saveOnlyDataReason) {
+                          <span class="action-accordion__option-reason">{{ saveOnlyDataReason }}</span>
+                        }
                       </div>
-                    }
-                    @if (hasExcelFormat()) {
-                      <div class="col-auto">
-                        <div class="form-check form-switch action-accordion__section-toggle">
+                      <div class="action-accordion__option-row">
+                        <div class="form-check">
                           <input type="checkbox" class="form-check-input"
                             id="saveExportAllTabbedTables"
+                            [disabled]="saveTabbedTablesDisabled"
                             [ngModelOptions]="{standalone: true}"
                             [(ngModel)]="action.saveExportAllTabbedTables">
                           <label class="form-check-label" for="saveExportAllTabbedTables">
                             _#(Export All Tabbed Tables)
                           </label>
                         </div>
+                        @if (saveTabbedTablesDisabled) {
+                          <span class="action-accordion__option-reason">_#(Excel only)</span>
+                        }
                       </div>
-                    }
-                  </div>
-                }
-                @if (showMatchMessage) {
-                  <div class="row html-match-message">
-                    <span class="col-auto">_#(schedule.task.action.htmlFileFormat.doNotApplyMatch)<br>_#(schedule.task.action.excelFileFormat.justApplyTabbedTable)</span>
+                    </div>
                   </div>
                 }
               </fieldset>

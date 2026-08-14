@@ -140,28 +140,38 @@
         <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
       </button>
       @if (showMatchAndExpand) {
-        <div class="full-width">
+        <div class="option-group">
+          <div class="group-label left-padding">_#(Save content as)</div>
           <mat-radio-group [(ngModel)]="matchLayout" class="flex-col left-padding" (change)="fireServerSaveChanged()">
             <mat-radio-button [value]="true">_#(Match Layout)</mat-radio-button>
             <mat-radio-button [value]="false" [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
           </mat-radio-group>
-          <mat-checkbox class="left-padding" [(ngModel)]="expandSelections" [disabled]="matchLayout || saveOnlyDataComponents" (change)="fireServerSaveChanged()">
-          _#(Expand Selection List/Tree)</mat-checkbox>
-          @if (hasExcelFormat) {
-            <mat-checkbox class="left-padding" [(ngModel)]="saveOnlyDataComponents" [disabled]="matchLayout" (change)="fireServerSaveChanged()">
-            _#(Only Data Elements)</mat-checkbox>
-          }
-          <div class="flex-col">
-            @if (hasExcelFormat) {
-              <mat-checkbox class="left-padding" [(ngModel)]="saveExportAllTabbedTables" (change)="fireServerSaveChanged()">
-              _#(Export All Tabbed Tables)</mat-checkbox>
-            }
-          </div>
-          @if (showHtmlMatchMessage) {
-            <div class="left-padding match-massage">
-              <span>_#(schedule.task.action.htmlFileFormat.doNotApplyMatch)<br>_#(schedule.task.action.excelFileFormat.justApplyTabbedTable)</span>
+          <div class="option-indent left-padding">
+            <div class="option-row">
+              <mat-checkbox [(ngModel)]="expandSelections" [disabled]="!expandEnabled || matchLayout || saveOnlyDataComponents" (change)="fireServerSaveChanged()">
+                _#(Expand Selection List/Tree)
+              </mat-checkbox>
+              @if (saveExpandSelectionsReason) {
+                <span class="option-reason">{{ saveExpandSelectionsReason }}</span>
+              }
             </div>
-          }
+            <div class="option-row">
+              <mat-checkbox [(ngModel)]="saveOnlyDataComponents" [disabled]="!hasExcelFormat || matchLayout" (change)="fireServerSaveChanged()">
+                _#(Only Data Elements)
+              </mat-checkbox>
+              @if (saveOnlyDataReason) {
+                <span class="option-reason">{{ saveOnlyDataReason }}</span>
+              }
+            </div>
+            <div class="option-row">
+              <mat-checkbox [(ngModel)]="saveExportAllTabbedTables" [disabled]="saveTabbedTablesDisabled" (change)="fireServerSaveChanged()">
+                _#(Export All Tabbed Tables)
+              </mat-checkbox>
+              @if (saveTabbedTablesDisabled) {
+                <span class="option-reason">_#(Excel only)</span>
+              }
+            </div>
+          </div>
         </div>
       }
       @if (hasCSVFormat && enabled) {

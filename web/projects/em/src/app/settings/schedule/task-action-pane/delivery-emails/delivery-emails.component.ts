@@ -265,8 +265,59 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    }
 
    get dataSizeOptionVisible(): boolean {
-      return this.type === "viewsheet" && this.format !== "HTML" && this.format !== "CSV" &&
-         (this.format != "PDF" || !this.hasPrintLayout);
+      return this.type === "viewsheet" && (this.format != "PDF" || !this.hasPrintLayout);
+   }
+
+   get emailLayoutUnavailable(): boolean {
+      return this.format === DashboardOptions.HTML || this.format === "CSV";
+   }
+
+   get emailLayoutReason(): string {
+      if(this.format === DashboardOptions.HTML) {
+         return "_#(js:Not applied to HTML)";
+      }
+
+      if(this.format === "CSV") {
+         return "_#(js:Not applied to CSV)";
+      }
+
+      return "";
+   }
+
+   private get emailExpandActive(): boolean {
+      return !this.emailLayoutUnavailable && !this.emailMatchLayout;
+   }
+
+   get emailExpandSelectionsReason(): string {
+      if(!this.expandEnabled) {
+         return "_#(js:Requires Expand Components permission)";
+      }
+
+      if(!this.emailExpandActive) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      if(this.format === "Excel" && this.emailOnlyDataComponents) {
+         return "_#(js:Not used with data-only export)";
+      }
+
+      return "";
+   }
+
+   get emailOnlyDataReason(): string {
+      if(this.format !== "Excel") {
+         return "_#(js:Excel only)";
+      }
+
+      if(!this.emailExpandActive) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      return "";
+   }
+
+   get emailTabbedTablesDisabled(): boolean {
+      return this.format !== "Excel";
    }
 
    form: UntypedFormGroup;
@@ -349,8 +400,17 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    }
 
    private updateEnable(): void {
+      if(this.form.get("emailMatchLayout")) {
+         if(this.emailLayoutUnavailable) {
+            this.form.get("emailMatchLayout").disable({ emitEvent: false });
+         }
+         else {
+            this.form.get("emailMatchLayout").enable({ emitEvent: false });
+         }
+      }
+
       if(this.form.get("emailExpandSelections")) {
-         if(!this.expandEnabled || this.emailMatchLayout || (this.emailOnlyDataComponents && this.format == "Excel")) {
+         if(!this.expandEnabled || !this.emailExpandActive || (this.emailOnlyDataComponents && this.format == "Excel")) {
             this.form.get("emailExpandSelections").disable({ emitEvent: false });
          }
          else {
@@ -359,11 +419,20 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
       }
 
       if(this.form.get("emailOnlyDataComponents")) {
-         if(!this.expandEnabled || this.emailMatchLayout) {
+         if(this.format !== "Excel" || !this.emailExpandActive) {
             this.form.get("emailOnlyDataComponents").disable({ emitEvent: false });
          }
          else {
             this.form.get("emailOnlyDataComponents").enable({ emitEvent: false });
+         }
+      }
+
+      if(this.form.get("exportAllTabbedTables")) {
+         if(this.emailTabbedTablesDisabled) {
+            this.form.get("exportAllTabbedTables").disable({ emitEvent: false });
+         }
+         else {
+            this.form.get("exportAllTabbedTables").enable({ emitEvent: false });
          }
       }
    }
@@ -399,14 +468,8 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    changeFormat() {
       this.bundledAsZip = !this.bundledDisabled && this.bundledAsZip;
 
-      if(this.form.get("format").value === DashboardOptions.HTML) {
-         this.form.get("emailMatchLayout").disable();
-      }
-      else if(this.form.get("format").value === ReportOptions.CSV && this.type === "viewsheet") {
+      if(this.form.get("format").value === ReportOptions.CSV && this.type === "viewsheet") {
          this.bundledAsZip = true;
-      }
-      else {
-         this.form.get("emailMatchLayout").enable();
       }
 
       this.togglePasswordForm(true);

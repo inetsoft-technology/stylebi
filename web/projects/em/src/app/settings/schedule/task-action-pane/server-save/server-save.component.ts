@@ -152,31 +152,41 @@ export class ServerSaveComponent implements OnInit {
       });
    }
 
-   get showHtmlMatchMessage() {
-      let hasHtmlOrCsv = false;
-      let hasOther = false;
-
-      if(!this._files) {
-         return false;
-      }
-
-      this._files.forEach((file) => {
-         if(this.isHtmlFormat(file.format) ||
-            (this.isDashboard && this.isVSCSVFormat(file.format)))
-         {
-            hasHtmlOrCsv = true;
-         }
-         else {
-            hasOther = true;
-         }
-      });
-
-      return hasHtmlOrCsv && hasOther;
-   }
-
    get hasExcelFormat(): boolean {
       // 0 is Excel
       return this.saveFormats.includes("0");
+   }
+
+   get saveExpandSelectionsReason(): string {
+      if(!this.expandEnabled) {
+         return "_#(js:Requires Expand Components permission)";
+      }
+
+      if(this.matchLayout) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      if(this.saveOnlyDataComponents) {
+         return "_#(js:Not used with data-only export)";
+      }
+
+      return "";
+   }
+
+   get saveOnlyDataReason(): string {
+      if(!this.hasExcelFormat) {
+         return "_#(js:Excel only)";
+      }
+
+      if(this.matchLayout) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      return "";
+   }
+
+   get saveTabbedTablesDisabled(): boolean {
+      return !this.hasExcelFormat;
    }
 
    get hasCSVFormat(): boolean {
