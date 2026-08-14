@@ -37,6 +37,8 @@ import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.model.ExportViewsheetRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -86,10 +88,12 @@ public class WizExportController {
       return assemblyImageServiceProxy.checkExporting(runtimeId, principal);
    }
 
-   // request is an unannotated bean parameter — Spring binds it implicitly from the same query
-   // params the old per-field @RequestParam list declared (see ExportViewsheetRequest's own doc).
-   @GetMapping("/viewsheet/export")
-   public void exportViewsheet(ExportViewsheetRequest request, Principal principal,
+   // POST + @RequestBody (not GET + query params) to match the established convention for every
+   // other multi-field wiz request in inetsoft.web.wiz.model — see GeoApplyRequest/ChartFormatRequest.
+   // The wiz frontend fetches the exported file as a blob and downloads it via an object URL
+   // rather than navigating the browser directly to this URL (which POST wouldn't support).
+   @PostMapping("/viewsheet/export")
+   public void exportViewsheet(@RequestBody ExportViewsheetRequest request, Principal principal,
                                HttpServletResponse response) throws Exception
    {
       if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,

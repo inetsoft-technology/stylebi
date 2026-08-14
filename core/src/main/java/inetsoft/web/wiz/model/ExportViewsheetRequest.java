@@ -17,19 +17,20 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 /**
- * Query parameters for {@code GET /api/wiz/viewsheet/export}.
- *
- * <p>An unannotated bean parameter on a {@code @GetMapping} method is bound by Spring's implicit
- * {@code ModelAttribute} resolution from request parameters of the same name — no
- * {@code @RequestBody}/JSON involved, and the wire format (plain query string) is unchanged, so
- * this stays a simple GET the browser can navigate to / download from directly.
+ * Request body for {@code POST /api/wiz/viewsheet/export}, replacing what used to be 13
+ * individual {@code @RequestParam}-annotated primitives on the controller method — matches the
+ * established {@code inetsoft.web.wiz.model.*Request} convention used elsewhere in this package
+ * (see {@link GeoApplyRequest}, {@link ChartFormatRequest}).
  *
  * <p>The field initializers below reproduce the {@code defaultValue} each replaced
- * {@code @RequestParam} used to declare: Spring's data binder only overwrites a property when a
- * matching request parameter is actually present, so an absent query param keeps the value
- * initialized here.
+ * {@code @RequestParam} used to declare: Jackson only overwrites a property when the
+ * corresponding JSON key is actually present, so an absent field keeps the value initialized
+ * here.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ExportViewsheetRequest {
    public String getRuntimeId() {
       return runtimeId;
