@@ -98,7 +98,8 @@ class WorksheetTableServiceWindowColumnsTest {
 
       WindowExpressionRef winRef = (WindowExpressionRef) colRef.getDataRef();
       assertEquals(
-         "ROW_NUMBER() OVER (PARTITION BY field['stage'] ORDER BY field['amount'] DESC)",
+         "ROW_NUMBER() OVER (PARTITION BY field['stage'] ORDER BY "
+         + "CASE WHEN field['amount'] IS NULL THEN 1 ELSE 0 END, field['amount'] DESC)",
          winRef.getExpression());
       assertTrue(winRef.isSQL());
    }
