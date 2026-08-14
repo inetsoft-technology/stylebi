@@ -142,6 +142,44 @@ class AdminPropertiesControllerTest {
    }
 
    @Test
+   void withholdsACredentialWhoseNameMatchesNoSecretPattern() {
+      // Redmine #76006. These four are written encrypted and were read back anyway, because
+      // isSecret tested the name and the names miss: "pass" is not "password", the OAuth tokens
+      // carry no magic substring at all, and sharedkey ends in "key" without the dot. Reading is
+      // the disclosure - the value goes to the caller, which relays it to a model provider.
+      //
+      // Stubbing a value for each is the whole point: if the mask were removed these assertions
+      // would fail on the returned secret rather than passing vacuously on a null.
+      for(String name : new String[] { "mail.smtp.pass", "mail.smtp.accesstoken",
+                                       "mail.smtp.refreshtoken", "log.fluentd.security.sharedkey" })
+      {
+         sreeEnv.when(() -> SreeEnv.getProperty(name, false, false)).thenReturn("s3cret-" + name);
+
+         PropertyView view = controller.get(name, principal);
+
+         assertNull(view.currentValue(), name + ": the stored credential must not be returned");
+         sreeEnv.verify(() -> SreeEnv.getProperty(name, false, false), never());
+      }
+   }
+
+   @Test
+   void tellsTheCallerAWithheldCredentialExistsAndCanStillBeSet() {
+      // Two regressions the mask would otherwise introduce, both of which cost an agent a task it
+      // could complete. mail.smtp.pass is uncatalogued, so before #76006 its existence was known
+      // only from the value now withheld - without the credential term in `confirmed` it would
+      // report unknown, and the guidance for unknown tells the caller the name may be a typo.
+      // And the pattern branch's wording says a secret is not changed here, which is false for a
+      // credential: the plan service exempts exactly these from that refusal.
+      PropertyView view = controller.get("mail.smtp.pass", principal);
+
+      assertEquals(PropertyView.EXISTS_CONFIRMED, view.exists());
+      assertNull(view.guidance());
+      assertFalse(view.description().contains("neither read nor changed"),
+                  "a credential IS changeable through preview_changes/apply_changes");
+      assertTrue(view.description().contains("credential"));
+   }
+
+   @Test
    void confirmsExistenceOfACataloguedProperty() {
       sreeEnv.when(() -> SreeEnv.getProperty("query.runtime.maxrow", false, false))
          .thenReturn(null);

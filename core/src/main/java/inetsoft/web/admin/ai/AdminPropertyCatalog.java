@@ -208,8 +208,39 @@ public class AdminPropertyCatalog {
     * secret value read through this path leaves the host in a way the ordinary EM properties page
     * never does.
     *
-    * <p>Matches case-insensitively on the base name: contains {@code password}, {@code secret} or
-    * {@code credential}; ends with {@code .key}; or starts with {@code license.}.
+    * <p>Two independent tests, unioned. A name matches case-insensitively when it contains
+    * {@code password}, {@code secret} or {@code credential}, ends with {@code .key}, or starts
+    * with {@code license.}; and {@link #isEncryptedCredential} matches the properties whose
+    * <b>writer</b> encrypts them.
+    *
+    * <p><b>The writer half is why this is a union and not a pattern.</b> The name test alone
+    * returned four genuine credentials in the clear (Redmine #76006):
+    *
+    * <ul>
+    *   <li>{@code mail.smtp.pass} — the SMTP password. Carries {@code pass}, not
+    *       {@code password}.</li>
+    *   <li>{@code mail.smtp.accesstoken}, {@code mail.smtp.refreshtoken} — OAuth tokens for the
+    *       same account, with none of the five substrings between them.</li>
+    *   <li>{@code log.fluentd.security.sharedkey} — ends in {@code key} but not {@code .key}, so
+    *       it missed by the separator. Its sibling {@code log.fluentd.security.password} matched
+    *       and was withheld, which is how adjacent halves of one Logging page came to be
+    *       classified oppositely.</li>
+    * </ul>
+    *
+    * <p>{@code mail.smtp.clientsecret} matched all along, because it happens to contain
+    * {@code secret} — so the name test was not merely incomplete, it was arbitrary within a single
+    * settings block. Reusing {@link #ENCRYPTED_CREDENTIALS} rather than adding four names here
+    * keeps the two answers derived from one hand-verified list: a property whose writer encrypts
+    * it is a credential by the product's own action, and the next one added is masked on read
+    * without a second edit.
+    *
+    * <p>The name test stays. It covers fifteen properties nothing writes through an encrypting
+    * accessor — {@code license.*}, {@code jwt.signing.key}, {@code password.encryption.key},
+    * {@code sso.rsa.private.key} among them — which the writer test would silently unmask.
+    *
+    * <p>Masking a credential here does <b>not</b> make it unwritable: {@code AdminChangePlanService}
+    * refuses a change only when a name is secret AND not an encrypted credential, and the egress
+    * argument above is about values leaving the host, so it is untouched by letting one in.
     */
    public static boolean isSecret(String baseName) {
       if(baseName == null) {
@@ -217,7 +248,8 @@ public class AdminPropertyCatalog {
       }
 
       String lower = baseName.toLowerCase();
-      return lower.contains("password") || lower.contains("secret") ||
+      return isEncryptedCredential(lower) ||
+         lower.contains("password") || lower.contains("secret") ||
          lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
    }
 
@@ -284,7 +316,10 @@ public class AdminPropertyCatalog {
     *       other is not despite the adjacent names.</li>
     * </ul>
     *
-    * <p>Reading is governed separately by {@link #isSecret} and is unaffected by this method.
+    * <p>Reading is governed by {@link #isSecret}, which unions this list into its name test — so
+    * every entry below is withheld on read as well as encrypted on write. Adding a name here
+    * therefore does two things, and the read consequence is the one to check: it is correct
+    * precisely because the writer's encryption is the product asserting the value is sensitive.
     */
    public static boolean isEncryptedCredential(String baseName) {
       return baseName != null && ENCRYPTED_CREDENTIALS.contains(baseName.toLowerCase());
