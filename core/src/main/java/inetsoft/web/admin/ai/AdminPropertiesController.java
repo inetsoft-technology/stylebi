@@ -105,6 +105,7 @@ public class AdminPropertiesController {
    private PropertyView view(AdminPropertyName name, CatalogEntry entry) {
       AdminRiskClassifier.RiskClassification risk = classifier.classify(name);
       String description = entry == null ? null : entry.description();
+      boolean credential = AdminPropertyCatalog.isEncryptedCredential(name.baseName());
       boolean secret = AdminPropertyCatalog.isSecret(name.baseName());
       // A secret's value is not read AT ALL, not merely omitted from the response - see the test
       // that asserts SreeEnv is never called for one. Determining existence by reading it would
@@ -129,17 +130,42 @@ public class AdminPropertiesController {
       // name match is all that is known here, so "Secret property: ..." would still assert the
       // category, and a caller who stopped reading at the colon would take it as confirmation the
       // property exists - the very inference `exists` was added to prevent.
-      if(secret) {
+      //
+      // A credential takes a different wording, and the two differences are the whole reason the
+      // branches are separate. It is a REAL property - the allow-list is hand-verified against
+      // each writer, which is stronger evidence than a stored value - so the name-hedging above
+      // would be false modesty, and `exists` says confirmed below. And it CAN be changed, unlike
+      // every other withheld name: the plan service refuses a change only when a name is secret
+      // and NOT a credential. Telling an agent a settable credential is unchangeable costs a task
+      // it could have completed, which is the failure this endpoint's guidance keeps producing.
+      if(credential) {
+         description = "This is an application credential. Its value is not read here - not even "
+            + "to test whether one is set - because this endpoint's caller relays responses to a "
+            + "model provider off-host. It CAN still be changed: send it through preview_changes "
+            + "and apply_changes like any other property and the server encrypts it on write, "
+            + "exactly as the Enterprise Manager field does. You will not be able to verify the "
+            + "new value by reading it back.";
+      }
+      else if(secret) {
          description = "This name matches admin-chat's secret pattern, so its value is neither "
             + "read nor changed here - not even read to test whether one is present, so this says "
             + "nothing about whether the property exists or is set.";
       }
 
-      // A catalogued name is authoritative; a stored value is proof by demonstration, and covers
-      // anything declared in defaults.properties, since the defaults chain resolves through
-      // getProperty. Neither means the server cannot say whether the name is real - which is
-      // always the case for a secret, since this path deliberately never looks.
-      boolean confirmed = entry != null || stored != null;
+      // A catalogued name is authoritative; the credential allow-list is authoritative for the
+      // same reason, each entry having been verified against the writer that encrypts it; a stored
+      // value is proof by demonstration, and covers anything declared in defaults.properties,
+      // since the defaults chain resolves through getProperty.
+      //
+      // Only the third can be lost by withholding a value, which is why the credential term is
+      // needed rather than merely nice: mail.smtp.pass reported confirmed before it was masked,
+      // on the strength of a value this path now declines to read. Without the allow-list term it
+      // would have regressed to unknown - the fix for a disclosure quietly deleting a true answer
+      // about a property that unambiguously exists.
+      //
+      // A name that is secret by PATTERN alone gets no such term and stays unknown. All that is
+      // known there is that a string matched, which is exactly what the guidance says.
+      boolean confirmed = entry != null || credential || stored != null;
 
       return new PropertyView(name.key(),
          entry == null ? List.of() : (entry.aliases() == null ? List.of() : entry.aliases()),

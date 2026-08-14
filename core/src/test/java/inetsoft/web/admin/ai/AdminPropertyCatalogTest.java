@@ -197,6 +197,72 @@ class AdminPropertyCatalogTest {
    }
 
    @Test
+   void withholdsEveryEncryptedCredentialOnReadAndNotOnlyTheNamesThePatternMatches() {
+      // Redmine #76006. isSecret was a name test alone, so these four were returned in the clear
+      // to a caller that relays responses to a model provider off-host. mail.smtp.pass carries
+      // "pass" and not "password"; the two OAuth tokens carry none of the five substrings;
+      // sharedkey ends in "key" but not ".key" and missed by the separator. Their neighbour
+      // mail.smtp.clientsecret matched all along, so one settings block was split arbitrarily.
+      for(String name : new String[] { "mail.smtp.pass", "mail.smtp.accesstoken",
+                                       "mail.smtp.refreshtoken", "log.fluentd.security.sharedkey" })
+      {
+         assertFalse(matchesTheNamePattern(name),
+                     name + ": the point of this test is that the NAME does not match - if it now "
+                     + "does, the union below is no longer what covers it");
+         assertTrue(AdminPropertyCatalog.isSecret(name),
+                    name + " is written encrypted and must not be read back through admin-chat");
+      }
+   }
+
+   @Test
+   void keepsWithholdingSecretNamesThatNoWriterEncrypts() {
+      // The union must not have narrowed to the allow-list. Fifteen of the sixteen names isSecret
+      // withheld before #76006 are written by nothing that encrypts, so the writer test alone
+      // would have unmasked them all in order to close the four above.
+      for(String name : new String[] { "license.key", "jwt.signing.key", "password.encryption.key",
+                                       "sso.rsa.private.key", "log.fluentd.security.password",
+                                       "enable.changepassword" })
+      {
+         assertFalse(AdminPropertyCatalog.isEncryptedCredential(name),
+                     name + ": nothing encrypts this on write, so only the name test can cover it");
+         assertTrue(AdminPropertyCatalog.isSecret(name), name + " must stay withheld");
+      }
+   }
+
+   @Test
+   void leavesAnOrdinaryPropertyReadableIncludingTheOnesSittingBesideACredential() {
+      // mail.smtp.tokenuri shares a save block with three of the four newly withheld names and
+      // log.fluentd.security.username shares a page with sharedkey. Withholding either would cost
+      // an operator a value they need and that nothing treats as sensitive.
+      for(String name : new String[] { "mail.smtp.tokenuri", "mail.smtp.user", "mail.smtp.host",
+                                       "log.fluentd.security.username", "query.runtime.maxrow" })
+      {
+         assertFalse(AdminPropertyCatalog.isSecret(name), name + " is not a secret");
+      }
+   }
+
+   @Test
+   void withholdsACredentialWhateverCasingTheCallerUses() {
+      // Source spells these camelCase; the store lowercases through computePropertyNameCase, and
+      // an agent will send either form.
+      assertTrue(AdminPropertyCatalog.isSecret("mail.smtp.accessToken"));
+      assertTrue(AdminPropertyCatalog.isSecret("mail.smtp.refreshToken"));
+      assertTrue(AdminPropertyCatalog.isSecret("log.fluentd.security.sharedKey"));
+   }
+
+   /**
+    * The pre-#76006 predicate, kept here so a test can assert that a name is covered by the
+    * writer half of the union rather than by the name half. Deliberately a copy: if
+    * {@code isSecret} is ever narrowed back to its name test, this must NOT follow it, and the
+    * test above must fail.
+    */
+   private static boolean matchesTheNamePattern(String baseName) {
+      String lower = baseName.toLowerCase();
+      return lower.contains("password") || lower.contains("secret") ||
+         lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
+   }
+
+   @Test
    void everyCatalogueEntryIsWellFormed() {
       // The class javadoc's hard rule: a catalogued name that does not exist in StyleBI would be
       // snapshotted as null, applied, read back as null, and reported as success for a property
