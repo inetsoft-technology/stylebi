@@ -1,0 +1,8 @@
+{
+  "endpoints": [
+    {
+      "name": "Stand-in",
+      "suffix": "/v1/stand_in"
+    }
+  ]
+}

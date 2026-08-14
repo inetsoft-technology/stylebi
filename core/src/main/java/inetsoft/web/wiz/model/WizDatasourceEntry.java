@@ -41,6 +41,31 @@ package inetsoft.web.wiz.model;
  *                     folders, and null when the data source could not be loaded.
  * @param databaseType {@code JDBCDataSource.getDatabaseTypeString()}, e.g. {@code "MYSQL"}. Null for
  *                     anything that is not a JDBC database.
+ * @param annotationClass
+ *                     how this data source can be annotated, which decides what the wiz portal has
+ *                     to ask of the user before it can index it. Null for folders. One of:
+ *                     <dl>
+ *                     <dt>{@code JDBC}</dt>
+ *                     <dd>a relational database; tables and columns come from JDBC metadata.</dd>
+ *                     <dt>{@code FILE}</dt>
+ *                     <dd>a browsable tree of files or sheets. Targets are enumerable; columns are
+ *                     read from the file.</dd>
+ *                     <dt>{@code METADATA}</dt>
+ *                     <dd>the service can be asked what it holds — collections, entities, objects,
+ *                     tables. Targets are enumerable without the user supplying anything.</dd>
+ *                     <dt>{@code ENDPOINT_CATALOG}</dt>
+ *                     <dd>ships an {@code endpoints.json}, so the callable set is known offline and
+ *                     exactly. Needs no discovery and no documentation.</dd>
+ *                     <dt>{@code DOCUMENT_REQUIRED}</dt>
+ *                     <dd>a REST service with no catalogue of its own. Nothing can enumerate what it
+ *                     offers, so the user must supply documentation before it can be annotated.</dd>
+ *                     <dt>{@code UNSUPPORTED}</dt>
+ *                     <dd>output shape is decided by a user script, so there is no stable target to
+ *                     annotate. Shown, but not annotatable.</dd>
+ *                     <dt>{@code UNKNOWN}</dt>
+ *                     <dd>classification failed, usually a connector plugin that did not load. Kept
+ *                     distinct from the others so the cause is not mistaken for a verdict.</dd>
+ *                     </dl>
  * @param createdBy    the alias of the creating user, may be null.
  * @param createdDate  creation time in epoch millis, 0 when unknown. Not formatted.
  * @param editable     whether the caller holds WRITE on this entry.
@@ -54,6 +79,7 @@ public record WizDatasourceEntry(
    boolean folder,
    String sourceType,
    String databaseType,
+   String annotationClass,
    String createdBy,
    long createdDate,
    boolean editable,
