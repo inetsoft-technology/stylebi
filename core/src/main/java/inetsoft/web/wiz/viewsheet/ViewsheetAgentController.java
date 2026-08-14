@@ -25,7 +25,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.wiz.script.ScriptImageService;
 
 import java.security.Principal;
@@ -50,7 +54,9 @@ public class ViewsheetAgentController {
                                    ViewsheetReadService readService,
                                    ViewsheetEditService editService,
                                    ViewsheetFormatService formatService,
-                                   ScriptImageService imageService)
+                                   ScriptImageService imageService,
+                                   ViewsheetService viewsheetService,
+                                   SheetAgentBroadcastService broadcast)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -60,6 +66,8 @@ public class ViewsheetAgentController {
       this.editService = editService;
       this.formatService = formatService;
       this.imageService = imageService;
+      this.viewsheetService = viewsheetService;
+      this.broadcast = broadcast;
    }
 
    public record JoinRequest(String code) {}
@@ -123,6 +131,66 @@ public class ViewsheetAgentController {
                                image.width(), image.height(), image.note());
    }
 
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
+   public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      AssetEntry entry = rvs.getEntry();
+
+      if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         throw new PairingException(
+            "Viewsheet is unsaved (\"" + entry.toView() + "\"). Save it with a name in the " +
+            "StyleBI Composer first — there is no save-as through this tool — then call " +
+            "save_viewsheet again.");
+      }
+
+      if(!(user instanceof XPrincipal xp)) {
+         throw new PairingException("Cannot save: agent principal is not an XPrincipal (" +
+                                    user.getClass().getName() + ")");
+      }
+
+      try {
+         viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
+         rvs.setSavePoint(rvs.getCurrent());
+      }
+      catch(Exception e) {
+         throw new PairingException("Failed to save viewsheet: " + e.getMessage(), e);
+      }
+
+      broadcast.broadcastSave(rvs, rvs.getID(), user);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/undo")
+   public Map<String, Object> undo(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      boolean undone = rvs.undo(null);
+      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+      return undoState("undone", undone, rvs);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/redo")
+   public Map<String, Object> redo(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      boolean redone = rvs.redo(null);
+      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+      return undoState("redone", redone, rvs);
+   }
+
+   private static Map<String, Object> undoState(String key, boolean applied, RuntimeViewsheet rvs) {
+      Map<String, Object> state = new LinkedHashMap<>();
+      state.put(key, applied);
+      state.put("checkpoint", rvs.getCurrent());
+      state.put("total", rvs.size());
+      state.put("savePoint", rvs.getSavePoint());
+      return state;
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
       sessionService.close(sessionToken);
@@ -159,4 +227,6 @@ public class ViewsheetAgentController {
    private final ViewsheetEditService editService;
    private final ViewsheetFormatService formatService;
    private final ScriptImageService imageService;
+   private final ViewsheetService viewsheetService;
+   private final SheetAgentBroadcastService broadcast;
 }

@@ -70,7 +70,9 @@ class ViewsheetAgentControllerTest {
                                           mock(SheetSessionService.class), sessions, reader,
                                           mock(ViewsheetEditService.class),
                                           mock(ViewsheetFormatService.class),
-                                          mock(inetsoft.web.wiz.script.ScriptImageService.class));
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class));
    }
 
    private static Principal principal() {
