@@ -20,6 +20,9 @@ package inetsoft.web.wiz.binding;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.List;
@@ -32,6 +35,39 @@ public final class FieldRefFactory {
    private static final List<String> TYPES = List.of(DIMENSION, MEASURE);
 
    private FieldRefFactory() {
+   }
+
+   /**
+    * Builds the chart-side ref model a {@link FieldRef} describes.
+    *
+    * <p>Shared by 2b's shelf writes and 2c's aesthetic channels: both put the same kind of
+    * field in different places, and two copies of this would drift the moment one of them
+    * learned about a new field attribute.
+    */
+   public static ChartRefModel toChartRef(FieldRef field) {
+      requireType(field);
+
+      if(MEASURE.equalsIgnoreCase(field.type())) {
+         ChartAggregateRefModel ref = new ChartAggregateRefModel();
+         ref.setColumnValue(field.column());
+         ref.setName(field.column());
+
+         if(field.aggregate() != null) {
+            ref.setFormula(field.aggregate());
+         }
+
+         return ref;
+      }
+
+      ChartDimensionRefModel ref = new ChartDimensionRefModel();
+      ref.setColumnValue(field.column());
+      ref.setName(field.column());
+
+      if(field.dateLevel() != null) {
+         ref.setDateLevel(field.dateLevel());
+      }
+
+      return ref;
    }
 
    public static FieldRef from(DataRefModel ref) {

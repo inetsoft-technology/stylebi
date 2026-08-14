@@ -54,8 +54,7 @@ public final class ChartBindingMutator {
       List<ChartRefModel> refs = new ArrayList<>();
 
       for(FieldRef field : fields == null ? List.<FieldRef>of() : fields) {
-         FieldRefFactory.requireType(field);
-         refs.add(toChartRef(field));
+         refs.add(FieldRefFactory.toChartRef(field));
       }
 
       switch(name) {
@@ -63,29 +62,5 @@ public final class ChartBindingMutator {
       case "y" -> model.setYFields(refs);
       default -> model.setGroupFields(refs);
       }
-   }
-
-   private static ChartRefModel toChartRef(FieldRef field) {
-      if(FieldRefFactory.MEASURE.equalsIgnoreCase(field.type())) {
-         ChartAggregateRefModel ref = new ChartAggregateRefModel();
-         ref.setColumnValue(field.column());
-         ref.setName(field.column());
-
-         if(field.aggregate() != null) {
-            ref.setFormula(field.aggregate());
-         }
-
-         return ref;
-      }
-
-      ChartDimensionRefModel ref = new ChartDimensionRefModel();
-      ref.setColumnValue(field.column());
-      ref.setName(field.column());
-
-      if(field.dateLevel() != null) {
-         ref.setDateLevel(field.dateLevel());
-      }
-
-      return ref;
    }
 }
