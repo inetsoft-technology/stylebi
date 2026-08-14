@@ -56,6 +56,7 @@ public class ViewsheetAssemblyAgentController {
                                    ViewsheetFormatService formatService,
                                    ScriptImageService imageService,
                                    AssemblyPropertyService propertyService,
+                                   AssemblyHyperlinkService hyperlinkService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -68,6 +69,7 @@ public class ViewsheetAssemblyAgentController {
       this.formatService = formatService;
       this.imageService = imageService;
       this.propertyService = propertyService;
+      this.hyperlinkService = hyperlinkService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -167,6 +169,50 @@ public class ViewsheetAssemblyAgentController {
       propertyService.set(sessionToken, user, request.assembly(), request.properties(), linkUri);
    }
 
+   public record HyperlinkRequest(String assembly, Integer row, Integer col, String colName,
+                                  Boolean axis, Boolean text, Boolean titleLink,
+                                  Boolean emptyPlotLink, Map<String, Object> link) {
+      AssemblyHyperlinkService.Region region() {
+         return new AssemblyHyperlinkService.Region(
+            row, col, colName, Boolean.TRUE.equals(axis), Boolean.TRUE.equals(text),
+            Boolean.TRUE.equals(titleLink), Boolean.TRUE.equals(emptyPlotLink));
+      }
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink")
+   public Map<String, Object> getHyperlink(@PathVariable String sessionToken,
+                                           @RequestParam String assembly,
+                                           @RequestParam(required = false) Integer row,
+                                           @RequestParam(required = false) Integer col,
+                                           @RequestParam(required = false) String colName,
+                                           @RequestParam(required = false) boolean titleLink,
+                                           Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return hyperlinkService.read(
+         sessionToken, user, assembly,
+         new AssemblyHyperlinkService.Region(row, col, colName, false, false, titleLink, false));
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/types")
+   public Map<String, Object> hyperlinkTypes(@PathVariable String sessionToken, Principal user) {
+      requireEnabled();
+      return hyperlinkService.linkTypes();
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink")
+   public void setHyperlink(@PathVariable String sessionToken,
+                            @RequestBody HyperlinkRequest request,
+                            @RequestParam(required = false, defaultValue = "") String linkUri,
+                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      hyperlinkService.set(sessionToken, user, request.assembly(), request.region(),
+                           request.link(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
       requireEnabled();
@@ -264,6 +310,7 @@ public class ViewsheetAssemblyAgentController {
    private final ViewsheetFormatService formatService;
    private final ScriptImageService imageService;
    private final AssemblyPropertyService propertyService;
+   private final AssemblyHyperlinkService hyperlinkService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }
