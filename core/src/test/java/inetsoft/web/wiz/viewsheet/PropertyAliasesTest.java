@@ -113,12 +113,17 @@ class PropertyAliasesTest {
       assertTrue(thrown.getMessage().contains("visible"));
    }
 
+   /**
+    * `image` is the standing example of an uncovered type, and not for lack of curation:
+    * {@code ImagePropertyDialogModel} is an Immutables class with no setters, so the path
+    * engine cannot write it at all. Four other dialog models share that shape.
+    */
    @Test
    void refusesAnUncoveredAssemblyTypeListingWhatIsCovered() {
       Exception thrown = assertThrows(
-         IllegalArgumentException.class, () -> PropertyAliases.forType("submit"));
+         IllegalArgumentException.class, () -> PropertyAliases.forType("image"));
 
-      assertTrue(thrown.getMessage().contains("submit"));
+      assertTrue(thrown.getMessage().contains("image"));
       assertTrue(thrown.getMessage().contains("gauge"));
    }
 

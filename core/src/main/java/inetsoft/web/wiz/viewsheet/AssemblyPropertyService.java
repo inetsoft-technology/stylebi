@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -59,8 +60,24 @@ import java.util.*;
  */
 @Service
 public class AssemblyPropertyService {
-   /** One assembly type's dialog service and the two method names it actually uses. */
-   record Binding(Object service, String getter, String setter) {}
+   /**
+    * One assembly type's dialog service and the two method names it actually uses.
+    *
+    * <p>{@code extraGetterArgs} covers the getters that take more than
+    * {@code (runtimeId, objectId, principal)} — calc table's wants a scroll offset between
+    * {@code objectId} and {@code principal}. Declared per binding rather than guessed, since
+    * inserting an argument on a hunch is how a reflective call silently targets the wrong
+    * overload.
+    */
+   record Binding(Object service, String getter, String setter, Object... extraGetterArgs) {
+      Binding(Object service, String getter, String setter) {
+         this(service, getter, setter, new Object[0]);
+      }
+
+      int getterArity() {
+         return 3 + extraGetterArgs.length;
+      }
+   }
 
    @Autowired
    public AssemblyPropertyService(ViewsheetSessionService sessions,
@@ -70,24 +87,75 @@ public class AssemblyPropertyService {
                                   TableViewPropertyDialogService tableService,
                                   CrosstabPropertyDialogService crosstabService,
                                   SelectionListPropertyDialogService selectionListService,
-                                  SelectionTreePropertyDialogService selectionTreeService)
+                                  SelectionTreePropertyDialogService selectionTreeService,
+                                  VSInputService inputService,
+                                  RangeSliderPropertyDialogService rangeSliderService,
+                                  CalendarPropertyDialogService calendarService,
+                                  TabPropertyDialogService tabService,
+                                  CalcTablePropertyDialogService calcTableService,
+                                  GroupContainerPropertyDialogService groupContainerService,
+                                  LinePropertyDialogService lineService,
+                                  OvalPropertyDialogService ovalService,
+                                  RectanglePropertyDialogService rectangleService,
+                                  SelectionContainerPropertyDialogService containerService,
+                                  SubmitPropertyDialogService submitService)
    {
       this.sessions = sessions;
-      this.bindings = Map.of(
-         "gauge", new Binding(gaugeService, "getGaugePropertyDialogModel",
-                              "setGaugePropertyDialogModel"),
-         "text", new Binding(textService, "getTextPropertyDialogModel",
-                             "setTextPropertyDialogModel"),
-         "chart", new Binding(chartService, "getChartPropertyDialogModel",
-                              "setChartPropertyModel"),
-         "table", new Binding(tableService, "getTableViewPropertyDialogModel",
-                              "setTablePropertyModel"),
-         "crosstab", new Binding(crosstabService, "getCrosstabPropertyDialogModel",
-                                 "setCrosstabPropertyModel"),
-         "selectionlist", new Binding(selectionListService, "getSelectionListPropertyModel",
-                                      "setSelectionListPropertyModel"),
-         "selectiontree", new Binding(selectionTreeService, "getSelectionTreePropertyModel",
-                                      "setSelectionTreePropertyModel"));
+      Map<String, Binding> map = new LinkedHashMap<>();
+      map.put("gauge", new Binding(gaugeService, "getGaugePropertyDialogModel",
+                                   "setGaugePropertyDialogModel"));
+      map.put("text", new Binding(textService, "getTextPropertyDialogModel",
+                                  "setTextPropertyDialogModel"));
+      map.put("chart", new Binding(chartService, "getChartPropertyDialogModel",
+                                   "setChartPropertyModel"));
+      map.put("table", new Binding(tableService, "getTableViewPropertyDialogModel",
+                                   "setTablePropertyModel"));
+      map.put("crosstab", new Binding(crosstabService, "getCrosstabPropertyDialogModel",
+                                      "setCrosstabPropertyModel"));
+      map.put("selectionlist", new Binding(selectionListService, "getSelectionListPropertyModel",
+                                           "setSelectionListPropertyModel"));
+      map.put("selectiontree", new Binding(selectionTreeService, "getSelectionTreePropertyModel",
+                                           "setSelectionTreePropertyModel"));
+      // The six input assemblies all live on one shared service. Note checkbox:
+      // the getter capitalizes the B and the setter does not.
+      map.put("checkbox", new Binding(inputService, "getCheckBoxPropertyModel",
+                                      "setCheckboxPropertyModel"));
+      map.put("combobox", new Binding(inputService, "getComboboxPropertyDialogModel",
+                                      "setComboboxPropertyDialogModel"));
+      map.put("radiobutton", new Binding(inputService, "getRadioButtonPropertyModel",
+                                         "setRadioButtonPropertyModel"));
+      map.put("slider", new Binding(inputService, "getSliderPropertyDialogModel",
+                                    "setSliderPropertyDialogModel"));
+      map.put("spinner", new Binding(inputService, "getSpinnerPropertyDialogModel",
+                                     "setSpinnerPropertyDialogModel"));
+      map.put("textinput", new Binding(inputService, "getTextInputPropertyDialogModel",
+                                       "setTextInputPropertyDialogModel"));
+      // The assembly class is TimeSliderVSAssembly; the dialog calls it a range slider.
+      map.put("timeslider", new Binding(rangeSliderService, "getRangeSliderPropertyModel",
+                                        "setRangeSliderPropertyModel"));
+      map.put("calendar", new Binding(calendarService, "getCalendarPropertyModel",
+                                      "setCalendarPropertyModel"));
+      map.put("tab", new Binding(tabService, "getTabPropertyDialogModel",
+                                 "setTabPropertyDialogModel"));
+      // Calc table's getter wants a scroll offset that only the browser has a real value for;
+      // 0 is the top of the sheet, which is what a headless read should see.
+      map.put("calctable", new Binding(calcTableService, "getCalcTablePropertyDialogModel",
+                                      "setCalcTablePropertyModel", 0d));
+      map.put("groupcontainer",
+              new Binding(groupContainerService, "getGroupContainerPropertyDialogModel",
+                          "setGroupContainerPropertyDialogModel"));
+      map.put("line", new Binding(lineService, "getLinePropertyDialogModel",
+                                  "setLinePropertyDialogModel"));
+      map.put("oval", new Binding(ovalService, "getOvalPropertyDialogModel",
+                                  "setOvalPropertyDialogModel"));
+      map.put("rectangle", new Binding(rectangleService, "getRectanglePropertyDialogModel",
+                                       "setRectanglePropertyDialogModel"));
+      map.put("selectioncontainer",
+              new Binding(containerService, "getSelectionContainerPropertyModel",
+                          "setSelectionContainerPropertyModel"));
+      map.put("submit", new Binding(submitService, "getSubmitPropertyDialogModel",
+                                    "setSubmitPropertyDialogModel"));
+      this.bindings = Collections.unmodifiableMap(map);
    }
 
    /** The alias vocabulary for an assembly's type, with its current values. */
@@ -175,10 +243,16 @@ public class AssemblyPropertyService {
                             Principal user)
    {
       Binding binding = bindingFor(type);
-      Method getter = method(binding.service(), binding.getter(), 3);
+      Method getter = method(binding.service(), binding.getter(), binding.getterArity());
+      Object[] args = new Object[binding.getterArity()];
+      args[0] = rvs.getID();
+      args[1] = assemblyName;
+      System.arraycopy(binding.extraGetterArgs(), 0, args, 2,
+                       binding.extraGetterArgs().length);
+      args[args.length - 1] = user;
 
       try {
-         return getter.invoke(binding.service(), rvs.getID(), assemblyName, user);
+         return getter.invoke(binding.service(), args);
       }
       catch(IllegalAccessException | InvocationTargetException e) {
          throw new IllegalArgumentException(

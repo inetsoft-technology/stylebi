@@ -157,6 +157,32 @@ public final class PropertyAliases {
                selectionList());
       register(registry, "selectiontree", SelectionTreePropertyDialogModel.class,
                selectionTree());
+
+      // Phase 3 batch a — the input assemblies, all on VSInputService, plus range slider,
+      // calendar and tab.
+      register(registry, "checkbox", CheckboxPropertyDialogModel.class,
+               listInput("checkboxGeneralPaneModel", true));
+      register(registry, "combobox", ComboboxPropertyDialogModel.class,
+               listInput("comboboxGeneralPaneModel", false));
+      register(registry, "radiobutton", RadioButtonPropertyDialogModel.class,
+               listInput("radioButtonGeneralPaneModel", true));
+      register(registry, "slider", SliderPropertyDialogModel.class, slider());
+      register(registry, "spinner", SpinnerPropertyDialogModel.class, spinner());
+      register(registry, "textinput", TextInputPropertyDialogModel.class, textInput());
+      register(registry, "timeslider", RangeSliderPropertyDialogModel.class, rangeSlider());
+      register(registry, "calendar", CalendarPropertyDialogModel.class, calendar());
+      register(registry, "tab", TabPropertyDialogModel.class, tab());
+
+      // Phase 3 batch b — containers, shapes, submit, calc table.
+      register(registry, "calctable", CalcTablePropertyDialogModel.class, calcTable());
+      register(registry, "groupcontainer", GroupContainerPropertyDialogModel.class,
+               groupContainer());
+      register(registry, "line", LinePropertyDialogModel.class, shape());
+      register(registry, "oval", OvalPropertyDialogModel.class, shape());
+      register(registry, "rectangle", RectanglePropertyDialogModel.class, shape());
+      register(registry, "selectioncontainer", SelectionContainerPropertyDialogModel.class,
+               selectionContainer());
+      register(registry, "submit", SubmitPropertyDialogModel.class, submit());
       return Collections.unmodifiableMap(registry);
    }
 
@@ -181,6 +207,18 @@ public final class PropertyAliases {
     */
    private static void dataGeneral(Map<String, String> aliases, String prefix) {
       basicGeneral(aliases, prefix + ".generalPropPaneModel");
+   }
+
+   /**
+    * Shapes — line, oval, rectangle — hold {@code basicGeneralPaneModel} directly, with no
+    * {@code generalPropPaneModel} between. A third shape, one level shallower than data
+    * assemblies and two shallower than output ones.
+    */
+   private static void shapeGeneral(Map<String, String> aliases, String prefix) {
+      String basic = prefix + ".basicGeneralPaneModel";
+      aliases.put("name", basic + ".name");
+      aliases.put("visible", basic + ".visible");
+      aliases.put("primary", basic + ".primary");
    }
 
    private static void basicGeneral(Map<String, String> aliases, String generalPrefix) {
@@ -294,5 +332,123 @@ public final class PropertyAliases {
       aliases.put("singleSelection", "selectionGeneralPaneModel.singleSelection");
       aliases.put("submitOnChange", "selectionGeneralPaneModel.submitOnChange");
       aliases.put("suppressBlank", "selectionGeneralPaneModel.suppressBlank");
+   }
+
+   // ── Phase 3 batch a ───────────────────────────────────────────────────────
+
+   /** Check box, combo box and radio button share a list-values general pane. */
+   private static Map<String, String> listInput(String prefix, boolean hasTitle) {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, prefix);
+      sizePosition(aliases, prefix);
+
+      if(hasTitle) {
+         title(aliases, prefix);
+      }
+
+      return aliases;
+   }
+
+   private static Map<String, String> slider() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "sliderGeneralPaneModel");
+      sizePosition(aliases, "sliderGeneralPaneModel");
+      numericRange(aliases, "sliderGeneralPaneModel");
+      aliases.put("snap", "sliderAdvancedPaneModel.snap");
+      return aliases;
+   }
+
+   private static Map<String, String> spinner() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "spinnerGeneralPaneModel");
+      sizePosition(aliases, "spinnerGeneralPaneModel");
+      numericRange(aliases, "spinnerGeneralPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> textInput() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "textInputGeneralPaneModel");
+      sizePosition(aliases, "textInputGeneralPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> rangeSlider() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "rangeSliderGeneralPaneModel");
+      sizePosition(aliases, "rangeSliderGeneralPaneModel");
+      title(aliases, "rangeSliderGeneralPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> calendar() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "calendarGeneralPaneModel");
+      sizePosition(aliases, "calendarGeneralPaneModel");
+      title(aliases, "calendarGeneralPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> tab() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "tabGeneralPaneModel");
+      sizePosition(aliases, "tabGeneralPaneModel");
+      return aliases;
+   }
+
+   private static void numericRange(Map<String, String> aliases, String prefix) {
+      // The pane is numericRangePaneModel here and numberRangePaneModel on a gauge, with
+      // maximum/minimum rather than max/min. The short names hide that.
+      aliases.put("min", prefix + ".numericRangePaneModel.minimum");
+      aliases.put("max", prefix + ".numericRangePaneModel.maximum");
+      aliases.put("increment", prefix + ".numericRangePaneModel.increment");
+   }
+
+   // ── Phase 3 batch b ───────────────────────────────────────────────────────
+
+   private static Map<String, String> calcTable() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "tableViewGeneralPaneModel");
+      sizePosition(aliases, "tableViewGeneralPaneModel");
+      title(aliases, "tableViewGeneralPaneModel");
+      aliases.put("shrink", "calcTableAdvancedPaneModel.shrink");
+      aliases.put("fillBlankWithZero", "calcTableAdvancedPaneModel.fillBlankWithZero");
+      aliases.put("sortOthersLast", "calcTableAdvancedPaneModel.sortOthersLast");
+      aliases.put("headerRowCount", "calcTableAdvancedPaneModel.headerRowCount");
+      aliases.put("headerColCount", "calcTableAdvancedPaneModel.headerColCount");
+      return aliases;
+   }
+
+   private static Map<String, String> groupContainer() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      // Note the pane accessor is groupContainerGeneralPane — no "Model" suffix, unlike every
+      // other type. Another reason these paths are declared rather than derived.
+      basicGeneral(aliases, "groupContainerGeneralPane.generalPropPane");
+      sizePosition(aliases, "groupContainerGeneralPane");
+      return aliases;
+   }
+
+   /** Line, oval and rectangle share {@code ShapeGeneralPaneModel}. */
+   private static Map<String, String> shape() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      shapeGeneral(aliases, "shapeGeneralPaneModel");
+      sizePosition(aliases, "shapeGeneralPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> selectionContainer() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "selectionContainerGeneralPaneModel");
+      sizePosition(aliases, "selectionContainerGeneralPaneModel");
+      title(aliases, "selectionContainerGeneralPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> submit() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      dataGeneral(aliases, "submitGeneralPaneModel");
+      sizePosition(aliases, "submitGeneralPaneModel");
+      aliases.put("label", "submitGeneralPaneModel.labelPropPaneModel.label");
+      return aliases;
    }
 }

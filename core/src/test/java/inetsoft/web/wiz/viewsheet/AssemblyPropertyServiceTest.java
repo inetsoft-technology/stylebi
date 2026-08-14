@@ -51,8 +51,10 @@ class AssemblyPropertyServiceTest {
          AssemblyPropertyService.Binding binding = wired.getValue();
 
          assertNotNull(
-            AssemblyPropertyService.method(binding.service(), binding.getter(), 3),
-            wired.getKey() + "'s service has no 3-argument " + binding.getter());
+            AssemblyPropertyService.method(binding.service(), binding.getter(),
+                                           binding.getterArity()),
+            wired.getKey() + "'s service has no " + binding.getterArity() + "-argument " +
+            binding.getter());
          assertNotNull(
             AssemblyPropertyService.method(binding.service(), binding.setter(), 6),
             wired.getKey() + "'s service has no 6-argument " + binding.setter());
@@ -74,6 +76,15 @@ class AssemblyPropertyServiceTest {
       assertEquals("getSelectionListPropertyModel",
                    service.bindingFor("selectionlist").getter(),
                    "the selection services drop 'Dialog' from both names");
+   }
+
+   /** Calc table's getter takes a scroll offset, so the arity is not uniform either. */
+   @Test
+   void carriesTheExtraGetterArgumentCalcTableNeeds() {
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
+
+      assertEquals(4, service.bindingFor("calctable").getterArity());
+      assertEquals(3, service.bindingFor("gauge").getterArity());
    }
 
    @Test
@@ -108,15 +119,18 @@ class AssemblyPropertyServiceTest {
       assertTrue(thrown.getMessage().contains("Nope"));
    }
 
-   /** A type with no alias vocabulary yet must say so, not fail obscurely. */
+   /**
+    * An uncovered type must say so, not fail obscurely. Image is the case that matters:
+    * its dialog model is immutable, so it is uncovered by necessity rather than backlog.
+    */
    @Test
    void refusesAnUncoveredAssemblyTypeNamingWhatIsCovered() {
-      AssemblyPropertyService service = serviceWith(mock(SubmitVSAssembly.class), null);
+      AssemblyPropertyService service = serviceWith(mock(ImageVSAssembly.class), null);
 
       Exception thrown = assertThrows(
-         Exception.class, () -> service.list("tok", principal(), "Submit1"));
+         Exception.class, () -> service.list("tok", principal(), "Image1"));
 
-      assertTrue(thrown.getMessage().contains("Submit"));
+      assertTrue(thrown.getMessage().contains("Image"));
       assertTrue(thrown.getMessage().contains("gauge"));
    }
 
@@ -189,7 +203,16 @@ class AssemblyPropertyServiceTest {
          mock(ChartPropertyDialogService.class), mock(TableViewPropertyDialogService.class),
          mock(CrosstabPropertyDialogService.class),
          mock(SelectionListPropertyDialogService.class),
-         mock(SelectionTreePropertyDialogService.class));
+         mock(SelectionTreePropertyDialogService.class),
+         mock(inetsoft.web.viewsheet.service.VSInputService.class),
+         mock(RangeSliderPropertyDialogService.class),
+         mock(CalendarPropertyDialogService.class), mock(TabPropertyDialogService.class),
+         mock(CalcTablePropertyDialogService.class),
+         mock(GroupContainerPropertyDialogService.class),
+         mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
+         mock(RectanglePropertyDialogService.class),
+         mock(SelectionContainerPropertyDialogService.class),
+         mock(SubmitPropertyDialogService.class));
    }
 
    private static Principal principal() {
