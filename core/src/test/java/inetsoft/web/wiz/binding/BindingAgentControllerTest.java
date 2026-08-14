@@ -77,7 +77,8 @@ class BindingAgentControllerTest {
                                         mock(BindingReadService.class),
                                         mock(ChartBindingService.class),
                                         mock(ChartAestheticService.class),
-                                        mock(TableBindingService.class));
+                                        mock(TableBindingService.class),
+                                        mock(CalcTableService.class));
    }
 
    private static Principal principal() {

@@ -57,7 +57,8 @@ public class BindingAgentController {
                                  BindingReadService readService,
                                  ChartBindingService chartService,
                                  ChartAestheticService aestheticService,
-                                 TableBindingService tableService)
+                                 TableBindingService tableService,
+                                 CalcTableService calcService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -68,6 +69,7 @@ public class BindingAgentController {
       this.chartService = chartService;
       this.aestheticService = aestheticService;
       this.tableService = tableService;
+      this.calcService = calcService;
    }
 
    public record JoinRequest(String code) {}
@@ -271,6 +273,55 @@ public class BindingAgentController {
                              request.toShelf(), request.column(), request.position());
    }
 
+   public record CellBindingRequest(String assembly, Integer row, Integer col,
+                                    Map<String, Object> binding) {}
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/layout")
+   public Map<String, Object> calcLayout(@PathVariable String sessionToken,
+                                         @RequestParam String assembly,
+                                         Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calcService.readLayout(sessionToken, user, assembly);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell")
+   public Map<String, Object> calcCell(@PathVariable String sessionToken,
+                                       @RequestParam String assembly,
+                                       @RequestParam int row,
+                                       @RequestParam int col,
+                                       Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calcService.readCell(sessionToken, user, assembly, row, col);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/vocabulary")
+   public Map<String, Object> calcVocabulary(@PathVariable String sessionToken, Principal user) {
+      requireEnabled();
+      return calcService.vocabulary();
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell")
+   public void setCalcCell(@PathVariable String sessionToken,
+                           @RequestBody CellBindingRequest request,
+                           Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(request.row() == null || request.col() == null) {
+         throw new IllegalArgumentException(
+            "set_cell_binding requires 'row' and 'col' — calc-table cells are addressed by " +
+            "coordinate.");
+      }
+
+      calcService.setCellBinding(sessionToken, user, request.assembly(), request.row(),
+                                 request.col(), request.binding());
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
       sessionService.close(sessionToken);
@@ -308,4 +359,5 @@ public class BindingAgentController {
    private final ChartBindingService chartService;
    private final ChartAestheticService aestheticService;
    private final TableBindingService tableService;
+   private final CalcTableService calcService;
 }
