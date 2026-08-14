@@ -60,6 +60,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyHyperlinkService hyperlinkService,
                                    ChartElementService chartElementService,
                                    AssemblyConditionService conditionService,
+                                   AssemblyHighlightService highlightService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -75,6 +76,7 @@ public class ViewsheetAssemblyAgentController {
       this.hyperlinkService = hyperlinkService;
       this.chartElementService = chartElementService;
       this.conditionService = conditionService;
+      this.highlightService = highlightService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -349,6 +351,67 @@ public class ViewsheetAssemblyAgentController {
       conditionService.clear(sessionToken, user, request.assembly(), linkUri);
    }
 
+   public record HighlightRequest(String assembly, Integer row, Integer col, String colName,
+                                  String name, String foreground, String background,
+                                  List<ConditionClause> conditions, Boolean applyRow,
+                                  Boolean replace) {
+      AssemblyHighlightService.Region region() {
+         return new AssemblyHighlightService.Region(row, col, colName, false, false);
+      }
+
+      AssemblyHighlightService.Highlight highlight() {
+         List<ConditionVocabulary.Clause> clauses = new java.util.ArrayList<>();
+
+         if(conditions != null) {
+            for(ConditionClause clause : conditions) {
+               clauses.add(clause.toClause());
+            }
+         }
+
+         return new AssemblyHighlightService.Highlight(name, foreground, background, clauses,
+                                                       Boolean.TRUE.equals(applyRow));
+      }
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights")
+   public Map<String, Object> listHighlights(@PathVariable String sessionToken,
+                                             @RequestParam String assembly,
+                                             @RequestParam(required = false) Integer row,
+                                             @RequestParam(required = false) Integer col,
+                                             @RequestParam(required = false) String colName,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return highlightService.list(sessionToken, user, assembly,
+                                   new AssemblyHighlightService.Region(row, col, colName, false,
+                                                                       false));
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights")
+   public void setHighlight(@PathVariable String sessionToken,
+                            @RequestBody HighlightRequest request,
+                            @RequestParam(required = false, defaultValue = "") String linkUri,
+                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      highlightService.set(sessionToken, user, request.assembly(), request.region(),
+                           request.highlight(), Boolean.TRUE.equals(request.replace()), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights/delete")
+   public void deleteHighlight(@PathVariable String sessionToken,
+                               @RequestBody HighlightRequest request,
+                               @RequestParam(required = false, defaultValue = "") String linkUri,
+                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      highlightService.delete(sessionToken, user, request.assembly(), request.region(),
+                              request.name(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
       requireEnabled();
@@ -449,6 +512,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyHyperlinkService hyperlinkService;
    private final ChartElementService chartElementService;
    private final AssemblyConditionService conditionService;
+   private final AssemblyHighlightService highlightService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }
