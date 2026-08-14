@@ -21,14 +21,20 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
+import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.*;
+import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Applies structural edits by delegating to the Composer's own services.
@@ -42,17 +48,23 @@ public class ViewsheetEditService {
    public ViewsheetEditService(ViewsheetSessionService sessions,
                                ComposerObjectService objects,
                                ClipboardControllerService clipboard,
-                               VSObjectPropertyService propertyService)
+                               VSObjectPropertyService propertyService,
+                               ViewsheetReadService reader,
+                               ComposerGroupService groups)
    {
       this.sessions = sessions;
       this.objects = objects;
       this.clipboard = clipboard;
       this.propertyService = propertyService;
+      this.reader = reader;
+      this.groups = groups;
    }
 
    /** Ops this service understands, named in the error when an unknown one arrives. */
    static final List<String> OPS = List.of(
-      "move", "resize", "resize_title", "add", "remove", "rename", "copy", "paste");
+      "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
+      "set_z_index", "set_lock", "set_title", "group", "ungroup", "move_from_container",
+      "align", "distribute");
 
    public void apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -68,6 +80,13 @@ public class ViewsheetEditService {
       case "rename" -> rename(sessionToken, user, request, linkUri);
       case "copy", "cut" -> copyOrCut(sessionToken, user, request, linkUri, "cut".equals(op));
       case "paste" -> paste(sessionToken, user, request, linkUri);
+      case "set_z_index" -> setZIndex(sessionToken, user, request);
+      case "set_lock" -> setLock(sessionToken, user, request);
+      case "set_title" -> setTitle(sessionToken, user, request);
+      case "group" -> group(sessionToken, user, request, linkUri);
+      case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
+      case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
+      case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
       default -> throw new IllegalArgumentException(
          "Unknown edit op '" + request.op() + "'. Supported ops: " + String.join(", ", OPS) + ".");
       }
@@ -215,6 +234,216 @@ public class ViewsheetEditService {
          clipboard.pasteObject(runtimeId, request.x(), request.y(), user, dispatcher, linkUri));
    }
 
+   private void setZIndex(String sessionToken, Principal user, EditRequest request)
+      throws Exception
+   {
+      requireAssembly(request);
+
+      if(request.zIndex() == null) {
+         throw new IllegalArgumentException("Edit op 'set_z_index' requires 'zIndex'.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChangeVSObjectLayerEvent event = new ChangeVSObjectLayerEvent();
+         event.setName(request.assembly());
+         event.setzIndex(request.zIndex());
+         objects.changeZIndex(runtimeId, event, user, dispatcher);
+      });
+   }
+
+   private void setLock(String sessionToken, Principal user, EditRequest request)
+      throws Exception
+   {
+      requireAssembly(request);
+
+      if(request.locked() == null) {
+         throw new IllegalArgumentException(
+            "Edit op 'set_lock' requires 'locked' (true to lock, false to unlock).");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         LockVSObjectEvent event = new LockVSObjectEvent();
+         event.setName(request.assembly());
+         event.setLocked(request.locked());
+         objects.changeLockState(runtimeId, event, user, dispatcher);
+      });
+   }
+
+   private void setTitle(String sessionToken, Principal user, EditRequest request)
+      throws Exception
+   {
+      requireAssembly(request);
+
+      if(request.title() == null) {
+         throw new IllegalArgumentException("Edit op 'set_title' requires 'title'.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChangeVSObjectTextEvent event = new ChangeVSObjectTextEvent();
+         event.setName(request.assembly());
+         event.setText(request.title());
+         objects.changeTitle(runtimeId, event, user, dispatcher);
+      });
+   }
+
+   private void group(String sessionToken, Principal user, EditRequest request, String linkUri)
+      throws Exception
+   {
+      List<String> names = request.assemblies();
+
+      if(names == null || names.size() < 2) {
+         throw new IllegalArgumentException(
+            "Edit op 'group' requires 'assemblies' with at least two assembly names.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         groups.groupComponents(runtimeId,
+                                GroupVSObjectsEvent.builder().objects(names).build(),
+                                linkUri, user, dispatcher));
+   }
+
+   private void ungroup(String sessionToken, Principal user, EditRequest request, String linkUri)
+      throws Exception
+   {
+      requireAssembly(request);
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher));
+   }
+
+   private void moveFromContainer(String sessionToken, Principal user, EditRequest request,
+                                  String linkUri) throws Exception
+   {
+      requireAssembly(request);
+      requireValues(request.op(), "x", request.x(), "y", request.y());
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         MoveVSObjectEvent event = new MoveVSObjectEvent();
+         event.setName(request.assembly());
+         event.setxOffset(request.x());
+         event.setyOffset(request.y());
+         objects.moveFromContainer(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
+   /**
+    * Align and distribute have no Composer service — they are position arithmetic. Compute the
+    * targets from the current layout, then issue ONE move event so the whole arrangement is a
+    * single undo checkpoint rather than one per assembly.
+    */
+   private void arrange(String sessionToken, Principal user, EditRequest request,
+                        String linkUri, String op) throws Exception
+   {
+      List<String> names = request.assemblies();
+
+      if(names == null || names.size() < 2) {
+         throw new IllegalArgumentException(
+            "Edit op '" + op + "' requires 'assemblies' with at least two assembly names.");
+      }
+
+      String axis = request.axis() == null ? "" : request.axis().trim().toLowerCase();
+      List<String> valid = "align".equals(op)
+         ? List.of("left", "right", "top", "bottom")
+         : List.of("horizontal", "vertical");
+
+      if(!valid.contains(axis)) {
+         throw new IllegalArgumentException(
+            "Edit op '" + op + "' requires 'axis' to be one of: " + String.join(", ", valid) +
+            ". Got '" + request.axis() + "'.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Map<String, AssemblyNode> byName = new LinkedHashMap<>();
+
+         for(AssemblyNode node : reader.read(rvs).assemblies()) {
+            byName.put(node.name(), node);
+         }
+
+         List<AssemblyNode> targets = new ArrayList<>();
+
+         for(String name : names) {
+            AssemblyNode node = byName.get(name);
+
+            if(node == null) {
+               throw new IllegalArgumentException(
+                  "Unknown assembly '" + name + "'. Available: " + byName.keySet() + ".");
+            }
+
+            targets.add(node);
+         }
+
+         MoveVSObjectEvent[] moves = "align".equals(op)
+            ? alignMoves(targets, axis)
+            : distributeMoves(targets, axis);
+
+         MultiMoveVsObjectEvent event = new MultiMoveVsObjectEvent();
+         event.setEvents(moves);
+         objects.moveObjects(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
+   private static MoveVSObjectEvent[] alignMoves(List<AssemblyNode> targets, String axis) {
+      int edge = switch(axis) {
+         case "left" -> targets.stream().mapToInt(AssemblyNode::x).min().orElseThrow();
+         case "right" -> targets.stream().mapToInt(n -> n.x() + n.width()).max().orElseThrow();
+         case "top" -> targets.stream().mapToInt(AssemblyNode::y).min().orElseThrow();
+         default -> targets.stream().mapToInt(n -> n.y() + n.height()).max().orElseThrow();
+      };
+
+      MoveVSObjectEvent[] moves = new MoveVSObjectEvent[targets.size()];
+
+      for(int i = 0; i < targets.size(); i++) {
+         AssemblyNode node = targets.get(i);
+         moves[i] = move(node.name(),
+                         switch(axis) {
+                            case "left" -> edge;
+                            case "right" -> edge - node.width();
+                            default -> node.x();
+                         },
+                         switch(axis) {
+                            case "top" -> edge;
+                            case "bottom" -> edge - node.height();
+                            default -> node.y();
+                         });
+      }
+
+      return moves;
+   }
+
+   /**
+    * Spreads the assemblies evenly between the first and last along {@code axis}, ordered by
+    * their current position so the two outermost stay put and only the middle ones move.
+    */
+   private static MoveVSObjectEvent[] distributeMoves(List<AssemblyNode> targets, String axis) {
+      boolean horizontal = "horizontal".equals(axis);
+      List<AssemblyNode> ordered = new ArrayList<>(targets);
+      ordered.sort(Comparator.comparingInt(horizontal ? AssemblyNode::x : AssemblyNode::y));
+
+      int first = horizontal ? ordered.get(0).x() : ordered.get(0).y();
+      AssemblyNode lastNode = ordered.get(ordered.size() - 1);
+      int last = horizontal ? lastNode.x() : lastNode.y();
+      int gaps = ordered.size() - 1;
+      MoveVSObjectEvent[] moves = new MoveVSObjectEvent[ordered.size()];
+
+      for(int i = 0; i < ordered.size(); i++) {
+         AssemblyNode node = ordered.get(i);
+         int position = first + Math.round((float) (last - first) * i / gaps);
+         moves[i] = horizontal
+            ? move(node.name(), position, node.y())
+            : move(node.name(), node.x(), position);
+      }
+
+      return moves;
+   }
+
+   private static MoveVSObjectEvent move(String name, int x, int y) {
+      MoveVSObjectEvent event = new MoveVSObjectEvent();
+      event.setName(name);
+      event.setxOffset(x);
+      event.setyOffset(y);
+      return event;
+   }
+
    private static void requireAssembly(EditRequest request) {
       if(request.assembly() == null || request.assembly().isBlank()) {
          throw new IllegalArgumentException(
@@ -235,4 +464,6 @@ public class ViewsheetEditService {
    private final ComposerObjectService objects;
    private final ClipboardControllerService clipboard;
    private final VSObjectPropertyService propertyService;
+   private final ViewsheetReadService reader;
+   private final ComposerGroupService groups;
 }
