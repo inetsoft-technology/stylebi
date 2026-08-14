@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 
 import java.util.*;
@@ -59,18 +60,48 @@ public final class VisualFrameAliases {
       "gradient", GradientColorModel.class);
 
    /**
+    * The fieldless frames, whose only behaviour is which visual frame they create. Mapped here
+    * so {@link #describe} names them and the coverage test sees them as reachable.
+    */
+   private static final Map<Class<?>, String> BEHAVIOURAL = behavioural();
+
+   /**
     * Subclasses deliberately not reachable through an alias, each with its reason. The
     * coverage test reads this list, so excluding something is a recorded decision rather than
     * an oversight.
     */
    private static final Map<Class<?>, String> EXCLUDED = Map.of(
-      HSLColorModel.class, "abstract base of Brightness and Saturation",
-      BrightnessColorModel.class, "Phase 2 — behavioural colour frames",
-      SaturationColorModel.class, "Phase 2 — behavioural colour frames",
-      BipolarColorModel.class, "Phase 2 — behavioural colour frames",
-      CircularColorModel.class, "Phase 2 — behavioural colour frames",
-      RainbowColorModel.class, "Phase 2 — behavioural colour frames",
-      HeatColorModel.class, "Phase 2 — behavioural colour frames");
+      HSLColorModel.class, "abstract base of Brightness and Saturation, reached through those",
+      TextFrameModel.class, "abstract base; text frames have no configurable variety",
+      DefaultTextFrameModel.class, "the only text frame; nothing to choose",
+      ColorFrameModel.class, "abstract base",
+      ShapeFrameModel.class, "abstract base",
+      SizeFrameModel.class, "abstract base",
+      LineFrameModel.class, "abstract base",
+      TextureFrameModel.class, "abstract base");
+
+   private static Map<Class<?>, String> behavioural() {
+      Map<Class<?>, String> map = new LinkedHashMap<>();
+      map.put(BipolarColorModel.class, "bipolar");
+      map.put(CircularColorModel.class, "circular");
+      map.put(RainbowColorModel.class, "rainbow");
+      map.put(HeatColorModel.class, "heat");
+      map.put(FillShapeModel.class, "fill");
+      map.put(OrientationShapeModel.class, "orientation");
+      map.put(OvalShapeModel.class, "oval");
+      map.put(PolygonShapeModel.class, "polygon");
+      map.put(TriangleShapeModel.class, "triangle");
+      map.put(LinearSizeModel.class, "linear");
+      map.put(CategoricalSizeModel.class, "categorical");
+      map.put(LinearLineModel.class, "linear");
+      map.put(CategoricalLineModel.class, "categorical");
+      map.put(CategoricalTextureModel.class, "categorical");
+      map.put(GridTextureModel.class, "grid");
+      map.put(LeftTiltTextureModel.class, "left_tilt");
+      map.put(RightTiltTextureModel.class, "right_tilt");
+      map.put(OrientationTextureModel.class, "orientation");
+      return Collections.unmodifiableMap(map);
+   }
 
    private VisualFrameAliases() {
    }
@@ -92,18 +123,89 @@ public final class VisualFrameAliases {
       if(type == null) {
          throw new IllegalArgumentException(
             "A visual frame needs a 'type'. Valid types for the " + name + " channel: " +
-            String.join(", ", colorTypeNames()) + ".");
+            String.join(", ", typeNames(name)) + ".");
       }
 
-      // Only the colour channel is supported this phase, so any frame reaching here is a
-      // colour frame; requireFrameChannel has already refused the others.
-      return switch(type) {
-         case "static" -> staticColor(spec);
-         case "categorical" -> categoricalColor(spec);
-         case "gradient" -> gradientColor(spec);
-         case "palette" -> palette(spec);
-         default -> throw unknownType(name, type);
+      // Every frame channel now accepts a `categorical` and a `static`, so a spec meant for one
+      // channel is structurally valid on another and its value keys would simply be ignored:
+      // {type: "categorical", colors: [...]} on `size` would build a categorical size frame with
+      // no colours and report success. So a key the chosen channel and type do not consume is
+      // refused, naming both.
+      requireNoUnusedKeys(name, type, spec);
+
+      return switch(name) {
+         case "color" -> colorFrame(spec, type);
+         case "shape" -> shapeFrame(spec, type);
+         case "size" -> sizeFrame(spec, type);
+         case "line" -> lineFrame(spec, type);
+         default -> textureFrame(spec, type);
       };
+   }
+
+   /** The value keys a given channel and frame type actually read. */
+   private static Set<String> consumedKeys(String channel, String type) {
+      Set<String> keys = new LinkedHashSet<>(List.of("type"));
+
+      switch(channel) {
+         case "color" -> {
+            switch(type) {
+               case "static", "brightness", "saturation" -> keys.add("color");
+               case "categorical" -> keys.addAll(List.of("colors", "mapping", "useGlobal"));
+               case "gradient" -> keys.addAll(List.of("from", "to"));
+               case "palette" -> keys.add("palette");
+               default -> { /* fieldless */ }
+            }
+         }
+         case "shape" -> {
+            switch(type) {
+               case "static" -> keys.add("shape");
+               case "categorical" -> keys.add("shapes");
+               default -> { /* fieldless */ }
+            }
+         }
+         case "size" -> {
+            if("static".equals(type)) {
+               keys.add("size");
+            }
+         }
+         case "line" -> {
+            if("static".equals(type)) {
+               keys.add("line");
+            }
+         }
+         default -> {
+            if("static".equals(type)) {
+               keys.add("texture");
+            }
+         }
+      }
+
+      return keys;
+   }
+
+   private static void requireNoUnusedKeys(String channel, String type,
+                                           Map<String, Object> spec)
+   {
+      if(spec == null) {
+         return;
+      }
+
+      Set<String> consumed = consumedKeys(channel, type);
+      List<String> unused = new ArrayList<>();
+
+      for(String key : spec.keySet()) {
+         if(!consumed.contains(key)) {
+            unused.add(key);
+         }
+      }
+
+      if(!unused.isEmpty()) {
+         throw new IllegalArgumentException(
+            "A '" + type + "' frame on the " + channel + " channel does not use " + unused +
+            ". It reads " + consumed + ". Passing a key it ignores would report success while " +
+            "that value went nowhere — most often it means the spec was written for a " +
+            "different channel.");
+      }
    }
 
    /** Renders a frame back in the agent vocabulary. Never emits {@code clazz}. */
@@ -124,6 +226,19 @@ public final class VisualFrameAliases {
          out.put("type", "categorical");
          out.put("colors", model.getColors() == null
             ? List.of() : Arrays.asList(model.getColors()));
+         Map<String, Object> mapping = new LinkedHashMap<>();
+
+         for(ColorMapModel map : model.getColorMaps() == null
+            ? new ColorMapModel[0] : model.getColorMaps())
+         {
+            if(map != null && map.getOption() != null) {
+               mapping.put(map.getOption(), map.getColor());
+            }
+         }
+
+         out.put("mapping", mapping);
+         // Reported because a true here means any mapping above is stored but not rendered.
+         out.put("useGlobal", model.isUseGlobal());
          return out;
       }
 
@@ -131,6 +246,50 @@ public final class VisualFrameAliases {
          out.put("type", "gradient");
          out.put("from", model.getFromColor());
          out.put("to", model.getToColor());
+         return out;
+      }
+
+      if(frame instanceof HSLColorModel model) {
+         out.put("type", frame instanceof SaturationColorModel ? "saturation" : "brightness");
+         out.put("color", model.getColor());
+         return out;
+      }
+
+      if(frame instanceof StaticShapeModel model) {
+         out.put("type", "static");
+         out.put("shape", model.getShape());
+         return out;
+      }
+
+      if(frame instanceof CategoricalShapeModel model) {
+         out.put("type", "categorical");
+         out.put("shapes", model.getShapes() == null
+            ? List.of() : Arrays.asList(model.getShapes()));
+         return out;
+      }
+
+      if(frame instanceof StaticSizeModel model) {
+         out.put("type", "static");
+         out.put("size", model.getSize());
+         return out;
+      }
+
+      if(frame instanceof StaticLineModel model) {
+         out.put("type", "static");
+         out.put("line", model.getLine());
+         return out;
+      }
+
+      if(frame instanceof StaticTextureModel model) {
+         out.put("type", "static");
+         out.put("texture", model.getTexture());
+         return out;
+      }
+
+      String behavioural = BEHAVIOURAL.get(frame.getClass());
+
+      if(behavioural != null) {
+         out.put("type", behavioural);
          return out;
       }
 
@@ -182,16 +341,25 @@ public final class VisualFrameAliases {
 
    // ── the coverage test's view ──────────────────────────────────────────────
 
-   /** Every concrete {@code ColorFrameModel} subclass the vocabulary must account for. */
+   /** Every frame subclass the vocabulary must account for, across all five channels. */
    public static Collection<Class<?>> colorFrameSubclasses() {
       List<Class<?>> all = new ArrayList<>(PALETTES.values());
       all.addAll(COLOR_TYPES.values());
+      all.addAll(BEHAVIOURAL.keySet());
       all.addAll(EXCLUDED.keySet());
+      all.addAll(List.of(StaticShapeModel.class, CategoricalShapeModel.class,
+                         StaticSizeModel.class, StaticLineModel.class,
+                         StaticTextureModel.class, BrightnessColorModel.class,
+                         SaturationColorModel.class));
       return all;
    }
 
    public static boolean isMapped(Class<?> subclass) {
-      return COLOR_TYPES.containsValue(subclass) || PALETTES.containsValue(subclass);
+      return COLOR_TYPES.containsValue(subclass) || PALETTES.containsValue(subclass) ||
+         BEHAVIOURAL.containsKey(subclass) ||
+         List.of(StaticShapeModel.class, CategoricalShapeModel.class, StaticSizeModel.class,
+                 StaticLineModel.class, StaticTextureModel.class, BrightnessColorModel.class,
+                 SaturationColorModel.class).contains(subclass);
    }
 
    public static boolean isExcluded(Class<?> subclass) {
@@ -199,6 +367,159 @@ public final class VisualFrameAliases {
    }
 
    // ── builders ──────────────────────────────────────────────────────────────
+
+   private static VisualFrameModel colorFrame(Map<String, Object> spec, String type) {
+      return switch(type) {
+         case "static" -> staticColor(spec);
+         case "categorical" -> categoricalColor(spec);
+         case "gradient" -> gradientColor(spec);
+         case "palette" -> palette(spec);
+         case "brightness" -> tinted(spec, new BrightnessColorModel());
+         case "saturation" -> tinted(spec, new SaturationColorModel());
+         case "bipolar" -> new BipolarColorModel();
+         case "circular" -> new CircularColorModel();
+         case "rainbow" -> new RainbowColorModel();
+         case "heat" -> new HeatColorModel();
+         default -> throw unknownType("color", type);
+      };
+   }
+
+   /** Brightness and saturation derive a ramp from one base colour. */
+   private static VisualFrameModel tinted(Map<String, Object> spec, HSLColorModel model) {
+      String color = str(spec, "color");
+
+      if(color == null) {
+         throw new IllegalArgumentException(
+            "A brightness or saturation colour frame needs a 'color' to derive its ramp from.");
+      }
+
+      model.setColor(normalizeColor(color));
+      return model;
+   }
+
+   private static VisualFrameModel shapeFrame(Map<String, Object> spec, String type) {
+      return switch(type) {
+         case "static" -> staticShape(spec);
+         case "categorical" -> categoricalShape(spec);
+         case "fill" -> new FillShapeModel();
+         case "orientation" -> new OrientationShapeModel();
+         case "oval" -> new OvalShapeModel();
+         case "polygon" -> new PolygonShapeModel();
+         case "triangle" -> new TriangleShapeModel();
+         default -> throw unknownType("shape", type);
+      };
+   }
+
+   private static VisualFrameModel staticShape(Map<String, Object> spec) {
+      String shape = str(spec, "shape");
+
+      if(shape == null) {
+         throw new IllegalArgumentException(
+            "A static shape frame needs a 'shape', e.g. {type: \"static\", shape: \"circle\"}.");
+      }
+
+      StaticShapeModel model = new StaticShapeModel();
+      model.setShape(shape);
+      return model;
+   }
+
+   private static VisualFrameModel categoricalShape(Map<String, Object> spec) {
+      List<String> shapes = strList(spec, "shapes");
+
+      if(shapes.isEmpty()) {
+         throw new IllegalArgumentException(
+            "A categorical shape frame needs a non-empty 'shapes' list.");
+      }
+
+      CategoricalShapeModel model = new CategoricalShapeModel();
+      model.setShapes(shapes.toArray(new String[0]));
+      return model;
+   }
+
+   private static VisualFrameModel sizeFrame(Map<String, Object> spec, String type) {
+      return switch(type) {
+         case "static" -> staticSize(spec);
+         case "linear" -> new LinearSizeModel();
+         case "categorical" -> new CategoricalSizeModel();
+         default -> throw unknownType("size", type);
+      };
+   }
+
+   private static VisualFrameModel staticSize(Map<String, Object> spec) {
+      Double size = number(spec, "size");
+
+      if(size == null) {
+         throw new IllegalArgumentException(
+            "A static size frame needs a numeric 'size', e.g. {type: \"static\", size: 8}.");
+      }
+
+      StaticSizeModel model = new StaticSizeModel();
+      model.setSize(size);
+      return model;
+   }
+
+   private static VisualFrameModel lineFrame(Map<String, Object> spec, String type) {
+      return switch(type) {
+         case "static" -> staticLine(spec);
+         case "linear" -> new LinearLineModel();
+         case "categorical" -> new CategoricalLineModel();
+         default -> throw unknownType("line", type);
+      };
+   }
+
+   private static VisualFrameModel staticLine(Map<String, Object> spec) {
+      Double line = number(spec, "line");
+
+      if(line == null) {
+         throw new IllegalArgumentException(
+            "A static line frame needs a numeric 'line' — the StyleBI line-style code.");
+      }
+
+      StaticLineModel model = new StaticLineModel();
+      model.setLine(line.intValue());
+      return model;
+   }
+
+   private static VisualFrameModel textureFrame(Map<String, Object> spec, String type) {
+      return switch(type) {
+         case "static" -> staticTexture(spec);
+         case "categorical" -> new CategoricalTextureModel();
+         case "grid" -> new GridTextureModel();
+         case "left_tilt" -> new LeftTiltTextureModel();
+         case "right_tilt" -> new RightTiltTextureModel();
+         case "orientation" -> new OrientationTextureModel();
+         default -> throw unknownType("texture", type);
+      };
+   }
+
+   private static VisualFrameModel staticTexture(Map<String, Object> spec) {
+      Double texture = number(spec, "texture");
+
+      if(texture == null) {
+         throw new IllegalArgumentException(
+            "A static texture frame needs a numeric 'texture' — the StyleBI texture code.");
+      }
+
+      StaticTextureModel model = new StaticTextureModel();
+      model.setTexture(texture.intValue());
+      return model;
+   }
+
+   private static Double number(Map<String, Object> spec, String key) {
+      String text = str(spec, key);
+
+      if(text == null) {
+         return null;
+      }
+
+      try {
+         return Double.parseDouble(text);
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException(
+            "'" + key + "' must be a number, got '" + text + "'.");
+      }
+   }
 
    private static VisualFrameModel staticColor(Map<String, Object> spec) {
       String color = str(spec, "color");
@@ -213,19 +534,120 @@ public final class VisualFrameAliases {
       return model;
    }
 
+   /**
+    * A categorical colour frame, optionally with per-value colour mapping.
+    *
+    * <p><b>The {@code useGlobal} footgun lives here.</b> {@code CategoricalColorModel} defaults
+    * {@code useGlobal} and {@code shareColors} to {@code true}, and while {@code useGlobal} is set
+    * the automatic palette wins: an explicit per-value colour is accepted, stored, and never
+    * rendered. That is a recorded defect, and it is invisible — the model round-trips perfectly
+    * and the chart shows something else.
+    *
+    * <p>So supplying a mapping clears {@code useGlobal}, because supplying one <i>is</i> the
+    * intent to override the automatic palette. Asking for {@code useGlobal: true} alongside a
+    * mapping is refused rather than honoured, since that combination cannot render what was
+    * asked for.
+    */
    private static VisualFrameModel categoricalColor(Map<String, Object> spec) {
       List<String> colors = strList(spec, "colors");
+      Map<String, Object> mapping = mapping(spec);
 
-      if(colors.isEmpty()) {
+      if(colors.isEmpty() && mapping.isEmpty()) {
          throw new IllegalArgumentException(
-            "A categorical colour frame needs a non-empty 'colors' list, e.g. " +
-            "{type: \"categorical\", colors: [\"#4E79A7\", \"#F28E2C\"]}.");
+            "A categorical colour frame needs a non-empty 'colors' list, or a 'mapping' of " +
+            "value to colour, e.g. {type: \"categorical\", mapping: {\"East\": \"#4E79A7\"}}.");
+      }
+
+      Boolean useGlobal = bool(spec, "useGlobal");
+
+      if(Boolean.TRUE.equals(useGlobal) && !mapping.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'useGlobal: true' cannot be combined with a 'mapping'. While useGlobal is set the " +
+            "automatic palette wins, so the mapped colours would be stored and never rendered — " +
+            "the model would round-trip perfectly and the chart would show something else. Drop " +
+            "useGlobal to apply the mapping, or drop the mapping to keep the automatic palette.");
       }
 
       CategoricalColorModel model = new CategoricalColorModel();
-      model.setColors(colors.stream().map(VisualFrameAliases::normalizeColor)
-                         .toArray(String[]::new));
+
+      if(!colors.isEmpty()) {
+         model.setColors(colors.stream().map(VisualFrameAliases::normalizeColor)
+                            .toArray(String[]::new));
+      }
+
+      if(!mapping.isEmpty()) {
+         List<ColorMapModel> maps = new ArrayList<>();
+
+         for(Map.Entry<String, Object> entry : mapping.entrySet()) {
+            ColorMapModel map = new ColorMapModel();
+            map.setOption(entry.getKey());
+            map.setColor(normalizeColor(String.valueOf(entry.getValue())));
+            maps.add(map);
+         }
+
+         model.setColorMaps(maps.toArray(new ColorMapModel[0]));
+         // Supplying a mapping IS the intent to override the automatic palette.
+         model.setUseGlobal(false);
+         model.setShareColors(false);
+      }
+      else if(useGlobal != null) {
+         model.setUseGlobal(useGlobal);
+      }
+
       return model;
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> mapping(Map<String, Object> spec) {
+      Object raw = spec == null ? null : spec.get("mapping");
+
+      if(raw == null) {
+         return Map.of();
+      }
+
+      if(!(raw instanceof Map<?, ?> map)) {
+         throw new IllegalArgumentException(
+            "'mapping' must be an object of value to colour, e.g. {\"East\": \"#4E79A7\"}.");
+      }
+
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         if(entry.getKey() != null && entry.getValue() != null) {
+            out.put(String.valueOf(entry.getKey()), entry.getValue());
+         }
+      }
+
+      if(out.isEmpty()) {
+         throw new IllegalArgumentException("'mapping' is empty; omit it or give it entries.");
+      }
+
+      return out;
+   }
+
+   private static Boolean bool(Map<String, Object> spec, String key) {
+      Object raw = spec == null ? null : spec.get(key);
+
+      if(raw == null) {
+         return null;
+      }
+
+      if(raw instanceof Boolean value) {
+         return value;
+      }
+
+      String text = String.valueOf(raw).trim();
+
+      if("true".equalsIgnoreCase(text)) {
+         return Boolean.TRUE;
+      }
+
+      if("false".equalsIgnoreCase(text)) {
+         return Boolean.FALSE;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + key + "' must be true or false, got '" + raw + "'.");
    }
 
    private static VisualFrameModel gradientColor(Map<String, Object> spec) {
@@ -285,7 +707,7 @@ public final class VisualFrameAliases {
    }
 
    private static IllegalArgumentException unknownType(String channel, String type) {
-      List<String> valid = colorTypeNames();
+      List<String> valid = typeNames(channel);
       String nearest = nearestMatch(type, valid);
       String hint = nearest == null ? "" : " Did you mean '" + nearest + "'?";
 
@@ -341,9 +763,19 @@ public final class VisualFrameAliases {
       return previous[b.length()];
    }
 
-   private static List<String> colorTypeNames() {
-      List<String> names = new ArrayList<>(COLOR_TYPES.keySet());
-      names.add("palette");
+   /** The frame types valid for a channel, for discovery and for error messages. */
+   public static List<String> typeNames(String channel) {
+      List<String> names = new ArrayList<>(switch(AestheticChannels.normalize(channel)) {
+         case "color" -> List.of("static", "categorical", "gradient", "palette", "brightness",
+                                 "saturation", "bipolar", "circular", "rainbow", "heat");
+         case "shape" -> List.of("static", "categorical", "fill", "orientation", "oval",
+                                 "polygon", "triangle");
+         case "size" -> List.of("static", "linear", "categorical");
+         case "line" -> List.of("static", "linear", "categorical");
+         case "texture" -> List.of("static", "categorical", "grid", "left_tilt", "right_tilt",
+                                   "orientation");
+         default -> List.<String>of();
+      });
       Collections.sort(names);
       return names;
    }

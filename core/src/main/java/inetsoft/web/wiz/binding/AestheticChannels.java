@@ -38,8 +38,8 @@ public final class AestheticChannels {
    public static final List<String> FRAME_CHANNELS =
       List.of("color", "shape", "size", "line", "texture");
 
-   /** Frame channels this phase can write. The rest arrive in Phase 2. */
-   public static final List<String> SUPPORTED_FRAME_CHANNELS = List.of("color");
+   /** Frame channels that can be written. Every frame channel is supported since 2c Phase 2. */
+   public static final List<String> SUPPORTED_FRAME_CHANNELS = FRAME_CHANNELS;
 
    private AestheticChannels() {
    }
