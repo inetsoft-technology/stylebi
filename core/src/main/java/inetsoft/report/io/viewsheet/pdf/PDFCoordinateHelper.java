@@ -226,7 +226,11 @@ public class PDFCoordinateHelper extends CoordinateHelper {
          return;
       }
 
+      // getClip() legitimately returns null when no clip is currently set - don't use
+      // savedClip's null-ness to decide whether to restore, or a null prior clip (the
+      // common case) will look like "nothing to restore" and leave this clip stuck.
       savedClip = printer.getClip();
+      roundCornerClipped = true;
       double r = roundCorner * 2d;
       printer.setClip(new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),
                                                    bounds.getWidth(), bounds.getHeight(), r, r));
@@ -236,9 +240,10 @@ public class PDFCoordinateHelper extends CoordinateHelper {
     * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
     */
    public void endRoundCornerClip() {
-      if(savedClip != null) {
+      if(roundCornerClipped) {
          printer.setClip(savedClip);
          savedClip = null;
+         roundCornerClipped = false;
       }
    }
 
@@ -411,6 +416,7 @@ public class PDFCoordinateHelper extends CoordinateHelper {
    private HashMap<Integer, LinkedHashMap<Object, Hyperlink.Ref>> linksMap = new HashMap<>();
    private PDFPrinter printer;
    private Shape savedClip;
+   private boolean roundCornerClipped;
    private int page = -1;
    private static final Logger LOG =
       LoggerFactory.getLogger(PDFCoordinateHelper.class);

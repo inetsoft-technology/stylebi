@@ -77,7 +77,11 @@ public class SVGCoordinateHelper extends CoordinateHelper {
          return;
       }
 
+      // getClip() legitimately returns null when no clip is currently set - don't use
+      // savedClip's null-ness to decide whether to restore, or a null prior clip (the
+      // common case) will look like "nothing to restore" and leave this clip stuck.
       savedClip = svgGraphics.getClip();
+      roundCornerClipped = true;
       double r = roundCorner * 2d;
       svgGraphics.setClip(new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),
                                                        bounds.getWidth(), bounds.getHeight(),
@@ -88,9 +92,10 @@ public class SVGCoordinateHelper extends CoordinateHelper {
     * Restore the clip pushed by {@link #beginRoundCornerClip}, if any.
     */
    void endRoundCornerClip() {
-      if(savedClip != null) {
+      if(roundCornerClipped) {
          svgGraphics.setClip(savedClip);
          savedClip = null;
+         roundCornerClipped = false;
       }
    }
 
@@ -394,6 +399,7 @@ public class SVGCoordinateHelper extends CoordinateHelper {
 
    private Graphics2D svgGraphics;
    private Shape savedClip;
+   private boolean roundCornerClipped;
    private final Rectangle svgBounds;
    private static final Logger LOG = LoggerFactory.getLogger(SVGCoordinateHelper.class);
 }
