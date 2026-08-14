@@ -34,6 +34,7 @@ import inetsoft.web.wiz.script.ScriptImageService;
 
 import java.security.Principal;
 import java.util.Base64;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -58,6 +59,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyPropertyService propertyService,
                                    AssemblyHyperlinkService hyperlinkService,
                                    ChartElementService chartElementService,
+                                   AssemblyConditionService conditionService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -72,6 +74,7 @@ public class ViewsheetAssemblyAgentController {
       this.propertyService = propertyService;
       this.hyperlinkService = hyperlinkService;
       this.chartElementService = chartElementService;
+      this.conditionService = conditionService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -261,6 +264,91 @@ public class ViewsheetAssemblyAgentController {
                                      Boolean.TRUE.equals(request.reset()), linkUri);
    }
 
+   /**
+    * One clause in the flat condition vocabulary. {@code junction} joins it to the NEXT clause,
+    * so the last clause must not carry one — {@link ConditionVocabulary} enforces that.
+    */
+   public record ConditionClause(String field, String operator, List<Object> values,
+                                 String junction, Boolean negated) {
+      ConditionVocabulary.Clause toClause() {
+         return new ConditionVocabulary.Clause(field, operator, values, junction,
+                                               Boolean.TRUE.equals(negated));
+      }
+   }
+
+   public record ConditionRequest(String assembly, List<ConditionClause> conditions) {}
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition")
+   public Map<String, Object> getCondition(@PathVariable String sessionToken,
+                                           @RequestParam String assembly,
+                                           Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return conditionService.read(sessionToken, user, assembly);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition/vocabulary")
+   public Map<String, Object> conditionVocabulary(@PathVariable String sessionToken,
+                                                  Principal user)
+   {
+      requireEnabled();
+      return conditionService.vocabulary();
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition/values")
+   public Object browseConditionValues(@PathVariable String sessionToken,
+                                       @RequestParam String assembly,
+                                       @RequestParam String column,
+                                       Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return conditionService.browseValues(sessionToken, user, assembly, column);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition/date-ranges")
+   public Object conditionDateRanges(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return conditionService.dateRanges(sessionToken, user);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition")
+   public Map<String, Object> setCondition(
+      @PathVariable String sessionToken,
+      @RequestBody ConditionRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      List<ConditionVocabulary.Clause> clauses = new java.util.ArrayList<>();
+
+      if(request.conditions() != null) {
+         for(ConditionClause clause : request.conditions()) {
+            clauses.add(clause.toClause());
+         }
+      }
+
+      int applied = conditionService.set(sessionToken, user, request.assembly(), clauses, linkUri);
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("ok", true);
+      out.put("conditionCount", applied);
+      return out;
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition/clear")
+   public void clearCondition(@PathVariable String sessionToken,
+                              @RequestBody ConditionRequest request,
+                              @RequestParam(required = false, defaultValue = "") String linkUri,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      conditionService.clear(sessionToken, user, request.assembly(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
       requireEnabled();
@@ -360,6 +448,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyPropertyService propertyService;
    private final AssemblyHyperlinkService hyperlinkService;
    private final ChartElementService chartElementService;
+   private final AssemblyConditionService conditionService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }

@@ -74,6 +74,7 @@ class ViewsheetAgentControllerTest {
                                           mock(AssemblyPropertyService.class),
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
+                                          mock(AssemblyConditionService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class));
    }
