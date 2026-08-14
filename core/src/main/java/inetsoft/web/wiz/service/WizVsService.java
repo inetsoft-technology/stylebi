@@ -1502,10 +1502,16 @@ public class WizVsService {
 
             assembly = modAssembly;
 
-            // Get the worksheet table name from the target assembly's source info.
-            if(assembly instanceof DataVSAssembly dataAsm) {
-               SourceInfo srcInfo = dataAsm.getSourceInfo();
-               wsTableName = srcInfo != null ? srcInfo.getSource() : null;
+            // Get the worksheet table name from the target assembly. `getTableName()` is the common
+            // BindableVSAssembly accessor -- for a DataVSAssembly it is equivalent to
+            // getSourceInfo().getSource() (DataVSAssembly.getTableName() derives it the same way), and
+            // it ALSO resolves correctly for an OutputVSAssembly (Gauge/Text), which has no
+            // getSourceInfo() at all. Broadened from DataVSAssembly alongside applyConditionModel's own
+            // widening -- see that method for why an Output assembly must not be excluded here either:
+            // without this, an Output assembly's previousCondition snapshot below stays null, so a
+            // failed modify-only call silently could not roll its filter back.
+            if(assembly instanceof DynamicBindableVSAssembly dataAsm) {
+               wsTableName = dataAsm.getTableName();
 
                // Only relevant when mutating in place (no copy): a copy's rollback removes the whole
                // duplicate instead, so there is no prior condition on IT to snapshot.
@@ -1942,9 +1948,11 @@ public class WizVsService {
                         demotedOriginal.setPrimary(true);
                      }
                   }
-                  else if(assembly instanceof DataVSAssembly dataAsm) {
+                  else if(assembly instanceof DynamicBindableVSAssembly dataAsm) {
                      // No copy — assembly IS the original, mutated in place; restore its prior
                      // condition rather than removing it (it was mutated, not added, this call).
+                     // Broadened alongside the snapshot above and applyConditionModel's own widening —
+                     // an Output assembly (Gauge/Text) can now reach this rollback too.
                      dataAsm.setPreConditionList(previousCondition);
                   }
                }
@@ -4600,8 +4608,22 @@ public class WizVsService {
          return;
       }
 
-      if(!(assembly instanceof DataVSAssembly dataAssembly)) {
-         LOG.warn("Cannot apply condition to non-data assembly type: {}", assembly.getClass().getSimpleName());
+      // THE BUG THIS FIXES. `DataVSAssembly` and `OutputVSAssembly` (Gauge, Text -- the shape wiz's
+      // own recommender builds for a zero-dimension "bare aggregate" chart, see
+      // WizAutoBindingService.recommendationToVisualization / VSGaugeRecommendation) are SIBLING
+      // hierarchies that each independently implement DynamicBindableVSAssembly, the interface that
+      // actually owns getPreConditionList()/setPreConditionList() (see
+      // OutputVSAssemblyInfo.setPreConditionList0, identical to DataVSAssemblyInfo's). Gating on the
+      // narrower DataVSAssembly type excluded every Output assembly from ever receiving a filter --
+      // confirmed live: a chart with no dimension bound (rendered as a "gauge") silently kept its
+      // pre-filter row count while the identical conditionModel correctly reduced an otherwise-identical
+      // chart with one dimension bound. applyHighlight, right below this method, already treats Output
+      // assemblies as legitimate condition targets (see its "null is acceptable (e.g. output
+      // assemblies)" comment) -- this method alone was never updated to match.
+      if(!(assembly instanceof DynamicBindableVSAssembly dataAssembly)) {
+         LOG.warn("Cannot apply condition to assembly type: {}", assembly.getClass().getSimpleName());
+         addWarning(warnings, "filter",
+            "This visualization type does not support filters, so the requested filter was not applied.");
          return;
       }
 
