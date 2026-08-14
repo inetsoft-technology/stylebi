@@ -56,7 +56,8 @@ public class BindingAgentController {
                                  BindableFieldsService fieldsService,
                                  BindingReadService readService,
                                  ChartBindingService chartService,
-                                 ChartAestheticService aestheticService)
+                                 ChartAestheticService aestheticService,
+                                 TableBindingService tableService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -66,6 +67,7 @@ public class BindingAgentController {
       this.readService = readService;
       this.chartService = chartService;
       this.aestheticService = aestheticService;
+      this.tableService = tableService;
    }
 
    public record JoinRequest(String code) {}
@@ -208,6 +210,67 @@ public class BindingAgentController {
                                 request.frame(), linkUri);
    }
 
+   public record TableShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}
+   public record TableFieldRequest(String assembly, String shelf, FieldRef field,
+                                   Integer position) {}
+   public record TableRemoveRequest(String assembly, String shelf, String column) {}
+   public record TableMoveRequest(String assembly, String fromShelf, String toShelf,
+                                  String column, Integer position) {}
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/binding")
+   public Map<String, Object> tableBinding(@PathVariable String sessionToken,
+                                           @RequestParam String assembly,
+                                           Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return tableService.read(sessionToken, user, assembly);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/fields")
+   public void setTableFields(@PathVariable String sessionToken,
+                              @RequestBody TableShelfRequest request,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
+                            request.fields());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/add")
+   public void addTableField(@PathVariable String sessionToken,
+                             @RequestBody TableFieldRequest request,
+                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
+                            request.field(), request.position());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/remove")
+   public void removeTableField(@PathVariable String sessionToken,
+                                @RequestBody TableRemoveRequest request,
+                                Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.removeField(sessionToken, user, request.assembly(), request.shelf(),
+                               request.column());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/move")
+   public void moveTableField(@PathVariable String sessionToken,
+                              @RequestBody TableMoveRequest request,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.moveField(sessionToken, user, request.assembly(), request.fromShelf(),
+                             request.toShelf(), request.column(), request.position());
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
       sessionService.close(sessionToken);
@@ -244,4 +307,5 @@ public class BindingAgentController {
    private final BindingReadService readService;
    private final ChartBindingService chartService;
    private final ChartAestheticService aestheticService;
+   private final TableBindingService tableService;
 }
