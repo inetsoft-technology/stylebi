@@ -62,7 +62,7 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import { XSchema } from "../../../common/data/xschema";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -577,7 +577,7 @@ describe("VSComboBox — Pass 3: Display", () => {
       beforeEach(waitForAsync(() => {
          const formDataService: any = { checkFormData: vi.fn() };
          const debounceService: any = { debounce: vi.fn((key, fn, delay, args) => fn(...args)) };
-         const dataTipService: any = { isDataTip: vi.fn() };
+         const dataTipService: any = { isDataTip: vi.fn(), scrolled: new Subject<void>() };
          const firstDayOfWeekService: any = { getFirstDay: vi.fn(() => of({})) };
 
          TestBed.configureTestingModule({

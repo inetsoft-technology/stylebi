@@ -512,11 +512,45 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    isActivePopComponent(vsObject: VSObjectModel): boolean {
-      return this.popService.isPopComponent(vsObject.absoluteName) &&
-         this.popService.getPopComponent() === vsObject.absoluteName;
+      const popComponent = this.popService.getPopComponent();
+
+      if(!popComponent) {
+         return false;
+      }
+
+      if(this.popService.isPopComponent(vsObject.absoluteName) &&
+         popComponent === vsObject.absoluteName)
+      {
+         return true;
+      }
+
+      // Also boost the z-index of the children of a group container when the group
+      // container itself is the active pop component -- otherwise the children remain
+      // stacked below the container's own boosted, opaque background image/border and
+      // the pop-up appears blank. Mirrors DataTipService.isCurrentDataTip's
+      // container-match arm (see needsZIndexBoost's dataTip check just below). Walk the
+      // full container ancestor chain (mirrors zIndex()'s loop below) so a grandchild
+      // nested through an intermediate Tab/GroupContainer is still boosted.
+      for(let container = vsObject.container; container; ) {
+         if(this.popService.isPopComponent(container) && popComponent === container) {
+            return true;
+         }
+
+         const containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName === container);
+         container = containerObj ? containerObj.container : null;
+      }
+
+      return false;
    }
 
    needsZIndexBoost(vsObject: VSObjectModel): boolean {
+      // Boost the z-index of a max-mode assembly (or an embedded viewsheet containing one)
+      // so its stacking context escapes any ancestor's local z-order and renders above
+      // page-level chrome, mirroring the datatip/pop-component cases below.
+      if((<any> vsObject).maxMode) {
+         return true;
+      }
+
       if(this.dataTipService.dataTipName) {
          if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
             return true;
@@ -548,6 +582,28 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return DateTipHelper.getPopUpContentBoostZIndex();
    }
 
+   // The actual stacking-context z-index used for vsObject's own ".vs-object-parent-container"
+   // (see the [style.z-index] binding on that element in the template). The mini-toolbar is a
+   // sibling of that element, not a child, so it must be given a z-index derived from this same
+   // value (rather than a fixed CSS constant) to reliably stack above the assembly's own content
+   // -- assembly z-index values are server-assigned and can be arbitrarily large (e.g. for
+   // embedded-viewsheet or max-mode assemblies), easily exceeding any hardcoded CSS z-index.
+   getContainerZIndex(vsObject: VSObjectModel): number {
+      return this.isActivePopComponent(vsObject) || this.needsZIndexBoost(vsObject)
+         ? this.zIndex(vsObject) + this.popUpContentBoostZIndex
+         : this.zIndex(vsObject);
+   }
+
+   // The mini-toolbar's z-index (see [zIndex] binding on <mini-toolbar> in the template) is
+   // getContainerZIndex(vsObject) + 1 -- it only needs to outrank its own assembly's stacking
+   // context, not unrelated sibling assemblies elsewhere on the canvas. Clamp it to the same
+   // floor as the toolbar's base CSS z-index so it still beats ordinary siblings with a higher
+   // server-assigned z-index (e.g. #75948), while preserving the larger boosted value for
+   // max-mode/embedded/datatip cases where the server z-index can exceed that floor.
+   getMiniToolbarZIndex(vsObject: VSObjectModel): number {
+      return Math.max(this.getContainerZIndex(vsObject) + 1, GuiTool.MINI_TOOLBAR_MIN_ZINDEX);
+   }
+
    zIndex(vsObject: VSObjectModel): number {
       const adhocFilter = (<any> vsObject).adhocFilter;
 
@@ -559,7 +615,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
       let zIndex = vsObject.objectFormat.zIndex;
 
-      for(let container = vsObject.container; container; ) {
+      // A max-mode (enlarged) assembly is rendered pulled out of its Group Container/Tab, so
+      // that container's own z-index is no longer meaningful to its stacking and must not be
+      // added on top -- otherwise the container's z-index can push the enlarged assembly above
+      // its own adhoc filter popup, which has no container and so never gets this addition (#75990).
+      for(let container = !(<any> vsObject).maxMode ? vsObject.container : null; container; ) {
          let containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName == container);
 
          if(containerObj) {
@@ -598,6 +658,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       else if(obj.objectType === "VSChart") {
          return (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
             ? top ? obj?.objectFormat?.top : obj?.objectFormat?.left : 0);
+      }
+      else if(obj.objectType === "VSViewsheet") {
+         // an embedded viewsheet containing a max-mode descendant is flagged via the same
+         // (obj as any).maxMode marker (see viewer-app/vs-viewsheet onMaxModeChanged) so its
+         // focus overlay lines up with the descendant filling the viewport from (0, 0).
+         return (<any> obj).maxMode ? 0 : (top ? obj?.objectFormat?.top : obj?.objectFormat?.left);
       }
       else if(obj.objectType === "VSRangeSlider") {
          (this.viewer || this.embeddedVS) && obj.containerType !== "VSSelectionContainer" ?

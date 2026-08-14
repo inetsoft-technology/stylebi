@@ -294,7 +294,10 @@ public class ScheduleTaskFolderService {
    public void moveScheduleItems(ScheduleTaskModel[] taskModels, String[] folders, AssetEntry targetEntry, Principal principal)
       throws Exception
    {
-      if(folders != null && folders.length > 0) {
+      boolean hasTasks = taskModels != null && taskModels.length > 0;
+      boolean hasFolders = folders != null && folders.length > 0;
+
+      if(hasFolders || hasTasks) {
          if(!checkFolderPermission(targetEntry.getPath(), principal, ResourceAction.WRITE)) {
             throw new MessageException(Catalog.getCatalog().getString(
                "common.writeAuthority", targetEntry.getPath()));

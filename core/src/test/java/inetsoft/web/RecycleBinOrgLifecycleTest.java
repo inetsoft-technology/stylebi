@@ -279,6 +279,63 @@ class RecycleBinOrgLifecycleTest {
                   "source org's entry must be completely untouched by the migrate");
    }
 
+   // ── renameUser(oldUser, newUser) -- Bug #75891 fix: re-owns entries after a user rename ──
+
+   @Test
+   void renameUser_updatesMatchingEntries_leavesOthersUntouched() {
+      recycleBin = new RecycleBin(keyValueStorageManager);
+      String orgId = "recyclebin_renameuser_same";
+
+      IdentityID oldUser = new IdentityID("guest", orgId);
+      IdentityID newUser = new IdentityID("guest2", orgId);
+      IdentityID otherUser = new IdentityID("alice", orgId);
+
+      actAs(orgId);
+      recycleBin.addEntry("Recycle Bin/pqr678", "My Dashboards/report6", "report6", null,
+                          RepositoryEntry.VIEWSHEET, AssetRepository.USER_SCOPE, oldUser);
+      recycleBin.addEntry("Recycle Bin/stu901", "My Dashboards/report7", "report7", null,
+                          RepositoryEntry.VIEWSHEET, AssetRepository.USER_SCOPE, otherUser);
+
+      recycleBin.renameUser(oldUser, newUser);
+
+      RecycleBin.Entry renamed = recycleBin.getEntry("Recycle Bin/pqr678");
+      assertEquals(newUser, renamed.getOriginalUser(),
+                  "entry owned by the renamed user must have originalUser updated to the new name, " +
+                  "so RecycleUtils.restoreSheet() can still locate it after the rename");
+
+      RecycleBin.Entry untouched = recycleBin.getEntry("Recycle Bin/stu901");
+      assertEquals(otherUser, untouched.getOriginalUser(),
+                  "entries owned by other users must not be touched by an unrelated rename");
+   }
+
+   // Regression guard for the org-scoping fix: renameUser() must resolve storage from oldUser's
+   // own org, not the calling thread's ambient "current org" -- otherwise a site admin renaming a
+   // user in a non-current org would silently mutate the wrong org's (or no) recycle bin bucket,
+   // the same bug shape as Bug #75769 (see file header + OrgLifecycleScopedPropertiesIntegrationTest).
+   @Test
+   void renameUser_resolvesStorageFromOldUsersOrg_notAmbientCurrentOrg() {
+      recycleBin = new RecycleBin(keyValueStorageManager);
+      String targetOrgId = "recyclebin_renameuser_target";
+      String actingOrgId = "recyclebin_renameuser_acting";
+
+      IdentityID oldUser = new IdentityID("guest", targetOrgId);
+      IdentityID newUser = new IdentityID("guest2", targetOrgId);
+
+      actAs(targetOrgId);
+      recycleBin.addEntry("Recycle Bin/vwx234", "My Dashboards/report8", "report8", null,
+                          RepositoryEntry.VIEWSHEET, AssetRepository.USER_SCOPE, oldUser);
+
+      // simulate a site admin whose ambient current org differs from the org being edited
+      actAs(actingOrgId);
+      recycleBin.renameUser(oldUser, newUser);
+
+      actAs(targetOrgId);
+      RecycleBin.Entry renamed = recycleBin.getEntry("Recycle Bin/vwx234");
+      assertEquals(newUser, renamed.getOriginalUser(),
+                  "renameUser() must update the entry in oldUser's own org even when the acting " +
+                  "thread's ambient current org is a different org entirely");
+   }
+
    // ── scenario 11c: removeStorage(orgID) -- whole bucket deleted ──
 
    @Test

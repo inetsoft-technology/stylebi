@@ -55,7 +55,7 @@ public class VSLayoutTool extends LayoutTool {
                                      TableLens base, VariableTable vars,
                                      boolean crossTabSupported)
    {
-      createCalcLayout(assembly, vars, crossTabSupported);
+      createCalcLayout(assembly, base, vars, crossTabSupported);
       createDataPathMapping(assembly.getTableLayout(), assembly.getBaseTable());
    }
 
@@ -242,11 +242,11 @@ public class VSLayoutTool extends LayoutTool {
    /**
     * Create a calc table layout by TableLayout.
     */
-   private static void createCalcLayout(CalcTableVSAssembly assembly,
+   private static void createCalcLayout(CalcTableVSAssembly assembly, TableLens base,
                                         VariableTable vars,
                                         boolean crossTabSupported)
    {
-      fillCalcTableLens(assembly, vars, crossTabSupported);
+      fillCalcTableLens(assembly, base, vars, crossTabSupported);
    }
 
    /**

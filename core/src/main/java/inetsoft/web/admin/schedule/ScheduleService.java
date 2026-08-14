@@ -671,8 +671,14 @@ public class ScheduleService {
       boolean adminPermission = true;
 
       try {
-         adminPermission = securityEngine.checkPermission(
-            principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
+         // Go straight to the SecurityProvider instead of through
+         // SecurityEngine.checkPermission(..., IdentityID, ...), which additionally requires the
+         // principal to be present in SecurityEngine's live-login cache. That cache is keyed by
+         // the principal's current identity, so it is not updated when the principal's owning
+         // identity is renamed, causing this check to incorrectly report the caller as not
+         // logged in even though it holds an active EM WebSocket subscription (Bug #75830).
+         adminPermission = securityEngine.getSecurityProvider().checkPermission(
+            principal, ResourceType.SECURITY_USER, task.getOwner().convertToKey(), ResourceAction.ADMIN);
       }
       catch(Exception e) {
          LOG.error("Failed to check permission for delete action", e);

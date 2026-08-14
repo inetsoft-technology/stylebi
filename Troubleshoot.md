@@ -31,24 +31,29 @@ docker compose logs storage
 
 This error most commonly occurs when the `INETSOFT_ADMIN_PASSWORD` environment variable is missing or does not meet the password requirements. This variable sets the password for the "admin" user and is required — there is no default password. The password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit, and a special character.
 
-To resolve this, set `INETSOFT_ADMIN_PASSWORD` to a valid password before starting the containers, either in the `docker-compose.yaml` file:
+To resolve this, set `INETSOFT_ADMIN_PASSWORD` to a valid password before starting the containers, either in the `docker-compose.yaml` file's shared config (so it reaches the `storage`, `server`, and `scheduler` containers alike):
 
 ```yaml
-storage:
-  environment:
-    # the password for the "admin" user
-    INETSOFT_ADMIN_PASSWORD: "Test@admin1"
+x-shared-config: &sharedenv
+  # the password for the "admin" user
+  INETSOFT_ADMIN_PASSWORD: "changeme"
 ```
 
 or as an environment variable in your shell before running `docker compose up`:
 
+On Linux or macOS:
+
 ```shell
-export INETSOFT_ADMIN_PASSWORD="Test@admin1"
+export INETSOFT_ADMIN_PASSWORD="changeme"
 ```
 
-```powershell
-$env:INETSOFT_ADMIN_PASSWORD="Test@admin1"
+On Windows (Command Prompt):
+
+```cmd
+set INETSOFT_ADMIN_PASSWORD=changeme
 ```
+
+Note that setting the variable this way only applies to the current terminal session, so you must run `docker compose up` in that same session.
 
 or by uncommenting and setting `INETSOFT_ADMIN_PASSWORD` in the `.env` file included with the community examples.
 

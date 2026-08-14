@@ -21,7 +21,7 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angu
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from "@angular/router";
-import { Observable, Subject, Subscription, throwError } from "rxjs";
+import { EMPTY, Observable, Subject, Subscription } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
@@ -285,9 +285,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
    }
 
    private handleHelpLinkError(error: HttpErrorResponse): Observable<HelpLinks> {
-      this.snackBar.open("_#(js:em.helpLinks.error)", null, { duration: Tool.SNACKBAR_DURATION });
+      // A 401/403 here means the session expired or was invalidated (e.g. by a cross-tab
+      // logout) while this request was in flight. InvalidSessionInterceptor already redirects
+      // to the login page for that case, so showing a permission error on top of it is
+      // redundant and misleading.
+      if(error.status !== 401 && error.status !== 403) {
+         this.snackBar.open("_#(js:em.helpLinks.error)", null, { duration: Tool.SNACKBAR_DURATION });
+      }
+
       console.error("Failed to load the context help links: ", error);
-      return throwError(error);
+      // Recover rather than rethrow: the subscriber below has no error callback, so
+      // propagating the error would surface as an unhandled exception on top of the
+      // handling already done above.
+      return EMPTY;
    }
 
    navigateToFavorite(route: string) {

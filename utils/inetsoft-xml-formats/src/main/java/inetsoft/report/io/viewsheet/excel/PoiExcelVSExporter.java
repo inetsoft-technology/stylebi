@@ -49,6 +49,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
+import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.*;
@@ -491,10 +492,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
 
       if(info instanceof TitledVSAssemblyInfo) {
-         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 0 :
-            (int)Math.round((double) ((TitledVSAssemblyInfo) info).getTitleHeight() /
-            AssetUtil.defh);
-         titleRow = Math.max(1, titleRow);
+         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 1 : 0;
       }
 
       int rows = titleRow;
@@ -802,7 +800,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       XSSFRichTextString rts = (XSSFRichTextString)
          PoiExcelVSUtil.createRichTextString(book, labelInfo.getLabelText());
       tb.setText(rts);
-      applyFormat(tb, rts, getLabelFormat(labelInfo), false);
+      // Use the original (unpadded) bounds for the round-corner radius calculation so the
+      // font-metric slack added to padded's width doesn't skew the shorter-side comparison.
+      applyFormat(tb, rts, getLabelFormat(labelInfo), false, pixelBounds);
    }
 
    /**
@@ -886,7 +886,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          XSSFRichTextString rts = (XSSFRichTextString)
             PoiExcelVSUtil.createRichTextString(book, txt);
          tb.setText(rts);
-         applyFormat(tb, rts, getTextFormat(info), false);
+         applyFormat(tb, rts, getTextFormat(info), false, split[1]);
       }
       catch(SheetMaxRowsException e) {
          throw e;
@@ -993,7 +993,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                tb.setBottomInset(padding.bottom);
             }
 
-            applyFormat(tb, rts, format, shadowed);
+            applyFormat(tb, rts, format, shadowed,
+                        new Rectangle2D.Double(0, 0, size.width, size.height));
          }
       }
       catch(SheetMaxRowsException e) {
@@ -1009,9 +1010,13 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
    /**
     * Apply the format setting.
+    * @param pixelBounds the pixel bounds of the shape, used to translate the round corner
+    *                     radius (in pixels) into an OOXML preset geometry adjustment. May be
+    *                     null, in which case round corners are not applied.
     */
    private void applyFormat(XSSFTextBox tb, RichTextString rts,
-                            VSCompositeFormat format, boolean shadowed)
+                            VSCompositeFormat format, boolean shadowed,
+                            Rectangle2D pixelBounds)
    {
       if(format == null) {
          return;
@@ -1023,6 +1028,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       BorderColors bcolors = format.getBorderColors();
       java.awt.Font font = format.getFont();
       int alpha = format.getAlpha();
+      int roundCorner = format.getRoundCorner();
 
       if(font != null) {
          rts.applyFont(PoiExcelVSUtil.getPOIFont(format, book, true));
@@ -1033,6 +1039,10 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
       if(bg != null) {
          tb.setFillColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+      }
+
+      if(roundCorner > 0 && pixelBounds != null) {
+         applyRoundCorner(tb, roundCorner, pixelBounds);
       }
 
       if(borders != null) {
@@ -1070,6 +1080,151 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
             }
          }
       }
+   }
+
+   /**
+    * Switch the shape's preset geometry to a rounded rectangle and set the corner
+    * adjustment ("adj" guide) so the rendered radius matches the given pixel radius.
+    */
+   private void applyRoundCorner(XSSFSimpleShape tb, int roundCorner, Rectangle2D pixelBounds) {
+      double minSide = Math.min(pixelBounds.getWidth(), pixelBounds.getHeight());
+
+      if(minSide <= 0) {
+         return;
+      }
+
+      tb.setShapeType(ShapeType.ROUND_RECT.ooxmlId);
+      // OOXML roundRect "adj" guide is a percentage (0-50000, i.e. 0%-50%) of the
+      // shorter side that the corner radius should occupy.
+      int adj = (int) Math.round(Math.min(1d, roundCorner / (minSide / 2)) * 50000);
+      CTPresetGeometry2D prstGeom = tb.getCTShape().getSpPr().getPrstGeom();
+      CTGeomGuideList avLst = prstGeom.isSetAvLst() ? prstGeom.getAvLst() : prstGeom.addNewAvLst();
+      CTGeomGuide gd = avLst.sizeOfGdArray() > 0 ? avLst.getGdArray(0) : avLst.addNewGd();
+      gd.setName("adj");
+      gd.setFmla("val " + adj);
+   }
+
+   /**
+    * Largest corner radius (in pixels) used when rounding a table/crosstab's outer
+    * border. Table cell content fills the grid all the way to its edges (unlike
+    * TextInput/Text, which draw as a single shape) and Excel has no way to clip cell
+    * rendering to a rounded shape, so a large radius would visibly cut into cell text
+    * near the corners. Capping keeps the curve small enough to stay within the blank
+    * margin most cells have around their text, while still visibly rounding the corner.
+    */
+   private static final int MAX_TABLE_ROUND_RADIUS = 8;
+
+   /**
+    * Draw a rounded-rectangle outline around a table/crosstab's outer bounds when the
+    * object format has a round corner set. Tables write their cells directly to the sheet
+    * grid (not as a shape), so there is no shape for the border-drawing code in
+    * {@link #applyFormat} to round; this draws a standalone border-only overlay shape
+    * instead, matching the outer-frame rounding already done for Table/Crosstab in
+    * PDF/SVG (ExportUtil) and PowerPoint (PPTValueHelper) export.
+    */
+   public void drawTableRoundedBorder(Rectangle2D pixelBounds, VSCompositeFormat format) {
+      if(format == null || format.getRoundCorner() <= 0) {
+         return;
+      }
+
+      double minSide = Math.min(pixelBounds.getWidth(), pixelBounds.getHeight());
+
+      if(minSide <= 0) {
+         return;
+      }
+
+      int radius = (int) Math.min(
+         Math.min(format.getRoundCorner(), MAX_TABLE_ROUND_RADIUS), minSide / 2);
+
+      if(radius <= 0) {
+         return;
+      }
+
+      // A single roundRect shape can only stroke a uniform outline around all four sides
+      // - unlike the per-side PDF/SVG/PPT border drawing (see ExportUtil.drawBorders), it
+      // can't selectively skip a side. Approximate by using whichever side has a border
+      // configured first (top, then left/right/bottom) for the whole outline's style and
+      // color; a table with only a partial border will get a full box outline as a result,
+      // an accepted tradeoff for a uniformly-rounded look in the common case.
+      Insets borders = format.getBorders();
+      int type;
+      java.awt.Color color;
+      BorderColors bcolors = format.getBorderColors();
+
+      if(borders != null && borders.top != 0) {
+         type = borders.top;
+         color = bcolors == null ? null : bcolors.topColor;
+      }
+      else if(borders != null && borders.left != 0) {
+         type = borders.left;
+         color = bcolors == null ? null : bcolors.leftColor;
+      }
+      else if(borders != null && borders.right != 0) {
+         type = borders.right;
+         color = bcolors == null ? null : bcolors.rightColor;
+      }
+      else if(borders != null && borders.bottom != 0) {
+         type = borders.bottom;
+         color = bcolors == null ? null : bcolors.bottomColor;
+      }
+      else {
+         // No border configured at all: there's no outline to compensate the mask with a
+         // curve, so skip masking too rather than leaving an unrounded white square with
+         // no border and no explanation.
+         return;
+      }
+
+      int lineStyle = PoiExcelVSUtil.getLineStyle(type);
+
+      if(lineStyle == ExcelVSUtil.EXCEL_NO_BORDER) {
+         return;
+      }
+
+      // Mask the square cell background/content that would otherwise stick out past the
+      // curve at each corner (e.g. a shaded title-row fill, or the corner-most cell's
+      // text) with a plain white square, the same way the viewer's overflow:hidden clips
+      // it. This must happen before the border outline below so the outline's curve is
+      // drawn on top of the mask, not under it.
+      maskTableCorners(pixelBounds, radius);
+
+      XSSFSimpleShape shape = patriarch.createSimpleShape(
+         (XSSFClientAnchor) getAnchorFromPixelRect(pixelBounds));
+      shape.setNoFill(true);
+      applyRoundCorner(shape, radius, pixelBounds);
+
+      if(lineStyle != ExcelVSUtil.EXCEL_SOLID_BORDER) {
+         shape.setLineStyle(lineStyle);
+      }
+
+      if(color != null) {
+         shape.setLineStyleColor(color.getRed(), color.getGreen(), color.getBlue());
+      }
+      else {
+         shape.setLineStyleColor(0, 0, 0);
+      }
+   }
+
+   /**
+    * Paint over the four radius x radius corners of the given bounds with a plain white
+    * square, hiding whatever square cell content is underneath so it reads as clipped by
+    * the rounded corner instead of poking out past it.
+    */
+   private void maskTableCorners(Rectangle2D pixelBounds, int radius) {
+      double x = pixelBounds.getX();
+      double y = pixelBounds.getY();
+      double w = pixelBounds.getWidth();
+      double h = pixelBounds.getHeight();
+
+      maskCorner(x, y, radius);
+      maskCorner(x + w - radius, y, radius);
+      maskCorner(x, y + h - radius, radius);
+      maskCorner(x + w - radius, y + h - radius, radius);
+   }
+
+   private void maskCorner(double x, double y, double size) {
+      XSSFSimpleShape mask = patriarch.createSimpleShape((XSSFClientAnchor)
+         getAnchorFromPixelRect(new Rectangle2D.Double(x, y, size, size)));
+      mask.setFillColor(255, 255, 255);
    }
 
    private void fixAlignment(XSSFTextBox tb, int align) {

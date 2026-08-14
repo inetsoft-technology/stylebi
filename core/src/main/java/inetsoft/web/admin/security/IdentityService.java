@@ -545,13 +545,6 @@ public class IdentityService {
       int type = identity.getType();
       DashboardManager dmanager = dashboardManager;
       ScheduleManager smanager = scheduleManager;
-      LibManager manager = null;
-
-      if(identityId.orgID != null) {
-         // may be null for built-in roles (Site Admin and Org Admin), in which case the lib manager
-         // does not need to be cleared
-         manager = libManagerProvider.getManager(identityId.orgID);
-      }
 
       Identity nid = new DefaultIdentity(identityId, type);
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
@@ -559,10 +552,6 @@ public class IdentityService {
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
-
-         if(manager != null) {
-            manager.clearAssets();
-         }
       }
       else {
          if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
@@ -625,6 +614,9 @@ public class IdentityService {
                updateRepletRegistry(orgID, null);
                themeService.removeTheme(orgID);
                themesManager.removeCSSEntry(orgID);
+               themesManager.removeLogoEntry(orgID);
+               themesManager.removeFaviconEntry(orgID);
+               themesManager.removeWelcomePage(orgID);
                CSSDictionary.resetDictionaryCache();
                themesManager.save();
                removeStorages(orgID);
@@ -2693,8 +2685,26 @@ public class IdentityService {
       }
    }
 
+   // `principal` is unused now that the target bucket is resolved via an explicit storageOrgId
+   // rather than the ambient principal/org context -- kept for call-site/API stability (the
+   // rename call site in AbstractEditableAuthenticationProvider and existing test mocks all
+   // still call this 3-arg form).
    public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
-      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
+      updateAutoSaveFilesInBucket(oorg, norg, oorg.getId());
+   }
+
+   /**
+    * Named distinctly from {@link #updateAutoSaveFiles(Organization, Organization, Principal)}
+    * rather than overloaded on it -- a same-name {@code (Organization, Organization, String)}
+    * overload makes {@code any(), any(), any()} Mockito stubs against this class ambiguous at
+    * compile time (neither {@code Principal} nor {@code String} is more specific than the other).
+    *
+    * @param storageOrgId the id of the organization whose blob bucket currently holds the auto
+    *                      save files to migrate in place -- see
+    *                      {@link AutoSaveUtils#migrateAutoSaveFiles(Organization, Organization, String)}.
+    */
+   public void updateAutoSaveFilesInBucket(Organization oorg, Organization norg, String storageOrgId) {
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, storageOrgId);
    }
 
    public void updateTaskSaveFiles(Organization oorganization, Organization norganization) {

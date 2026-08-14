@@ -15,8 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { finalize } from "rxjs/operators";
+import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { RepositoryEditorModel } from "../../../../../../../shared/util/model/repository-editor-model";
 import { ContentRepositoryService } from "../content-repository-page/content-repository.service";
@@ -163,7 +166,9 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
       return this.repositoryService.selectedNode?.type;
    }
 
-   constructor(public repositoryService: ContentRepositoryService, private httpClient: HttpClient) {
+   constructor(public repositoryService: ContentRepositoryService, private httpClient: HttpClient,
+               private snackBar: MatSnackBar)
+   {
    }
 
    ngOnInit(): void {
@@ -213,9 +218,15 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
       let timeout = setTimeout(() => this.loading = true, 1000);
 
       this.httpClient.delete("../api/em/repository/recycle-bin/entries")
-         .subscribe(() => {
+         .pipe(finalize(() => {
             clearTimeout(timeout);
             this.loading = false;
+         }))
+         .subscribe({
+            error: (error: HttpErrorResponse) => {
+               this.snackBar.open(error.error?.message || error.message,
+                  "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
+            }
          });
    }
 }

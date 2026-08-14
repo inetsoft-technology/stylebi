@@ -18,7 +18,8 @@
 @for (vsObject of vsInfo.vsObjects; track trackByName(i, vsObject); let i = $index) {
   @if (isObjectRendered(vsObject)) {
     <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
-         [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)">
+         [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)"
+         [style.z-index]="isFilterInMaxModeView(vsObject) ? getContainerZIndex(vsObject) : null">
       <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
         [id]="getAssemblyDivId(vsObject)"
         VSDataTip [dataTipName]="vsObject.absoluteName"
@@ -42,7 +43,7 @@
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + popUpContentBoostZIndex : zIndex(vsObject)"
+        [style.z-index]="getContainerZIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
         @if (vsObject.objectType == 'VSAnnotation') {
           <vs-annotation
@@ -349,6 +350,8 @@
           [top]="getToolbarTop(vsObject, i)"
           [left]="getToolbarLeft(vsObject, i)"
           [width]="getToolbarWidth(vsObject)"
+          [zIndex]="getMiniToolbarZIndex(vsObject)"
+          [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
           [visible]="isAssemblyVisible(vsObject)"
           [forceShow]="forceShowMiniToolbar"

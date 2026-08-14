@@ -44,7 +44,7 @@
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { NEVER } from "rxjs";
+import { NEVER, Subject } from "rxjs";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
@@ -448,7 +448,7 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          const modelService = { getModel: vi.fn() };
          const modalService = { open: vi.fn() };
          const adhocFilterService = { showFilter: vi.fn().mockReturnValue(() => {}) };
-         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
+         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false), scrolled: new Subject<void>() };
          const debounceService = {
             debounce: vi.fn().mockImplementation((_key: any, fn: any) => fn()),
          };

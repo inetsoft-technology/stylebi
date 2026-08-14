@@ -789,6 +789,10 @@ public class FormatPainterService {
          return warnStringFormat;
       }
 
+      if(format == null) {
+         return warnStringFormat;
+      }
+
       String formatType = format.getFormat();
       boolean badFormat = false;
       Pattern PLACEHOLDER = Pattern.compile("\\s*Cell \\[\\d+,\\d+\\]\\s*");

@@ -35,6 +35,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.env.Environment;
 
 import java.nio.file.Path;
@@ -99,6 +100,7 @@ public class BaseTestConfiguration {
    }
 
    @Bean
+   @DependsOn("propertiesEngine")
    public SecurityEngine securityEngine(Cluster cluster, LicenseManager licenseManager) {
       return spy(new SecurityEngine(licenseManager, cluster));
    }

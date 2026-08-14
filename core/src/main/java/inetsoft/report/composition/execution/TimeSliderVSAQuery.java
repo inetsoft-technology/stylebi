@@ -1517,6 +1517,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       Object mobj = assembly.getSelectedMin();
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(data, true);
 
+      rows:
       for(int i = 1; data.moreRows(i); i++) {
          StringBuilder label = new StringBuilder();
          StringBuilder vstr = new StringBuilder();
@@ -1541,6 +1542,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             Object obj = data instanceof MemberObjectTableLens ?
                ((MemberObjectTableLens) data).getMemberObject(i, j) :
                data.getObject(i, j);
+
+            // a null value (e.g. a member with no aggregate/measure data) can't be a
+            // meaningful min/max anchor for a single-value slider, so skip the row
+            // instead of showing a blank label. only applies to SingleTimeInfo, which
+            // is the binding that used to exclude nulls in the query; a composite
+            // slider (which may also have a single ref) still shows null members.
+            if(tinfo instanceof SingleTimeInfo && obj == null) {
+               continue rows;
+            }
 
             if(data instanceof DataTableLens) {
                cellData = ((DataTableLens) data).getData(i, j);

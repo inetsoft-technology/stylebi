@@ -4030,7 +4030,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(ass instanceof EmbeddedTableAssembly) {
             EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) ass;
-            DataRef column = iassembly.getColumn();
+            // resolve the column from the current column selection instead of relying on
+            // iassembly.getColumn(), which is only refreshed on a full sandbox reset and
+            // may be stale if the binding was changed without reopening the viewsheet
+            DataRef column = eassembly.getColumnSelection(false).getAttribute(iassembly.getColumnValue());
             int row = iassembly.getRow();
 
             if(column != null && row > 0) {
@@ -4705,10 +4708,29 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             if(sassembly instanceof TimeSliderVSAssembly &&
                clist.getSelectionList().contains(sassembly.getAssemblyEntry()))
             {
-               TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
-                  createVSAQuery(this, sassembly, DataMap.NORMAL);
-               Object obj = getData(sassembly.getName());
-               query.refreshSelectionValue(obj);
+               TimeSliderVSAssembly tsassembly = (TimeSliderVSAssembly) sassembly;
+
+               try {
+                  TimeSliderVSAQuery query = (TimeSliderVSAQuery) VSAQuery.
+                     createVSAQuery(this, sassembly, DataMap.NORMAL);
+                  Object obj = getData(sassembly.getName());
+                  query.refreshSelectionValue(obj);
+               }
+               catch(ConfirmException | CancelledException ex) {
+                  throw ex;
+               }
+               catch(Exception ex) {
+                  // The column this slider is bound to (e.g. a chart measure, if this
+                  // slider is a filter on a chart) may have just been removed from its
+                  // source by the change that triggered this refresh. Don't let one
+                  // stale binding fail refreshing every other selection on the sheet;
+                  // just leave this slider showing no selection until it is rebound
+                  // or removed.
+                  LOG.warn("Failed to refresh selection value for: {}",
+                     sassembly.getAbsoluteName(), ex);
+                  tsassembly.setSelectionList(null);
+                  tsassembly.setStateSelectionList(null);
+               }
             }
 
             if(sassembly instanceof CalendarVSAssembly &&
@@ -7810,8 +7832,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Use when calling long-running operations (e.g. getData()) while a write lock is held,
     * to prevent blocking background threads that need a read lock.
     *
-    * <p>Not safe for re-entrant use: if a nested call to unlockAll() occurs on the
-    * same thread before restoreLocks() is called, the outer saved state will be lost.</p>
+    * <p>Safe for re-entrant use: a nested unlockAll()/restoreLocks() pair on the same
+    * thread does not discard the state saved by an enclosing unlockAll().</p>
     */
    public void unlockAll() {
       if(!AssetDataCache.isProcessorThread()) {

@@ -201,6 +201,14 @@ public class PPTValueHelper {
 
       if(!format.isWrapping()) {
          inBounds.width -= 2; // must consider margin for ppt!
+
+         // bug #75992, ppt may still auto-wrap text that just barely
+         // fits, even with word-wrap disabled on the textbox, because ppt's
+         // own font metrics differ slightly from the server's. Use the same
+         // safety margin as the wrapping table cell case below.
+         if(isTableCell) {
+            inBounds.width -= WRAP_GAP;
+         }
       }
       else {
          // bug1166609586046, although the text can showed whole on textbox
@@ -232,7 +240,7 @@ public class PPTValueHelper {
          // if wrap is set to false, the lines will not be
          // chop off at the right bound, so we need to it explicitly
          if(!format.isWrapping()) {
-            int idx = Util.breakLine(txt, bounds.getWidth() - 1, txtFont, false);
+            int idx = Util.breakLine(txt, inBounds.width, txtFont, false);
             txt = (idx < 0) ? txt : txt.substring(0, idx);
          }
 
@@ -264,6 +272,10 @@ public class PPTValueHelper {
       if(format.getBackground() != null) {
          textbox.setFillColor(PoiExcelVSUtil.getColorByAlpha(
             format.getBackground()));
+      }
+
+      if(format.getRoundCorner() > 0 && bounds != null) {
+         PPTVSUtil.applyRoundCorner(textbox, format.getRoundCorner(), bounds);
       }
 
       if(format.getForeground() != null) {
@@ -413,6 +425,59 @@ public class PPTValueHelper {
          VSAssemblyInfo.DEFAULT_BORDER_COLOR,
          VSAssemblyInfo.DEFAULT_BORDER_COLOR);
 
+      // Four independent straight-line shapes can't form a rounded corner, so draw a
+      // single rounded-rectangle outline instead when the round corner is set, using
+      // whichever side has a border configured first (top, then left/right/bottom) for
+      // the whole outline's style/color - a partial border gets a full box outline as a
+      // tradeoff for a uniformly-rounded look. Skip this for table/crosstab/tree cells
+      // (cellType != 0): those rely on the per-side CELL_TAIL/CELL_CONTENT skips below to
+      // avoid doubling up borders shared with adjacent cells, which a single all-sides
+      // shape can't replicate.
+      if(borders != null && format.getRoundCorner() > 0 && cellType == 0) {
+         int type = 0;
+         Color color = null;
+
+         if(borders.top != 0) {
+            type = borders.top;
+            color = colors == null || colors.topColor == null ?
+               defbcolors.topColor : colors.topColor;
+         }
+         else if(borders.left != 0) {
+            type = borders.left;
+            color = colors == null || colors.leftColor == null ?
+               defbcolors.leftColor : colors.leftColor;
+         }
+         else if(borders.right != 0) {
+            type = borders.right;
+            color = colors == null || colors.rightColor == null ?
+               defbcolors.rightColor : colors.rightColor;
+         }
+         else if(borders.bottom != 0) {
+            type = borders.bottom;
+            color = colors == null || colors.bottomColor == null ?
+               defbcolors.bottomColor : colors.bottomColor;
+         }
+
+         if(type != 0 && PPTVSUtil.getBorderWidth(type) != 0) {
+            // Table/crosstab cells are written as individual shapes with their own
+            // (non-rounded) borders, so the single rounded outline drawn on top doesn't
+            // automatically hide the square cell content that sticks out past the curve
+            // near each corner (PPT has no Graphics2D-style clip to lean on, unlike
+            // PDF/SVG). Mask it with a plain white square first, mirroring
+            // PoiExcelVSExporter's corner mask for the same underlying limitation.
+            maskTableCorners(x, y, width, height, format.getRoundCorner());
+
+            XSLFAutoShape roundBorder = slide.createAutoShape();
+            roundBorder.setAnchor(new Rectangle(x, y, width, height));
+            PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);
+            roundBorder.setFillColor(null);
+            PPTVSUtil.applyLineStyle(roundBorder, type);
+            roundBorder.setLineColor(color);
+         }
+
+         return;
+      }
+
       if(borders != null) {
          if(PPTVSUtil.getBorderWidth(borders.left) != 0) {
             XSLFAutoShape leftBorder = slide.createAutoShape();
@@ -474,6 +539,31 @@ public class PPTValueHelper {
             }
          }
       }
+   }
+
+   /**
+    * Paint over the four radius x radius corners with a plain white square, hiding
+    * whatever square cell content is underneath so it reads as clipped by the rounded
+    * corner instead of poking out past it.
+    */
+   private void maskTableCorners(int x, int y, int width, int height, int roundCorner) {
+      int r = (int) Math.min(roundCorner * PPTVSUtil.PIXEL_TO_POINT,
+                             Math.min(width, height) / 2d);
+
+      if(r <= 0) {
+         return;
+      }
+
+      maskCorner(x, y, r);
+      maskCorner(x + width - r, y, r);
+      maskCorner(x, y + height - r, r);
+      maskCorner(x + width - r, y + height - r, r);
+   }
+
+   private void maskCorner(int x, int y, int size) {
+      XSLFAutoShape mask = slide.createAutoShape();
+      mask.setAnchor(new Rectangle(x, y, size, size));
+      mask.setFillColor(Color.WHITE);
    }
 
    private Rectangle2D bounds = null;

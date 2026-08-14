@@ -391,9 +391,15 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
          return propmap.get(id);
       }
 
+      if(members.containsKey(id)) {
+         return members.get(id);
+      }
+
       // the dynamic-scope fallback (executing scope) is now provided centrally
       // by BindingRootProxy
-      return members.get(id);
+      ScriptScope owner = findInChain(id);
+
+      return owner == null ? null : owner.getMember(id);
    }
 
    @Override
@@ -440,7 +446,43 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
          return true;
       }
 
-      return members.containsKey(name);
+      if(members.containsKey(name)) {
+         return true;
+      }
+
+      return findInChain(name) != null;
+   }
+
+   /**
+    * Find the scope in this scope's lookup chain that defines a name this scope
+    * does not define itself. The chain is populated by
+    * {@link JavaScriptEngine#addToPrototype(Object, Object)} -- in practice with
+    * the base worksheet's {@code AssetQueryScope}, which resolves worksheet
+    * table assembly names.
+    *
+    * <p>A qualified read such as {@code viewsheet['<worksheet table>']} is
+    * dispatched straight at this scope by {@code ScopeProxy}, so it never goes
+    * through {@code BindingRootProxy}'s chain walk (that only covers unqualified
+    * names). Rhino resolved such a read through this object's prototype chain,
+    * which is what {@code addToPrototype} populated, so the chain has to be
+    * walked here to keep the qualified form resolving. Both the read and the
+    * presence test need it, since GraalJS only calls {@code getMember} after
+    * {@code hasMember} reported the name present. (#75807)
+    *
+    * @param name the member name to look for.
+    *
+    * @return the owning scope, or <tt>null</tt> if the name is not in the chain.
+    */
+   private ScriptScope findInChain(String name) {
+      for(ScriptScope scope = getParentScope();
+          scope != null && scope != this; scope = scope.getParentScope())
+      {
+         if(scope.hasMember(name)) {
+            return scope;
+         }
+      }
+
+      return null;
    }
 
    /**

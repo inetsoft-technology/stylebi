@@ -666,7 +666,10 @@ public class DataSourceRegistry implements MessageListener {
 
          for(int j = 0; j < folderList.getLength(); j++) {
             Element node = (Element) folderList.item(j);
-            dmodel.addFolder(Tool.getAttribute(node, "name"));
+            String createdDateStr = Tool.getAttribute(node, "createdDate");
+            long createdDate = createdDateStr == null ? 0 : Long.parseLong(createdDateStr);
+            dmodel.addFolder(Tool.getAttribute(node, "name"), Tool.getAttribute(node, "createdBy"),
+               createdDate);
          }
       }
 

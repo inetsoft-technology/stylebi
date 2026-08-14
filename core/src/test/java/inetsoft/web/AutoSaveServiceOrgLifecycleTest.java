@@ -30,6 +30,8 @@ import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
@@ -140,19 +142,13 @@ class AutoSaveServiceOrgLifecycleTest {
                   + "(suspected incorrect) behavior for confirmation, not the desired one");
    }
 
-   // ── scenario 6g: migrateAutoSaveFiles() under runInOrgScope(newOrgID,...) correctly scopes to the
-   //    new org's bucket -- confirmed correct, not a bug (see matrix doc for the 6g correction) ──
+   // ── scenario 6g: migrateAutoSaveFiles() scopes strictly to the explicit storageOrgId bucket --
+   //    it takes no Principal at all, so there's no ambient principal/org context to fall back to ──
 
    @Test
-   void migrateAutoSaveFiles_runInOrgScope_correctlyScopesToNewOrgBucket() throws Exception {
+   void migrateAutoSaveFiles_explicitStorageOrgId_scopesToTargetBucket() throws Exception {
       String sourceOrgId = "sixg_source_org";
       String targetOrgId = "sixg_target_org";
-      String actorOrgId = "sixg_unrelated_actor_org";
-
-      // acting principal's OWN org is unrelated to both source/target -- proves resolution comes
-      // from OrganizationContextHolder (set by runInOrgScope), not from the principal's own identity
-      Principal principal = new SRPrincipal(new IdentityID("sixg_actor", actorOrgId),
-                                            new IdentityID[0], new String[0], actorOrgId, 1L);
 
       // simulates the state right after 6a/6b's bucket-level copyStorages("__autoSave", copy=true):
       // the raw file already lives in the TARGET org's bucket, still filename-tagged with the
@@ -164,10 +160,7 @@ class AutoSaveServiceOrgLifecycleTest {
       Organization oorg = new Organization(sourceOrgId);
       Organization norg = new Organization(targetOrgId);
 
-      OrganizationManager.runInOrgScope(targetOrgId, () -> {
-         AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
-         return null;
-      });
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, targetOrgId);
 
       String newUserKey = new IdentityID("sixg_user", targetOrgId).convertToKey();
       String expectedNewFileName = "8^VIEWSHEET^" + newUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
@@ -179,45 +172,130 @@ class AutoSaveServiceOrgLifecycleTest {
                  "the old, source-org-tagged filename must be renamed away within the target bucket");
       assertTrue(targetBucket.exists(expectedNewFileName),
                 "migrateAutoSaveFiles() must rename the file (within the target org's own bucket) "
-                + "to carry the target org's identity string, proving runInOrgScope(newOrgID, ...) "
-                + "correctly scoped getStorage(principal) to the target org despite the acting "
-                + "principal's own org being unrelated to source/target");
+                + "to carry the target org's identity string, using the explicit storageOrgId "
+                + "argument");
    }
 
-   // ── scenario 6h: removeExpiredAutoSaveFiles() only ever inspects the default org's bucket -- a
-   //    non-default org's bucket is never even listed, regardless of what it contains ──
+   // ── Issue #75827 (confirmed root cause of the reported "autosave file missing after org
+   //    clone" bug): migrateAutoSaveFiles() strips the "recycle/" prefix via getName() to split
+   //    out the name fields, then rebuilds the migrated filename from those fields WITHOUT
+   //    re-applying the prefix -- so a recycled (discarded) draft silently turns into an ACTIVE
+   //    autosave file after migration. addRecycleAutoSaved() only lists paths that still start
+   //    with RECYCLE_PREFIX, so the migrated file drops off the EM "Auto Saved Files" tree ──
 
    @Test
-   @Disabled("6h: not yet run/confirmed -- see matrix doc section 3.4")
-   void removeExpiredAutoSaveFiles_onlyScansDefaultOrgBucket_nonDefaultOrgNeverListed() throws Exception {
+   void migrateAutoSaveFiles_recycledDraft_keepsRecyclePrefixAfterMigration() throws Exception {
+      String sourceOrgId = "recyclepfx_source_org";
+      String targetOrgId = "recyclepfx_target_org";
+
+      String oldUserKey = new IdentityID("recyclepfx_user", sourceOrgId).convertToKey();
+      String recycledFileName =
+         AutoSaveUtils.RECYCLE_PREFIX + "8^WORKSHEET^" + oldUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
+      seedAutoSaveBlob(targetOrgId, recycledFileName, "not-real-xml-content".getBytes());
+
+      Organization oorg = new Organization(sourceOrgId);
+      Organization norg = new Organization(targetOrgId);
+
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, targetOrgId);
+
+      String newUserKey = new IdentityID("recyclepfx_user", targetOrgId).convertToKey();
+      String expectedNewFileName = AutoSaveUtils.RECYCLE_PREFIX +
+         "8^WORKSHEET^" + newUserKey + "^Untitled-1^0_0_0_0_0_0_0_1~";
+
+      BlobStorage<AutoSaveUtils.Metadata> targetBucket =
+         blobStorageManager.getStorage(targetOrgId.toLowerCase() + "__autoSave", false);
+
+      assertFalse(targetBucket.exists(recycledFileName),
+                 "the old, source-org-tagged filename must be renamed away");
+      assertTrue(targetBucket.exists(expectedNewFileName),
+                "migrateAutoSaveFiles() must preserve the RECYCLE_PREFIX on the migrated filename "
+                + "-- otherwise the recycled draft becomes an active autosave file and silently "
+                + "drops off the EM \"Auto Saved Files\" recycle-bin tree (Issue #75827)");
+   }
+
+   // ── Bug #75887 (scenario 6h): removeExpiredAutoSaveFiles() only ever inspected the default
+   //    org's bucket -- a non-default org's bucket was never even listed, regardless of age.
+   //    Fixed by looping over SecurityProvider.getOrganizationIDs() and scoping each pass via
+   //    OrganizationContextHolder, mirroring CleanupTableCacheTask's cross-org pattern ──
+
+   @Test
+   void removeExpiredAutoSaveFiles_expiredNonDefaultOrgFile_isDeleted() throws Exception {
       String nonDefaultOrgId = "sixh_non_default_org";
-      seedAutoSaveBlob(nonDefaultOrgId, "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~",
-                       "dummy".getBytes());
+      String path = "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~";
+      long eightDaysAgo = System.currentTimeMillis() - java.time.Duration.ofDays(8).toMillis();
+      seedAutoSaveBlob(nonDefaultOrgId, path, "dummy".getBytes(), eightDaysAgo);
 
       ViewsheetService viewsheetService = mock(ViewsheetService.class);
       AutoSaveService service = new AutoSaveService(viewsheetService);
 
       // no ThreadContext principal set (mirrors the @Scheduled executor thread in production, where
       // ThreadContext.getContextPrincipal() is normally null)
-      service.removeExpiredAutoSaveFiles();
+      try(MockedStatic<SecurityEngine> securityEngine = mockOrganizationIDs(nonDefaultOrgId)) {
+         service.removeExpiredAutoSaveFiles();
+      }
+
+      BlobStorage<AutoSaveUtils.Metadata> nonDefaultBucket =
+         blobStorageManager.getStorage(nonDefaultOrgId.toLowerCase() + "__autoSave", false);
+
+      assertEquals(0, nonDefaultBucket.paths().count(),
+                  "removeExpiredAutoSaveFiles() must scan every organization's __autoSave bucket, "
+                  + "not just the default org's, and delete entries older than 7 days from each");
+   }
+
+   @Test
+   void removeExpiredAutoSaveFiles_freshNonDefaultOrgFile_survives() throws Exception {
+      String nonDefaultOrgId = "sixh_non_default_org_fresh";
+      String path = "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~";
+      seedAutoSaveBlob(nonDefaultOrgId, path, "dummy".getBytes(), 0L);
+
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AutoSaveService service = new AutoSaveService(viewsheetService);
+
+      try(MockedStatic<SecurityEngine> securityEngine = mockOrganizationIDs(nonDefaultOrgId)) {
+         service.removeExpiredAutoSaveFiles();
+      }
 
       BlobStorage<AutoSaveUtils.Metadata> nonDefaultBucket =
          blobStorageManager.getStorage(nonDefaultOrgId.toLowerCase() + "__autoSave", false);
 
       assertEquals(1, nonDefaultBucket.paths().count(),
-                  "removeExpiredAutoSaveFiles() currently never inspects any bucket other than the "
-                  + "default org's -- a non-default org's file survives untouched regardless of age, "
-                  + "which is the reported gap (not whether age-based deletion itself works)");
+                  "a non-default org's auto save file that is not yet 7 days old must not be deleted");
+   }
+
+   /**
+    * The test fixture's default SecurityProvider (VirtualAuthenticationProvider) only ever
+    * reports the default org, so removeExpiredAutoSaveFiles()'s org loop needs
+    * SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs() stubbed to include
+    * the non-default org under test -- scoped to a try-with-resources so it can't leak into
+    * other tests sharing this class's cached Spring context.
+    */
+   private MockedStatic<SecurityEngine> mockOrganizationIDs(String... extraOrgIds) {
+      MockedStatic<SecurityEngine> securityEngineMock = mockStatic(SecurityEngine.class);
+      SecurityEngine engine = mock(SecurityEngine.class);
+      SecurityProvider provider = mock(SecurityProvider.class);
+      String[] orgIds = new String[extraOrgIds.length + 1];
+      orgIds[0] = Organization.getDefaultOrganizationID();
+      System.arraycopy(extraOrgIds, 0, orgIds, 1, extraOrgIds.length);
+      when(provider.getOrganizationIDs()).thenReturn(orgIds);
+      when(engine.getSecurityProvider()).thenReturn(provider);
+      securityEngineMock.when(SecurityEngine::getSecurity).thenReturn(engine);
+      return securityEngineMock;
    }
 
    // ── fixture helper ──
 
    private void seedAutoSaveBlob(String orgId, String path, byte[] content) throws Exception {
+      seedAutoSaveBlob(orgId, path, content, 0L);
+   }
+
+   private void seedAutoSaveBlob(String orgId, String path, byte[] content, long lastModified)
+      throws Exception
+   {
       BlobStorage<AutoSaveUtils.Metadata> storage =
          blobStorageManager.getStorage(orgId.toLowerCase() + "__autoSave", false);
 
       try(BlobTransaction<AutoSaveUtils.Metadata> tx = storage.beginTransaction();
-          OutputStream out = tx.newStream(path, new AutoSaveUtils.Metadata()))
+          OutputStream out = tx.newStream(path, new AutoSaveUtils.Metadata(), null, lastModified))
       {
          out.write(content);
          tx.commit();

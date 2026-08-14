@@ -90,7 +90,10 @@ const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, role: string, expectedVisi
    ["_#(Monitoring)", "link", true],
 ];
 
-async function renderComponent(permissions: ComponentPermissions) {
+async function renderComponent(
+   permissions: ComponentPermissions,
+   snackBar: { open: ReturnType<typeof vi.fn> } = { open: vi.fn() }
+) {
    server.use(
       http.get("*/api/em/navbar/get-navbar-model", () => HttpResponse.json(NAVBAR_MODEL))
    );
@@ -107,7 +110,7 @@ async function renderComponent(permissions: ComponentPermissions) {
          { provide: AppInfoService, useValue: { isEnterprise: () => of(true) } },
          { provide: LogoutService, useValue: { setFromEm: vi.fn(), setLogoutUrl: vi.fn(), inGracePeriod: of(false) } },
          { provide: MatDialog, useValue: { open: vi.fn() } },
-         { provide: MatSnackBar, useValue: { open: vi.fn() } },
+         { provide: MatSnackBar, useValue: snackBar },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });
@@ -137,5 +140,67 @@ describe("NavbarComponent — SECURITY: permission input visibility boundary", (
       expect(screen.queryByRole("link", { name: "_#(Settings)" })).toBeNull();
       expect(screen.queryByRole("link", { name: "_#(Monitoring)" })).toBeNull();
       expect(screen.queryByRole("button", { name: "_#(Send Notification)" })).toBeNull();
+   });
+});
+
+/**
+ * Bug #75821 — a 401/403 from GET em/help-links means the session expired or was invalidated
+ * (e.g. a cross-tab logout) while this request was in flight. InvalidSessionInterceptor already
+ * redirects to the login page for that case, so the component must not also pop a misleading
+ * "give this user permission to Enterprise Manager" toast on top of it. Any other failure (e.g. a
+ * 500) isn't handled by the interceptor's redirect, so the toast is still the right call there.
+ *
+ * console.error is unconditional in handleHelpLinkError and runs after the toast decision, so
+ * waiting for it gives a deterministic point at which to assert on the snackbar mock instead of
+ * racing the HTTP response.
+ */
+describe("NavbarComponent — help link error handling", () => {
+   // vitest-base.config.ts sets restoreMocks: true, so this spy is torn down automatically
+   // after each test.
+   let errorSpy: ReturnType<typeof vi.spyOn>;
+
+   beforeEach(() => {
+      errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+   });
+
+   it("suppresses the toast when help-links fails with 401 (session expired mid-load)", async () => {
+      server.use(
+         http.get("*/api/em/help-links", () => HttpResponse.json({ message: "Unauthorized" }, { status: 401 }))
+      );
+      const snackBar = { open: vi.fn() };
+
+      await renderComponent(ORG_ADMIN_PERMISSIONS, snackBar);
+      await screen.findByRole("link", { name: "_#(Settings)" });
+      await vi.waitFor(() => expect(errorSpy).toHaveBeenCalled());
+
+      expect(snackBar.open).not.toHaveBeenCalled();
+   });
+
+   it("suppresses the toast when help-links fails with 403", async () => {
+      server.use(
+         http.get("*/api/em/help-links", () => HttpResponse.json({ message: "Forbidden" }, { status: 403 }))
+      );
+      const snackBar = { open: vi.fn() };
+
+      await renderComponent(ORG_ADMIN_PERMISSIONS, snackBar);
+      await screen.findByRole("link", { name: "_#(Settings)" });
+      await vi.waitFor(() => expect(errorSpy).toHaveBeenCalled());
+
+      expect(snackBar.open).not.toHaveBeenCalled();
+   });
+
+   it("still shows the toast when help-links fails for a reason other than session expiry", async () => {
+      server.use(
+         http.get("*/api/em/help-links", () => HttpResponse.json({ message: "Internal error" }, { status: 500 }))
+      );
+      const snackBar = { open: vi.fn() };
+
+      await renderComponent(ORG_ADMIN_PERMISSIONS, snackBar);
+      await screen.findByRole("link", { name: "_#(Settings)" });
+      await vi.waitFor(() => expect(errorSpy).toHaveBeenCalled());
+
+      expect(snackBar.open).toHaveBeenCalledWith(
+         "_#(js:em.helpLinks.error)", null, expect.anything()
+      );
    });
 });

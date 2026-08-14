@@ -21,7 +21,7 @@ body {
 
 // seems to be a chrome bug that font changes to serif after first selection
 option {
-  font-family: sans-serif;
+  font-family: var(--inet-font-family);
 }
 
 //override browser dropdown arrow

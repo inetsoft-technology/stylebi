@@ -304,7 +304,9 @@ public class PresentationSettingsController {
          timeSettingsService.resetSettings(globalSettings);
          dataSourceVisibilitySettingsService.resetSettings(globalSettings);
          webMapSettingsService.resetSettings(principal, globalSettings);
-         dataSpaceContentSettingsService.deleteDataSpaceNode(ImageShapes.getShapesDirectory(), false);
+         String shapesDirectory = globalSettings ?
+            ImageShapes.getGlobalShapesDirectory() : ImageShapes.getShapesDirectory();
+         dataSpaceContentSettingsService.deleteDataSpaceNode(shapesDirectory, false);
          welcomePageService.resetSettings(globalSettings);
          loginBannerSettingsService.resetSettings(globalSettings);
 

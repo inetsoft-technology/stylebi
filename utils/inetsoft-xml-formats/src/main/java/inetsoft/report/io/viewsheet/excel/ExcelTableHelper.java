@@ -253,7 +253,13 @@ public class ExcelTableHelper extends VSTableHelper {
          (int) Math.round((double) info.getPixelSize().width / AssetUtil.defw));
 
       if(exporter.isMatchLayout()) {
-         rec.y = PoiExcelVSUtil.ceilY(info.getPixelOffset().y) + titleH;
+         // Only round the anchor down to the grid line when the title is hidden
+         // (bug #75894) — the rounding slop is otherwise absorbed by the title
+         // bar, and rounding down here would shift a visible title's header row
+         // up into the title, same tradeoff documented for alignBottomTabsTables()
+         // in PoiExcelVSExporter.java.
+         rec.y = (info.isTitleVisible() ? PoiExcelVSUtil.ceilY(info.getPixelOffset().y) :
+            PoiExcelVSUtil.floorY(info.getPixelOffset().y)) + titleH;
       }
 
       return rec;
@@ -309,6 +315,18 @@ public class ExcelTableHelper extends VSTableHelper {
    @Override
    protected void drawObjectFormat(TableDataVSAssemblyInfo info, VSTableLens lens,
                                    boolean borderOnly) {
+      // the border is drawn as an overlay shape on top of the cell data (rather than as
+      // native cell borders, which have no rounded-corner concept), so only draw once,
+      // after the cells are written, to match the "borderOnly" (second) pass used by
+      // PDF/SVG export.
+      if(!borderOnly || info == null) {
+         return;
+      }
+
+      Rectangle2D bounds = new Rectangle2D.Double(
+         info.getPixelOffset().x, info.getPixelOffset().y,
+         info.getPixelSize().width, info.getPixelSize().height);
+      ((PoiExcelVSExporter) getExporter()).drawTableRoundedBorder(bounds, info.getFormat());
    }
 
    /**

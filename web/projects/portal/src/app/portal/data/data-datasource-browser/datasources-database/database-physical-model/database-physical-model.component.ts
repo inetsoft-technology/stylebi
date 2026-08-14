@@ -19,7 +19,7 @@ import {
    Component, OnInit, OnDestroy, DoCheck, ViewChild, TemplateRef, HostListener
 } from "@angular/core";
 import { CanComponentDeactivate } from "../../../../../../../../shared/util/guard/can-component-deactivate";
-import { Observable, of, Subscription } from "rxjs";
+import { EMPTY, Observable, of, Subject, Subscription } from "rxjs";
 import { NotificationData } from "../../../../../widget/repository-tree/repository-tree.service";
 import { SplitPane } from "../../../../../widget/split-pane/split-pane.component";
 import { PhysicalTableAliasesDialog } from "../../../../dialog/physical-table-aliases-dialog/physical-table-aliases-dialog.component";
@@ -37,7 +37,7 @@ import { NameChangeModel } from "../../../model/name-change-model";
 import { NotificationsComponent } from "../../../../../widget/notifications/notifications.component";
 import { DatabaseTreeNodeModel } from "../../../model/datasources/database/physical-model/database-tree-node-model";
 import { PhysicalModelTreeNodeModel } from "../../../model/datasources/database/physical-model/physical-model-tree-node-model";
-import { tap } from "rxjs/operators";
+import { catchError, concatMap, tap } from "rxjs/operators";
 import { PhysicalTableType } from "../../../model/datasources/database/physical-model/physical-table-type.enum";
 import { FolderChangeModel } from "../../../model/folder-change-model";
 import { AddPhysicalModelEvent } from "../../../model/datasources/database/events/add-physical-model-event";
@@ -130,6 +130,13 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    readonly INIT_TREE_PANE_SIZE = 35;
    treePaneSize: number = this.INIT_TREE_PANE_SIZE;
    private subscription: Subscription;
+   // Serializes table/add and table/remove requests: the server does a read-modify-write
+   // on the cached runtime partition, so firing requests concurrently (e.g. quickly
+   // checking/unchecking several tables in the schema tree) risks one edit overwriting
+   // another.
+   private tableEditQueue: Subject<{action: "add" | "remove", event: EditTableEvent, node?: TreeNodeModel}>
+      = new Subject();
+   private tableEditQueueSubscription: Subscription;
    loadingTree: boolean = false;
    private graphViewModel: GraphViewModel;
    selectedGraphModels: GraphModel[] = [];
@@ -248,6 +255,40 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    }
 
    ngOnInit(): void {
+      this.tableEditQueueSubscription = this.tableEditQueue
+         .pipe(concatMap(({action, event, node}) =>
+            this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + action, event)
+               .pipe(
+                  tap(() => {
+                     if(action === "remove" && !!node) {
+                        const index = this.tableTree.selectedNodes.indexOf(node);
+
+                        if(index >= 0) {
+                           this.tableTree.selectedNodes.splice(index, 1);
+                        }
+                     }
+                  }),
+                  // an error here must not terminate the queue subscription, or every
+                  // subsequent table edit for the rest of the session would silently no-op.
+                  // revert the checkbox state and notify the user so the discrepancy
+                  // between the tree and the model doesn't go unnoticed.
+                  catchError(error => {
+                     if(action === "add" && !!event.node) {
+                        event.node.selected = false;
+                     }
+                     else if(action === "remove" && !!node?.data) {
+                        (<PhysicalModelTreeNodeModel> node.data).selected = true;
+                     }
+
+                     ComponentTool.showHttpError(
+                        action === "add" ? "Failed to add table" : "Failed to remove table",
+                        error, this.modalService);
+
+                     return EMPTY;
+                  })
+               )))
+         .subscribe(() => this.dataPhysicalModelService.emitModelChange());
+
       // subscribe to route parameters and update current database model
       this.routeParamSubscription = this.route.paramMap
          .subscribe((params: ParamMap) => {
@@ -987,8 +1028,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          const newTable: PhysicalTableModel = this.createPhysicalTableModel(nodeData);
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id, newTable,
             null, nodeData);
-         this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "add", event)
-            .subscribe(() => this.dataPhysicalModelService.emitModelChange());
+         // queued (not posted directly) so rapid successive add/remove requests don't race
+         this.tableEditQueue.next({action: "add", event});
 
          if(this.tableTree.selectedNodes?.length == 1 &&  this.tableTree.selectedNodes[0] == node) {
             this.setEditingTable(newTable);
@@ -1207,16 +1248,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       if(!!removeTable) {
          let event: EditTableEvent = new EditTableEvent(this.physicalModel.id,
             removeTable);
-         this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "remove", event)
-            .subscribe(() => {
-               let index = this.tableTree.selectedNodes.indexOf(node);
-
-               if(index >= 0) {
-                  this.tableTree.selectedNodes.splice(index, 1);
-               }
-
-               this.dataPhysicalModelService.emitModelChange();
-            });
+         // queued (not posted directly) so rapid successive add/remove requests don't race
+         this.tableEditQueue.next({action: "remove", event, node});
       }
 
       // if node is sql or inline view, remove from tree
@@ -1429,6 +1462,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       if(!!this.subscription) {
          this.subscription.unsubscribe();
          this.subscription = null;
+      }
+
+      if(!!this.tableEditQueueSubscription) {
+         this.tableEditQueueSubscription.unsubscribe();
+         this.tableEditQueueSubscription = null;
       }
 
       clearInterval(this.heartbeatIntervalId);

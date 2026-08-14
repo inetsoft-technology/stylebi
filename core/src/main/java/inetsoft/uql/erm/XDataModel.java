@@ -796,8 +796,18 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
    public void writeXML(PrintWriter writer) {
       writeStart(writer);
 
-      for(String folder : folders) {
-         writer.println("<folder name=\"" + Tool.escape(folder) + "\"/>");
+      for(FolderInfo folder : folders) {
+         writer.print("<folder name=\"" + Tool.escape(folder.getName()) + "\"");
+
+         if(folder.getCreatedBy() != null) {
+            writer.print(" createdBy=\"" + Tool.escape(folder.getCreatedBy()) + "\"");
+         }
+
+         if(folder.getCreatedDate() > 0) {
+            writer.print(" createdDate=\"" + folder.getCreatedDate() + "\"");
+         }
+
+         writer.println("/>");
       }
 
       writeEnd(writer);
@@ -820,7 +830,10 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
 
       for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
          Element node = (Element) nlist.item(i);
-         addFolder(Tool.getAttribute(node, "name"));
+         String createdDateStr = Tool.getAttribute(node, "createdDate");
+         long createdDate = createdDateStr == null ? 0 : Long.parseLong(createdDateStr);
+         addFolder(Tool.getAttribute(node, "name"), Tool.getAttribute(node, "createdBy"),
+            createdDate);
       }
    }
 
@@ -851,8 +864,20 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * Add a folder to the data model.
     */
    public void addFolder(String folder) {
-      if(!folders.contains(folder)) {
-         folders.add(folder);
+      addFolder(folder, null, 0);
+   }
+
+   /**
+    * Add a folder to the data model.
+    *
+    * @param folder the name of the folder.
+    * @param createdBy the name of the user that created the folder, or
+    *                  {@code null} if unknown.
+    * @param createdDate the date the folder was created, or 0 if unknown.
+    */
+   public void addFolder(String folder, String createdBy, long createdDate) {
+      if(getFolderInfo(folder) == null) {
+         folders.add(new FolderInfo(folder, createdBy, createdDate));
       }
    }
 
@@ -860,14 +885,70 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * Remove a folder from the data model.
     */
    public void removeFolder(String folder) {
-      folders.remove(folder);
+      folders.removeIf(info -> Tool.equals(info.getName(), folder));
+   }
+
+   /**
+    * Rename a folder in the data model, preserving its creation metadata.
+    */
+   public void renameFolder(String oldName, String newName) {
+      if(Tool.equals(oldName, newName)) {
+         return;
+      }
+
+      FolderInfo info = getFolderInfo(oldName);
+
+      if(info != null) {
+         if(getFolderInfo(newName) == null) {
+            info.setName(newName);
+         }
+         else {
+            // newName already exists, drop the old entry rather than create a duplicate
+            folders.remove(info);
+         }
+      }
+      else {
+         addFolder(newName);
+      }
    }
 
    /**
     * Get all folders of a data model.
     */
    public String[] getFolders() {
-      return folders.toArray(new String[folders.size()]);
+      String[] result = new String[folders.size()];
+
+      for(int i = 0; i < folders.size(); i++) {
+         result[i] = folders.get(i).getName();
+      }
+
+      return result;
+   }
+
+   /**
+    * Get the name of the user that created the given folder.
+    */
+   public String getFolderCreatedBy(String folder) {
+      FolderInfo info = getFolderInfo(folder);
+      return info == null ? null : info.getCreatedBy();
+   }
+
+   /**
+    * Get the creation date of the given folder.
+    */
+   public long getFolderCreatedDate(String folder) {
+      FolderInfo info = getFolderInfo(folder);
+      return info == null ? 0 : info.getCreatedDate();
+   }
+
+   private FolderInfo getFolderInfo(String folder) {
+      for(FolderInfo info : folders) {
+         if(Tool.equals(info.getName(), folder)) {
+            return info;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -875,6 +956,37 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     */
    public void removeFolders() {
       folders.clear();
+   }
+
+   /**
+    * Metadata for a data model folder.
+    */
+   private static class FolderInfo implements Serializable {
+      FolderInfo(String name, String createdBy, long createdDate) {
+         this.name = name;
+         this.createdBy = createdBy;
+         this.createdDate = createdDate;
+      }
+
+      String getName() {
+         return name;
+      }
+
+      void setName(String name) {
+         this.name = name;
+      }
+
+      String getCreatedBy() {
+         return createdBy;
+      }
+
+      long getCreatedDate() {
+         return createdDate;
+      }
+
+      private String name;
+      private final String createdBy;
+      private final long createdDate;
    }
 
    /**
@@ -942,7 +1054,7 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
    }
 
    private String datasource;
-   private ArrayList<String> folders = new ArrayList<>();
+   private ArrayList<FolderInfo> folders = new ArrayList<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XDataModel.class);

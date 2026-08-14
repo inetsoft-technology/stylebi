@@ -18,6 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
+   Injector,
    Input,
    OnChanges,
    OnInit,
@@ -110,7 +111,8 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    constructor(private http: HttpClient,
                private modalService: NgbModal,
                private queryModelService: DataQueryModelService,
-               private dragService: DragService)
+               private dragService: DragService,
+               private injector: Injector)
    {
    }
 
@@ -474,7 +476,8 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    showFieldDialog(add: boolean = false): void {
       let modalOptions: NgbModalOptions = {
          backdrop: "static",
-         windowClass: "query-field-dialog"
+         windowClass: "query-field-dialog",
+         injector: this.injector
       };
       const dialog = ComponentTool.showDialog(this.modalService, EditFieldDialogComponent,
          (expression) => {

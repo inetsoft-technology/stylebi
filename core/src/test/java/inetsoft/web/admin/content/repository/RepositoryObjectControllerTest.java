@@ -41,6 +41,7 @@ package inetsoft.web.admin.content.repository;
  * the injected service mocks.
  */
 
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.Resource;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.content.repository.model.*;
@@ -62,6 +63,7 @@ class RepositoryObjectControllerTest {
 
    @Mock private RepositoryObjectService repositoryObjectService;
    @Mock private ResourcePermissionService permissionService;
+   @Mock private ScheduleManager scheduleManager;
    @Mock private Principal principal;
    @Mock private ResourcePermissionModel permissionModel;
    @Mock private ContentRepositoryTreeNode treeNode;
@@ -74,7 +76,8 @@ class RepositoryObjectControllerTest {
 
    @BeforeEach
    void setUp() {
-      controller = new RepositoryObjectController(repositoryObjectService, permissionService);
+      controller = new RepositoryObjectController(repositoryObjectService, permissionService,
+                                                   scheduleManager);
    }
 
    // -------------------------------------------------------------------------

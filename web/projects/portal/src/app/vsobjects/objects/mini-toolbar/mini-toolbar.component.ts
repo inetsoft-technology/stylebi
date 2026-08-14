@@ -50,6 +50,16 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
+   // Overrides the CSS z-index constant on .mini-toolbar. The toolbar is a sibling of the
+   // assembly's own ".vs-object-parent-container", whose z-index is server-assigned and can be
+   // arbitrarily large (e.g. embedded-viewsheet or max-mode assemblies), so a fixed CSS z-index
+   // can end up lower than the assembly's own content and be painted underneath it.
+   @Input() zIndex: number = null;
+   // Not read directly -- its only purpose is to give ngOnChanges a signal to refresh
+   // displayActions when maxMode toggles, since maxMode is set by mutating the shared vsObject
+   // model in place (see viewer-app/vs-viewsheet onMaxModeChanged), which doesn't change the
+   // `actions` input's object identity and so wouldn't otherwise be observed here.
+   @Input() maxMode: boolean = false;
    @Input() assembly: string;
    @Input() forceAbove: boolean = false;
    @Input() visible: boolean = true;
@@ -102,7 +112,9 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    ngOnChanges(changes: SimpleChanges): void {
-      if(changes["actions"] || changes["miniToolbarActions"] || changes["width"]) {
+      if(changes["actions"] || changes["miniToolbarActions"] || changes["width"] ||
+         changes["maxMode"])
+      {
          this.displayActions = this.getActions();
       }
    }
@@ -123,7 +135,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    get alignLeft(): boolean {
-      const width = this.miniToolbarService.getActionsWidth(this.getActions());
+      const width = this.miniToolbarService.getActionsWidth(this.displayActions);
       return this.left + this.width - width < 0;
    }
 

@@ -158,7 +158,7 @@ public class LookAndFeelService {
       String sort = model.ascending() ? "Ascending" : "Descending";
       int repoTree = model.repositoryTree() ? 0 : 1;
 
-      SreeEnv.setProperty("repository.tree.sort", sort);
+      SreeEnv.setProperty("repository.tree.sort", sort, !globalSettings);
       manager.setReportListType(repoTree);
       manager.setAutoExpand(model.expand());
 
@@ -245,7 +245,7 @@ public class LookAndFeelService {
       if(globalSettings) {
          int repoTree = 0;
 
-         SreeEnv.setProperty("repository.tree.sort", defaultProp.getProperty("repository.tree.sort"));
+         SreeEnv.setProperty("repository.tree.sort", defaultProp.getProperty("repository.tree.sort"), !globalSettings);
          manager.setReportListType(repoTree);
          manager.setAutoExpand(false);
          manager.setLogoStyle(false);

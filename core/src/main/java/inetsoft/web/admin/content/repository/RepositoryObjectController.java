@@ -19,6 +19,8 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -38,10 +40,12 @@ import java.security.Principal;
 public class RepositoryObjectController {
    @Autowired
    public RepositoryObjectController(RepositoryObjectService repositoryObjectService,
-                                     ResourcePermissionService permissionService)
+                                     ResourcePermissionService permissionService,
+                                     ScheduleManager scheduleManager)
    {
       this.repositoryObjectService = repositoryObjectService;
       this.permissionService = permissionService;
+      this.scheduleManager = scheduleManager;
    }
 
    @Secured(
@@ -80,9 +84,7 @@ public class RepositoryObjectController {
       Resource resource = permissionService.getRepositoryResourceType(resourceType, path);
       String fullPath = Util.getObjectFullPath(resourceType, path, principal);
 
-      if(!SecurityEngine.getSecurity().checkPermission(
-         principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
-      {
+      if(!hasAdminPermission(resource, principal)) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.security.no.permission", path));
       }
@@ -150,6 +152,24 @@ public class RepositoryObjectController {
       repositoryObjectService.moveFiles(request, true, principal);
    }
 
+   /**
+    * Individual schedule tasks don't inherit permissions from their parent folder, so a user
+    * with only ADMIN on the folder can't be granted ADMIN via a permission record on the task
+    * itself. Fall back to the same owner/share based check used by the schedule task settings
+    * so a task's owner (or an admin over the owner) can still manage its permissions.
+    */
+   private boolean hasAdminPermission(Resource resource, Principal principal) throws Exception {
+      if(resource.getType() == ResourceType.SCHEDULE_TASK) {
+         ScheduleTask task = scheduleManager.getScheduleTask(resource.getPath());
+         return task != null &&
+            ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.ADMIN);
+      }
+
+      return SecurityEngine.getSecurity().checkPermission(
+         principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
+   }
+
    private final RepositoryObjectService repositoryObjectService;
    private final ResourcePermissionService permissionService;
+   private final ScheduleManager scheduleManager;
 }

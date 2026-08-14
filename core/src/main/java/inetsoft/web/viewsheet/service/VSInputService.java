@@ -296,12 +296,49 @@ public class VSInputService {
                .toArray();
             multiApplySelection(vsId, assemblyNames,
                                                        selectedObjects, principal, dispatcher, linkUri);
+
+            // Commit the submitted values into their bound embedded tables now, before the
+            // "refresh viewsheet after submit" button option (SubmitVSAssemblyInfo default)
+            // does a full viewsheet reset. That reset re-derives each input's selected value
+            // from its bound table cell, which would otherwise clobber the value just applied
+            // above with the stale, pre-submit value before it ever gets written back.
+            commitInputTableWrites(vsId, assemblyNames, principal, dispatcher, linkUri);
          }
       }
 
       onClick(vsId, name, x, y, linkUri, false, null, principal, dispatcher);
 
       return null;
+   }
+
+   /**
+    * Write the current (just-applied) selected values of the given input assemblies into
+    * their bound embedded table cells, if any.
+    */
+   private void commitInputTableWrites(String vsId, String[] assemblyNames, Principal principal,
+                                       CommandDispatcher dispatcher, String linkUri)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      ChangedAssemblyList clist =
+         coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+
+      box.get().lockWrite();
+
+      try {
+         for(String assemblyName : assemblyNames) {
+            box.get().processChange(assemblyName, VSAssembly.OUTPUT_DATA_CHANGED, clist);
+         }
+      }
+      finally {
+         box.get().unlockWrite();
+      }
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -2575,8 +2612,15 @@ public class VSInputService {
          if(assembly instanceof SubmitVSAssembly &&
             ((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh())
          {
+            // resetRuntime=false: reset=true already re-executes every assembly against the
+            // sandbox's current (in-memory) worksheet data, which is all "refresh viewsheet
+            // after submit" needs. resetRuntime=true would additionally reload the base
+            // worksheet from the asset repository (RuntimeViewsheet.resetRuntime() ->
+            // Viewsheet.update()), discarding the embedded-table write that was just made
+            // above for any submitted, non-submit-on-change input (e.g. a slider bound to an
+            // embedded table cell) before it was ever persisted to storage.
             this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                                       false, true, true, clist, true);
+                                                       false, true, true, clist, false);
          }
          else {
             box.get().processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
