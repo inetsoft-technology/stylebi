@@ -17,6 +17,22 @@
  */
 package inetsoft.web.wiz.viewsheet.model;
 
-/** One assembly's placement in a viewsheet, as the agent sees it. */
+import java.util.List;
+
+/**
+ * One assembly's placement in a viewsheet, as the agent sees it.
+ *
+ * <p>{@code annotationParts} is populated only on an annotation, naming the line and
+ * rectangle it owns. An annotation is three linked assemblies, and listed flat they read as
+ * three unrelated ones — so the read model groups them and the subordinate parts are omitted
+ * from the top level.
+ */
 public record AssemblyNode(String name, String type, int x, int y, int width, int height,
-                           int zIndex, String container, boolean visible) {}
+                           int zIndex, String container, boolean visible,
+                           List<String> annotationParts, String annotationContent) {
+   public AssemblyNode(String name, String type, int x, int y, int width, int height,
+                       int zIndex, String container, boolean visible)
+   {
+      this(name, type, x, y, width, height, zIndex, container, visible, null, null);
+   }
+}

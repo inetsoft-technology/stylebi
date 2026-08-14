@@ -172,8 +172,18 @@ public class ViewsheetEditService {
    {
       requireAssembly(request);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-         objects.removeObject(runtimeId, request.assembly(), linkUri, user, dispatcher));
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         // An annotation is three linked assemblies. Removing one leaves the survivors
+         // pointing at a name that no longer resolves, and nothing reports the orphaning.
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly target = vs == null ? null : vs.getAssembly(request.assembly());
+
+         if(target != null && AnnotationFamily.isPart(target)) {
+            throw AnnotationFamily.removeRefusal(request.assembly());
+         }
+
+         objects.removeObject(runtimeId, request.assembly(), linkUri, user, dispatcher);
+      });
    }
 
    /**

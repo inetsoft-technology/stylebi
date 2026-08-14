@@ -43,18 +43,25 @@ public class ViewsheetReadService {
       List<AssemblyNode> nodes = new ArrayList<>();
 
       for(Assembly assembly : vs.getAssemblies()) {
-         if(assembly instanceof VSAssembly vsAssembly) {
-            nodes.add(toNode(vsAssembly));
+         // The line and rectangle are reported under their annotation rather than beside it.
+         // Flat, the three read as unrelated assemblies with nothing to say they are one
+         // object, and an agent asked to "remove the annotation" would remove a third of it.
+         if(assembly instanceof VSAssembly vsAssembly &&
+            !AnnotationFamily.isSubordinatePart(vsAssembly))
+         {
+            nodes.add(toNode(vs, vsAssembly));
          }
       }
 
       return new ViewsheetModel(vs.getName(), nodes);
    }
 
-   private AssemblyNode toNode(VSAssembly assembly) {
+   private AssemblyNode toNode(Viewsheet vs, VSAssembly assembly) {
       Point offset = assembly.getPixelOffset();
       Dimension size = assembly.getPixelSize();
       Assembly container = assembly.getContainer();
+
+      List<String> parts = AnnotationFamily.partsOf(assembly);
 
       return new AssemblyNode(
          assembly.getAbsoluteName(),
@@ -65,7 +72,9 @@ public class ViewsheetReadService {
          size == null ? 0 : size.height,
          assembly.getVSAssemblyInfo() == null ? 0 : assembly.getVSAssemblyInfo().getZIndex(),
          container == null ? null : container.getName(),
-         assembly.isVisible());
+         assembly.isVisible(),
+         parts.isEmpty() ? null : parts,
+         AnnotationFamily.contentOf(vs, assembly));
    }
 
    /** "GaugeVSAssembly" reads as "Gauge" — the name the user sees in the Composer. */
