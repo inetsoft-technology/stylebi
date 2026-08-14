@@ -73,6 +73,7 @@ class ViewsheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.script.ScriptImageService.class),
                                           mock(AssemblyPropertyService.class),
                                           mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class));
    }

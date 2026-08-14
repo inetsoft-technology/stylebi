@@ -57,6 +57,7 @@ public class ViewsheetAssemblyAgentController {
                                    ScriptImageService imageService,
                                    AssemblyPropertyService propertyService,
                                    AssemblyHyperlinkService hyperlinkService,
+                                   ChartElementService chartElementService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -70,6 +71,7 @@ public class ViewsheetAssemblyAgentController {
       this.imageService = imageService;
       this.propertyService = propertyService;
       this.hyperlinkService = hyperlinkService;
+      this.chartElementService = chartElementService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -213,6 +215,52 @@ public class ViewsheetAssemblyAgentController {
                            request.link(), linkUri);
    }
 
+   public record ElementVisibilityRequest(String assembly, String element, String target,
+                                          Boolean visible) {}
+   public record PlotResizeRequest(String assembly, Double ratio, Boolean vertical,
+                                   Boolean reset) {}
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/elements")
+   public Map<String, Object> chartElementVocabulary(@PathVariable String sessionToken,
+                                                     Principal user)
+   {
+      requireEnabled();
+      return chartElementService.vocabulary();
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/element-visibility")
+   public void setChartElementVisibility(
+      @PathVariable String sessionToken,
+      @RequestBody ElementVisibilityRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+
+      if(request.visible() == null) {
+         throw new IllegalArgumentException(
+            "set_chart_element_visibility requires 'visible' — true to show, false to hide. " +
+            "Defaulting it either way would guess at the caller's intent.");
+      }
+
+      chartElementService.setVisibility(sessionToken, user, request.assembly(),
+                                        request.element(), request.target(), request.visible(),
+                                        linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/plot-size")
+   public void resizeChartPlot(@PathVariable String sessionToken,
+                               @RequestBody PlotResizeRequest request,
+                               @RequestParam(required = false, defaultValue = "") String linkUri,
+                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartElementService.resizePlot(sessionToken, user, request.assembly(), request.ratio(),
+                                     Boolean.TRUE.equals(request.vertical()),
+                                     Boolean.TRUE.equals(request.reset()), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
       requireEnabled();
@@ -311,6 +359,7 @@ public class ViewsheetAssemblyAgentController {
    private final ScriptImageService imageService;
    private final AssemblyPropertyService propertyService;
    private final AssemblyHyperlinkService hyperlinkService;
+   private final ChartElementService chartElementService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }
