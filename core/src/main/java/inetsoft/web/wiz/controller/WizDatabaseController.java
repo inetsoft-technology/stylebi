@@ -26,6 +26,8 @@ import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.SQLHelper;
+import inetsoft.uql.tabular.ScriptedQuery;
+import inetsoft.uql.tabular.SelectableTabularQuery;
 import inetsoft.uql.util.Config;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.content.database.*;
@@ -582,6 +584,7 @@ public class WizDatabaseController {
       boolean folder = isFolder(nodeType);
       String sourceType = null;
       String databaseType = null;
+      String annotationClass = null;
 
       if(!folder) {
          try {
@@ -593,6 +596,8 @@ public class WizDatabaseController {
                if(dataSource instanceof JDBCDataSource jdbcDataSource) {
                   databaseType = jdbcDataSource.getDatabaseTypeString();
                }
+
+               annotationClass = annotationClassOf(dataSource);
             }
          }
          catch(Throwable ex) {
@@ -600,12 +605,98 @@ public class WizDatabaseController {
             // the whole listing down with it. The row still renders, just without a type.
             LOG.debug("Failed to resolve the type of data source {}: {}", info.path(),
                       ex.getMessage());
+            annotationClass = UNKNOWN;
          }
       }
 
       return new WizDatasourceEntry(info.name(), info.path(), nodeType, folder, sourceType,
-                                    databaseType, info.createdBy(), info.createdDate(),
-                                    info.editable(), info.deletable(), info.hasSubFolder());
+                                    databaseType, annotationClass, info.createdBy(),
+                                    info.createdDate(), info.editable(), info.deletable(),
+                                    info.hasSubFolder());
+   }
+
+   /**
+    * Decides how a data source can be annotated. See {@link WizDatasourceEntry} for what each value
+    * means to the portal.
+    *
+    * <p>The question is answered from the QUERY class rather than the data source, because what
+    * distinguishes these cases is how targets are discovered, and that lives on the query. The query
+    * class also owns the {@code endpoints.json} resource, which is the whole of the
+    * {@code ENDPOINT_CATALOG} test.</p>
+    *
+    * <p>Order matters and runs specific to general. {@code EndpointJsonQuery} extends
+    * {@code RestJsonQuery}, so testing for REST first would classify all 65 catalogued connectors as
+    * needing documentation they do not need.</p>
+    */
+   private String annotationClassOf(XDataSource dataSource) {
+      String type = dataSource.getType();
+
+      if(dataSource instanceof JDBCDataSource) {
+         return JDBC;
+      }
+
+      Class<?> queryClass;
+
+      try {
+         String className = uqlConfig.getQueryClass(type);
+
+         if(className == null) {
+            return UNKNOWN;
+         }
+
+         queryClass = uqlConfig.getClass(type, className);
+      }
+      catch(Throwable ex) {
+         // A connector whose plugin is absent cannot be classified. Saying UNKNOWN keeps that
+         // distinct from "classified as not annotatable", which the portal reports very differently.
+         LOG.debug("Failed to load the query class for type {}: {}", type, ex.getMessage());
+         return UNKNOWN;
+      }
+
+      return queryClass == null ? UNKNOWN : classifyQueryClass(queryClass);
+   }
+
+   /**
+    * The classification itself, separated from how the class was obtained so it can be exercised
+    * without standing up a plugin registry.
+    */
+   static String classifyQueryClass(Class<?> queryClass) {
+      if(ScriptedQuery.class.isAssignableFrom(queryClass)) {
+         return UNSUPPORTED;
+      }
+
+      // Resource lookup rather than a class-name test: shipping an endpoints.json IS the property
+      // being asked about, and core cannot reference the connector classes to test them directly.
+      if(queryClass.getResource("endpoints.json") != null) {
+         return ENDPOINT_CATALOG;
+      }
+
+      if(isRestQuery(queryClass)) {
+         return DOCUMENT_REQUIRED;
+      }
+
+      if(SelectableTabularQuery.class.isAssignableFrom(queryClass)) {
+         return FILE;
+      }
+
+      return METADATA;
+   }
+
+   /**
+    * Whether the query descends from the REST base class, by name.
+    *
+    * <p>{@code AbstractRestQuery} lives in a connector module that core does not depend on, so it
+    * cannot be named directly. Walking the superclass chain keeps this to one string rather than
+    * enumerating every REST query type.</p>
+    */
+   private static boolean isRestQuery(Class<?> queryClass) {
+      for(Class<?> c = queryClass; c != null; c = c.getSuperclass()) {
+         if(REST_QUERY_CLASS.equals(c.getName())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -982,4 +1073,16 @@ public class WizDatabaseController {
    private final SecurityEngine securityEngine;
    private final Config uqlConfig;
    private final XRepository xrepository;
+
+   /** Annotation classes. See {@link WizDatasourceEntry} for what each one means to the portal. */
+   private static final String JDBC = "JDBC";
+   private static final String FILE = "FILE";
+   private static final String METADATA = "METADATA";
+   private static final String ENDPOINT_CATALOG = "ENDPOINT_CATALOG";
+   private static final String DOCUMENT_REQUIRED = "DOCUMENT_REQUIRED";
+   private static final String UNSUPPORTED = "UNSUPPORTED";
+   private static final String UNKNOWN = "UNKNOWN";
+
+   /** Named rather than imported: it lives in a connector module core does not depend on. */
+   private static final String REST_QUERY_CLASS = "inetsoft.uql.rest.AbstractRestQuery";
 }
