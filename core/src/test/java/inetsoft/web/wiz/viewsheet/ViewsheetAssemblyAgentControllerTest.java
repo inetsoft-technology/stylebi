@@ -38,12 +38,12 @@ class ViewsheetAgentControllerTest {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
 
-      ViewsheetAgentController controller = controllerWith(feature,
+      ViewsheetAssemblyAgentController controller = controllerWith(feature,
                                                            mock(ViewsheetSessionService.class),
                                                            mock(ViewsheetReadService.class));
 
       assertThrows(ResponseStatusException.class, () ->
-         controller.join(new ViewsheetAgentController.JoinRequest("ABCD2345"), principal()));
+         controller.join(new ViewsheetAssemblyAgentController.JoinRequest("ABCD2345"), principal()));
    }
 
    @Test
@@ -57,16 +57,16 @@ class ViewsheetAgentControllerTest {
       when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
       when(reader.read(rvs)).thenReturn(expected);
 
-      ViewsheetAgentController controller = controllerWith(feature, sessions, reader);
+      ViewsheetAssemblyAgentController controller = controllerWith(feature, sessions, reader);
 
       assertSame(expected, controller.model("tok", principal()));
    }
 
-   private static ViewsheetAgentController controllerWith(SheetAgentFeature feature,
+   private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
                                                           ViewsheetSessionService sessions,
                                                           ViewsheetReadService reader)
    {
-      return new ViewsheetAgentController(feature, mock(SheetJoinService.class),
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
                                           mock(SheetSessionService.class), sessions, reader,
                                           mock(ViewsheetEditService.class),
                                           mock(ViewsheetFormatService.class),

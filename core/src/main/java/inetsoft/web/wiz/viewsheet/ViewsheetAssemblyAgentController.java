@@ -45,9 +45,9 @@ import java.util.Map;
  * and the browser broadcast.
  */
 @RestController
-public class ViewsheetAgentController {
+public class ViewsheetAssemblyAgentController {
    @Autowired
-   public ViewsheetAgentController(SheetAgentFeature feature,
+   public ViewsheetAssemblyAgentController(SheetAgentFeature feature,
                                    SheetJoinService joinService,
                                    SheetSessionService sessionService,
                                    ViewsheetSessionService sessions,
