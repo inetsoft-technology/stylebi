@@ -55,6 +55,7 @@ public class ViewsheetAssemblyAgentController {
                                    ViewsheetEditService editService,
                                    ViewsheetFormatService formatService,
                                    ScriptImageService imageService,
+                                   AssemblyPropertyService propertyService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -66,6 +67,7 @@ public class ViewsheetAssemblyAgentController {
       this.editService = editService;
       this.formatService = formatService;
       this.imageService = imageService;
+      this.propertyService = propertyService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -129,6 +131,40 @@ public class ViewsheetAssemblyAgentController {
       return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
                                image.isPng() ? "png" : "svg",
                                image.width(), image.height(), image.note());
+   }
+
+   public record PropertyPatchRequest(String assembly, Map<String, Object> properties) {}
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/properties/list")
+   public Map<String, Object> listAssemblyProperties(@PathVariable String sessionToken,
+                                                     @RequestParam String assembly,
+                                                     Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return propertyService.list(sessionToken, user, assembly);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/properties")
+   public Object getAssemblyProperties(@PathVariable String sessionToken,
+                                       @RequestParam String assembly,
+                                       @RequestParam(required = false) boolean raw,
+                                       Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return propertyService.get(sessionToken, user, assembly, raw);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/properties")
+   public void setAssemblyProperties(@PathVariable String sessionToken,
+                                     @RequestBody PropertyPatchRequest request,
+                                     @RequestParam(required = false, defaultValue = "") String linkUri,
+                                     Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      propertyService.set(sessionToken, user, request.assembly(), request.properties(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
@@ -227,6 +263,7 @@ public class ViewsheetAssemblyAgentController {
    private final ViewsheetEditService editService;
    private final ViewsheetFormatService formatService;
    private final ScriptImageService imageService;
+   private final AssemblyPropertyService propertyService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }
