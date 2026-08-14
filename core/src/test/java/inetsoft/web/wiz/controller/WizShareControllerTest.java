@@ -17,18 +17,15 @@
  */
 package inetsoft.web.wiz.controller;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityException;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import inetsoft.web.share.ShareConfig;
+import inetsoft.web.share.ShareController;
+import inetsoft.web.share.ShareMessage;
+import inetsoft.web.wiz.model.ShareMessageRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,70 +33,84 @@ import static org.mockito.Mockito.*;
 
 @Tag("core")
 class WizShareControllerTest {
-   private MockedStatic<SreeEnv> sreeEnv;
 
-   @BeforeEach
-   void setUp() {
-      sreeEnv = mockStatic(SreeEnv.class, withSettings().lenient());
-   }
+   @Test
+   void getShareConfigDelegatesToShareController() throws Exception {
+      ShareController shareController = mock(ShareController.class);
+      Principal principal = mock(Principal.class);
+      ShareConfig config = ShareConfig.builder()
+         .emailEnabled(true).facebookEnabled(false).googleChatEnabled(true)
+         .linkedinEnabled(false).slackEnabled(true).twitterEnabled(false).linkEnabled(true)
+         .build();
+      when(shareController.getConfig(isNull(), eq(principal))).thenReturn(config);
 
-   @AfterEach
-   void tearDown() {
-      sreeEnv.close();
-   }
+      WizShareController ctrl = new WizShareController(shareController);
 
-   private void configureLinkEnabledProperty(String value) {
-      sreeEnv.when(() -> SreeEnv.getProperty("share.link.enabled")).thenReturn(value);
+      assertSame(config, ctrl.getShareConfig(principal));
    }
 
    @Test
-   void enabledWhenPropertyTrueAndPermissionGranted() throws Exception {
-      configureLinkEnabledProperty("true");
-      SecurityEngine sec = mock(SecurityEngine.class);
+   void shareEmailBuildsShareMessageAndDelegates() throws Exception {
+      ShareController shareController = mock(ShareController.class);
       Principal principal = mock(Principal.class);
-      when(sec.checkPermission(eq(principal), eq(ResourceType.SHARE), eq("link"),
-         eq(ResourceAction.ACCESS))).thenReturn(true);
 
-      WizShareController ctrl = new WizShareController(sec);
+      ShareMessageRequest request = new ShareMessageRequest();
+      request.setViewsheetId("1^4^admin^visualizations-593.../abc^host-org");
+      request.setLink("/sree/viewer/view/global/visualizations-593.../abc");
+      request.setMessage("Check this out");
+      request.setSubject("A chart");
+      request.setRecipients(List.of("a@b.com"));
+      request.setCcs(List.of("c@d.com"));
+      request.setBccs(List.of("e@f.com"));
 
-      assertTrue(ctrl.isShareLinkEnabled(principal));
+      WizShareController ctrl = new WizShareController(shareController);
+      ctrl.shareEmail(request, principal);
+
+      verify(shareController).sendEmailMessage(argThat((ShareMessage m) ->
+         "1^4^admin^visualizations-593.../abc^host-org".equals(m.viewsheetId()) &&
+         "/sree/viewer/view/global/visualizations-593.../abc".equals(m.link()) &&
+         "Check this out".equals(m.message()) &&
+         "A chart".equals(m.subject()) &&
+         List.of("a@b.com").equals(m.recipients()) &&
+         List.of("c@d.com").equals(m.ccs()) &&
+         List.of("e@f.com").equals(m.bccs())
+      ), eq(principal));
    }
 
    @Test
-   void disabledWhenPropertyFalse() throws Exception {
-      configureLinkEnabledProperty("false");
-      SecurityEngine sec = mock(SecurityEngine.class);
+   void shareSlackBuildsShareMessageAndDelegates() throws Exception {
+      ShareController shareController = mock(ShareController.class);
       Principal principal = mock(Principal.class);
-      when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
 
-      WizShareController ctrl = new WizShareController(sec);
+      ShareMessageRequest request = new ShareMessageRequest();
+      request.setLink("/sree/viewer/view/global/visualizations-593.../abc");
+      request.setMessage("Check this out");
 
-      assertFalse(ctrl.isShareLinkEnabled(principal));
+      WizShareController ctrl = new WizShareController(shareController);
+      ctrl.shareSlack(request, principal);
+
+      verify(shareController).sendSlackMessage(argThat((ShareMessage m) ->
+         "/sree/viewer/view/global/visualizations-593.../abc".equals(m.link()) &&
+         "Check this out".equals(m.message()) &&
+         m.viewsheetId() == null
+      ), eq(principal));
    }
 
    @Test
-   void disabledWhenPermissionDenied() throws Exception {
-      configureLinkEnabledProperty("true");
-      SecurityEngine sec = mock(SecurityEngine.class);
+   void shareGoogleChatBuildsShareMessageAndDelegates() throws Exception {
+      ShareController shareController = mock(ShareController.class);
       Principal principal = mock(Principal.class);
-      when(sec.checkPermission(eq(principal), eq(ResourceType.SHARE), eq("link"),
-         eq(ResourceAction.ACCESS))).thenReturn(false);
 
-      WizShareController ctrl = new WizShareController(sec);
+      ShareMessageRequest request = new ShareMessageRequest();
+      request.setLink("/sree/viewer/view/global/visualizations-593.../abc");
+      request.setMessage("Check this out");
 
-      assertFalse(ctrl.isShareLinkEnabled(principal));
-   }
+      WizShareController ctrl = new WizShareController(shareController);
+      ctrl.shareGoogleChat(request, principal);
 
-   @Test
-   void disabledWhenPermissionCheckThrows() throws Exception {
-      configureLinkEnabledProperty("true");
-      SecurityEngine sec = mock(SecurityEngine.class);
-      Principal principal = mock(Principal.class);
-      when(sec.checkPermission(any(), any(), anyString(), any()))
-         .thenThrow(new SecurityException("not logged in"));
-
-      WizShareController ctrl = new WizShareController(sec);
-
-      assertFalse(ctrl.isShareLinkEnabled(principal));
+      verify(shareController).sendGoogleChatMessage(argThat((ShareMessage m) ->
+         "/sree/viewer/view/global/visualizations-593.../abc".equals(m.link()) &&
+         "Check this out".equals(m.message())
+      ), eq(principal));
    }
 }

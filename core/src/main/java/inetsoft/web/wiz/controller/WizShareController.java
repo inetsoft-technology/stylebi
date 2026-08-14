@@ -17,56 +17,74 @@
  */
 package inetsoft.web.wiz.controller;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import inetsoft.web.share.ShareConfig;
+import inetsoft.web.share.ShareController;
+import inetsoft.web.share.ShareMessage;
+import inetsoft.web.wiz.model.ShareMessageRequest;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 
 /**
- * Mirrors the "link" channel of the native {@code /api/share/config} endpoint
- * (ShareController.getConfig()'s linkEnabled computation — no share logic is reimplemented
- * here) under wiz's own JWT-authenticated, CSRF-exempt /api/wiz namespace.
+ * Wraps the same {@code ShareController} that backs StyleBI's native {@code /api/share/*}
+ * endpoints — no share logic is reimplemented here — under wiz's own JWT-authenticated,
+ * CSRF-exempt {@code /api/wiz} namespace, so wiz's browser never needs to talk to StyleBI's
+ * session/CSRF-protected controller directly.
  *
- * <p>Unlike export/email, generating the shareable URL itself needs no backend call: StyleBI's
- * own Share-link dialog (ShareService.getViewsheetLink() in the Angular app) builds it purely
- * client-side from the asset entry identifier (global/&lt;path&gt; or user/&lt;name&gt;/&lt;path&gt;
- * under viewer/view/), so wiz replicates that same string-building logic in its own frontend
- * instead of wrapping a link-generation service that doesn't exist server-side. This controller
- * only exposes the admin-configurable on/off switch so wiz can hide the Share button consistently
- * with however the deployment has "Share via Link" configured.
+ * <p>Unlike export/email, there is no separate {@code *Service}/{@code *ServiceProxy} bean for
+ * share's email/Slack/Google Chat sending — that logic lives directly in {@code ShareController}
+ * itself — so this proxies the controller bean directly rather than a service tier.
+ *
+ * <p>The Link channel has no endpoint here at all: it was dropped from wiz's Share menu entirely
+ * (product decision — the Share icon is for sending a chart to someone/somewhere, not for
+ * grabbing a bare URL), and even where it existed it needed no backend call —
+ * {@code ShareService.getViewsheetLink()} (the Angular app's own Share-link dialog) builds the
+ * shareable URL purely client-side.
+ *
+ * <p>{@code getConfig}'s {@code orgId} param is passed as {@code null} here: it only matters for
+ * the "expose default-org viewsheets to every org" multi-tenant feature (an explicit cross-org
+ * query), which wiz's frontend never sends — matching how the Angular app itself only supplies
+ * an {@code orgId} for that specific case.
  */
 @RestController
 @RequestMapping("/api/wiz")
 public class WizShareController {
-   public WizShareController(SecurityEngine securityEngine) {
-      this.securityEngine = securityEngine;
+   public WizShareController(ShareController shareController) {
+      this.shareController = shareController;
    }
 
-   @GetMapping("/viewsheet/share-link-enabled")
-   public boolean isShareLinkEnabled(Principal principal) {
-      return "true".equals(SreeEnv.getProperty("share.link.enabled")) &&
-         checkLinkPermission(principal);
+   @GetMapping("/viewsheet/share-config")
+   public ShareConfig getShareConfig(Principal principal) throws Exception {
+      return shareController.getConfig(null, principal);
    }
 
-   private boolean checkLinkPermission(Principal principal) {
-      try {
-         return securityEngine.checkPermission(
-            principal, ResourceType.SHARE, "link", ResourceAction.ACCESS);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to check share-link permission", e);
-         return false;
-      }
+   @PostMapping("/viewsheet/share-email")
+   public void shareEmail(@Valid @RequestBody ShareMessageRequest request, Principal principal) throws Exception {
+      shareController.sendEmailMessage(toShareMessage(request), principal);
    }
 
-   private final SecurityEngine securityEngine;
+   @PostMapping("/viewsheet/share-slack")
+   public void shareSlack(@Valid @RequestBody ShareMessageRequest request, Principal principal) throws Exception {
+      shareController.sendSlackMessage(toShareMessage(request), principal);
+   }
 
-   private static final Logger LOG = LoggerFactory.getLogger(WizShareController.class);
+   @PostMapping("/viewsheet/share-google-chat")
+   public void shareGoogleChat(@Valid @RequestBody ShareMessageRequest request, Principal principal) throws Exception {
+      shareController.sendGoogleChatMessage(toShareMessage(request), principal);
+   }
+
+   private ShareMessage toShareMessage(ShareMessageRequest request) {
+      return ShareMessage.builder()
+         .viewsheetId(request.getViewsheetId())
+         .link(request.getLink())
+         .message(request.getMessage())
+         .subject(request.getSubject())
+         .recipients(request.getRecipients())
+         .ccs(request.getCcs())
+         .bccs(request.getBccs())
+         .build();
+   }
+
+   private final ShareController shareController;
 }
