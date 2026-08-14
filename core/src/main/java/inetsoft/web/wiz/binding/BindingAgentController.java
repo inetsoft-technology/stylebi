@@ -322,6 +322,69 @@ public class BindingAgentController {
                                  request.col(), request.binding());
    }
 
+   public record TableSortRequest(String assembly, String shelf, String column, String direction,
+                                  String sortByField, List<String> manualOrder) {}
+   public record TableRankingRequest(String assembly, String shelf, String column, String mode,
+                                     Integer n, String measure, Boolean others) {}
+   public record TableLabelRequest(String assembly, Map<String, String> labels) {}
+   public record TableOptionRequest(String assembly, Map<String, Object> options) {}
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/options")
+   public Map<String, Object> tableOptionVocabulary(@PathVariable String sessionToken,
+                                                    Principal user)
+   {
+      requireEnabled();
+      return tableService.optionVocabulary();
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/sort")
+   public void setTableSort(@PathVariable String sessionToken,
+                            @RequestBody TableSortRequest request,
+                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setSort(sessionToken, user, request.assembly(), request.shelf(),
+                           request.column(),
+                           new DimensionSortRanking.Sort(request.direction(),
+                                                         request.sortByField(),
+                                                         request.manualOrder()));
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/ranking")
+   public void setTableRanking(@PathVariable String sessionToken,
+                               @RequestBody TableRankingRequest request,
+                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
+                              request.column(),
+                              new DimensionSortRanking.Ranking(request.mode(), request.n(),
+                                                               request.measure(),
+                                                               request.others()));
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/labels")
+   public void setTableLabels(@PathVariable String sessionToken,
+                              @RequestBody TableLabelRequest request,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setColumnLabels(sessionToken, user, request.assembly(), request.labels());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/option")
+   public void setTableOptions(@PathVariable String sessionToken,
+                               @RequestBody TableOptionRequest request,
+                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setOptions(sessionToken, user, request.assembly(), request.options());
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
       sessionService.close(sessionToken);

@@ -22,7 +22,10 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.uql.XConstants;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
+import inetsoft.web.binding.model.table.CrosstabOptionInfo;
+import inetsoft.web.binding.model.table.TableOptionInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -349,5 +352,295 @@ public final class TableBindingMutator {
       }
 
       suppression.keySet().removeIf(key -> !bound.contains(key));
+   }
+
+   // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
+
+   /**
+    * Applies a sort to one dimension on a shelf.
+    *
+    * <p>The dimension is found by column name, not by index, for the same reason the sort's own
+    * column reference is a name — see {@link DimensionSortRanking}.
+    */
+   public static void setSort(BaseTableBindingModel model, String shelf, String column,
+                              DimensionSortRanking.Sort sort)
+   {
+      DimensionSortRanking.applySort(requireDimension(model, shelf, column), sort);
+   }
+
+   public static void setRanking(BaseTableBindingModel model, String shelf, String column,
+                                 DimensionSortRanking.Ranking ranking)
+   {
+      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column), ranking);
+   }
+
+   /** The sort and ranking on every dimension of a shelf. */
+   public static Map<String, Object> describeSorts(BaseTableBindingModel model, String shelf) {
+      String name = requireShelf(model, shelf);
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      for(BDimensionRefModel dimension : dimensionsOf(model, name)) {
+         out.put(dimension.getColumnValue() == null
+                    ? dimension.getName() : dimension.getColumnValue(),
+                 DimensionSortRanking.describe(dimension));
+      }
+
+      return out;
+   }
+
+   private static BDimensionRefModel requireDimension(BaseTableBindingModel model, String shelf,
+                                                      String column)
+   {
+      String name = requireShelf(model, shelf);
+
+      if("aggregates".equals(name) || "details".equals(name)) {
+         throw new IllegalArgumentException(
+            "Sorting and ranking apply to dimension shelves. The " + name + " shelf holds " +
+            (("aggregates".equals(name)) ? "measures" : "ungrouped columns") + ".");
+      }
+
+      List<String> present = new ArrayList<>();
+
+      for(BDimensionRefModel dimension : dimensionsOf(model, name)) {
+         String value = dimension.getColumnValue() == null
+            ? dimension.getName() : dimension.getColumnValue();
+         present.add(value);
+
+         if(value != null && value.equalsIgnoreCase(column)) {
+            return dimension;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + column + "' is not on the " + name + " shelf. It holds: " +
+         (present.isEmpty() ? "(nothing)" : String.join(", ", present)) + ".");
+   }
+
+   private static List<BDimensionRefModel> dimensionsOf(BaseTableBindingModel model,
+                                                        String shelf)
+   {
+      List<BDimensionRefModel> dimensions = switch(shelf) {
+         case "rows" -> ((CrosstabBindingModel) model).getRows();
+         case "cols" -> ((CrosstabBindingModel) model).getCols();
+         case "groups" -> ((TableBindingModel) model).getGroups();
+         default -> List.of();
+      };
+
+      return dimensions == null ? List.of() : dimensions;
+   }
+
+   // ── column labels (2d Phase 2) ────────────────────────────────────────────
+
+   /**
+    * Header aliases. A label for a column that is not bound would sit in {@code name2Labels}
+    * doing nothing, so it is refused with the bound columns listed.
+    */
+   public static void setColumnLabels(BaseTableBindingModel model, Map<String, String> labels) {
+      if(labels == null || labels.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_column_labels needs at least one label. To remove one, pass it with an empty " +
+            "string.");
+      }
+
+      Set<String> bound = new LinkedHashSet<>();
+
+      for(String shelf : shelvesOf(model)) {
+         for(FieldRef field : read(model, shelf)) {
+            if(field.column() != null) {
+               bound.add(field.column());
+            }
+         }
+      }
+
+      for(Map.Entry<String, String> label : labels.entrySet()) {
+         if(bound.stream().noneMatch(column -> column.equalsIgnoreCase(label.getKey()))) {
+            throw new IllegalArgumentException(
+               "'" + label.getKey() + "' is not bound on this assembly, so a label for it would " +
+               "never be shown. Bound columns: " +
+               (bound.isEmpty() ? "(none)" : String.join(", ", bound)) + ".");
+         }
+      }
+
+      Map<String, String> merged = model.getName2Labels() == null
+         ? new LinkedHashMap<>() : new LinkedHashMap<>(model.getName2Labels());
+
+      for(Map.Entry<String, String> label : labels.entrySet()) {
+         if(label.getValue() == null || label.getValue().isEmpty()) {
+            merged.remove(label.getKey());
+         }
+         else {
+            merged.put(label.getKey(), label.getValue());
+         }
+      }
+
+      model.setName2Labels(merged);
+   }
+
+   // ── options (2d Phase 3) ──────────────────────────────────────────────────
+
+   /**
+    * Crosstab and table options.
+    *
+    * <p><b>The crosstab totals are string-typed booleans</b> — {@code rowTotalVisibleValue} and
+    * friends are dynamic-value strings, not booleans, and StyleBI reads anything that is not
+    * {@code "true"} as false. So a caller passing {@code "yes"} would silently turn the total
+    * <i>off</i>. Real booleans are normalized to the string form, and any other spelling is
+    * refused rather than coerced.
+    */
+   public static void setOptions(BaseTableBindingModel model, Map<String, Object> options) {
+      if(options == null || options.isEmpty()) {
+         throw new IllegalArgumentException("set_table_options needs at least one option.");
+      }
+
+      if(model instanceof CrosstabBindingModel crosstab) {
+         setCrosstabOptions(crosstab, options);
+      }
+      else if(model instanceof TableBindingModel table) {
+         setTableOptions(table, options);
+      }
+   }
+
+   private static void setCrosstabOptions(CrosstabBindingModel model,
+                                          Map<String, Object> options)
+   {
+      CrosstabOptionInfo info = model.getOption();
+
+      if(info == null) {
+         info = new CrosstabOptionInfo();
+         model.setOption(info);
+      }
+
+      requireKnown(options, List.of("rowTotals", "colTotals", "percentageBy",
+                                    "summarySideBySide", "suppressGroupTotal"));
+
+      if(options.containsKey("rowTotals")) {
+         info.setRowTotalVisibleValue(stringBoolean(options.get("rowTotals"), "rowTotals"));
+      }
+
+      if(options.containsKey("colTotals")) {
+         info.setColTotalVisibleValue(stringBoolean(options.get("colTotals"), "colTotals"));
+      }
+
+      if(options.containsKey("percentageBy")) {
+         info.setPercentageByValue(percentageBy(options.get("percentageBy"), model));
+      }
+
+      if(options.containsKey("summarySideBySide")) {
+         info.setSummarySideBySide(
+            Boolean.parseBoolean(stringBoolean(options.get("summarySideBySide"),
+                                               "summarySideBySide")));
+      }
+
+      if(options.get("suppressGroupTotal") instanceof Map<?, ?> suppression) {
+         for(Map.Entry<?, ?> entry : suppression.entrySet()) {
+            model.getSuppressGroupTotal().put(
+               String.valueOf(entry.getKey()),
+               Boolean.parseBoolean(stringBoolean(entry.getValue(), "suppressGroupTotal")));
+         }
+
+         pruneOrphanedSuppression(model);
+      }
+   }
+
+   private static void setTableOptions(TableBindingModel model, Map<String, Object> options) {
+      TableOptionInfo info = model.getOption();
+
+      if(info == null) {
+         info = new TableOptionInfo();
+         model.setOption(info);
+      }
+
+      requireKnown(options, List.of("grandTotal", "distinct"));
+
+      if(options.containsKey("grandTotal")) {
+         info.setGrandTotal(
+            Boolean.parseBoolean(stringBoolean(options.get("grandTotal"), "grandTotal")));
+      }
+
+      if(options.containsKey("distinct")) {
+         info.setDistinct(
+            Boolean.parseBoolean(stringBoolean(options.get("distinct"), "distinct")));
+      }
+   }
+
+   /**
+    * Percentage-by is positional and only meaningful when the shelf it refers to is populated.
+    * By-column with no columns bound renders zeros rather than failing.
+    */
+   private static String percentageBy(Object raw, CrosstabBindingModel model) {
+      String token = raw == null ? "" : String.valueOf(raw).trim().toLowerCase();
+      int value = switch(token) {
+         case "none" -> XConstants.PERCENTAGE_NONE;
+         case "col", "column", "columns" -> XConstants.PERCENTAGE_BY_COL;
+         case "row", "rows" -> XConstants.PERCENTAGE_BY_ROW;
+         default -> throw new IllegalArgumentException(
+            "'percentageBy' must be none, row or col, got '" + raw + "'.");
+      };
+
+      if(value == XConstants.PERCENTAGE_BY_COL &&
+         (model.getCols() == null || model.getCols().isEmpty()))
+      {
+         throw new IllegalArgumentException(
+            "'percentageBy: col' needs at least one field on the cols shelf. With none bound the " +
+            "crosstab renders zeros rather than failing.");
+      }
+
+      if(value == XConstants.PERCENTAGE_BY_ROW &&
+         (model.getRows() == null || model.getRows().isEmpty()))
+      {
+         throw new IllegalArgumentException(
+            "'percentageBy: row' needs at least one field on the rows shelf. With none bound the " +
+            "crosstab renders zeros rather than failing.");
+      }
+
+      return String.valueOf(value);
+   }
+
+   /**
+    * A dynamic-value string that StyleBI reads as a boolean. Anything but "true" reads as false,
+    * so "yes" would silently turn a total off — refused rather than coerced.
+    */
+   private static String stringBoolean(Object raw, String key) {
+      if(raw instanceof Boolean value) {
+         return String.valueOf(value);
+      }
+
+      String text = raw == null ? "" : String.valueOf(raw).trim();
+
+      if("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text)) {
+         return text.toLowerCase();
+      }
+
+      throw new IllegalArgumentException(
+         "'" + key + "' must be true or false, got '" + raw + "'. This setting is stored as a " +
+         "string that StyleBI reads as a boolean, so a spelling like \"yes\" would read as " +
+         "false and silently turn the setting off.");
+   }
+
+   private static void requireKnown(Map<String, Object> options, List<String> known) {
+      List<String> unknown = new ArrayList<>();
+
+      for(String key : options.keySet()) {
+         if(!known.contains(key)) {
+            unknown.add(key);
+         }
+      }
+
+      if(!unknown.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Unknown option(s) " + unknown + " for this object type. Valid options: " + known +
+            ". An unknown option would be accepted and do nothing.");
+      }
+   }
+
+   /** The option vocabulary, so a caller does not guess which type takes which. */
+   public static Map<String, Object> optionVocabulary() {
+      return Map.of(
+         "crosstab", List.of("rowTotals", "colTotals", "percentageBy", "summarySideBySide",
+                             "suppressGroupTotal"),
+         "table", List.of("grandTotal", "distinct"),
+         "percentageBy", List.of("none", "row", "col"),
+         "sortDirections", DimensionSortRanking.sortTokens(),
+         "rankingModes", DimensionSortRanking.rankingTokens());
    }
 }

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -305,5 +306,212 @@ class TableBindingMutatorTest {
       assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Region"));
       assertNull(model.getSuppressGroupTotal().get("Year"),
                  "an orphaned suppression entry must be pruned, not left to resurrect later");
+   }
+
+   // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
+
+   @Test
+   void sortsADimensionOnTheRowsShelf() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      TableBindingMutator.setSort(model, "rows", "Region",
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      assertEquals(inetsoft.uql.XConstants.SORT_DESC, model.getRows().get(0).getOrder());
+   }
+
+   @Test
+   void ranksADimensionByAMeasureName() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      TableBindingMutator.setRanking(model, "rows", "Region",
+                                     new DimensionSortRanking.Ranking("top", 5, "Sales", null));
+
+      assertEquals("5", model.getRows().get(0).getRankingN());
+      assertEquals("Sales", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void refusesToSortAColumnThatIsNotOnTheShelf() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Nope",
+                                           new DimensionSortRanking.Sort("asc", null, null)));
+
+      assertTrue(thrown.getMessage().contains("Nope"));
+      assertTrue(thrown.getMessage().contains("Region"));
+   }
+
+   @Test
+   void refusesToSortTheAggregatesOrDetailsShelf() {
+      CrosstabBindingModel crosstab = new CrosstabBindingModel();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(crosstab, "aggregates", "Sales",
+                                           new DimensionSortRanking.Sort("asc", null, null)));
+
+      assertTrue(thrown.getMessage().contains("measures"));
+   }
+
+   @Test
+   void describesTheSortsOnAShelf() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setRanking(model, "rows", "Region",
+                                     new DimensionSortRanking.Ranking("top", 5, "Sales", null));
+
+      Map<String, Object> described = TableBindingMutator.describeSorts(model, "rows");
+
+      assertTrue(described.containsKey("Region"));
+   }
+
+   // ── column labels (2d Phase 2) ────────────────────────────────────────────
+
+   @Test
+   void setsAColumnLabelForABoundColumn() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", "Sales Region"));
+
+      assertEquals("Sales Region", model.getName2Labels().get("Region"));
+   }
+
+   /** A label for an unbound column would sit in name2Labels doing nothing. */
+   @Test
+   void refusesALabelForAColumnThatIsNotBound() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setColumnLabels(model, Map.of("Profit", "P")));
+
+      assertTrue(thrown.getMessage().contains("never be shown"));
+   }
+
+   @Test
+   void anEmptyLabelRemovesIt() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", "Sales Region"));
+
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", ""));
+
+      assertFalse(model.getName2Labels().containsKey("Region"));
+   }
+
+   @Test
+   void refusesAnEmptyLabelMap() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> TableBindingMutator.setColumnLabels(new CrosstabBindingModel(),
+                                                             Map.of()));
+   }
+
+   // ── options (2d Phase 3) ──────────────────────────────────────────────────
+
+   /**
+    * The crosstab totals are dynamic-value strings that StyleBI reads as booleans, so anything
+    * but "true" reads as false. A real boolean has to normalize to the string form.
+    */
+   @Test
+   void normalizesARealBooleanToTheStringForm() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("rowTotals", true, "colTotals", false));
+
+      assertEquals("true", model.getOption().getRowTotalVisibleValue());
+      assertEquals("false", model.getOption().getColTotalVisibleValue());
+   }
+
+   @Test
+   void acceptsTheStringSpellingsToo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("rowTotals", "TRUE"));
+
+      assertEquals("true", model.getOption().getRowTotalVisibleValue());
+   }
+
+   /** "yes" reads as false downstream, so it would silently turn the total off. */
+   @Test
+   void refusesAnAmbiguousBooleanSpellingRatherThanTurningTheSettingOff() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
+                                              Map.of("rowTotals", "yes")));
+
+      assertTrue(thrown.getMessage().contains("silently turn the setting off"));
+   }
+
+   @Test
+   void setsPercentageByOnlyWhenTheShelfItNeedsIsPopulated() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Year")));
+
+      TableBindingMutator.setOptions(model, Map.of("percentageBy", "col"));
+
+      assertEquals(String.valueOf(inetsoft.uql.XConstants.PERCENTAGE_BY_COL),
+                   model.getOption().getPercentageByValue());
+   }
+
+   /** By-column with no columns bound renders zeros rather than failing. */
+   @Test
+   void refusesPercentageByColWithNoColumnsBound() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
+                                              Map.of("percentageBy", "col")));
+
+      assertTrue(thrown.getMessage().contains("zeros"));
+   }
+
+   @Test
+   void refusesAnUnknownPercentageByToken() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
+                                                        Map.of("percentageBy", "diagonal")));
+   }
+
+   @Test
+   void setsTableOptions() {
+      TableBindingModel model = new TableBindingModel();
+
+      TableBindingMutator.setOptions(model, Map.of("grandTotal", true, "distinct", false));
+
+      assertTrue(model.getOption().getGrandTotal());
+      assertFalse(model.getOption().getDistinct());
+   }
+
+   /** An option belonging to the other object type would be accepted and do nothing. */
+   @Test
+   void refusesACrosstabOptionOnATable() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new TableBindingModel(),
+                                              Map.of("rowTotals", true)));
+
+      assertTrue(thrown.getMessage().contains("rowTotals"));
+      assertTrue(thrown.getMessage().contains("grandTotal"), "list what this type does take");
+   }
+
+   @Test
+   void refusesAnEmptyOptionMap() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> TableBindingMutator.setOptions(new CrosstabBindingModel(), Map.of()));
+   }
+
+   @Test
+   void optionVocabularySeparatesTheTwoObjectTypes() {
+      Map<String, Object> vocabulary = TableBindingMutator.optionVocabulary();
+
+      assertTrue(String.valueOf(vocabulary.get("crosstab")).contains("rowTotals"));
+      assertTrue(String.valueOf(vocabulary.get("table")).contains("distinct"));
    }
 }

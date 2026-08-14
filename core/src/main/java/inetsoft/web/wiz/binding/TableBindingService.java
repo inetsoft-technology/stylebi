@@ -89,6 +89,38 @@ public class TableBindingService {
             model -> TableBindingMutator.moveField(model, fromShelf, toShelf, column, position));
    }
 
+   public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
+                       String column, DimensionSortRanking.Sort sort) throws Exception
+   {
+      apply(sessionToken, user, assemblyName,
+            model -> TableBindingMutator.setSort(model, shelf, column, sort));
+   }
+
+   public void setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
+                          String column, DimensionSortRanking.Ranking ranking) throws Exception
+   {
+      apply(sessionToken, user, assemblyName,
+            model -> TableBindingMutator.setRanking(model, shelf, column, ranking));
+   }
+
+   public void setColumnLabels(String sessionToken, Principal user, String assemblyName,
+                               Map<String, String> labels) throws Exception
+   {
+      apply(sessionToken, user, assemblyName,
+            model -> TableBindingMutator.setColumnLabels(model, labels));
+   }
+
+   public void setOptions(String sessionToken, Principal user, String assemblyName,
+                          Map<String, Object> options) throws Exception
+   {
+      apply(sessionToken, user, assemblyName,
+            model -> TableBindingMutator.setOptions(model, options));
+   }
+
+   public Map<String, Object> optionVocabulary() {
+      return TableBindingMutator.optionVocabulary();
+   }
+
    /** The shelves, their contents, and the object type — without opening a checkpoint. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
       throws Exception
@@ -107,6 +139,16 @@ public class TableBindingService {
       out.put("source", model.getSource() == null ? null : model.getSource().getSource());
       out.put("shelves", shelves);
       out.put("columnLabels", model.getName2Labels());
+      Map<String, Object> sorts = new LinkedHashMap<>();
+
+      for(String shelf : TableBindingMutator.shelvesOf(model)) {
+         if(!"aggregates".equals(shelf) && !"details".equals(shelf)) {
+            sorts.putAll(TableBindingMutator.describeSorts(model, shelf));
+         }
+      }
+
+      out.put("sorts", sorts);
+      out.put("options", describeOptions(model));
 
       if(model instanceof CrosstabBindingModel crosstab) {
          out.put("suppressGroupTotal", crosstab.getSuppressGroupTotal());
@@ -115,6 +157,23 @@ public class TableBindingService {
          // Read-only for now: writing it turns an embedded table into a bound one, which is
          // closer to a data-loss operation than a binding edit.
          out.put("embedded", table.getEmbedded());
+      }
+
+      return out;
+   }
+
+   private static Map<String, Object> describeOptions(BaseTableBindingModel model) {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(model instanceof CrosstabBindingModel crosstab && crosstab.getOption() != null) {
+         out.put("rowTotals", crosstab.getOption().getRowTotalVisibleValue());
+         out.put("colTotals", crosstab.getOption().getColTotalVisibleValue());
+         out.put("percentageBy", crosstab.getOption().getPercentageByValue());
+         out.put("summarySideBySide", crosstab.getOption().isSummarySideBySide());
+      }
+      else if(model instanceof TableBindingModel table && table.getOption() != null) {
+         out.put("grandTotal", table.getOption().getGrandTotal());
+         out.put("distinct", table.getOption().getDistinct());
       }
 
       return out;
