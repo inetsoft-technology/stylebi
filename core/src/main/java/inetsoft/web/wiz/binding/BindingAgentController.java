@@ -56,7 +56,7 @@ public class BindingAgentController {
                                  BindableFieldsService fieldsService,
                                  BindingReadService readService,
                                  ChartBindingService chartService,
-                                 ChartAestheticService aestheticService,
+                                 ChartAestheticAgentService aestheticService,
                                  TableBindingService tableService,
                                  CalcTableService calcService)
    {
@@ -470,7 +470,7 @@ public class BindingAgentController {
    private final BindableFieldsService fieldsService;
    private final BindingReadService readService;
    private final ChartBindingService chartService;
-   private final ChartAestheticService aestheticService;
+   private final ChartAestheticAgentService aestheticService;
    private final TableBindingService tableService;
    private final CalcTableService calcService;
 }

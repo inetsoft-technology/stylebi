@@ -76,7 +76,7 @@ class BindingAgentControllerTest {
                                         mock(SheetSessionService.class), sessions, fields,
                                         mock(BindingReadService.class),
                                         mock(ChartBindingService.class),
-                                        mock(ChartAestheticService.class),
+                                        mock(ChartAestheticAgentService.class),
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class));
    }

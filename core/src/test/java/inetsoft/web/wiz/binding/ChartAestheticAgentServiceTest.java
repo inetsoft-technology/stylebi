@@ -39,7 +39,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @Tag("core")
-class ChartAestheticServiceTest {
+class ChartAestheticAgentServiceTest {
    private static Map<String, Object> spec(Object... pairs) {
       Map<String, Object> spec = new LinkedHashMap<>();
 
@@ -140,7 +140,7 @@ class ChartAestheticServiceTest {
    @Test
    void eachMutationIsExactlyOneCheckpoint() throws Exception {
       ViewsheetSessionService sessions = sessionsFor(mock(ChartVSAssembly.class));
-      ChartAestheticService service = serviceWith(sessions, new ChartBindingModel(),
+      ChartAestheticAgentService service = serviceWith(sessions, new ChartBindingModel(),
                                                   mock(ChangeChartAestheticService.class));
 
       service.setField("tok", principal(), "Chart1", "color",
@@ -155,7 +155,7 @@ class ChartAestheticServiceTest {
       ChartAestheticMutator.setField(existing, "color",
                                      new FieldRef("Region", "dimension", null, null, null));
       ViewsheetSessionService sessions = sessionsFor(mock(ChartVSAssembly.class));
-      ChartAestheticService service = serviceWith(sessions, existing,
+      ChartAestheticAgentService service = serviceWith(sessions, existing,
                                                   mock(ChangeChartAestheticService.class));
 
       Map<String, Object> read = service.read("tok", principal(), "Chart1");
@@ -168,7 +168,7 @@ class ChartAestheticServiceTest {
 
    @Test
    void refusesANonChartAssemblyNamingIt() {
-      ChartAestheticService service = serviceWith(
+      ChartAestheticAgentService service = serviceWith(
          sessionsFor(mock(TextVSAssembly.class)), new ChartBindingModel(),
          mock(ChangeChartAestheticService.class));
 
@@ -182,7 +182,7 @@ class ChartAestheticServiceTest {
    @Test
    void refusesAnUnknownChannelBeforeTouchingTheRuntime() {
       ViewsheetSessionService sessions = sessionsFor(mock(ChartVSAssembly.class));
-      ChartAestheticService service = serviceWith(sessions, new ChartBindingModel(),
+      ChartAestheticAgentService service = serviceWith(sessions, new ChartBindingModel(),
                                                   mock(ChangeChartAestheticService.class));
 
       assertThrows(Exception.class,
@@ -203,7 +203,7 @@ class ChartAestheticServiceTest {
       return captor.getValue();
    }
 
-   private static ChartAestheticService harness(ChartBindingModel model,
+   private static ChartAestheticAgentService harness(ChartBindingModel model,
                                                 ChangeChartAestheticService aesthetics)
    {
       return serviceWith(sessionsFor(mock(ChartVSAssembly.class)), model, aesthetics);
@@ -236,13 +236,13 @@ class ChartAestheticServiceTest {
       return sessions;
    }
 
-   private static ChartAestheticService serviceWith(ViewsheetSessionService sessions,
+   private static ChartAestheticAgentService serviceWith(ViewsheetSessionService sessions,
                                                     ChartBindingModel model,
                                                     ChangeChartAestheticService aesthetics)
    {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
-      return new ChartAestheticService(sessions, binding, aesthetics);
+      return new ChartAestheticAgentService(sessions, binding, aesthetics);
    }
 
    private static Principal principal() {

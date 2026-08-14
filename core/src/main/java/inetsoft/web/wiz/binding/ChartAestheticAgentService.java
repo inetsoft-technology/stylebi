@@ -47,9 +47,9 @@ import java.util.Map;
  * service instead would leave stale shared frames behind.
  */
 @Service
-public class ChartAestheticService {
+public class ChartAestheticAgentService {
    @Autowired
-   public ChartAestheticService(ViewsheetSessionService sessions,
+   public ChartAestheticAgentService(ViewsheetSessionService sessions,
                                 VSBindingService binding,
                                 ChangeChartAestheticService aestheticService)
    {
