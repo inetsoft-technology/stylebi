@@ -385,6 +385,56 @@ public class BindingAgentController {
       tableService.setOptions(sessionToken, user, request.assembly(), request.options());
    }
 
+   public record CalcLayoutRequest(String assembly, String op, Integer row, Integer col,
+                                   Integer rows, Integer cols, Integer n) {}
+   public record CalcCopyRequest(String assembly, String op, Integer row, Integer col,
+                                 Integer rows, Integer cols, Integer targetRow,
+                                 Integer targetCol) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/layout")
+   public Map<String, Object> modifyCalcLayout(@PathVariable String sessionToken,
+                                               @RequestBody CalcLayoutRequest request,
+                                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(request.row() == null || request.col() == null) {
+         throw new IllegalArgumentException(
+            "modify_calc_layout requires 'row' and 'col' — the anchor the operation applies at.");
+      }
+
+      return calcService.modifyLayout(sessionToken, user, request.assembly(), request.op(),
+                                      request.row(), request.col(), request.rows(),
+                                      request.cols(), request.n());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cells/copy")
+   public Map<String, Object> copyCalcCells(@PathVariable String sessionToken,
+                                            @RequestBody CalcCopyRequest request,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(request.row() == null || request.col() == null) {
+         throw new IllegalArgumentException(
+            "copy_calc_cells requires 'row' and 'col' — the source range's top-left cell.");
+      }
+
+      java.awt.Rectangle source = new java.awt.Rectangle(
+         request.col(), request.row(),
+         request.cols() == null ? 1 : request.cols(),
+         request.rows() == null ? 1 : request.rows());
+      java.awt.Rectangle target = request.targetRow() == null || request.targetCol() == null
+         ? null
+         : new java.awt.Rectangle(request.targetCol(), request.targetRow(), source.width,
+                                  source.height);
+
+      return calcService.copyCells(sessionToken, user, request.assembly(), request.op(), source,
+                                   target);
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
       sessionService.close(sessionToken);

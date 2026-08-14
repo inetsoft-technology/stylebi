@@ -24,6 +24,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
+import inetsoft.web.binding.event.CopyCutCalcCellEvent;
+import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -230,5 +232,184 @@ class CalcTableServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   // ── layout operations (2e Phase 2) ────────────────────────────────────────
+
+   @Test
+   void insertsARowAndReturnsTheUpdatedLayout() throws Exception {
+      Harness h = harness(3, 3);
+
+      Map<String, Object> updated =
+         h.service.modifyLayout("tok", principal(), "Calc1", "insertRow", 1, 0, null, null, 1);
+
+      ArgumentCaptor<ModifyTableLayoutEvent> captor =
+         ArgumentCaptor.forClass(ModifyTableLayoutEvent.class);
+      verify(h.layoutService).modifyLayout(eq("rt1"), captor.capture(), any(Principal.class),
+                                           any());
+      assertEquals("insertRow", captor.getValue().getOp());
+      assertEquals(1, captor.getValue().getNum());
+      assertEquals(1, captor.getValue().getSelection().y);
+      assertNotNull(updated.get("cells"), "the updated layout comes back with the response");
+   }
+
+   /**
+    * Coordinates read before a layout op are stale afterwards, so the response says so rather
+    * than leaving the caller to remember.
+    */
+   @Test
+   void theResponseWarnsThatEarlierCoordinatesAreStale() throws Exception {
+      Harness h = harness(3, 3);
+
+      Map<String, Object> updated =
+         h.service.modifyLayout("tok", principal(), "Calc1", "insertRow", 1, 0, null, null, 1);
+
+      assertTrue(String.valueOf(updated.get("note")).contains("stale"));
+   }
+
+   @Test
+   void acceptsTheOpNameSpellings() throws Exception {
+      for(String op : List.of("insertRow", "insert_row", "insertrow")) {
+         Harness h = harness(3, 3);
+         h.service.modifyLayout("tok", principal(), "Calc1", op, 0, 0, null, null, 1);
+         ArgumentCaptor<ModifyTableLayoutEvent> captor =
+            ArgumentCaptor.forClass(ModifyTableLayoutEvent.class);
+         verify(h.layoutService).modifyLayout(anyString(), captor.capture(), any(Principal.class),
+                                              any());
+         assertEquals("insertRow", captor.getValue().getOp(), "'" + op + "' should resolve");
+      }
+   }
+
+   @Test
+   void refusesAnUnknownLayoutOpListingTheValid() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.modifyLayout("tok", principal(), "Calc1", "explode", 0, 0, null, null,
+                                      1));
+
+      assertTrue(thrown.getMessage().contains("explode"));
+      assertTrue(thrown.getMessage().contains("mergeCells"));
+   }
+
+   /** Merging one cell is a handler no-op that would otherwise report success. */
+   @Test
+   void refusesMergingASingleCell() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.modifyLayout("tok", principal(), "Calc1", "mergeCells", 0, 0, 1, 1, 1));
+
+      assertTrue(thrown.getMessage().contains("report success"));
+   }
+
+   @Test
+   void acceptsMergingASpanningSelection() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.modifyLayout("tok", principal(), "Calc1", "mergeCells", 0, 0, 2, 2, 1);
+
+      ArgumentCaptor<ModifyTableLayoutEvent> captor =
+         ArgumentCaptor.forClass(ModifyTableLayoutEvent.class);
+      verify(h.layoutService).modifyLayout(anyString(), captor.capture(), any(Principal.class),
+                                           any());
+      assertEquals(2, captor.getValue().getSelection().width);
+      assertEquals(2, captor.getValue().getSelection().height);
+   }
+
+   /** Splitting an unmerged cell is the other handler no-op. */
+   @Test
+   void refusesSplittingAnUnmergedCell() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.modifyLayout("tok", principal(), "Calc1", "splitCells", 0, 0, null,
+                                      null, 1));
+
+      assertTrue(thrown.getMessage().contains("not merged"));
+   }
+
+   @Test
+   void refusesAnNBelowOne() {
+      Harness h = harness(3, 3);
+
+      assertThrows(Exception.class,
+                   () -> h.service.modifyLayout("tok", principal(), "Calc1", "insertRow", 0, 0,
+                                                null, null, 0));
+   }
+
+   @Test
+   void refusesALayoutOpOutsideTheGrid() {
+      Harness h = harness(2, 2);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.modifyLayout("tok", principal(), "Calc1", "insertRow", 9, 0, null, null,
+                                      1));
+
+      assertTrue(thrown.getMessage().contains("stale"));
+   }
+
+   // ── copy / cut / remove (2e Phase 2) ──────────────────────────────────────
+
+   @Test
+   void copiesARangeToATarget() throws Exception {
+      Harness h = harness(4, 4);
+
+      h.service.copyCells("tok", principal(), "Calc1", "copy",
+                          new java.awt.Rectangle(0, 0, 2, 1),
+                          new java.awt.Rectangle(0, 2, 2, 1));
+
+      ArgumentCaptor<CopyCutCalcCellEvent> captor =
+         ArgumentCaptor.forClass(CopyCutCalcCellEvent.class);
+      verify(h.layoutService).copyCut(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals("copy", captor.getValue().getOp());
+      assertEquals(2, captor.getValue().getSelections().length);
+   }
+
+   @Test
+   void removeNeedsNoTarget() throws Exception {
+      Harness h = harness(4, 4);
+
+      h.service.copyCells("tok", principal(), "Calc1", "remove",
+                          new java.awt.Rectangle(0, 0, 1, 1), null);
+
+      verify(h.layoutService).copyCut(anyString(), any(CopyCutCalcCellEvent.class),
+                                      any(Principal.class), any());
+   }
+
+   /** Without a target there is nowhere to paste and the operation would do nothing. */
+   @Test
+   void refusesACopyWithNoTarget() {
+      Harness h = harness(4, 4);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.copyCells("tok", principal(), "Calc1", "copy",
+                                   new java.awt.Rectangle(0, 0, 1, 1), null));
+
+      assertTrue(thrown.getMessage().contains("nowhere to paste"));
+   }
+
+   @Test
+   void refusesAnUnknownCopyOp() {
+      Harness h = harness(4, 4);
+
+      assertThrows(Exception.class,
+                   () -> h.service.copyCells("tok", principal(), "Calc1", "duplicate",
+                                             new java.awt.Rectangle(0, 0, 1, 1), null));
+   }
+
+   @Test
+   void vocabularyListsTheLayoutAndCopyOps() {
+      Harness h = harness(1, 1);
+
+      Map<String, Object> vocabulary = h.service.vocabulary();
+
+      assertTrue(String.valueOf(vocabulary.get("layoutOps")).contains("appendCol"));
+      assertTrue(String.valueOf(vocabulary.get("copyOps")).contains("remove"));
    }
 }
