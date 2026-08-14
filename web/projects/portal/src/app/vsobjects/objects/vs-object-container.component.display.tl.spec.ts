@@ -30,6 +30,7 @@
  *   Group 8   isChartAnnotationSelected — selectedAnnotations membership
  *   Group 9   needsZIndexBoost — data tip and pop component cases
  *   Group 10  toolbarForceHidden — delegates to miniToolbarService
+ *   Group 11  isActivePopComponent — active pop component, self and grouped-child cases
  */
 
 import {
@@ -281,5 +282,107 @@ describe("Group 9 — toolbarForceHidden: delegates to miniToolbarService.isMini
       const { comp } = makeComponent({ miniToolbarSvc: miniToolbarSvc as any });
       const obj = makeVSObject({ absoluteName: "Chart1" });
       expect(comp.toolbarForceHidden(obj)).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 11 — isActivePopComponent
+// ---------------------------------------------------------------------------
+
+describe("Group 11 — isActivePopComponent: active pop component, self and grouped-child cases", () => {
+   it("should return false when no pop component is active", () => {
+      const { comp } = makeComponent();
+      const obj = makeVSObject({ absoluteName: "GroupContainer1" });
+      expect(comp.isActivePopComponent(obj)).toBe(false);
+   });
+
+   it("should return true when the object itself is the active pop component", () => {
+      const popSvc = {
+         componentPop: { subscribe: vi.fn() } as any,
+         getPopComponent: vi.fn().mockReturnValue("GroupContainer1"),
+         isPopComponent: vi.fn((name: string) => name === "GroupContainer1"),
+         isPopSource: vi.fn().mockReturnValue(false),
+         hasPopUpComponentShowing: vi.fn().mockReturnValue(true),
+      };
+      const { comp } = makeComponent({ popSvc: popSvc as any });
+      const obj = makeVSObject({ absoluteName: "GroupContainer1" });
+      expect(comp.isActivePopComponent(obj)).toBe(true);
+   });
+
+   // Bug: "Group as popComponent, display blank" -- a group container's grouped
+   // children must also get the z-index boost when the container is the active
+   // pop component, otherwise they render underneath the container's own boosted,
+   // opaque background and the pop-up appears empty.
+   it("should return true for a grouped child when its container is the active pop component", () => {
+      const popSvc = {
+         componentPop: { subscribe: vi.fn() } as any,
+         getPopComponent: vi.fn().mockReturnValue("GroupContainer1"),
+         isPopComponent: vi.fn((name: string) => name === "GroupContainer1"),
+         isPopSource: vi.fn().mockReturnValue(false),
+         hasPopUpComponentShowing: vi.fn().mockReturnValue(true),
+      };
+      const { comp } = makeComponent({ popSvc: popSvc as any });
+      const child = makeVSObject({ absoluteName: "Text2", container: "GroupContainer1" });
+      expect(comp.isActivePopComponent(child)).toBe(true);
+   });
+
+   it("should return false for a grouped child when its container is not the active pop component", () => {
+      const popSvc = {
+         componentPop: { subscribe: vi.fn() } as any,
+         getPopComponent: vi.fn().mockReturnValue("OtherContainer"),
+         isPopComponent: vi.fn((name: string) => name === "OtherContainer"),
+         isPopSource: vi.fn().mockReturnValue(false),
+         hasPopUpComponentShowing: vi.fn().mockReturnValue(true),
+      };
+      const { comp } = makeComponent({ popSvc: popSvc as any });
+      const child = makeVSObject({ absoluteName: "Text2", container: "GroupContainer1" });
+      expect(comp.isActivePopComponent(child)).toBe(false);
+   });
+
+   it("should return false for an unrelated top-level object while a different pop component is active", () => {
+      const popSvc = {
+         componentPop: { subscribe: vi.fn() } as any,
+         getPopComponent: vi.fn().mockReturnValue("GroupContainer1"),
+         isPopComponent: vi.fn((name: string) => name === "GroupContainer1"),
+         isPopSource: vi.fn().mockReturnValue(false),
+         hasPopUpComponentShowing: vi.fn().mockReturnValue(true),
+      };
+      const { comp } = makeComponent({ popSvc: popSvc as any });
+      const obj = makeVSObject({ absoluteName: "Table1", container: null });
+      expect(comp.isActivePopComponent(obj)).toBe(false);
+   });
+
+   // A GroupContainer can contain a Tab (GroupContainer -> Tab -> children), so a
+   // grandchild's immediate .container points at the Tab, not the outer GroupContainer
+   // that is actually registered as the pop component. isActivePopComponent must walk
+   // the full ancestor chain (like zIndex() does) to still boost this grandchild.
+   it("should return true for a grandchild nested through an intermediate Tab when the outer group container is the active pop component", () => {
+      const popSvc = {
+         componentPop: { subscribe: vi.fn() } as any,
+         getPopComponent: vi.fn().mockReturnValue("GroupContainer1"),
+         isPopComponent: vi.fn((name: string) => name === "GroupContainer1"),
+         isPopSource: vi.fn().mockReturnValue(false),
+         hasPopUpComponentShowing: vi.fn().mockReturnValue(true),
+      };
+      const { comp } = makeComponent({ popSvc: popSvc as any });
+      const tab = makeVSObject({ absoluteName: "Tab1", container: "GroupContainer1" });
+      const grandchild = makeVSObject({ absoluteName: "Chart1", container: "Tab1" });
+      comp.vsInfo = makeVsInfo([tab, grandchild]);
+      expect(comp.isActivePopComponent(grandchild)).toBe(true);
+   });
+
+   it("should return false for a grandchild nested through an intermediate Tab when neither the tab nor its outer container is the active pop component", () => {
+      const popSvc = {
+         componentPop: { subscribe: vi.fn() } as any,
+         getPopComponent: vi.fn().mockReturnValue("OtherContainer"),
+         isPopComponent: vi.fn((name: string) => name === "OtherContainer"),
+         isPopSource: vi.fn().mockReturnValue(false),
+         hasPopUpComponentShowing: vi.fn().mockReturnValue(true),
+      };
+      const { comp } = makeComponent({ popSvc: popSvc as any });
+      const tab = makeVSObject({ absoluteName: "Tab1", container: "GroupContainer1" });
+      const grandchild = makeVSObject({ absoluteName: "Chart1", container: "Tab1" });
+      comp.vsInfo = makeVsInfo([tab, grandchild]);
+      expect(comp.isActivePopComponent(grandchild)).toBe(false);
    });
 });

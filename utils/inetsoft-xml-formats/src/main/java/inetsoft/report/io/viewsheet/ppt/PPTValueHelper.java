@@ -426,19 +426,16 @@ public class PPTValueHelper {
          VSAssemblyInfo.DEFAULT_BORDER_COLOR);
 
       // Four independent straight-line shapes can't form a rounded corner, so draw a
-      // single rounded-rectangle outline instead when the round corner is set. Skip this
-      // for table/crosstab/tree cells (cellType != 0): those rely on the per-side
-      // CELL_TAIL/CELL_CONTENT skips below to avoid doubling up borders shared with
-      // adjacent cells, which a single all-sides shape can't replicate. Also require all
-      // four sides to be set: a single-sided border (e.g. an "underline" with only
-      // borders.bottom set) can't be represented as one rounded outline without drawing an
-      // unwanted box around the other three sides, so fall through to the per-side lines
-      // below instead.
-      if(borders != null && format.getRoundCorner() > 0 && cellType == 0 &&
-         borders.top != 0 && borders.left != 0 && borders.right != 0 && borders.bottom != 0)
-      {
-         int type;
-         Color color;
+      // single rounded-rectangle outline instead when the round corner is set, using
+      // whichever side has a border configured first (top, then left/right/bottom) for
+      // the whole outline's style/color - a partial border gets a full box outline as a
+      // tradeoff for a uniformly-rounded look. Skip this for table/crosstab/tree cells
+      // (cellType != 0): those rely on the per-side CELL_TAIL/CELL_CONTENT skips below to
+      // avoid doubling up borders shared with adjacent cells, which a single all-sides
+      // shape can't replicate.
+      if(borders != null && format.getRoundCorner() > 0 && cellType == 0) {
+         int type = 0;
+         Color color = null;
 
          if(borders.top != 0) {
             type = borders.top;
@@ -455,13 +452,21 @@ public class PPTValueHelper {
             color = colors == null || colors.rightColor == null ?
                defbcolors.rightColor : colors.rightColor;
          }
-         else {
+         else if(borders.bottom != 0) {
             type = borders.bottom;
             color = colors == null || colors.bottomColor == null ?
                defbcolors.bottomColor : colors.bottomColor;
          }
 
-         if(PPTVSUtil.getBorderWidth(type) != 0) {
+         if(type != 0 && PPTVSUtil.getBorderWidth(type) != 0) {
+            // Table/crosstab cells are written as individual shapes with their own
+            // (non-rounded) borders, so the single rounded outline drawn on top doesn't
+            // automatically hide the square cell content that sticks out past the curve
+            // near each corner (PPT has no Graphics2D-style clip to lean on, unlike
+            // PDF/SVG). Mask it with a plain white square first, mirroring
+            // PoiExcelVSExporter's corner mask for the same underlying limitation.
+            maskTableCorners(x, y, width, height, format.getRoundCorner());
+
             XSLFAutoShape roundBorder = slide.createAutoShape();
             roundBorder.setAnchor(new Rectangle(x, y, width, height));
             PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);
@@ -534,6 +539,31 @@ public class PPTValueHelper {
             }
          }
       }
+   }
+
+   /**
+    * Paint over the four radius x radius corners with a plain white square, hiding
+    * whatever square cell content is underneath so it reads as clipped by the rounded
+    * corner instead of poking out past it.
+    */
+   private void maskTableCorners(int x, int y, int width, int height, int roundCorner) {
+      int r = (int) Math.min(roundCorner * PPTVSUtil.PIXEL_TO_POINT,
+                             Math.min(width, height) / 2d);
+
+      if(r <= 0) {
+         return;
+      }
+
+      maskCorner(x, y, r);
+      maskCorner(x + width - r, y, r);
+      maskCorner(x, y + height - r, r);
+      maskCorner(x + width - r, y + height - r, r);
+   }
+
+   private void maskCorner(int x, int y, int size) {
+      XSLFAutoShape mask = slide.createAutoShape();
+      mask.setAnchor(new Rectangle(x, y, size, size));
+      mask.setFillColor(Color.WHITE);
    }
 
    private Rectangle2D bounds = null;
