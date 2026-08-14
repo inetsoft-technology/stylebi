@@ -609,6 +609,28 @@ class EndpointJsonQueryTest {
       return parameter;
    }
 
+   /**
+    * The loader builds its mapper with a bare {@code new ObjectMapper()}, so FAIL_ON_UNKNOWN_PROPERTIES
+    * is on and {@code AbstractEndpoint} carries no {@code @JsonIgnoreProperties}. An endpoints.json
+    * key with no matching property therefore throws, and the throw is swallowed as an IOException that
+    * leaves the connector with an EMPTY endpoint map — one LOG.error, and a blank dropdown in the UI.
+    *
+    * That is why these two hold together: descriptions may be added to any endpoints.json only
+    * because the property exists, and files without one must keep loading untouched.
+    */
+   @Test
+   void endpointDescriptionIsReadWhenPresentAndOptionalWhenNot() {
+      Map<String, TestEndpoint> endpoints = EndpointJsonQuery.Endpoints.load(TestEndpoints.class);
+
+      assertAll(
+         () -> assertEquals("Every child of a parent, one row each.",
+                            endpoints.get("Described").getDescription()),
+         // The other entries in the same file carry no description at all; loading must not have
+         // failed over their absence, and they must not have picked up a value from anywhere.
+         () -> assertNull(endpoints.get("Empty").getDescription()),
+         () -> assertNull(endpoints.get("Trailing Split").getDescription()));
+   }
+
    private static final class TestEndpoints extends EndpointJsonQuery.Endpoints<TestEndpoint> {
    }
 

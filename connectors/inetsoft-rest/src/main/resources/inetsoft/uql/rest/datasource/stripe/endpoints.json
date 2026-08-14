@@ -2,31 +2,41 @@
   "endpoints": [
     {
       "name": "Balance",
+      "description": "The current account balance as a single record, not a list. Shows available and pending amounts per currency. Answers \"how much do I have right now\"; historical movement of money lives in Balance Transactions instead.",
       "paged": false,
       "suffix": "/v1/balance"
     },
     {
       "name": "Balance Transaction",
+      "description": "A single balance transaction by its id. Same fields as Balance Transactions; use it when the id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/balance_transactions/{Balance Transactions ID}"
     },
     {
       "name": "Balance Transactions",
+      "description": "Every movement of money through the Stripe balance -- charges, refunds, payouts, fees and adjustments alike. Carries gross amount, fee and net separately, currency and exchange_rate, the date funds become available_on, and a reporting_category and type naming what caused the movement. The right table for net revenue and fee analysis, because it is the only one where fees are broken out from gross.",
       "paged": true,
       "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&Created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}"
     },
     {
       "name": "Charge",
+      "description": "A single charge by its id. Same fields as Charges; use it when the charge id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/charges/{Charge ID}"
     },
     {
       "name": "Charges",
+      "description": "Payment attempts against a card or other payment method, one row each. Carries amount, amount_captured and amount_refunded, currency, whether it was captured, refunded or disputed, the failure_code and failure_message when declined, and links to the customer and payment method. The usual table for revenue, transaction volume, and decline or dispute rates.",
       "paged": true,
       "suffix": "/v1/charges?created={Created?:Unix timestamp}&payment_intent={Payment Intent ID?}&transfer_group={Transfer Group?}",
       "lookups": [
         {
-          "endpoints": ["Disputes", "Refunds", "Application Fees", "Early Fraud Warnings"],
+          "endpoints": [
+            "Disputes",
+            "Refunds",
+            "Application Fees",
+            "Early Fraud Warnings"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Charge ID"
@@ -35,11 +45,13 @@
     },
     {
       "name": "Customer",
+      "description": "A single customer by its id. Same fields as Customers; use it when the customer id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/customers/{Customer ID}"
     },
     {
       "name": "Customers",
+      "description": "The customer records, one row each. Carries name, email, address, account balance, currency, whether the customer is delinquent, any active discount, and invoice settings. Use for customer counts, signup dates, and for joining payments back to who made them.",
       "paged": true,
       "suffix": "/v1/customers?email={Email?}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -66,6 +78,7 @@
     },
     {
       "name": "Disputes",
+      "description": "Chargebacks raised by cardholders, one row each. Carries amount, currency, the reason given, status, the evidence submitted and its deadline, and links to the disputed charge and payment_intent. Use for dispute rate and dispute outcomes.",
       "paged": true,
       "suffix": "/v1/disputes?charge={Charge ID?}&payment_intent={Payment Intent ID?}&created={Created?:Unix timestamp}"
     },
@@ -76,6 +89,7 @@
     },
     {
       "name": "Events",
+      "description": "The audit trail of everything that happened in the account: objects created or updated, payments succeeding or failing, and so on. Each row names the event type, when it occurred, and carries the affected object. Use for activity timelines and for auditing what changed, not as a substitute for querying the objects themselves.",
       "paged": true,
       "suffix": "/v1/events?created={Created?:Unix timestamp}&delivery_success={Delivery Success?:true|false}&type={Event Type?}"
     },
@@ -111,6 +125,7 @@
     },
     {
       "name": "Payment Intents",
+      "description": "The full lifecycle of collecting a payment, including attempts that never became a charge. Carries amount, amount_received and amount_capturable, status, capture_method, cancellation_reason and last_payment_error, plus links to customer and payment method. Prefer this over Charges when the question involves abandoned or failed attempts, since a charge only comes into existence once an attempt succeeds.",
       "paged": true,
       "suffix": "/v1/payment_intents?customer={Customer ID?}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -147,6 +162,7 @@
     },
     {
       "name": "Payouts",
+      "description": "Transfers of your Stripe balance to your own bank account. Carries amount, currency, arrival_date, whether the payout was automatic, its method and status, and failure_code and failure_message when it did not land. Use for settlement timing and failed payouts -- customer-facing revenue is in Charges, not here.",
       "paged": true,
       "suffix": "/v1/payouts?status={Status?:pending|paid|failed|canceled}&arrival_date={Arrival Date?:Unix timestamp}&created={Created?:Unix timestamp}&destination={Destination?}"
     },
@@ -167,6 +183,7 @@
     },
     {
       "name": "Refunds",
+      "description": "Money returned to customers, one row per refund. Carries amount, currency, the reason given, status, and failure_reason when the refund itself failed, plus links back to the charge and payment_intent it reverses. Use for refund totals, refund rate, and refund reasons.",
       "paged": true,
       "suffix": "/v1/refunds?charge={Charge ID?}&payment_intent={Payment Intent ID?}&created={Created?:Unix timestamp}"
     },
@@ -290,6 +307,7 @@
     },
     {
       "name": "Invoices",
+      "description": "Billing documents, one row each. Carries amount_due, amount_paid and amount_remaining, currency, status and billing_reason, collection_method, the period covered, and links to customer and subscription. Use for billed versus collected revenue, overdue balances, and invoice-level breakdowns.",
       "paged": true,
       "suffix": "/v1/invoices?customer={Customer ID?}&status={Status?:draft|open|paid|uncollectible|void}&subscription={Subscription?}&collection_method={Collection Method?:charge_automatically|send_invoice}&created={Created?:Unix timestamp}&due_date={Due Date?:Unix timestamp}",
       "lookups": [
@@ -333,6 +351,7 @@
     },
     {
       "name": "Subscriptions",
+      "description": "Recurring billing agreements, one row each. Carries status, the current billing period, created and canceled_at, cancel_at_period_end, collection_method, currency, and links to the customer and the prices being billed. Use for MRR, churn, active subscriber counts, and cancellation analysis.",
       "paged": true,
       "suffix": "/v1/subscriptions?customer={Customer ID?}&plan={Plan ID?}&status={Status?:incomplete|trialing|...}&collection_method={Collection Method?}&created={Created?:Unix timestamp}&current_period_end={Current Period End?:Unix timestamp}&current_period_start={Current Period Start?:Unix timestamp}",
       "lookups": [
@@ -393,7 +412,12 @@
       "suffix": "/v1/accounts?created={Created?:Unix timestamp}",
       "lookups": [
         {
-          "endpoints": ["Account Capabilities", "Account Bank Accounts", "Account Cards", "People"],
+          "endpoints": [
+            "Account Capabilities",
+            "Account Bank Accounts",
+            "Account Cards",
+            "People"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Account ID"

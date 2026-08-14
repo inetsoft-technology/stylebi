@@ -55,6 +55,11 @@
     {
       "name": "Trailing Split",
       "suffix": "/parents/{Parent ID:0}/children?active={Active:true/false}&state={State,:open,closed,deferred}"
+    },
+    {
+      "name": "Described",
+      "description": "Every child of a parent, one row each.",
+      "suffix": "/parents/{Parent ID:0}/children"
     }
   ]
 }
