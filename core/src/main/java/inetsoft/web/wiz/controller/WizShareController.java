@@ -21,6 +21,7 @@ import inetsoft.web.share.ShareConfig;
 import inetsoft.web.share.ShareController;
 import inetsoft.web.share.ShareMessage;
 import inetsoft.web.wiz.model.ShareMessageRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -59,17 +60,17 @@ public class WizShareController {
    }
 
    @PostMapping("/viewsheet/share-email")
-   public void shareEmail(@RequestBody ShareMessageRequest request, Principal principal) throws Exception {
+   public void shareEmail(@Valid @RequestBody ShareMessageRequest request, Principal principal) throws Exception {
       shareController.sendEmailMessage(toShareMessage(request), principal);
    }
 
    @PostMapping("/viewsheet/share-slack")
-   public void shareSlack(@RequestBody ShareMessageRequest request, Principal principal) throws Exception {
+   public void shareSlack(@Valid @RequestBody ShareMessageRequest request, Principal principal) throws Exception {
       shareController.sendSlackMessage(toShareMessage(request), principal);
    }
 
    @PostMapping("/viewsheet/share-google-chat")
-   public void shareGoogleChat(@RequestBody ShareMessageRequest request, Principal principal) throws Exception {
+   public void shareGoogleChat(@Valid @RequestBody ShareMessageRequest request, Principal principal) throws Exception {
       shareController.sendGoogleChatMessage(toShareMessage(request), principal);
    }
 

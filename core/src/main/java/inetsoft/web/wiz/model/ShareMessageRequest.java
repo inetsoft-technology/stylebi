@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
@@ -30,6 +31,13 @@ import java.util.List;
  *
  * <p>Only {@code link} and {@code message} are used by the Slack/Google Chat channels;
  * {@code viewsheetId}/{@code subject}/{@code recipients}/{@code ccs}/{@code bccs} are Email-only.
+ *
+ * <p>{@code link}/{@code message} are {@code @NotBlank}: they back {@code ShareMessage.link()}/
+ * {@code message()}, which are non-{@code @Nullable} Immutables attributes. Without this
+ * validation, an omitted {@code link}/{@code message} would reach the Immutables builder in
+ * {@code WizShareController.toShareMessage()} and throw an unhandled {@code NullPointerException}
+ * (surfacing as a generic 500) instead of the clean 400 that {@code @Valid} +
+ * {@code GlobalExceptionHandler}'s default {@code MethodArgumentNotValidException} handling gives.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ShareMessageRequest {
@@ -90,7 +98,9 @@ public class ShareMessageRequest {
    }
 
    private String viewsheetId;
+   @NotBlank
    private String link;
+   @NotBlank
    private String message;
    private String subject;
    private List<String> recipients;
