@@ -55,7 +55,8 @@ public class BindingAgentController {
                                  ViewsheetSessionService sessions,
                                  BindableFieldsService fieldsService,
                                  BindingReadService readService,
-                                 ChartBindingService chartService)
+                                 ChartBindingService chartService,
+                                 ChartAestheticService aestheticService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -64,6 +65,7 @@ public class BindingAgentController {
       this.fieldsService = fieldsService;
       this.readService = readService;
       this.chartService = chartService;
+      this.aestheticService = aestheticService;
    }
 
    public record JoinRequest(String code) {}
@@ -143,6 +145,69 @@ public class BindingAgentController {
       chartService.swapAxes(sessionToken, user, request.assembly(), linkUri);
    }
 
+   public record AestheticFieldRequest(String assembly, String channel, FieldRef field) {}
+   public record AestheticFrameRequest(String assembly, String channel,
+                                       Map<String, Object> frame) {}
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetics")
+   public Map<String, Object> chartAesthetics(@PathVariable String sessionToken,
+                                              @RequestParam String assembly,
+                                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return aestheticService.read(sessionToken, user, assembly);
+   }
+
+   /**
+    * Chart-type-aware discovery arrives with Phase 2, when channel validity starts to depend
+    * on the chart type. Until then every supported channel applies to every chart, and saying
+    * so plainly beats a list that pretends to be filtered.
+    */
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-options")
+   public Map<String, Object> aestheticOptions(@PathVariable String sessionToken,
+                                               Principal user)
+   {
+      requireEnabled();
+      return aestheticService.options();
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field")
+   public void setAestheticField(@PathVariable String sessionToken,
+                                 @RequestBody AestheticFieldRequest request,
+                                 @RequestParam(required = false, defaultValue = "") String linkUri,
+                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
+                                request.field(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field/clear")
+   public void clearAestheticField(@PathVariable String sessionToken,
+                                   @RequestBody AestheticFieldRequest request,
+                                   @RequestParam(required = false, defaultValue = "") String linkUri,
+                                   Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      aestheticService.clearField(sessionToken, user, request.assembly(), request.channel(),
+                                  linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame")
+   public void setVisualFrame(@PathVariable String sessionToken,
+                              @RequestBody AestheticFrameRequest request,
+                              @RequestParam(required = false, defaultValue = "") String linkUri,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      aestheticService.setFrame(sessionToken, user, request.assembly(), request.channel(),
+                                request.frame(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
       sessionService.close(sessionToken);
@@ -178,4 +243,5 @@ public class BindingAgentController {
    private final BindableFieldsService fieldsService;
    private final BindingReadService readService;
    private final ChartBindingService chartService;
+   private final ChartAestheticService aestheticService;
 }

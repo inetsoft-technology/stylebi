@@ -75,7 +75,8 @@ class BindingAgentControllerTest {
       return new BindingAgentController(feature, mock(SheetJoinService.class),
                                         mock(SheetSessionService.class), sessions, fields,
                                         mock(BindingReadService.class),
-                                        mock(ChartBindingService.class));
+                                        mock(ChartBindingService.class),
+                                        mock(ChartAestheticService.class));
    }
 
    private static Principal principal() {
