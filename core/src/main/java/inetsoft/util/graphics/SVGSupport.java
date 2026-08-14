@@ -176,6 +176,10 @@ public interface SVGSupport {
    String ATTR_SOURCE = "source";
    /** {@code data-target} — target node's mxCell ID for relation/tree chart edges. */
    String ATTR_TARGET = "target";
+   /** {@code data-panel} — facet panel key for relation/tree chart nodes and edges.  Node ids are
+    *  only unique within a panel (each facet panel builds its own mxGraph), so hover matching must
+    *  pair the id with this key.  Absent on non-faceted charts. */
+   String ATTR_PANEL = "panel";
    /** {@code data-pareto} — {@code "true"} on the cumulative-% line in a Pareto chart. */
    String ATTR_PARETO = "pareto";
 

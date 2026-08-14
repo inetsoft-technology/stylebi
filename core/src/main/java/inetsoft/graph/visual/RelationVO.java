@@ -52,6 +52,9 @@ public class RelationVO extends ElementVO {
       RelationElement elem = (RelationElement) obj.getElement();
 
       this.shape = obj.getShape();
+      // mxCell ids are only unique within a facet panel (each panel builds its own mxGraph),
+      // so the panel key is stamped alongside the id for hover matching. Null when not faceted.
+      this.panelId = GTool.getFacetPanelId(coord);
 
       // only add label on 'all'
       if(elem.getHint("overlay") == null) {
@@ -111,6 +114,11 @@ public class RelationVO extends ElementVO {
          nodeAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()));
          nodeAttrs.put(SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()));
          nodeAttrs.put(SVGSupport.ATTR_NODE_ID, gobj.getMxCell().getId());
+
+         if(panelId != null) {
+            nodeAttrs.put(SVGSupport.ATTR_PANEL, panelId);
+         }
+
          nodeAttrs.put(SVGSupport.ATTR_Y, String.valueOf(b.getCenterY()));
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION, nodeAttrs);
       }
@@ -425,6 +433,7 @@ public class RelationVO extends ElementVO {
 
    private Shape shape;
    private VOText vtext;
+   private final String panelId;
 
    private static final Color DEFAULT_LINE_COLOR = new Color(0xafafad);
    private static final Logger LOG = LoggerFactory.getLogger(RelationVO.class);

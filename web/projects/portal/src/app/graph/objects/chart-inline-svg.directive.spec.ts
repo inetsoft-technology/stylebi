@@ -128,10 +128,16 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          return Array.from(host.querySelectorAll(sel)).map(e => e.classList.contains("inetsoft-active"));
       }
 
+      // Node keys are panel-qualified (see ChartInlineSvgDirective.relationKey); an unfaceted
+      // chart stamps no data-panel, so the panel half is empty.
+      function key(id: string, panel = ""): string {
+         return JSON.stringify([panel, id]);
+      }
+
       it("activates the hovered node, its neighbours, incident edges and their labels", () => {
          const { dir, host } = makeDirective(html);
          (dir as any).svgRootEl = host;
-         dir.setExternalRelationHighlight(new Set(["B", "A", "C"]), "B");
+         dir.setExternalRelationHighlight(new Set([key("B"), key("A"), key("C")]), key("B"));
          expect(activeFlags(host, ".inetsoft-relation")).toEqual([true, true, true]);
          expect(activeFlags(host, ".inetsoft-relation-edge")).toEqual([true, true]);
          expect(activeFlags(host, ".inetsoft-relation-label")).toEqual([true, true]);
@@ -143,7 +149,7 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
             <div class="inetsoft-relation" data-id="X" data-row="0" data-col="0"></div>
             <div class="inetsoft-relation" data-id="Y" data-row="1" data-col="0"></div>`);
          (dir as any).svgRootEl = host;
-         dir.setExternalRelationHighlight(new Set(["A", "B"]), "A");
+         dir.setExternalRelationHighlight(new Set([key("A"), key("B")]), key("A"));
          expect(activeFlags(host, ".inetsoft-relation")).toEqual([false, false]);
          expect(host.classList.contains("inetsoft-dim-all")).toBe(true);
       });
@@ -156,7 +162,7 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
             <div class="inetsoft-relation" data-id="Q" data-row="0" data-col="0"></div>
             <div class="inetsoft-relation-edge" data-source="A" data-target="Z"></div>`);
          (dir as any).svgRootEl = host;
-         dir.setExternalRelationHighlight(new Set(["A", "Z"]), "A");
+         dir.setExternalRelationHighlight(new Set([key("A"), key("Z")]), key("A"));
          expect(host.querySelector(".inetsoft-relation")!.classList.contains("inetsoft-active")).toBe(false);
          expect(host.querySelector(".inetsoft-relation-edge")!.classList.contains("inetsoft-active")).toBe(true);
          expect(host.classList.contains("inetsoft-dim-all")).toBe(false);
@@ -165,12 +171,52 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       it("clears all active classes and dim-all on null", () => {
          const { dir, host } = makeDirective(html);
          (dir as any).svgRootEl = host;
-         dir.setExternalRelationHighlight(new Set(["A", "B", "C"]), "B");
+         dir.setExternalRelationHighlight(new Set([key("A"), key("B"), key("C")]), key("B"));
          host.classList.add("inetsoft-dim-all");
          dir.setExternalRelationHighlight(null, null);
          expect(activeFlags(host, ".inetsoft-relation,.inetsoft-relation-edge,.inetsoft-relation-label")
             .some(Boolean)).toBe(false);
          expect(host.classList.contains("inetsoft-dim-all")).toBe(false);
+      });
+   });
+
+   describe("activateRelationNeighbors (facet panels)", () => {
+      // Redmine #75878: a relation chart builds one mxGraph per facet panel, so both panels stamp
+      // the same node ids ("R_id"/"N_id"). Hovering a node in the East panel must not light up the
+      // West panel's edge, which carries an identical data-source/data-target pair.
+      const html = `
+         <svg>
+            <g class="inetsoft-relation" data-id="R_id" data-panel="{Region=East}/{}" data-row="0" data-col="0"></g>
+            <g class="inetsoft-relation" data-id="N_id" data-panel="{Region=East}/{}" data-row="1" data-col="0"></g>
+            <g class="inetsoft-relation-edge" data-panel="{Region=East}/{}" data-source="R_id" data-target="N_id"></g>
+            <g class="inetsoft-relation" data-id="R_id" data-panel="{Region=West}/{}" data-row="2" data-col="0"></g>
+            <g class="inetsoft-relation" data-id="N_id" data-panel="{Region=West}/{}" data-row="3" data-col="0"></g>
+            <g class="inetsoft-relation-edge" data-panel="{Region=West}/{}" data-source="R_id" data-target="N_id"></g>
+         </svg>`;
+
+      function activeFlags(host: HTMLElement, sel: string): boolean[] {
+         return Array.from(host.querySelectorAll(sel)).map(e => e.classList.contains("inetsoft-active"));
+      }
+
+      it("activates only the hovered panel's edge and neighbour", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         (dir as any).activateKeys(["0-0"]);
+         expect(activeFlags(host, ".inetsoft-relation")).toEqual([true, true, false, false]);
+         expect(activeFlags(host, ".inetsoft-relation-edge")).toEqual([true, false]);
+      });
+
+      it("still matches by id alone when no panel is stamped (unfaceted chart)", () => {
+         const { dir, host } = makeDirective(`
+            <svg>
+               <g class="inetsoft-relation" data-id="R_id" data-row="0" data-col="0"></g>
+               <g class="inetsoft-relation" data-id="N_id" data-row="1" data-col="0"></g>
+               <g class="inetsoft-relation-edge" data-source="R_id" data-target="N_id"></g>
+            </svg>`);
+         (dir as any).afterSvgInjected();
+         (dir as any).activateKeys(["0-0"]);
+         expect(activeFlags(host, ".inetsoft-relation")).toEqual([true, true]);
+         expect(activeFlags(host, ".inetsoft-relation-edge")).toEqual([true]);
       });
    });
 
