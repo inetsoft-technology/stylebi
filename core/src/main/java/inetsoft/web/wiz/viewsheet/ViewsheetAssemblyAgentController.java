@@ -61,6 +61,7 @@ public class ViewsheetAssemblyAgentController {
                                    ChartElementService chartElementService,
                                    AssemblyConditionService conditionService,
                                    AssemblyHighlightService highlightService,
+                                   DateComparisonService comparisonService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -77,6 +78,7 @@ public class ViewsheetAssemblyAgentController {
       this.chartElementService = chartElementService;
       this.conditionService = conditionService;
       this.highlightService = highlightService;
+      this.comparisonService = comparisonService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -412,6 +414,49 @@ public class ViewsheetAssemblyAgentController {
                               request.name(), linkUri);
    }
 
+   public record DateComparisonRequest(String assembly, Integer periods, String level,
+                                       String endDate, Boolean endToday, String interval,
+                                       Boolean useFacet, Boolean onlyShowMostRecentDate,
+                                       Map<String, Object> frame) {
+      DateComparisonService.Comparison comparison() {
+         return new DateComparisonService.Comparison(
+            periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
+            onlyShowMostRecentDate, frame);
+      }
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison")
+   public Map<String, Object> getDateComparison(@PathVariable String sessionToken,
+                                                @RequestParam String assembly,
+                                                Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return comparisonService.read(sessionToken, user, assembly);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison")
+   public void setDateComparison(
+      @PathVariable String sessionToken,
+      @RequestBody DateComparisonRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      comparisonService.set(sessionToken, user, request.assembly(), request.comparison(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison/clear")
+   public void clearDateComparison(
+      @PathVariable String sessionToken,
+      @RequestBody DateComparisonRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      comparisonService.clear(sessionToken, user, request.assembly(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
       requireEnabled();
@@ -513,6 +558,7 @@ public class ViewsheetAssemblyAgentController {
    private final ChartElementService chartElementService;
    private final AssemblyConditionService conditionService;
    private final AssemblyHighlightService highlightService;
+   private final DateComparisonService comparisonService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }
