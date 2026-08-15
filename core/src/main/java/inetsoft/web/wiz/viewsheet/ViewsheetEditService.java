@@ -27,6 +27,7 @@ import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
+import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -199,6 +200,8 @@ public class ViewsheetEditService {
       requireAssembly(request);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+
          // An annotation is three linked assemblies. Removing one leaves the survivors
          // pointing at a name that no longer resolves, and nothing reports the orphaning.
          Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
@@ -229,6 +232,10 @@ public class ViewsheetEditService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         // Through the shared guard, so the message lists the names that do exist and every op
+         // reports a bad name the same way.
+         requireExisting(rvs, request.assembly());
+
          Viewsheet vs = rvs.getViewsheet();
          VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(request.assembly());
 
@@ -280,6 +287,8 @@ public class ViewsheetEditService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+
          ChangeVSObjectLayerEvent event = new ChangeVSObjectLayerEvent();
          event.setName(request.assembly());
          event.setzIndex(request.zIndex());
@@ -298,6 +307,8 @@ public class ViewsheetEditService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+
          LockVSObjectEvent event = new LockVSObjectEvent();
          event.setName(request.assembly());
          event.setLocked(request.locked());
@@ -315,6 +326,8 @@ public class ViewsheetEditService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+
          ChangeVSObjectTextEvent event = new ChangeVSObjectTextEvent();
          event.setName(request.assembly());
          event.setText(request.title());
@@ -343,8 +356,10 @@ public class ViewsheetEditService {
    {
       requireAssembly(request);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-         groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher));
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+         groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher);
+      });
    }
 
    private void moveFromContainer(String sessionToken, Principal user, EditRequest request,
@@ -354,6 +369,8 @@ public class ViewsheetEditService {
       requireValues(request.op(), "x", request.x(), "y", request.y());
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+
          MoveVSObjectEvent event = new MoveVSObjectEvent();
          event.setName(request.assembly());
          event.setxOffset(request.x());
@@ -505,8 +522,9 @@ public class ViewsheetEditService {
     */
    private AssemblyNode requireExisting(RuntimeViewsheet rvs, String name) {
       Map<String, AssemblyNode> byName = new LinkedHashMap<>();
+      ViewsheetModel model = reader.read(rvs);
 
-      for(AssemblyNode node : reader.read(rvs).assemblies()) {
+      for(AssemblyNode node : model == null ? List.<AssemblyNode>of() : model.assemblies()) {
          byName.put(node.name(), node);
       }
 

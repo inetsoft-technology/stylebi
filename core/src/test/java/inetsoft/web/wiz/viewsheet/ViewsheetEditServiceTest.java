@@ -27,6 +27,8 @@ import inetsoft.web.composer.vs.objects.event.ChangeVSObjectLayerEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import inetsoft.web.composer.vs.objects.event.MultiMoveVsObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ResizeVSObjectEvent;
@@ -128,7 +130,8 @@ class ViewsheetEditServiceTest {
    @Test
    void removeDelegatesTheAssemblyNameToComposerObjectService() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)));
 
       service.apply("tok", principal(), request("remove", "Gauge1"), "");
 
@@ -288,7 +291,8 @@ class ViewsheetEditServiceTest {
    @Test
    void setZIndexDelegatesTheLayerChange() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)));
       EditRequest request = new EditRequest("set_z_index", "Gauge1", null, null, null, null,
                                             7, null, null, null, null, null, null, null);
 
@@ -303,7 +307,8 @@ class ViewsheetEditServiceTest {
    @Test
    void setLockDelegatesTheLockState() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, null, true)));
       EditRequest request = new EditRequest("set_lock", "Rect1", null, null, null, null,
                                             null, null, Boolean.TRUE, null, null, null,
                                             null, null);
@@ -320,7 +325,9 @@ class ViewsheetEditServiceTest {
       ComposerGroupService groups = mock(ComposerGroupService.class);
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class),
                                                  mock(ClipboardControllerService.class),
-                                                 mock(ViewsheetReadService.class), groups);
+                                                 readerReturning(new AssemblyNode(
+                                                    "Group1", "GroupContainer", 0, 0, 200, 200,
+                                                    0, null, true)), groups);
 
       service.apply("tok", principal(), request("ungroup", "Group1"), "");
 
@@ -417,6 +424,38 @@ class ViewsheetEditServiceTest {
          IllegalArgumentException.class,
          () -> service.apply("tok", principal(), sized("resize", "NoSuchAssembly1", 120, 80), ""));
       assertTrue(thrown.getMessage().contains("NoSuchAssembly1"));
+   }
+
+   /**
+    * The same guard belongs on <em>every</em> op that addresses an existing assembly, not just the
+    * three geometry ones. It was wired into move, resize and resize_title only, so renaming
+    * Text1 and then calling set_title on "Text1" returned a cheerful ok — the composer layer looks
+    * the assembly up, gets null, falls through every instanceof guard and returns normally.
+    *
+    * <p>That is the worst shape of failure for an agent: the rename succeeded, the follow-up
+    * silently did nothing, and both reported success, so the caller believes the title was set.
+    * Found live on local-1197 while testing rename tracking.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "set_title", "set_z_index", "set_lock", "remove", "rename",
+                            "ungroup", "move_from_container" })
+   void everyOpAddressingAnAssemblyFailsLoudOnAnUnknownName(String op) {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true));
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), reader);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), full(op, "NoSuchAssembly1"), ""),
+         op + " must refuse an assembly that does not exist");
+      assertTrue(thrown.getMessage().contains("NoSuchAssembly1"),
+                 op + " must name the assembly it could not find, got: " + thrown.getMessage());
+   }
+
+   /** Every field populated, so an op fails on the missing assembly rather than a missing field. */
+   private static EditRequest full(String op, String assembly) {
+      return new EditRequest(op, assembly, 10, 10, 100, 100, 2, "A title", true, "Container1",
+                             List.of(assembly), "NewName1", 111, "left");
    }
 
    @Test
