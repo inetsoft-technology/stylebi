@@ -86,6 +86,7 @@ public class ViewsheetFormatService {
 
          ObjectNode object = ((ObjectNode) format).deepCopy();
          object.put("type", VSObjectFormatInfoModel.class.getName());
+         coerceAlign(object);
 
          try {
             return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
@@ -94,6 +95,51 @@ public class ViewsheetFormatService {
             throw new IllegalArgumentException(
                "set_format could not read 'format': " + e.getOriginalMessage(), e);
          }
+      }
+
+      /**
+       * Lets {@code align} be written as a word.
+       *
+       * <p>This API documents its format as CSS-shaped and lists {@code align} beside
+       * {@code color} and {@code backgroundColor}, so a caller writes {@code align: "center"}.
+       * Underneath it is an {@code AlignmentInfo} with {@code halign}/{@code valign}, and Jackson
+       * threw on the string — during body conversion, where Spring wraps the failure in
+       * {@code HttpMessageNotReadableException} and answers with a **bodyless 400**. So the
+       * documented usage failed with no message at all.
+       *
+       * <p>Accepting the word is the right half of the fix: "center" has one sensible meaning, and
+       * the alternative is asking callers to learn an internal model this API exists to hide. Both
+       * axes are accepted, together or separately, and the object form still works.
+       */
+      private static void coerceAlign(ObjectNode object) {
+         JsonNode align = object.get("align");
+
+         if(align == null || !align.isTextual()) {
+            return;
+         }
+
+         ObjectNode alignment = object.objectNode();
+
+         for(String word : align.asText().trim().toLowerCase().split("\\s+")) {
+            if(word.isEmpty()) {
+               continue;
+            }
+
+            switch(word) {
+            case "left" -> alignment.put("halign", "Left");
+            case "center" -> alignment.put("halign", "Center");
+            case "right" -> alignment.put("halign", "Right");
+            case "top" -> alignment.put("valign", "Top");
+            case "middle" -> alignment.put("valign", "Middle");
+            case "bottom" -> alignment.put("valign", "Bottom");
+            default -> throw new IllegalArgumentException(
+               "set_format could not read 'align': '" + word + "' is not an alignment. " +
+               "Horizontal: left, center, right. Vertical: top, middle, bottom. " +
+               "Both may be given together, as \"center middle\".");
+            }
+         }
+
+         object.set("align", alignment);
       }
 
       private static final ObjectMapper MAPPER = new ObjectMapper();

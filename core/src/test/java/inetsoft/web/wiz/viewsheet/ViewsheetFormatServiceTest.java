@@ -96,6 +96,81 @@ class ViewsheetFormatServiceTest {
       assertEquals("#FFEEAA", request.format().getBackgroundColor());
    }
 
+   /**
+    * The tool documents the format as CSS-shaped and lists `align` beside `color` and
+    * `backgroundColor`, so a caller writes {@code align: "center"}. But align is an
+    * {@code AlignmentInfo} object with {@code halign}/{@code valign}, so Jackson threw during
+    * body conversion — and Spring wraps that in {@code HttpMessageNotReadableException}, which
+    * returns a **bodyless 400**. The caller saw "Request failed with status code 400" and nothing
+    * else. Found live on local-1201 running case 7.
+    *
+    * <p>Accepting the word is the fix rather than documenting the object: the documented usage
+    * should work, and "center" has exactly one sensible meaning here.
+    */
+   @Test
+   void acceptsAlignAsAWordBecauseThatIsWhatTheToolDocuments() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"align\":\"center\"},\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertNotNull(request.format().getAlign(), "align must survive as an AlignmentInfo");
+      assertEquals("Center", request.format().getAlign().getHalign());
+   }
+
+   @Test
+   void acceptsAVerticalAlignWordToo() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"align\":\"middle\"},\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals("Middle", request.format().getAlign().getValign());
+   }
+
+   /** Both axes at once, since a caller wanting one often wants the other. */
+   @Test
+   void acceptsBothAlignmentsInOneValue() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"align\":\"center middle\"}," +
+         "\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals("Center", request.format().getAlign().getHalign());
+      assertEquals("Middle", request.format().getAlign().getValign());
+   }
+
+   /** The object form still works — this widens the contract rather than replacing it. */
+   @Test
+   void stillAcceptsTheObjectForm() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"align\":{\"halign\":\"Right\"}}," +
+         "\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals("Right", request.format().getAlign().getHalign());
+   }
+
+   @Test
+   void refusesAnAlignWordItCannotResolve() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> mapper.readValue(
+            "{\"assemblies\":[\"Text1\"],\"format\":{\"align\":\"sideways\"}," +
+            "\"reset\":false}",
+            ViewsheetFormatService.FormatRequest.class));
+
+      assertTrue(thrown.getMessage().contains("sideways"), thrown.getMessage());
+   }
+
    @Test
    void requiresAtLeastOneAssembly() {
       Exception thrown = assertThrows(

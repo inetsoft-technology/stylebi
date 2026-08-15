@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -126,6 +127,32 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("not supported yet")));
    }
 
+   /**
+    * A body Jackson cannot read at all.
+    *
+    * <p>Spring's resolver retries an unmatched exception against its <em>cause</em>, so a
+    * {@code @JsonCreator} that throws {@code IllegalArgumentException} is already answered with
+    * its message by the handler above — the first version of this test asserted exactly that and
+    * passed without any new code, which is what gave it away.
+    *
+    * <p>The real gap is a failure raised by Jackson itself: a field given the wrong shape, whose
+    * cause is a {@code JsonProcessingException} and matches nothing. That returned a **bodyless
+    * 400**, so the caller saw "Request failed with status code 400" and nothing else —
+    * indistinguishable from a bug in the tool. Found live on local-1201, where the documented
+    * {@code align: "center"} hit precisely this.
+    */
+   @Test
+   void anUnreadableBodyReportsWhyRatherThanAnEmpty400() throws Exception {
+      String content = mvc.perform(get("/wiz-test/throw").param("type", "unreadable"))
+         .andExpect(status().isBadRequest())
+         .andReturn().getResponse().getContentAsString();
+
+      assertTrue(content.contains("could not be read"),
+                 "the 400 must say the body was unreadable, got: [" + content + "]");
+      assertTrue(content.contains("align"),
+                 "and must name the field Jackson choked on, got: [" + content + "]");
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -140,6 +167,18 @@ class WizControllerErrorHandlerTest {
 
          if("illegal".equals(type)) {
             throw new IllegalArgumentException("Edit op 'resize_title' requires 'height'.");
+         }
+
+         if("unreadable".equals(type)) {
+            // Jackson's own failure, not ours: nothing in the cause chain is an
+            // IllegalArgumentException, so no handler matched and the 400 came back empty.
+            throw new org.springframework.http.converter.HttpMessageNotReadableException(
+               "JSON parse error",
+               com.fasterxml.jackson.databind.exc.MismatchedInputException.from(
+                  (com.fasterxml.jackson.core.JsonParser) null, String.class,
+                  "Cannot construct instance of AlignmentInfo from String value 'center' " +
+                  "(field \"align\")"),
+               new org.springframework.mock.http.MockHttpInputMessage(new byte[0]));
          }
 
          if("unsupported-op".equals(type)) {

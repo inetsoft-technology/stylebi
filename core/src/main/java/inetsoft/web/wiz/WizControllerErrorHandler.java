@@ -23,6 +23,7 @@ import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -154,6 +155,37 @@ public class WizControllerErrorHandler {
       Map<String, String> payload = new HashMap<>();
       payload.put("error", e.getMessage());
       return new ResponseEntity<>(payload, null, HttpStatus.NOT_IMPLEMENTED);
+   }
+
+   /**
+    * Maps a body the converter could not read to 400 <em>saying so</em>.
+    *
+    * <p>Spring retries an unmatched exception against its cause, so a {@code @JsonCreator} that
+    * throws {@code IllegalArgumentException} is already answered with its message by the handler
+    * above. A failure raised by <em>Jackson</em> is not: a field given the wrong shape produced a
+    * bodyless 400, and the caller saw "Request failed with status code 400" and nothing else —
+    * which is indistinguishable from a broken tool, and sends an investigation looking at the
+    * server rather than at the request.
+    *
+    * <p>Jackson's own text is verbose and names internal classes, so only its first line is
+    * passed on: it is the line that names the offending field, which is the part a caller can act
+    * on.
+    */
+   @ExceptionHandler(HttpMessageNotReadableException.class)
+   public ResponseEntity<Map<String, String>> handleUnreadableBody(
+      HttpMessageNotReadableException e)
+   {
+      LOG.warn("Unreadable wiz request body: {}", e.getMessage());
+
+      Throwable cause = e.getMostSpecificCause();
+      String detail = cause == null || cause.getMessage() == null ? "" : cause.getMessage();
+      int newline = detail.indexOf('\n');
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error",
+                  "The request body could not be read: " +
+                  (newline < 0 ? detail : detail.substring(0, newline)));
+      return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
