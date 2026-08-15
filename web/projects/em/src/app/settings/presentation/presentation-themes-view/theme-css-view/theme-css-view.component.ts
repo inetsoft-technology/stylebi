@@ -117,6 +117,8 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.font)", heading: true},
       {name: "--inet-font-size-base"},
       {name: "--inet-font-family"},
+      {name: "--inet-feedback-font-size"},
+      {name: "--inet-badge-font-size"},
       {name: "--inet-text-color", color: true},
       {name: "--inet-text-strong-color", color: true},
       {name: "--inet-text-muted-color", color: true},
@@ -155,7 +157,10 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-hover-primary-bg-color", color: true},
       {name: "--inet-hover-secondary-bg-color", color: true},
       {name: "--inet-hover-text-color", color: true},
+      {name: "--inet-ui-neutral-color", color: true},
+      {name: "--inet-ui-neutral-border-color", color: true},
       {name: "--inet-ui-neutral-hover-bg-color", color: true},
+      {name: "--inet-ui-neutral-hover-color", color: true},
 
       // selected items
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.selItems)", heading: true},
