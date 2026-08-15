@@ -28,9 +28,11 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.regex.Pattern;
 
 /**
@@ -121,12 +123,25 @@ public class FkIntegrityService {
       }
 
       JDBCDataSource ds = metadataService.getJDBCDatasource(dsName);
-      String droppedSql =
-         buildDroppedRowCountSql(sourceTable, fkColumn, targetTable, targetKeyColumn);
-      String duplicateSql = buildDuplicateTargetKeyCountSql(targetTable, targetKeyColumn);
 
       try(Connection conn = openConnection(ds, principal)) {
          // Both measurements share one connection so they describe the same database state.
+         // THE CAST FIX. A source FK declared as text (OrangeHRM's hs_hr_employee.sal_grd_code,
+         // a VARCHAR) pointing at an integer target key (ohrm_pay_grade.id) made the bare
+         // `tgt.id = src.fkColumn` comparison below fail outright on Postgres ("operator does
+         // not exist: integer = character varying"), which this class's own fail-closed design
+         // then reports as UNESTABLISHED -- so the FK-label feature silently never offered a
+         // pay-grade filter, with no error surfaced anywhere. resolveCastSide measures both
+         // columns' real JDBC types and, ONLY when they are genuinely incomparable (one numeric,
+         // one character), casts the NUMERIC side to text for the comparison -- never the other
+         // way around, since a text-to-number cast can THROW on a non-numeric value ("N/A", a
+         // code the driver won't parse) where a number-to-text cast never can.
+         CastSide castSide = resolveCastSide(conn, sourceTable, fkColumn, targetTable, targetKeyColumn);
+         boolean mysqlDialect = castSide != CastSide.NONE && isMySqlDialect(conn);
+         String droppedSql = buildDroppedRowCountSql(
+            sourceTable, fkColumn, targetTable, targetKeyColumn, castSide, mysqlDialect);
+         String duplicateSql = buildDuplicateTargetKeyCountSql(targetTable, targetKeyColumn);
+
          long droppedRowCount = executeCount(conn, droppedSql);
          long duplicateTargetKeyCount = executeCount(conn, duplicateSql);
 
@@ -167,19 +182,180 @@ public class FkIntegrityService {
    }
 
    /**
+    * Builds the drop-count statement from already-validated identifiers, with NO cast applied --
+    * the shape every dialect this feature has run against until now (source and target key
+    * declared the same SQL type family) needs nothing else.
+    */
+   static String buildDroppedRowCountSql(String sourceTable, String fkColumn,
+                                         String targetTable, String targetKeyColumn)
+   {
+      return buildDroppedRowCountSql(
+         sourceTable, fkColumn, targetTable, targetKeyColumn, CastSide.NONE, false);
+   }
+
+   /**
     * Builds the drop-count statement from already-validated identifiers.
     *
     * <p>Both halves of "rows an INNER join would drop" are counted: NULL foreign keys, and
     * foreign keys with no matching target row. The orphan half is a correlated subquery, so the
     * FK value is compared column-to-column and never rendered into the statement text.</p>
+    *
+    * <p>{@code castSide} names the side of the comparison (never both) that must be cast to
+    * TEXT before the two are compared -- see {@link #resolveCastSide} for how and why. The NULL
+    * check always reads the raw, uncast column: NULL-ness does not depend on type agreement.</p>
     */
    static String buildDroppedRowCountSql(String sourceTable, String fkColumn,
-                                         String targetTable, String targetKeyColumn)
+                                         String targetTable, String targetKeyColumn,
+                                         CastSide castSide, boolean mysqlDialect)
    {
+      String fkRef = "src." + fkColumn;
+      String targetKeyRef = "tgt." + targetKeyColumn;
+
+      if(castSide == CastSide.FK) {
+         fkRef = castToText(fkRef, mysqlDialect);
+      }
+      else if(castSide == CastSide.TARGET_KEY) {
+         targetKeyRef = castToText(targetKeyRef, mysqlDialect);
+      }
+
       return "SELECT COUNT(*) FROM " + sourceTable + " src" +
          " WHERE src." + fkColumn + " IS NULL" +
          " OR NOT EXISTS (SELECT 1 FROM " + targetTable + " tgt" +
-         " WHERE tgt." + targetKeyColumn + " = src." + fkColumn + ")";
+         " WHERE " + targetKeyRef + " = " + fkRef + ")";
+   }
+
+   /** Which side of the FK/target-key comparison must be cast to TEXT before comparing. */
+   enum CastSide { NONE, FK, TARGET_KEY }
+
+   /** {@code CAST(expr AS <text type>)} -- MySQL's CAST rejects VARCHAR as a target (it wants
+    *  CHAR); every other dialect this project registers a sample datasource for (Postgres,
+    *  the default assumed elsewhere) accepts VARCHAR. */
+   private static String castToText(String expr, boolean mysqlDialect) {
+      return "CAST(" + expr + " AS " + (mysqlDialect ? "CHAR" : "VARCHAR") + ")";
+   }
+
+   /**
+    * Best-effort: resolves both columns' real JDBC types via {@code DatabaseMetaData.getColumns}
+    * and decides whether one side needs a TEXT cast to compare cleanly.
+    *
+    * <p>ONLY acts when confident: identical types, or either lookup failing (an un-mocked test
+    * connection, a driver without column metadata support, a column the driver can't find) all
+    * degrade to {@code CastSide.NONE} -- byte-identical to this feature's behavior before this
+    * fix. A missed cast costs one filter control; a wrong one could throw or silently compare
+    * incomparable values, so nothing here may guess.</p>
+    *
+    * <p>Casts the NUMERIC side, never the character side: a number-to-text cast can never throw,
+    * while a text-to-number cast can (a code column holding "N/A" or something the driver can't
+    * parse) -- turning a working, if unenriched, probe into a hard failure. So when the two
+    * sides are genuinely incomparable, the NUMERIC one always yields.</p>
+    */
+   static CastSide resolveCastSide(Connection conn, String sourceTable, String fkColumn,
+                                   String targetTable, String targetKeyColumn)
+   {
+      try {
+         Integer fkType = columnJdbcType(conn, sourceTable, fkColumn);
+         Integer targetType = columnJdbcType(conn, targetTable, targetKeyColumn);
+
+         if(fkType == null || targetType == null || fkType.equals(targetType)) {
+            return CastSide.NONE;
+         }
+
+         boolean fkIsText = isCharacterType(fkType);
+         boolean targetIsNumeric = isNumericType(targetType);
+
+         if(fkIsText && targetIsNumeric) {
+            return CastSide.TARGET_KEY;
+         }
+
+         boolean fkIsNumeric = isNumericType(fkType);
+         boolean targetIsText = isCharacterType(targetType);
+
+         if(fkIsNumeric && targetIsText) {
+            return CastSide.FK;
+         }
+
+         // Different types within the same family (INTEGER vs BIGINT, VARCHAR vs CHAR, ...) --
+         // every dialect this feature runs against already compares those directly.
+         return CastSide.NONE;
+      }
+      catch(Exception e) {
+         return CastSide.NONE;
+      }
+   }
+
+   /**
+    * The JDBC {@code java.sql.Types} code for one column, or {@code null} when it cannot be
+    * established (no metadata, column not found, driver quirk) -- never a guessed default.
+    */
+   private static Integer columnJdbcType(Connection conn, String tableIdentifier, String column)
+      throws SQLException
+   {
+      String schema = null;
+      String table = tableIdentifier;
+      int dot = tableIdentifier.indexOf('.');
+
+      if(dot >= 0) {
+         schema = tableIdentifier.substring(0, dot);
+         table = tableIdentifier.substring(dot + 1);
+      }
+
+      DatabaseMetaData meta = conn.getMetaData();
+
+      if(meta == null) {
+         return null;
+      }
+
+      try(ResultSet rs = meta.getColumns(conn.getCatalog(), schema, table, column)) {
+         if(rs != null && rs.next()) {
+            int type = rs.getInt("DATA_TYPE");
+            return rs.wasNull() ? null : type;
+         }
+      }
+
+      return null;
+   }
+
+   private static boolean isCharacterType(int jdbcType) {
+      switch(jdbcType) {
+         case Types.CHAR:
+         case Types.VARCHAR:
+         case Types.LONGVARCHAR:
+         case Types.NCHAR:
+         case Types.NVARCHAR:
+         case Types.LONGNVARCHAR:
+            return true;
+         default:
+            return false;
+      }
+   }
+
+   private static boolean isNumericType(int jdbcType) {
+      switch(jdbcType) {
+         case Types.TINYINT:
+         case Types.SMALLINT:
+         case Types.INTEGER:
+         case Types.BIGINT:
+         case Types.FLOAT:
+         case Types.REAL:
+         case Types.DOUBLE:
+         case Types.NUMERIC:
+         case Types.DECIMAL:
+            return true;
+         default:
+            return false;
+      }
+   }
+
+   /** Best-effort dialect sniff for {@link #castToText} -- MySQL alone needs CHAR, not VARCHAR. */
+   private static boolean isMySqlDialect(Connection conn) {
+      try {
+         DatabaseMetaData meta = conn.getMetaData();
+         String product = meta != null ? meta.getDatabaseProductName() : null;
+         return product != null && product.toLowerCase().contains("mysql");
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    /**
