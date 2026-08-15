@@ -2,11 +2,13 @@
   "endpoints": [
     {
       "name": "Support Search",
+      "description": "Free-text search across tickets, users, organizations and groups at once, using Zendesk's own query syntax. Rows of different kinds come back in one list, told apart by the result_type field. Reach for a specific resource's endpoint when the kind is already known -- this one is for when it is not.",
       "pageType": "link",
       "suffix": "/api/v2/search.json?query={Query}"
     },
     {
       "name": "Support Users",
+      "description": "Everyone in the account, one row each: end users, agents and admins alike, told apart by the role field. Carries name, email, phone, role, active and suspended flags, locale, time_zone, tags, user_fields, organization_id, created_at and last_login_at. Use for agent rosters, customer counts, and joining tickets back to who raised or handled them.",
       "pageType": "link",
       "suffix": "/api/v2/users.json",
       "lookups": [
@@ -43,6 +45,7 @@
     },
     {
       "name": "Support Users for Group",
+      "description": "The agents in one group. Requires a group id.",
       "pageType": "link",
       "suffix": "/api/v2/groups/{Group ID}/users.json",
       "lookups": [
@@ -79,6 +82,7 @@
     },
     {
       "name": "Support Users for Organization",
+      "description": "The users belonging to one organization. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/users.json",
       "lookups": [
@@ -115,61 +119,73 @@
     },
     {
       "name": "Support User",
+      "description": "A single user by its id. Same fields as Support Users.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}.json"
     },
     {
       "name": "Support User Related Information",
+      "description": "Counts of what hangs off one user: assigned tickets, requested tickets, CC'd tickets, organization subscriptions. Requires a user id. A summary, not the tickets themselves.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/related.json"
     },
     {
       "name": "Support User Search",
+      "description": "Free-text search over users by name, email or external id. Returns the same shape as Support Users; use it when the identifier is known but the id is not.",
       "pageType": "link",
       "suffix": "/api/v2/users/search.json?query={Query}"
     },
     {
       "name": "Support Deleted Users",
+      "description": "Users that have been deleted but not yet permanently purged. Carries the name and email they had, plus when they were deleted. Use for auditing removals.",
       "pageType": "link",
       "suffix": "/api/v2/deleted_users.json"
     },
     {
       "name": "Support Deleted User",
+      "description": "A single deleted user by its id. Same fields as Support Deleted Users.",
       "pageType": "none",
       "suffix": "/api/v2/deleted_users/{User ID}.json"
     },
     {
       "name": "Support Compliance Deletion Statuses",
+      "description": "The progress of GDPR-style deletion requests for one user, per brand. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/compliance_deletion_statuses.json"
     },
     {
       "name": "Support Current User",
+      "description": "The user the API credentials belong to. One record, always the caller -- useful for verifying which account a connection is authenticated as.",
       "pageType": "none",
       "suffix": "/api/v2/users/me.json"
     },
     {
       "name": "Support User Identities",
+      "description": "The verified contact points of one user -- email addresses, phone numbers, social handles -- with which is primary and whether each is verified. Requires a user id. Users carries only the primary email.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/identities.json"
     },
     {
       "name": "Support User Identity",
+      "description": "A single identity of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/identities/{Identity ID}.json"
     },
     {
       "name": "Support Password Requirements",
+      "description": "The password policy applying to one user. Configuration, not data.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/password/requirements.json"
     },
     {
       "name": "Support End User",
+      "description": "One end user by its id, restricted to the fields an end user is allowed to see about themselves. Support User returns the full record and is the usual choice.",
       "pageType": "none",
       "suffix": "/api/v2/end_users/{User ID}.json"
     },
     {
       "name": "Support Groups",
+      "description": "The agent teams tickets are routed to, one row each. Carries name, description, whether the group is public, whether it is the account default, and created_at. Join tickets to it through group_id for per-team analysis.",
       "pageType": "link",
       "suffix": "/api/v2/groups.json",
       "lookups": [
@@ -187,6 +203,7 @@
     },
     {
       "name": "Support Groups for User",
+      "description": "The agent groups one user belongs to. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/groups.json",
       "lookups": [
@@ -204,6 +221,7 @@
     },
     {
       "name": "Support Assignable Groups",
+      "description": "Only the groups tickets can currently be assigned to. A subset of Support Groups, excluding deleted ones.",
       "pageType": "link",
       "suffix": "/api/v2/groups/assignable.json",
       "lookups": [
@@ -221,31 +239,37 @@
     },
     {
       "name": "Support Group",
+      "description": "A single group by its id. Same fields as Support Groups.",
       "pageType": "none",
       "suffix": "/api/v2/groups/{Group ID}.json"
     },
     {
       "name": "Support Group Memberships",
+      "description": "Every agent-to-group link in the account, one row each, with which is that agent's default group. Use it to resolve the many-to-many between agents and groups in one pass.",
       "pageType": "link",
       "suffix": "/api/v2/group_memberships.json"
     },
     {
       "name": "Support Group Memberships for User",
+      "description": "One user's group memberships as records, carrying which membership is the default. Requires a user id. Support Groups for User returns the groups themselves and is usually what is wanted.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/group_memberships.json"
     },
     {
       "name": "Support Group Memberships for Group",
+      "description": "The membership records of one group. Requires a group id.",
       "pageType": "link",
       "suffix": "/api/v2/groups/{Group ID}/memberships.json"
     },
     {
       "name": "Support Assignable Memberships",
+      "description": "Only the group memberships that can take ticket assignments, account-wide.",
       "pageType": "link",
       "suffix": "/api/v2/group_memberships/assignable.json"
     },
     {
       "name": "Support Assignable Memberships for Group",
+      "description": "The memberships of one group that can take ticket assignments. Requires a group id.",
       "pageType": "link",
       "suffix": "/api/v2/groups/{Group ID}/memberships/assignable.json"
     },
@@ -256,21 +280,25 @@
     },
     {
       "name": "Support Group Membership for User",
+      "description": "A single group membership of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/group_memberships/{Membership ID}.json"
     },
     {
       "name": "Support Custom Roles",
+      "description": "The custom agent permission sets an account has defined, with what each is allowed to do. Configuration; join to Support Users through custom_role_id.",
       "pageType": "link",
       "suffix": "/api/v2/custom_roles.json"
     },
     {
       "name": "Support Custom Role",
+      "description": "A single custom role by its id. Same fields as Support Custom Roles.",
       "pageType": "none",
       "suffix": "/api/v2/custom_roles/{Role ID}.json"
     },
     {
       "name": "Support Organizations",
+      "description": "The customer companies tickets and users are grouped under, one row each. Carries name, domain_names, tags, organization_fields, notes and details, whether tickets are shared within the organization, and created_at. Use for per-customer or per-account analysis; join tickets to it through organization_id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations.json",
       "lookups": [
@@ -292,66 +320,79 @@
     },
     {
       "name": "Support Organizations for User",
+      "description": "The organizations one user belongs to. Requires a user id. A user can belong to several.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/organizations.json"
     },
     {
       "name": "Support Organization Related Information",
+      "description": "Counts of what hangs off one organization: users, tickets and downgraded tickets. Requires an organization id.",
       "pageType": "none",
       "suffix": "/api/v2/organizations/{Organization ID}/related.json"
     },
     {
       "name": "Support Organization",
+      "description": "A single organization by its id. Same fields as Support Organizations.",
       "pageType": "none",
       "suffix": "/api/v2/organizations/{Organization ID}.json"
     },
     {
       "name": "Support Organization Subscriptions for Organization",
+      "description": "Who has subscribed to follow one organization's tickets. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/subscriptions.json"
     },
     {
       "name": "Support Organization Subscriptions",
+      "description": "Every organization-follow subscription in the account, one row each.",
       "pageType": "link",
       "suffix": "/api/v2/organization_subscriptions.json"
     },
     {
       "name": "Support Organization Subscriptions for User",
+      "description": "The organizations whose tickets one user has subscribed to follow. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/organization_subscriptions.json"
     },
     {
       "name": "Support Organization Subscription",
+      "description": "A single organization subscription by its id.",
       "pageType": "none",
       "suffix": "/api/v2/organization_subscriptions/{Subscription ID}.json"
     },
     {
       "name": "Support Organization Memberships",
+      "description": "Every user-to-organization link in the account, one row each, with which is that user's default. Use it to resolve the many-to-many between users and organizations in one pass rather than per user.",
       "pageType": "link",
       "suffix": "/api/v2/organization_memberships.json"
     },
     {
       "name": "Support Organization Memberships for User",
+      "description": "One user's organization memberships as records, carrying which is the default. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/organization_memberships.json"
     },
     {
       "name": "Support Organization Memberships for Organization",
+      "description": "The membership records of one organization. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/organization_memberships.json"
     },
     {
       "name": "Support Organization Membership",
+      "description": "A single organization membership by its id.",
       "pageType": "none",
       "suffix": "/api/v2/organization_memberships/{Membership ID}.json"
     },
     {
       "name": "Support Organization Membership for User",
+      "description": "A single organization membership of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/organization_memberships/{Membership ID}.json"
     },
     {
       "name": "Support Requests",
+      "description": "The SAME underlying tickets as Support Tickets, seen from the end user's side. Carries subject, description, status, priority, organization and requester, but not the agent-only fields. Which one to use depends on whose view the question is about; for agent-side analysis Support Tickets is the fuller table.",
       "pageType": "link",
       "suffix": "/api/v2/requests.json?status={Status?:hold,open,...}",
       "lookups": [
@@ -365,6 +406,7 @@
     },
     {
       "name": "Support Open Requests",
+      "description": "Requests still open for the calling user. A scoped convenience list, not an account-wide open-ticket count -- for that, filter Support Tickets by status.",
       "pageType": "link",
       "suffix": "/api/v2/requests/open.json",
       "lookups": [
@@ -378,6 +420,7 @@
     },
     {
       "name": "Support Solved Requests",
+      "description": "Requests already solved for the calling user. Scoped to one person, like Support Open Requests.",
       "pageType": "link",
       "suffix": "/api/v2/requests/solved.json",
       "lookups": [
@@ -391,6 +434,7 @@
     },
     {
       "name": "Support CCd Requests",
+      "description": "Requests the calling user is CC'd on rather than the requester of.",
       "pageType": "link",
       "suffix": "/api/v2/requests/ccd.json",
       "lookups": [
@@ -404,6 +448,7 @@
     },
     {
       "name": "Support Requests for User",
+      "description": "The requests raised by one user, end-user view. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/requests.json",
       "lookups": [
@@ -417,6 +462,7 @@
     },
     {
       "name": "Support Requests for Organization",
+      "description": "The requests belonging to one organization, end-user view. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/requests.json",
       "lookups": [
@@ -430,6 +476,7 @@
     },
     {
       "name": "Support Request Search",
+      "description": "Free-text search across requests visible to the caller. Takes a query string; returns the same shape as Support Requests.",
       "pageType": "link",
       "suffix": "/api/v2/requests/search.json?query={Query}",
       "lookups": [
@@ -443,21 +490,25 @@
     },
     {
       "name": "Support Request",
+      "description": "A single request by its id. Same fields as Support Requests.",
       "pageType": "none",
       "suffix": "/api/v2/requests/{Request ID}.json"
     },
     {
       "name": "Support Request Comments",
+      "description": "The conversation on one request, end-user side. Requires a request id. Public replies only -- internal notes are visible through Support Ticket Comments and not here.",
       "pageType": "link",
       "suffix": "/api/v2/requests/{Request ID}/comments.json?since={Since?:YYYY-MM-DDTHH:MM:SS}&role={Role?:agent|end_user}"
     },
     {
       "name": "Support Request Comment",
+      "description": "A single comment on one request. Requires the request id as well.",
       "pageType": "none",
       "suffix": "/api/v2/requests/{Request ID}/comments/{Comment ID}.json"
     },
     {
       "name": "Support Tickets",
+      "description": "Support tickets, one row each -- the central table of a Zendesk account. Carries subject and description, status, priority, type, tags, custom_fields, created_at and updated_at, and the ids of requester, assignee, group, organization and brand. Use for ticket volume, backlog, and any breakdown by team, customer or category. Timing and SLA figures are NOT here: they live in Ticket Metrics.",
       "pageType": "link",
       "suffix": "/api/v2/tickets.json",
       "lookups": [
@@ -483,6 +534,7 @@
     },
     {
       "name": "Support Tickets for Organization",
+      "description": "The tickets belonging to one organization. Requires an organization id. Equivalent to filtering Support Tickets by organization_id, and paged the same way.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/tickets.json",
       "lookups": [
@@ -508,6 +560,7 @@
     },
     {
       "name": "Support Requested Tickets for User",
+      "description": "The tickets one user raised. Requires a user id. Agent-side view, so fuller than Support Requests for User.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tickets/requested.json",
       "lookups": [
@@ -533,6 +586,7 @@
     },
     {
       "name": "Support CCd Tickets for User",
+      "description": "The tickets one user is CC'd on rather than assigned or requesting. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tickets/ccd.json",
       "lookups": [
@@ -558,6 +612,7 @@
     },
     {
       "name": "Support Assigned Tickets for User",
+      "description": "The tickets currently assigned to one agent. Requires a user id. Use for per-agent workload; for historical assignment, Support Ticket Audits records the changes.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tickets/assigned.json",
       "lookups": [
@@ -583,6 +638,7 @@
     },
     {
       "name": "Support Recent Tickets",
+      "description": "The tickets the calling agent viewed most recently. A convenience list scoped to one person, not an account-wide feed -- of little use for analysis.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/recent.json",
       "lookups": [
@@ -608,11 +664,13 @@
     },
     {
       "name": "Support Ticket",
+      "description": "A single ticket by its id. Same fields as Support Tickets; use it when the ticket id is already known rather than to scan or aggregate.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}.json"
     },
     {
       "name": "Support Ticket Related Information",
+      "description": "Counts of what hangs off one ticket: incidents, followups, topic and attachments. Requires a ticket id. A summary, not the linked records themselves.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}/related.json"
     },
@@ -643,21 +701,25 @@
     },
     {
       "name": "Support Ticket Collaborators",
+      "description": "The users CC'd on one ticket. Requires a ticket id. Use for who else was looped in.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/collaborators.json"
     },
     {
       "name": "Support Ticket Followers",
+      "description": "The agents following one ticket without being assigned to it. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/followers"
     },
     {
       "name": "Support Ticket Email CCs",
+      "description": "The users receiving email copies of one ticket. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/email_ccs"
     },
     {
       "name": "Support Ticket Incidents",
+      "description": "The incident tickets linked to one problem ticket. Requires a problem ticket id. Use for how many customers were hit by the same underlying issue.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/incidents.json"
     },
@@ -673,11 +735,13 @@
     },
     {
       "name": "Support Satisfaction Ratings",
+      "description": "Customer satisfaction responses, one row per rating. Carries the score (good or bad), the free-text comment, reason and reason_code for a bad rating, created_at, and the ids of the ticket, requester, assignee and group. The table for CSAT, and for which agents or teams the ratings attach to.",
       "pageType": "link",
       "suffix": "/api/v2/satisfaction_ratings.json?score={Score?:offered|unoffered|received|...}&start_time={Start Time?:Unix timestamp}&end_time={End Time?:Unix timestamp}"
     },
     {
       "name": "Support Satisfaction Rating",
+      "description": "A single satisfaction rating by its id. Same fields as Support Satisfaction Ratings.",
       "pageType": "none",
       "suffix": "/api/v2/satisfaction_ratings/{Rating ID}.json"
     },
@@ -693,11 +757,13 @@
     },
     {
       "name": "Support Suspended Tickets",
+      "description": "Inbound messages held back as suspected spam or from unrecognised senders, before they ever became tickets. Carries the author, subject, cause of suspension, and when it will be purged. They are NOT in Support Tickets -- use this to see what was filtered out.",
       "pageType": "link",
       "suffix": "/api/v2/suspended_tickets.json"
     },
     {
       "name": "Support Suspended Ticket",
+      "description": "A single suspended ticket by its id. Same fields as Support Suspended Tickets.",
       "pageType": "none",
       "suffix": "/api/v2/suspended_tickets/{Ticket ID}.json",
       "lookups": [
@@ -723,21 +789,25 @@
     },
     {
       "name": "Support Ticket Audits",
+      "description": "Every change made to every ticket, account-wide. The complete change log -- large, and paged from the beginning of the account. Prefer the per-ticket audits unless a full history is genuinely needed.",
       "pageType": "cursor",
       "suffix": "/api/v2/ticket_audits.json"
     },
     {
       "name": "Support Ticket Audits for Ticket",
+      "description": "Every change ever made to one ticket, with who changed what and when. Requires a ticket id. Use for auditing a single ticket's history.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/audits.json"
     },
     {
       "name": "Support Ticket Audit",
+      "description": "A single audit record of one ticket. Requires the ticket id as well.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}/audits/{Audit ID}.json"
     },
     {
       "name": "Support Ticket Comments",
+      "description": "The conversation on one ticket: every public reply and internal note, with author, body, whether it is public, and attachments. Requires a ticket id. This is where the text of a conversation lives -- Tickets carries only the opening description.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/comments.json"
     },
@@ -748,26 +818,31 @@
     },
     {
       "name": "Support Ticket Skips for Ticket",
+      "description": "Records of agents skipping over one ticket in guided mode, with the reason given. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/skips.json"
     },
     {
       "name": "Support Ticket Skips for User",
+      "description": "Tickets one agent skipped in guided mode, with the reason. Requires a user id. Use for reviewing how an agent works through a queue.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/skips.json"
     },
     {
       "name": "Support Ticket Metrics",
+      "description": "Timing and effort measurements per ticket, one row each -- the table SLA and responsiveness questions actually need. Carries first_resolution_time_in_minutes and full_resolution_time_in_minutes, reply_time_in_minutes, agent_wait_time and requester_wait_time, on_hold_time, the number of replies and reopens, and assignee and group station counts. Tickets itself has none of this.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_metrics.json"
     },
     {
       "name": "Support Ticket Metric",
+      "description": "The timing measurements of one ticket, by the metric id. Same fields as Support Ticket Metrics.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_metrics/{Metric ID}.json"
     },
     {
       "name": "Support Ticket Metrics for Ticket",
+      "description": "The timing measurements of one ticket. Requires a ticket id. Same fields as Support Ticket Metrics.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}/metrics.json"
     },
@@ -788,16 +863,19 @@
     },
     {
       "name": "Support Sessions for User",
+      "description": "The active login sessions of one user, with when each was created and last used. Requires a user id. Use for security review.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/sessions.json"
     },
     {
       "name": "Support Session",
+      "description": "A single session of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/sessions/{Session ID}.json"
     },
     {
       "name": "Support Current Session",
+      "description": "The session the API credentials are using. One record, always the caller's.",
       "pageType": "none",
       "suffix": "/api/v2/users/me/session.json"
     },
@@ -808,16 +886,19 @@
     },
     {
       "name": "Support Tags for Ticket",
+      "description": "The tags on one ticket. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/tags.json"
     },
     {
       "name": "Support Tags for Organization",
+      "description": "The tags on one organization. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/tags.json"
     },
     {
       "name": "Support Tags for User",
+      "description": "The tags on one user. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tags.json"
     },
@@ -1180,16 +1261,19 @@
     },
     {
       "name": "Support Ticket Forms",
+      "description": "The alternative ticket layouts an account offers, each exposing a different set of fields. Carries name, whether it is active and whether end users see it. Configuration -- use it to interpret which custom fields apply to which tickets.",
       "pageType": "link",
       "suffix": "/api/v2/ticket_forms.json?active={Active?:true|false}&end_user_visible={Visible to End Users?:true|false}&fallback_to_default={Fallback to Default?:true|false}&associated_to_brand={Associated to Brand?:true|false}"
     },
     {
       "name": "Support Ticket Form",
+      "description": "A single ticket form by its id. Same fields as Support Ticket Forms.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_forms/{Form ID}.json"
     },
     {
       "name": "Support Ticket Fields",
+      "description": "Every field a ticket can carry, standard and custom. Carries the field type, title, whether it is required and active, and the position. This is the KEY to custom_fields on Support Tickets, which stores only numeric field ids and raw values -- without this table those columns cannot be read.",
       "pageType": "link",
       "suffix": "/api/v2/ticket_fields.json",
       "lookups": [
@@ -1203,16 +1287,19 @@
     },
     {
       "name": "Support Ticket Field",
+      "description": "A single ticket field by its id. Same fields as Support Ticket Fields.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_fields/{Field ID}.json"
     },
     {
       "name": "Support Ticket Field Options",
+      "description": "The permitted values of one dropdown ticket field, with the stored value and its display name. Requires a field id. Needed to turn a stored option value into something readable.",
       "pageType": "link",
       "suffix": "/api/v2/ticket_fields/{Field ID}/options.json"
     },
     {
       "name": "Support Ticket Field Option",
+      "description": "A single option of one ticket field. Requires the field id as well.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_fields/{Field ID}/options/{Option ID}.json"
     },
@@ -1387,6 +1474,7 @@
     },
     {
       "name": "Support OAuth Clients for Current User",
+      "description": "The OAuth applications registered by the calling user. Integration configuration, not ticket data.",
       "pageType": "link",
       "suffix": "/api/v2/users/me/oauth/clients.json"
     },
