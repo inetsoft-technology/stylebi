@@ -380,10 +380,11 @@ public class BindingAgentController {
                                  request.col(), request.binding());
    }
 
-   public record TableSortRequest(String assembly, String shelf, String column, String direction,
-                                  String sortByField, List<String> manualOrder) {}
-   public record TableRankingRequest(String assembly, String shelf, String column, String mode,
-                                     Integer n, String measure, Boolean others) {}
+   public record TableSortRequest(String assembly, String shelf, String column, Integer index,
+                                  String direction, String sortByField,
+                                  List<String> manualOrder) {}
+   public record TableRankingRequest(String assembly, String shelf, String column, Integer index,
+                                     String mode, Integer n, String measure, Boolean others) {}
    public record TableLabelRequest(String assembly, Map<String, String> labels) {}
    public record TableOptionRequest(String assembly, Map<String, Object> options) {}
 
@@ -403,7 +404,7 @@ public class BindingAgentController {
    {
       requireEnabled();
       tableService.setSort(sessionToken, user, request.assembly(), request.shelf(),
-                           request.column(),
+                           request.column(), request.index(),
                            new DimensionSortRanking.Sort(request.direction(),
                                                          request.sortByField(),
                                                          request.manualOrder()));
@@ -417,7 +418,7 @@ public class BindingAgentController {
    {
       requireEnabled();
       tableService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
-                              request.column(),
+                              request.column(), request.index(),
                               new DimensionSortRanking.Ranking(request.mode(), request.n(),
                                                                request.measure(),
                                                                request.others()));

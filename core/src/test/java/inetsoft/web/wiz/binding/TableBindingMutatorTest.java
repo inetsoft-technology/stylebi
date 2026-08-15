@@ -315,10 +315,82 @@ class TableBindingMutatorTest {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
-      TableBindingMutator.setSort(model, "rows", "Region",
+      TableBindingMutator.setSort(model, "rows", "Region", null,
                                   new DimensionSortRanking.Sort("desc", null, null));
 
       assertEquals(inetsoft.uql.XConstants.SORT_DESC, model.getRows().get(0).getOrder());
+   }
+
+   /**
+    * A crosstab binds the same date column twice on purpose — that is how a Year › Quarter drill
+    * is built, and {@code VSCrosstabBindingHandler.setDateLevel} auto-advances the level on the
+    * second drop. Sort and ranking live on each ref, so the product never addresses a dimension
+    * by name; this layer does, and with duplicates it silently took the FIRST match.
+    *
+    * <p>So a caller sorting "the quarter one" quietly sorted the year one, and the model reported
+    * a single sort entry for both. Found live on local-1200 running case 29 step 5.
+    */
+   @Test
+   void refusesAnAmbiguousColumnRatherThanSortingTheFirstMatch() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+                                   List.of(dated("ORDER_DATE", "year"),
+                                           dated("ORDER_DATE", "quarter")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "ORDER_DATE", null,
+                                           new DimensionSortRanking.Sort("desc", null, null)));
+
+      assertTrue(thrown.getMessage().contains("index"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("0"), "the message must name the positions");
+      assertTrue(thrown.getMessage().contains("1"));
+   }
+
+   @Test
+   void sortsTheDimensionNamedByIndexWhenAColumnIsBoundTwice() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+                                   List.of(dated("ORDER_DATE", "year"),
+                                           dated("ORDER_DATE", "quarter")));
+
+      TableBindingMutator.setSort(model, "rows", "ORDER_DATE", 1,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      assertEquals(inetsoft.uql.XConstants.SORT_DESC, model.getRows().get(1).getOrder(),
+                   "index 1 must be the second ref");
+      assertNotEquals(inetsoft.uql.XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+                      "the first ref must be untouched");
+   }
+
+   @Test
+   void refusesAnIndexThatNamesNoRefOfThatColumn() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+                                   List.of(dated("ORDER_DATE", "year"),
+                                           dated("ORDER_DATE", "quarter")));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> TableBindingMutator.setSort(model, "rows", "ORDER_DATE", 7,
+                                                     new DimensionSortRanking.Sort("desc", null,
+                                                                                   null)));
+   }
+
+   /** Read side of the same bug: one key for two refs meant one of them was invisible. */
+   @Test
+   void describesBothRefsWhenAColumnIsBoundTwice() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+                                   List.of(dated("ORDER_DATE", "year"),
+                                           dated("ORDER_DATE", "quarter")));
+
+      Map<String, Object> sorts = TableBindingMutator.describeSorts(model, "rows");
+
+      assertEquals(2, sorts.size(), "both refs must be reported, got: " + sorts.keySet());
+   }
+
+   private static FieldRef dated(String column, String level) {
+      return new FieldRef(column, "dimension", null, level, null);
    }
 
    @Test
@@ -326,7 +398,7 @@ class TableBindingMutatorTest {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
-      TableBindingMutator.setRanking(model, "rows", "Region",
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
                                      new DimensionSortRanking.Ranking("top", 5, "Sales", null));
 
       assertEquals("5", model.getRows().get(0).getRankingN());
@@ -340,7 +412,7 @@ class TableBindingMutatorTest {
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> TableBindingMutator.setSort(model, "rows", "Nope",
+         () -> TableBindingMutator.setSort(model, "rows", "Nope", null,
                                            new DimensionSortRanking.Sort("asc", null, null)));
 
       assertTrue(thrown.getMessage().contains("Nope"));
@@ -353,7 +425,7 @@ class TableBindingMutatorTest {
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> TableBindingMutator.setSort(crosstab, "aggregates", "Sales",
+         () -> TableBindingMutator.setSort(crosstab, "aggregates", "Sales", null,
                                            new DimensionSortRanking.Sort("asc", null, null)));
 
       assertTrue(thrown.getMessage().contains("measures"));
@@ -363,7 +435,7 @@ class TableBindingMutatorTest {
    void describesTheSortsOnAShelf() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
-      TableBindingMutator.setRanking(model, "rows", "Region",
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
                                      new DimensionSortRanking.Ranking("top", 5, "Sales", null));
 
       Map<String, Object> described = TableBindingMutator.describeSorts(model, "rows");

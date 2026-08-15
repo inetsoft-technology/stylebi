@@ -363,15 +363,15 @@ public final class TableBindingMutator {
     * column reference is a name — see {@link DimensionSortRanking}.
     */
    public static void setSort(BaseTableBindingModel model, String shelf, String column,
-                              DimensionSortRanking.Sort sort)
+                              Integer index, DimensionSortRanking.Sort sort)
    {
-      DimensionSortRanking.applySort(requireDimension(model, shelf, column), sort);
+      DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
    }
 
    public static void setRanking(BaseTableBindingModel model, String shelf, String column,
-                                 DimensionSortRanking.Ranking ranking)
+                                 Integer index, DimensionSortRanking.Ranking ranking)
    {
-      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column), ranking);
+      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
    }
 
    /** The sort and ranking on every dimension of a shelf. */
@@ -379,17 +379,45 @@ public final class TableBindingMutator {
       String name = requireShelf(model, shelf);
       Map<String, Object> out = new LinkedHashMap<>();
 
-      for(BDimensionRefModel dimension : dimensionsOf(model, name)) {
-         out.put(dimension.getColumnValue() == null
-                    ? dimension.getName() : dimension.getColumnValue(),
+      List<BDimensionRefModel> dimensions = dimensionsOf(model, name);
+
+      for(int i = 0; i < dimensions.size(); i++) {
+         BDimensionRefModel dimension = dimensions.get(i);
+         String column = dimension.getColumnValue() == null
+            ? dimension.getName() : dimension.getColumnValue();
+
+         // A crosstab binds the same column twice on purpose (Year then Quarter), and keying by
+         // name alone let the second overwrite the first, so one of the two was simply invisible.
+         // The index is appended only when it is needed, to keep the common shape unchanged.
+         out.put(occurrences(dimensions, column) > 1 ? column + " [" + i + "]" : column,
                  DimensionSortRanking.describe(dimension));
       }
 
       return out;
    }
 
+   private static long occurrences(List<BDimensionRefModel> dimensions, String column) {
+      return dimensions.stream()
+         .map(d -> d.getColumnValue() == null ? d.getName() : d.getColumnValue())
+         .filter(value -> value != null && value.equalsIgnoreCase(column))
+         .count();
+   }
+
+   /**
+    * The dimension a call means.
+    *
+    * <p>A crosstab binds the same column more than once by design — dropping a date column twice
+    * is how a Year › Quarter drill is built, and the Composer auto-advances the level on the
+    * second drop. Sort and ranking are fields on each ref, so the product itself never addresses
+    * a dimension by name; this layer does, and it used to return the FIRST match. Sorting "the
+    * quarter one" then quietly sorted the year one and reported success.
+    *
+    * <p>So a name matching several refs now requires {@code index} — the position on the shelf,
+    * which is what {@code suppressGroupTotal} already keys on ({@code ORDER_DATE:rows0}). A name
+    * matching exactly one still needs nothing, so the common call is unchanged.
+    */
    private static BDimensionRefModel requireDimension(BaseTableBindingModel model, String shelf,
-                                                      String column)
+                                                      String column, Integer index)
    {
       String name = requireShelf(model, shelf);
 
@@ -400,15 +428,49 @@ public final class TableBindingMutator {
       }
 
       List<String> present = new ArrayList<>();
+      List<BDimensionRefModel> dimensions = dimensionsOf(model, name);
+      Map<Integer, BDimensionRefModel> matches = new LinkedHashMap<>();
 
-      for(BDimensionRefModel dimension : dimensionsOf(model, name)) {
+      for(int i = 0; i < dimensions.size(); i++) {
+         BDimensionRefModel dimension = dimensions.get(i);
          String value = dimension.getColumnValue() == null
             ? dimension.getName() : dimension.getColumnValue();
          present.add(value);
 
          if(value != null && value.equalsIgnoreCase(column)) {
-            return dimension;
+            matches.put(i, dimension);
          }
+      }
+
+      if(index != null) {
+         BDimensionRefModel chosen = matches.get(index);
+
+         if(chosen == null) {
+            throw new IllegalArgumentException(
+               "index " + index + " is not a position of '" + column + "' on the " + name +
+               " shelf. It is bound at: " + matches.keySet() + ".");
+         }
+
+         return chosen;
+      }
+
+      if(matches.size() > 1) {
+         StringBuilder candidates = new StringBuilder();
+
+         for(Map.Entry<Integer, BDimensionRefModel> match : matches.entrySet()) {
+            String level = match.getValue().getDateLevel();
+            candidates.append(candidates.isEmpty() ? "" : ", ")
+               .append("index ").append(match.getKey())
+               .append(level == null || level.isBlank() ? "" : " (date level " + level + ")");
+         }
+
+         throw new IllegalArgumentException(
+            "'" + column + "' is bound " + matches.size() + " times on the " + name +
+            " shelf, so this call is ambiguous. Pass 'index' to say which: " + candidates + ".");
+      }
+
+      if(matches.size() == 1) {
+         return matches.values().iterator().next();
       }
 
       throw new IllegalArgumentException(

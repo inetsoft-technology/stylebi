@@ -196,17 +196,19 @@ public class TableBindingService {
    }
 
    public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
-                       String column, DimensionSortRanking.Sort sort) throws Exception
+                       String column, Integer index, DimensionSortRanking.Sort sort)
+      throws Exception
    {
       apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.setSort(model, shelf, column, sort));
+            model -> TableBindingMutator.setSort(model, shelf, column, index, sort));
    }
 
    public void setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
-                          String column, DimensionSortRanking.Ranking ranking) throws Exception
+                          String column, Integer index, DimensionSortRanking.Ranking ranking)
+      throws Exception
    {
       apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.setRanking(model, shelf, column, ranking));
+            model -> TableBindingMutator.setRanking(model, shelf, column, index, ranking));
    }
 
    public void setColumnLabels(String sessionToken, Principal user, String assemblyName,
