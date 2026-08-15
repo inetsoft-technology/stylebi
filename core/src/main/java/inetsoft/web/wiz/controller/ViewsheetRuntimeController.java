@@ -28,6 +28,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.OutputVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -265,8 +266,16 @@ public class ViewsheetRuntimeController {
             // unconditionally and throws ClassCastException on a Table/Crosstab assembly, which
             // findChartAssembly's first-assembly fallback can legitimately hand back for a saved
             // "table"/"crosstab" wiz visualization. Route those through the TableLens-based path.
+            //
+            // A THIRD case, previously missing: OutputVSAssembly (Gauge, Text) is neither a chart
+            // nor a table -- it has no TableLens at all, so the old two-way branch silently routed
+            // it into verifyTableData, which found no table and reported hasData=false, rowCount=0
+            // unconditionally. Every saved Gauge/Text visualization verified as "broken" even when
+            // it rendered a real value moments earlier. See verifyOutputData's own doc.
             WizVsService.VerifyResult vr = assembly instanceof ChartVSAssembly
                ? wizVsService.verifyChartData(rvs, assembly.getName())
+               : assembly instanceof OutputVSAssembly
+               ? wizVsService.verifyOutputData(rvs, assembly.getName())
                : wizVsService.verifyTableData(rvs, assembly.getName());
             result.setHasData(vr.hasData());
             result.setRowCount(vr.rowCount());
