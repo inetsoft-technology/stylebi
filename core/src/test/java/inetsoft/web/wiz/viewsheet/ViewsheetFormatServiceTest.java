@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
@@ -49,6 +50,50 @@ class ViewsheetFormatServiceTest {
                                 anyString());
       assertArrayEquals(new String[]{ "Gauge1" }, captor.getValue().getObjects());
       assertEquals("#333333", captor.getValue().getFormat().getColor());
+   }
+
+   /**
+    * {@code FormatPainterService.setFormat} dereferences {@code event.getCharts().length}, so
+    * leaving the array null made every set_format call fail with
+    * "Cannot read the array length because the return value of
+    * FormatVSObjectEvent.getCharts() is null" — a 500 for both a format and a reset.
+    */
+   @Test
+   void populatesTheChartsArraySoThePainterDoesNotDereferenceNull() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), format, false), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertNotNull(captor.getValue().getCharts(), "charts must not be null");
+   }
+
+   /**
+    * {@code FormatInfoModel} is annotated {@code @JsonTypeInfo(use = Id.CLASS, property = "type")},
+    * so Jackson refused any format object that did not carry
+    * {@code "type": "inetsoft.web.composer.model.vs.VSObjectFormatInfoModel"} — a 400 for every
+    * documented usage, including an empty {@code {}}. Requiring a caller to name a Java class is
+    * exactly the internals leak this API is meant to avoid, so the endpoint must accept a plain
+    * format object.
+    */
+   @Test
+   void acceptsAPlainFormatObjectWithoutAJavaClassDiscriminator() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"color\":\"#CC0000\"," +
+         "\"backgroundColor\":\"#FFEEAA\"},\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertNotNull(request.format(), "format must deserialize without a 'type' discriminator");
+      assertEquals("#CC0000", request.format().getColor());
+      assertEquals("#FFEEAA", request.format().getBackgroundColor());
    }
 
    @Test
