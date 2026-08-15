@@ -22,6 +22,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.table.BaseTableBindingModel;
+import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -148,6 +151,121 @@ class TableBindingServiceTest {
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
+
+   // ── set_table_source ──────────────────────────────────────────────────────
+   //
+   // A crosstab or table added in the Composer starts with no source. Its shelves can be
+   // populated — set_table_fields reports success — and it renders nothing at all, because
+   // shelves with no source have nothing to query. Nothing in the plugin could assign one.
+
+   @Test
+   void setSourceAssignsAnAssetSourceByName() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "ORDERS", false);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertNotNull(posted.getSource(), "the model must carry a source after the write");
+      assertEquals("ORDERS", posted.getSource().getSource());
+      assertEquals(inetsoft.uql.asset.SourceInfo.ASSET, posted.getSource().getType(),
+                   "worksheet tables bind as ASSET — the form used everywhere else");
+   }
+
+   @Test
+   void setSourceRefusesATableTheAssemblyCannotSee() {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(mock(CrosstabVSAssembly.class), existing, mock(VSBindingModelService.class))
+            .setSource("tok", principal(), "Crosstab1", "NOPE", false));
+
+      assertTrue(thrown.getMessage().contains("NOPE"));
+      assertTrue(thrown.getMessage().contains("ORDERS"), "list what it can bind to");
+   }
+
+   /**
+    * Repointing a bound assembly discards every field on its shelves, because the columns
+    * belong to the old source. Doing that silently on one call is the failure mode this whole
+    * plugin family exists to avoid.
+    */
+   @Test
+   void setSourceRefusesToDiscardBoundFieldsUnlessForced() {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      existing.setRows(List.of(new inetsoft.web.binding.model.BDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(mock(CrosstabVSAssembly.class), existing, mock(VSBindingModelService.class))
+            .setSource("tok", principal(), "Crosstab1", "CUSTOMERS", false));
+
+      assertTrue(thrown.getMessage().contains("force"), "name the way through");
+   }
+
+   @Test
+   void setSourceProceedsWhenForced() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      existing.setRows(List.of(new inetsoft.web.binding.model.BDimensionRefModel()));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "CUSTOMERS", true);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("CUSTOMERS", posted.getSource().getSource());
+   }
+
+   /**
+    * A calc table has a source like any other data assembly — {@code CalcTableVSAssembly} extends
+    * {@code TableDataVSAssembly} and {@code CalcTableBindingModel} extends
+    * {@code BaseTableBindingModel}. The blanket calc-table refusal exists because *shelves* do not
+    * apply to it, but assigning a source is not a shelf operation, and without this a freehand
+    * table can never be pointed at data: its cells bind, and it renders empty forever.
+    */
+   @Test
+   void setSourceAcceptsACalcTableBecauseSourceIsNotAShelfOperation() throws Exception {
+      CalcTableBindingModel existing = new CalcTableBindingModel();
+      List<BindingModel.SourceTable> tables = new ArrayList<>();
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      table.setName("ORDERS");
+      tables.add(table);
+      existing.setTables(tables);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CalcTableVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Calc1", "ORDERS", false);
+
+      BaseTableBindingModel posted = (BaseTableBindingModel) capture(bindings).getBinding();
+      assertEquals("ORDERS", posted.getSource().getSource());
+   }
+
+   @Test
+   void shelfWritesStillRefuseACalcTable() {
+      TableBindingService service = serviceWith(
+         sessionsFor(mock(CalcTableVSAssembly.class)), new CalcTableBindingModel(),
+         mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setShelf("tok", principal(), "Calc1", "rows", List.of(dim("Region"))));
+      assertTrue(thrown.getMessage().contains("cell layout"));
+   }
+
+   private static CrosstabBindingModel withTables(String... names) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      List<BindingModel.SourceTable> tables = new ArrayList<>();
+
+      for(String name : names) {
+         BindingModel.SourceTable table = new BindingModel.SourceTable();
+         table.setName(name);
+         tables.add(table);
+      }
+
+      model.setTables(tables);
+      return model;
+   }
 
    private static ApplyVSAssemblyInfoEvent capture(VSBindingModelService bindings)
       throws Exception

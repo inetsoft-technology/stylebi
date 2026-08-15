@@ -21,8 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
+import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
+import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -65,6 +67,110 @@ public class TableBindingService {
    {
       apply(sessionToken, user, assemblyName,
             model -> TableBindingMutator.setShelf(model, shelf, fields));
+   }
+
+   /**
+    * Points a crosstab or table at a source table.
+    *
+    * <p>An assembly added in the Composer starts with no source. Its shelves can be populated —
+    * {@code set_table_fields} reports success — and it renders nothing at all, because shelves
+    * with no source have nothing to query. Nothing else here assigns one: the mutators
+    * <em>preserve</em> {@code source} through a read-modify-write, which is not the same as
+    * being able to set it.
+    *
+    * <p>Repointing a bound assembly discards every field on its shelves, since the columns
+    * belong to the old source. That is refused unless {@code force} is set, rather than done
+    * silently on one call.
+    */
+   public void setSource(String sessionToken, Principal user, String assemblyName,
+                         String table, boolean force) throws Exception
+   {
+      if(table == null || table.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_table_source requires 'table' — the source table's name. " +
+            "list_bindable_fields reports what this assembly can bind to.");
+      }
+
+      apply(sessionToken, user, assemblyName, model -> {
+         String resolved = resolveTable(model, table, assemblyName);
+
+         if(!force) {
+            requireNoBoundFields(model, assemblyName, resolved);
+         }
+
+         // Only type, prefix and source survive the trip back: VSBindingService.updateSourceInfo
+         // calls SourceInfo.toSourceAttr, which rebuilds the asset source from exactly those
+         // three. Setting them directly rather than through the SourceInfo(uql.SourceInfo)
+         // convenience constructor also avoids that constructor's toView() call, which drags in
+         // VSUtil for a display string nothing here reads.
+         SourceInfo source = new SourceInfo();
+         source.setType(inetsoft.uql.asset.SourceInfo.ASSET);
+         source.setSource(resolved);
+         source.setView(resolved);
+         model.setSource(source);
+      }, true);
+   }
+
+   /** Matches a requested table against what the assembly can actually bind to. */
+   private static String resolveTable(BaseTableBindingModel model, String table,
+                                      String assemblyName)
+   {
+      List<BindingModel.SourceTable> tables = model.getTables();
+      List<String> names = new ArrayList<>();
+
+      if(tables != null) {
+         for(BindingModel.SourceTable candidate : tables) {
+            if(candidate.getName() != null) {
+               names.add(candidate.getName());
+
+               if(candidate.getName().equalsIgnoreCase(table)) {
+                  return candidate.getName();
+               }
+            }
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " + names + ". " +
+         "A source the assembly cannot see binds nothing and renders an empty assembly.");
+   }
+
+   /**
+    * Refuses to discard bound fields. The columns on a shelf belong to the source that was set
+    * when they were added, so repointing invalidates all of them.
+    */
+   private static void requireNoBoundFields(BaseTableBindingModel model, String assemblyName,
+                                            String table)
+   {
+      SourceInfo current = model.getSource();
+
+      if(current != null && table.equalsIgnoreCase(current.getSource())) {
+         return;
+      }
+
+      // A calc table has no shelves to discard — its binding lives in its cells, which keep
+      // referring to their columns by name. Nothing to warn about, and shelvesOf would refuse it.
+      if(model instanceof CalcTableBindingModel) {
+         return;
+      }
+
+      List<String> populated = new ArrayList<>();
+
+      for(String shelf : TableBindingMutator.shelvesOf(model)) {
+         int count = TableBindingMutator.read(model, shelf).size();
+
+         if(count > 0) {
+            populated.add(count + " on " + shelf);
+         }
+      }
+
+      if(!populated.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' already has fields bound (" + String.join(", ", populated) +
+            "). Changing its source would discard them, because those columns belong to the " +
+            "old source. Clear the shelves first, or pass force:true to discard them " +
+            "deliberately.");
+      }
    }
 
    public void addField(String sessionToken, Principal user, String assemblyName, String shelf,
@@ -137,6 +243,17 @@ public class TableBindingService {
       out.put("assembly", assemblyName);
       out.put("objectType", model instanceof CrosstabBindingModel ? "crosstab" : "table");
       out.put("source", model.getSource() == null ? null : model.getSource().getSource());
+
+      // A sourceless assembly accepts shelf writes and renders nothing, with no error anywhere
+      // to say why. Saying so on the read every caller is told to make first is the cheapest
+      // place to stop that.
+      if(model.getSource() == null) {
+         out.put("note",
+                 "This assembly has no source table, so it renders empty whatever is on its " +
+                 "shelves. Point it at one with set_table_source — list_bindable_fields " +
+                 "reports the names it accepts.");
+      }
+
       out.put("shelves", shelves);
       out.put("columnLabels", model.getName2Labels());
       Map<String, Object> sorts = new LinkedHashMap<>();
@@ -182,8 +299,15 @@ public class TableBindingService {
    private void apply(String sessionToken, Principal user, String assemblyName,
                       Consumer<BaseTableBindingModel> mutation) throws Exception
    {
+      apply(sessionToken, user, assemblyName, mutation, false);
+   }
+
+   private void apply(String sessionToken, Principal user, String assemblyName,
+                      Consumer<BaseTableBindingModel> mutation, boolean allowCalcTable)
+      throws Exception
+   {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName, allowCalcTable);
          mutation.accept(model);
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
@@ -197,11 +321,35 @@ public class TableBindingService {
    }
 
    private BaseTableBindingModel requireTableBinding(RuntimeViewsheet rvs, String assemblyName) {
+      return requireTableBinding(rvs, assemblyName, false);
+   }
+
+   /**
+    * @param allowCalcTable calc tables are refused for <b>shelf</b> operations, because their
+    *                       binding lives in their cell layout. Assigning a <b>source</b> is not a
+    *                       shelf operation: a {@code CalcTableVSAssembly} is a
+    *                       {@code TableDataVSAssembly} and carries a source like any other, and
+    *                       without one a freehand table renders empty however its cells are bound.
+    */
+   private BaseTableBindingModel requireTableBinding(RuntimeViewsheet rvs, String assemblyName,
+                                                     boolean allowCalcTable)
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
       if(assembly == null) {
          throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
+
+      if(allowCalcTable && assembly instanceof CalcTableVSAssembly) {
+         BindingModel calcModel = binding.createModel(assembly);
+
+         if(calcModel instanceof BaseTableBindingModel calcTable) {
+            return calcTable;
+         }
+
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a calc table whose binding model cannot carry a source.");
       }
 
       if(assembly instanceof CalcTableVSAssembly) {
