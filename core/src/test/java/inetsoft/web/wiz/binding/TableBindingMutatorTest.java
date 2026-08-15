@@ -345,6 +345,10 @@ class TableBindingMutatorTest {
       assertTrue(thrown.getMessage().contains("index"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("0"), "the message must name the positions");
       assertTrue(thrown.getMessage().contains("1"));
+      // Having told callers to write "quarter", reporting "date level 4" back asks them to
+      // translate a number this codebase deliberately hides.
+      assertTrue(thrown.getMessage().contains("year"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("quarter"), thrown.getMessage());
    }
 
    @Test

@@ -85,6 +85,28 @@ public final class DateLevels {
          ". The equivalent numbers are also accepted.");
    }
 
+   /**
+    * The name of a stored level, or the raw value if it names none.
+    *
+    * <p>For error messages: having told callers to write "quarter", reporting back "date level 4"
+    * asks them to translate a number this codebase deliberately hides.
+    */
+   public static String name(String dateLevel) {
+      if(dateLevel == null || dateLevel.isBlank()) {
+         return null;
+      }
+
+      String token = dateLevel.trim();
+
+      for(Map.Entry<String, Integer> level : BY_NAME.entrySet()) {
+         if(String.valueOf(level.getValue()).equals(token)) {
+            return level.getKey();
+         }
+      }
+
+      return token;
+   }
+
    /** StyleBI's sentinel for an unset level — see {@code VSDimensionRef.setDateLevel}. */
    private static final String UNSET = "-1";
 

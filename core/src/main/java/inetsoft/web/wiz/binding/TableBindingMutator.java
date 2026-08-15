@@ -458,10 +458,10 @@ public final class TableBindingMutator {
          StringBuilder candidates = new StringBuilder();
 
          for(Map.Entry<Integer, BDimensionRefModel> match : matches.entrySet()) {
-            String level = match.getValue().getDateLevel();
+            String level = DateLevels.name(match.getValue().getDateLevel());
             candidates.append(candidates.isEmpty() ? "" : ", ")
                .append("index ").append(match.getKey())
-               .append(level == null || level.isBlank() ? "" : " (date level " + level + ")");
+               .append(level == null || level.isBlank() ? "" : " (" + level + ")");
          }
 
          throw new IllegalArgumentException(
