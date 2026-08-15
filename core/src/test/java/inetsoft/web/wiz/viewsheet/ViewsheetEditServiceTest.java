@@ -26,6 +26,11 @@ import inetsoft.web.composer.vs.objects.event.AddNewVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectLayerEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -452,6 +457,51 @@ class ViewsheetEditServiceTest {
                  op + " must name the assembly it could not find, got: " + thrown.getMessage());
    }
 
+   /**
+    * Not every assembly has a title bar. {@code ComposerObjectService.changeTitle} casts to
+    * {@code TitledVSAssembly}, so set_title on a Text produced a raw
+    * {@code ClassCastException: TextVSAssembly cannot be cast to TitledVSAssembly} as a bare 500 —
+    * an internal type name, and no hint that the op simply does not apply to this assembly.
+    *
+    * <p>Checked with {@code instanceof} rather than a list of type names, so it cannot drift from
+    * whatever actually implements the interface. Found live on local-1198.
+    */
+   @Test
+   void setTitleOnAnAssemblyWithNoTitleBarSaysSoRatherThanThrowingAClassCastException() {
+      RuntimeViewsheet rvs = runtimeWith("Text1", mock(TextVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Text1", "Text", 140, 440, 100, 20, 0, null, true)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), full("set_title", "Text1"), ""));
+
+      assertTrue(thrown.getMessage().contains("Text1"));
+      assertFalse(thrown.getMessage().contains("TitledVSAssembly"),
+                  "an internal interface name is not an explanation, got: " + thrown.getMessage());
+   }
+
+   /** A titled assembly still goes through. */
+   @Test
+   void setTitleStillWorksOnAnAssemblyThatHasATitle() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = runtimeWith("Chart1", mock(ChartVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true)), objects);
+
+      service.apply("tok", principal(), full("set_title", "Chart1"), "");
+
+      verify(objects).changeTitle(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   private static RuntimeViewsheet runtimeWith(String name, VSAssembly assembly) {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly(name)).thenReturn(assembly);
+      return rvs;
+   }
+
    /** Every field populated, so an op fails on the missing assembly rather than a missing field. */
    private static EditRequest full(String op, String assembly) {
       return new EditRequest(op, assembly, 10, 10, 100, 100, 2, "A title", true, "Container1",
@@ -520,6 +570,35 @@ class ViewsheetEditServiceTest {
    {
       return serviceWith(objects, clipboard, mock(ViewsheetReadService.class),
                          mock(ComposerGroupService.class));
+   }
+
+   /** Runs the mutation against a supplied runtime, for the guards that inspect the assembly. */
+   private static ViewsheetEditService serviceWithRuntime(RuntimeViewsheet rvs,
+                                                          ViewsheetReadService reader)
+   {
+      return serviceWithRuntime(rvs, reader, mock(ComposerObjectService.class));
+   }
+
+   private static ViewsheetEditService serviceWithRuntime(RuntimeViewsheet rvs,
+                                                          ViewsheetReadService reader,
+                                                          ComposerObjectService objects)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, objects, mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class));
    }
 
    private static ViewsheetEditService serviceWith(ComposerObjectService objects,

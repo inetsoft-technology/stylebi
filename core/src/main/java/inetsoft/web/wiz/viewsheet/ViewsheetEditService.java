@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.viewsheet.TitledVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
@@ -327,6 +328,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
+         requireTitled(rvs, request.assembly());
 
          ChangeVSObjectTextEvent event = new ChangeVSObjectTextEvent();
          event.setName(request.assembly());
@@ -520,6 +522,30 @@ public class ViewsheetEditService {
     * {@code instanceof} guard and returns normally — so a misspelled name produced a cheerful
     * "ok" on every op. Nothing downstream will ever complain, so we complain here.
     */
+   /**
+    * Refuses set_title on an assembly that has no title bar.
+    *
+    * <p>{@code ComposerObjectService.changeTitle} casts to {@code TitledVSAssembly}, so a Text or
+    * a shape produced a raw {@code ClassCastException} as a bare 500 — an internal type name, with
+    * no hint that the op simply does not apply here.
+    *
+    * <p>Tested with {@code instanceof} rather than a list of type names so it cannot drift from
+    * whatever actually implements the interface. Charts, tables, crosstabs, selections and
+    * calendars have titles; text, images and shapes do not — they ARE their content, so what
+    * looks like a title on a Text is set through its own value, not this op.
+    */
+   private void requireTitled(RuntimeViewsheet rvs, String name) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(name);
+
+      if(assembly != null && !(assembly instanceof TitledVSAssembly)) {
+         throw new IllegalArgumentException(
+            "'" + name + "' has no title bar, so 'set_title' does not apply to it. Charts, " +
+            "tables, crosstabs, selections and calendars have titles; text, images and shapes " +
+            "do not — a text assembly's visible text is its own content, not a title.");
+      }
+   }
+
    private AssemblyNode requireExisting(RuntimeViewsheet rvs, String name) {
       Map<String, AssemblyNode> byName = new LinkedHashMap<>();
       ViewsheetModel model = reader.read(rvs);
