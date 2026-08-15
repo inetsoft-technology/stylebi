@@ -253,7 +253,7 @@ public final class TableBindingMutator {
          ref.setColumnValue(field.column());
 
          if(field.dateLevel() != null) {
-            ref.setDateLevel(field.dateLevel());
+            ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
          }
 
          out.add(ref);

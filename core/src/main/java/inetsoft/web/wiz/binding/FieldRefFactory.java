@@ -64,7 +64,7 @@ public final class FieldRefFactory {
       ref.setName(field.column());
 
       if(field.dateLevel() != null) {
-         ref.setDateLevel(field.dateLevel());
+         ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
       }
 
       return ref;

@@ -31,6 +31,60 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("core")
 class FieldRefFactoryTest {
+   /**
+    * The date level is an {@code XConstants} number whose mapping nobody can guess — year is 5,
+    * quarter 4, month 3, week 2, day 1 — so a caller naturally writes {@code dateLevel: "year"}.
+    * That was stored verbatim, and the binding then threw {@code For input string: "year"} on the
+    * NEXT unrelated write to the same assembly, naming neither the field nor the level nor the
+    * call that poisoned it. Found live on local-1199 while binding a crosstab for case 29.
+    */
+   @Test
+   void normalizesNamedDateLevelsToTheirConstants() {
+      assertEquals("5", DateLevels.normalize("year"));
+      assertEquals("4", DateLevels.normalize("QUARTER"));
+      assertEquals("3", DateLevels.normalize("Month"));
+      assertEquals("2", DateLevels.normalize("week"));
+      assertEquals("1", DateLevels.normalize("day"));
+      assertEquals("0", DateLevels.normalize("none"));
+   }
+
+   @Test
+   void passesANumericDateLevelThrough() {
+      assertEquals("5", DateLevels.normalize("5"));
+      assertEquals("0", DateLevels.normalize("0"));
+   }
+
+   @Test
+   void refusesADateLevelItCannotResolveRatherThanStoringIt() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> DateLevels.normalize("fortnight"));
+
+      assertTrue(thrown.getMessage().contains("fortnight"));
+      assertTrue(thrown.getMessage().contains("year"), "the message must list what is accepted");
+   }
+
+   /** A number outside the known set is as poisonous as a word, and just as silent. */
+   @Test
+   void refusesAnUnknownNumericDateLevel() {
+      assertThrows(IllegalArgumentException.class, () -> DateLevels.normalize("99"));
+   }
+
+   /**
+    * -1 is StyleBI's own sentinel for "no date level" — {@code VSDimensionRef.setDateLevel} maps
+    * it to null — so refs read back from a live binding carry it. The first version of this guard
+    * refused it and broke every round trip that reads a dimension and writes it elsewhere; five
+    * existing tests caught that immediately.
+    */
+   @Test
+   void acceptsTheUnsetSentinel() {
+      assertEquals("-1", DateLevels.normalize("-1"));
+   }
+
+   @Test
+   void leavesAnAbsentDateLevelAlone() {
+      assertNull(DateLevels.normalize(null));
+   }
+
    @Test
    void readsADimensionAsItsColumnAndDateLevel() {
       BDimensionRefModel model = new BDimensionRefModel();
