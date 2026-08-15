@@ -238,6 +238,57 @@ class ChartAestheticMutatorTest {
       assertEquals("Reds", frame.get("palette"));
    }
 
+   /**
+    * The read path builds its own {@link AestheticInfo} and never sets {@code fullName} —
+    * {@code AestheticRefModelFactory.createAestheticInfo} sets only {@code dataInfo} and
+    * {@code frame}. So reading the channel name off {@code AestheticInfo.getFullName()} reported
+    * {@code field: null} for every channel of every chart, even while the aesthetic was visibly
+    * rendering its legend.
+    *
+    * <p>The test above this one could not catch it: it builds the model with
+    * {@code ChartAestheticMutator.setField}, the one place that <em>does</em> set {@code fullName},
+    * so it round-trips through our own writer and never exercises a real read. This one builds the
+    * model the way the read path does — {@code dataInfo} populated, {@code fullName} absent.
+    */
+   @Test
+   void describesAChannelBuiltTheWayTheReadPathBuildsIt() {
+      ChartDimensionRefModel dataInfo = new ChartDimensionRefModel();
+      dataInfo.setFullName("Region");
+
+      AestheticInfo info = new AestheticInfo();
+      info.setDataInfo(dataInfo);   // exactly what createAestheticInfo does — no setFullName
+
+      ChartBindingModel model = new ChartBindingModel();
+      model.setColorField(info);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+
+      assertEquals("Region", color.get("field"),
+                   "a bound channel must report its field, not null");
+   }
+
+   /** A bound channel whose name cannot be resolved must not be indistinguishable from an empty one. */
+   @Test
+   void prefersTheDataInfoNameOverAStaleFullName() {
+      ChartDimensionRefModel dataInfo = new ChartDimensionRefModel();
+      dataInfo.setFullName("Region");
+
+      AestheticInfo info = new AestheticInfo();
+      info.setFullName("Stale");
+      info.setDataInfo(dataInfo);
+
+      ChartBindingModel model = new ChartBindingModel();
+      model.setColorField(info);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+
+      assertEquals("Region", color.get("field"));
+   }
+
    @Test
    void describesAnUnboundChannelWithNulls() {
       Map<String, Object> described = ChartAestheticMutator.describe(new ChartBindingModel());

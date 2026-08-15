@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.aesthetic.*;
@@ -102,11 +103,37 @@ public final class ChartAestheticMutator {
       AestheticInfo info = AestheticChannels.FIELD_CHANNELS.contains(channel)
          ? read(model, channel) : null;
 
-      view.put("field", info == null ? null : info.getFullName());
+      view.put("field", fieldNameOf(info));
       view.put("frame", VisualFrameAliases.describe(frameOf(model, channel)));
       view.put("acceptsField", AestheticChannels.FIELD_CHANNELS.contains(channel));
       view.put("acceptsFrame", AestheticChannels.FRAME_CHANNELS.contains(channel));
       return view;
+   }
+
+   /**
+    * The name of the field bound to a channel.
+    *
+    * <p>Read from the {@code dataInfo}, not from {@link AestheticInfo#getFullName()}. The read
+    * path — {@code AestheticRefModelFactory.createAestheticInfo} — sets only {@code dataInfo} and
+    * {@code frame}; nothing there ever sets the {@code AestheticInfo}'s own {@code fullName}. The
+    * only writer of that field is {@link #setField}, ours. So asking the {@code AestheticInfo} for
+    * its name reported {@code null} for every channel of every chart, while the aesthetic was
+    * visibly rendering — the write worked, the read lied.
+    *
+    * <p>{@code fullName} is kept only as a fallback, for the models our own writer built.
+    */
+   private static String fieldNameOf(AestheticInfo info) {
+      if(info == null) {
+         return null;
+      }
+
+      BindingRefModel dataInfo = info.getDataInfo();
+
+      if(dataInfo != null && dataInfo.getFullName() != null) {
+         return dataInfo.getFullName();
+      }
+
+      return info.getFullName();
    }
 
    private static VisualFrameModel frameOf(ChartBindingModel model, String channel) {
