@@ -102,9 +102,38 @@ public class ViewsheetSessionService {
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
    }
 
+   /**
+    * Resolve and run a <b>read</b> under a capturing dispatcher — no checkpoint, no broadcast.
+    *
+    * <p>Some composer services return their result by <em>dispatching a command</em> rather than
+    * returning a value: {@code VSTableLayoutService.getCellScript} and {@code getNamedGroup} both
+    * do. Reading those needs the capturing dispatcher, which {@link #resolve} does not supply.
+    *
+    * <p>{@link #mutate} would supply one, but it also opens a checkpoint and broadcasts — so
+    * using it for a read would put a stray Ctrl+Z step in the user's history for having
+    * <em>looked</em> at something, and tell their Composer to refresh for a change that never
+    * happened. Hence a third entry point rather than a flag on the second.
+    */
+   public <T> T read(String sessionToken, Principal agent, Read<T> read) throws Exception {
+      JoinSession session = requireSession(sessionToken, agent);
+      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
+         SheetType.VIEWSHEET, session.runtimeId(), agent);
+      applySocketSession(rvs, session);
+
+      return CapturingCommandDispatcher.withCapturingDispatcher(
+         agent, dispatcher -> read.run(rvs, session.runtimeId(), dispatcher));
+   }
+
    @FunctionalInterface
    public interface Mutation {
       void run(RuntimeViewsheet rvs, String runtimeId, CapturingCommandDispatcher dispatcher)
+         throws Exception;
+   }
+
+   /** A read that needs the capturing dispatcher to see a command-delivered result. */
+   @FunctionalInterface
+   public interface Read<T> {
+      T run(RuntimeViewsheet rvs, String runtimeId, CapturingCommandDispatcher dispatcher)
          throws Exception;
    }
 
