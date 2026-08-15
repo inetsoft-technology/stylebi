@@ -93,8 +93,24 @@ public class SheetRuntimeAccess {
          case VIEWSHEET -> getViewsheetForPairing(runtimeId, agentUser);
       };
 
-      grantOwnershipBypass(sheet, runtimeId, agentUser);
+      grantOwnershipBypass(sheet == null ? null : sheet.getUser(), runtimeId, agentUser);
       return sheet;
+   }
+
+   /**
+    * Grants the same bypass from a runtime id alone, for callers that never resolve the sheet.
+    *
+    * <p>Several wiz services take {@code runtimeId} straight from the pairing session and hand it
+    * to a composer service, which re-resolves it and enforces ownership. Those paths need the flag
+    * just as much as the resolving ones, and marking only inside {@link #getSheetForPairing} left
+    * them broken — chart region properties still failed while chart aesthetics worked.
+    *
+    * <p>The owner lookup is side-effect free, so this does not touch or audit the runtime.
+    */
+   public void grantOwnershipBypass(SheetType sheetType, String runtimeId, Principal agentUser)
+      throws PairingException
+   {
+      grantOwnershipBypass(getRuntimeOwner(sheetType, runtimeId), runtimeId, agentUser);
    }
 
    /**
@@ -117,11 +133,9 @@ public class SheetRuntimeAccess {
     * <p>A null owner earns no bypass: it cannot be verified, and {@code getSheet} only enforces
     * ownership when the runtime has a user, so there is nothing to bypass.
     */
-   private void grantOwnershipBypass(RuntimeSheet sheet, String runtimeId, Principal agentUser)
+   private void grantOwnershipBypass(Principal owner, String runtimeId, Principal agentUser)
       throws PairingException
    {
-      Principal owner = sheet == null ? null : sheet.getUser();
-
       if(owner == null || !(agentUser instanceof XPrincipal agent)) {
          return;
       }

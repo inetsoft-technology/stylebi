@@ -187,6 +187,45 @@ class SheetRuntimeAccessTest {
       assertNull(((XPrincipal) agent).getProperty("pairedAgent"));
    }
 
+   /**
+    * Some wiz services never resolve the sheet — they take {@code runtimeId} from the session and
+    * hand it straight to a composer service, which re-resolves it and enforces ownership. Those
+    * paths need the same bypass, so it must be grantable from the id alone.
+    *
+    * <p>Missed by the first version of this fix, which only marked inside
+    * {@code getSheetForPairing}: chart region properties then still failed while chart aesthetics
+    * worked, because only the latter resolves the sheet. Found live on local-1195.
+    */
+   @Test
+   void grantsTheBypassFromARuntimeIdAloneWithoutResolvingTheSheet() throws Exception {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getUser()).thenReturn(TestPrincipals.user("alice", "org"));
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+      access(wsMock, vsMock).grantOwnershipBypass(SheetType.VIEWSHEET, "VS/456", agent);
+
+      assertEquals("true", ((XPrincipal) agent).getProperty("pairedAgent"));
+   }
+
+   @Test
+   void refusesToGrantFromARuntimeIdOwnedByADifferentUser() {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getUser()).thenReturn(TestPrincipals.user("bob", "org"));
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+
+      assertThrows(PairingException.class,
+         () -> access(wsMock, vsMock)
+            .grantOwnershipBypass(SheetType.VIEWSHEET, "VS/456", agent));
+      assertNull(((XPrincipal) agent).getProperty("pairedAgent"));
+   }
+
    @Test
    void wrongTypeForViewsheetThrowsPairingException() {
       SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);

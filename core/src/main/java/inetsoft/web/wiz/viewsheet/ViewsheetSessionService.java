@@ -72,8 +72,19 @@ public class ViewsheetSessionService {
       return rvs;
    }
 
+   /**
+    * The runtime id for a paired session.
+    *
+    * <p>Grants the ownership bypass as a side effect, because every caller of this method hands the
+    * id to a <em>composer</em> service, which re-resolves the sheet and enforces ownership against
+    * the agent's principal. Without it those services fail with {@code InvalidUserException} while
+    * the ones that go through {@link #resolve} or {@link #mutate} succeed — an inconsistency with
+    * no visible cause, since both look like ordinary reads from the outside.
+    */
    public String runtimeId(String sessionToken, Principal agent) throws PairingException {
-      return requireSession(sessionToken, agent).runtimeId();
+      String runtimeId = requireSession(sessionToken, agent).runtimeId();
+      runtimeAccess.grantOwnershipBypass(SheetType.VIEWSHEET, runtimeId, agent);
+      return runtimeId;
    }
 
    /**
