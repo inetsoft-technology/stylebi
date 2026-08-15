@@ -129,16 +129,28 @@ public class ChartElementService {
    /**
     * Resizes the plot area, or resets it.
     *
-    * @param ratio    the plot's share of the assembly, 0 exclusive to 1 inclusive
+    * <p>The ratio <em>scales the plot's minimum size</em> — {@code VGraphPair} applies it as
+    * {@code minPlotHeight *= heightRatio} — so above 1 enlarges the plot and makes the assembly
+    * scroll, 1 is the default, and below 1 lowers a minimum the plot already exceeds and so
+    * usually changes nothing visible.
+    *
+    * <p>This was originally documented and validated as "the plot's share of the assembly, 0 to
+    * 1", which is not what the underlying event does. Because the validation enforced that range,
+    * the only values the tool accepted were the ones that do nothing — the tool returned success
+    * and never changed a pixel.
+    *
+    * @param ratio    scale for the plot's minimum size; above 1 enlarges it
     * @param vertical true to resize the height, false the width
     */
    public void resizePlot(String sessionToken, Principal user, String assemblyName, Double ratio,
                           boolean vertical, boolean reset, String linkUri) throws Exception
    {
-      if(!reset && (ratio == null || ratio <= 0 || ratio > 1)) {
+      if(!reset && (ratio == null || ratio <= 0 || ratio > MAX_PLOT_RATIO)) {
          throw new IllegalArgumentException(
-            "resize_plot needs a 'ratio' greater than 0 and at most 1 — the plot's share of " +
-            "the assembly. Got " + ratio + ". Pass reset:true to restore the default instead.");
+            "resize_plot needs a 'ratio' greater than 0 and at most " + (int) MAX_PLOT_RATIO +
+            " — it scales the plot's minimum size, so a value above 1 enlarges the plot and makes " +
+            "it scroll, while 1 or less usually changes nothing visible. Got " + ratio +
+            ". Pass reset:true to restore the default instead.");
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -158,9 +170,14 @@ public class ChartElementService {
       return Map.of(
          "elements", List.of("axis", "legend", "title"),
          "titleTargets", List.of("x", "x2", "y", "y2", "chart"),
-         "note", "An axis target is a column name and a legend target is a field name; call " +
-            "get_binding for those. Showing a single axis or legend is not supported — " +
-            "showing restores all of them.");
+         // Spelled out because the same word means two things across two tools: here a target
+         // names the column whose axis is hidden, while set_chart_region_properties takes the
+         // axis TYPE (y, y2, x, x2). Following this note over there addressed no axis at all.
+         "note", "For hiding and showing, an axis target is a column name and a legend target is " +
+            "a field name; call get_binding for those. Showing a single axis or legend is not " +
+            "supported — showing restores all of them. Note that " +
+            "set_chart_region_properties addresses an axis by TYPE (y, y2, x, x2) instead, not " +
+            "by column — it takes the column separately, as 'field'.");
    }
 
    // ── the titles footgun, contained ─────────────────────────────────────────
@@ -266,5 +283,12 @@ public class ChartElementService {
    private final VSChartAxesVisibilityService axesService;
    private final VSChartLegendsVisibilityService legendsService;
    private final VSChartTitlesVisibilityService titlesService;
+   /**
+    * Upper bound on the plot scale. The underlying ratio multiplies the plot's minimum size with
+    * no ceiling of its own, so an absurd value would ask for an enormous graph — worth refusing
+    * outright in a tool a model drives, where a stray 500 is a plausible typo for 5.
+    */
+   private static final double MAX_PLOT_RATIO = 10d;
+
    private final VSChartPlotResizeService plotResizeService;
 }

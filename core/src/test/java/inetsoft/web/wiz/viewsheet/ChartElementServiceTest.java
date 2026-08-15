@@ -243,14 +243,42 @@ class ChartElementServiceTest {
       assertTrue(captor.getValue().isReset());
    }
 
+   /**
+    * The ratio scales the plot's MINIMUM size — {@code VGraphPair} does
+    * {@code minPlotHeight *= heightRatio} — so a value above 1 enlarges the plot and makes it
+    * scrollable, and a value at or below 1 usually changes nothing visible because the plot
+    * already fills the space.
+    *
+    * <p>This test previously asserted that 1.5 was <em>refused</em>, which certified the tool's
+    * original contract: "the plot's share of the assembly, 0 to 1". That contract was wrong, and
+    * because the validation enforced it, the tool could only ever be handed values from the
+    * ineffective range — which is why it looked inert. Found live on local-1196.
+    */
    @Test
-   void refusesARatioOutsideTheUnitRange() {
+   void acceptsARatioAboveOneBecauseThatIsTheRangeThatDoesAnything() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      h.service.resizePlot("tok", principal(), "Chart1", 1.5, true, false, "");
+
+      ArgumentCaptor<VSChartPlotResizeEvent> captor =
+         ArgumentCaptor.forClass(VSChartPlotResizeEvent.class);
+      verify(h.plot).eventHandler(eq("rt1"), captor.capture(), anyString(),
+                                  any(Principal.class), any());
+      assertEquals(1.5, captor.getValue().getSizeRatio());
+   }
+
+   @Test
+   void refusesANonPositiveOrAbsurdRatio() {
       Harness h = harness(mock(ChartVSAssembly.class));
 
       assertThrows(Exception.class,
                    () -> h.service.resizePlot("tok", principal(), "Chart1", 0d, true, false, ""));
       assertThrows(Exception.class,
-                   () -> h.service.resizePlot("tok", principal(), "Chart1", 1.5, true, false, ""));
+                   () -> h.service.resizePlot("tok", principal(), "Chart1", -1d, true, false, ""));
+      // An unbounded multiplier on the minimum plot size is an allocation risk for a tool driven
+      // by a model, so absurd values are refused rather than attempted.
+      assertThrows(Exception.class,
+                   () -> h.service.resizePlot("tok", principal(), "Chart1", 500d, true, false, ""));
       assertThrows(Exception.class,
                    () -> h.service.resizePlot("tok", principal(), "Chart1", null, true, false,
                                               ""));

@@ -202,6 +202,24 @@ public class ChartRegionPropertyService {
          indexOf(trimmed);
       }
 
+      // Same reasoning, worse symptom. ChartRegionHandler.getAxisArea returns null for a type it
+      // does not recognise, and neither side reports it: the read returned the same full, plausible
+      // property list for "PAID" or "zzzznonsense" as for "y", and the write threw
+      // NullPointerException: axisArea is null. So an unrecognised axis silently read as a real one
+      // and then failed with a message naming nothing the caller passed.
+      if("axis".equals(region)) {
+         String normalized = trimmed.toLowerCase();
+
+         if(!AXIS_TARGETS.contains(normalized)) {
+            throw new IllegalArgumentException(
+               "'" + target + "' does not name an axis. Valid targets: " +
+               String.join(", ", AXIS_TARGETS) + ". To address one of several axes of the same " +
+               "type, keep the axis type here and pass the column name as 'field'.");
+         }
+
+         return normalized;
+      }
+
       return trimmed;
    }
 
@@ -214,6 +232,15 @@ public class ChartRegionPropertyService {
    }
 
    private static final List<String> REGIONS = List.of("axis", "legend", "title");
+
+   /**
+    * The axis types {@code ChartRegionHandler.getAxisArea} recognises — the short title forms and
+    * the long area forms, both accepted there and so both accepted here. Any other value yields a
+    * null axis area, which is the whole reason this list is enforced.
+    */
+   private static final List<String> AXIS_TARGETS =
+      List.of("x", "x2", "y", "y2",
+              "bottom_x_axis", "top_x_axis", "left_y_axis", "right_y_axis");
 
    private static final Map<String, String> AXIS = axis();
    private static final Map<String, String> LEGEND = legend();

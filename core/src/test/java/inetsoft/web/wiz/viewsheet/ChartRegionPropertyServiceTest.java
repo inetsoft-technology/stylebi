@@ -165,6 +165,59 @@ class ChartRegionPropertyServiceTest {
                                                             anyString(), any(Principal.class));
    }
 
+   /**
+    * An axis target that names no axis was accepted in silence on the read path — {@code "PAID"}
+    * and {@code "zzzznonsense"} both returned the same full, plausible property list as
+    * {@code "y"} — and blew up with {@code NullPointerException: axisArea is null} on the write
+    * path. Both come from {@code ChartRegionHandler.getAxisArea} returning null for an unrecognised
+    * type.
+    *
+    * <p>A column name is the specific wrong value worth predicting: {@code list_chart_elements}
+    * describes an axis target as a column name (true for element visibility, not for this tool),
+    * so an agent following it lands here. This tool takes the column in {@code field}, so the
+    * message says so rather than only listing the valid types. Found live on local-1196.
+    */
+   @Test
+   void refusesAnAxisTargetThatNamesNoAxis() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "PAID", null));
+
+      assertTrue(thrown.getMessage().contains("PAID"));
+      assertTrue(thrown.getMessage().contains("y2"), "the message must list the valid axis types");
+      assertTrue(thrown.getMessage().contains("field"),
+                 "a column name belongs in 'field' — say so, since that is the likely mistake");
+   }
+
+   /** The long forms the composer itself uses are equally valid and must not be refused. */
+   @Test
+   void acceptsTheLongAxisFormsToo() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      Map<String, Object> listed =
+         h.service.list("tok", principal(), "Chart1", "axis", "left_y_axis", null);
+
+      assertEquals("left_y_axis", listed.get("target"));
+   }
+
+   /** Forgiving where the intent is unambiguous: case is normalised rather than refused. */
+   @Test
+   void normalisesAxisTargetCase() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "Y2", null);
+
+      assertEquals("y2", listed.get("target"));
+   }
+
    @Test
    void refusesAMissingTarget() {
       Harness h = harness();
