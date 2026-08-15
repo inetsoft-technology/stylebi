@@ -24,7 +24,13 @@ import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.report.internal.binding.AssetNamedGroupInfo;
+import inetsoft.web.binding.command.GetCellScriptCommand;
+import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
 import inetsoft.web.binding.controller.VSTableLayoutService;
+import inetsoft.web.binding.event.GetCellScriptEvent;
+import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
@@ -118,6 +124,106 @@ public class CalcTableService {
       out.put("binding",
               CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col)));
       return out;
+   }
+
+   /**
+    * The script StyleBI evaluates for a cell.
+    *
+    * <p>Goes through {@code sessions.read} rather than {@code resolve} because
+    * {@code VSTableLayoutService.getCellScript} returns {@code Void} and delivers the script by
+    * <em>dispatching</em> a {@code GetCellScriptCommand}. A plain resolve has no dispatcher to
+    * capture it, and a mutate would open an undo checkpoint for a read.
+    */
+   public Map<String, Object> cellScript(String sessionToken, Principal user, String assemblyName,
+                                         int row, int col)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
+         requireInGrid(layoutOf(assembly), row, col);
+
+         GetCellScriptEvent event = new GetCellScriptEvent();
+         event.setName(assemblyName);
+         event.setRow(row);
+         event.setCol(col);
+         layoutService.getCellScript(runtimeId, event, user, dispatcher);
+
+         String script = null;
+
+         for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+            if(command.getCommand() instanceof GetCellScriptCommand cellScript) {
+               script = cellScript.getScript();
+               break;
+            }
+         }
+
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("assembly", assemblyName);
+         out.put("row", row);
+         out.put("col", col);
+         out.put("script", script);
+
+         if(script == null || script.isBlank()) {
+            out.put("note",
+                    "This cell has no script. A cell's own binding — content, grouping, expand — " +
+                    "is read with get_cell_binding; a script is the optional expression layered " +
+                    "on top of it.");
+         }
+
+         return out;
+      });
+   }
+
+   /**
+    * The predefined named groups a column offers, for a cell's {@code namedGroup}.
+    *
+    * <p>Same command-dispatch shape as {@link #cellScript}: {@code getNamedGroup} answers by
+    * dispatching a {@code GetPredefinedNamedGroupCommand}.
+    */
+   public Map<String, Object> namedGroups(String sessionToken, Principal user,
+                                          String assemblyName, String column)
+      throws Exception
+   {
+      if(column == null || column.isBlank()) {
+         throw new IllegalArgumentException(
+            "list_named_groups requires 'column' — named groups are defined per column. " +
+            "get_calc_layout reports which columns a cell is bound to.");
+      }
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireCalcTable(rvs, assemblyName);
+
+         GetPredefinedNamedGroupEvent event = new GetPredefinedNamedGroupEvent();
+         event.setName(assemblyName);
+         event.setColumn(column);
+         layoutService.getNamedGroup(runtimeId, event, user, dispatcher);
+
+         // The command carries the group NAMES only — its constructor takes
+         // AssetNamedGroupInfo[] but keeps just getName() from each. The members are not on
+         // the wire, so this reports what StyleBI actually sends rather than inventing a shape.
+         List<String> groups = new ArrayList<>();
+
+         for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+            if(command.getCommand() instanceof GetPredefinedNamedGroupCommand named &&
+               named.getNamedGroups() != null)
+            {
+               groups.addAll(List.of(named.getNamedGroups()));
+            }
+         }
+
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("assembly", assemblyName);
+         out.put("column", column);
+         out.put("namedGroups", groups);
+
+         if(groups.isEmpty()) {
+            out.put("note",
+                    "No predefined named groups exist for this column. Named groups are defined " +
+                    "on the data source, not created here.");
+         }
+
+         return out;
+      });
    }
 
    /** Binds one cell. One {@code sessions.mutate}, so one undo checkpoint. */
@@ -314,6 +420,22 @@ public class CalcTableService {
 
       if(type == CellBinding.BIND_COLUMN) {
          info.setValue(columnOf(binding.get("field")));
+         // A summary cell is an aggregate, and an aggregate carries a formula. Binding a field
+         // requires content "column", so this branch has to accept one too — without it StyleBI
+         // threw `Cannot read field "formula" because "finfo" is null` from
+         // TableLayoutHandler.createAggregateField, making a summary column cell impossible.
+         String formula = str(binding, "formula");
+
+         if(CalcCellVocabulary.isSummary(info.getBtype()) &&
+            (formula == null || formula.isBlank()))
+         {
+            throw new IllegalArgumentException(
+               "A 'summary' cell aggregates its column, so it needs a 'formula' such as " +
+               "Sum, Count, Average, Max or Min. Without one StyleBI fails building the " +
+               "aggregate rather than rendering an unaggregated cell.");
+         }
+
+         info.setFormula(formula);
       }
       else if(type == CellBinding.BIND_FORMULA) {
          info.setFormula(str(binding, "formula"));

@@ -17,6 +17,13 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
+import inetsoft.web.binding.event.GetCellScriptEvent;
+import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
+import inetsoft.web.binding.command.GetCellScriptCommand;
+import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
 import inetsoft.report.TableLayout;
@@ -105,6 +112,48 @@ class CalcTableServiceTest {
       assertEquals(1, event.getSelectCells()[0].getCol());
       assertEquals(CellBinding.BIND_COLUMN, event.getBinding().getType());
       assertEquals("Region", event.getBinding().getValue());
+   }
+
+   /**
+    * A <b>summary</b> cell is an aggregate, and an aggregate needs a formula — but a cell that
+    * binds a field must use {@code content: "column"}, and that branch never set one. StyleBI then
+    * threw {@code NullPointerException: Cannot read field "formula" because "finfo" is null} from
+    * {@code TableLayoutHandler.createAggregateField}, which made a summary column cell impossible
+    * to create through this tool at all.
+    */
+   @Test
+   void carriesTheFormulaOnASummaryColumnCellBecauseAnAggregateNeedsOne() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 1,
+                               spec("content", "column", "grouping", "summary",
+                                    "expand", "none", "formula", "Sum",
+                                    "field", Map.of("column", "PAID", "type", "measure")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      assertEquals("Sum", captor.getValue().getBinding().getFormula());
+      assertEquals("PAID", captor.getValue().getBinding().getValue());
+   }
+
+   /**
+    * Without a formula the aggregate NPEs deep in StyleBI. Refusing here names the missing key
+    * instead of surfacing a 500 the caller cannot act on.
+    */
+   @Test
+   void refusesASummaryCellWithNoFormula() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 1, 1,
+                                        spec("content", "column", "grouping", "summary",
+                                             "expand", "none",
+                                             "field", Map.of("column", "PAID",
+                                                             "type", "measure"))));
+      assertTrue(thrown.getMessage().contains("formula"));
    }
 
    @Test
@@ -221,6 +270,15 @@ class CalcTableServiceTest {
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+         // The read entry point supplies a capturing dispatcher without a checkpoint. Composer
+         // services that answer by dispatching a command need it; the test double runs the read
+         // against a real CapturingCommandDispatcher so captured commands can be asserted.
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Read<?> read = invocation.getArgument(2);
+            return CapturingCommandDispatcher.withCapturingDispatcher(
+               principal(), dispatcher -> read.run(rvs, "rt1", dispatcher));
+         }).when(sessions).read(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
@@ -232,6 +290,73 @@ class CalcTableServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   // ── cell scripts and named groups (2e Phase 3) ────────────────────────────
+   //
+   // Both composer services return their result by DISPATCHING a command rather than returning
+   // it, which is why these need the read-only capturing entry point rather than resolve().
+
+   @Test
+   void readsACellScriptOutOfTheDispatchedCommand() throws Exception {
+      Harness h = harness(3, 3);
+      doAnswer(invocation -> {
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("Calc1", new GetCellScriptCommand("sum(PAID)"));
+         return null;
+      }).when(h.layoutService).getCellScript(anyString(), any(GetCellScriptEvent.class),
+                                             any(Principal.class), any());
+
+      Map<String, Object> read = h.service.cellScript("tok", principal(), "Calc1", 1, 1);
+
+      assertEquals("sum(PAID)", read.get("script"));
+      assertEquals(1, read.get("row"));
+      assertEquals(1, read.get("col"));
+   }
+
+   @Test
+   void reportsNoScriptRatherThanNullWhenACellHasNone() throws Exception {
+      Harness h = harness(3, 3);
+
+      Map<String, Object> read = h.service.cellScript("tok", principal(), "Calc1", 0, 0);
+
+      assertNull(read.get("script"));
+      assertNotNull(read.get("note"), "say that no script came back rather than looking empty");
+   }
+
+   /**
+    * The command carries the group NAMES only: its constructor takes
+    * {@code AssetNamedGroupInfo[]} but keeps just {@code getName()} from each, so the members
+    * never reach the wire. This asserts what StyleBI actually sends.
+    */
+   @Test
+   void readsNamedGroupNamesOutOfTheDispatchedCommand() throws Exception {
+      Harness h = harness(3, 3);
+      GetPredefinedNamedGroupCommand command = new GetPredefinedNamedGroupCommand(
+         new AssetNamedGroupInfo[0]);
+      command.setNamedGroups(new String[]{ "Regions", "Tiers" });
+      doAnswer(invocation -> {
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("Calc1", command);
+         return null;
+      }).when(h.layoutService).getNamedGroup(anyString(),
+                                             any(GetPredefinedNamedGroupEvent.class),
+                                             any(Principal.class), any());
+
+      Map<String, Object> read = h.service.namedGroups("tok", principal(), "Calc1", "REGION");
+
+      assertEquals(List.of("Regions", "Tiers"), read.get("namedGroups"));
+      assertEquals("REGION", read.get("column"));
+   }
+
+   @Test
+   void namedGroupsNeedsAColumn() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.namedGroups("tok", principal(), "Calc1", "  "));
+      assertTrue(thrown.getMessage().contains("column"));
    }
 
    // ── layout operations (2e Phase 2) ────────────────────────────────────────

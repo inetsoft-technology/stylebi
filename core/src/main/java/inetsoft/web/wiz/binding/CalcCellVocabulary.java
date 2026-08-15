@@ -84,6 +84,11 @@ public final class CalcCellVocabulary {
       return resolve(EXPAND, token, "expand");
    }
 
+   /** Whether a resolved grouping constant is the aggregating one. */
+   public static boolean isSummary(int grouping) {
+      return grouping == CellBinding.SUMMARY;
+   }
+
    /**
     * Checks a cell-binding spec before anything is written.
     *
