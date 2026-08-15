@@ -22,6 +22,8 @@ import inetsoft.util.InvalidUserException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +46,19 @@ import java.util.Map;
  * specific local {@code SecurityException} handler, since a local handler takes precedence over a
  * {@code @ControllerAdvice} and their catch-all would otherwise intercept the denial first (as 400).
  */
+/*
+ * Ordered ahead of every other advice, for the wiz packages only.
+ *
+ * GlobalExceptionHandler extends ResponseEntityExceptionHandler, which carries a built-in handler
+ * for the Spring MVC exceptions -- HttpMessageNotReadableException among them -- and answers with
+ * the default empty body. With neither advice ordered, that one won, so a body Jackson could not
+ * read came back as a bare 400 no matter what this class said about it.
+ *
+ * This was invisible to the unit tests: standaloneSetup registers only the advice under test, so
+ * the handler looked correct in isolation and did nothing in the running application. Found by
+ * calling the tool after the fix and getting the same empty 400 as before.
+ */
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice(basePackages = "inetsoft.web.wiz")
 public class WizControllerErrorHandler {
    @ExceptionHandler({ inetsoft.sree.security.SecurityException.class, java.lang.SecurityException.class })

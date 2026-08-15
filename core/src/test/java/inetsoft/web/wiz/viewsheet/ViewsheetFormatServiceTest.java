@@ -171,6 +171,58 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("sideways"), thrown.getMessage());
    }
 
+   /**
+    * The border style is asymmetric in the underlying model: reading emits CSS words
+    * ({@code FormatInfoModel.getBorderStyle} returns "solid"/"dashed"/"dotted"/"double"), while
+    * writing goes through {@code FormatPainterService}, which does
+    * {@code Integer.parseInt(topBorder)}. So the CSS word this API documents could never be
+    * written, and produced a raw {@code For input string: "solid"} naming no field. Found live on
+    * local-1203 running case 7.
+    */
+   @Test
+   void acceptsBorderStylesAsCssWordsBecauseThatIsWhatReadsBack() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopStyle\":\"solid\"," +
+         "\"borderLeftStyle\":\"dashed\",\"borderBottomStyle\":\"none\"},\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals(String.valueOf(inetsoft.report.StyleConstants.THIN_LINE),
+                   request.format().getBorderTopStyle());
+      assertEquals(String.valueOf(inetsoft.report.StyleConstants.DASH_LINE),
+                   request.format().getBorderLeftStyle());
+      assertEquals("0", request.format().getBorderBottomStyle());
+   }
+
+   /** A number still passes through, for anyone who already knows the constant. */
+   @Test
+   void leavesANumericBorderStyleAlone() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopStyle\":\"4097\"}," +
+         "\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals("4097", request.format().getBorderTopStyle());
+   }
+
+   @Test
+   void refusesABorderStyleItCannotResolve() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> mapper.readValue(
+            "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopStyle\":\"wiggly\"}," +
+            "\"reset\":false}",
+            ViewsheetFormatService.FormatRequest.class));
+
+      assertTrue(thrown.getMessage().contains("wiggly"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("borderTopStyle"), thrown.getMessage());
+   }
+
    @Test
    void requiresAtLeastOneAssembly() {
       Exception thrown = assertThrows(

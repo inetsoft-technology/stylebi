@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.report.StyleConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
@@ -87,6 +88,7 @@ public class ViewsheetFormatService {
          ObjectNode object = ((ObjectNode) format).deepCopy();
          object.put("type", VSObjectFormatInfoModel.class.getName());
          coerceAlign(object);
+         coerceBorderStyles(object);
 
          try {
             return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
@@ -141,6 +143,50 @@ public class ViewsheetFormatService {
 
          object.set("align", alignment);
       }
+
+      /**
+       * Lets the four border styles be written as CSS words.
+       *
+       * <p>The underlying model is asymmetric: {@code FormatInfoModel.getBorderStyle} <em>reads</em>
+       * "solid"/"dashed"/"dotted"/"double", while the write goes through
+       * {@code FormatPainterService}, which does {@code Integer.parseInt} on the same field. So the
+       * word this API documents — and the word that comes back out of it — could never be written,
+       * and failed with a raw {@code For input string: "solid"} naming no field at all.
+       *
+       * <p>A number still passes through untouched, for a caller that already has the constant.
+       */
+      private static void coerceBorderStyles(ObjectNode object) {
+         for(String side : BORDER_STYLES) {
+            JsonNode style = object.get(side);
+
+            if(style == null || !style.isTextual()) {
+               continue;
+            }
+
+            String word = style.asText().trim().toLowerCase();
+
+            if(word.chars().allMatch(Character::isDigit)) {
+               continue;
+            }
+
+            object.put(side, String.valueOf(switch(word) {
+               case "none" -> StyleConstants.NO_BORDER;
+               case "solid", "thin" -> StyleConstants.THIN_LINE;
+               case "medium" -> StyleConstants.MEDIUM_LINE;
+               case "thick" -> StyleConstants.THICK_LINE;
+               case "dashed" -> StyleConstants.DASH_LINE;
+               case "dotted" -> StyleConstants.DOT_LINE;
+               case "double" -> StyleConstants.DOUBLE_LINE;
+               default -> throw new IllegalArgumentException(
+                  "set_format could not read '" + side + "': '" + word + "' is not a border " +
+                  "style. Accepted: none, solid, dashed, dotted, double, thin, medium, thick. " +
+                  "A StyleBI line constant is accepted as a number.");
+            }));
+         }
+      }
+
+      private static final List<String> BORDER_STYLES =
+         List.of("borderTopStyle", "borderLeftStyle", "borderBottomStyle", "borderRightStyle");
 
       private static final ObjectMapper MAPPER = new ObjectMapper();
    }
