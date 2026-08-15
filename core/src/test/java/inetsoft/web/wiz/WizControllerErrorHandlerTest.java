@@ -95,6 +95,24 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("requires 'height'")));
    }
 
+   /**
+    * A pairing session whose principal no longer owns the runtime sheet. StyleBI throws
+    * {@code InvalidUserException} from {@code WorksheetEngine.getSheet}, naming two client session
+    * ids — unreadable, and it surfaced as a bare Tomcat 500 HTML page with no message at all.
+    *
+    * <p>Worth its own status because the remedy is specific and the agent can act on it: re-pair.
+    * A 500 tells it to retry, which will fail identically forever. Found live: reads kept working
+    * (they resolve the sheet through the pairing lookup) while every write failed, so the session
+    * looked healthy right up to the point of the first mutation.
+    */
+   @Test
+   void invalidUserExceptionMapsToConflictTellingTheAgentToRepair() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "invaliduser"))
+         .andExpect(status().isConflict())
+         .andExpect(content().string(containsString("no longer owns")))
+         .andExpect(content().string(containsString("pairing code")));
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -109,6 +127,12 @@ class WizControllerErrorHandlerTest {
 
          if("illegal".equals(type)) {
             throw new IllegalArgumentException("Edit op 'resize_title' requires 'height'.");
+         }
+
+         if("invaliduser".equals(type)) {
+            throw new inetsoft.util.InvalidUserException(
+               "Invalid user found: Principal[Client[admin@172.18.0.1@a2f160d8]] instead of " +
+               "Principal[Client[admin@172.18.0.1@ab0096b3]]", () -> "admin");
          }
 
          throw new java.lang.SecurityException("denied");

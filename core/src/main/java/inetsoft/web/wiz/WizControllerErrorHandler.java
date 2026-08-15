@@ -18,6 +18,7 @@
 package inetsoft.web.wiz;
 
 import inetsoft.util.Catalog;
+import inetsoft.util.InvalidUserException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,6 +103,36 @@ public class WizControllerErrorHandler {
       Map<String, String> payload = new HashMap<>();
       payload.put("error", e.getMessage());
       return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
+   }
+
+   /**
+    * Maps a stale pairing session to 409 with an instruction the agent can act on.
+    *
+    * <p>When the principal behind a pairing session no longer owns the runtime sheet — the user
+    * logged out and back in, or the container restarted and they re-opened the sheet in a new
+    * browser session — {@code WorksheetEngine.getSheet} throws {@code InvalidUserException}. It
+    * arrived here as a bare 500 HTML page with no message, so an agent saw an opaque server error
+    * and its only sensible response was to retry, which fails identically every time.
+    *
+    * <p>The failure is especially misleading because <em>reads keep working</em>: those resolve the
+    * sheet through the pairing lookup, which does not check ownership, while every mutation goes
+    * through {@code getSheet} and is refused. So the session reports healthy and renders images
+    * right up to the first write.
+    *
+    * <p>The raw message names two client session ids and nothing else, which tells the agent
+    * nothing — hence a rewritten message rather than a passthrough. Kept as its own status so
+    * "re-pair" is distinguishable from the 400 that means "fix your input".
+    */
+   @ExceptionHandler(InvalidUserException.class)
+   public ResponseEntity<Map<String, String>> handleInvalidUser(InvalidUserException e) {
+      LOG.warn("Pairing session no longer owns the sheet: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error",
+                  "This pairing session no longer owns the sheet — the StyleBI login that opened " +
+                  "it has been replaced. Ask the user for a fresh pairing code and connect again. " +
+                  "Reads may still succeed on this session; writes will not.");
+      return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
