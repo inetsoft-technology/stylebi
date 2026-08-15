@@ -62,12 +62,58 @@ class ViewsheetAgentControllerTest {
       assertSame(expected, controller.model("tok", principal()));
    }
 
+   /**
+    * detach took the session token and nothing else, so any authenticated caller holding or
+    * guessing another user's token could terminate their pairing session. Every other endpoint
+    * binds the token to the caller through {@code sessions.resolve(token, user)}; this one
+    * accepted {@code Principal} and ignored it. The script controller — which this was clearly
+    * copied from — resolves first and only closes on a hit.
+    */
+   @Test
+   void detachRefusesASessionThatIsNotTheCallersOwn() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(null);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(feature, mock(ViewsheetSessionService.class),
+                        mock(ViewsheetReadService.class), sessionService);
+
+      controller.detach("someone-elses-token", principal());
+
+      verify(sessionService, never()).close(anyString());
+   }
+
+   @Test
+   void detachClosesTheCallersOwnSession() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString()))
+         .thenReturn(mock(JoinSession.class));
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(feature, mock(ViewsheetSessionService.class),
+                        mock(ViewsheetReadService.class), sessionService);
+
+      controller.detach("my-token", principal());
+
+      verify(sessionService).close("my-token");
+   }
+
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
                                                           ViewsheetSessionService sessions,
                                                           ViewsheetReadService reader)
    {
+      return controllerWith(feature, sessions, reader, mock(SheetSessionService.class));
+   }
+
+   private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
+                                                          ViewsheetSessionService sessions,
+                                                          ViewsheetReadService reader,
+                                                          SheetSessionService sessionService)
+   {
       return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
-                                          mock(SheetSessionService.class), sessions, reader,
+                                          sessionService, sessions, reader,
                                           mock(ViewsheetEditService.class),
                                           mock(ViewsheetFormatService.class),
                                           mock(inetsoft.web.wiz.script.ScriptImageService.class),

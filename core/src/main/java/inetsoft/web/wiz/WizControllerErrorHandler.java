@@ -19,6 +19,7 @@ package inetsoft.web.wiz;
 
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -201,6 +202,29 @@ public class WizControllerErrorHandler {
                   "The request body could not be read: " +
                   (newline < 0 ? detail : detail.substring(0, newline)));
       return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
+   }
+
+   /**
+    * Maps a captured composer error to 409, carrying every message.
+    *
+    * <p>{@code CommandErrorException} extends {@code Exception} and had no handler, so the
+    * mechanism this whole feature exists to add — turning a composer ERROR that is only
+    * <em>dispatched</em> into something the caller can see — captured the text and then lost it to
+    * a generic 500 reading "Internal Server Error". The capture worked; the delivery did not.
+    *
+    * <p>409 rather than 400 because the request was well-formed and the composer refused it: a
+    * conflict with the sheet's state, not a malformed call. {@code getErrors()} is surfaced as its
+    * own field as well as joined into {@code error}, since the composer often reports several and
+    * joining them alone loses the boundaries.
+    */
+   @ExceptionHandler(CommandErrorException.class)
+   public ResponseEntity<Map<String, Object>> handleCommandError(CommandErrorException e) {
+      LOG.warn("Composer reported an error to the wiz agent: {}", e.getMessage());
+
+      Map<String, Object> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      payload.put("errors", e.getErrors());
+      return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);

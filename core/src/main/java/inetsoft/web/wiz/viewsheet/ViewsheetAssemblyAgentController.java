@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -207,8 +208,14 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/types")
-   public Map<String, Object> hyperlinkTypes(@PathVariable String sessionToken, Principal user) {
+   public Map<String, Object> hyperlinkTypes(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
       requireEnabled();
+      // Static data, so nothing is exposed by skipping this -- but an agent that gets a clean
+      // answer here while every other call reports SESSION_EXPIRED has a contradictory picture of
+      // its own session to reason from.
+      sessions.resolve(sessionToken, user);
       return hyperlinkService.linkTypes();
    }
 
@@ -232,8 +239,10 @@ public class ViewsheetAssemblyAgentController {
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/elements")
    public Map<String, Object> chartElementVocabulary(@PathVariable String sessionToken,
                                                      Principal user)
+      throws Exception
    {
       requireEnabled();
+      sessions.resolve(sessionToken, user);
       return chartElementService.vocabulary();
    }
 
@@ -335,8 +344,10 @@ public class ViewsheetAssemblyAgentController {
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/condition/vocabulary")
    public Map<String, Object> conditionVocabulary(@PathVariable String sessionToken,
                                                   Principal user)
+      throws Exception
    {
       requireEnabled();
+      sessions.resolve(sessionToken, user);
       return conditionService.vocabulary();
    }
 
@@ -557,9 +568,31 @@ public class ViewsheetAssemblyAgentController {
       return state;
    }
 
+   /**
+    * Closes the caller's own pairing session.
+    *
+    * <p>Resolves the token against the caller first. Without that, this endpoint took a session
+    * token and nothing else, so any authenticated caller holding or guessing another user's token
+    * could terminate their pairing -- {@code Principal} was accepted and ignored while every other
+    * endpoint binds the token through {@code resolve}. Skipping {@code requireEnabled()} is
+    * deliberate and stays: disconnecting is always allowed.
+    */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
-      sessionService.close(sessionToken);
+      JoinSession session = sessionService.resolve(sessionToken, agentKey(user));
+
+      if(session != null) {
+         sessionService.close(sessionToken);
+      }
+   }
+
+   private static String agentKey(Principal agent) {
+      if(agent instanceof XPrincipal p) {
+         IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
+         return id != null ? id.convertToKey() : p.getName();
+      }
+
+      return agent != null ? agent.getName() : null;
    }
 
    private void requireEnabled() {

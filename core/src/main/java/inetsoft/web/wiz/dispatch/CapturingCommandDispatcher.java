@@ -158,6 +158,44 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       captured.add(new Command(assemblyName, commandTypeOf(command), command));
    }
 
+   /**
+    * Stays capturing when detached.
+    *
+    * <p>{@code CommandDispatcher.detach()} returns a copy of the base class, so anything sent
+    * through it was neither captured nor inspected — the hole this class exists to close.
+    * {@code CoreLifecycleService.createList} calls {@code detach()}, which puts it on the add,
+    * remove, group and rename paths; an ERROR dispatched during that refresh was dropped and the
+    * op reported success.
+    *
+    * <p>Returning {@code this} rather than a copy is safe precisely because this dispatcher never
+    * transmits: {@code send} and {@code convertAndSendToUser} are both no-ops, so there is no
+    * message-thread state a detached copy would need to shed — and one captured list is what the
+    * caller actually wants to inspect.
+    */
+   @Override
+   public CommandDispatcher detach() {
+      return this;
+   }
+
+   /**
+    * Iterates what was captured.
+    *
+    * <p>{@code sendCommand} deliberately skips {@code super}, so the base {@code commands} list
+    * stays empty and the inherited {@code iterator()}/{@code stream()} returned nothing. Framework
+    * code reads exactly those — {@code CoreLifecycleService} decides {@code checkMVHandled} from
+    * {@code stream()}, which being always false re-sent {@code CheckMVEvent} and added a SECOND
+    * checkpoint, breaking the one-checkpoint-per-call promise {@code mutate} makes.
+    */
+   @Override
+   public java.util.Iterator<Command> iterator() {
+      return Collections.unmodifiableList(captured).iterator();
+   }
+
+   @Override
+   public java.util.stream.Stream<Command> stream() {
+      return List.copyOf(captured).stream();
+   }
+
    @Override
    public void flush() {
       // NO-OP — nothing is transmitted, so there is nothing to flush.

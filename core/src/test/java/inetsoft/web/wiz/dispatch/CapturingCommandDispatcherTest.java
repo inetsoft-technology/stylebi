@@ -50,6 +50,58 @@ class CapturingCommandDispatcherTest {
       assertSame(info, captured.get(0).getCommand());
    }
 
+   /**
+    * {@code CommandDispatcher.detach()} returns a copy of the BASE class, so anything sent
+    * through it is neither captured nor inspected — the exact hole this class exists to close.
+    * It is reached in practice, not hypothetically: {@code CoreLifecycleService.createList} calls
+    * {@code detach()}, and that is on the add, remove, group and rename paths — rename being the
+    * op this feature's own description calls out as the one where capture matters most. An ERROR
+    * dispatched during that refresh was dropped and the op reported success.
+    *
+    * <p>This dispatcher never transmits — {@code send} and {@code convertAndSendToUser} are both
+    * no-ops — so returning itself is safe and keeps one captured list rather than a copy nobody
+    * reads.
+    */
+   @Test
+   void detachStaysCapturingSoRefreshErrorsAreNotDropped() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.detach().sendCommand(message(MessageCommand.Type.ERROR, "from refresh"));
+            return null;
+         }));
+
+      assertTrue(thrown.getErrors().contains("from refresh"),
+                 "an error sent through the detached copy must still be captured, got: " +
+                 thrown.getErrors());
+   }
+
+   /**
+    * The base {@code commands} list stays empty because {@code sendCommand} deliberately skips
+    * {@code super}, so the inherited {@code iterator()}/{@code stream()} saw nothing. Framework
+    * code reads exactly those: {@code CoreLifecycleService} uses {@code stream()} to decide
+    * {@code checkMVHandled} — always false here, which re-sends {@code CheckMVEvent} and adds a
+    * SECOND checkpoint, breaking the one-checkpoint-per-call promise {@code mutate} makes — and
+    * iterates the dispatcher to detect {@code InitGridCommand}.
+    */
+   @Test
+   void theDispatcherIteratesItsOwnCapturedCommands() throws Exception {
+      long[] counts = CapturingCommandDispatcher.withCapturingDispatcher(principal(), d -> {
+         d.sendCommand(message(MessageCommand.Type.INFO, "one"));
+         d.sendCommand(message(MessageCommand.Type.INFO, "two"));
+
+         long iterated = 0;
+
+         for(CommandDispatcher.Command ignored : d) {
+            iterated++;
+         }
+
+         return new long[]{ iterated, d.stream().count() };
+      });
+
+      assertEquals(2, counts[0], "iterator() must see the captured commands");
+      assertEquals(2, counts[1], "stream() must see the captured commands");
+   }
+
    @Test
    void throwsWhenTheWrappedCallReportedAnError() {
       CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->

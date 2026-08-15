@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.uql.XPrincipal;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -496,7 +498,20 @@ public class BindingAgentController {
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
-      sessionService.close(sessionToken);
+      JoinSession session = sessionService.resolve(sessionToken, agentKey(user));
+
+      if(session != null) {
+         sessionService.close(sessionToken);
+      }
+   }
+
+   private static String agentKey(Principal agent) {
+      if(agent instanceof XPrincipal p) {
+         IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
+         return id != null ? id.convertToKey() : p.getName();
+      }
+
+      return agent != null ? agent.getName() : null;
    }
 
    private void requireEnabled() {

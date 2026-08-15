@@ -153,6 +153,28 @@ class WizControllerErrorHandlerTest {
                  "and must name the field Jackson choked on, got: [" + content + "]");
    }
 
+   /**
+    * The captured composer error must reach the caller. {@code CommandErrorException} extends
+    * {@code Exception} and had no handler, so the mechanism this whole feature exists to add —
+    * turning a silently-dispatched composer ERROR into something the caller can see — captured
+    * the text and then lost it to a generic 500 reading "Internal Server Error".
+    *
+    * <p>409 rather than 400: the request was well-formed and the composer refused it, which is a
+    * conflict with the sheet's state, not a malformed call. {@code getErrors()} is surfaced as its
+    * own field because the composer often reports several and joining them loses the boundaries.
+    */
+   @Test
+   void commandErrorExceptionReportsTheCapturedComposerErrors() throws Exception {
+      String content = mvc.perform(get("/wiz-test/throw").param("type", "commanderror"))
+         .andExpect(status().isConflict())
+         .andReturn().getResponse().getContentAsString();
+
+      assertTrue(content.contains("dependency cycle"),
+                 "the captured composer text must reach the caller, got: [" + content + "]");
+      assertTrue(content.contains("name is already in use"),
+                 "every captured error must survive, got: [" + content + "]");
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -167,6 +189,11 @@ class WizControllerErrorHandlerTest {
 
          if("illegal".equals(type)) {
             throw new IllegalArgumentException("Edit op 'resize_title' requires 'height'.");
+         }
+
+         if("commanderror".equals(type)) {
+            throw new inetsoft.web.wiz.dispatch.CommandErrorException(
+               java.util.List.of("dependency cycle", "name is already in use"));
          }
 
          if("unreadable".equals(type)) {
