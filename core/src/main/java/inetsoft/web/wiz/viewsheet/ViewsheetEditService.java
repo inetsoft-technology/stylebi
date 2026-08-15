@@ -25,6 +25,7 @@ import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.*;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -99,10 +100,18 @@ public class ViewsheetEditService {
       requireValues(request.op(), "x", request.x(), "y", request.y());
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireExisting(rvs, request.assembly());
+
          MoveVSObjectEvent move = new MoveVSObjectEvent();
          move.setName(request.assembly());
          move.setxOffset(request.x());
          move.setyOffset(request.y());
+
+         // moveObject is what actually repositions the assembly. moveObjects (plural) only calls
+         // updateAnchoredLines — it is the post-move fix-up hook, not the move itself, so calling
+         // it alone returns cleanly and changes nothing. ComposerObjectController does both, in
+         // this order; so must we.
+         objects.moveObject(runtimeId, move, user, dispatcher, linkUri);
 
          MultiMoveVsObjectEvent event = new MultiMoveVsObjectEvent();
          event.setEvents(new MoveVSObjectEvent[]{ move });
@@ -115,12 +124,20 @@ public class ViewsheetEditService {
    {
       requireAssembly(request);
       requireValues(request.op(), "width", request.width(), "height", request.height());
+      requirePositive(request.op(), "width", request.width(), "height", request.height());
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         AssemblyNode current = requireExisting(rvs, request.assembly());
+
          ResizeVSObjectEvent event = new ResizeVSObjectEvent();
          event.setName(request.assembly());
          event.setWidth(request.width());
          event.setHeight(request.height());
+         // resizeObject also *moves* the assembly to the event's offset
+         // (`new Point(max(0, xOffset), max(0, yOffset))` then `move(...)`), so leaving these unset
+         // silently teleports it to 0,0. Seed them from the assembly's current position.
+         event.setxOffset(current.x());
+         event.setyOffset(current.y());
          objects.resizeObject(runtimeId, event, user, dispatcher, linkUri);
       });
    }
@@ -140,9 +157,18 @@ public class ViewsheetEditService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         AssemblyNode current = requireExisting(rvs, request.assembly());
+
          ResizeVSObjectTitleEvent event = new ResizeVSObjectTitleEvent();
          event.setName(request.assembly());
          event.setTitleHeight(request.height());
+         // resizeObjectTitle delegates to resizeObject, which reads width/height/offset off this
+         // same event. Setting only the title height left them at 0, so a "make the title taller"
+         // call collapsed the whole assembly to 1x1 at 0,0. Seed the current geometry.
+         event.setWidth(current.width());
+         event.setHeight(current.height());
+         event.setxOffset(current.x());
+         event.setyOffset(current.y());
          objects.resizeObjectTitle(runtimeId, event, user, dispatcher, linkUri);
       });
    }
@@ -386,6 +412,13 @@ public class ViewsheetEditService {
             ? alignMoves(targets, axis)
             : distributeMoves(targets, axis);
 
+         // Same two-step contract as move(): moveObject actually repositions each assembly,
+         // moveObjects afterwards only fixes up anchored lines. Calling the fix-up alone made
+         // align and distribute no-ops that reported success.
+         for(MoveVSObjectEvent each : moves) {
+            objects.moveObject(runtimeId, each, user, dispatcher, linkUri);
+         }
+
          MultiMoveVsObjectEvent event = new MultiMoveVsObjectEvent();
          event.setEvents(moves);
          objects.moveObjects(runtimeId, event, user, dispatcher, linkUri);
@@ -458,6 +491,47 @@ public class ViewsheetEditService {
       if(request.assembly() == null || request.assembly().isBlank()) {
          throw new IllegalArgumentException(
             "Edit op '" + request.op() + "' requires 'assembly' — the assembly name.");
+      }
+   }
+
+   /**
+    * Resolves an assembly by name, failing loud if it does not exist, and returns its current
+    * geometry so callers can seed Composer events that read position/size.
+    *
+    * <p>This check cannot be delegated to the composer layer. {@code ComposerObjectService} looks
+    * the assembly up with {@code viewsheet.getAssembly(name)}, gets null, falls through every
+    * {@code instanceof} guard and returns normally — so a misspelled name produced a cheerful
+    * "ok" on every op. Nothing downstream will ever complain, so we complain here.
+    */
+   private AssemblyNode requireExisting(RuntimeViewsheet rvs, String name) {
+      Map<String, AssemblyNode> byName = new LinkedHashMap<>();
+
+      for(AssemblyNode node : reader.read(rvs).assemblies()) {
+         byName.put(node.name(), node);
+      }
+
+      AssemblyNode node = byName.get(name);
+
+      if(node == null) {
+         throw new IllegalArgumentException(
+            "Unknown assembly '" + name + "'. Available: " + byName.keySet() + ".");
+      }
+
+      return node;
+   }
+
+   /**
+    * Rejects non-positive dimensions. StyleBI clamps them to 1x1 rather than refusing, so
+    * {@code resize -50 -20} silently destroyed the assembly's geometry and reported success.
+    */
+   private static void requirePositive(String op, String firstName, Integer first,
+                                       String secondName, Integer second)
+   {
+      if(first != null && first <= 0 || second != null && second <= 0) {
+         throw new IllegalArgumentException(
+            "Edit op '" + op + "' requires '" + firstName + "' and '" + secondName +
+            "' to be greater than zero — got " + first + " and " + second +
+            ". Non-positive sizes are clamped to 1x1 rather than refused.");
       }
    }
 

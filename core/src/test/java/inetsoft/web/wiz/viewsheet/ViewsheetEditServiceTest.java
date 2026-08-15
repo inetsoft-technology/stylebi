@@ -44,10 +44,18 @@ import static org.mockito.Mockito.*;
 
 @Tag("core")
 class ViewsheetEditServiceTest {
+   /**
+    * Covers only the second half of the move contract — the anchored-line fix-up. This test used to
+    * be named "moveDelegatesTheNewPosition…" and was the sole move test, which is how the missing
+    * {@code moveObject} call survived: {@code moveObjects} is a fix-up hook that moves nothing, so
+    * asserting it alone certified a no-op. The actual move is covered by
+    * {@link #moveCallsMoveObjectBecauseMoveObjectsOnlyUpdatesAnchoredLines()}.
+    */
    @Test
-   void moveDelegatesTheNewPositionToComposerObjectService() throws Exception {
+   void moveAlsoTriggersTheAnchoredLineFixUp() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)));
 
       service.apply("tok", principal(), edit("move", "Gauge1", 120, 240), "");
 
@@ -63,7 +71,8 @@ class ViewsheetEditServiceTest {
    @Test
    void resizeDelegatesTheNewSize() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)));
 
       EditRequest request = request("resize", "Gauge1");
       request = new EditRequest(request.op(), request.assembly(), null, null, 300, 150,
@@ -81,7 +90,8 @@ class ViewsheetEditServiceTest {
    @Test
    void resizeTitleDelegatesTheTitleHeight() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Table1", "Table", 10, 20, 300, 150, 0, null, true)));
 
       EditRequest request = new EditRequest("resize_title", "Table1", null, null, null, 28,
                                             null, null, null, null, null, null, null, null);
@@ -325,6 +335,105 @@ class ViewsheetEditServiceTest {
       verify(objects).moveObjects(eq("rt1"), captor.capture(), any(Principal.class), any(),
                                   anyString());
       return captor.getValue().getEvents();
+   }
+
+   // ------------------------------------------------------------------------------------------
+   // Regression tests for the "partially-populated Composer event" defect class.
+   //
+   // ComposerObjectService reads fields off these events that the caller must fill in. Populating
+   // only the fields the op is "about" leaves the rest at 0, and the service applies those zeroes
+   // as real values. Live symptoms: move did nothing, resize teleported the assembly to 0,0, and
+   // resize_title collapsed it to 1x1 at 0,0 — each returning ok.
+   //
+   // Note these assert the CONTENT of the event, not merely which method was called. The previous
+   // move test asserted `verify(objects).moveObjects(...)` and so certified the broken call.
+   // ------------------------------------------------------------------------------------------
+
+   @Test
+   void moveCallsMoveObjectBecauseMoveObjectsOnlyUpdatesAnchoredLines() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(), edit("move", "Gauge1", 380, 480), "");
+
+      ArgumentCaptor<MoveVSObjectEvent> captor = ArgumentCaptor.forClass(MoveVSObjectEvent.class);
+      verify(objects).moveObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                 anyString());
+      assertEquals("Gauge1", captor.getValue().getName());
+      assertEquals(380, captor.getValue().getxOffset());
+      assertEquals(480, captor.getValue().getyOffset());
+   }
+
+   @Test
+   void resizeCarriesTheCurrentPositionSoTheAssemblyIsNotTeleportedToTheOrigin() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(), sized("resize", "Chart1", 420, 260), "");
+
+      ArgumentCaptor<ResizeVSObjectEvent> captor =
+         ArgumentCaptor.forClass(ResizeVSObjectEvent.class);
+      verify(objects).resizeObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals(420, captor.getValue().getWidth());
+      assertEquals(260, captor.getValue().getHeight());
+      assertEquals(240, captor.getValue().getxOffset(), "resize must preserve x");
+      assertEquals(100, captor.getValue().getyOffset(), "resize must preserve y");
+   }
+
+   @Test
+   void resizeTitleCarriesTheCurrentSizeSoTheAssemblyIsNotCollapsed() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(),
+                    new EditRequest("resize_title", "Chart1", null, null, null, 40, null, null,
+                                    null, null, null, null, null, null), "");
+
+      ArgumentCaptor<ResizeVSObjectTitleEvent> captor =
+         ArgumentCaptor.forClass(ResizeVSObjectTitleEvent.class);
+      verify(objects).resizeObjectTitle(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                        anyString());
+      assertEquals(40, captor.getValue().getTitleHeight());
+      assertEquals(400, captor.getValue().getWidth(), "resize_title must preserve width");
+      assertEquals(240, captor.getValue().getHeight(), "resize_title must preserve height");
+      assertEquals(240, captor.getValue().getxOffset(), "resize_title must preserve x");
+      assertEquals(100, captor.getValue().getyOffset(), "resize_title must preserve y");
+   }
+
+   @Test
+   void editOnAnUnknownAssemblyFailsLoudRatherThanSilentlyDoingNothing() {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true));
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), reader);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), sized("resize", "NoSuchAssembly1", 120, 80), ""));
+      assertTrue(thrown.getMessage().contains("NoSuchAssembly1"));
+   }
+
+   @Test
+   void resizeRejectsNonPositiveDimensionsRatherThanCollapsingTheAssembly() {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Text1", "Text", 140, 440, 100, 20, 0, null, true));
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), reader);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), sized("resize", "Text1", -50, -20), ""));
+      assertTrue(thrown.getMessage().contains("width"));
+   }
+
+   private static EditRequest sized(String op, String assembly, Integer width, Integer height) {
+      return new EditRequest(op, assembly, null, null, width, height, null, null, null, null,
+                             null, null, null, null);
    }
 
    private static ViewsheetReadService readerReturning(AssemblyNode... nodes) {
