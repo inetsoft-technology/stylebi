@@ -299,7 +299,7 @@ class FkIntegrityServiceTest {
    void buildDroppedRowCountSql_castsTheTargetKeyToTextWhenDirected() {
       String sql = FkIntegrityService.buildDroppedRowCountSql(
          "public.hs_hr_employee", "sal_grd_code", "public.ohrm_pay_grade", "id",
-         FkIntegrityService.CastSide.TARGET_KEY, false);
+         FkIntegrityService.CastSide.TARGET_KEY, FkIntegrityService.Dialect.DEFAULT);
 
       assertTrue(sql.contains("CAST(tgt.id AS VARCHAR) = src.sal_grd_code"), sql);
       // The NULL check must stay on the RAW column -- NULL-ness does not depend on type agreement.
@@ -310,7 +310,7 @@ class FkIntegrityServiceTest {
    void buildDroppedRowCountSql_castsTheFkToTextWhenDirected() {
       String sql = FkIntegrityService.buildDroppedRowCountSql(
          "public.sale_order", "partner_id", "public.res_partner", "code",
-         FkIntegrityService.CastSide.FK, false);
+         FkIntegrityService.CastSide.FK, FkIntegrityService.Dialect.DEFAULT);
 
       assertTrue(sql.contains("tgt.code = CAST(src.partner_id AS VARCHAR)"), sql);
    }
@@ -320,9 +320,26 @@ class FkIntegrityServiceTest {
       // MySQL's CAST rejects VARCHAR as a target type outright; it wants CHAR.
       String sql = FkIntegrityService.buildDroppedRowCountSql(
          "public.hs_hr_employee", "sal_grd_code", "public.ohrm_pay_grade", "id",
-         FkIntegrityService.CastSide.TARGET_KEY, true);
+         FkIntegrityService.CastSide.TARGET_KEY, FkIntegrityService.Dialect.MYSQL);
 
       assertTrue(sql.contains("CAST(tgt.id AS CHAR)"), sql);
+      assertFalse(sql.contains("VARCHAR"), sql);
+   }
+
+   /**
+    * Oracle's CAST requires an explicit length for a character target (VARCHAR2(n)) -- a bare
+    * "CAST(... AS VARCHAR)" is a SYNTAX ERROR on Oracle, not merely the wrong keyword. TO_CHAR
+    * needs no length and is Oracle's own numeric-to-text conversion, which is always what this
+    * cast means: resolveCastSide only ever directs the NUMERIC side to be cast.
+    */
+   @Test
+   void buildDroppedRowCountSql_usesToCharOnOracle() {
+      String sql = FkIntegrityService.buildDroppedRowCountSql(
+         "public.hs_hr_employee", "sal_grd_code", "public.ohrm_pay_grade", "id",
+         FkIntegrityService.CastSide.TARGET_KEY, FkIntegrityService.Dialect.ORACLE);
+
+      assertTrue(sql.contains("TO_CHAR(tgt.id) = src.sal_grd_code"), sql);
+      assertFalse(sql.contains("CAST"), sql);
       assertFalse(sql.contains("VARCHAR"), sql);
    }
 
@@ -377,6 +394,33 @@ class FkIntegrityServiceTest {
          "SELECT COUNT(*) FROM public.hs_hr_employee src WHERE src.sal_grd_code IS NULL " +
          "OR NOT EXISTS (SELECT 1 FROM public.ohrm_pay_grade tgt " +
          "WHERE CAST(tgt.id AS CHAR) = src.sal_grd_code)";
+      String expectedDuplicate =
+         "SELECT COUNT(*) FROM (SELECT id FROM public.ohrm_pay_grade GROUP BY id " +
+         "HAVING COUNT(*) > 1) d";
+      doReturn(harness.dropStatement).when(harness.connection).prepareStatement(expectedDrop);
+      doReturn(harness.duplicateStatement).when(harness.connection)
+         .prepareStatement(expectedDuplicate);
+
+      harness.service.checkIntegrity(harness.request, harness.principal);
+
+      verify(harness.connection).prepareStatement(expectedDrop);
+   }
+
+   /** Same shape, but on an Oracle connection -- TO_CHAR, not CAST ... VARCHAR (a syntax error there). */
+   @Test
+   void checkIntegrity_usesToCharOnOracleWhenCasting() throws Exception {
+      Harness harness = new Harness();
+      harness.request.setSourceTable("public.hs_hr_employee");
+      harness.request.setFkColumn("sal_grd_code");
+      harness.request.setTargetTable("public.ohrm_pay_grade");
+      harness.request.setTargetKeyColumn("id");
+      harness.stubColumnTypes(Types.VARCHAR, Types.INTEGER);
+      when(harness.databaseMetaData.getDatabaseProductName()).thenReturn("Oracle");
+
+      String expectedDrop =
+         "SELECT COUNT(*) FROM public.hs_hr_employee src WHERE src.sal_grd_code IS NULL " +
+         "OR NOT EXISTS (SELECT 1 FROM public.ohrm_pay_grade tgt " +
+         "WHERE TO_CHAR(tgt.id) = src.sal_grd_code)";
       String expectedDuplicate =
          "SELECT COUNT(*) FROM (SELECT id FROM public.ohrm_pay_grade GROUP BY id " +
          "HAVING COUNT(*) > 1) d";
@@ -722,7 +766,7 @@ class FkIntegrityServiceTest {
        */
       void stubColumnTypes(int fkJdbcType, int targetJdbcType) throws SQLException {
          when(connection.getMetaData()).thenReturn(databaseMetaData);
-         // Default product name so isMySqlDialect degrades to "not MySQL" unless a test overrides it.
+         // Default product name so resolveDialect degrades to DEFAULT unless a test overrides it.
          when(databaseMetaData.getDatabaseProductName()).thenReturn("PostgreSQL");
 
          ResultSet fkRs = mock(ResultSet.class);

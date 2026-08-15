@@ -137,9 +137,9 @@ public class FkIntegrityService {
          // way around, since a text-to-number cast can THROW on a non-numeric value ("N/A", a
          // code the driver won't parse) where a number-to-text cast never can.
          CastSide castSide = resolveCastSide(conn, sourceTable, fkColumn, targetTable, targetKeyColumn);
-         boolean mysqlDialect = castSide != CastSide.NONE && isMySqlDialect(conn);
+         Dialect dialect = castSide != CastSide.NONE ? resolveDialect(conn) : Dialect.DEFAULT;
          String droppedSql = buildDroppedRowCountSql(
-            sourceTable, fkColumn, targetTable, targetKeyColumn, castSide, mysqlDialect);
+            sourceTable, fkColumn, targetTable, targetKeyColumn, castSide, dialect);
          String duplicateSql = buildDuplicateTargetKeyCountSql(targetTable, targetKeyColumn);
 
          long droppedRowCount = executeCount(conn, droppedSql);
@@ -190,7 +190,7 @@ public class FkIntegrityService {
                                          String targetTable, String targetKeyColumn)
    {
       return buildDroppedRowCountSql(
-         sourceTable, fkColumn, targetTable, targetKeyColumn, CastSide.NONE, false);
+         sourceTable, fkColumn, targetTable, targetKeyColumn, CastSide.NONE, Dialect.DEFAULT);
    }
 
    /**
@@ -206,16 +206,16 @@ public class FkIntegrityService {
     */
    static String buildDroppedRowCountSql(String sourceTable, String fkColumn,
                                          String targetTable, String targetKeyColumn,
-                                         CastSide castSide, boolean mysqlDialect)
+                                         CastSide castSide, Dialect dialect)
    {
       String fkRef = "src." + fkColumn;
       String targetKeyRef = "tgt." + targetKeyColumn;
 
       if(castSide == CastSide.FK) {
-         fkRef = castToText(fkRef, mysqlDialect);
+         fkRef = castToText(fkRef, dialect);
       }
       else if(castSide == CastSide.TARGET_KEY) {
-         targetKeyRef = castToText(targetKeyRef, mysqlDialect);
+         targetKeyRef = castToText(targetKeyRef, dialect);
       }
 
       return "SELECT COUNT(*) FROM " + sourceTable + " src" +
@@ -227,11 +227,31 @@ public class FkIntegrityService {
    /** Which side of the FK/target-key comparison must be cast to TEXT before comparing. */
    enum CastSide { NONE, FK, TARGET_KEY }
 
-   /** {@code CAST(expr AS <text type>)} -- MySQL's CAST rejects VARCHAR as a target (it wants
-    *  CHAR); every other dialect this project registers a sample datasource for (Postgres,
-    *  the default assumed elsewhere) accepts VARCHAR. */
-   private static String castToText(String expr, boolean mysqlDialect) {
-      return "CAST(" + expr + " AS " + (mysqlDialect ? "CHAR" : "VARCHAR") + ")";
+   /**
+    * The SQL dialects {@link #castToText} needs to special-case. {@code DEFAULT} covers every
+    * dialect that accepts a bare {@code CAST(expr AS VARCHAR)} with no length (Postgres, SQL
+    * Server, DB2, ...); MySQL and Oracle each need their own shape (see castToText).
+    */
+   enum Dialect { DEFAULT, MYSQL, ORACLE }
+
+   /**
+    * {@code CAST(expr AS <text type>)}, or the dialect's own idiom when a bare {@code CAST ...
+    * VARCHAR} does not work.
+    *
+    * <p>MySQL's {@code CAST} rejects {@code VARCHAR} as a target (it wants {@code CHAR}).
+    * Oracle's {@code CAST} requires an explicit length for a character target
+    * ({@code VARCHAR2(n)}; a bare {@code VARCHAR} is a syntax error) -- rather than pick an
+    * arbitrary length, {@code TO_CHAR(expr)} is Oracle's own numeric-to-text conversion and needs
+    * none, and {@link #resolveCastSide} only ever calls this on the NUMERIC side (never the
+    * character side), so {@code TO_CHAR} is always the right function here regardless of which
+    * named side -- FK or target key -- triggered the cast.</p>
+    */
+   private static String castToText(String expr, Dialect dialect) {
+      return switch(dialect) {
+         case MYSQL -> "CAST(" + expr + " AS CHAR)";
+         case ORACLE -> "TO_CHAR(" + expr + ")";
+         default -> "CAST(" + expr + " AS VARCHAR)";
+      };
    }
 
    /**
@@ -346,15 +366,33 @@ public class FkIntegrityService {
       }
    }
 
-   /** Best-effort dialect sniff for {@link #castToText} -- MySQL alone needs CHAR, not VARCHAR. */
-   private static boolean isMySqlDialect(Connection conn) {
+   /**
+    * Best-effort dialect sniff for {@link #castToText}. Any failure (or an unrecognized product
+    * name) degrades to {@code Dialect.DEFAULT} -- the bare {@code CAST ... VARCHAR} shape that
+    * was this feature's only behavior before dialect-awareness existed.
+    */
+   private static Dialect resolveDialect(Connection conn) {
       try {
          DatabaseMetaData meta = conn.getMetaData();
          String product = meta != null ? meta.getDatabaseProductName() : null;
-         return product != null && product.toLowerCase().contains("mysql");
+
+         if(product == null) {
+            return Dialect.DEFAULT;
+         }
+
+         String lower = product.toLowerCase();
+
+         if(lower.contains("mysql")) {
+            return Dialect.MYSQL;
+         }
+         if(lower.contains("oracle")) {
+            return Dialect.ORACLE;
+         }
+
+         return Dialect.DEFAULT;
       }
       catch(Exception e) {
-         return false;
+         return Dialect.DEFAULT;
       }
    }
 
