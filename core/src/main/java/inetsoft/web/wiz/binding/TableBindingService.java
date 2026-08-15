@@ -287,7 +287,9 @@ public class TableBindingService {
       if(model instanceof CrosstabBindingModel crosstab && crosstab.getOption() != null) {
          out.put("rowTotals", crosstab.getOption().getRowTotalVisibleValue());
          out.put("colTotals", crosstab.getOption().getColTotalVisibleValue());
-         out.put("percentageBy", crosstab.getOption().getPercentageByValue());
+         out.put("percentageBy",
+                 TableBindingMutator.percentageByName(
+                    crosstab.getOption().getPercentageByValue()));
          out.put("summarySideBySide", crosstab.getOption().isSummarySideBySide());
       }
       else if(model instanceof TableBindingModel table && table.getOption() != null) {

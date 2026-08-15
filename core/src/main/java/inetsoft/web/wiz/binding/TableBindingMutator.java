@@ -629,6 +629,26 @@ public final class TableBindingMutator {
     * Percentage-by is positional and only meaningful when the shelf it refers to is populated.
     * By-column with no columns bound renders zeros rather than failing.
     */
+   /**
+    * The name of a stored percentage direction, for reporting.
+    *
+    * <p>Stored as an {@code XConstants} number — and {@code PERCENTAGE_BY_COL} is 1, which is also
+    * the default, so a fresh crosstab reads back {@code "1"}. That looks like a setting somebody
+    * chose, in a vocabulary ({@code none}/{@code row}/{@code col}) the number does not belong to.
+    */
+   public static String percentageByName(String stored) {
+      if(stored == null || stored.isBlank()) {
+         return null;
+      }
+
+      return switch(stored.trim()) {
+         case "0" -> "none";
+         case "1" -> "col";
+         case "2" -> "row";
+         default -> stored.trim();
+      };
+   }
+
    private static String percentageBy(Object raw, CrosstabBindingModel model) {
       String token = raw == null ? "" : String.valueOf(raw).trim().toLowerCase();
       int value = switch(token) {

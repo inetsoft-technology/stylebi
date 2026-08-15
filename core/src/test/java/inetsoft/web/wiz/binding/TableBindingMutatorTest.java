@@ -500,6 +500,21 @@ class TableBindingMutatorTest {
    // ── options (2d Phase 3) ──────────────────────────────────────────────────
 
    /**
+    * percentageBy is stored as an XConstants number, and PERCENTAGE_BY_COL is 1 — which is also
+    * the default. So a fresh crosstab read back {@code percentageBy: "1"}, a value in no
+    * vocabulary this tool accepts, looking like a setting somebody had chosen. Found live on
+    * local-1201: setting it to "col" appeared to do nothing because it was already col.
+    */
+   @Test
+   void reportsThePercentageDirectionByNameNotItsConstant() {
+      assertEquals("none", TableBindingMutator.percentageByName("0"));
+      assertEquals("col", TableBindingMutator.percentageByName("1"));
+      assertEquals("row", TableBindingMutator.percentageByName("2"));
+      assertNull(TableBindingMutator.percentageByName(null));
+   }
+
+
+   /**
     * The crosstab totals are dynamic-value strings that StyleBI reads as booleans, so anything
     * but "true" reads as false. A real boolean has to normalize to the string form.
     */
