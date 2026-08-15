@@ -95,6 +95,73 @@ class ChartBindingMutatorTest {
       assertTrue(model.getXFields().isEmpty());
    }
 
+   // ── specialized shelves (2b Phase 2) ──────────────────────────────────────
+   //
+   // These hold ONE field each, not a list: a candlestick has one close, a Gantt one start.
+   // They are separate from x/y/group because a chart type that uses them ignores those, and
+   // binding to the wrong family renders an empty chart with no error.
+
+   @Test
+   void setsEachSingleFieldShelf() {
+      for(String shelf : List.of("open", "high", "low", "close", "path", "source", "target",
+                                 "start", "end", "milestone"))
+      {
+         ChartBindingModel model = new ChartBindingModel();
+
+         ChartBindingMutator.setSingleShelf(
+            model, shelf, new FieldRef("Price", "measure", "Sum", null, null));
+
+         assertNotNull(ChartBindingMutator.readSingleShelf(model, shelf),
+                       shelf + " must be readable after being set");
+      }
+   }
+
+   @Test
+   void clearsASingleFieldShelfWithAnExplicitNull() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(
+         model, "close", new FieldRef("Price", "measure", "Sum", null, null));
+
+      ChartBindingMutator.setSingleShelf(model, "close", null);
+
+      assertNull(ChartBindingMutator.readSingleShelf(model, "close"));
+   }
+
+   @Test
+   void rejectsAnUnknownSingleShelfNamingTheValidOnes() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSingleShelf(
+            model, "volume", new FieldRef("V", "measure", "Sum", null, null)));
+      assertTrue(thrown.getMessage().contains("volume"));
+      assertTrue(thrown.getMessage().contains("close"), "list the shelves that do exist");
+   }
+
+   /**
+    * x/y/group hold lists; the specialized shelves hold one field. Routing a single-field shelf
+    * through set_chart_shelf would silently bind only the first of a list, so the two families
+    * refuse each other by name.
+    */
+   @Test
+   void theTwoShelfFamiliesRefuseEachOther() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      Exception listOnSingle = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(
+            model, "close", List.of(new FieldRef("Price", "measure", "Sum", null, null))));
+      assertTrue(listOnSingle.getMessage().contains("close"));
+      assertTrue(listOnSingle.getMessage().contains("set_chart_single_shelf"));
+
+      Exception singleOnList = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSingleShelf(
+            model, "x", new FieldRef("Region", "dimension", null, null, null)));
+      assertTrue(singleOnList.getMessage().contains("set_chart_shelf"));
+   }
+
    @Test
    void theDeclaredAestheticSplitCoversThirteenFields() {
       assertEquals(13, ChartBindingFields.AESTHETIC.size(),

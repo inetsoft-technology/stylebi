@@ -45,10 +45,18 @@ public final class ChartBindingMutator {
    public static void setShelf(ChartBindingModel model, String shelf, List<FieldRef> fields) {
       String name = shelf == null ? "" : shelf.trim().toLowerCase();
 
+      if(SINGLE_SHELVES.contains(name)) {
+         throw new IllegalArgumentException(
+            "'" + name + "' holds exactly one field, not a list — use set_chart_single_shelf " +
+            "for it. Passing a list here would bind only the first field and drop the rest " +
+            "without saying so.");
+      }
+
       if(!SHELVES.contains(name)) {
          throw new IllegalArgumentException(
             "Unknown chart shelf '" + shelf + "'. Valid shelves: " +
-            String.join(", ", SHELVES) + ".");
+            String.join(", ", SHELVES) + ". Single-field shelves (open, high, low, close, path, " +
+            "source, target, start, end, milestone) use set_chart_single_shelf.");
       }
 
       List<ChartRefModel> refs = new ArrayList<>();
@@ -62,5 +70,77 @@ public final class ChartBindingMutator {
       case "y" -> model.setYFields(refs);
       default -> model.setGroupFields(refs);
       }
+   }
+
+   /**
+    * Shelves that hold exactly <b>one</b> field rather than a list.
+    *
+    * <p>A candlestick has one close, a Gantt bar one start. Keeping them out of {@link #SHELVES}
+    * is deliberate: routing them through the list API would silently bind the first element of a
+    * list and drop the rest.
+    */
+   public static final List<String> SINGLE_SHELVES =
+      List.of("open", "high", "low", "close", "path", "source", "target",
+              "start", "end", "milestone");
+
+   /**
+    * Sets one single-field shelf. A null {@code field} clears it.
+    *
+    * <p>Which shelves a chart actually reads depends on its type — a candlestick uses
+    * open/high/low/close and ignores x/y, a Gantt uses start/end/milestone. Binding the wrong
+    * family for the current chart type renders an empty chart with no error anywhere, which is
+    * why {@code set_chart_type} and these belong in the same conversation.
+    */
+   public static void setSingleShelf(ChartBindingModel model, String shelf, FieldRef field) {
+      String name = requireSingleShelf(shelf);
+      ChartRefModel ref = field == null ? null : FieldRefFactory.toChartRef(field);
+
+      switch(name) {
+      case "open" -> model.setOpenField(ref);
+      case "high" -> model.setHighField(ref);
+      case "low" -> model.setLowField(ref);
+      case "close" -> model.setCloseField(ref);
+      case "path" -> model.setPathField(ref);
+      case "source" -> model.setSourceField(ref);
+      case "target" -> model.setTargetField(ref);
+      case "start" -> model.setStartField(ref);
+      case "end" -> model.setEndField(ref);
+      default -> model.setMilestoneField(ref);
+      }
+   }
+
+   /** Reads one single-field shelf, or null when nothing is bound to it. */
+   public static ChartRefModel readSingleShelf(ChartBindingModel model, String shelf) {
+      return switch(requireSingleShelf(shelf)) {
+         case "open" -> model.getOpenField();
+         case "high" -> model.getHighField();
+         case "low" -> model.getLowField();
+         case "close" -> model.getCloseField();
+         case "path" -> model.getPathField();
+         case "source" -> model.getSourceField();
+         case "target" -> model.getTargetField();
+         case "start" -> model.getStartField();
+         case "end" -> model.getEndField();
+         default -> model.getMilestoneField();
+      };
+   }
+
+   private static String requireSingleShelf(String shelf) {
+      String name = shelf == null ? "" : shelf.trim().toLowerCase();
+
+      if(SHELVES.contains(name)) {
+         throw new IllegalArgumentException(
+            "'" + name + "' holds a list of fields, not one — use set_chart_shelf for it. " +
+            "Single-field shelves: " + String.join(", ", SINGLE_SHELVES) + ".");
+      }
+
+      if(!SINGLE_SHELVES.contains(name)) {
+         throw new IllegalArgumentException(
+            "Unknown chart shelf '" + shelf + "'. Single-field shelves: " +
+            String.join(", ", SINGLE_SHELVES) + ". List shelves: " +
+            String.join(", ", SHELVES) + ".");
+      }
+
+      return name;
    }
 }

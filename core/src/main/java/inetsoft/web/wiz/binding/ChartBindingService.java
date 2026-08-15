@@ -80,6 +80,29 @@ public class ChartBindingService {
       });
    }
 
+   /**
+    * Binds one of the single-field shelves — open/high/low/close, path, source/target,
+    * start/end/milestone. A null {@code field} clears it.
+    *
+    * <p>Goes through the same {@code changeChartRef} event as the list shelves, so the 13
+    * snapshotted aesthetic fields are preserved identically.
+    */
+   public void setSingleShelf(String sessionToken, Principal user, String assemblyName,
+                              String shelf, FieldRef field, String linkUri) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         ChartBindingMutator.setSingleShelf(model, shelf, field);
+
+         ChangeChartRefEvent event = new ChangeChartRefEvent();
+         event.setName(assemblyName);
+         event.setFieldType(shelf);
+         event.setModel(model);
+         refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
    public void setChartType(String sessionToken, Principal user, String assemblyName, int type,
                             Boolean multi, Boolean stackMeasures, Boolean separate,
                             String linkUri) throws Exception
