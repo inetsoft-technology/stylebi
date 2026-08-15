@@ -73,6 +73,27 @@ class PropertyAliasesTest {
       assertTrue(PropertyAliases.covers("text"));
    }
 
+   /**
+    * The chart's line pane — trend lines, grid lines, facet grid. These are the properties a
+    * user means by "add a trend line", and they live one pane below the general/advanced panes
+    * the first pass covered.
+    *
+    * <p>Note what is deliberately absent: {@code pointLine} and the word-cloud font scale are
+    * {@code PlotDescriptor} fields that the chart property dialog never surfaces, so there is no
+    * path to alias. They are not reachable through this engine at all.
+    */
+   @Test
+   void coversTheChartLinePaneProperties() {
+      for(String alias : java.util.List.of("gridLineVisible", "innerLineVisible",
+                                           "trendLineType", "trendLineStyle", "trendLineColor",
+                                           "trendLineVisible", "projectForward",
+                                           "facetGrid", "facetGridColor", "facetGridVisible"))
+      {
+         assertTrue(PropertyAliases.forType("chart").aliases().containsKey(alias),
+                    "chart should expose '" + alias + "'");
+      }
+   }
+
    @Test
    void resolvesAnAliasToItsPath() {
       assertEquals(
@@ -114,17 +135,30 @@ class PropertyAliasesTest {
    }
 
    /**
-    * `image` is the standing example of an uncovered type, and not for lack of curation:
-    * {@code ImagePropertyDialogModel} is an Immutables class with no setters, so the path
-    * engine cannot write it at all. Four other dialog models share that shape.
+    * An uncovered type must still fail loudly, naming what is covered.
+    *
+    * <p>This used to assert that `image` was uncovered — it was the standing example, because
+    * {@code ImagePropertyDialogModel} is an Immutables class with no setters and the path engine
+    * could not write it. That is no longer true: {@code PropertyPath} now reads bare Immutables
+    * accessors and rebuilds immutable levels through {@code withX}, so image is covered and this
+    * test needed a genuinely unsupported type instead.
     */
    @Test
    void refusesAnUncoveredAssemblyTypeListingWhatIsCovered() {
       Exception thrown = assertThrows(
-         IllegalArgumentException.class, () -> PropertyAliases.forType("image"));
+         IllegalArgumentException.class, () -> PropertyAliases.forType("nosuchassembly"));
 
-      assertTrue(thrown.getMessage().contains("image"));
+      assertTrue(thrown.getMessage().contains("nosuchassembly"));
       assertTrue(thrown.getMessage().contains("gauge"));
+   }
+
+   /** The Immutables model that motivated the builder write path. */
+   @Test
+   void coversTheImageAssemblyNowThatImmutablesCanBeWritten() {
+      assertTrue(PropertyAliases.covers("image"));
+      assertEquals("imageGeneralPaneModel.outputGeneralPaneModel.generalPropPaneModel." +
+                   "basicGeneralPaneModel.visible",
+                   PropertyAliases.resolve("image", "visible"));
    }
 
    /**

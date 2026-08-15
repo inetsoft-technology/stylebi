@@ -82,6 +82,7 @@ public class AssemblyPropertyService {
    @Autowired
    public AssemblyPropertyService(ViewsheetSessionService sessions,
                                   GaugePropertyDialogService gaugeService,
+                                  ImagePropertyDialogService imageService,
                                   TextPropertyDialogService textService,
                                   ChartPropertyDialogService chartService,
                                   TableViewPropertyDialogService tableService,
@@ -104,6 +105,9 @@ public class AssemblyPropertyService {
       Map<String, Binding> map = new LinkedHashMap<>();
       map.put("gauge", new Binding(gaugeService, "getGaugePropertyDialogModel",
                                    "setGaugePropertyDialogModel"));
+      // Immutables model — reachable since PropertyPath learned withX rebuilding.
+      map.put("image", new Binding(imageService, "getImagePropertyDialogModel",
+                                   "setImagePropertyDialogModel"));
       map.put("text", new Binding(textService, "getTextPropertyDialogModel",
                                   "setTextPropertyDialogModel"));
       map.put("chart", new Binding(chartService, "getChartPropertyDialogModel",

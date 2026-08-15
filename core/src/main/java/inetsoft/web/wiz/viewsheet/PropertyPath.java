@@ -62,41 +62,100 @@ public final class PropertyPath {
     * produced.
     */
    public static void set(Object root, String path, Object value) {
-      String[] segments = segments(path);
-      Object current = root;
+      REBUILT_CHILD.remove();
 
-      for(int i = 0; i < segments.length - 1; i++) {
-         Object next = readOne(current, segments[i], path, i);
+      try {
+         writeInto(root, segments(path), 0, path, value);
+      }
+      finally {
+         REBUILT_CHILD.remove();
+      }
+   }
 
-         if(next == null) {
+   /**
+    * Writes {@code value} at {@code segments[depth..]}, rebuilding immutable levels on the way
+    * back up.
+    *
+    * <p>A mutable owner takes {@code setX} and the write stops there. An <b>immutable</b> owner
+    * has no setter — only {@code withX} returning a new instance — so the new instance has to be
+    * written back into <em>its</em> owner, which may itself be immutable. Hence the recursion:
+    * the rebuild propagates upward exactly as far as the immutability does, and stops at the
+    * first mutable holder.
+    */
+   private static void writeInto(Object owner, String[] segments, int depth, String path,
+                                 Object value)
+   {
+      String segment = segments[depth];
+      boolean leaf = depth == segments.length - 1;
+      Object toWrite = value;
+
+      if(!leaf) {
+         Object child = readOne(owner, segment, path, depth);
+
+         if(child == null) {
             throw new IllegalArgumentException(
-               "Cannot set '" + path + "': '" + segments[i] + "' is not present on this " +
+               "Cannot set '" + path + "': '" + segment + "' is not present on this " +
                "assembly, so the rest of the path does not exist. That usually means the " +
                "property does not apply to this assembly type.");
          }
 
-         current = next;
+         Object before = child;
+         writeInto(child, segments, depth + 1, path, value);
+         Object after = readOne(owner, segment, path, depth);
+
+         // A mutable child was updated in place, so there is nothing to write back. An
+         // immutable one is unchanged here — REBUILT_CHILD holds the new instance instead.
+         if(REBUILT_CHILD.get() == null || after != before) {
+            REBUILT_CHILD.remove();
+            return;
+         }
+
+         toWrite = REBUILT_CHILD.get();
+         REBUILT_CHILD.remove();
       }
 
-      String leaf = segments[segments.length - 1];
-      Method setter = setterFor(current.getClass(), leaf);
+      Method setter = setterFor(owner.getClass(), segment);
 
-      if(setter == null) {
+      if(setter != null) {
+         try {
+            setter.invoke(owner, leaf ? coerce(toWrite, setter.getParameterTypes()[0], path)
+                                      : toWrite);
+            return;
+         }
+         catch(IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalArgumentException(
+               "Setting '" + path + "' failed: " + rootMessage(e), e);
+         }
+      }
+
+      Method wither = witherFor(owner.getClass(), segment);
+
+      if(wither == null) {
          throw new IllegalArgumentException(
-            "Cannot set '" + path + "': '" + leaf + "' is not a writable property of " +
-            simpleName(current.getClass()) + ". " + available(current.getClass()));
+            "Cannot set '" + path + "': '" + segment + "' is not a writable property of " +
+            simpleName(owner.getClass()) + ". " + available(owner.getClass()));
       }
-
-      Class<?> target = setter.getParameterTypes()[0];
 
       try {
-         setter.invoke(current, coerce(value, target, path));
+         Object rebuilt = wither.invoke(
+            owner, leaf ? coerce(toWrite, wither.getParameterTypes()[0], path) : toWrite);
+         // Hand the new instance to the caller one level up, which writes it into its own owner.
+         REBUILT_CHILD.set(rebuilt);
       }
       catch(IllegalAccessException | InvocationTargetException e) {
          throw new IllegalArgumentException(
             "Setting '" + path + "' failed: " + rootMessage(e), e);
       }
    }
+
+   /**
+    * Carries a rebuilt immutable instance from a recursion level to its parent.
+    *
+    * <p>A thread-local rather than a return value because {@code writeInto} is also the public
+    * entry point's recursion, and threading an out-parameter through every level would obscure
+    * the mutable case, which is by far the common one.
+    */
+   private static final ThreadLocal<Object> REBUILT_CHILD = new ThreadLocal<>();
 
    /** The type a path expects, so a registry test can assert the alias declares it correctly. */
    public static Class<?> typeOf(Class<?> rootType, String path) {
@@ -158,11 +217,15 @@ public final class PropertyPath {
          return null;
       }
 
+      String text = String.valueOf(value).trim();
+
+      // Checked before the pass-through below, which would otherwise hand a String straight to a
+      // String setter without ever consulting the value domain.
+      requireAllowedValue(text, value, target, path);
+
       if(target.isInstance(value) && !(value instanceof Number && target != value.getClass())) {
          return value;
       }
-
-      String text = String.valueOf(value).trim();
 
       if(target == boolean.class || target == Boolean.class) {
          if("true".equalsIgnoreCase(text)) {
@@ -249,15 +312,41 @@ public final class PropertyPath {
       }
    }
 
+   /**
+    * Finds a reader: {@code getX()}, {@code isX()}, or the bare {@code x()} an Immutables model
+    * generates. Without the bare form the five Immutables dialog models — image, presenter,
+    * table layout, and both viewsheet-level ones — could not be read at all.
+    */
    private static Method getterFor(Class<?> type, String property) {
       String suffix = capitalize(property);
+      Method bare = null;
 
       for(Method method : type.getMethods()) {
-         if(method.getParameterCount() != 0) {
+         if(method.getParameterCount() != 0 || method.getDeclaringClass() == Object.class) {
             continue;
          }
 
          if(method.getName().equals("get" + suffix) || method.getName().equals("is" + suffix)) {
+            return method;
+         }
+
+         if(method.getName().equals(property)) {
+            bare = method;
+         }
+      }
+
+      return bare;
+   }
+
+   /**
+    * Finds an Immutables wither: {@code withX(value)} returning a <b>new</b> instance rather
+    * than mutating this one.
+    */
+   private static Method witherFor(Class<?> type, String property) {
+      String name = "with" + capitalize(property);
+
+      for(Method method : type.getMethods()) {
+         if(method.getParameterCount() == 1 && method.getName().equals(name)) {
             return method;
          }
       }
@@ -312,4 +401,46 @@ public final class PropertyPath {
       return value.isEmpty() ? value
          : Character.toLowerCase(value.charAt(0)) + value.substring(1);
    }
+
+   /**
+    * Refuses a value outside a String property's closed domain.
+    *
+    * <p>Some String-typed properties are enums in disguise: StyleBI maps a recognised token to a
+    * constant and silently keeps the default for anything else. Passing the raw text through
+    * produces the worst outcome available — a clean "ok" for a setting that was never applied.
+    * Live, {@code visible: "no"} stored "no" and left the assembly on screen.
+    */
+   private static void requireAllowedValue(String text, Object value, Class<?> target,
+                                           String path)
+   {
+      if(target != String.class) {
+         return;
+      }
+
+      Set<String> allowed = CONSTRAINED_STRINGS.get(leafName(path));
+
+      if(allowed != null && allowed.stream().noneMatch(v -> v.equalsIgnoreCase(text))) {
+         throw new IllegalArgumentException(
+            "'" + path + "' accepts only " + new TreeSet<>(allowed) + "; '" + value + "' is not " +
+            "one of them. StyleBI ignores an unrecognised value and keeps the default, so this " +
+            "would have reported success without changing anything.");
+      }
+   }
+
+   /** The last segment of a dotted path — the property's own name. */
+   private static String leafName(String path) {
+      int dot = path.lastIndexOf('.');
+      return dot < 0 ? path : path.substring(dot + 1);
+   }
+
+   /**
+    * String-typed properties whose value domain is closed.
+    *
+    * <p>{@code visible} is declared in {@code VSAssemblyInfo} as a {@code DynamicValue} over
+    * {@code {"true","show","false","hide","hide on print and export"}}; an unrecognised token is
+    * not an error there, it simply leaves the default in place. Without this check the tool
+    * reported success for {@code visible: "no"} and the assembly stayed on screen.
+    */
+   private static final Map<String, Set<String>> CONSTRAINED_STRINGS = Map.of(
+      "visible", Set.of("true", "show", "false", "hide", "hide on print and export"));
 }

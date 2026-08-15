@@ -101,6 +101,130 @@ class PropertyPathTest {
     * The whole point of this class: a path that quietly no-ops reports success while changing
     * nothing, which is the defect the plugin family exists to avoid.
     */
+   /**
+    * `visible` is a String-typed enum in disguise. {@code VSAssemblyInfo} declares its whole domain
+    * as {@code {"true","show","false","hide","hide on print and export"}} and maps anything else to
+    * the default — so {@code visible: "no"} returned ok, stored "no", and left the assembly on
+    * screen. The boolean guard in coerce never fired because the target type is String.
+    */
+   public static class StringVisible {
+      public String getVisible() { return visible; }
+      public void setVisible(String visible) { this.visible = visible; }
+
+      private String visible = "show";
+   }
+
+   @Test
+   void refusesAnAmbiguousVisibleTokenRatherThanLettingStyleBIIgnoreIt() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new StringVisible(), "visible", "no"));
+
+      assertTrue(thrown.getMessage().contains("visible"), "name the property");
+      assertTrue(thrown.getMessage().contains("hide"), "list the tokens that do work");
+   }
+
+   @Test
+   void acceptsEveryVisibleTokenStyleBIUnderstands() {
+      for(String token : new String[]{ "show", "hide", "true", "false",
+                                       "hide on print and export" })
+      {
+         StringVisible target = new StringVisible();
+         PropertyPath.set(target, "visible", token);
+         assertEquals(token, target.getVisible(), token + " is a documented value");
+      }
+   }
+
+   @Test
+   void normalizesABooleanOntoTheStringTypedVisibleProperty() {
+      StringVisible target = new StringVisible();
+      PropertyPath.set(target, "visible", false);
+      assertEquals("false", target.getVisible());
+   }
+
+   // ── Immutables support ────────────────────────────────────────────────────
+   //
+   // Five dialog models are Immutables: accessors are bare (imageGeneralPaneModel(), no "get")
+   // and there are no setters, only withX() returning a NEW instance. PropertyPath read get/is
+   // and wrote setX, so it could not touch them at all — which is why image and VS-level
+   // properties were "not covered". Writing a leaf means rebuilding every immutable level above
+   // it, from the leaf upward.
+
+   /** Immutable leaf: no setter, only a wither returning a new instance. */
+   public static final class ImmutableLeaf {
+      ImmutableLeaf(String title, boolean visible) {
+         this.title = title;
+         this.visible = visible;
+      }
+
+      public String title() { return title; }
+      public boolean visible() { return visible; }
+      public ImmutableLeaf withTitle(String value) { return new ImmutableLeaf(value, visible); }
+      public ImmutableLeaf withVisible(boolean value) { return new ImmutableLeaf(title, value); }
+
+      private final String title;
+      private final boolean visible;
+   }
+
+   /** Immutable middle holding an immutable leaf. */
+   public static final class ImmutableMiddle {
+      ImmutableMiddle(ImmutableLeaf leaf) { this.leaf = leaf; }
+
+      public ImmutableLeaf leaf() { return leaf; }
+      public ImmutableMiddle withLeaf(ImmutableLeaf value) { return new ImmutableMiddle(value); }
+
+      private final ImmutableLeaf leaf;
+   }
+
+   /** Mutable root — the realistic shape: a mutable holder of an immutable tree. */
+   public static class MutableRoot {
+      public ImmutableMiddle getMiddle() { return middle; }
+      public void setMiddle(ImmutableMiddle middle) { this.middle = middle; }
+
+      private ImmutableMiddle middle =
+         new ImmutableMiddle(new ImmutableLeaf("original", false));
+   }
+
+   @Test
+   void readsThroughABareImmutablesAccessor() {
+      MutableRoot root = new MutableRoot();
+
+      assertEquals("original", PropertyPath.get(root, "middle.leaf.title"));
+      assertEquals(false, PropertyPath.get(root, "middle.leaf.visible"));
+   }
+
+   @Test
+   void writesAnImmutableLeafByRebuildingEveryLevelAboveIt() {
+      MutableRoot root = new MutableRoot();
+
+      PropertyPath.set(root, "middle.leaf.title", "rebuilt");
+
+      assertEquals("rebuilt", PropertyPath.get(root, "middle.leaf.title"),
+                   "the rebuilt instances must be stored back up the chain");
+      assertEquals(false, PropertyPath.get(root, "middle.leaf.visible"),
+                   "rebuilding one field must not reset its siblings");
+   }
+
+   @Test
+   void coercesOntoAnImmutableWither() {
+      MutableRoot root = new MutableRoot();
+
+      PropertyPath.set(root, "middle.leaf.visible", "true");
+
+      assertEquals(true, PropertyPath.get(root, "middle.leaf.visible"),
+                   "a wither takes the same coercion as a setter");
+   }
+
+   @Test
+   void refusesAnUnknownLeafOnAnImmutableOwnerNamingWhatExists() {
+      MutableRoot root = new MutableRoot();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(root, "middle.leaf.nope", "x"));
+      assertTrue(thrown.getMessage().contains("nope"));
+   }
+
    @Test
    void refusesAnUnknownLeafRatherThanSilentlyDoingNothing() {
       Exception thrown = assertThrows(

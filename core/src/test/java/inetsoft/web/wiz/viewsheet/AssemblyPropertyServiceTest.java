@@ -120,18 +120,27 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
-    * An uncovered type must say so, not fail obscurely. Image is the case that matters:
-    * its dialog model is immutable, so it is uncovered by necessity rather than backlog.
+    * An uncovered type must say so, not fail obscurely.
+    *
+    * <p>This used to use <b>image</b>, which was uncovered "by necessity rather than backlog"
+    * because its dialog model is Immutables. That necessity is gone: PropertyPath now reads bare
+    * Immutables accessors and rebuilds immutable levels through {@code withX}, so image is wired
+    * and covered. An assembly type genuinely outside the registry is used instead.
     */
    @Test
    void refusesAnUncoveredAssemblyTypeNamingWhatIsCovered() {
-      AssemblyPropertyService service = serviceWith(mock(ImageVSAssembly.class), null);
+      AssemblyPropertyService service = serviceWith(mock(AnnotationVSAssembly.class), null);
 
       Exception thrown = assertThrows(
-         Exception.class, () -> service.list("tok", principal(), "Image1"));
+         Exception.class, () -> service.list("tok", principal(), "Annotation1"));
 
-      assertTrue(thrown.getMessage().contains("Image"));
-      assertTrue(thrown.getMessage().contains("gauge"));
+      assertTrue(thrown.getMessage().contains("gauge"), "name what is covered");
+   }
+
+   /** Image is covered now — the Immutables write path is what made it reachable. */
+   @Test
+   void coversTheImageAssembly() {
+      assertTrue(PropertyAliases.covers("image"));
    }
 
    @Test
@@ -199,7 +208,8 @@ class AssemblyPropertyServiceTest {
       }
 
       return new AssemblyPropertyService(
-         sessions, gauge, mock(TextPropertyDialogService.class),
+         sessions, gauge, mock(ImagePropertyDialogService.class),
+         mock(TextPropertyDialogService.class),
          mock(ChartPropertyDialogService.class), mock(TableViewPropertyDialogService.class),
          mock(CrosstabPropertyDialogService.class),
          mock(SelectionListPropertyDialogService.class),

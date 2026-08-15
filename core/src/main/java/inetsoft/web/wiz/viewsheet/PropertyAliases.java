@@ -150,6 +150,11 @@ public final class PropertyAliases {
       Map<String, TypeAliases> registry = new LinkedHashMap<>();
       register(registry, "gauge", GaugePropertyDialogModel.class, gauge());
       register(registry, "text", TextPropertyDialogModel.class, text());
+      // Immutables models. These were "not covered" until PropertyPath learned to read a bare
+      // Immutables accessor and to rebuild immutable levels through withX — the paths below run
+      // through two immutable levels into a mutable OutputGeneralPaneModel.
+      register(registry, "image", ImagePropertyDialogModel.class, image());
+
       register(registry, "chart", ChartPropertyDialogModel.class, chart());
       register(registry, "table", TableViewPropertyDialogModel.class, table());
       register(registry, "crosstab", CrosstabPropertyDialogModel.class, crosstab());
@@ -267,6 +272,18 @@ public final class PropertyAliases {
       return aliases;
    }
 
+   /**
+    * The image assembly. Its dialog model and general pane are both Immutables, so every path
+    * here crosses at least one immutable level — {@code PropertyPath} rebuilds them through
+    * {@code withX} on the way back up.
+    */
+   private static Map<String, String> image() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      outputGeneral(aliases, "imageGeneralPaneModel");
+      sizePosition(aliases, "imageGeneralPaneModel");
+      return aliases;
+   }
+
    private static Map<String, String> chart() {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "chartGeneralPaneModel");
@@ -275,6 +292,28 @@ public final class PropertyAliases {
       aliases.put("enableAdhocEditing", "chartAdvancedPaneModel.enableAdhocEditing");
       aliases.put("glossyEffect", "chartAdvancedPaneModel.glossyEffect");
       aliases.put("sparkline", "chartAdvancedPaneModel.sparkline");
+
+      // The line pane — trend lines, grid lines, facet grid. What a user means by "add a trend
+      // line" lives here, one pane below the general/advanced panes.
+      //
+      // Deliberately absent: pointLine and the word-cloud font scale are PlotDescriptor fields
+      // that ChartPropertyDialogModel never surfaces, so there is no path to alias. They are not
+      // reachable through this engine, and claiming otherwise would be worse than the gap.
+      aliases.put("gridLineVisible", "chartLinePaneModel.gridLineVisible");
+      aliases.put("innerLineVisible", "chartLinePaneModel.innerLineVisible");
+      aliases.put("trendLineType", "chartLinePaneModel.trendLineType");
+      aliases.put("trendLineStyle", "chartLinePaneModel.trendLineStyle");
+      aliases.put("trendLineColor", "chartLinePaneModel.trendLineColor");
+      aliases.put("trendLineVisible", "chartLinePaneModel.trendLineVisible");
+      aliases.put("trendPerColor", "chartLinePaneModel.trendPerColor");
+      aliases.put("projectForward", "chartLinePaneModel.projectForward");
+      aliases.put("facetGrid", "chartLinePaneModel.facetGrid");
+      aliases.put("facetGridColor", "chartLinePaneModel.facetGridColor");
+      aliases.put("facetGridVisible", "chartLinePaneModel.facetGridVisible");
+      aliases.put("diagonalLineStyle", "chartLinePaneModel.diagonalLineStyle");
+      aliases.put("diagonalLineColor", "chartLinePaneModel.diagonalLineColor");
+      aliases.put("quadrantGridLineStyle", "chartLinePaneModel.quadrantGridLineStyle");
+      aliases.put("quadrantGridLineColor", "chartLinePaneModel.quadrantGridLineColor");
       return aliases;
    }
 
