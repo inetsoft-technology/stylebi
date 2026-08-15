@@ -66,8 +66,27 @@ public class AssemblyHyperlinkService {
     */
    public record Region(Integer row, Integer col, String colName, boolean axis, boolean text,
                         boolean titleLink, boolean emptyPlotLink) {
+      /**
+       * Normalizes a null row/col to <b>0</b> — on every construction path.
+       *
+       * <p>{@code HyperlinkDialogService.getHyperlinkDialogModel} dereferences row as an int
+       * (through {@code getFields}), so nulls threw
+       * {@code NullPointerException: … because "row" is null} and made set_hyperlink unusable at
+       * assembly level for every assembly type. The Composer never sends null — its controller
+       * declares {@code @RequestParam(value = "row", required = false, defaultValue = "0")} — so
+       * calling the service directly means supplying that default ourselves.
+       *
+       * <p>This lives in the compact constructor rather than in {@link #whole()} because the
+       * agent controller builds a Region straight from its nullable {@code @RequestParam}s and
+       * never calls the factory — normalizing only there fixed nothing on the live path.
+       */
+      public Region {
+         row = row == null ? 0 : row;
+         col = col == null ? 0 : col;
+      }
+
       public static Region whole() {
-         return new Region(null, null, null, false, false, false, false);
+         return new Region(0, 0, null, false, false, false, false);
       }
    }
 

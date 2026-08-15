@@ -56,8 +56,26 @@ public class AssemblyHighlightService {
 
    /** Where a highlight lives. All-defaults means the assembly itself. */
    public record Region(Integer row, Integer col, String colName, boolean axis, boolean text) {
+      /**
+       * Normalizes a null row/col to <b>0</b> — on every construction path.
+       *
+       * <p>For a table-type assembly {@code HighlightDialogService.getHighlightDialogModel} calls
+       * {@code lens.getTableDataPath(row, col)}, which NPEs on null, so highlights were unusable
+       * on every table, crosstab and calc table (a chart never reaches that branch). Zero is what
+       * the rest of that same method already assumes: a few lines later it reads
+       * {@code row == null ? 0 : row}.
+       *
+       * <p>This lives in the compact constructor rather than in {@link #whole()} because the
+       * controller builds a Region straight from its nullable {@code @RequestParam}s and never
+       * calls the factory — normalizing only there fixed nothing on the live path.
+       */
+      public Region {
+         row = row == null ? 0 : row;
+         col = col == null ? 0 : col;
+      }
+
       public static Region whole() {
-         return new Region(null, null, null, false, false);
+         return new Region(0, 0, null, false, false);
       }
    }
 

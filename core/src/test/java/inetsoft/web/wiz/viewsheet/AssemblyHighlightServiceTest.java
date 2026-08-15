@@ -249,6 +249,44 @@ class AssemblyHighlightServiceTest {
       assertEquals(List.of("Taken"), listed.get("usedNames"));
    }
 
+   /**
+    * Addressing the whole assembly means row/col <b>0</b>, not null.
+    *
+    * <p>For a table-type assembly {@code HighlightDialogService.getHighlightDialogModel} calls
+    * {@code lens.getTableDataPath(row, col)}, which NPEs on null — so list_highlights and
+    * set_highlight were unusable on every table, crosstab and calc table, while working fine on a
+    * chart (which never enters that branch). Zero is what the rest of that same method already
+    * assumes: a few lines later it reads {@code row == null ? 0 : row}.
+    */
+   @Test
+   void addressesTheWholeAssemblyWithZerosBecauseTableLookupNPEsOnNull() throws Exception {
+      Harness h = harness(model());
+
+      h.service.list("tok", principal(), "Table1", null);
+
+      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), eq(0), eq(0),
+                                                   isNull(), eq(false), eq(false),
+                                                   any(Principal.class));
+   }
+
+   /**
+    * The controller builds a Region straight from its nullable {@code @RequestParam}s rather than
+    * calling {@link AssemblyHighlightService.Region#whole()}, so normalizing only in the factory
+    * left the live path still passing nulls — and still NPEing. The record itself must normalize,
+    * on every construction path.
+    */
+   @Test
+   void aRegionBuiltDirectlyWithNullsStillAddressesRowAndColZero() throws Exception {
+      Harness h = harness(model());
+
+      h.service.list("tok", principal(), "Table1",
+                     new AssemblyHighlightService.Region(null, null, null, false, false));
+
+      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), eq(0), eq(0),
+                                                   isNull(), eq(false), eq(false),
+                                                   any(Principal.class));
+   }
+
    @Test
    void passesARegionThrough() throws Exception {
       Harness h = harness(model());

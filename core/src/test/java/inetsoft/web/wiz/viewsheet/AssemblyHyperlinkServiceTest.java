@@ -150,13 +150,43 @@ class AssemblyHyperlinkServiceTest {
 
    // ── region addressing ─────────────────────────────────────────────────────
 
+   /**
+    * Addressing the whole assembly means row/col <b>0</b>, not null.
+    *
+    * <p>{@code HyperlinkDialogService.getHyperlinkDialogModel} dereferences row as an int
+    * (via {@code getFields}), so nulls threw
+    * {@code NullPointerException: Cannot invoke "java.lang.Integer.intValue()" because "row" is
+    * null} for every assembly type — set_hyperlink was unusable at assembly level. The Composer
+    * never sends null: its controller declares
+    * {@code @RequestParam(value = "row", required = false, defaultValue = "0")}.
+    *
+    * <p>This test previously asserted {@code isNull(), isNull()} and so certified the crash.
+    */
    @Test
-   void addressesTheWholeAssemblyWhenNoRegionIsGiven() throws Exception {
+   void addressesTheWholeAssemblyWithZerosBecauseNullRowNPEs() throws Exception {
       Harness h = harness(new HyperlinkDialogModel());
 
       h.service.read("tok", principal(), "Chart1", null);
 
-      verify(h.links).getHyperlinkDialogModel(eq("rt1"), eq("Chart1"), isNull(), isNull(),
+      verify(h.links).getHyperlinkDialogModel(eq("rt1"), eq("Chart1"), eq(0), eq(0),
+                                              isNull(), eq(false), eq(false), eq(false),
+                                              eq(false), any(Principal.class));
+   }
+
+   /**
+    * The controller builds a Region straight from its nullable {@code @RequestParam}s rather than
+    * calling {@code Region.whole()}, so normalizing only in the factory left the live path still
+    * passing nulls — and still NPEing. The record itself must normalize.
+    */
+   @Test
+   void aRegionBuiltDirectlyWithNullsStillAddressesRowAndColZero() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.read("tok", principal(), "Chart1",
+                     new AssemblyHyperlinkService.Region(null, null, null, false, false, false,
+                                                         false));
+
+      verify(h.links).getHyperlinkDialogModel(eq("rt1"), eq("Chart1"), eq(0), eq(0),
                                               isNull(), eq(false), eq(false), eq(false),
                                               eq(false), any(Principal.class));
    }
@@ -182,7 +212,10 @@ class AssemblyHyperlinkServiceTest {
                      new AssemblyHyperlinkService.Region(null, null, null, false, false, true,
                                                          false));
 
-      verify(h.links).getHyperlinkDialogModel(anyString(), anyString(), isNull(), isNull(),
+      // Row/col normalize to 0 here too: a title link addresses the assembly, and the dialog
+      // service dereferences them as ints whatever the region flags say. This previously
+      // asserted isNull(), isNull() — the values that NPE live.
+      verify(h.links).getHyperlinkDialogModel(anyString(), anyString(), eq(0), eq(0),
                                               isNull(), eq(false), eq(false), eq(true),
                                               eq(false), any(Principal.class));
    }
