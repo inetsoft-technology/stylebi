@@ -19,6 +19,7 @@ package inetsoft.web.wiz.pairing;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.*;
+import inetsoft.uql.XPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,11 +88,61 @@ public class SheetRuntimeAccess {
                                            Principal agentUser)
       throws PairingException
    {
-      return switch (sheetType) {
+      RuntimeSheet sheet = switch (sheetType) {
          case WORKSHEET -> getWorksheetForPairing(runtimeId, agentUser);
          case VIEWSHEET -> getViewsheetForPairing(runtimeId, agentUser);
       };
+
+      grantOwnershipBypass(sheet, runtimeId, agentUser);
+      return sheet;
    }
+
+   /**
+    * Marks the agent principal so {@code WorksheetEngine.getSheet} will accept it for this runtime.
+    *
+    * <p>Bypassing {@code matches()} here is not enough on its own. A wiz service that delegates to
+    * a <em>composer</em> service passes it {@code runtimeId} plus the agent principal, and that
+    * service re-resolves the sheet through {@code getSheet}, which enforces
+    * {@code rs.matches(user)} — full {@code Principal} equality, session id included. The agent
+    * principal is rebuilt from the JWT while the owner is the browser-session principal, so the two
+    * are never equal objects. The result was that reads worked and every write failed with
+    * {@code InvalidUserException}, which made a paired session look healthy right up to the first
+    * mutation.
+    *
+    * <p>The flag is set here rather than where the principal is built, so it is granted only to an
+    * agent that has resolved a specific runtime it demonstrably shares a logical identity with —
+    * not to every wiz request. It mirrors the existing {@code supportLogin} hatch, which is read in
+    * exactly the same two ownership checks and nothing else.
+    *
+    * <p>A null owner earns no bypass: it cannot be verified, and {@code getSheet} only enforces
+    * ownership when the runtime has a user, so there is nothing to bypass.
+    */
+   private void grantOwnershipBypass(RuntimeSheet sheet, String runtimeId, Principal agentUser)
+      throws PairingException
+   {
+      Principal owner = sheet == null ? null : sheet.getUser();
+
+      if(owner == null || !(agentUser instanceof XPrincipal agent)) {
+         return;
+      }
+
+      if(!PairingUtil.sameLogicalUser(owner, agentUser)) {
+         LOG.warn("Pairing runtime access: runtime not owned by agent (id={}, agent={})",
+                  runtimeId, agentUser.getName());
+         throw new PairingException(PairingException.Kind.USER_MISMATCH,
+                                    "Pairing code does not belong to this user");
+      }
+
+      agent.setProperty(PAIRED_AGENT, "true");
+   }
+
+   /**
+    * Property name recognised by {@code WorksheetEngine}'s ownership checks, alongside
+    * {@code supportLogin}. Kept distinct from {@code supportLogin} so an agent bypass is never
+    * confused with a support-staff login, and so anything gated on the latter does not silently
+    * apply to agents.
+    */
+   public static final String PAIRED_AGENT = "pairedAgent";
 
    /**
     * Return the owner principal of the runtime with the given id on this node, or null if the
