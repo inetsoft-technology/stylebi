@@ -81,6 +81,20 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("Mongo")));
    }
 
+   /**
+    * The wiz agent services express every input-validation failure as an
+    * {@code IllegalArgumentException} carrying a caller-facing message (~75 sites across
+    * {@code inetsoft.web.wiz.viewsheet} alone). Without a handler those fall through to a generic
+    * 500 and the message is lost, so an agent driving the tools sees only
+    * "Request failed with status code 500" for what is really a fixable bad request.
+    */
+   @Test
+   void illegalArgumentExceptionMapsToBadRequestCarryingTheMessage() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "illegal"))
+         .andExpect(status().isBadRequest())
+         .andExpect(content().string(containsString("requires 'height'")));
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -91,6 +105,10 @@ class WizControllerErrorHandlerTest {
 
          if("unsupported".equals(type)) {
             throw new UnsupportedDatasourceException("MongoDB REST", "Mongo");
+         }
+
+         if("illegal".equals(type)) {
+            throw new IllegalArgumentException("Edit op 'resize_title' requires 'height'.");
          }
 
          throw new java.lang.SecurityException("denied");

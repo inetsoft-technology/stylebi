@@ -80,5 +80,29 @@ public class WizControllerErrorHandler {
       return new ResponseEntity<>(payload, null, HttpStatus.UNPROCESSABLE_ENTITY);
    }
 
+   /**
+    * Maps an input-validation failure to 400 <em>carrying its message</em>.
+    *
+    * <p>The wiz agent services express every bad-request condition as an
+    * {@code IllegalArgumentException} with a caller-facing message — ~75 sites in
+    * {@code inetsoft.web.wiz.viewsheet} alone ({@code ViewsheetEditService},
+    * {@code PropertyPath}, {@code ConditionVocabulary}, {@code DateComparisonService}, …). Without
+    * this handler every one of them fell through as a generic 500 with the message discarded, so a
+    * caller saw "Request failed with status code 500" for a fixable bad request and had no way to
+    * learn which field was wrong. That made correct validation indistinguishable from a server bug.
+    *
+    * <p>The message goes in the {@code error} key deliberately: that is the field wiz-services'
+    * {@code handleError} extracts, so the text reaches the agent rather than being replaced by a
+    * bare status code.
+    */
+   @ExceptionHandler(IllegalArgumentException.class)
+   public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
+      LOG.warn("Invalid wiz request: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
 }
