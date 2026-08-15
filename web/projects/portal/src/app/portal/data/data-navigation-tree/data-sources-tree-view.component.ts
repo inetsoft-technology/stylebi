@@ -1875,8 +1875,13 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                parentPath = this.getParentPath0(node.data.path);
             }
 
+            // the top-level "Data Model" node's scope is assigned by the server and can
+            // differ from the hardcoded GLOBAL_SCOPE used for its data model folder/model
+            // tree nodes, so don't gate this lookup on scope equality when targeting it.
+            const isDataModelParent = parentPath != null && parentPath.endsWith("/Data Model");
             let parentNode = GuiTool.findNode(root, (n) =>
-               !!n.data && n.data.path === parentPath && n.data.scope === node.data.scope);
+               !!n.data && n.data.path === parentPath &&
+               (isDataModelParent || n.data.scope === node.data.scope));
             selectedNode = !!parentNode ? parentNode : root;
 
             if(selectedNode?.type === PortalDataType.DATA_MODEL ||
