@@ -41,7 +41,12 @@
       </button>
     }
     @if (showHelpLink) {
-      <i [helpLink]="cshid" class="mx-1" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
+      @if (cshid) {
+        <i [helpLink]="cshid" class="mx-1" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
+      } @else {
+        <i class="help-question-mark-icon cursor-pointer mx-1" tabindex="0" title="_#(js:Help)"
+           aria-label="_#(Help Information)" role="link" enterClick (click)="openHelpURL()"></i>
+      }
     }
     <button type="button" class="btn-close" (click)="onCancel.emit($event)" aria-label="_#(Close)" title="_#(Close)"></button>
   </div>
