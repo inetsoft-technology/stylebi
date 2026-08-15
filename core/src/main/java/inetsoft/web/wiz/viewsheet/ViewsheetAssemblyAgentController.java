@@ -59,6 +59,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyPropertyService propertyService,
                                    AssemblyHyperlinkService hyperlinkService,
                                    ChartElementService chartElementService,
+                                   ChartRegionPropertyService chartRegionService,
                                    AssemblyConditionService conditionService,
                                    AssemblyHighlightService highlightService,
                                    DateComparisonService comparisonService,
@@ -76,6 +77,7 @@ public class ViewsheetAssemblyAgentController {
       this.propertyService = propertyService;
       this.hyperlinkService = hyperlinkService;
       this.chartElementService = chartElementService;
+      this.chartRegionService = chartRegionService;
       this.conditionService = conditionService;
       this.highlightService = highlightService;
       this.comparisonService = comparisonService;
@@ -234,6 +236,44 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return chartElementService.vocabulary();
    }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/regions")
+   public Map<String, Object> chartRegionVocabulary(@PathVariable String sessionToken,
+                                                    Principal user)
+   {
+      requireEnabled();
+      return chartRegionService.vocabulary();
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region-properties")
+   public Map<String, Object> listChartRegionProperties(@PathVariable String sessionToken,
+                                                        @RequestParam String assembly,
+                                                        @RequestParam String region,
+                                                        @RequestParam String target,
+                                                        @RequestParam(required = false)
+                                                        String field,
+                                                        Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return chartRegionService.list(sessionToken, user, assembly, region, target, field);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region-properties")
+   public void setChartRegionProperties(@PathVariable String sessionToken,
+                                        @RequestBody RegionPropertiesRequest request,
+                                        @RequestParam(required = false, defaultValue = "")
+                                        String linkUri,
+                                        Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartRegionService.set(sessionToken, user, request.assembly(), request.region(),
+                             request.target(), request.field(), request.properties(), linkUri);
+   }
+
+   public record RegionPropertiesRequest(String assembly, String region, String target,
+                                         String field, Map<String, Object> properties) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/element-visibility")
    public void setChartElementVisibility(
@@ -556,6 +596,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyPropertyService propertyService;
    private final AssemblyHyperlinkService hyperlinkService;
    private final ChartElementService chartElementService;
+   private final ChartRegionPropertyService chartRegionService;
    private final AssemblyConditionService conditionService;
    private final AssemblyHighlightService highlightService;
    private final DateComparisonService comparisonService;

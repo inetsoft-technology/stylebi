@@ -119,6 +119,22 @@ public class BindingAgentController {
                             request.fields(), linkUri);
    }
 
+   /** {@code field} may be null, which clears the shelf. */
+   public record SingleShelfRequest(String assembly, String shelf, FieldRef field) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/single-shelf")
+   public void setChartSingleShelf(@PathVariable String sessionToken,
+                                   @RequestBody SingleShelfRequest request,
+                                   @RequestParam(required = false, defaultValue = "")
+                                   String linkUri,
+                                   Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartService.setSingleShelf(sessionToken, user, request.assembly(), request.shelf(),
+                                  request.field(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
    public void setChartType(@PathVariable String sessionToken,
                             @RequestBody ChartTypeRequest request,
@@ -213,6 +229,9 @@ public class BindingAgentController {
    }
 
    public record TableShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}
+
+   /** {@code force} discards fields already bound to the old source; absent means false. */
+   public record TableSourceRequest(String assembly, String table, Boolean force) {}
    public record TableFieldRequest(String assembly, String shelf, FieldRef field,
                                    Integer position) {}
    public record TableRemoveRequest(String assembly, String shelf, String column) {}
@@ -238,6 +257,17 @@ public class BindingAgentController {
       requireEnabled();
       tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
                             request.fields());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
+   public void setTableSource(@PathVariable String sessionToken,
+                              @RequestBody TableSourceRequest request,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setSource(sessionToken, user, request.assembly(), request.table(),
+                             Boolean.TRUE.equals(request.force()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/add")
@@ -302,6 +332,29 @@ public class BindingAgentController {
    public Map<String, Object> calcVocabulary(@PathVariable String sessionToken, Principal user) {
       requireEnabled();
       return calcService.vocabulary();
+   }
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell/script")
+   public Map<String, Object> calcCellScript(@PathVariable String sessionToken,
+                                             @RequestParam String assembly,
+                                             @RequestParam int row,
+                                             @RequestParam int col,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calcService.cellScript(sessionToken, user, assembly, row, col);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/named-groups")
+   public Map<String, Object> calcNamedGroups(@PathVariable String sessionToken,
+                                              @RequestParam String assembly,
+                                              @RequestParam(required = false) String column,
+                                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calcService.namedGroups(sessionToken, user, assembly, column);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell")
