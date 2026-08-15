@@ -29,6 +29,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -255,6 +258,7 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      requireBindableColumns(sessionToken, user, request.assembly(), request.fields());
       tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
                             request.fields());
    }
@@ -277,6 +281,7 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      requireBindableColumns(sessionToken, user, request.assembly(), List.of(request.field()));
       tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
                             request.field(), request.position());
    }
@@ -520,6 +525,35 @@ public class BindingAgentController {
    private final SheetJoinService joinService;
    private final SheetSessionService sessionService;
    private final ViewsheetSessionService sessions;
+   /**
+    * Refuses a field naming a column the assembly cannot bind.
+    *
+    * <p>Such a column bound cleanly and rendered nothing — a crosstab with no rows, which reads as
+    * empty data rather than a bad column name. Checked here because the controller already holds
+    * the field listing; the alternative was injecting it into the service, which would change a
+    * constructor and so require a full reactor build for a validation fix.
+    *
+    * <p>A failure to read the listing is swallowed on purpose: it is a different problem, and
+    * turning it into a refusal would block writes whenever the tree happens to be unreadable.
+    */
+   private void requireBindableColumns(String sessionToken, Principal user, String assembly,
+                                       java.util.Collection<FieldRef> fields)
+   {
+      try {
+         BindableColumns.require(
+            fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user),
+            assembly, fields);
+      }
+      catch(IllegalArgumentException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
+      }
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(BindingAgentController.class);
+
    private final BindableFieldsService fieldsService;
    private final BindingReadService readService;
    private final ChartBindingService chartService;
