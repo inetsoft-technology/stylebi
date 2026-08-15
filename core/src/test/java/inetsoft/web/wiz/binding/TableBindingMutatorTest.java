@@ -373,19 +373,36 @@ class TableBindingMutatorTest {
 
    // ── column labels (2d Phase 2) ────────────────────────────────────────────
 
+   /**
+    * The label never reached the header. {@code name2Labels} is read and written by
+    * {@code BaseTableBindingModel} and by nothing else in the product — a dead field — so the
+    * write landed nowhere, {@code columnLabels} read back empty, and the tool still reported
+    * "Relabelled 1 column(s)". Verified live on local-1200: the header stayed "Sum(PAID)".
+    *
+    * <p>The tests here asserted on {@code getName2Labels()}, so they passed while the feature did
+    * nothing — they checked that we wrote to the dead field, which is exactly what was wrong.
+    *
+    * <p>Renaming a header really means a {@code TableDataPath} cell override, which needs the
+    * rendered table lens to locate the header cell and differs between crosstab and table. That
+    * is a design job, not a patch. Until it exists the tool refuses, so an agent surfaces a
+    * missing capability instead of believing the header changed.
+    */
    @Test
-   void setsAColumnLabelForABoundColumn() {
+   void refusesBecauseTheLabelWouldNeverReachTheHeader() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
-      TableBindingMutator.setColumnLabels(model, Map.of("Region", "Sales Region"));
+      Exception thrown = assertThrows(
+         UnsupportedOperationException.class,
+         () -> TableBindingMutator.setColumnLabels(model, Map.of("Region", "Sales Region")));
 
-      assertEquals("Sales Region", model.getName2Labels().get("Region"));
+      assertTrue(thrown.getMessage().toLowerCase().contains("not supported"),
+                 "the message must say the capability is missing, got: " + thrown.getMessage());
    }
 
-   /** A label for an unbound column would sit in name2Labels doing nothing. */
+   /** The unbound-column check still runs first: a wrong name is a different mistake. */
    @Test
-   void refusesALabelForAColumnThatIsNotBound() {
+   void stillNamesAnUnboundColumnBeforeReportingTheGap() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
 
@@ -396,16 +413,6 @@ class TableBindingMutatorTest {
       assertTrue(thrown.getMessage().contains("never be shown"));
    }
 
-   @Test
-   void anEmptyLabelRemovesIt() {
-      CrosstabBindingModel model = new CrosstabBindingModel();
-      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
-      TableBindingMutator.setColumnLabels(model, Map.of("Region", "Sales Region"));
-
-      TableBindingMutator.setColumnLabels(model, Map.of("Region", ""));
-
-      assertFalse(model.getName2Labels().containsKey("Region"));
-   }
 
    @Test
    void refusesAnEmptyLabelMap() {

@@ -113,6 +113,19 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("pairing code")));
    }
 
+   /**
+    * A capability that is declared but not wired up must say so, not 500. Without this the
+    * refusal added to set_column_labels would reach the caller as an opaque server error, which
+    * reads as a bug rather than a missing feature — and the whole point of refusing was to let an
+    * agent surface the gap.
+    */
+   @Test
+   void unsupportedOperationMapsToNotImplementedCarryingTheMessage() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "unsupported-op"))
+         .andExpect(status().isNotImplemented())
+         .andExpect(content().string(containsString("not supported yet")));
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -127,6 +140,11 @@ class WizControllerErrorHandlerTest {
 
          if("illegal".equals(type)) {
             throw new IllegalArgumentException("Edit op 'resize_title' requires 'height'.");
+         }
+
+         if("unsupported-op".equals(type)) {
+            throw new UnsupportedOperationException(
+               "Renaming column headers is not supported yet.");
          }
 
          if("invaliduser".equals(type)) {

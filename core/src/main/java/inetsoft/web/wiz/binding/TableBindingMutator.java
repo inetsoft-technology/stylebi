@@ -461,19 +461,19 @@ public final class TableBindingMutator {
          }
       }
 
-      Map<String, String> merged = model.getName2Labels() == null
-         ? new LinkedHashMap<>() : new LinkedHashMap<>(model.getName2Labels());
-
-      for(Map.Entry<String, String> label : labels.entrySet()) {
-         if(label.getValue() == null || label.getValue().isEmpty()) {
-            merged.remove(label.getKey());
-         }
-         else {
-            merged.put(label.getKey(), label.getValue());
-         }
-      }
-
-      model.setName2Labels(merged);
+      // name2Labels is read and written by BaseTableBindingModel and by nothing else in the
+      // product. Writing here landed nowhere: the header kept its original text, columnLabels
+      // read back empty, and the tool still reported success -- the worst of the three possible
+      // outcomes, because the caller has no way to tell.
+      //
+      // A header rename is really a TableDataPath cell override, which needs the rendered table
+      // lens to find the header cell and differs between a crosstab and a table. Until that is
+      // built, refusing is the honest answer: an agent can then surface a missing capability
+      // rather than report a rename that did not happen.
+      throw new UnsupportedOperationException(
+         "Renaming column headers is not supported yet. The label would be stored somewhere " +
+         "nothing reads, so the header would keep its current text while this call reported " +
+         "success. Ask for it as a gap rather than working around it.");
    }
 
    // ── options (2d Phase 3) ──────────────────────────────────────────────────

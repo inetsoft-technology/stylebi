@@ -135,5 +135,26 @@ public class WizControllerErrorHandler {
       return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
+   /**
+    * Maps a capability that is declared but not wired up to 501, carrying its message.
+    *
+    * <p>Some tools exist ahead of the mechanism they need — {@code set_column_labels} is the
+    * first: renaming a header requires a {@code TableDataPath} cell override that is not built
+    * yet, and writing the label anywhere else stores it where nothing reads. Such a tool must
+    * refuse rather than report a success that did not happen, and the refusal must not arrive as
+    * a 500, which reads as a bug and invites a retry that will fail identically.
+    *
+    * <p>501 says the request was fine and the feature is absent — which is exactly what an agent
+    * needs in order to surface a gap instead of working around it.
+    */
+   @ExceptionHandler(UnsupportedOperationException.class)
+   public ResponseEntity<Map<String, String>> handleUnsupported(UnsupportedOperationException e) {
+      LOG.warn("Unimplemented wiz capability: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      return new ResponseEntity<>(payload, null, HttpStatus.NOT_IMPLEMENTED);
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
 }
