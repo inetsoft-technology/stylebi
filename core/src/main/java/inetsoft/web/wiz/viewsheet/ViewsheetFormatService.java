@@ -156,37 +156,132 @@ public class ViewsheetFormatService {
        * <p>A number still passes through untouched, for a caller that already has the constant.
        */
       private static void coerceBorderStyles(ObjectNode object) {
-         for(String side : BORDER_STYLES) {
+         for(int i = 0; i < BORDER_STYLES.size(); i++) {
+            String side = BORDER_STYLES.get(i);
+            String widthField = BORDER_WIDTHS.get(i);
+
+            // Consumed here whatever happens: nothing downstream reads it, so leaving it in the
+            // payload is what made it a silent no-op. See coerceBorderWidth.
+            JsonNode width = object.remove(widthField);
             JsonNode style = object.get(side);
 
-            if(style == null || !style.isTextual()) {
+            if(style == null && width == null) {
                continue;
             }
 
-            String word = style.asText().trim().toLowerCase();
+            if(style != null && !style.isTextual()) {
+               continue;
+            }
+
+            String word = style == null ? "solid" : style.asText().trim().toLowerCase();
 
             if(word.chars().allMatch(Character::isDigit)) {
+               if(width != null) {
+                  throw new IllegalArgumentException(
+                     "set_format got both '" + side + "' as a line constant (" + word + ") and '" +
+                     widthField + "'. The constant already encodes the weight, so honouring both " +
+                     "is ambiguous. Drop '" + widthField + "', or give '" + side + "' as a word.");
+               }
+
                continue;
             }
 
-            object.put(side, String.valueOf(switch(word) {
-               case "none" -> StyleConstants.NO_BORDER;
-               case "solid", "thin" -> StyleConstants.THIN_LINE;
-               case "medium" -> StyleConstants.MEDIUM_LINE;
-               case "thick" -> StyleConstants.THICK_LINE;
-               case "dashed" -> StyleConstants.DASH_LINE;
-               case "dotted" -> StyleConstants.DOT_LINE;
-               case "double" -> StyleConstants.DOUBLE_LINE;
-               default -> throw new IllegalArgumentException(
-                  "set_format could not read '" + side + "': '" + word + "' is not a border " +
-                  "style. Accepted: none, solid, dashed, dotted, double, thin, medium, thick. " +
-                  "A StyleBI line constant is accepted as a number.");
-            }));
+            object.put(side, String.valueOf(toLineConstant(word, width, side, widthField)));
+         }
+      }
+
+      /**
+       * Folds a CSS border width into the line constant, which is where StyleBI keeps weight.
+       *
+       * <p>{@code FormatPainterService} builds its {@code Insets} from the four <em>style</em>
+       * fields alone — {@code borderTopWidth} and its siblings are never read on the write path.
+       * They are part of {@code FormatInfoModel} and are documented by this tool's own schema, so a
+       * caller asking for a 3px border got a thin one and nothing said otherwise. Consuming the
+       * field and folding it into the constant makes the documented parameter mean something.
+       *
+       * <p>Weight only exists for two families: solid (thin/medium/thick) and dash
+       * (dash/medium/large). There is no thick dotted or thick double line, so those combinations
+       * fail loud rather than quietly rendering a thin one — the same failure in a new disguise.
+       */
+      private static int toLineConstant(String word, JsonNode width, String side,
+                                        String widthField)
+      {
+         Integer px = coerceBorderWidth(width, widthField);
+
+         if(px != null && px == 0) {
+            return StyleConstants.NO_BORDER;
+         }
+
+         boolean weighted = px != null && px > 1;
+
+         return switch(word) {
+            case "none" -> StyleConstants.NO_BORDER;
+            case "solid" -> !weighted ? StyleConstants.THIN_LINE
+               : px == 2 ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
+            case "dashed" -> !weighted ? StyleConstants.DASH_LINE
+               : px == 2 ? StyleConstants.MEDIUM_DASH : StyleConstants.LARGE_DASH;
+            case "dotted", "double" -> {
+               if(weighted) {
+                  throw new IllegalArgumentException(
+                     "set_format cannot apply '" + widthField + "' to a " + word + " border: " +
+                     "StyleBI has no weighted " + word + " line. Use a solid or dashed border for " +
+                     "a thicker line, or drop '" + widthField + "'.");
+               }
+
+               yield "dotted".equals(word) ? StyleConstants.DOT_LINE : StyleConstants.DOUBLE_LINE;
+            }
+            // Weight words carry their own thickness, so a width alongside them is a contradiction
+            // rather than extra detail.
+            case "thin", "medium", "thick" -> {
+               if(px != null) {
+                  throw new IllegalArgumentException(
+                     "set_format got '" + side + "' as '" + word + "', which already sets the " +
+                     "weight, together with '" + widthField + "'. Drop one — use 'solid' with a " +
+                     "width, or the weight word on its own.");
+               }
+
+               yield "thin".equals(word) ? StyleConstants.THIN_LINE
+                  : "medium".equals(word) ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
+            }
+            default -> throw new IllegalArgumentException(
+               "set_format could not read '" + side + "': '" + word + "' is not a border " +
+               "style. Accepted: none, solid, dashed, dotted, double, thin, medium, thick. " +
+               "A StyleBI line constant is accepted as a number.");
+         };
+      }
+
+      /** Accepts 3, "3" and "3px"; refuses anything else by name rather than dropping it. */
+      private static Integer coerceBorderWidth(JsonNode width, String widthField) {
+         if(width == null || width.isNull()) {
+            return null;
+         }
+
+         if(width.isNumber()) {
+            return width.asInt();
+         }
+
+         String text = width.asText().trim().toLowerCase();
+
+         if(text.endsWith("px")) {
+            text = text.substring(0, text.length() - 2).trim();
+         }
+
+         try {
+            return Integer.valueOf(text);
+         }
+         catch(NumberFormatException e) {
+            throw new IllegalArgumentException(
+               "set_format could not read '" + widthField + "': '" + width.asText() + "' is not a " +
+               "width. Give a number of pixels, e.g. 1, 2 or 3 (\"2px\" is accepted).");
          }
       }
 
       private static final List<String> BORDER_STYLES =
          List.of("borderTopStyle", "borderLeftStyle", "borderBottomStyle", "borderRightStyle");
+
+      /** Index-aligned with {@link #BORDER_STYLES}. */
+      private static final List<String> BORDER_WIDTHS =
+         List.of("borderTopWidth", "borderLeftWidth", "borderBottomWidth", "borderRightWidth");
 
       private static final ObjectMapper MAPPER = new ObjectMapper();
    }

@@ -32,7 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @Tag("core")
-class ViewsheetAgentControllerTest {
+class ViewsheetAssemblyAgentControllerTest {
    @Test
    void joinRefusesWhenTheFeatureIsDisabled() {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
