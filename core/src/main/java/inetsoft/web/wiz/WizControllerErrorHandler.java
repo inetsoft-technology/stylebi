@@ -18,10 +18,15 @@
 package inetsoft.web.wiz;
 
 import inetsoft.util.Catalog;
+import inetsoft.util.InvalidUserException;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -42,6 +47,19 @@ import java.util.Map;
  * specific local {@code SecurityException} handler, since a local handler takes precedence over a
  * {@code @ControllerAdvice} and their catch-all would otherwise intercept the denial first (as 400).
  */
+/*
+ * Ordered ahead of every other advice, for the wiz packages only.
+ *
+ * GlobalExceptionHandler extends ResponseEntityExceptionHandler, which carries a built-in handler
+ * for the Spring MVC exceptions -- HttpMessageNotReadableException among them -- and answers with
+ * the default empty body. With neither advice ordered, that one won, so a body Jackson could not
+ * read came back as a bare 400 no matter what this class said about it.
+ *
+ * This was invisible to the unit tests: standaloneSetup registers only the advice under test, so
+ * the handler looked correct in isolation and did nothing in the running application. Found by
+ * calling the tool after the fix and getting the same empty 400 as before.
+ */
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice(basePackages = "inetsoft.web.wiz")
 public class WizControllerErrorHandler {
    @ExceptionHandler({ inetsoft.sree.security.SecurityException.class, java.lang.SecurityException.class })
@@ -78,6 +96,135 @@ public class WizControllerErrorHandler {
       payload.put("error", e.getMessage());
       payload.put("datasourceType", e.getDatasourceType());
       return new ResponseEntity<>(payload, null, HttpStatus.UNPROCESSABLE_ENTITY);
+   }
+
+   /**
+    * Maps an input-validation failure to 400 <em>carrying its message</em>.
+    *
+    * <p>The wiz agent services express every bad-request condition as an
+    * {@code IllegalArgumentException} with a caller-facing message — ~75 sites in
+    * {@code inetsoft.web.wiz.viewsheet} alone ({@code ViewsheetEditService},
+    * {@code PropertyPath}, {@code ConditionVocabulary}, {@code DateComparisonService}, …). Without
+    * this handler every one of them fell through as a generic 500 with the message discarded, so a
+    * caller saw "Request failed with status code 500" for a fixable bad request and had no way to
+    * learn which field was wrong. That made correct validation indistinguishable from a server bug.
+    *
+    * <p>The message goes in the {@code error} key deliberately: that is the field wiz-services'
+    * {@code handleError} extracts, so the text reaches the agent rather than being replaced by a
+    * bare status code.
+    */
+   @ExceptionHandler(IllegalArgumentException.class)
+   public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
+      LOG.warn("Invalid wiz request: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
+   }
+
+   /**
+    * Maps a stale pairing session to 409 with an instruction the agent can act on.
+    *
+    * <p>When the principal behind a pairing session no longer owns the runtime sheet — the user
+    * logged out and back in, or the container restarted and they re-opened the sheet in a new
+    * browser session — {@code WorksheetEngine.getSheet} throws {@code InvalidUserException}. It
+    * arrived here as a bare 500 HTML page with no message, so an agent saw an opaque server error
+    * and its only sensible response was to retry, which fails identically every time.
+    *
+    * <p>The failure is especially misleading because <em>reads keep working</em>: those resolve the
+    * sheet through the pairing lookup, which does not check ownership, while every mutation goes
+    * through {@code getSheet} and is refused. So the session reports healthy and renders images
+    * right up to the first write.
+    *
+    * <p>The raw message names two client session ids and nothing else, which tells the agent
+    * nothing — hence a rewritten message rather than a passthrough. Kept as its own status so
+    * "re-pair" is distinguishable from the 400 that means "fix your input".
+    */
+   @ExceptionHandler(InvalidUserException.class)
+   public ResponseEntity<Map<String, String>> handleInvalidUser(InvalidUserException e) {
+      LOG.warn("Pairing session no longer owns the sheet: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error",
+                  "This pairing session no longer owns the sheet — the StyleBI login that opened " +
+                  "it has been replaced. Ask the user for a fresh pairing code and connect again. " +
+                  "Reads may still succeed on this session; writes will not.");
+      return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
+   }
+
+   /**
+    * Maps a capability that is declared but not wired up to 501, carrying its message.
+    *
+    * <p>Some tools exist ahead of the mechanism they need — {@code set_column_labels} is the
+    * first: renaming a header requires a {@code TableDataPath} cell override that is not built
+    * yet, and writing the label anywhere else stores it where nothing reads. Such a tool must
+    * refuse rather than report a success that did not happen, and the refusal must not arrive as
+    * a 500, which reads as a bug and invites a retry that will fail identically.
+    *
+    * <p>501 says the request was fine and the feature is absent — which is exactly what an agent
+    * needs in order to surface a gap instead of working around it.
+    */
+   @ExceptionHandler(UnsupportedOperationException.class)
+   public ResponseEntity<Map<String, String>> handleUnsupported(UnsupportedOperationException e) {
+      LOG.warn("Unimplemented wiz capability: {}", e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      return new ResponseEntity<>(payload, null, HttpStatus.NOT_IMPLEMENTED);
+   }
+
+   /**
+    * Maps a body the converter could not read to 400 <em>saying so</em>.
+    *
+    * <p>Spring retries an unmatched exception against its cause, so a {@code @JsonCreator} that
+    * throws {@code IllegalArgumentException} is already answered with its message by the handler
+    * above. A failure raised by <em>Jackson</em> is not: a field given the wrong shape produced a
+    * bodyless 400, and the caller saw "Request failed with status code 400" and nothing else —
+    * which is indistinguishable from a broken tool, and sends an investigation looking at the
+    * server rather than at the request.
+    *
+    * <p>Jackson's own text is verbose and names internal classes, so only its first line is
+    * passed on: it is the line that names the offending field, which is the part a caller can act
+    * on.
+    */
+   @ExceptionHandler(HttpMessageNotReadableException.class)
+   public ResponseEntity<Map<String, String>> handleUnreadableBody(
+      HttpMessageNotReadableException e)
+   {
+      LOG.warn("Unreadable wiz request body: {}", e.getMessage());
+
+      Throwable cause = e.getMostSpecificCause();
+      String detail = cause == null || cause.getMessage() == null ? "" : cause.getMessage();
+      int newline = detail.indexOf('\n');
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error",
+                  "The request body could not be read: " +
+                  (newline < 0 ? detail : detail.substring(0, newline)));
+      return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
+   }
+
+   /**
+    * Maps a captured composer error to 409, carrying every message.
+    *
+    * <p>{@code CommandErrorException} extends {@code Exception} and had no handler, so the
+    * mechanism this whole feature exists to add — turning a composer ERROR that is only
+    * <em>dispatched</em> into something the caller can see — captured the text and then lost it to
+    * a generic 500 reading "Internal Server Error". The capture worked; the delivery did not.
+    *
+    * <p>409 rather than 400 because the request was well-formed and the composer refused it: a
+    * conflict with the sheet's state, not a malformed call. {@code getErrors()} is surfaced as its
+    * own field as well as joined into {@code error}, since the composer often reports several and
+    * joining them alone loses the boundaries.
+    */
+   @ExceptionHandler(CommandErrorException.class)
+   public ResponseEntity<Map<String, Object>> handleCommandError(CommandErrorException e) {
+      LOG.warn("Composer reported an error to the wiz agent: {}", e.getMessage());
+
+      Map<String, Object> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      payload.put("errors", e.getErrors());
+      return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
