@@ -22,6 +22,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -99,18 +100,34 @@ public class ViewsheetSessionService {
          SheetType.VIEWSHEET, session.runtimeId(), agent);
       applySocketSession(rvs, session);
 
-      CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
-         mutation.run(rvs, session.runtimeId(), dispatcher);
-         return null;
-      });
-
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs != null) {
-         rvs.addCheckpoint(vs.prepareCheckpoint());
+      // The checkpoint and the broadcast happen even when the mutation fails. A composer service
+      // partially applies before it ERRORs -- that is precisely why it ERRORs rather than throwing
+      // -- so on failure the runtime holds a half-applied edit. Letting the exception escape first
+      // meant no checkpoint and no broadcast: the human's Composer kept rendering pre-edit state
+      // while the runtime had moved, the next agent edit built on that divergence, and Ctrl+Z had
+      // no step for the partial change. The partial edit is real, so it gets an undo step and the
+      // browser is told about it.
+      try {
+         CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+            mutation.run(rvs, session.runtimeId(), dispatcher);
+            return null;
+         });
       }
+      catch(CommandErrorException e) {
+         throw new CommandErrorException(
+            e.getErrors(),
+            "the edit may be partially applied; the runtime and your Composer have been " +
+            "refreshed to match, and one undo step covers whatever was applied");
+      }
+      finally {
+         Viewsheet vs = rvs.getViewsheet();
 
-      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+         if(vs != null) {
+            rvs.addCheckpoint(vs.prepareCheckpoint());
+         }
+
+         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+      }
    }
 
    /**

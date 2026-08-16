@@ -44,6 +44,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -258,6 +259,55 @@ class ViewsheetEditServiceTest {
       assertEquals(0, moves[0].getxOffset(), "the first assembly anchors");
       assertEquals(50, moves[1].getxOffset(), "the middle one sits halfway");
       assertEquals(100, moves[2].getxOffset(), "the last assembly anchors");
+   }
+
+   /**
+    * Distribute must equalize the GAPS, not the left edges. Spreading positions evenly looks right
+    * only when every assembly is the same width; with mixed widths the visible spacing comes out
+    * uneven, which is neither what Composer's distribute does nor what "distribute horizontally"
+    * means to anyone asking for it.
+    *
+    * <p>Widths 100, 300, 100 across 0..600: edges-even would put the middle at 250 (gaps of 150
+    * and 50). Gap-even puts it at 200, for equal gaps of 100.
+    */
+   @Test
+   void distributeEqualizesTheGapsNotTheEdges() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("A", "Text", 0, 10, 100, 20, 0, null, true),
+         new AssemblyNode("B", "Text", 250, 10, 300, 20, 0, null, true),
+         new AssemblyNode("C", "Text", 600, 10, 100, 20, 0, null, true)));
+
+      service.apply("tok", principal(),
+                    arrange("distribute", List.of("A", "B", "C"), "horizontal"), "");
+
+      ArgumentCaptor<MoveVSObjectEvent> captor = ArgumentCaptor.forClass(MoveVSObjectEvent.class);
+      verify(objects, times(3)).moveObject(eq("rt1"), captor.capture(), any(Principal.class),
+                                           any(), anyString());
+      Map<String, Integer> byName = new java.util.HashMap<>();
+
+      for(MoveVSObjectEvent move : captor.getAllValues()) {
+         byName.put(move.getName(), move.getxOffset());
+      }
+
+      assertEquals(0, byName.get("A"), "the first assembly anchors the range");
+      assertEquals(600, byName.get("C"), "the last assembly anchors the range");
+      assertEquals(200, byName.get("B"),
+                   "equal gaps put B at 200 (gap 100 either side); 250 would be edge-even");
+   }
+
+   /** Nothing stopped an agent parking an assembly off-canvas where the user cannot select it. */
+   @Test
+   void moveRejectsNegativeCoordinatesRatherThanHidingTheAssembly() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class),
+                                                 readerReturning(
+         new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), edit("move", "Gauge1", -50, 20), ""));
+
+      assertTrue(thrown.getMessage().contains("-50"), thrown.getMessage());
    }
 
    @Test

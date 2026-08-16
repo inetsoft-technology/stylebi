@@ -33,6 +33,16 @@ public class CommandErrorException extends Exception {
       this.errors = List.copyOf(errors);
    }
 
+   /**
+    * Adds a note to the message while leaving {@link #getErrors()} exactly as the service
+    * reported it — the note is ours, not the composer's, and folding it into the list would make
+    * a caller iterating the errors read it as one.
+    */
+   public CommandErrorException(List<String> errors, String note) {
+      super(String.join("; ", errors) + " — " + note);
+      this.errors = List.copyOf(errors);
+   }
+
    /** The individual error messages, in the order the service reported them. */
    public List<String> getErrors() {
       return Collections.unmodifiableList(errors);

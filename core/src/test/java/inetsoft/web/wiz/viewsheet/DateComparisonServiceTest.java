@@ -61,6 +61,44 @@ class DateComparisonServiceTest {
                                                   null);
    }
 
+   /**
+    * {@code apply} ran {@code periods.setCustom(false)} unconditionally, and {@code validate}
+    * demanded an end anchor on every call. So a caller who only wanted {@code useFacet: true} had
+    * to supply a period anyway, and the call converted an assembly configured with a CUSTOM period
+    * to standard — discarding it with no error and no warning, moments after {@code read} had
+    * happily reported that custom period.
+    */
+   @Test
+   void aNonPeriodChangeNeedsNoEndAnchorAndLeavesThePeriodAlone() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().setCustom(true);
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertTrue(model.getPeriodPaneModel().isCustom(),
+                 "a call that sets no period field must not convert a custom period to standard");
+      assertTrue(model.isUseFacet(), "the change that WAS asked for must still be applied");
+   }
+
+   /** Setting a period over a custom one is refused rather than silently replacing it. */
+   @Test
+   void refusesToReplaceACustomPeriodWithoutSayingSo() {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().setCustom(true);
+      Harness h = harness(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("custom"), thrown.getMessage());
+   }
+
+   private static DateComparisonService.Comparison facetOnly() {
+      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null);
+   }
+
    // ── the recorded defect ───────────────────────────────────────────────────
 
    /**

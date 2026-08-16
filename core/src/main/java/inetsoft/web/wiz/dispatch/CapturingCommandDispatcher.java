@@ -88,7 +88,11 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       MessageContextHolder.setMessageAttributes(messageAttributes);
 
       // Null cluster is deliberate. This service is constructed by hand rather than managed by
-      // Spring, so its @PostConstruct (the only place the cluster is used) never runs, and the
+      // Spring, so its @PostConstruct never runs. The cluster is used elsewhere in that service
+      // (convertAndSendToUser and the session-state paths), so the null is safe for a different
+      // reason than "nothing reads it": every method that would touch it is overridden below to a
+      // no-op, because this dispatcher never transmits. A later change that leans on the wrong
+      // reason would NPE, which is why the right one is written down. The
       // class already guards for a null cluster. Nothing is transmitted through it in any case.
       // Taking Cluster.getInstance() here would make this dispatcher unusable outside a live
       // Spring context for no benefit.

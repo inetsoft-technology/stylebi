@@ -138,6 +138,19 @@ public class DateComparisonService {
 
       boolean hasEnd = comparison.endDate() != null && !comparison.endDate().isBlank();
 
+      // The anchor is only required when the period is actually being set. Demanding it on every
+      // call meant a caller who wanted nothing but useFacet:true had to invent a period, and the
+      // call then rewrote the one already there.
+      if(!setsPeriod(comparison)) {
+         if(hasEnd || comparison.endToday()) {
+            throw new IllegalArgumentException(
+               "An end anchor was given without any period to anchor. Pass 'periods' and 'level' " +
+               "to set the period, or drop 'endDate'/'endToday' to leave it alone.");
+         }
+
+         return;
+      }
+
       if(hasEnd && comparison.endToday()) {
          throw new IllegalArgumentException(
             "'endDate' and 'endToday' cannot both be set. When the range anchors on today the " +
@@ -158,6 +171,15 @@ public class DateComparisonService {
       }
    }
 
+   /** Whether the call asks for any period change at all. */
+   private static boolean setsPeriod(Comparison comparison) {
+      return comparison.periods() != null
+         || comparison.level() != null
+         || (comparison.endDate() != null && !comparison.endDate().isBlank())
+         || comparison.endToday()
+         || comparison.interval() != null;
+   }
+
    private static void apply(DateComparisonPaneModel model, Comparison comparison) {
       if(comparison.useFacet() != null) {
          model.setUseFacet(comparison.useFacet());
@@ -176,6 +198,20 @@ public class DateComparisonService {
       if(periods == null) {
          throw new IllegalArgumentException(
             "This assembly's date comparison has no period pane, so the period cannot be set.");
+      }
+
+      // Nothing period-related was asked for, so the period is left exactly as it is. This block
+      // used to run unconditionally, which is how a call setting only useFacet converted a custom
+      // period to standard and discarded it.
+      if(!setsPeriod(comparison)) {
+         return;
+      }
+
+      if(periods.isCustom()) {
+         throw new IllegalArgumentException(
+            "This assembly uses a custom date-comparison period, and setting a standard period " +
+            "here would discard it with no way back. Clear the comparison first if that is what " +
+            "you want; setting a custom period is not supported by this tool yet.");
       }
 
       periods.setCustom(false);

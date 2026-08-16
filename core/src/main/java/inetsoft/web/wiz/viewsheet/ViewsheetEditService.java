@@ -100,6 +100,9 @@ public class ViewsheetEditService {
    {
       requireAssembly(request);
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      // Nothing else stops an assembly being parked off-canvas, where the user can neither see
+      // nor select it to put it back.
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
@@ -481,18 +484,32 @@ public class ViewsheetEditService {
       List<AssemblyNode> ordered = new ArrayList<>(targets);
       ordered.sort(Comparator.comparingInt(horizontal ? AssemblyNode::x : AssemblyNode::y));
 
-      int first = horizontal ? ordered.get(0).x() : ordered.get(0).y();
+      // Equal GAPS, not equal edges. Spreading the left/top positions evenly looks correct only
+      // when every assembly is the same size; with mixed sizes the visible spacing comes out
+      // uneven, which is neither what Composer's distribute does nor what a caller asking to
+      // "distribute horizontally" means. So the free space between the bounding boxes is what
+      // gets divided.
+      AssemblyNode firstNode = ordered.get(0);
       AssemblyNode lastNode = ordered.get(ordered.size() - 1);
-      int last = horizontal ? lastNode.x() : lastNode.y();
+      int start = horizontal ? firstNode.x() : firstNode.y();
+      int end = horizontal ? lastNode.x() + lastNode.width() : lastNode.y() + lastNode.height();
+      int occupied = ordered.stream()
+         .mapToInt(node -> horizontal ? node.width() : node.height())
+         .sum();
       int gaps = ordered.size() - 1;
+      float gap = (end - start - occupied) / (float) gaps;
       MoveVSObjectEvent[] moves = new MoveVSObjectEvent[ordered.size()];
+      float cursor = start;
 
       for(int i = 0; i < ordered.size(); i++) {
          AssemblyNode node = ordered.get(i);
-         int position = first + Math.round((float) (last - first) * i / gaps);
+         int position = i == 0 ? start
+            : (i == gaps ? end - (horizontal ? node.width() : node.height())
+                         : Math.round(cursor));
          moves[i] = horizontal
             ? move(node.name(), position, node.y())
             : move(node.name(), node.x(), position);
+         cursor = position + (horizontal ? node.width() : node.height()) + gap;
       }
 
       return moves;
@@ -504,6 +521,17 @@ public class ViewsheetEditService {
       event.setxOffset(x);
       event.setyOffset(y);
       return event;
+   }
+
+   private static void requireNonNegative(String op, String firstName, Integer first,
+                                          String secondName, Integer second)
+   {
+      if(first != null && first < 0 || second != null && second < 0) {
+         throw new IllegalArgumentException(
+            "Edit op '" + op + "' needs '" + firstName + "' and '" + secondName +
+            "' to be zero or more, got " + first + " and " + second +
+            ". A negative offset puts the assembly off-canvas, where it cannot be selected.");
+      }
    }
 
    private static void requireAssembly(EditRequest request) {

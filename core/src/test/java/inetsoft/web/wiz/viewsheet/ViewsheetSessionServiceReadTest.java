@@ -68,6 +68,51 @@ class ViewsheetSessionServiceReadTest {
                    () -> service.read("bad", principal(), (rvs, runtimeId, dispatcher) -> null));
    }
 
+   /**
+    * A composer service partially applies before it ERRORs — that is precisely why it ERRORs
+    * instead of throwing. When {@code mutate} let the resulting {@code CommandErrorException}
+    * escape, no checkpoint was taken and no broadcast was sent, so the runtime held a half-applied
+    * edit while the human's Composer kept rendering pre-edit state. The next agent edit then built
+    * on that divergence, and the user's Ctrl+Z had no checkpoint for the partial change.
+    *
+    * <p>So the checkpoint and the broadcast happen either way: the partial edit is real, it
+    * deserves an undo step, and the browser should show what is actually there.
+    */
+   @Test
+   void aFailedMutationStillCheckpointsAndBroadcastsSoTheBrowserMatchesTheRuntime()
+      throws Exception
+   {
+      Harness h = harness();
+
+      assertThrows(Exception.class, () ->
+         h.service.mutate("tok", principal(), (rvs, runtimeId, dispatcher) ->
+            dispatcher.sendCommand(errorCommand())));
+
+      verify(h.rvs).addCheckpoint(any());
+      verify(h.broadcast).broadcastRefresh(any(), any(), anyString(), any(Principal.class));
+   }
+
+   /** The message must say the edit may be half-applied, since the caller cannot tell. */
+   @Test
+   void theFailureSaysTheEditMayBePartiallyApplied() throws Exception {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(Exception.class, () ->
+         h.service.mutate("tok", principal(), (rvs, runtimeId, dispatcher) ->
+            dispatcher.sendCommand(errorCommand())));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("partially applied"),
+                 "got: " + thrown.getMessage());
+   }
+
+   private static inetsoft.web.viewsheet.command.MessageCommand errorCommand() {
+      inetsoft.web.viewsheet.command.MessageCommand command =
+         new inetsoft.web.viewsheet.command.MessageCommand();
+      command.setMessage("dependency cycle");
+      command.setType(inetsoft.web.viewsheet.command.MessageCommand.Type.ERROR);
+      return command;
+   }
+
    private record Harness(ViewsheetSessionService service, RuntimeViewsheet rvs,
                           SheetAgentBroadcastService broadcast) {}
 
