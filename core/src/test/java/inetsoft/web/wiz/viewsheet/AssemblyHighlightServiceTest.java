@@ -246,7 +246,35 @@ class AssemblyHighlightServiceTest {
          (List<Map<String, Object>>) listed.get("highlights");
       assertEquals("HighRevenue", highlights.get(0).get("name"));
       assertEquals(1, ((List<?>) highlights.get(0).get("conditions")).size());
-      assertEquals(List.of("Taken"), listed.get("usedNames"));
+
+      // Both sources, not just the dialog's own array: the highlight that is actually present
+      // has to appear, or the caller is told the name is free and then refused when it uses it.
+      assertEquals(List.of("HighRevenue", "Taken"), listed.get("usedNames"));
+   }
+
+   /**
+    * {@code usedNames} must report a highlight that is present even when the dialog model's own
+    * {@code usedHighlightNames} array is empty — which is what it is on a plain read.
+    *
+    * <p>Found live: an assembly carrying "HighQuantity" reported {@code usedNames: []}, so the
+    * documented way to check ("call list_highlights to see what is taken") said the name was free.
+    * {@link AssemblyHighlightService#set} then refused it, because its duplicate check walks
+    * {@code getHighlights()} instead. The advertised signal and the enforced rule disagreed.
+    */
+   @Test
+   void usedNamesReportsPresentHighlightsWhenTheDialogArrayIsEmpty() throws Exception {
+      Harness h = harness(model());
+      h.service.set("tok", principal(), "Table1", null, highlight("HighRevenue"), false, "");
+      HighlightDialogModel posted = capture(h.highlights);
+      posted.setUsedHighlightNames(null);
+      when(h.highlights.getHighlightDialogModel(anyString(), anyString(), any(), any(), any(),
+                                                anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(posted);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Table1", null);
+
+      assertEquals(List.of("HighRevenue"), listed.get("usedNames"),
+                   "a highlight that set() would refuse must show as taken");
    }
 
    /**

@@ -106,8 +106,7 @@ public class AssemblyHighlightService {
       }
 
       out.put("highlights", highlights);
-      out.put("usedNames", model.getUsedHighlightNames() == null
-         ? List.of() : Arrays.asList(model.getUsedHighlightNames()));
+      out.put("usedNames", usedNames(model));
       out.put("fields", fieldNames(model));
       out.put("appliesToRow", model.isShowRow());
       return out;
@@ -274,6 +273,42 @@ public class AssemblyHighlightService {
       return highlightService.getHighlightDialogModel(runtimeId, assemblyName, target.row(),
                                                       target.col(), target.colName(),
                                                       target.axis(), target.text(), user);
+   }
+
+   /**
+    * The highlight names already taken on this assembly.
+    *
+    * <p>Derived from the highlights themselves, not from {@code getUsedHighlightNames()} alone.
+    * That array is populated by the dialog for its own editing flow and comes back empty on a plain
+    * read, so an assembly carrying a highlight reported {@code usedNames: []} — while
+    * {@link #set} refused that very name, because its duplicate check walks {@code getHighlights()}.
+    * A caller told to "call list_highlights to see what is taken" was therefore told the wrong
+    * thing, then refused. Both answers now come from the same place.
+    *
+    * <p>The dialog's own array is still unioned in: it is authoritative for names reserved outside
+    * the highlights currently on this region, and dropping it would trade one gap for another.
+    */
+   private static List<String> usedNames(HighlightDialogModel model) {
+      // Case-insensitively deduplicated, because set()'s refusal compares that way.
+      Map<String, String> byLower = new LinkedHashMap<>();
+
+      if(model.getHighlights() != null) {
+         for(HighlightModel highlight : model.getHighlights()) {
+            if(highlight != null && highlight.getName() != null) {
+               byLower.putIfAbsent(highlight.getName().toLowerCase(), highlight.getName());
+            }
+         }
+      }
+
+      if(model.getUsedHighlightNames() != null) {
+         for(String name : model.getUsedHighlightNames()) {
+            if(name != null) {
+               byLower.putIfAbsent(name.toLowerCase(), name);
+            }
+         }
+      }
+
+      return new ArrayList<>(byLower.values());
    }
 
    private static List<String> fieldNames(HighlightDialogModel model) {
