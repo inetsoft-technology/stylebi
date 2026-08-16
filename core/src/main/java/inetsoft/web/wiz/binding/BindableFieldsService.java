@@ -17,7 +17,8 @@
  */
 package inetsoft.web.wiz.binding;
 
-import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.binding.model.BindableField;
@@ -50,38 +51,143 @@ public class BindableFieldsService {
       List<BindableTable> tables = new ArrayList<>();
 
       if(root != null) {
-         collect(root, tables);
+         collect(root, tables, null);
       }
 
       return tables;
    }
 
    /**
-    * A node with leaf children is a table; anything else is a folder to descend into. Keeping
-    * the rule structural rather than depth-based means the projection does not care how
-    * deeply the Composer nests its tree.
+    * One group per source table, holding every column beneath it.
+    *
+    * <p>The Composer's tree is {@code TABLE -> Dimensions/Measures folder -> COLUMN}, so collecting
+    * a group per node-that-holds-columns produced <em>two</em> groups per table. That was tolerable
+    * only while they were named after the folders; once they are named after the table, it yields
+    * two entries with the same name whose only distinguishing feature was the label just replaced.
+    * A caller keying by table name -- the natural move -- silently keeps one and drops half the
+    * columns. So a table absorbs all of its descendants into a single group.
+    *
+    * <p>{@code sourceName} is the nearest enclosing table, carried down for the shapes that have no
+    * table ancestor at all.
     */
-   private void collect(TreeNodeModel node, List<BindableTable> tables) {
-      List<BindableField> fields = new ArrayList<>();
+   private void collect(TreeNodeModel node, List<BindableTable> tables, String sourceName) {
+      if(isTable(node)) {
+         List<BindableField> fields = new ArrayList<>();
+         gather(node, fields);
+
+         if(!fields.isEmpty()) {
+            tables.add(new BindableTable(node.label(), fields));
+         }
+
+         return;
+      }
+
+      List<BindableField> direct = new ArrayList<>();
 
       for(TreeNodeModel child : node.children()) {
          if(child.leaf()) {
-            fields.add(new BindableField(child.label(), dataTypeOf(child), null));
+            direct.add(fieldOf(child));
          }
          else {
-            collect(child, tables);
+            collect(child, tables, sourceName);
          }
       }
 
-      if(!fields.isEmpty()) {
-         tables.add(new BindableTable(node.label(), fields));
+      // No table ancestor: name the group after the node that holds the columns. That is the
+      // pre-fix behaviour, and for the Composer's own tree it is the *bug* being fixed here -- a
+      // group called "Dimensions". It survives only as a floor for tree shapes this does not
+      // anticipate, where a wrong-but-present name beats a blank one.
+      if(!direct.isEmpty()) {
+         tables.add(new BindableTable(sourceName != null ? sourceName : node.label(), direct));
       }
    }
 
-   /** A column node carries its {@link DataRefModel} in {@code data()}. */
-   private String dataTypeOf(TreeNodeModel node) {
-      return node.data() instanceof DataRefModel ref ? ref.getDataType() : null;
+   /** Every column at or below this node, however deeply the Composer nests them. */
+   private void gather(TreeNodeModel node, List<BindableField> out) {
+      for(TreeNodeModel child : node.children()) {
+         if(child.leaf()) {
+            out.add(fieldOf(child));
+         }
+         else {
+            gather(child, out);
+         }
+      }
    }
+
+   private BindableField fieldOf(TreeNodeModel node) {
+      return new BindableField(node.label(), dataTypeOf(node), roleOf(node));
+   }
+
+   /** Whether this node IS a source table, as opposed to a folder grouping one's columns. */
+   private boolean isTable(TreeNodeModel node) {
+      if(!(node.data() instanceof AssetEntry entry)) {
+         return false;
+      }
+
+      AssetEntry.Type type = entry.getType();
+
+      return type == AssetEntry.Type.TABLE || type == AssetEntry.Type.PHYSICAL_TABLE ||
+         type == AssetEntry.Type.QUERY || type == AssetEntry.Type.LOGIC_MODEL;
+   }
+
+   /**
+    * The column's data type.
+    *
+    * <p>Read from the {@link AssetEntry}'s {@code dtype} property, which is where the rest of the
+    * codebase reads it from ({@code Viewsheet}, {@code VSEventUtil}, {@code JDBCUtil}). This
+    * previously tested for a {@code DataRefModel}, which the tree never carries: {@code
+    * VSTreeHandler.createNodeFromEntry} builds every node with {@code .data(entry)}. The branch
+    * could not match, so every column reported a null type while the tool's description promised
+    * one.
+    */
+   private String dataTypeOf(TreeNodeModel node) {
+      return node.data() instanceof AssetEntry entry ? entry.getProperty("dtype") : null;
+   }
+
+   /**
+    * "dimension" or "measure".
+    *
+    * <p>Every binding tool downstream requires an explicit {@code type} of dimension or measure per
+    * field, and this is the tool a caller is told to run first -- so omitting the distinction here
+    * forces them to guess it from the column name. It was previously hardcoded null on the grounds
+    * that the tree does not carry it. It does: {@link AssetEntry#CUBE_COL_TYPE}, set alongside the
+    * {@code dtype} property this class already reads.
+    *
+    * <p>The property has <b>three</b> states, not two. {@code BaseTreeModelBuilder} writes
+    * {@code type == -1 ? "" : type + ""}, so a column can carry it <em>present but empty</em> --
+    * and it does for every column of a table VS assembly, which is a tree this tool reads. Empty
+    * means "not stated", the case the data-type fallback exists for, so blank is treated as absent
+    * rather than as a parse failure.
+    *
+    * <p>The classification follows {@code VSChartBindingHandler.isDimension} -- same bit test, same
+    * data-type fallback -- but deliberately not its exact behaviour on that empty value, where it
+    * would throw {@code NumberFormatException}. Falling through to the fallback is the answer the
+    * column deserves; matching the handler there would only reproduce a latent bug.
+    */
+   private String roleOf(TreeNodeModel node) {
+      if(!(node.data() instanceof AssetEntry entry)) {
+         return null;
+      }
+
+      String cubeColType = entry.getProperty(AssetEntry.CUBE_COL_TYPE);
+
+      if(cubeColType != null && !cubeColType.isBlank()) {
+         try {
+            return (Integer.parseInt(cubeColType) & AssetEntry.MEASURES) == 0 ? DIMENSION : MEASURE;
+         }
+         catch(NumberFormatException ex) {
+            // Not a number: unstated, so fall through to the data type rather than give up. A
+            // `return null` here would swallow the fallback for exactly the columns that need it.
+         }
+      }
+
+      String dtype = entry.getProperty("dtype");
+
+      return dtype == null ? null : XSchema.isNumericType(dtype) ? MEASURE : DIMENSION;
+   }
+
+   private static final String DIMENSION = "dimension";
+   private static final String MEASURE = "measure";
 
    private final VSBindingTreeService tree;
 }

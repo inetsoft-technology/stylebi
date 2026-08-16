@@ -17,5 +17,12 @@
  */
 package inetsoft.web.wiz.binding.model;
 
-/** One bindable column. {@code role} is "dimension", "measure", or null when the tree does not say. */
+/**
+ * One bindable column.
+ *
+ * <p>{@code role} is "dimension" or "measure" -- the distinction every binding tool then requires
+ * as a mandatory {@code type} per field. It was hardcoded {@code null} at its only construction
+ * site, on the mistaken belief that the tree did not carry it; it does, in
+ * {@link inetsoft.uql.asset.AssetEntry#CUBE_COL_TYPE}. Null now means genuinely unknown.
+ */
 public record BindableField(String column, String dataType, String role) {}
