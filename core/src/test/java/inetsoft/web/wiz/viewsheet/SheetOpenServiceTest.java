@@ -24,11 +24,14 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 
@@ -48,6 +51,12 @@ class SheetOpenServiceTest {
     */
    private static final String OWNER = "alice~;~host-org";
    private static final String SOCKET_USER = "alice-browser";
+
+   /**
+    * Populated by {@code serviceWithBase} so tests can verify the broadcast the happy path sends
+    * to the browser, without threading a mock through every call site.
+    */
+   private SheetAgentBroadcastService broadcast;
 
    /**
     * Necessarily equal to {@link #OWNER}: {@code SheetSessionService.resolve} refuses a session
@@ -127,18 +136,49 @@ class SheetOpenServiceTest {
       assertTrue(thrown.getMessage().toLowerCase().contains("re-pair"), thrown.getMessage());
    }
 
+   /**
+    * The single most important assertion in this feature. Without the viewsheet session's socket
+    * identifiers on the new grant, the agent's worksheet edits never broadcast and the user
+    * watches a stale sheet -- the divergence failure the consolidation existed to remove.
+    */
+   @Test
+   void theNewSessionCarriesTheViewsheetSessionsSocketIdentifiers() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal());
+
+      assertEquals("sock-1", opened.socketSessionId());
+      assertEquals(SOCKET_USER, opened.socketUserName());
+      assertEquals(SheetType.WORKSHEET, opened.sheetType());
+   }
+
+   @Test
+   void pushesAnOpenCommandCarryingTheServerCreatedRuntimeId() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToBrowser(eq(SOCKET_USER), eq("sock-1"), anyString(),
+                                       command.capture());
+
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals("ws-runtime-1", sent.runtimeId(), "the browser must attach, not open its own");
+      assertFalse(sent.viewsheet());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    /** The four-guard helper. Defaults the viewsheet session's socketSessionId to {@code "sock-1"}. */
-   private static SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
-                                                     String heldWorksheetRuntimeId)
+   private SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
+                                             String heldWorksheetRuntimeId)
    {
       return serviceWithBase(base, hasPermission, heldWorksheetRuntimeId, "sock-1");
    }
 
-   private static SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
-                                                     String heldWorksheetRuntimeId,
-                                                     String socketSessionId)
+   private SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
+                                             String heldWorksheetRuntimeId,
+                                             String socketSessionId)
    {
       try {
          Viewsheet vs = mock(Viewsheet.class);
@@ -167,14 +207,29 @@ class SheetOpenServiceTest {
          when(sheetSessions.findOpen(OWNER, SheetType.WORKSHEET)).thenReturn(held);
 
          WorksheetService worksheetService = mock(WorksheetService.class);
+         when(worksheetService.openWorksheet(any(AssetEntry.class), any(Principal.class)))
+            .thenReturn("ws-runtime-1");
 
          SecurityProvider securityProvider = mock(SecurityProvider.class);
          when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.WORKSHEET),
                                                 eq("*"), eq(ResourceAction.ACCESS)))
             .thenReturn(hasPermission);
 
+         // The new worksheet session must carry the viewsheet session's socket identifiers, not
+         // the agent's principal -- stubbed argument-specific so a call with the wrong identity
+         // returns null and the happy-path tests fail loudly.
+         JoinSession newWsSession = new JoinSession(
+            "tok-ws-new", "ws-runtime-1", OWNER, SheetType.WORKSHEET, 0L,
+            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+            socketSessionId, SOCKET_USER);
+         when(sheetSessions.open(eq("ws-runtime-1"), eq(OWNER), eq(SheetType.WORKSHEET),
+                                 eq(socketSessionId), eq(SOCKET_USER)))
+            .thenReturn(newWsSession);
+
+         broadcast = mock(SheetAgentBroadcastService.class);
+
          return new SheetOpenService(viewsheetSessions, sheetSessions, worksheetService,
-                                      securityProvider);
+                                      securityProvider, broadcast);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);

@@ -24,7 +24,9 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,9 +44,10 @@ import java.security.Principal;
  * is wrong (the actual base type, the held runtime id, the tool to call next) so that an agent
  * that hits one can act on it rather than retry the same call.
  *
- * <p>The happy path — actually opening the worksheet runtime, minting a paired session for it, and
- * telling the browser to attach — is not implemented here yet; see the class-level TODO on
- * {@link #openBaseWorksheet}.
+ * <p>The happy path opens the worksheet runtime server-side, mints a paired session for it that
+ * carries the <b>viewsheet</b> session's socket identifiers (not the agent's), and pushes an
+ * {@link OpenComposerAssetCommand} carrying the new runtime id so the browser attaches to the
+ * runtime the server just created instead of opening a second one of its own.
  */
 @Service
 public class SheetOpenService {
@@ -52,12 +55,14 @@ public class SheetOpenService {
    public SheetOpenService(ViewsheetSessionService viewsheetSessions,
                             SheetSessionService sheetSessions,
                             WorksheetService worksheetService,
-                            SecurityProvider securityProvider)
+                            SecurityProvider securityProvider,
+                            SheetAgentBroadcastService broadcast)
    {
       this.viewsheetSessions = viewsheetSessions;
       this.sheetSessions = sheetSessions;
       this.worksheetService = worksheetService;
       this.securityProvider = securityProvider;
+      this.broadcast = broadcast;
    }
 
    /**
@@ -106,14 +111,28 @@ public class SheetOpenService {
             "open_base_worksheet.");
       }
 
-      // TODO(Task 2): open the worksheet runtime (worksheetService.openWorksheet), mint+join a
-      // session carrying vsSession's socketSessionId/socketUserName, broadcast an
-      // OpenComposerAssetCommand carrying the new runtime id, and return the new session.
-      throw new UnsupportedOperationException("not yet implemented");
+      String runtimeId = worksheetService.openWorksheet(baseEntry, user);
+
+      JoinSession wsSession = sheetSessions.open(runtimeId, vsSession.ownerIdentity(),
+                                                  SheetType.WORKSHEET,
+                                                  vsSession.socketSessionId(),
+                                                  vsSession.socketUserName());
+
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         .assetId(baseEntry.toIdentifier())
+         .viewsheet(false)
+         .runtimeId(runtimeId)
+         .build();
+
+      broadcast.sendToBrowser(vsSession.socketUserName(), vsSession.socketSessionId(), runtimeId,
+                              command);
+
+      return wsSession;
    }
 
    private final ViewsheetSessionService viewsheetSessions;
    private final SheetSessionService sheetSessions;
    private final WorksheetService worksheetService;
    private final SecurityProvider securityProvider;
+   private final SheetAgentBroadcastService broadcast;
 }

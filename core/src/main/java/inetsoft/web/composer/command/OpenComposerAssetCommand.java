@@ -49,6 +49,15 @@ public abstract class OpenComposerAssetCommand {
       return -1;
    }
 
+   /**
+    * The server-opened runtime id to attach to, or {@code null} for the normal flow where the
+    * browser opens its own runtime. Set when an agent tool (e.g. {@code open_base_worksheet})
+    * already opened the runtime server-side -- the browser must attach to that runtime instead
+    * of opening a second one of the same asset.
+    */
+   @Nullable
+   public abstract String runtimeId();
+
    public static Builder builder() {
       return new Builder();
    }

@@ -202,15 +202,28 @@ public class SheetAgentBroadcastService {
    }
 
    private void sendCommand(String user, String sessionId, String runtimeId, Object command) {
+      sendToBrowser(user, sessionId, runtimeId, command);
+   }
+
+   /**
+    * Push one command to the browser holding a paired session.
+    *
+    * <p>Public because opening the base worksheet has to reach the same browser as a refresh
+    * does, with the same headers, but is not a refresh. The private {@code sendCommand} delegates
+    * here.
+    */
+   public void sendToBrowser(String socketUserName, String socketSessionId, String runtimeId,
+                             Object command)
+   {
       SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create();
-      headers.setSessionId(sessionId);
+      headers.setSessionId(socketSessionId);
       headers.setLeaveMutable(true);
       headers.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, runtimeId);
       headers.setNativeHeader(CommandDispatcher.COMMAND_TYPE_HEADER,
                               resolveCommandType(command));
 
       commandDispatcherService.convertAndSendToUser(
-         user, CommandDispatcher.COMMANDS_TOPIC, command, headers.getMessageHeaders());
+         socketUserName, CommandDispatcher.COMMANDS_TOPIC, command, headers.getMessageHeaders());
    }
 
    private Object buildCommand(SheetType sheetType, RuntimeSheet rs, Principal owner) {
