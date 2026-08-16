@@ -763,6 +763,12 @@ describe("ComposerMainComponent — openWorksheet: runtimeId (open_base_workshee
 
    // 🔁 Regression-sensitive: the ordinary "new worksheet, no server runtime" path must keep
    // closeOnServer=true, or the browser-owned runtime would leak on the server after tab close.
+   //
+   // ⚠️ The closeOnServer assertion alone is NOT a guard on this path: Sheet defaults it to true
+   // (sheet.ts:42), so deleting the branch's assignment entirely leaves this green — a reviewer
+   // proved that. The runtimeId assertion is what makes the test load-bearing here, because the
+   // base class leaves runtimeId undefined and only the branch's assignment makes it null.
+   // Keep both, and keep them in this order.
    it("should create its own runtime and set closeOnServer=true when no runtimeId is given", async () => {
       const { comp } = await renderComponent();
 
@@ -770,6 +776,7 @@ describe("ComposerMainComponent — openWorksheet: runtimeId (open_base_workshee
 
       const ws = comp.sheets.find(s => s.id === "wsId2") as Worksheet;
       expect(ws).toBeTruthy();
+      // Assigned by the branch, not inherited: Sheet leaves this undefined.
       expect(ws.runtimeId).toBeNull();
       expect(ws.closeOnServer).toBe(true);
    });
