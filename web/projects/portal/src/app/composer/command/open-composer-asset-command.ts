@@ -26,4 +26,5 @@ export interface OpenComposerAssetCommand {
    baseDataSource?: string;
    baseDataSourceType?: number;
    parentId?: string;
+   runtimeId?: string;
 }

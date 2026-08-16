@@ -66,7 +66,8 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyHighlightService highlightService,
                                    DateComparisonService comparisonService,
                                    ViewsheetService viewsheetService,
-                                   SheetAgentBroadcastService broadcast)
+                                   SheetAgentBroadcastService broadcast,
+                                   SheetOpenService openService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -86,6 +87,7 @@ public class ViewsheetAssemblyAgentController {
       this.comparisonService = comparisonService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
+      this.openService = openService;
    }
 
    public record JoinRequest(String code) {}
@@ -102,6 +104,22 @@ public class ViewsheetAssemblyAgentController {
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
       requireEnabled();
       JoinSession session = joinService.join(body.code(), user);
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase());
+   }
+
+   /**
+    * Opens the base worksheet of the viewsheet paired to {@code sessionToken} and pairs a new
+    * session for it. {@link SheetOpenService} performs every guard and the browser broadcast;
+    * this endpoint only translates its {@link JoinSession} into the same join shape {@link #join}
+    * returns, with {@code sheetType} read off the session rather than assumed by the caller.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/open-base-worksheet")
+   public JoinResponse openBaseWorksheet(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      JoinSession session = openService.openBaseWorksheet(sessionToken, user);
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase());
    }
@@ -685,4 +703,5 @@ public class ViewsheetAssemblyAgentController {
    private final DateComparisonService comparisonService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
+   private final SheetOpenService openService;
 }

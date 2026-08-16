@@ -115,4 +115,33 @@ class SheetSessionServiceTest {
       svc.close(token);
       assertNull(svc.resolve(token, "carol~;~org"));
    }
+
+   @Test
+   void findOpenReturnsTheMatchingSessionForOwnerAndType() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("rt-6", "dave~;~org", SheetType.WORKSHEET, null, null);
+
+      JoinSession found = svc.findOpen("dave~;~org", SheetType.WORKSHEET);
+
+      assertNotNull(found);
+      assertEquals(session.sessionToken(), found.sessionToken());
+   }
+
+   @Test
+   void findOpenIgnoresWrongTypeWrongOwnerAndExpiredSessions() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      svc.open("rt-7", "erin~;~org", SheetType.VIEWSHEET, null, null);
+      svc.open("rt-8", "frank~;~org", SheetType.WORKSHEET, null, null);
+
+      assertNull(svc.findOpen("erin~;~org", SheetType.WORKSHEET),
+                 "same owner but a viewsheet session should not satisfy a worksheet lookup");
+      assertNull(svc.findOpen("frank~;~org", SheetType.VIEWSHEET),
+                 "same owner but a worksheet session should not satisfy a viewsheet lookup");
+      assertNull(svc.findOpen("nobody~;~org", SheetType.WORKSHEET));
+
+      SheetSessionService svcLater = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
+      assertNull(svcLater.findOpen("frank~;~org", SheetType.WORKSHEET),
+                 "an expired session must not be reported as held");
+   }
 }

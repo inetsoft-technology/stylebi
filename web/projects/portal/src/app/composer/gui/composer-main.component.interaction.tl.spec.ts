@@ -46,6 +46,9 @@
  *   Group 14 [baseline] — copySheet/cutSheet delegate to clipboardService.addToClipboard
  *   Group 15 [baseline] — onTabClick: sets selectedTab; setGrayedOutFields / toggleImportDialog
  *   Group 16 [Risk 2]  — closePreview: focus returns to parent VS after preview closed (Bug #19612)
+ *   Group 17 [Risk 3]  — openWorksheet: runtimeId → attaches to a server-provided runtime
+ *                         (closeOnServer=false); no runtimeId → new runtime (closeOnServer=true)
+ *                         (open_base_worksheet Task 4)
  *
  * Confirmed bugs (it.fails): none in this pass
  *
@@ -735,5 +738,46 @@ describe("ComposerMainComponent — closePreview: parent focus (Bug #19612)", ()
 
       expect(comp.sheets).toHaveLength(1);
       expect(comp.openedTabs).toHaveLength(1);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 17: openWorksheet — runtimeId attach (open_base_worksheet Task 4) (Risk 3)
+// ---------------------------------------------------------------------------
+
+describe("ComposerMainComponent — openWorksheet: runtimeId (open_base_worksheet Task 4)", () => {
+   // 🔁 Regression-sensitive: when the server has already created and paired a runtime (e.g. an
+   // agent editing session), the browser must attach to it rather than opening a second runtime,
+   // and must NOT close that runtime when its tab closes — closeOnServer=true here would kill the
+   // agent's paired session out from under it the moment the user closes the tab.
+   it("should attach to a server-provided runtime and set closeOnServer=false", async () => {
+      const { comp } = await renderComponent();
+
+      comp.openWorksheet("wsId", false, "server-rt-001");
+
+      const ws = comp.sheets.find(s => s.id === "wsId") as Worksheet;
+      expect(ws).toBeTruthy();
+      expect(ws.runtimeId).toBe("server-rt-001");
+      expect(ws.closeOnServer).toBe(false);
+   });
+
+   // 🔁 Regression-sensitive: the ordinary "new worksheet, no server runtime" path must keep
+   // closeOnServer=true, or the browser-owned runtime would leak on the server after tab close.
+   //
+   // ⚠️ The closeOnServer assertion alone is NOT a guard on this path: Sheet defaults it to true
+   // (sheet.ts:42), so deleting the branch's assignment entirely leaves this green — a reviewer
+   // proved that. The runtimeId assertion is what makes the test load-bearing here, because the
+   // base class leaves runtimeId undefined and only the branch's assignment makes it null.
+   // Keep both, and keep them in this order.
+   it("should create its own runtime and set closeOnServer=true when no runtimeId is given", async () => {
+      const { comp } = await renderComponent();
+
+      comp.openWorksheet("wsId2");
+
+      const ws = comp.sheets.find(s => s.id === "wsId2") as Worksheet;
+      expect(ws).toBeTruthy();
+      // Assigned by the branch, not inherited: Sheet leaves this undefined.
+      expect(ws.runtimeId).toBeNull();
+      expect(ws.closeOnServer).toBe(true);
    });
 });
