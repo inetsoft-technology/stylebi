@@ -38,6 +38,26 @@ import static org.mockito.Mockito.*;
 
 @Tag("core")
 class SheetOpenServiceTest {
+   /**
+    * Three identities, deliberately different.
+    *
+    * <p>The session's {@code ownerIdentity}, the browser's socket user name, and the agent's own
+    * principal name are separate concepts that happen to coincide in practice. Holding them apart
+    * here is what lets these tests prove <em>which</em> one each guard keys on: with all three set
+    * to the same string, a lookup on the wrong one still passes.
+    */
+   private static final String OWNER = "alice~;~host-org";
+   private static final String SOCKET_USER = "alice-browser";
+
+   /**
+    * Necessarily equal to {@link #OWNER}: {@code SheetSessionService.resolve} refuses a session
+    * whose {@code ownerIdentity} differs from the agent's identity, so a session where these two
+    * differ cannot exist. A review asked for distinct values here to prove which one the
+    * already-held guard keys on; that is not constructible, so the argument-specific stub in
+    * {@code serviceWithBase} carries that proof instead.
+    */
+   private static final String PRINCIPAL_NAME = OWNER;
+
    @Test
    void refusesWhenTheViewsheetHasNoBaseWorksheet() {
       SheetOpenService service = serviceWithBase(null, true, null);
@@ -88,6 +108,9 @@ class SheetOpenServiceTest {
 
       assertTrue(thrown.getMessage().contains("ws-existing"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("detach_sheet"), thrown.getMessage());
+      // WHICH identity the lookup keys on is pinned by the helper's stub, which is argument-
+      // specific: findOpen is stubbed for OWNER alone, so a call with any other value returns
+      // null, the guard does not fire, and this test fails with no exception thrown.
    }
 
    /**
@@ -125,9 +148,9 @@ class SheetOpenServiceTest {
          when(rvs.getViewsheet()).thenReturn(vs);
 
          JoinSession vsSession = new JoinSession(
-            "tok-vs", "vs-runtime-1", "alice", SheetType.VIEWSHEET, 0L,
+            "tok-vs", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
             SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-            socketSessionId, "alice");
+            socketSessionId, SOCKET_USER);
 
          ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
          when(viewsheetSessions.requireSession(anyString(), any(Principal.class)))
@@ -136,9 +159,12 @@ class SheetOpenServiceTest {
 
          SheetSessionService sheetSessions = mock(SheetSessionService.class);
          JoinSession held = heldWorksheetRuntimeId == null ? null : new JoinSession(
-            "tok-ws-held", heldWorksheetRuntimeId, "alice", SheetType.WORKSHEET, 0L,
-            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, "sock-1", "alice");
-         when(sheetSessions.findOpen("alice", SheetType.WORKSHEET)).thenReturn(held);
+            "tok-ws-held", heldWorksheetRuntimeId, OWNER, SheetType.WORKSHEET, 0L,
+            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, "sock-1", SOCKET_USER);
+         // Stubbed for OWNER only. If the guard ever keys the lookup on the agent's principal name
+         // instead of the session's ownerIdentity, this returns null and the test fails -- which is
+         // the point of keeping the two values distinct.
+         when(sheetSessions.findOpen(OWNER, SheetType.WORKSHEET)).thenReturn(held);
 
          WorksheetService worksheetService = mock(WorksheetService.class);
 
@@ -163,6 +189,6 @@ class SheetOpenServiceTest {
    }
 
    private static Principal principal() {
-      return () -> "alice";
+      return () -> PRINCIPAL_NAME;
    }
 }
