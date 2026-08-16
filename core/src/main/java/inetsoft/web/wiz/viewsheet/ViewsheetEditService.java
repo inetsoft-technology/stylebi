@@ -374,7 +374,20 @@ public class ViewsheetEditService {
       requireValues(request.op(), "x", request.x(), "y", request.y());
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireExisting(rvs, request.assembly());
+         AssemblyNode current = requireExisting(rvs, request.assembly());
+
+         // 'container' was accepted and never read -- the Composer service infers the parent from
+         // the assembly, so naming the wrong container, or one the assembly is not in, returned
+         // ok. Checking it makes the parameter mean something instead of being decoration.
+         if(request.container() != null && !request.container().isBlank() &&
+            !request.container().equals(current.container()))
+         {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is not in container '" + request.container() +
+               "'. It is " + (current.container() == null
+                  ? "not in any container" : "in '" + current.container() + "'") +
+               ". Omit 'container' to move it out of whichever container it is in.");
+         }
 
          MoveVSObjectEvent event = new MoveVSObjectEvent();
          event.setName(request.assembly());

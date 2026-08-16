@@ -310,6 +310,45 @@ class ViewsheetEditServiceTest {
       assertTrue(thrown.getMessage().contains("-50"), thrown.getMessage());
    }
 
+   /**
+    * {@code container} was in the tool schema and in {@code EditRequest}, and nothing read it:
+    * {@code moveFromContainer} builds the event from name/x/y and lets the Composer infer the
+    * parent. So an agent could name the wrong container, or one the assembly is not in, and get
+    * {@code ok: true} — the accepted-and-ignored shape CLAUDE.md calls out by name.
+    */
+   @Test
+   void moveFromContainerRefusesAContainerTheAssemblyIsNotIn() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class),
+                                                 readerReturning(
+         new AssemblyNode("Text1", "Text", 10, 10, 100, 20, 0, "Group1", true)));
+      EditRequest request = new EditRequest("move_from_container", "Text1", 20, 30, null, null,
+                                            null, null, null, "SomeOtherGroup", null, null,
+                                            null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.apply("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("SomeOtherGroup"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Group1"),
+                 "the message must name the container it is actually in, got: " +
+                 thrown.getMessage());
+   }
+
+   /** Naming the right container is accepted, so the parameter is worth passing. */
+   @Test
+   void moveFromContainerAcceptsTheContainerTheAssemblyIsActuallyIn() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Text1", "Text", 10, 10, 100, 20, 0, "Group1", true)));
+      EditRequest request = new EditRequest("move_from_container", "Text1", 20, 30, null, null,
+                                            null, null, null, "Group1", null, null, null, null);
+
+      service.apply("tok", principal(), request, "");
+
+      verify(objects).moveFromContainer(eq("rt1"), any(), any(Principal.class), any(),
+                                        anyString());
+   }
+
    @Test
    void alignRejectsAnUnknownAxis() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
