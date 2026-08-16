@@ -233,8 +233,12 @@ public class AssemblyPropertyService {
             resolved.put(key, PropertyAliases.resolve(type, key));
          }
 
+         // PropertyPath.set returns the root the caller must keep using: if a future alias
+         // ever targets a direct top-level field of an Immutables dialog model (no nested pane
+         // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
+         // instance and the original reference silently stops reflecting the write.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
-            PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
+            model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);

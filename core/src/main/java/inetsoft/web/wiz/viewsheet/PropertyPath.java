@@ -54,18 +54,30 @@ public final class PropertyPath {
    }
 
    /**
-    * Writes a dotted path.
+    * Writes a dotted path, and returns the root the caller must keep using afterward.
     *
     * <p>An absent intermediate is an error rather than something to instantiate: the dialog
     * models are populated by the composer service, so a null pane means the property does not
     * apply to this assembly, and filling one in would fabricate a shape the service never
     * produced.
+    *
+    * <p><b>The return value matters whenever the root itself is immutable.</b> Every other
+    * Immutables case this class handles nests the immutable level under a mutable holder, so a
+    * rebuilt child always has somewhere mutable to be written back into and {@code root} itself
+    * never changes identity. But a single-segment path directly on an immutable root — the
+    * viewsheet-level dialog model's own {@code width}/{@code height}/{@code preview} — has no
+    * such holder: the wither produces a genuinely new instance, and nothing above the root
+    * exists to absorb it. Returning {@code root} unconditionally would silently drop that write,
+    * which is exactly the defect this class exists to avoid. A caller that ignores the return
+    * value and keeps the original reference reproduces that defect regardless.
     */
-   public static void set(Object root, String path, Object value) {
+   public static Object set(Object root, String path, Object value) {
       REBUILT_CHILD.remove();
 
       try {
          writeInto(root, segments(path), 0, path, value);
+         Object rebuilt = REBUILT_CHILD.get();
+         return rebuilt != null ? rebuilt : root;
       }
       finally {
          REBUILT_CHILD.remove();
