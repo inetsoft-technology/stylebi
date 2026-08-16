@@ -59,11 +59,109 @@ class PropertyAliasesTest {
 
          for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
             assertFalse(alias.getValue().isBlank(), alias.getKey() + " maps to nothing");
+
+            // The viewsheet's own dialog model has genuine top-level scalar fields --
+            // width, height, preview, filtersPane, localizationPane -- unlike every assembly
+            // dialog model, which always nests behind at least one general pane. A bare path
+            // is the honest alias there, not a self-referential shortcut around real nesting.
+            if(type.equals("viewsheet")) {
+               continue;
+            }
+
             assertTrue(alias.getValue().contains("."),
                        alias.getKey() + " maps to '" + alias.getValue() + "', which is not a " +
                        "model path — an alias must name a real nested field");
          }
       }
+   }
+
+   // ── viewsheet vocabulary (vs-level properties) ────────────────────────────
+
+   @Test
+   void exposesTheViewsheetVocabulary() {
+      for(String alias : java.util.List.of("alias", "desc", "maxRows", "snapGrid",
+                                           "filtersPane", "localizationPane", "width", "height",
+                                           "preview"))
+      {
+         assertTrue(PropertyAliases.forType("viewsheet").aliases().containsKey(alias),
+                    "viewsheet should expose '" + alias + "'");
+      }
+   }
+
+   /**
+    * {@code vsScriptPane} is deliberately not part of the enumerated vocabulary at all --
+    * reading it is still possible through a raw model dump, but it is never offered as a named
+    * "property" a caller might reasonably try to set.
+    */
+   @Test
+   void theViewsheetVocabularyNamesNoScriptKey() {
+      for(String alias : PropertyAliases.forType("viewsheet").aliases().keySet()) {
+         assertFalse(alias.toLowerCase().contains("script"),
+                     "'" + alias + "' should not be part of the enumerated vocabulary");
+      }
+   }
+
+   @Test
+   void aliasIsWritableOnAViewsheet() {
+      assertEquals("vsOptionsPane.alias", PropertyAliases.resolveForWrite("viewsheet", "alias"));
+   }
+
+   /**
+    * {@code vsScriptPane} carries onInit/onLoad script. Writing it through a properties patch
+    * would be a second, ungoverned path to authoring viewsheet script that routes around the
+    * (unbuilt) script-kind taxonomy. The refusal names the field and points at the tool that
+    * does own writing script.
+    */
+   @Test
+   void refusesToWriteTheScriptPaneAndPointsAtUpdateScript() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("viewsheet", "vsScriptPane"));
+
+      assertTrue(thrown.getMessage().contains("vsScriptPane"));
+      assertTrue(thrown.getMessage().contains("update_script"));
+   }
+
+   /** The raw-path escape hatch must not reach the script pane under a different spelling. */
+   @Test
+   void refusesTheScriptPaneEvenAsARawDottedPath() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("viewsheet", "vsScriptPane.onInit"));
+
+      assertTrue(thrown.getMessage().contains("update_script"));
+   }
+
+   /**
+    * {@code filtersPane} and {@code localizationPane} are readable (they are in the vocabulary
+    * above) but not writable in v1: their entries are relational to other assemblies in the
+    * sheet (filter ids keyed to selection assemblies, localization keyed to the component
+    * tree), not a simple scalar {@code info.setX}.
+    */
+   @Test
+   void refusesToWriteFiltersPane() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("viewsheet", "filtersPane"));
+   }
+
+   @Test
+   void refusesToWriteLocalizationPane() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("viewsheet", "localizationPane"));
+   }
+
+   /** Excluded with the layout/{@code refLayoutName} path -- its own capability, not v1's. */
+   @Test
+   void refusesToWriteScreensPaneEvenAsARawPath() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("viewsheet", "screensPane.targetScreen"));
+   }
+
+   @Test
+   void resolvesAnOrdinaryScalarForWrite() {
+      assertEquals("vsOptionsPane.maxRows",
+                   PropertyAliases.resolveForWrite("viewsheet", "maxRows"));
+      assertEquals("width", PropertyAliases.resolveForWrite("viewsheet", "width"));
    }
 
    @Test

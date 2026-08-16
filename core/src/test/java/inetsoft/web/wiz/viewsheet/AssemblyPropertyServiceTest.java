@@ -87,15 +87,38 @@ class AssemblyPropertyServiceTest {
       assertEquals(3, service.bindingFor("gauge").getterArity());
    }
 
+   /**
+    * Every <b>assembly</b> type in the registry must resolve to a wired dialog service here, so
+    * a covered-but-unwired type never fails at runtime instead of at the build.
+    *
+    * <p>{@code viewsheet} is deliberately excluded: it is the one covered type that names no
+    * assembly at all. {@code ViewsheetPropertyDialogService.getViewsheetInfo}/
+    * {@code setViewsheetInfo} take no assembly name and order their arguments differently from
+    * every assembly dialog service's shared {@code (runtimeId, objectId, ...)} shape, so it is
+    * not — and should never become — one more entry in this reflective dispatch table. It is
+    * wired directly into {@link SheetPropertyService} instead.
+    */
    @Test
-   void everyCoveredTypeHasAWiredService() {
+   void everyCoveredAssemblyTypeHasAWiredService() {
       AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
 
       for(String type : PropertyAliases.coveredTypes()) {
+         if(type.equals("viewsheet")) {
+            continue;
+         }
+
          assertDoesNotThrow(() -> service.bindingFor(type),
                             "'" + type + "' has aliases but no property service wired, so " +
                             "every call for it would fail at runtime");
       }
+   }
+
+   /** The flip side of the exclusion above: viewsheet must NOT be reachable this way. */
+   @Test
+   void viewsheetIsNotWiredIntoTheAssemblyDispatchTable() {
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
+
+      assertThrows(Exception.class, () -> service.bindingFor("viewsheet"));
    }
 
    @Test
