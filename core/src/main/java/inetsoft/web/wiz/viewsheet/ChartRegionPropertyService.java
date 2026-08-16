@@ -128,20 +128,30 @@ public class ChartRegionPropertyService {
       }
 
       // Write onto the model only after every key resolved.
+      //
+      // Keep the returned root. All three region dialog models are plain mutable classes today, so
+      // PropertyPath.set mutates in place and the assignment is a no-op — but if any of them (or a
+      // pane beneath one) becomes an Immutables model, a wither rebuilds rather than mutates and
+      // the write would vanish with no error and no compile failure. That is the same shape that
+      // made width/height/preview silently unwritable on the viewsheet's own dialog model.
+      Object rebuilt = model;
+
       for(Map.Entry<String, Object> one : resolved.entrySet()) {
-         PropertyPath.set(model, one.getKey(), one.getValue());
+         rebuilt = PropertyPath.set(rebuilt, one.getKey(), one.getValue());
       }
+
+      final Object written = rebuilt;
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          switch(name) {
          case "axis" -> regions.setAxisPropertyDialogModel(
-            runtimeId, assembly, key, 0, field, (AxisPropertyDialogModel) model, linkUri, user,
+            runtimeId, assembly, key, 0, field, (AxisPropertyDialogModel) written, linkUri, user,
             dispatcher);
          case "legend" -> regions.setLegendFormatDialogModel(
-            runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) model, linkUri, user,
+            runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) written, linkUri, user,
             dispatcher);
          default -> regions.setTitleFormatDialogModel(
-            runtimeId, assembly, key, (TitleFormatDialogModel) model, linkUri, user, dispatcher);
+            runtimeId, assembly, key, (TitleFormatDialogModel) written, linkUri, user, dispatcher);
          }
       });
    }

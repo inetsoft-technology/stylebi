@@ -58,6 +58,7 @@ public class ViewsheetAssemblyAgentController {
                                    ViewsheetFormatService formatService,
                                    ScriptImageService imageService,
                                    AssemblyPropertyService propertyService,
+                                   SheetPropertyService sheetPropertyService,
                                    AssemblyHyperlinkService hyperlinkService,
                                    ChartElementService chartElementService,
                                    ChartRegionPropertyService chartRegionService,
@@ -76,6 +77,7 @@ public class ViewsheetAssemblyAgentController {
       this.formatService = formatService;
       this.imageService = imageService;
       this.propertyService = propertyService;
+      this.sheetPropertyService = sheetPropertyService;
       this.hyperlinkService = hyperlinkService;
       this.chartElementService = chartElementService;
       this.chartRegionService = chartRegionService;
@@ -187,6 +189,45 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       propertyService.set(sessionToken, user, request.assembly(), request.properties(), linkUri);
+   }
+
+   /**
+    * The viewsheet's <b>own</b> properties — the Composer's Viewsheet Property dialog — as
+    * opposed to the assembly trio above. There is no assembly name here: the target is the sheet
+    * itself, so {@link SheetPropertyService} is a sibling of {@link AssemblyPropertyService}
+    * rather than a fourth assembly type.
+    */
+   public record ViewsheetPropertyPatchRequest(Map<String, Object> properties) {}
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/vs-properties/list")
+   public Map<String, Object> listViewsheetProperties(@PathVariable String sessionToken,
+                                                       Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return sheetPropertyService.list(sessionToken, user);
+   }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/vs-properties")
+   public Object getViewsheetProperties(@PathVariable String sessionToken,
+                                        @RequestParam(required = false) boolean raw,
+                                        Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return sheetPropertyService.get(sessionToken, user, raw);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/vs-properties")
+   public void setViewsheetProperties(@PathVariable String sessionToken,
+                                      @RequestBody ViewsheetPropertyPatchRequest request,
+                                      @RequestParam(required = false, defaultValue = "")
+                                      String linkUri,
+                                      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      sheetPropertyService.set(sessionToken, user, request.properties(), linkUri);
    }
 
    public record HyperlinkRequest(String assembly, Integer row, Integer col, String colName,
@@ -635,6 +676,7 @@ public class ViewsheetAssemblyAgentController {
    private final ViewsheetFormatService formatService;
    private final ScriptImageService imageService;
    private final AssemblyPropertyService propertyService;
+   private final SheetPropertyService sheetPropertyService;
    private final AssemblyHyperlinkService hyperlinkService;
    private final ChartElementService chartElementService;
    private final ChartRegionPropertyService chartRegionService;

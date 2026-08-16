@@ -230,11 +230,19 @@ public class AssemblyPropertyService {
          Map<String, String> resolved = new LinkedHashMap<>();
 
          for(String key : patch.keySet()) {
-            resolved.put(key, PropertyAliases.resolve(type, key));
+            // resolveForWrite, not resolve: its refusals are keyed by type and currently fire
+            // only for the sheet, so this is a no-op for every assembly today. Going through the
+            // write path anyway means a refusal added for an assembly type -- a script pane on
+            // some future assembly, say -- applies here without anyone remembering to route it.
+            resolved.put(key, PropertyAliases.resolveForWrite(type, key));
          }
 
+         // PropertyPath.set returns the root the caller must keep using: if a future alias
+         // ever targets a direct top-level field of an Immutables dialog model (no nested pane
+         // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
+         // instance and the original reference silently stops reflecting the write.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
-            PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
+            model = PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);

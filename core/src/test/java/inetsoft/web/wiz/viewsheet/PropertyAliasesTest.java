@@ -27,6 +27,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class PropertyAliasesTest {
    /**
+    * The viewsheet aliases that legitimately map to a bare, dot-free path because the field really
+    * does sit at the top of {@code ViewsheetPropertyDialogModel}. Kept as an explicit list so the
+    * nesting invariant stays live for every other alias of that type.
+    */
+   private static final java.util.Set<String> SHEET_TOP_LEVEL = java.util.Set.of();
+
+   /**
     * <b>The highest-value test in this band.</b> It reflects over every declared alias and
     * asserts the path exists on its dialog model. When the composer renames a pane field, this
     * breaks the build instead of letting the plugin ship an alias that silently resolves to
@@ -59,11 +66,115 @@ class PropertyAliasesTest {
 
          for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
             assertFalse(alias.getValue().isBlank(), alias.getKey() + " maps to nothing");
+
+            // Skip only the aliases that are genuinely top-level accessors on the viewsheet's own
+            // dialog model, not every alias of that type. Blanket-skipping the type would let a
+            // future "desc -> desc" typo through, which is exactly what this test exists to catch.
+            if(type.equals(PropertyAliases.SHEET) && SHEET_TOP_LEVEL.contains(alias.getKey())) {
+               continue;
+            }
+
             assertTrue(alias.getValue().contains("."),
                        alias.getKey() + " maps to '" + alias.getValue() + "', which is not a " +
                        "model path — an alias must name a real nested field");
          }
       }
+   }
+
+   // ── viewsheet vocabulary (vs-level properties) ────────────────────────────
+
+   @Test
+   void exposesTheViewsheetVocabulary() {
+      for(String alias : java.util.List.of("alias", "desc", "maxRows", "snapGrid",
+                                           "useMetaData", "promptForParams"))
+      {
+         assertTrue(PropertyAliases.forType(PropertyAliases.SHEET).aliases().containsKey(alias),
+                    "viewsheet should expose '" + alias + "'");
+      }
+   }
+
+   /**
+    * {@code vsScriptPane} is deliberately not part of the enumerated vocabulary at all --
+    * reading it is still possible through a raw model dump, but it is never offered as a named
+    * "property" a caller might reasonably try to set.
+    */
+   @Test
+   void theViewsheetVocabularyNamesNoScriptKey() {
+      for(String alias : PropertyAliases.forType(PropertyAliases.SHEET).aliases().keySet()) {
+         assertFalse(alias.toLowerCase().contains("script"),
+                     "'" + alias + "' should not be part of the enumerated vocabulary");
+      }
+   }
+
+   @Test
+   void aliasIsWritableOnAViewsheet() {
+      assertEquals("vsOptionsPane.alias", PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "alias"));
+   }
+
+   /**
+    * {@code vsScriptPane} carries onInit/onLoad script. Writing it through a properties patch
+    * would be a second, ungoverned path to authoring viewsheet script that routes around the
+    * (unbuilt) script-kind taxonomy. The refusal names the field and points at the tool that
+    * does own writing script.
+    */
+   @Test
+   void refusesToWriteTheScriptPaneAndPointsAtUpdateScript() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "vsScriptPane"));
+
+      assertTrue(thrown.getMessage().contains("vsScriptPane"));
+      assertTrue(thrown.getMessage().contains("update_script"));
+   }
+
+   /** The raw-path escape hatch must not reach the script pane under a different spelling. */
+   @Test
+   void refusesTheScriptPaneEvenAsARawDottedPath() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "vsScriptPane.onInit"));
+
+      assertTrue(thrown.getMessage().contains("update_script"));
+   }
+
+   /**
+    * {@code filtersPane} and {@code localizationPane} are deliberately absent from the vocabulary
+    * and still refused on write.
+    *
+    * <p>They are read-only -- their entries are relational to other assemblies (filter ids keyed to
+    * selection assemblies, localization keyed to the component tree), not a simple scalar
+    * {@code info.setX}. They were briefly aliased so they could be read by name, which made every
+    * list/get carry the whole localization component tree: ~350 lines on a small sheet, growing
+    * with assembly count. Reading them is what {@code raw: true} is for.
+    *
+    * <p>These two tests matter more now, not less: the refusal has to keep working for a key that
+    * is no longer in the map, which it does because {@code resolveForWrite} matches on the path.
+    */
+   @Test
+   void refusesToWriteFiltersPane() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "filtersPane"));
+   }
+
+   @Test
+   void refusesToWriteLocalizationPane() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "localizationPane"));
+   }
+
+   /** Excluded with the layout/{@code refLayoutName} path -- its own capability, not v1's. */
+   @Test
+   void refusesToWriteScreensPaneEvenAsARawPath() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "screensPane.targetScreen"));
+   }
+
+   @Test
+   void resolvesAnOrdinaryScalarForWrite() {
+      assertEquals("vsOptionsPane.maxRows",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "maxRows"));
+      assertEquals("vsOptionsPane.snapGrid",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "snapGrid"));
    }
 
    @Test

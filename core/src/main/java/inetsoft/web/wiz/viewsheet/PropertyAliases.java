@@ -43,6 +43,9 @@ import java.util.*;
  * dropped.
  */
 public final class PropertyAliases {
+   /** The viewsheet's own property vocabulary. Not "viewsheet" -- see the register call below. */
+   public static final String SHEET = "sheet";
+
    /** One assembly type's dialog model and its alias vocabulary. */
    public record TypeAliases(String assemblyType, Class<?> modelClass,
                              Map<String, String> aliases) {}
@@ -75,6 +78,39 @@ public final class PropertyAliases {
    }
 
    /**
+    * Resolves a key for a <b>write</b>, on top of {@link #resolve}.
+    *
+    * <p>The viewsheet's own vocabulary has properties that are readable — they come back from
+    * {@code list_viewsheet_properties} / {@code get_viewsheet_properties} — but refuse to be
+    * <i>written</i> through a properties patch, because the write would be a hazard the
+    * ordinary "set a scalar" contract does not cover: authoring script through a second,
+    * ungoverned path, or replacing a structure that is relational to other assemblies in the
+    * sheet rather than a simple {@code info.setX}. {@code vsScriptPane} is refused outright —
+    * it is not even in the vocabulary, since it is never offered as something to set at all.
+    *
+    * <p>The refusal checks the <b>resolved path</b>, not just the input key, so the raw-dotted-
+    * path escape hatch cannot reach the same field under a different spelling — e.g.
+    * {@code vsScriptPane.onInit} is refused exactly like {@code vsScriptPane} is.
+    */
+   public static String resolveForWrite(String assemblyType, String key) {
+      String normalizedType = normalize(assemblyType);
+      String refusal = viewsheetWriteRefusal(normalizedType, key);
+
+      if(refusal != null) {
+         throw new IllegalArgumentException(refusal);
+      }
+
+      String path = resolve(assemblyType, key);
+      refusal = viewsheetWriteRefusal(normalizedType, path);
+
+      if(refusal != null) {
+         throw new IllegalArgumentException(refusal);
+      }
+
+      return path;
+   }
+
+   /**
     * Resolves an agent-supplied key to a model path: exact alias first, then the key as a raw
     * dotted path. A key that is neither throws with near-matches — it is never dropped.
     */
@@ -97,6 +133,50 @@ public final class PropertyAliases {
          nearest(key, entry.aliases().keySet()) +
          " Known names: " + String.join(", ", new TreeSet<>(entry.aliases().keySet())) +
          ". A raw model path (containing a '.') is also accepted.");
+   }
+
+   /**
+    * The viewsheet-level write refusals. Checked against both the input key (so
+    * {@code vsScriptPane}, which is not in the vocabulary at all, still gets a specific,
+    * explanatory refusal rather than a generic "unknown key") and the resolved path (so the
+    * same field cannot be reached by a different spelling — a raw dotted path, or a registered
+    * alias that happens to map onto it).
+    */
+   private static String viewsheetWriteRefusal(String normalizedType, String pathOrKey) {
+      if(!SHEET.equals(normalizedType) || pathOrKey == null) {
+         return null;
+      }
+
+      if(isOrUnder(pathOrKey, "vsScriptPane")) {
+         return "'vsScriptPane' is not settable through set_viewsheet_properties. It carries " +
+            "the viewsheet's onInit/onLoad script; writing it through a properties patch would " +
+            "be a second, ungoverned path to authoring viewsheet script. Use update_script " +
+            "instead. Reading it is fine — call get_viewsheet_properties with raw=true.";
+      }
+
+      if(isOrUnder(pathOrKey, "filtersPane")) {
+         return "'filtersPane' is read-only through set_viewsheet_properties in this version. " +
+            "Its filter-id assignments are relational to the sheet's own selection assemblies, " +
+            "not a simple scalar write.";
+      }
+
+      if(isOrUnder(pathOrKey, "localizationPane")) {
+         return "'localizationPane' is read-only through set_viewsheet_properties in this " +
+            "version. Its entries are keyed to the sheet's own component tree, not a simple " +
+            "scalar write.";
+      }
+
+      if(isOrUnder(pathOrKey, "screensPane")) {
+         return "'screensPane' is not settable through set_viewsheet_properties. Device " +
+            "layouts, print layout and screen sizing are their own capability, not a corner of " +
+            "a properties patch.";
+      }
+
+      return null;
+   }
+
+   private static boolean isOrUnder(String path, String prefix) {
+      return path.equals(prefix) || path.startsWith(prefix + ".");
    }
 
    private static String nearest(String key, Set<String> candidates) {
@@ -188,6 +268,16 @@ public final class PropertyAliases {
       register(registry, "selectioncontainer", SelectionContainerPropertyDialogModel.class,
                selectionContainer());
       register(registry, "submit", SubmitPropertyDialogModel.class, submit());
+
+      // The viewsheet's own properties -- the assembly-less target.
+      //
+      // Keyed "sheet", not "viewsheet", because "viewsheet" is already an ASSEMBLY type name:
+      // Viewsheet implements VSAssembly, so AssemblyPropertyService.typeOf derives "viewsheet"
+      // from the class of an embedded-viewsheet assembly. Registering the sheet's own vocabulary
+      // under that name made covers("viewsheet") true and replaced the clear "'X' is a Viewsheet,
+      // whose properties are not covered yet" with "No property service wired for assembly type
+      // 'viewsheet'" -- which reads as an internal wiring bug rather than an unsupported assembly.
+      register(registry, SHEET, ViewsheetPropertyDialogModel.class, viewsheet());
       return Collections.unmodifiableMap(registry);
    }
 
@@ -488,6 +578,53 @@ public final class PropertyAliases {
       dataGeneral(aliases, "submitGeneralPaneModel");
       sizePosition(aliases, "submitGeneralPaneModel");
       aliases.put("label", "submitGeneralPaneModel.labelPropPaneModel.label");
+      return aliases;
+   }
+
+   // ── the viewsheet's own properties ────────────────────────────────────────
+
+   /**
+    * {@code VSOptionsPaneModel} has no name field of its own — {@code alias} is the viewsheet
+    * asset's display name, writable here exactly as {@code set_worksheet_properties} already
+    * exposes it for the sibling worksheet type. {@code screensPane} is excluded entirely: it
+    * reaches device layouts, print layout and screen sizing through {@code refLayoutName}, which
+    * is its own capability, not a corner of this one. {@code vsScriptPane} is excluded from the
+    * vocabulary the same way — see {@link #resolveForWrite} for why both write-refuse, and why
+    * {@code filtersPane}/{@code localizationPane} are listed here (readable) but still refuse a
+    * write.
+    */
+   private static Map<String, String> viewsheet() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      aliases.put("alias", "vsOptionsPane.alias");
+      aliases.put("desc", "vsOptionsPane.desc");
+      aliases.put("maxRows", "vsOptionsPane.maxRows");
+      aliases.put("snapGrid", "vsOptionsPane.snapGrid");
+      aliases.put("useMetaData", "vsOptionsPane.useMetaData");
+      aliases.put("promptForParams", "vsOptionsPane.promptForParams");
+      aliases.put("selectionAssociation", "vsOptionsPane.selectionAssociation");
+      aliases.put("createMv", "vsOptionsPane.createMv");
+      aliases.put("serverSideUpdate", "vsOptionsPane.serverSideUpdate");
+      aliases.put("touchInterval", "vsOptionsPane.touchInterval");
+      aliases.put("maxRowsWarning", "vsOptionsPane.maxRowsWarning");
+      aliases.put("hideNotifications", "vsOptionsPane.hideNotifications");
+      aliases.put("listOnPortalTree", "vsOptionsPane.listOnPortalTree");
+      // filtersPane and localizationPane are deliberately NOT aliased.
+      //
+      // They are read-only, and they are whole object graphs rather than properties: aliasing them
+      // made every list/get response carry the entire localization component tree -- ~350 lines on
+      // a small sheet, and it grows with assembly count. That is a curated vocabulary paying a
+      // large cost for something it cannot even write. Reading them is still possible, and is what
+      // `raw: true` is for; resolveForWrite still refuses them by name, since it matches on the
+      // path rather than on membership in this map.
+      // width/height/preview are deliberately absent. They are not sheet state: getViewsheetInfo
+      // never populates them, so they read back as the Immutables defaults 0/0/false, and
+      // setViewsheetInfo reads them only to size a one-off refresh. Writing one reported success
+      // and changed nothing -- the silent no-op this layer exists to prevent -- and preview:true
+      // additionally reached VSEventUtil.clearScale, discarding assembly scaling as a side effect
+      // of "setting a property".
+      //
+      // onDemandMvEnabled is absent for the same reason: it is a capability flag computed in the
+      // getter from SreeEnv, never read by the setter. createMv is the real property.
       return aliases;
    }
 }

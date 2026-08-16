@@ -215,6 +215,54 @@ class PropertyPathTest {
                    "a wither takes the same coercion as a setter");
    }
 
+   /**
+    * A root that is itself immutable, with no mutable holder anywhere above it -- the exact
+    * shape {@code ViewsheetPropertyDialogModel} takes for {@code width}/{@code height}/
+    * {@code preview}: a direct top-level scalar with only a wither, no nested pane to absorb the
+    * rebuild. Every other Immutables case in this suite nests the immutable at least one level
+    * under a mutable holder, so the wither's new instance always has somewhere mutable to be
+    * written back into. Here there is nothing above the root, so the only way the caller can see
+    * the new value is if {@code set} hands the (possibly rebuilt) root back.
+    */
+   public static final class ImmutableScalarRoot {
+      ImmutableScalarRoot(int width) { this.width = width; }
+
+      public int width() { return width; }
+      public ImmutableScalarRoot withWidth(int value) { return new ImmutableScalarRoot(value); }
+
+      private final int width;
+   }
+
+   @Test
+   void rebuildingAnImmutableRootReturnsTheNewInstance() {
+      ImmutableScalarRoot root = new ImmutableScalarRoot(0);
+
+      Object result = PropertyPath.set(root, "width", 100);
+
+      assertNotSame(root, result, "the root itself had only a wither, so it had to be rebuilt");
+      assertEquals(100, ((ImmutableScalarRoot) result).width());
+   }
+
+   @Test
+   void theOriginalImmutableRootIsLeftUnchanged() {
+      ImmutableScalarRoot root = new ImmutableScalarRoot(0);
+
+      PropertyPath.set(root, "width", 100);
+
+      assertEquals(0, root.width(),
+                   "immutable -- a caller that ignores the returned instance and keeps using " +
+                   "the original would silently lose the write");
+   }
+
+   @Test
+   void writingAMutableRootReturnsThatSameRoot() {
+      Root root = new Root();
+
+      Object result = PropertyPath.set(root, "middle.leaf.title", "Revenue");
+
+      assertSame(root, result, "a mutable root is updated in place, not replaced");
+   }
+
    @Test
    void refusesAnUnknownLeafOnAnImmutableOwnerNamingWhatExists() {
       MutableRoot root = new MutableRoot();

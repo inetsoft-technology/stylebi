@@ -455,11 +455,15 @@ public class ViewsheetPropertyDialogService {
 
       LocalizationPaneModel localizationPane = value.localizationPane();
 
-      for(String component: info.getLocalComponents()) {
-         info.removeLocalID(component, true);
-      }
-
+      // A null pane means "not supplied", not "clear everything". getViewsheetInfo populates it
+      // only for a site admin (or when security is off / single-tenant), so on any other principal
+      // a plain read-modify-write round trip arrived here with null -- and wiping first removed
+      // every localized text id on the sheet as a side effect of setting something unrelated.
       if(localizationPane != null) {
+         for(String component: info.getLocalComponents()) {
+            info.removeLocalID(component, true);
+         }
+
          for(LocalizationComponent component: localizationPane.getLocalized()) {
             info.setLocalID(component.getName(), component.getTextId());
          }
