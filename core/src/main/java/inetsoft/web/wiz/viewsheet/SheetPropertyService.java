@@ -129,7 +129,7 @@ public class SheetPropertyService {
       });
    }
 
-   private static final String VIEWSHEET = "viewsheet";
+   private static final String VIEWSHEET = PropertyAliases.SHEET;
 
    private final ViewsheetSessionService sessions;
    private final ViewsheetPropertyDialogService dialogService;

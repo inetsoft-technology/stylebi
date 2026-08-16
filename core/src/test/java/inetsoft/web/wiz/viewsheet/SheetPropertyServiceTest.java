@@ -56,6 +56,14 @@ class SheetPropertyServiceTest {
       assertTrue(names.contains("maxRows"));
       assertTrue(names.contains("snapGrid"));
 
+      // Not sheet state: the getter never populates them, so they read back as the Immutables
+      // defaults, and the setter uses them only to size a one-off refresh. preview:true also
+      // reached VSEventUtil.clearScale, discarding assembly scaling. onDemandMvEnabled is a
+      // capability flag the setter never reads.
+      for(String phantom : java.util.List.of("width", "height", "preview", "onDemandMvEnabled")) {
+         assertFalse(names.contains(phantom), phantom + " is not a settable viewsheet property");
+      }
+
       // filtersPane and localizationPane are deliberately absent: whole object graphs, read-only,
       // and aliasing them made every list/get carry the entire localization component tree.
       // Reading them is what raw:true is for.
@@ -109,29 +117,21 @@ class SheetPropertyServiceTest {
       verify(sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
 
-   /**
-    * {@code width} lives directly on the immutable {@code ViewsheetPropertyDialogModel} root,
-    * with only a wither and no nested pane to absorb the rebuild. If the service kept using the
-    * model object it originally read instead of the (possibly rebuilt) one {@code PropertyPath}
-    * hands back, this write would silently vanish -- the exact defect this whole layer exists
-    * to avoid.
+   /*
+    * There was a test here proving that set() rebuilds the root when the written field is a
+    * top-level Immutables scalar, driven through the "width" alias.
+    *
+    * It is gone because width/height/preview are no longer in the vocabulary: they are not sheet
+    * state, so writing one always was a silent no-op. No alias now targets a bare top-level field,
+    * which makes that path unreachable from here.
+    *
+    * The behaviour it covered is NOT untested. PropertyPath.set still returns the (possibly
+    * rebuilt) root, and PropertyPathTest exercises that directly against an Immutables scalar
+    * root -- which is the honest place for it, since it is PropertyPath's contract rather than
+    * this service's. Keeping the hardening without a vocabulary entry that needs it is
+    * deliberate: the next alias that does target a top-level field would otherwise vanish
+    * silently, with no compile error.
     */
-   @Test
-   void setRebuildsTheRootWhenTheWrittenFieldIsATopLevelImmutableScalar() throws Exception {
-      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
-      ViewsheetPropertyDialogModel model = modelWith(20, "old");
-      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
-
-      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
-
-      service.set("tok", principal(), Map.of("width", 800), "");
-
-      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
-         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
-      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
-                                      anyString(), any());
-      assertEquals(800, captor.getValue().width());
-   }
 
    @Test
    void aliasIsWritable() throws Exception {

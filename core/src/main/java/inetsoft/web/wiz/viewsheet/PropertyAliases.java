@@ -43,6 +43,9 @@ import java.util.*;
  * dropped.
  */
 public final class PropertyAliases {
+   /** The viewsheet's own property vocabulary. Not "viewsheet" -- see the register call below. */
+   public static final String SHEET = "sheet";
+
    /** One assembly type's dialog model and its alias vocabulary. */
    public record TypeAliases(String assemblyType, Class<?> modelClass,
                              Map<String, String> aliases) {}
@@ -140,7 +143,7 @@ public final class PropertyAliases {
     * alias that happens to map onto it).
     */
    private static String viewsheetWriteRefusal(String normalizedType, String pathOrKey) {
-      if(!"viewsheet".equals(normalizedType) || pathOrKey == null) {
+      if(!SHEET.equals(normalizedType) || pathOrKey == null) {
          return null;
       }
 
@@ -270,7 +273,13 @@ public final class PropertyAliases {
       // dialog model above, ViewsheetPropertyDialogModel has genuine top-level scalar fields
       // (width, height, preview) with no general pane to nest them under, so several aliases
       // here are legitimately bare paths rather than dotted ones.
-      register(registry, "viewsheet", ViewsheetPropertyDialogModel.class, viewsheet());
+      // Keyed "sheet", not "viewsheet", because "viewsheet" is already an ASSEMBLY type name:
+      // Viewsheet implements VSAssembly, so AssemblyPropertyService.typeOf derives "viewsheet"
+      // from the class of an embedded-viewsheet assembly. Registering the sheet's own vocabulary
+      // under that name made covers("viewsheet") true and replaced the clear "'X' is a Viewsheet,
+      // whose properties are not covered yet" with "No property service wired for assembly type
+      // 'viewsheet'" -- which reads as an internal wiring bug rather than an unsupported assembly.
+      register(registry, SHEET, ViewsheetPropertyDialogModel.class, viewsheet());
       return Collections.unmodifiableMap(registry);
    }
 
@@ -596,7 +605,6 @@ public final class PropertyAliases {
       aliases.put("promptForParams", "vsOptionsPane.promptForParams");
       aliases.put("selectionAssociation", "vsOptionsPane.selectionAssociation");
       aliases.put("createMv", "vsOptionsPane.createMv");
-      aliases.put("onDemandMvEnabled", "vsOptionsPane.onDemandMvEnabled");
       aliases.put("serverSideUpdate", "vsOptionsPane.serverSideUpdate");
       aliases.put("touchInterval", "vsOptionsPane.touchInterval");
       aliases.put("maxRowsWarning", "vsOptionsPane.maxRowsWarning");
@@ -610,9 +618,15 @@ public final class PropertyAliases {
       // large cost for something it cannot even write. Reading them is still possible, and is what
       // `raw: true` is for; resolveForWrite still refuses them by name, since it matches on the
       // path rather than on membership in this map.
-      aliases.put("width", "width");
-      aliases.put("height", "height");
-      aliases.put("preview", "preview");
+      // width/height/preview are deliberately absent. They are not sheet state: getViewsheetInfo
+      // never populates them, so they read back as the Immutables defaults 0/0/false, and
+      // setViewsheetInfo reads them only to size a one-off refresh. Writing one reported success
+      // and changed nothing -- the silent no-op this layer exists to prevent -- and preview:true
+      // additionally reached VSEventUtil.clearScale, discarding assembly scaling as a side effect
+      // of "setting a property".
+      //
+      // onDemandMvEnabled is absent for the same reason: it is a capability flag computed in the
+      // getter from SreeEnv, never read by the setter. createMv is the real property.
       return aliases;
    }
 }

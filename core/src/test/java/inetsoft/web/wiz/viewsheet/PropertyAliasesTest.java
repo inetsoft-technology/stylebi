@@ -27,6 +27,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class PropertyAliasesTest {
    /**
+    * The viewsheet aliases that legitimately map to a bare, dot-free path because the field really
+    * does sit at the top of {@code ViewsheetPropertyDialogModel}. Kept as an explicit list so the
+    * nesting invariant stays live for every other alias of that type.
+    */
+   private static final java.util.Set<String> SHEET_TOP_LEVEL = java.util.Set.of();
+
+   /**
     * <b>The highest-value test in this band.</b> It reflects over every declared alias and
     * asserts the path exists on its dialog model. When the composer renames a pane field, this
     * breaks the build instead of letting the plugin ship an alias that silently resolves to
@@ -60,11 +67,10 @@ class PropertyAliasesTest {
          for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
             assertFalse(alias.getValue().isBlank(), alias.getKey() + " maps to nothing");
 
-            // The viewsheet's own dialog model has genuine top-level scalar fields --
-            // width, height, preview -- unlike every assembly dialog model, which always nests
-            // behind at least one general pane. A bare path is the honest alias there, not a
-            // self-referential shortcut around real nesting.
-            if(type.equals("viewsheet")) {
+            // Skip only the aliases that are genuinely top-level accessors on the viewsheet's own
+            // dialog model, not every alias of that type. Blanket-skipping the type would let a
+            // future "desc -> desc" typo through, which is exactly what this test exists to catch.
+            if(type.equals(PropertyAliases.SHEET) && SHEET_TOP_LEVEL.contains(alias.getKey())) {
                continue;
             }
 
@@ -79,10 +85,10 @@ class PropertyAliasesTest {
 
    @Test
    void exposesTheViewsheetVocabulary() {
-      for(String alias : java.util.List.of("alias", "desc", "maxRows", "snapGrid", "width",
-                                           "height", "preview"))
+      for(String alias : java.util.List.of("alias", "desc", "maxRows", "snapGrid",
+                                           "useMetaData", "promptForParams"))
       {
-         assertTrue(PropertyAliases.forType("viewsheet").aliases().containsKey(alias),
+         assertTrue(PropertyAliases.forType(PropertyAliases.SHEET).aliases().containsKey(alias),
                     "viewsheet should expose '" + alias + "'");
       }
    }
@@ -94,7 +100,7 @@ class PropertyAliasesTest {
     */
    @Test
    void theViewsheetVocabularyNamesNoScriptKey() {
-      for(String alias : PropertyAliases.forType("viewsheet").aliases().keySet()) {
+      for(String alias : PropertyAliases.forType(PropertyAliases.SHEET).aliases().keySet()) {
          assertFalse(alias.toLowerCase().contains("script"),
                      "'" + alias + "' should not be part of the enumerated vocabulary");
       }
@@ -102,7 +108,7 @@ class PropertyAliasesTest {
 
    @Test
    void aliasIsWritableOnAViewsheet() {
-      assertEquals("vsOptionsPane.alias", PropertyAliases.resolveForWrite("viewsheet", "alias"));
+      assertEquals("vsOptionsPane.alias", PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "alias"));
    }
 
    /**
@@ -115,7 +121,7 @@ class PropertyAliasesTest {
    void refusesToWriteTheScriptPaneAndPointsAtUpdateScript() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> PropertyAliases.resolveForWrite("viewsheet", "vsScriptPane"));
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "vsScriptPane"));
 
       assertTrue(thrown.getMessage().contains("vsScriptPane"));
       assertTrue(thrown.getMessage().contains("update_script"));
@@ -126,7 +132,7 @@ class PropertyAliasesTest {
    void refusesTheScriptPaneEvenAsARawDottedPath() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> PropertyAliases.resolveForWrite("viewsheet", "vsScriptPane.onInit"));
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "vsScriptPane.onInit"));
 
       assertTrue(thrown.getMessage().contains("update_script"));
    }
@@ -147,27 +153,28 @@ class PropertyAliasesTest {
    @Test
    void refusesToWriteFiltersPane() {
       assertThrows(IllegalArgumentException.class,
-                   () -> PropertyAliases.resolveForWrite("viewsheet", "filtersPane"));
+                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "filtersPane"));
    }
 
    @Test
    void refusesToWriteLocalizationPane() {
       assertThrows(IllegalArgumentException.class,
-                   () -> PropertyAliases.resolveForWrite("viewsheet", "localizationPane"));
+                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "localizationPane"));
    }
 
    /** Excluded with the layout/{@code refLayoutName} path -- its own capability, not v1's. */
    @Test
    void refusesToWriteScreensPaneEvenAsARawPath() {
       assertThrows(IllegalArgumentException.class,
-                   () -> PropertyAliases.resolveForWrite("viewsheet", "screensPane.targetScreen"));
+                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "screensPane.targetScreen"));
    }
 
    @Test
    void resolvesAnOrdinaryScalarForWrite() {
       assertEquals("vsOptionsPane.maxRows",
-                   PropertyAliases.resolveForWrite("viewsheet", "maxRows"));
-      assertEquals("width", PropertyAliases.resolveForWrite("viewsheet", "width"));
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "maxRows"));
+      assertEquals("vsOptionsPane.snapGrid",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "snapGrid"));
    }
 
    @Test
