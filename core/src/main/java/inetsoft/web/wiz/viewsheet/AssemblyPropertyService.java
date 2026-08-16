@@ -230,7 +230,11 @@ public class AssemblyPropertyService {
          Map<String, String> resolved = new LinkedHashMap<>();
 
          for(String key : patch.keySet()) {
-            resolved.put(key, PropertyAliases.resolve(type, key));
+            // resolveForWrite, not resolve: its refusals are keyed by type and currently fire
+            // only for the sheet, so this is a no-op for every assembly today. Going through the
+            // write path anyway means a refusal added for an assembly type -- a script pane on
+            // some future assembly, say -- applies here without anyone remembering to route it.
+            resolved.put(key, PropertyAliases.resolveForWrite(type, key));
          }
 
          // PropertyPath.set returns the root the caller must keep using: if a future alias
