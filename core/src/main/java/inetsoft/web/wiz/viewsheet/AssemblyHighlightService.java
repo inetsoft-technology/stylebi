@@ -77,6 +77,17 @@ public class AssemblyHighlightService {
       public static Region whole() {
          return new Region(0, 0, null, false, false);
       }
+
+      /**
+       * The first data cell of a table-type assembly.
+       *
+       * <p>Cell (0,0) is the header, which exposes no highlightable fields. Used only as a
+       * fall-forward when the caller named no region and the header exposed nothing — see
+       * {@code read}.
+       */
+      public static Region firstDataCell() {
+         return new Region(1, 1, null, false, false);
+      }
    }
 
    /** One highlight in the agent vocabulary. Colours are {@code #RRGGBB}. */
@@ -130,6 +141,9 @@ public class AssemblyHighlightService {
                "'" + assemblyName + "' has no highlight dialog — it is not an assembly that " +
                "supports conditional formatting.");
          }
+
+         // Before the shared condition vocabulary gets a chance to blame the field name.
+         requireHighlightableRegion(model, assemblyName, region);
 
          List<HighlightModel> highlights = new ArrayList<>();
          boolean found = false;
@@ -270,9 +284,61 @@ public class AssemblyHighlightService {
                                      Principal user) throws Exception
    {
       Region target = region == null ? Region.whole() : region;
+      HighlightDialogModel model = readAt(runtimeId, assemblyName, target, user);
+
+      // A crosstab's cell (0,0) is a HEADER, and a header has no highlightable fields — so
+      // addressing the whole assembly returned `fields: []` on an assembly whose data cells have
+      // two, and every condition was then refused for naming a field "this assembly cannot filter
+      // on". The field was fine; the region was wrong, and nothing said so.
+      //
+      // When the caller named no region at all, their intent is the assembly's data, so fall
+      // forward to the first data cell rather than reporting an empty vocabulary. An explicit
+      // region is never second-guessed: the caller meant that cell, and silently moving it would
+      // highlight somewhere they did not ask for.
+      // A null model means the assembly has no highlight dialog at all; that is the caller's
+      // answer, and re-reading a different cell of it would only produce the same null.
+      if(region == null && model != null && fieldNames(model).isEmpty()) {
+         HighlightDialogModel atData =
+            readAt(runtimeId, assemblyName, Region.firstDataCell(), user);
+
+         if(!fieldNames(atData).isEmpty()) {
+            return atData;
+         }
+      }
+
+      return model;
+   }
+
+   private HighlightDialogModel readAt(String runtimeId, String assemblyName, Region target,
+                                       Principal user) throws Exception
+   {
       return highlightService.getHighlightDialogModel(runtimeId, assemblyName, target.row(),
                                                       target.col(), target.colName(),
                                                       target.axis(), target.text(), user);
+   }
+
+   /**
+    * Refuses a highlight whose region exposes no fields, naming the region rather than the field.
+    *
+    * <p>Without this the failure surfaced from the shared condition vocabulary as "names 'X', which
+    * this assembly cannot filter on. Available fields: (none)" — which reads as a bad field name on
+    * an assembly that cannot be filtered, when in fact the assembly filters fine and the region was
+    * the header row.
+    */
+   private static void requireHighlightableRegion(HighlightDialogModel model, String assemblyName,
+                                                  Region region)
+   {
+      if(!fieldNames(model).isEmpty()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' exposes no highlightable fields at " +
+         (region == null ? "the default region" :
+            "row " + region.row() + ", col " + region.col()) +
+         ". For a crosstab or table this usually means a header cell: highlights attach to DATA " +
+         "cells, so pass 'row' and 'col' of one (row 1, col 1 is the first). Call list_highlights " +
+         "with that region to see the fields it exposes.");
    }
 
    /**

@@ -226,6 +226,77 @@ class AssemblyHighlightServiceTest {
                    () -> h.service.delete("tok", principal(), "Table1", null, null, ""));
    }
 
+   // ── region ────────────────────────────────────────────────────────────────
+
+   /**
+    * A crosstab's cell (0,0) is a header and exposes no highlightable fields, so addressing the
+    * whole assembly reported {@code fields: []} for an assembly whose data cells have two — and
+    * every condition was then refused for naming a field "this assembly cannot filter on". The
+    * field was fine; the region was the header. Verified live on a real crosstab: (0,0) gave none,
+    * (1,1) gave PRODUCT_NAME and Sum(PRICE).
+    *
+    * <p>With no region named, the caller means the assembly's data, so the read falls forward to
+    * the first data cell.
+    */
+   @Test
+   void fallsForwardToADataCellWhenNoRegionWasNamedAndTheHeaderHasNoFields() throws Exception {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+
+      // Built before the stubbing call: model() stubs its own mocks, and Mockito rejects a
+      // when(...) nested inside another when(...).
+      HighlightDialogModel dataCell = model();
+      Harness h = harness(header);
+      when(h.highlights.getHighlightDialogModel(anyString(), anyString(), eq(1), eq(1), any(),
+                                                anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(dataCell);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Crosstab1", null);
+
+      assertEquals(List.of("Region", "Revenue"), listed.get("fields"),
+                   "the data cell's fields, not the header's empty list");
+   }
+
+   /** An explicit region is never second-guessed — moving it would highlight the wrong cell. */
+   @Test
+   void doesNotSecondGuessARegionTheCallerNamed() throws Exception {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+      Harness h = harness(header);
+
+      Map<String, Object> listed = h.service.list(
+         "tok", principal(), "Crosstab1", new AssemblyHighlightService.Region(0, 0, null, false, false));
+
+      assertEquals(List.of(), listed.get("fields"));
+   }
+
+   /**
+    * When the region really does expose nothing, the refusal names the REGION. Previously this
+    * surfaced from the shared condition vocabulary as "names 'X', which this assembly cannot filter
+    * on. Available fields: (none)" — which reads as a bad field on an unfilterable assembly, when
+    * the assembly filters fine and the caller simply addressed a header.
+    */
+   @Test
+   void refusesAnUnhighlightableRegionByNamingTheRegionNotTheField() throws Exception {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+      Harness h = harness(header);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Crosstab1",
+                             new AssemblyHighlightService.Region(0, 0, null, false, false),
+                             highlight("BigPrice"), false, ""));
+
+      assertTrue(thrown.getMessage().contains("row 0, col 0"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("DATA"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("cannot filter on"),
+                  "must not blame the field: " + thrown.getMessage());
+   }
+
    // ── read ──────────────────────────────────────────────────────────────────
 
    @Test
