@@ -269,10 +269,8 @@ public final class PropertyAliases {
                selectionContainer());
       register(registry, "submit", SubmitPropertyDialogModel.class, submit());
 
-      // The viewsheet's own properties -- the assembly-less target. Unlike every assembly
-      // dialog model above, ViewsheetPropertyDialogModel has genuine top-level scalar fields
-      // (width, height, preview) with no general pane to nest them under, so several aliases
-      // here are legitimately bare paths rather than dotted ones.
+      // The viewsheet's own properties -- the assembly-less target.
+      //
       // Keyed "sheet", not "viewsheet", because "viewsheet" is already an ASSEMBLY type name:
       // Viewsheet implements VSAssembly, so AssemblyPropertyService.typeOf derives "viewsheet"
       // from the class of an embedded-viewsheet assembly. Registering the sheet's own vocabulary

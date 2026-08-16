@@ -59,7 +59,7 @@ public class SheetPropertyService {
    public Map<String, Object> list(String sessionToken, Principal user) throws Exception {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(rvs.getID(), user);
-      PropertyAliases.TypeAliases entry = PropertyAliases.forType(VIEWSHEET);
+      PropertyAliases.TypeAliases entry = PropertyAliases.forType(SHEET_TYPE);
       List<Map<String, Object>> properties = new ArrayList<>();
 
       for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
@@ -86,7 +86,7 @@ public class SheetPropertyService {
          return model;
       }
 
-      PropertyAliases.TypeAliases entry = PropertyAliases.forType(VIEWSHEET);
+      PropertyAliases.TypeAliases entry = PropertyAliases.forType(SHEET_TYPE);
       Map<String, Object> values = new LinkedHashMap<>();
 
       for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
@@ -111,15 +111,17 @@ public class SheetPropertyService {
       Map<String, String> resolved = new LinkedHashMap<>();
 
       for(String key : patch.keySet()) {
-         resolved.put(key, PropertyAliases.resolveForWrite(VIEWSHEET, key));
+         resolved.put(key, PropertyAliases.resolveForWrite(SHEET_TYPE, key));
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
 
-         // PropertyPath.set returns the root to keep using: width/height/preview live directly
-         // on this Immutables model with no nested pane to absorb a wither's rebuild, so the
-         // reassignment is load-bearing, not defensive boilerplate.
+         // Keep PropertyPath.set's returned root. Every alias in the vocabulary currently nests
+         // under a pane, which absorbs an Immutables wither's rebuild, so today this reassignment
+         // changes nothing. It guards the NEXT alias that targets a bare top-level field of this
+         // model: without it, the wither's new instance would be discarded and the write would
+         // vanish with no error and no compile failure.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
             model = (ViewsheetPropertyDialogModel)
                PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
@@ -129,7 +131,14 @@ public class SheetPropertyService {
       });
    }
 
-   private static final String VIEWSHEET = PropertyAliases.SHEET;
+   /**
+    * The vocabulary key for the sheet's own properties.
+    *
+    * <p>Deliberately not the string "viewsheet": that is already an assembly type name, derived
+    * from {@code Viewsheet implements VSAssembly}. This constant is the one place the distinction
+    * has to be stated, so it defers to {@link PropertyAliases#SHEET} rather than repeating it.
+    */
+   private static final String SHEET_TYPE = PropertyAliases.SHEET;
 
    private final ViewsheetSessionService sessions;
    private final ViewsheetPropertyDialogService dialogService;
