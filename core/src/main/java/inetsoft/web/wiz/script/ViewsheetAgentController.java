@@ -95,10 +95,18 @@ public class ViewsheetAgentController {
    public JoinResponse join(@RequestParam String code, Principal user) throws PairingException {
       requireEnabled();
       JoinSession session = joinService.join(code, user);
-      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity());
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase());
    }
 
-   public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity) {}
+   /**
+    * @param sheetType the runtime's own type, {@code viewsheet} or {@code worksheet} — NOT the
+    *                  plugin that asked. Binding and script both drive a viewsheet runtime, and
+    *                  without this the client had to label the session from its own name, which is
+    *                  how one open viewsheet came to hold several unrelated sessions.
+    */
+   public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
+                              String sheetType) {}
 
    /** Enumerates every scriptable target on the joined viewsheet. */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/targets")

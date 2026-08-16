@@ -87,13 +87,21 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record JoinRequest(String code) {}
-   public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity) {}
+   /**
+    * @param sheetType the runtime's own type, {@code viewsheet} or {@code worksheet} — NOT the
+    *                  plugin that asked. Binding and script both drive a viewsheet runtime, and
+    *                  without this the client had to label the session from its own name, which is
+    *                  how one open viewsheet came to hold several unrelated sessions.
+    */
+   public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
+                              String sheetType) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
       requireEnabled();
       JoinSession session = joinService.join(body.code(), user);
-      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity());
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase());
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/model")
