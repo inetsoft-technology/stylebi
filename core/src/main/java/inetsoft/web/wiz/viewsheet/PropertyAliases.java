@@ -602,11 +602,14 @@ public final class PropertyAliases {
       aliases.put("maxRowsWarning", "vsOptionsPane.maxRowsWarning");
       aliases.put("hideNotifications", "vsOptionsPane.hideNotifications");
       aliases.put("listOnPortalTree", "vsOptionsPane.listOnPortalTree");
-      // Read-only in v1 -- see resolveForWrite. Both are genuine top-level accessors, hence the
-      // bare (dot-free) path; noAliasIsAnEmptyOrSelfReferentialPath carves out this type for
-      // exactly that reason.
-      aliases.put("filtersPane", "filtersPane");
-      aliases.put("localizationPane", "localizationPane");
+      // filtersPane and localizationPane are deliberately NOT aliased.
+      //
+      // They are read-only, and they are whole object graphs rather than properties: aliasing them
+      // made every list/get response carry the entire localization component tree -- ~350 lines on
+      // a small sheet, and it grows with assembly count. That is a curated vocabulary paying a
+      // large cost for something it cannot even write. Reading them is still possible, and is what
+      // `raw: true` is for; resolveForWrite still refuses them by name, since it matches on the
+      // path rather than on membership in this map.
       aliases.put("width", "width");
       aliases.put("height", "height");
       aliases.put("preview", "preview");

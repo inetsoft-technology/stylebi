@@ -61,9 +61,9 @@ class PropertyAliasesTest {
             assertFalse(alias.getValue().isBlank(), alias.getKey() + " maps to nothing");
 
             // The viewsheet's own dialog model has genuine top-level scalar fields --
-            // width, height, preview, filtersPane, localizationPane -- unlike every assembly
-            // dialog model, which always nests behind at least one general pane. A bare path
-            // is the honest alias there, not a self-referential shortcut around real nesting.
+            // width, height, preview -- unlike every assembly dialog model, which always nests
+            // behind at least one general pane. A bare path is the honest alias there, not a
+            // self-referential shortcut around real nesting.
             if(type.equals("viewsheet")) {
                continue;
             }
@@ -79,9 +79,8 @@ class PropertyAliasesTest {
 
    @Test
    void exposesTheViewsheetVocabulary() {
-      for(String alias : java.util.List.of("alias", "desc", "maxRows", "snapGrid",
-                                           "filtersPane", "localizationPane", "width", "height",
-                                           "preview"))
+      for(String alias : java.util.List.of("alias", "desc", "maxRows", "snapGrid", "width",
+                                           "height", "preview"))
       {
          assertTrue(PropertyAliases.forType("viewsheet").aliases().containsKey(alias),
                     "viewsheet should expose '" + alias + "'");
@@ -133,10 +132,17 @@ class PropertyAliasesTest {
    }
 
    /**
-    * {@code filtersPane} and {@code localizationPane} are readable (they are in the vocabulary
-    * above) but not writable in v1: their entries are relational to other assemblies in the
-    * sheet (filter ids keyed to selection assemblies, localization keyed to the component
-    * tree), not a simple scalar {@code info.setX}.
+    * {@code filtersPane} and {@code localizationPane} are deliberately absent from the vocabulary
+    * and still refused on write.
+    *
+    * <p>They are read-only -- their entries are relational to other assemblies (filter ids keyed to
+    * selection assemblies, localization keyed to the component tree), not a simple scalar
+    * {@code info.setX}. They were briefly aliased so they could be read by name, which made every
+    * list/get carry the whole localization component tree: ~350 lines on a small sheet, growing
+    * with assembly count. Reading them is what {@code raw: true} is for.
+    *
+    * <p>These two tests matter more now, not less: the refusal has to keep working for a key that
+    * is no longer in the map, which it does because {@code resolveForWrite} matches on the path.
     */
    @Test
    void refusesToWriteFiltersPane() {

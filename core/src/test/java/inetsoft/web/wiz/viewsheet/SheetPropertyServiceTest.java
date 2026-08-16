@@ -54,7 +54,13 @@ class SheetPropertyServiceTest {
 
       assertTrue(names.contains("desc"));
       assertTrue(names.contains("maxRows"));
-      assertTrue(names.contains("filtersPane"));
+      assertTrue(names.contains("snapGrid"));
+
+      // filtersPane and localizationPane are deliberately absent: whole object graphs, read-only,
+      // and aliasing them made every list/get carry the entire localization component tree.
+      // Reading them is what raw:true is for.
+      assertFalse(names.contains("filtersPane"));
+      assertFalse(names.contains("localizationPane"));
 
       for(Object name : names) {
          assertFalse(String.valueOf(name).toLowerCase().contains("script"),
