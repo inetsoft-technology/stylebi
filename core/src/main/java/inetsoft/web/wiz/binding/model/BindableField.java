@@ -20,9 +20,9 @@ package inetsoft.web.wiz.binding.model;
 /**
  * One bindable column.
  *
- * <p>Carried a {@code role} ("dimension"/"measure") that was hardcoded {@code null} at its only
- * construction site and never populated for any column. A field that is always null is worse than
- * an absent one: it reads as "this column has no role" rather than "this API does not report one".
- * The binding tree does not distinguish the two, so there is nothing to populate it from.
+ * <p>{@code role} is "dimension" or "measure" -- the distinction every binding tool then requires
+ * as a mandatory {@code type} per field. It was hardcoded {@code null} at its only construction
+ * site, on the mistaken belief that the tree did not carry it; it does, in
+ * {@link inetsoft.uql.asset.AssetEntry#CUBE_COL_TYPE}. Null now means genuinely unknown.
  */
-public record BindableField(String column, String dataType) {}
+public record BindableField(String column, String dataType, String role) {}

@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -40,9 +41,15 @@ class BindableFieldsServiceTest {
     * passed while every column in production reported a null data type.
     */
    private static AssetEntry entry(AssetEntry.Type type, String name, String dtype) {
+      return entry(type, name, dtype, null);
+   }
+
+   private static AssetEntry entry(AssetEntry.Type type, String name, String dtype, Integer cube) {
       AssetEntry entry = mock(AssetEntry.class);
       when(entry.getType()).thenReturn(type);
       when(entry.getProperty("dtype")).thenReturn(dtype);
+      when(entry.getProperty(AssetEntry.CUBE_COL_TYPE))
+         .thenReturn(cube == null ? null : String.valueOf(cube));
       return entry;
    }
 
@@ -83,16 +90,18 @@ class BindableFieldsServiceTest {
    /**
     * The live shape: a table whose columns sit under "Dimensions"/"Measures" folders.
     *
-    * <p>Naming each group after the node that directly holds the columns produced nine groups
-    * called only "Dimensions" or "Measures", with no way to tell which table a column came from.
-    * The table name is present in the tree one level up and was being discarded.
+    * <p>Two things have to hold together. Naming each group after the node that directly holds the
+    * columns produced nine groups called only "Dimensions"/"Measures", with no way to tell which
+    * table a column came from. But naming them after the table while still emitting one group per
+    * folder produces two groups with the <em>same</em> name -- and a caller keying by table name
+    * keeps one and silently drops half the columns. So a table yields exactly one group.
     */
    @Test
-   void namesGroupsAfterTheTableRatherThanTheDimensionsFolderHoldingTheColumns() throws Exception {
-      TreeNodeModel qty = TreeNodeModel.builder()
-         .label("Qty").leaf(true).data(entry(AssetEntry.Type.COLUMN, "Qty", "integer")).build();
-      TreeNodeModel city = TreeNodeModel.builder()
-         .label("City").leaf(true).data(entry(AssetEntry.Type.COLUMN, "City", "string")).build();
+   void yieldsOneGroupPerTableNamedAfterIt_notOnePerDimensionsFolder() throws Exception {
+      TreeNodeModel qty = TreeNodeModel.builder().label("Qty").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "Qty", "integer", AssetEntry.MEASURES)).build();
+      TreeNodeModel city = TreeNodeModel.builder().label("City").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "City", "string", AssetEntry.DIMENSIONS)).build();
       TreeNodeModel measures = TreeNodeModel.builder().label("Measures").addChildren(qty).build();
       TreeNodeModel dimensions = TreeNodeModel.builder()
          .label("Dimensions").addChildren(city).build();
@@ -103,15 +112,51 @@ class BindableFieldsServiceTest {
 
       List<BindableTable> tables = serviceReturning(root).list("rt1", null, principal());
 
-      assertEquals(2, tables.size());
+      assertEquals(1, tables.size(), "one table must not become two same-named groups");
+      assertEquals("ORDERS1", tables.get(0).name());
+      assertEquals(2, tables.get(0).fields().size(), "both folders' columns belong to the table");
+   }
 
-      for(BindableTable group : tables) {
-         assertEquals("ORDERS1", group.name(),
-                      "a group must name its source table, not the folder holding its columns");
-      }
+   /**
+    * The dimension/measure distinction has to survive, because every binding tool downstream
+    * requires it per field and this is the tool a caller runs first. Merging the folders removed
+    * the only place it used to live implicitly (the group label), so it moves onto the field.
+    */
+   @Test
+   void reportsDimensionOrMeasurePerColumn() throws Exception {
+      TreeNodeModel qty = TreeNodeModel.builder().label("Qty").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "Qty", "integer", AssetEntry.MEASURES)).build();
+      TreeNodeModel city = TreeNodeModel.builder().label("City").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "City", "string", AssetEntry.DIMENSIONS)).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("ORDERS1").data(entry(AssetEntry.Type.TABLE, "ORDERS1", null))
+         .addChildren(city).addChildren(qty).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(table).build();
 
-      assertEquals("string", tables.get(0).fields().get(0).dataType());
-      assertEquals("integer", tables.get(1).fields().get(0).dataType());
+      List<BindableField> fields = serviceReturning(root).list("rt1", null, principal())
+         .get(0).fields();
+
+      assertEquals("dimension", fields.get(0).role());
+      assertEquals("measure", fields.get(1).role());
+   }
+
+   /** Without CUBE_COL_TYPE, fall back exactly as VSChartBindingHandler.isDimension does. */
+   @Test
+   void fallsBackToTheDataTypeWhenTheTreeCarriesNoCubeColumnType() throws Exception {
+      TreeNodeModel amount = TreeNodeModel.builder().label("Amount").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "Amount", "double")).build();
+      TreeNodeModel name = TreeNodeModel.builder().label("Name").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "Name", "string")).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("T").data(entry(AssetEntry.Type.TABLE, "T", null))
+         .addChildren(name).addChildren(amount).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(table).build();
+
+      List<BindableField> fields = serviceReturning(root).list("rt1", null, principal())
+         .get(0).fields();
+
+      assertEquals("dimension", fields.get(0).role());
+      assertEquals("measure", fields.get(1).role());
    }
 
    @Test
