@@ -164,6 +164,55 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(thrown.getMessage().contains("update_script"));
    }
 
+   /**
+    * {@code sheetType} is reported by {@link SheetOpenService} through the {@link JoinSession} it
+    * returns, never inferred by the controller — a plugin that guesses the runtime type files the
+    * session under the wrong key and overwrites a live one while reporting success.
+    */
+   @Test
+   void openBaseWorksheetReturnsTheJoinShapeWithSheetTypeReported() throws Exception {
+      SheetOpenService openService = mock(SheetOpenService.class);
+      when(openService.openBaseWorksheet(eq("tok-vs"), any()))
+         .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
+                                     0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+                                     "alice"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      var response = controller.openBaseWorksheet("tok-vs", principal());
+
+      assertEquals("tok-ws", response.sessionToken());
+      assertEquals("ws-runtime-1", response.runtimeId());
+      // Reported by the server, never inferred: a plugin that guesses the runtime type files the
+      // session under the wrong key and overwrites a live one while reporting success.
+      assertEquals("worksheet", response.sheetType());
+   }
+
+   /** Feature enabled, only {@code openService} wired -- for the open_base_worksheet test. */
+   private static ViewsheetAssemblyAgentController controllerWith(SheetOpenService openService) {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          openService);
+   }
+
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
                                                           ViewsheetSessionService sessions,
                                                           ViewsheetReadService reader)
@@ -190,7 +239,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
-                                          mock(SheetAgentBroadcastService.class));
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class));
    }
 
    /** Feature enabled, only {@code propertyService} wired -- for the property-trio tests. */
@@ -216,7 +266,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
-                                          mock(SheetAgentBroadcastService.class));
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class));
    }
 
    private static Principal principal() {
