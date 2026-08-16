@@ -140,7 +140,42 @@ class BindableFieldsServiceTest {
       assertEquals("measure", fields.get(1).role());
    }
 
-   /** Without CUBE_COL_TYPE, fall back exactly as VSChartBindingHandler.isDimension does. */
+   /**
+    * The third state: CUBE_COL_TYPE present but <em>empty</em>.
+    *
+    * <p>{@code BaseTreeModelBuilder.applyColumnNodeProperties} writes {@code type == -1 ? "" : …},
+    * and {@code appendColumnNodes} passes -1 for a table VS assembly — a tree this tool reads. So
+    * every column of a table assembly carries an empty value. Guarding only on null let
+    * {@code parseInt("")} throw and swallowed the data-type fallback, leaving role null with the
+    * data type sitting right there.
+    */
+   @Test
+   void treatsAnEmptyCubeColumnTypeAsUnstatedAndFallsBackToTheDataType() throws Exception {
+      TreeNodeModel amount = TreeNodeModel.builder().label("Amount").leaf(true)
+         .data(entryWithBlankCubeType("double")).build();
+      TreeNodeModel name = TreeNodeModel.builder().label("Name").leaf(true)
+         .data(entryWithBlankCubeType("string")).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("T").data(entry(AssetEntry.Type.TABLE, "T", null))
+         .addChildren(name).addChildren(amount).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(table).build();
+
+      List<BindableField> fields = serviceReturning(root).list("rt1", null, principal())
+         .get(0).fields();
+
+      assertEquals("dimension", fields.get(0).role());
+      assertEquals("measure", fields.get(1).role());
+   }
+
+   private static AssetEntry entryWithBlankCubeType(String dtype) {
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getType()).thenReturn(AssetEntry.Type.COLUMN);
+      when(entry.getProperty("dtype")).thenReturn(dtype);
+      when(entry.getProperty(AssetEntry.CUBE_COL_TYPE)).thenReturn("");
+      return entry;
+   }
+
+   /** Without CUBE_COL_TYPE at all, fall back to the data type. */
    @Test
    void fallsBackToTheDataTypeWhenTheTreeCarriesNoCubeColumnType() throws Exception {
       TreeNodeModel amount = TreeNodeModel.builder().label("Amount").leaf(true)

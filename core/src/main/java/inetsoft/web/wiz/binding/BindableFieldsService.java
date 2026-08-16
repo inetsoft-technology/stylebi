@@ -153,8 +153,16 @@ public class BindableFieldsService {
     * that the tree does not carry it. It does: {@link AssetEntry#CUBE_COL_TYPE}, set alongside the
     * {@code dtype} property this class already reads.
     *
-    * <p>The interpretation mirrors {@code VSChartBindingHandler.isDimension} exactly, fallback
-    * included, so this tool and the binding handlers cannot disagree about the same column.
+    * <p>The property has <b>three</b> states, not two. {@code BaseTreeModelBuilder} writes
+    * {@code type == -1 ? "" : type + ""}, so a column can carry it <em>present but empty</em> --
+    * and it does for every column of a table VS assembly, which is a tree this tool reads. Empty
+    * means "not stated", the case the data-type fallback exists for, so blank is treated as absent
+    * rather than as a parse failure.
+    *
+    * <p>The classification follows {@code VSChartBindingHandler.isDimension} -- same bit test, same
+    * data-type fallback -- but deliberately not its exact behaviour on that empty value, where it
+    * would throw {@code NumberFormatException}. Falling through to the fallback is the answer the
+    * column deserves; matching the handler there would only reproduce a latent bug.
     */
    private String roleOf(TreeNodeModel node) {
       if(!(node.data() instanceof AssetEntry entry)) {
@@ -163,12 +171,13 @@ public class BindableFieldsService {
 
       String cubeColType = entry.getProperty(AssetEntry.CUBE_COL_TYPE);
 
-      if(cubeColType != null) {
+      if(cubeColType != null && !cubeColType.isBlank()) {
          try {
             return (Integer.parseInt(cubeColType) & AssetEntry.MEASURES) == 0 ? DIMENSION : MEASURE;
          }
          catch(NumberFormatException ex) {
-            return null;
+            // Not a number: unstated, so fall through to the data type rather than give up. A
+            // `return null` here would swallow the fallback for exactly the columns that need it.
          }
       }
 
