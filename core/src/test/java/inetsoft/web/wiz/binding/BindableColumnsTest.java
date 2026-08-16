@@ -36,9 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class BindableColumnsTest {
    private static final List<BindableTable> TABLES = List.of(
-      new BindableTable("Query1", List.of(new BindableField("PRICE", null, null),
-                                          new BindableField("QUANTITY", null, null))),
-      new BindableTable("Products", List.of(new BindableField("PRODUCT_NAME", null, null))));
+      new BindableTable("Query1", List.of(new BindableField("PRICE", null),
+                                          new BindableField("QUANTITY", null))),
+      new BindableTable("Products", List.of(new BindableField("PRODUCT_NAME", null))));
 
    private static FieldRef dim(String column) {
       return new FieldRef(column, "dimension", null, null, null);

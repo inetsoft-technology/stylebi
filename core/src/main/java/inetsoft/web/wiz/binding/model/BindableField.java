@@ -17,5 +17,12 @@
  */
 package inetsoft.web.wiz.binding.model;
 
-/** One bindable column. {@code role} is "dimension", "measure", or null when the tree does not say. */
-public record BindableField(String column, String dataType, String role) {}
+/**
+ * One bindable column.
+ *
+ * <p>Carried a {@code role} ("dimension"/"measure") that was hardcoded {@code null} at its only
+ * construction site and never populated for any column. A field that is always null is worse than
+ * an absent one: it reads as "this column has no role" rather than "this API does not report one".
+ * The binding tree does not distinguish the two, so there is nothing to populate it from.
+ */
+public record BindableField(String column, String dataType) {}
