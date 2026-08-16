@@ -72,6 +72,32 @@ public class SheetSessionService {
 
    public void close(String token) { if (token != null) sessions.remove(token); }
 
+   /**
+    * Returns an unexpired session of {@code sheetType} owned by {@code ownerIdentity}, or null if
+    * none is held.
+    *
+    * <p>Used to refuse silently replacing a session the user may be editing -- e.g.
+    * {@code open_base_worksheet} refusing to open a second worksheet runtime out from under one
+    * already paired, naming its runtime id instead of ending it with a success response.
+    */
+   public JoinSession findOpen(String ownerIdentity, SheetType sheetType) {
+      if(ownerIdentity == null) {
+         return null;
+      }
+
+      long now = clock.getAsLong();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && s.sheetType() == sheetType &&
+            ownerIdentity.equals(s.ownerIdentity()))
+         {
+            return s;
+         }
+      }
+
+      return null;
+   }
+
    @Scheduled(fixedDelay = 10 * 60_000)
    void evictExpired() {
       long now = clock.getAsLong();
