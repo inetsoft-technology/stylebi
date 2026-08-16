@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.StyleConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
@@ -193,6 +194,96 @@ class ViewsheetFormatServiceTest {
       assertEquals(String.valueOf(inetsoft.report.StyleConstants.DASH_LINE),
                    request.format().getBorderLeftStyle());
       assertEquals("0", request.format().getBorderBottomStyle());
+   }
+
+   /**
+    * A border width has to reach the line constant, because that is the only place StyleBI keeps
+    * weight: {@code FormatPainterService} builds its Insets from the four style fields alone and
+    * never reads {@code borderTopWidth}. The field is in {@code FormatInfoModel} and in this tool's
+    * documented schema, so asking for 3px silently produced a thin border.
+    */
+   @Test
+   void foldsABorderWidthIntoTheLineConstant() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{" +
+         "\"borderTopStyle\":\"solid\",\"borderTopWidth\":3," +
+         "\"borderLeftStyle\":\"solid\",\"borderLeftWidth\":\"2px\"," +
+         "\"borderBottomStyle\":\"dashed\",\"borderBottomWidth\":2," +
+         "\"borderRightStyle\":\"solid\",\"borderRightWidth\":0},\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals(String.valueOf(StyleConstants.THICK_LINE),
+                   request.format().getBorderTopStyle(), "3px solid is a thick line");
+      assertEquals(String.valueOf(StyleConstants.MEDIUM_LINE),
+                   request.format().getBorderLeftStyle(), "\"2px\" is accepted like 2");
+      assertEquals(String.valueOf(StyleConstants.MEDIUM_DASH),
+                   request.format().getBorderBottomStyle(), "weight applies to the dash family too");
+      assertEquals(String.valueOf(StyleConstants.NO_BORDER),
+                   request.format().getBorderRightStyle(), "a zero width is no border");
+   }
+
+   /** A width with no style at all reads as a solid border of that weight. */
+   @Test
+   void aBorderWidthAloneImpliesSolid() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      ViewsheetFormatService.FormatRequest request = mapper.readValue(
+         "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopWidth\":2},\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class);
+
+      assertEquals(String.valueOf(StyleConstants.MEDIUM_LINE),
+                   request.format().getBorderTopStyle());
+   }
+
+   /**
+    * StyleBI has no weighted dotted or double line, so the combination fails loud instead of
+    * rendering a thin one — which would be the original silent drop wearing a different hat.
+    */
+   @Test
+   void refusesAWidthOnABorderFamilyThatHasNoWeight() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> mapper.readValue(
+            "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopStyle\":\"dotted\"," +
+            "\"borderTopWidth\":3},\"reset\":false}",
+            ViewsheetFormatService.FormatRequest.class));
+
+      assertTrue(thrown.getMessage().contains("borderTopWidth"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("dotted"), thrown.getMessage());
+   }
+
+   /** A weight word plus a width is a contradiction, not extra detail. */
+   @Test
+   void refusesAWidthAlongsideAWeightWord() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> mapper.readValue(
+            "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopStyle\":\"thick\"," +
+            "\"borderTopWidth\":1},\"reset\":false}",
+            ViewsheetFormatService.FormatRequest.class));
+
+      assertTrue(thrown.getMessage().contains("borderTopWidth"), thrown.getMessage());
+   }
+
+   /** A numeric constant already encodes the weight, so a width beside it is ambiguous. */
+   @Test
+   void refusesAWidthAlongsideANumericConstant() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> mapper.readValue(
+            "{\"assemblies\":[\"Text1\"],\"format\":{\"borderTopStyle\":\"4097\"," +
+            "\"borderTopWidth\":2},\"reset\":false}",
+            ViewsheetFormatService.FormatRequest.class));
+
+      assertTrue(thrown.getMessage().contains("borderTopWidth"), thrown.getMessage());
    }
 
    /** A number still passes through, for anyone who already knows the constant. */
