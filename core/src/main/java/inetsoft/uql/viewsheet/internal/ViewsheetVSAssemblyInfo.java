@@ -41,6 +41,9 @@ public class ViewsheetVSAssemblyInfo extends VSAssemblyInfo {
    public ViewsheetVSAssemblyInfo() {
       super();
       this.setPixelOffset(new Point(0, 0));
+      // stamped before the seeds run, so the page background can resolve against the mark; the load
+      // path parses after constructing, which clears this for a file that carries no mark
+      setVizMark(VizMark.fromGate());
       initDefaultFormat();
    }
 
