@@ -367,7 +367,11 @@ public class EGraph implements Cloneable, Serializable {
       Map<Object, VisualFrame> vmap = new HashMap<>();
       Set<String> otherIds = new HashSet<>(); // non-color-frame
       List<VisualFrame> sharedColors = new ArrayList<>();
-      Set<VisualFrame> set = new HashSet<>();
+      // candidate legend frames of all elements, in element order. tracked by identity since
+      // different elements may carry distinct but equal frames, each of which may still need
+      // its own legend. equal frames are merged by vmap below. (76065)
+      List<VisualFrame> candidates = new ArrayList<>();
+      Set<VisualFrame> added = Collections.newSetFromMap(new IdentityHashMap<>());
       Map<Integer, Integer> frameElemIdx = new HashMap<>();
 
       for(int i = 0; i < getElementCount(); i++) {
@@ -399,18 +403,24 @@ public class EGraph implements Cloneable, Serializable {
                }
             }
 
-            set.add(frames[j]);
-         }
-
-         // don't show legend if color is already painted by other legends.
-         for(VisualFrame sharedColor : sharedColors) {
-            if(sharedColor != null && otherIds.contains(sharedColor.getShareId())) {
-               set.remove(sharedColor);
+            if(added.add(frames[j])) {
+               candidates.add(frames[j]);
             }
          }
       }
 
-      for(VisualFrame frame : set) {
+      // don't show legend if color is already painted by other legends. the frame is matched by
+      // identity so that an equal color frame belonging to another element, which is not painted
+      // by that legend, keeps its own legend. (76065)
+      for(VisualFrame sharedColor : sharedColors) {
+         if(sharedColor != null && otherIds.contains(sharedColor.getShareId())) {
+            candidates.removeIf(frame -> frame == sharedColor);
+         }
+      }
+
+      // all shared color frames have been collected at this point, so the legends can be
+      // finalized. (72971)
+      for(VisualFrame frame : candidates) {
          List<VisualFrame> key = new ArrayList<>();
          key.add(frame);
          VisualFrame sharedColor = null;
