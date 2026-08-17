@@ -173,4 +173,41 @@ class ScriptTargetTest {
       assertEquals(ScriptTarget.Location.ASSEMBLY_ONCLICK, t.location());
       assertEquals("Foo", t.assemblyName());
    }
+
+   @Test
+   void resolvePrefersIdThenKindThenLegacyString() throws PairingException {
+      Viewsheet vs = mock(Viewsheet.class);
+      String id = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1").id();
+
+      ScriptTarget byId = ScriptTarget.resolve(vs, id, "viewsheetOnInit", null, "vs-load");
+      assertEquals("Chart1", byId.assemblyName(), "id must win over every other dialect");
+
+      ScriptTarget byKind = ScriptTarget.resolve(vs, null, "assemblyOnClick", "Text1", "vs-load");
+      assertEquals(ScriptTarget.Location.ASSEMBLY_ONCLICK, byKind.location());
+      assertEquals("Text1", byKind.assemblyName());
+
+      ScriptTarget byLegacy = ScriptTarget.resolve(vs, null, null, null, "vs-load");
+      assertEquals(ScriptTarget.Location.VS_LOAD, byLegacy.location());
+   }
+
+   @Test
+   void resolveNamesEveryAcceptedDialectWhenNoneIsGiven() {
+      PairingException ex = assertThrows(
+         PairingException.class, () -> ScriptTarget.resolve(null, null, null, null, null));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("kind"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("target"), ex.getMessage());
+   }
+
+   @Test
+   void resolveAppliesThePrecedenceFixToTheLegacyDialect() throws PairingException {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Foo:onClick")).thenReturn(mock(TextVSAssembly.class));
+
+      ScriptTarget t = ScriptTarget.resolve(vs, null, null, null, "assembly:Foo:onClick");
+
+      assertEquals(ScriptTarget.Location.ASSEMBLY, t.location());
+      assertEquals("Foo:onClick", t.assemblyName());
+   }
 }

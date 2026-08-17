@@ -242,6 +242,38 @@ public final class ScriptTarget {
       return parse(target);
    }
 
+   /**
+    * Resolves whichever dialect the caller sent into one canonical target.
+    *
+    * <p>Three dialects, one precedence rule, in one place: six endpoints accept all three, and six
+    * copies of this would be six chances for them to disagree about which wins.
+    *
+    * @param vs            the joined viewsheet, for the exact-name precedence fix; may be null
+    * @param id            preferred for an existing target — the caller copies it back verbatim
+    * @param kind          the wire kind name, with {@code assembly} when the kind needs one
+    * @param legacyTarget  the v1 delimited string, still accepted
+    */
+   public static ScriptTarget resolve(Viewsheet vs, String id, String kind, String assembly,
+                                      String legacyTarget)
+      throws PairingException
+   {
+      if(id != null && !id.isBlank()) {
+         return fromId(id);
+      }
+
+      if(kind != null && !kind.isBlank()) {
+         return of(Kind.fromWire(kind), assembly);
+      }
+
+      if(legacyTarget != null && !legacyTarget.isBlank()) {
+         return parse(vs, legacyTarget);
+      }
+
+      throw new PairingException(
+         "A script target is required: pass 'id' (from list_script_targets), or 'kind' with " +
+         "'assembly' where the kind needs one, or the legacy 'target' string.");
+   }
+
    @Override
    public String toString() {
       return switch(location) {
