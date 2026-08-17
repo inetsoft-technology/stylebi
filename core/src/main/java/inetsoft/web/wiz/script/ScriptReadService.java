@@ -255,6 +255,14 @@ public class ScriptReadService {
             text = calcFields.read(vs, target.assemblyName(), target.name());
             enabled = true;
          }
+         // A worksheet expression/condition column lives on a RuntimeWorksheet, never a
+         // RuntimeViewsheet -- this method structurally cannot serve it. Named explicitly
+         // (rather than left to the generic default below) so the message says where to go
+         // instead of just "unsupported".
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet-level target; it is not readable " +
+            "through the viewsheet script API. Use worksheet-chat's read_worksheet_model or " +
+            "get_binding instead.");
          default -> throw new PairingException("Unsupported target: " + target);
       }
 

@@ -159,6 +159,17 @@ public class ScriptEditService {
             ScriptReadService.setOnClick(info, text);
          }
          case CALC_FIELD -> calcFields.write(vs, target.assemblyName(), target.name(), text);
+         // This is a switch STATEMENT, not an expression -- with no `default`, a Location this
+         // switch does not name would silently fall through and do NOTHING (the dangerous half
+         // of the trap this package has hit before: a no-op that reports success). A worksheet
+         // expression/condition column has no RuntimeViewsheet representation to write to at
+         // all -- it is written via WorksheetScriptService, routed onto
+         // WorksheetAgentController's edit_expression/edit_condition ops -- so this must fail
+         // loud if ever misrouted here, not do nothing.
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet-level target; it cannot be " +
+            "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
+            "edit_expression/edit_condition) instead.");
       }
    }
 
@@ -174,6 +185,12 @@ public class ScriptEditService {
          // flag at all, so there is nothing for Task 3 (or anyone) to wire in here later.
          case CALC_FIELD -> throw new PairingException(
             "A calculated field has no enable flag; only scripts can be enabled or disabled.");
+         // Same silent-no-op hazard as write() above -- this is a switch STATEMENT with no
+         // default. A worksheet expression/condition column has no enable flag either, and has
+         // no RuntimeViewsheet representation regardless -- fail loud rather than doing nothing.
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet-level target with no enable flag; " +
+            "it cannot be toggled through the viewsheet script API.");
       }
    }
 

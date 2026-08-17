@@ -35,7 +35,10 @@ import java.util.Set;
  * {@code "assembly:<name>:onClick"}.</p>
  */
 public final class ScriptTarget {
-   public enum Location { VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD }
+   public enum Location {
+      VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD,
+      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION
+   }
 
    /**
     * The wire vocabulary. Distinct from {@link Location}, which is the internal dispatch key every
@@ -59,10 +62,23 @@ public final class ScriptTarget {
        */
       CALC_FIELD("calcField", Location.CALC_FIELD),
 
-      // Reserved so the schema does not churn when pane-scoped pairing lands. A session cannot be
-      // scoped to one yet, so ScriptTarget.of refuses them with a scope error.
-      WORKSHEET_EXPRESSION("worksheetExpression", null),
-      WORKSHEET_CONDITION("worksheetCondition", null);
+      /**
+       * A worksheet expression column's formula (G2 Task 8). Addressed the same way as
+       * {@link #CALC_FIELD} and for the same reason: {@code assemblyName()} carries the owning
+       * TABLE, {@code name()} carries the column's own name. Servable only through
+       * {@code WorksheetScriptService}, which routes onto {@code WorksheetAgentController}'s
+       * existing {@code edit_expression} op rather than writing the worksheet directly.
+       */
+      WORKSHEET_EXPRESSION("worksheetExpression", Location.WORKSHEET_EXPRESSION),
+
+      /**
+       * A worksheet column's filter condition (G2 Task 8). Addressed by (table, field) exactly
+       * like {@link #WORKSHEET_EXPRESSION}/{@link #CALC_FIELD} -- see those for the asymmetry
+       * this implies for {@code assemblyName()}/{@code name()}. Servable only through
+       * {@code WorksheetScriptService}, routed onto {@code WorksheetAgentController}'s existing
+       * {@code edit_condition} op.
+       */
+      WORKSHEET_CONDITION("worksheetCondition", Location.WORKSHEET_CONDITION);
 
       Kind(String wireName, Location location) {
          this.wireName = wireName;
@@ -84,14 +100,14 @@ public final class ScriptTarget {
        * Claude" toolbar) session, regardless of the {@code wiz.agent.script.require-script-pane}
        * strict posture (see {@link PaneScopeService}, which enforces this).
        *
-       * <p>Deliberately NOT {@code location() == null}, even though every kind with no location
-       * yet (today {@code WORKSHEET_EXPRESSION}/{@code WORKSHEET_CONDITION}) does need this to be
-       * {@code true}. A future task giving those two a real {@code Location} (so they become
-       * servable) would silently flip this to {@code false} the moment {@code location()} stops
-       * being null -- exactly the kind of change that reports success while quietly inverting a
-       * security-relevant rule, since a calc field and a worksheet expression/condition column
-       * have no name or identity at the whole-sheet level regardless of whether a service can
-       * dispatch on their location yet.
+       * <p>Deliberately NOT {@code location() == null}. Before G2 Task 8, {@code WORKSHEET_EXPRESSION}/
+       * {@code WORKSHEET_CONDITION} had no {@code Location} at all and needed this to be
+       * {@code true} anyway; giving them a real {@code Location} (so they become servable, see
+       * {@code WorksheetScriptService}) would have silently flipped this to {@code false} the
+       * moment {@code location()} stopped being null -- exactly the kind of change that reports
+       * success while quietly inverting a security-relevant rule, since a calc field and a
+       * worksheet expression/condition column have no name or identity at the whole-sheet level
+       * regardless of whether a service can dispatch on their location.
        *
        * <p>Instead this is membership in {@link #EXPRESSION_LEVEL_LOCATIONS}, an explicit set
        * that a new expression-level {@code Location} must be added to on purpose. Still derived
@@ -138,9 +154,13 @@ public final class ScriptTarget {
        *
        * <p>A kind whose {@code Location} needs the same treatment must be added here explicitly —
        * see {@link #requiresPaneSession()}'s javadoc for why this must not instead be derived from
-       * {@code location() == null}.
+       * {@code location() == null}. G2 Task 8 gave {@code WORKSHEET_EXPRESSION}/
+       * {@code WORKSHEET_CONDITION} real locations; both are added here for exactly that reason —
+       * see {@code PaneScopeServiceTest#expressionLevelKindsRequireAPaneSession}, which exists
+       * specifically to fail loudly if a future edit forgets this.
        */
-      private static final Set<Location> EXPRESSION_LEVEL_LOCATIONS = EnumSet.of(Location.CALC_FIELD);
+      private static final Set<Location> EXPRESSION_LEVEL_LOCATIONS = EnumSet.of(
+         Location.CALC_FIELD, Location.WORKSHEET_EXPRESSION, Location.WORKSHEET_CONDITION);
 
       private final String wireName;
       private final Location location;
@@ -211,14 +231,16 @@ public final class ScriptTarget {
             "editor; this session is bound to a whole viewsheet.");
       }
 
-      if(kind == Kind.CALC_FIELD) {
+      if(COLUMN_ADDRESSED_KINDS.contains(kind)) {
          if(assemblyName == null || assemblyName.isBlank()) {
             throw new PairingException(
-               "kind 'calcField' requires the table the field belongs to, in 'assembly'.");
+               "kind '" + kind.wireName() + "' requires the table the field belongs to, in " +
+               "'assembly'.");
          }
 
          if(name == null || name.isBlank()) {
-            throw new PairingException("kind 'calcField' requires the field's 'name'.");
+            throw new PairingException(
+               "kind '" + kind.wireName() + "' requires the field's 'name'.");
          }
 
          return new ScriptTarget(kind, assemblyName, name);
@@ -226,7 +248,9 @@ public final class ScriptTarget {
 
       if(name != null && !name.isBlank()) {
          throw new PairingException(
-            "kind '" + kind.wireName() + "' takes no 'name'; only calcField is addressed by one.");
+            "kind '" + kind.wireName() + "' takes no 'name'; only " +
+            String.join(", ", COLUMN_ADDRESSED_KINDS.stream().map(Kind::wireName).sorted().toList()) +
+            " are addressed by one.");
       }
 
       boolean needsAssembly = kind == Kind.ASSEMBLY_MAIN || kind == Kind.ASSEMBLY_ON_CLICK;
@@ -479,8 +503,20 @@ public final class ScriptTarget {
          // location) -- it must not throw, or every such message breaks instead of reporting
          // the thing it was trying to report.
          case CALC_FIELD -> "calcField:" + assemblyName + ":" + name;
+         // Same reasoning as CALC_FIELD immediately above: no legacy parseable form, display
+         // string only.
+         case WORKSHEET_EXPRESSION -> "worksheetExpression:" + assemblyName + ":" + name;
+         case WORKSHEET_CONDITION -> "worksheetCondition:" + assemblyName + ":" + name;
       };
    }
+
+   /**
+    * Kinds addressed by (table, field) rather than by assembly alone — see {@link Kind#CALC_FIELD}'s
+    * javadoc for why. Centralized so {@link #of} has one place to check membership rather than an
+    * {@code ||} chain that a future column-addressed kind could be added to incompletely.
+    */
+   private static final Set<Kind> COLUMN_ADDRESSED_KINDS =
+      EnumSet.of(Kind.CALC_FIELD, Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION);
 
    private final Kind kind;
    private final Location location;

@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.SheetType;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
@@ -152,11 +153,11 @@ class ScriptReadServiceTest {
    @Test
    void advertisesOnlyTheKindsThisServerCanActuallyServe() {
       assertEquals(2, ScriptGrammar.VERSION);
+      // G2 Task 8 gave worksheetExpression/worksheetCondition real Locations (served by
+      // WorksheetScriptService), so they now belong in this list alongside calcField.
       assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick",
-                           "calcField"),
+                           "calcField", "worksheetExpression", "worksheetCondition"),
                    ScriptGrammar.supportedKinds());
-      assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
-                  "a reserved kind must not be advertised as servable");
    }
 
    private static CalculateRef calc(String name, String expression, boolean sql,
@@ -228,8 +229,22 @@ class ScriptReadServiceTest {
    @Test
    void calcFieldIsAdvertisedAsServableWithoutEditingScriptGrammar() {
       assertTrue(ScriptGrammar.supportedKinds().contains("calcField"));
-      assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
-                  "reserved kinds still must not be advertised");
+      assertTrue(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
+                 "worksheetExpression is servable (via WorksheetScriptService) since G2 Task 8");
+   }
+
+   /**
+    * {@link ScriptReadService#read} is scoped to a {@code RuntimeViewsheet} — a worksheet
+    * expression/condition column has no such representation, so this must fail loud (naming
+    * where to go instead) rather than silently matching nothing, the same hazard CALC_FIELD's
+    * addition hit in this package before.
+    */
+   @Test
+   void readRefusesAWorksheetExpressionTargetWithARedirect() {
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.read(runtime(), ScriptTarget.of(
+            ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin")));
+      assertTrue(ex.getMessage().contains("worksheet-level"), ex.getMessage());
    }
 
    /**

@@ -220,4 +220,99 @@ class PaneScopeServiceTest {
 
       assertTrue(new PaneScopeService(false).check(pane, calcFieldTarget));
    }
+
+   // -----------------------------------------------------------------------------------------
+   // G2 Task 8 — worksheetExpression/worksheetCondition are addressed by (table, field) exactly
+   // like calcField (see ScriptTarget.Kind's javadoc on each). matchesGrant's CALC_FIELD-only
+   // branch, written while these two were still reserved (no Location, therefore unreachable),
+   // fell through to its final `return true` for them -- which is correct ONLY for a kind with
+   // no name/identity at all (viewsheetOnInit/viewsheetOnLoad). The moment WORKSHEET_EXPRESSION/
+   // WORKSHEET_CONDITION got real Locations, that fallthrough would have let a grant for one
+   // column match a target naming a DIFFERENT column, silently -- a second instance of the same
+   // "gains a Location, quietly loses a security check" hazard EXPRESSION_LEVEL_LOCATIONS exists
+   // to catch for requiresPaneSession(). These pin the fix.
+   // -----------------------------------------------------------------------------------------
+
+   @Test
+   void aPaneScopedWorksheetExpressionSessionMaySatisfyItsOwnColumn() throws Exception {
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Margin", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      assertTrue(new PaneScopeService(false).check(pane, target));
+   }
+
+   /**
+    * The load-bearing regression: without matchesGrant treating worksheetExpression like
+    * calcField, this would incorrectly return {@code true} (same kind, no per-field check),
+    * letting a session paired to Query1.Margin's expression editor also edit Query1.TaxRate's.
+    */
+   @Test
+   void aPaneScopedSessionMayNotActOnADifferentWorksheetExpressionColumnOnTheSameTable()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Margin", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget otherColumn =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "TaxRate");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, otherColumn));
+
+      assertTrue(ex.getMessage().contains("TaxRate"), ex.getMessage());
+   }
+
+   /** Same regression, other table — the field match alone must not be enough either. */
+   @Test
+   void aPaneScopedSessionMayNotActOnTheSameWorksheetExpressionFieldOnADifferentTable()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Margin", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget otherTable =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query2", "Margin");
+
+      assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, otherTable));
+   }
+
+   @Test
+   void aPaneScopedWorksheetConditionSessionMaySatisfyItsOwnColumn() throws Exception {
+      EditorContext ctx = new EditorContext("worksheetCondition", "Query1", "Price", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "Price");
+
+      assertTrue(new PaneScopeService(false).check(pane, target));
+   }
+
+   @Test
+   void aPaneScopedSessionMayNotActOnADifferentWorksheetConditionColumnOnTheSameTable()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetCondition", "Query1", "Price", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget otherColumn =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "Quantity");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, otherColumn));
+
+      assertTrue(ex.getMessage().contains("Quantity"), ex.getMessage());
+   }
+
+   /** worksheetExpression and worksheetCondition are different dialogs -- never siblings. */
+   @Test
+   void aWorksheetExpressionGrantDoesNotMatchAWorksheetConditionTargetOnTheSameColumn()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Margin", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget conditionTarget =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "Margin");
+
+      assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, conditionTarget));
+   }
 }

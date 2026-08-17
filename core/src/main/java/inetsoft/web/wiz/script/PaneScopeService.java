@@ -138,9 +138,11 @@ public class PaneScopeService {
          return false;
       }
 
-      if(grantedKind == ScriptTarget.Kind.CALC_FIELD) {
+      if(COLUMN_ADDRESSED_FAMILY.contains(grantedKind)) {
          // EditorContext accepts the table name in either `table` or (mirroring ScriptTarget's
-         // own assemblyName() alias) `assembly` -- see EditorContext's javadoc.
+         // own assemblyName() alias) `assembly` -- see EditorContext's javadoc. Covers
+         // calcField/worksheetExpression/worksheetCondition alike -- all three are addressed by
+         // (table, field), never by kind alone (see ScriptTarget.Kind's javadoc on each).
          String grantedTable = grant.table() != null ? grant.table() : grant.assembly();
          return Objects.equals(grantedTable, target.assemblyName()) &&
             Objects.equals(grant.name(), target.name());
@@ -150,9 +152,8 @@ public class PaneScopeService {
          return Objects.equals(grant.assembly(), target.assemblyName());
       }
 
-      // viewsheetOnInit/viewsheetOnLoad (and, once servable, worksheetExpression/
-      // worksheetCondition) carry no assembly/name -- sameDialogFamily already required an exact
-      // kind match, which is the whole identity for these.
+      // viewsheetOnInit/viewsheetOnLoad carry no assembly/name -- sameDialogFamily already
+      // required an exact kind match, which is the whole identity for these.
       return true;
    }
 
@@ -188,6 +189,16 @@ public class PaneScopeService {
             case CALC_FIELD -> "calculated field '" +
                (grant.table() != null ? grant.table() : grant.assembly()) + "." + grant.name() +
                "'";
+            // Same (table, field) addressing as CALC_FIELD -- see ScriptTarget.Kind's javadoc on
+            // each. Falling through to the generic `default` below (as this did before both
+            // kinds were servable) would report only "'worksheetExpression'" for every grant,
+            // making two DIFFERENT columns' refusal messages read identically.
+            case WORKSHEET_EXPRESSION -> "worksheet expression column '" +
+               (grant.table() != null ? grant.table() : grant.assembly()) + "." + grant.name() +
+               "'";
+            case WORKSHEET_CONDITION -> "worksheet condition on '" +
+               (grant.table() != null ? grant.table() : grant.assembly()) + "." + grant.name() +
+               "'";
             case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK -> "the script of '" + grant.assembly() + "'";
             default -> "'" + grantedKind.wireName() + "'";
          };
@@ -201,6 +212,11 @@ public class PaneScopeService {
       return switch(target.kind()) {
          case CALC_FIELD ->
             "calculated field '" + target.assemblyName() + "." + target.name() + "'";
+         // Same reasoning as grantDescription's WORKSHEET_EXPRESSION/WORKSHEET_CONDITION cases.
+         case WORKSHEET_EXPRESSION ->
+            "worksheet expression column '" + target.assemblyName() + "." + target.name() + "'";
+         case WORKSHEET_CONDITION ->
+            "worksheet condition on '" + target.assemblyName() + "." + target.name() + "'";
          case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK ->
             "'" + target.kind().wireName() + "' on '" + target.assemblyName() + "'";
          default -> "'" + target.kind().wireName() + "'";
@@ -230,6 +246,19 @@ public class PaneScopeService {
    /** The dialog-sibling family {@link #matchesGrant} treats as one grant; see its javadoc. */
    private static final Set<ScriptTarget.Kind> ASSEMBLY_SCRIPT_FAMILY =
       EnumSet.of(ScriptTarget.Kind.ASSEMBLY_MAIN, ScriptTarget.Kind.ASSEMBLY_ON_CLICK);
+
+   /**
+    * Kinds addressed by (table, field) rather than by assembly alone -- see
+    * {@link ScriptTarget.Kind#CALC_FIELD}'s javadoc. {@code matchesGrant} must match these on
+    * BOTH components, never fall through to the "kind match is the whole identity" default that
+    * suffices for {@code viewsheetOnInit}/{@code viewsheetOnLoad} -- doing so for
+    * {@code worksheetExpression}/{@code worksheetCondition} would let a grant for one column
+    * match a target naming a DIFFERENT column on the same or another table, the moment those two
+    * kinds went from reserved (no Location) to servable.
+    */
+   private static final Set<ScriptTarget.Kind> COLUMN_ADDRESSED_FAMILY = EnumSet.of(
+      ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.WORKSHEET_EXPRESSION,
+      ScriptTarget.Kind.WORKSHEET_CONDITION);
 
    private final boolean strict;
 }
