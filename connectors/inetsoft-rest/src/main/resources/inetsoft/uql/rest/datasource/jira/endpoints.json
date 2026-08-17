@@ -245,9 +245,22 @@
       ]
     },
     {
+      "name": "Field Contexts",
+      "paged": true,
+      "suffix": "/rest/api/2/field/{Field ID}/context?isAnyIssueType={Any Issue Type?:true|false}&isGlobalContext={Global Context?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Field Options",
+          "jsonPath": "$.values[*]",
+          "key": "id",
+          "parameterName": "Context ID"
+        }
+      ]
+    },
+    {
       "name": "Field Options",
       "paged": true,
-      "suffix": "/rest/api/2/customField/{Schema Custom ID}/option"
+      "suffix": "/rest/api/2/field/{Field ID}/context/{Context ID}/option?onlyOptions={Only Options?:true|false}"
     },
     {
       "name": "Custom Field Option",
@@ -393,7 +406,7 @@
     {
       "name": "Alternative Issue Types",
       "paged": true,
-      "suffix": "rest/api/2/issuetype/{Issue Type ID}/alternatives"
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/alternatives"
     },
     {
       "name": "Issue Type Properties",
