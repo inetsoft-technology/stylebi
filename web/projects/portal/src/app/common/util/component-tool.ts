@@ -141,6 +141,19 @@ export namespace ComponentTool {
                v = v.result;
             }
 
+            // Write coordination: Apply never closes the dialog, so its held model is never
+            // refreshed with the revision the commit it just sent bumped to on the server. A
+            // dialog that forwards its held model unmodified (most of them do) would otherwise
+            // carry that now-stale revision into its own next apply/commit and conflict with
+            // itself. Stripped once, here, for every dialog that reaches this apply path,
+            // rather than relying on each dialog's own payload-construction code to remember —
+            // found on stylebi#4640 review: the fix landed only in the handful of dialogs that
+            // rebuild a slimmed request object, not in the majority that emit the model as-is.
+            // See 2026-08-17-write-coordination-design.md.
+            if(v && typeof v === "object" && "revision" in v) {
+               v = {...v, revision: undefined};
+            }
+
             if(options.objectId) {
                modalService.objectChange(options.objectId, slideout.title);
                slideout.changedByOthers = false;
