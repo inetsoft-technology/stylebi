@@ -3740,6 +3740,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       // AUTO is never a rendered style: resolve it to the org modern-visualization
       // default so every runtime consumer (PlotArea tooltip content, GraphBuilder model)
       // agrees. The design value (getTooltipStyleValue) stays AUTO for persistence.
+      // reads the gate directly: no assembly or context reaches this getter
       return style == TooltipStyle.AUTO
          ? (VSDensityDefaults.isModern() ? TooltipStyle.CARD : TooltipStyle.DEFAULT)
          : style;

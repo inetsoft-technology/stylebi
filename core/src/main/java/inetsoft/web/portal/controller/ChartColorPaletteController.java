@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,7 +39,7 @@ public class ChartColorPaletteController {
     */
    @GetMapping("/api/portal/chart-color-palette")
    public String[] getChartColorPalette() {
-      Color[] colors = VSChartPaletteDefaults.pickerPalette();
+      Color[] colors = VSChartPaletteDefaults.pickerPalette(VizContext.ofGate());
 
       // pickerPalette() does not cap length - a customer format.css can declare a palette past
       // index 40 and the renderer honors all of it - but the picker grid is a fixed 5x8, so this

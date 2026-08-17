@@ -47,7 +47,6 @@ class VSTitleChromeDefaultsTest {
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
-      SreeEnv.setProperty("viewsheet.modernObjectChrome", null);
       SreeEnv.setProperty("viewsheet.darkMode", null);
    }
 
@@ -56,9 +55,10 @@ class VSTitleChromeDefaultsTest {
    void titleAccessorsDark() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(0x2D2B30, rgb(VSTitleChromeDefaults.titleBackground()));
-      assertEquals(0xCAC4D0, rgb(VSTitleChromeDefaults.titleForeground()));
-      assertEquals(0x49454F, rgb(VSTitleChromeDefaults.titleBorderColor()));
+      VizContext ctx = VizContext.ofGate();
+      assertEquals(0x2D2B30, rgb(VSTitleChromeDefaults.titleBackground(ctx)));
+      assertEquals(0xCAC4D0, rgb(VSTitleChromeDefaults.titleForeground(ctx)));
+      assertEquals(0x49454F, rgb(VSTitleChromeDefaults.titleBorderColor(ctx)));
    }
 
    // pins the modern title-chrome palette; the values are substituted onto the title format at read
@@ -66,19 +66,19 @@ class VSTitleChromeDefaultsTest {
    @Test
    void titleBackgroundValue() {
       // equals VSTableStructureDefaults.headerBackground() so title bar and table header match
-      assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.titleBackground()));
+      assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.titleBackground(VizContext.ofGate())));
    }
 
    @Test
    void titleForegroundValue() {
       // equals the table header / chart label foreground
-      assertEquals(0x6A685F, rgb(VSTitleChromeDefaults.titleForeground()));
+      assertEquals(0x6A685F, rgb(VSTitleChromeDefaults.titleForeground(VizContext.ofGate())));
    }
 
    @Test
    void titleBorderMatchesShellBorder() {
       // the shared structural border, equal to VSTableStructureDefaults.headerSeparator()
-      assertEquals(0xD9D5CC, rgb(VSTitleChromeDefaults.titleBorderColor()));
+      assertEquals(0xD9D5CC, rgb(VSTitleChromeDefaults.titleBorderColor(VizContext.ofGate())));
    }
 
    @Test
@@ -86,7 +86,7 @@ class VSTitleChromeDefaultsTest {
       withProperty("viewsheet.modernVisualization", "false", () -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
          fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
-         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt),
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate()),
                     "gate off returns the original format");
       });
    }
@@ -94,32 +94,29 @@ class VSTitleChromeDefaultsTest {
    @Test
    void gateOnModernizesAnyDefaultButPreservesUser() {
       withProperty("viewsheet.modernVisualization", "true", () -> {
+         VizContext ctx = VizContext.ofGate();
          // a white default (e.g. chart) is modernized...
          VSCompositeFormat white = new VSCompositeFormat();
          white.getDefaultFormat().setBackgroundValue("0xffffff");
-         assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.applyModernDefaults(white).getBackground()),
+         assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.applyModernDefaults(white, ctx).getBackground()),
                       "a white default title bg is modernized");
          // ...as is an unset (transparent) bg (e.g. selection / checkbox) ...
          VSCompositeFormat none = new VSCompositeFormat();
-         assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.applyModernDefaults(none).getBackground()),
+         assertEquals(0xF1EFEA, rgb(VSTitleChromeDefaults.applyModernDefaults(none, ctx).getBackground()),
                       "an unset title bg is modernized");
          // ...but a user-set bg still wins (customized, not a bare default)
          VSCompositeFormat user = new VSCompositeFormat();
          user.getUserDefinedFormat().setBackgroundValue("0x123456");
-         assertEquals(0x123456, rgb(VSTitleChromeDefaults.applyModernDefaults(user).getBackground()),
+         assertEquals(0x123456, rgb(VSTitleChromeDefaults.applyModernDefaults(user, ctx).getBackground()),
                       "a user-set title bg still wins");
       });
    }
 
    @Test
-   void escapeHatchOptsOut() {
-      withProperty("viewsheet.modernVisualization", "true", () ->
-         withProperty("viewsheet.modernObjectChrome", "false", () -> {
-            VSCompositeFormat fmt = new VSCompositeFormat();
-            fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
-            assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt),
-                       "modernObjectChrome=false opts title chrome out while the rest of modern stays on");
-         }));
+   void aLegacyContextLeavesATitleFormatAlone() {
+      VSCompositeFormat fmt = new VSCompositeFormat();
+      assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt, VizContext.LEGACY),
+                 "a legacy context must return the original, not a clone");
    }
 
    // end-to-end: a title format seeded like VSAssemblyInfo.setDefaultFormat (default-tier bg =
@@ -132,7 +129,7 @@ class VSTitleChromeDefaultsTest {
          fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
          assertEquals(0xF5F5F5, rgb(fmt.getBackground()), "precondition: legacy default bg");
 
-         VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt);
+         VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
          assertNotSame(fmt, modern, "a modern clone is returned");
          assertEquals(0xF1EFEA, rgb(modern.getBackground()), "getBackground() resolves modern");
          assertEquals(0x6A685F, rgb(modern.getForeground()), "getForeground() resolves modern");
@@ -149,7 +146,7 @@ class VSTitleChromeDefaultsTest {
       VSCompositeFormat fmt = new VSCompositeFormat();
       fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
 
-      VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt);
+      VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
       assertNotSame(fmt, modern, "a modern clone is returned");
       assertEquals(0x2D2B30, rgb(modern.getBackground()), "getBackground() resolves dark");
       assertEquals(0xCAC4D0, rgb(modern.getForeground()), "getForeground() resolves dark");
@@ -165,7 +162,7 @@ class VSTitleChromeDefaultsTest {
       VSCompositeFormat fmt = new VSCompositeFormat();
       fmt.getUserDefinedFormat().setBackgroundValue("0x123456");
 
-      VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt);
+      VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
       assertEquals(0x123456, rgb(modern.getBackground()), "user-set title bg still wins in dark");
    }
 
@@ -174,7 +171,7 @@ class VSTitleChromeDefaultsTest {
       withProperty("viewsheet.modernVisualization", "false", () -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
          fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
-         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt), "gate off returns original");
+         assertSame(fmt, VSTitleChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate()), "gate off returns original");
       });
    }
 
@@ -184,7 +181,7 @@ class VSTitleChromeDefaultsTest {
       withProperty("viewsheet.modernVisualization", "true", () -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
          fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
-         VSTitleChromeDefaults.applyModernDefaultsInPlace(fmt);
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(fmt, VizContext.ofGate());
          assertEquals(0xF1EFEA, rgb(fmt.getBackground()), "in-place modern bg");
          assertEquals(0x6A685F, rgb(fmt.getForeground()), "in-place modern fg");
       });
@@ -195,7 +192,7 @@ class VSTitleChromeDefaultsTest {
       withProperty("viewsheet.modernVisualization", "false", () -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
          fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
-         VSTitleChromeDefaults.applyModernDefaultsInPlace(fmt);
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(fmt, VizContext.ofGate());
          assertEquals(0xF5F5F5, rgb(fmt.getBackground()), "gate off unchanged");
       });
    }

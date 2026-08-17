@@ -23,6 +23,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,22 +52,22 @@ class ChartChromeTextColorTest {
          SreeEnv.setProperty("viewsheet.modernVisualization", "false");
 
          AxisDescriptor axis = new AxisDescriptor();
-         axis.initDefaultFormat(true);
+         axis.initDefaultFormat(VizContext.ofGate());
          assertEquals(GDefaults.DEFAULT_TEXT_COLOR,
                       axis.getAxisLabelTextFormat().getDefaultFormat().getColor(), "axis label");
 
          TitleDescriptor title = new TitleDescriptor();
-         title.initDefaultFormat(true);
+         title.initDefaultFormat(VizContext.ofGate());
          assertEquals(GDefaults.DEFAULT_TITLE_COLOR,
                       title.getTextFormat().getDefaultFormat().getColor(), "axis title");
 
          LegendsDescriptor legends = new LegendsDescriptor();
-         legends.initDefaultFormat(true);
+         legends.initDefaultFormat(VizContext.ofGate());
          assertEquals(GDefaults.DEFAULT_TEXT_COLOR,
                       legends.getTitleTextFormat().getDefaultFormat().getColor(), "legend title");
 
          LegendDescriptor legend = new LegendDescriptor();
-         legend.initDefaultFormat(true);
+         legend.initDefaultFormat(VizContext.ofGate());
          assertEquals(GDefaults.DEFAULT_TEXT_COLOR,
                       legend.getContentTextFormat().getDefaultFormat().getColor(), "legend content");
       }
@@ -83,23 +84,23 @@ class ChartChromeTextColorTest {
          SreeEnv.setProperty("viewsheet.modernVisualization", "true");
 
          AxisDescriptor axis = new AxisDescriptor();
-         axis.initDefaultFormat(true);
-         assertEquals(VSChartChromeDefaults.labelColor(),
+         axis.initDefaultFormat(VizContext.ofGate());
+         assertEquals(VSChartChromeDefaults.labelColor(VizContext.ofGate()),
                       axis.getAxisLabelTextFormat().getDefaultFormat().getColor(), "axis label");
 
          TitleDescriptor title = new TitleDescriptor();
-         title.initDefaultFormat(true);
-         assertEquals(VSChartChromeDefaults.titleColor(),
+         title.initDefaultFormat(VizContext.ofGate());
+         assertEquals(VSChartChromeDefaults.titleColor(VizContext.ofGate()),
                       title.getTextFormat().getDefaultFormat().getColor(), "axis title");
 
          LegendsDescriptor legends = new LegendsDescriptor();
-         legends.initDefaultFormat(true);
-         assertEquals(VSChartChromeDefaults.titleColor(),
+         legends.initDefaultFormat(VizContext.ofGate());
+         assertEquals(VSChartChromeDefaults.titleColor(VizContext.ofGate()),
                       legends.getTitleTextFormat().getDefaultFormat().getColor(), "legend title");
 
          LegendDescriptor legend = new LegendDescriptor();
-         legend.initDefaultFormat(true);
-         assertEquals(VSChartChromeDefaults.labelColor(),
+         legend.initDefaultFormat(VizContext.ofGate());
+         assertEquals(VSChartChromeDefaults.labelColor(VizContext.ofGate()),
                       legend.getContentTextFormat().getDefaultFormat().getColor(), "legend content");
       }
       finally {
@@ -116,7 +117,7 @@ class ChartChromeTextColorTest {
          SreeEnv.setProperty("viewsheet.modernVisualization", "true");
 
          AxisDescriptor axis = new AxisDescriptor();
-         axis.initDefaultFormat(false);
+         axis.initDefaultFormat(VizContext.LEGACY);
          assertEquals(GDefaults.DEFAULT_TEXT_COLOR,
                       axis.getAxisLabelTextFormat().getDefaultFormat().getColor(),
                       "report path (vs=false) is not modernized");

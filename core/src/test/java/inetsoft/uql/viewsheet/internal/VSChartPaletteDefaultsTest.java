@@ -28,7 +28,6 @@ class VSChartPaletteDefaultsTest {
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
-      SreeEnv.setProperty("viewsheet.modernChartPalette", null);
       SreeEnv.setProperty("viewsheet.darkMode", null);
       VSChartPaletteDefaults.clearMemo();
       CSSDictionary.resetDictionaryCache();
@@ -37,10 +36,10 @@ class VSChartPaletteDefaultsTest {
    @Test
    void gateOffReturnsFalseAndLeavesPaletteUntouched() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
-      assertFalse(VSChartPaletteDefaults.isModern());
+      assertFalse(VizContext.ofGate().modern);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
-      VSChartPaletteDefaults.applyModernPalette(frame);
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
       // gate off => still the legacy head color
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
    }
@@ -48,7 +47,7 @@ class VSChartPaletteDefaultsTest {
    @Test
    void gateOnSwapsToModernHeadButKeepsLegacyTail() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertTrue(VSChartPaletteDefaults.isModern());
+      assertTrue(VizContext.ofGate().modern);
 
       Color[] modern = VSChartPaletteDefaults.modernPalette();
       assertEquals(40, modern.length, "8 modern + 32 legacy tail = 40");
@@ -59,16 +58,9 @@ class VSChartPaletteDefaultsTest {
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
-      VSChartPaletteDefaults.applyModernPalette(frame);
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
       assertEquals(new Color(0x00D4E8), frame.getColor(0));
       assertEquals(new Color(0x00B87A), frame.getColor(1));
-   }
-
-   @Test
-   void subGateFalseOptsOutEvenWhenBaseGateOn() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      SreeEnv.setProperty("viewsheet.modernChartPalette", "false");
-      assertFalse(VSChartPaletteDefaults.isModern());
    }
 
    // Regression: the value-based render path (getColor(Object)) resolves through the cached
@@ -83,11 +75,11 @@ class VSChartPaletteDefaultsTest {
       CategoricalColorFrame warmed = new CategoricalColorFrame();
       warmed.init("A", "B", "C");
       warmed.getColor("A");                       // warm the unusedColors cache from legacy
-      VSChartPaletteDefaults.applyModernPalette(warmed);
+      VSChartPaletteDefaults.applyModernPalette(warmed, VizContext.ofGate());
 
       CategoricalColorFrame fresh = new CategoricalColorFrame();
       fresh.init("A", "B", "C");
-      VSChartPaletteDefaults.applyModernPalette(fresh);   // never warmed
+      VSChartPaletteDefaults.applyModernPalette(fresh, VizContext.ofGate());   // never warmed
 
       // a warmed-then-swapped frame must render identically to a fresh-swapped frame — i.e. the
       // stale cache did not poison the render. Both go through the same brightness processing.
@@ -108,7 +100,7 @@ class VSChartPaletteDefaultsTest {
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], dark[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
-      VSChartPaletteDefaults.applyModernPalette(frame);
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
       assertEquals(new Color(0x22D3EE), frame.getColor(0));
       assertEquals(new Color(0x10B981), frame.getColor(1));
    }
@@ -118,7 +110,7 @@ class VSChartPaletteDefaultsTest {
       // dark set but modern off => palette untouched (legacy head)
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       CategoricalColorFrame frame = new CategoricalColorFrame();
-      VSChartPaletteDefaults.applyModernPalette(frame);
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
    }
 
@@ -220,17 +212,17 @@ class VSChartPaletteDefaultsTest {
    @Test
    void activePaletteFollowsDarkMode() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.activePalette()[0]);
+      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.activePalette(VizContext.ofGate())[0]);
 
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.activePalette()[0]);
+      assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.activePalette(VizContext.ofGate())[0]);
    }
 
    @Test
    void pickerPaletteIsLegacyWhenGateOff() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
 
-      Color[] picker = VSChartPaletteDefaults.pickerPalette();
+      Color[] picker = VSChartPaletteDefaults.pickerPalette(VizContext.ofGate());
 
       assertEquals(40, picker.length);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], picker[0]);
@@ -240,10 +232,10 @@ class VSChartPaletteDefaultsTest {
    @Test
    void pickerPaletteFollowsGateAndDarkMode() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.pickerPalette()[0]);
+      assertEquals(new Color(0x00D4E8), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
 
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.pickerPalette()[0]);
+      assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
    }
 
    // Repeated calls with unchanged CSS must resolve to the same colors every time, but resolve()

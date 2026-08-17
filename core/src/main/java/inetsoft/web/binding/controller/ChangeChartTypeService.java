@@ -33,7 +33,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
-import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
@@ -201,7 +201,7 @@ public class ChangeChartTypeService {
          plotDesc.setValuesVisible(false);
       }
 
-      applySmoothLinesTransition(oldType, newType, plotDesc, VSObjectChromeDefaults.isModern());
+      applySmoothLinesTransition(oldType, newType, plotDesc, VizContext.ofGate().modern);
       // drop the runtime clone so the next render sees the design-time mutations above
       ninfo.setRTChartDescriptor(null);
 

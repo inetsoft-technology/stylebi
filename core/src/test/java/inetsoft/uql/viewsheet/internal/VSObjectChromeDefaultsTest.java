@@ -74,14 +74,8 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void colorConstants() {
-      assertEquals(0xD9D5CC, rgb(VSObjectChromeDefaults.objectBorderColor()));
-      assertEquals("#f8f7f4", VSObjectChromeDefaults.pageBackgroundCss());
-   }
-
-   @Test
-   void isModernGatedByProperty() {
-      withGate("true", () -> assertTrue(VSObjectChromeDefaults.isModern()));
-      withGate("false", () -> assertFalse(VSObjectChromeDefaults.isModern()));
+      assertEquals(0xD9D5CC, rgb(VSObjectChromeDefaults.objectBorderColor(VizContext.ofGate())));
+      assertEquals("#f8f7f4", VSObjectChromeDefaults.pageBackgroundCss(VizContext.ofGate()));
    }
 
    @Test
@@ -127,15 +121,16 @@ class VSObjectChromeDefaultsTest {
    @Test
    void cardBackgroundWhiteWhenNotDark() {
       // legacy and light modern keep white object cards
-      assertEquals("#ffffff", VSObjectChromeDefaults.cardBackgroundCss());
+      assertEquals("#ffffff", VSObjectChromeDefaults.cardBackgroundCss(VizContext.ofGate()));
    }
 
    @Test
    void colorConstantsDark() {
       withDark(() -> {
-         assertEquals(0x49454F, rgb(VSObjectChromeDefaults.objectBorderColor()));
-         assertEquals("#1c1b1f", VSObjectChromeDefaults.pageBackgroundCss());
-         assertEquals("#252428", VSObjectChromeDefaults.cardBackgroundCss());
+         VizContext ctx = VizContext.ofGate();
+         assertEquals(0x49454F, rgb(VSObjectChromeDefaults.objectBorderColor(ctx)));
+         assertEquals("#1c1b1f", VSObjectChromeDefaults.pageBackgroundCss(ctx));
+         assertEquals("#252428", VSObjectChromeDefaults.cardBackgroundCss(ctx));
       });
    }
 
@@ -171,19 +166,19 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void textForegroundCssNullWhenNotDark() {
-      withGate("true", () -> assertNull(VSObjectChromeDefaults.textForegroundCss()));
+      withGate("true", () -> assertNull(VSObjectChromeDefaults.textForegroundCss(VizContext.ofGate())));
    }
 
    @Test
    void textForegroundCssDark() {
-      withDark(() -> assertEquals("#e6e0e9", VSObjectChromeDefaults.textForegroundCss()));
+      withDark(() -> assertEquals("#e6e0e9", VSObjectChromeDefaults.textForegroundCss(VizContext.ofGate())));
    }
 
    @Test
    void applyDarkForegroundSubstitutesBareDefault() {
       withDark(() -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
-         VSCompositeFormat out = VSObjectChromeDefaults.applyDarkForeground(fmt);
+         VSCompositeFormat out = VSObjectChromeDefaults.applyDarkForeground(fmt, VizContext.ofGate());
          assertNotSame(fmt, out, "returns a clone, never mutates the source");
          assertEquals(0xE6E0E9, rgb(out.getForeground()));
       });
@@ -194,7 +189,7 @@ class VSObjectChromeDefaultsTest {
       withDark(() -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
          fmt.getUserDefinedFormat().setForegroundValue("0x123456");
-         assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt),
+         assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt, VizContext.ofGate()),
                     "a user foreground is left untouched in dark");
       });
    }
@@ -203,7 +198,7 @@ class VSObjectChromeDefaultsTest {
    void applyDarkForegroundNoOpInLightModern() {
       withGate("true", () -> {
          VSCompositeFormat fmt = new VSCompositeFormat();
-         assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt));
+         assertSame(fmt, VSObjectChromeDefaults.applyDarkForeground(fmt, VizContext.ofGate()));
       });
    }
 

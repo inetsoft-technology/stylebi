@@ -21,6 +21,7 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
 import org.slf4j.Logger;
@@ -50,14 +51,15 @@ public class ChartRefImpl implements Cloneable, Serializable {
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
+   public void initDefaultFormat(VizContext ctx) {
       TextFormat deffmt = fmt.getDefaultFormat();
-      deffmt.setColor(vs && VSChartChromeDefaults.isModern() ?
-                         VSChartChromeDefaults.labelColor() : GDefaults.DEFAULT_TEXT_COLOR);
-      deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
+      deffmt.setColor(ctx.modern ?
+                         VSChartChromeDefaults.labelColor(ctx) : GDefaults.DEFAULT_TEXT_COLOR);
+      // font follows "is a viewsheet chart", not the modern gate
+      deffmt.setFont(ctx != VizContext.LEGACY ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
    }
 

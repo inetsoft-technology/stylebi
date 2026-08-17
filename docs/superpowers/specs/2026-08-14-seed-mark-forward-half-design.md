@@ -210,26 +210,48 @@ forbids deleting them before the mark is verified, and they are what keeps the r
 meantime. **`VSCompositeFormat` therefore needs no changes in this scope at all** — which removes the
 granularity problem the external ticket spends a section on.
 
-### Four sub-gate properties `VizContext` does not model
+### The four sub-gate properties — deleted in P2
+
+**Decided 2026-08-14.** Four properties currently switch modern facets independently of the master gate, and
+P2 deletes all four. `VizContext` keeps the three fields specified above.
 
 `VSObjectChromeDefaults.isModern()` is `VSDensityDefaults.isModern() && viewsheet.modernObjectChrome !=
-"false"`. Reading all eight `VS*Defaults` classes turns up three siblings: `viewsheet.modernChartChrome`
-(`VSChartChromeDefaults`), `viewsheet.modernChartPalette` (`VSChartPaletteDefaults`) and
-`viewsheet.modernTableStructure` (`VSTableStructureDefaults`). `viewsheet.modernObjectChrome` itself is
-shared by `VSObjectChromeDefaults`, `VSTitleChromeDefaults` and `VSOutputChromeDefaults`.
-`VSCalendarChromeDefaults` and `VSChartInteractionDefaults` have no property of their own — four in total,
-not eight.
+"false"`, and three siblings have the same shape: `viewsheet.modernChartChrome` (`VSChartChromeDefaults`),
+`viewsheet.modernChartPalette` (`VSChartPaletteDefaults`) and `viewsheet.modernTableStructure`
+(`VSTableStructureDefaults`). `viewsheet.modernObjectChrome` itself is shared by three classes —
+`VSObjectChromeDefaults`, `VSTitleChromeDefaults` and `VSOutputChromeDefaults` — so it is four properties
+guarding six classes. `VSCalendarChromeDefaults` has no `isModern()` at all and guards on `isDark()` alone.
 
-These are property-only escape hatches, and neither `VizMark` nor `VizContext` as specified above accounts
-for them. Two consequences, left open rather than decided here:
+**Why they go.** They were rollout scaffolding: they de-risked building the facets one phase at a time. All
+six classes have shipped, so the per-facet switches have served their purpose. They are also undocumented,
+absent from EM's Look and Feel pane, unwritten by `LookAndFeelService`, referenced nowhere outside the six
+classes that read them, and one of them — `modernTableStructure` — has no test at all.
 
-- `VizMark.fromGate()` reads only the master gate. With `modernVisualization=true` and
-  `modernObjectChrome=false`, a new assembly is **marked but receives no chrome seeds** — "marked" no
-  longer implies "seeded," which several later-phase claims lean on.
-- `VizContext`'s shape above is one `modern` boolean. That cannot express "chrome off, palette on," so
-  P4's `of(info)` would either lose the four escape hatches or need per-facet resolution.
+**What the deletion buys, beyond a simpler type.** With the sub-gates gone, "marked but unseeded" becomes
+unreachable: a marked assembly is always seeded, because master-on-facet-off no longer exists. P3's
+Modernize, P4's read flip and the revert sweep can all rely on that, and several later-phase claims already
+did.
 
-Open question for P2 to decide. No P1 code change.
+**The mechanics, and why they cost P2 nothing extra.** All six `isModern()` methods are structurally
+identical, differing only in which property they read, so stripping the sub-gate term makes all six literally
+`return VSDensityDefaults.isModern();`. They are then deleted rather than left as delegates, and each of the
+~115 call sites reads `ctx.modern` instead of `X.isModern()` — the same edit P2 was already making at that
+site, not an additional one.
+
+**Zero behaviour change, and that is checkable.** All four default *on* — the predicate is
+`!"false".equals(...)`, so absent means enabled — and `viz-updates` has never shipped, so no deployment can
+have set one to `false`. Deleting them cannot alter what any dashboard renders.
+
+**Test fallout: two tests and four lines.** `VSOutputChromeDefaultsTest:85-86` (`"modernObjectChrome=false
+opts out"`) and `VSChartPaletteDefaultsTest.subGateFalseOptsOutEvenWhenBaseGateOn` *are* the escape hatch and
+are deleted with it. Four `setProperty(…, null)` reset lines lose their subject:
+`VSOutputChromeDefaultsTest:50`, `VSChartChromeDefaultsTest:27`, `VSChartPaletteDefaultsTest:31`,
+`VGraphPairModernPaletteTest:47`.
+
+**Explicitly not deleted: `graph.svg.inline`.** `VSChartInteractionDefaults.isInlineSvg()` looks adjacent and
+is a different mechanism — an explicit value wins in either direction and only its absence falls back to
+`isModern()`, so it can enable inline SVG *without* the master gate, which no sub-gate can. Its own comment
+records that this is deliberate. It is a real toggle set through EM Properties, not scaffolding.
 
 ### The surface, sized for slicing
 

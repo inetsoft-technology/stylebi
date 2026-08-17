@@ -49,7 +49,7 @@ class VSCalendarChromeDefaultsTest {
       // light modern and legacy leave the calendar body format untouched (same instance back)
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       VSCompositeFormat fmt = new VSCompositeFormat();
-      assertSame(fmt, VSCalendarChromeDefaults.applyModernDefaults(fmt));
+      assertSame(fmt, VSCalendarChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate()));
    }
 
    @Test
@@ -57,7 +57,7 @@ class VSCalendarChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       VSCompositeFormat fmt = new VSCompositeFormat();
-      VSCompositeFormat out = VSCalendarChromeDefaults.applyModernDefaults(fmt);
+      VSCompositeFormat out = VSCalendarChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
       assertNotSame(fmt, out, "returns a clone, never mutates the source");
       assertEquals(0xE6E0E9, rgb(out.getForeground()));
       assertEquals(0x252428, rgb(out.getBackground()));
@@ -69,7 +69,7 @@ class VSCalendarChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       VSCompositeFormat fmt = new VSCompositeFormat();
       fmt.getUserDefinedFormat().setForegroundValue("0x123456");
-      VSCompositeFormat out = VSCalendarChromeDefaults.applyModernDefaults(fmt);
+      VSCompositeFormat out = VSCalendarChromeDefaults.applyModernDefaults(fmt, VizContext.ofGate());
       assertEquals(0x123456, rgb(out.getForeground()), "a user foreground still wins in dark");
    }
 

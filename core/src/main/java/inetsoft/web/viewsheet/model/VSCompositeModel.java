@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.internal.CompositeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 
 import java.awt.*;
 
@@ -34,7 +35,8 @@ public abstract class VSCompositeModel<T extends VSAssembly> extends VSObjectMod
       FormatInfo finfo = ((VSAssemblyInfo) assemblyInfo).getFormatInfo();
 
       title = assemblyInfo.getTitle();
-      titleFormat = new VSFormatModel(VSTitleChromeDefaults.applyModernDefaults(finfo.getFormat(VSAssemblyInfo.TITLEPATH, false)),
+      titleFormat = new VSFormatModel(VSTitleChromeDefaults.applyModernDefaults(
+                                         finfo.getFormat(VSAssemblyInfo.TITLEPATH, false), VizContext.ofGate()),
                                       (VSAssemblyInfo) assemblyInfo);
       Dimension size = new Dimension((int) getObjectFormat().getWidth(),
                                      assemblyInfo.getTitleHeight());

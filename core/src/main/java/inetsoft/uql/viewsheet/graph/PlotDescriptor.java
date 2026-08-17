@@ -26,8 +26,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -65,13 +66,14 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
+   public void initDefaultFormat(VizContext ctx) {
       fmt.getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
-      fmt.getDefaultFormat().setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
-         VSUtil.getDefaultFont());
+      // font follows "is a viewsheet chart", not the modern gate
+      fmt.getDefaultFormat().setFont(ctx != VizContext.LEGACY ?
+         VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) : VSUtil.getDefaultFont());
    }
 
    private void initPlotErrorFormat() {
@@ -629,7 +631,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
     * Effective value; a gate-seeded value collapses to false when the gate is off.
     */
    public boolean isSmoothLines() {
-      return modernSmoothSeed && !VSObjectChromeDefaults.isModern() ? false : smoothLines;
+      // reads the gate directly: no assembly or context reaches this seed getter
+      return modernSmoothSeed && !VSDensityDefaults.isModern() ? false : smoothLines;
    }
 
    /**
@@ -1312,7 +1315,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
 
    /** Effective bar corner radius; a gate-seeded value collapses to 0 when the gate is off. */
    public double getBarCornerRadius() {
-      return modernCornerSeed && !VSObjectChromeDefaults.isModern() ? 0 : barCornerRadius;
+      // reads the gate directly: no assembly or context reaches this seed getter
+      return modernCornerSeed && !VSDensityDefaults.isModern() ? 0 : barCornerRadius;
    }
 
    /** Raw stored radius, for serialization and content comparison. */

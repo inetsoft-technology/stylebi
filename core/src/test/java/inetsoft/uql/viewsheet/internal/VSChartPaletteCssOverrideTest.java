@@ -117,7 +117,7 @@ class VSChartPaletteCssOverrideTest {
       VSChartPaletteDefaults.clearMemo();
       CSSDictionary.resetDictionaryCache();
 
-      Color[] picker = assertDoesNotThrow(VSChartPaletteDefaults::pickerPalette);
+      Color[] picker = assertDoesNotThrow(() -> VSChartPaletteDefaults.pickerPalette(VizContext.ofGate()));
 
       assertEquals(40, picker.length);
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], picker[0]);

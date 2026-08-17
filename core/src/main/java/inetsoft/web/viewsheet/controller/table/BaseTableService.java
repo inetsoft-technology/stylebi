@@ -459,13 +459,15 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       int dataRowHeight = tinfo.getDataRowHeight(lens.getHeaderRowCount());
 
       // org density default applies only to still-default heights; user-set and CSS heights win
-      if(VSDensityDefaults.isModern()) {
+      VizContext ctx = VizContext.ofGate();
+
+      if(ctx.modern) {
          if(!tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
-            dataRowHeight = VSDensityDefaults.rowHeight();
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
          }
 
          if(!tinfo.isUserHeaderRowHeight()) {
-            int headerHeight = VSDensityDefaults.headerRowHeight();
+            int headerHeight = VSDensityDefaults.headerRowHeight(ctx);
 
             for(int i = 0; i < headerRowHeights.length; i++) {
                if(headerRowHeights[i] == AssetUtil.defh) {
@@ -1158,11 +1160,12 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       if(lens != null && tinfo != null) {
          model.setRowCount(lens.getRowCount());
          int dataRowHeight = tinfo.getDataRowHeight();
+         VizContext ctx = VizContext.ofGate();
 
-         if(VSDensityDefaults.isModern() && !tinfo.isUserDataRowHeight() &&
+         if(ctx.modern && !tinfo.isUserDataRowHeight() &&
             dataRowHeight == AssetUtil.defh)
          {
-            dataRowHeight = VSDensityDefaults.rowHeight();
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
          }
 
          model.setDataRowHeight(dataRowHeight);

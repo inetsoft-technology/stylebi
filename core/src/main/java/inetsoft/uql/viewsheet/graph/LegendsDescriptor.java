@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -89,17 +90,18 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
+   public void initDefaultFormat(VizContext ctx) {
       TextFormat deffmt = fmt.getDefaultFormat();
-      deffmt.setColor(vs && VSChartChromeDefaults.isModern() ?
-                         VSChartChromeDefaults.titleColor() : GDefaults.DEFAULT_TEXT_COLOR);
-      deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
+      deffmt.setColor(ctx.modern ?
+                         VSChartChromeDefaults.titleColor(ctx) : GDefaults.DEFAULT_TEXT_COLOR);
+      // font follows "is a viewsheet chart", not the modern gate
+      deffmt.setFont(ctx != VizContext.LEGACY ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
-      deffmt.setBackground(vs && VSChartChromeDefaults.isModern() ?
-                              VSChartChromeDefaults.legendBackground() : Color.WHITE);
+      deffmt.setBackground(ctx.modern ?
+                              VSChartChromeDefaults.legendBackground(ctx) : Color.WHITE);
       deffmt.setAlpha(50);
    }
 
