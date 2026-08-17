@@ -366,7 +366,7 @@
       "paged": false,
       "suffix": "/query/analyze",
       "post": true,
-      "description": "Checks a Flux query for errors without running it. Requires the query. Validation rather than data -- useful for confirming a generated query before spending a long-running request on it."
+      "description": "Checks a Flux query for errors without running it. Sent as a POST with the query in the request body, like the query endpoint itself. Validation rather than data -- useful for confirming a generated query before spending a long-running request on it."
     },
     {
       "name": "Generate Abstract Syntax Tree from a Query",

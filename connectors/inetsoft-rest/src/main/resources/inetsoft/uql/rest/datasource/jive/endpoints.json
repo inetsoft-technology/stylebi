@@ -1298,7 +1298,7 @@
       "name": "Place Topics",
       "paged": true,
       "suffix": "/api/core/v3/placeTopics",
-      "description": "The topics of one place. Requires the place id."
+      "description": "The place topics defined across the community. Topics are the subject labels places are tagged with, so this is the community-wide vocabulary; one topic by id comes from Place Topic."
     },
     {
       "name": "Publication",
@@ -1442,7 +1442,7 @@
       "name": "Slides",
       "paged": true,
       "suffix": "/api/core/v3/slides",
-      "description": "The slides of one presentation object. Requires the content id."
+      "description": "The slides held across the community's presentation content. The per-slide detail comes from Slide."
     },
     {
       "name": "Banner",
@@ -1682,7 +1682,7 @@
       "name": "Vitals",
       "paged": true,
       "suffix": "/api/core/v3/vitals",
-      "description": "The vital statistics of one object -- view, like, comment and follower counts in one call. Requires the object id. THE CHEAP ENGAGEMENT SUMMARY: it avoids fetching the likes, comments and followers separately when only the totals are wanted."
+      "description": "Vital statistics -- view, like, comment and follower counts -- for content across the community. THE CHEAP ENGAGEMENT SUMMARY: it avoids fetching likes, comments and followers separately when only the totals are wanted."
     },
     {
       "name": "Votes",

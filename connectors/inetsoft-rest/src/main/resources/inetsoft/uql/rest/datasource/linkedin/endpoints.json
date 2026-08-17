@@ -77,7 +77,7 @@
       "paged": true,
       "pageType": "ITERATION",
       "suffix": "/rest/creatives?q=search",
-      "description": "The creatives -- the actual ads -- within one account, with their status, the campaign each belongs to, and the content they reference. Requires an account id. A campaign holds several creatives, so creative-level performance is where a winning variant is identified."
+      "description": "The creatives -- the actual ads -- with their status, the campaign each belongs to, and the content they reference. Uses LinkedIn's search finder, so the account and campaign are given as SEARCH CRITERIA rather than as named parameters, which is why no account id appears in the path. A campaign holds several creatives, so creative-level performance is where a winning variant is identified."
     },
     {
       "name": "Ad Targeting Facets",
