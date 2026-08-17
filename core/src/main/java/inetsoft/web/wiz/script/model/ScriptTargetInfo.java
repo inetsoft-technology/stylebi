@@ -23,14 +23,19 @@ package inetsoft.web.wiz.script.model;
  * @param id         opaque and stable; copy it back verbatim rather than composing an identifier
  * @param kind       the wire vocabulary, e.g. {@code assemblyOnClick}
  * @param assembly   the owning assembly, or {@code null} for viewsheet-level kinds
+ * @param name       the calculated field's own name, for {@code calcField}; {@code null} for every
+ *                   kind addressed by (kind, assembly) alone. Populated for exactly one kind today
+ *                   — it exists because a calc field is keyed by (table, field) and cannot be
+ *                   addressed without it.
  * @param label      human-readable; for display and logs only, never an identifier
  * @param runsWhen   when StyleBI executes this script, in plain words
  * @param enableScope the flag {@code enabled} reflects. onInit and onLoad share ONE viewsheet
  *                    flag, and an assembly's main and onClick scripts share ONE assembly flag --
  *                    so disabling "the onClick" also disables that assembly's main script
  * @param hostSheet  {@code viewsheet} or {@code worksheet}
- * @param target     the v1 delimited string, retained so an older plugin still reads this array
+ * @param target     the v1 delimited string, or {@code null} for a kind the legacy grammar never
+ *                   addressed
  */
-public record ScriptTargetInfo(String id, String kind, String assembly, String label,
+public record ScriptTargetInfo(String id, String kind, String assembly, String name, String label,
                                String runsWhen, boolean hasScript, boolean enabled,
                                String enableScope, String hostSheet, String target) {}

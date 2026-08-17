@@ -39,14 +39,23 @@ import java.util.function.Predicate;
 @Service
 public class ScriptEditService {
 
-   @Autowired
    public ScriptEditService(SheetSessionService sessions,
                             SheetRuntimeAccess runtimeAccess,
                             SheetAgentBroadcastService broadcast)
    {
+      this(sessions, runtimeAccess, broadcast, new CalcFieldService());
+   }
+
+   @Autowired
+   public ScriptEditService(SheetSessionService sessions,
+                            SheetRuntimeAccess runtimeAccess,
+                            SheetAgentBroadcastService broadcast,
+                            CalcFieldService calcFields)
+   {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
+      this.calcFields = calcFields;
    }
 
    /**
@@ -149,12 +158,7 @@ public class ScriptEditService {
             VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
             ScriptReadService.setOnClick(info, text);
          }
-         // Not permanent, unlike setEnabled's refusal below: CalcFieldService (Task 3) replaces
-         // this case with a real write. Until then this is a switch STATEMENT, so leaving it
-         // unhandled would compile clean and silently do nothing -- the exact silent-acceptance
-         // pattern this project treats as a defect, not a corner to route around.
-         case CALC_FIELD -> throw new PairingException(
-            "calcField writes are not wired yet — CalcFieldService lands in Task 3.");
+         case CALC_FIELD -> calcFields.write(vs, target.assemblyName(), target.name(), text);
       }
    }
 
@@ -217,4 +221,5 @@ public class ScriptEditService {
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private final CalcFieldService calcFields;
 }

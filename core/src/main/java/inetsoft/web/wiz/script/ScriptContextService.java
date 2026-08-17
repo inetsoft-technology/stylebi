@@ -79,6 +79,11 @@ public class ScriptContextService {
       "thisViewsheet", "parameter", "_USER_", "_ROLES_", "_GROUPS_", "event"
    );
 
+   // A calc field evaluates per ROW via field['col']. There is no thisViewsheet, no _USER_/
+   // _ROLES_/_GROUPS_, and no event in scope -- only the row accessor and the standard parameter
+   // map, so this is a DIFFERENT vocabulary, not a filtered CONTEXT_VARS.
+   private static final List<String> CALC_FIELD_VARS = List.of("field", "parameter");
+
    @Autowired
    public ScriptContextService(VSScriptableService scriptableService) {
       this.scriptableService = scriptableService;
@@ -103,6 +108,12 @@ public class ScriptContextService {
          // guessing a context the caller has not chosen.
          return new ScriptContext(all.stream().map(ScriptContextService::withoutApiTree).toList(),
                                   CONTEXT_VARS);
+      }
+
+      if(target.kind() == ScriptTarget.Kind.CALC_FIELD) {
+         // Different in KIND, not a subset: no assembly API is in scope while a calc field
+         // evaluates, so there is no assembly surface to filter down to.
+         return new ScriptContext(List.of(), contextVars(target.kind()));
       }
 
       List<String> vars = contextVars(target.kind());
@@ -137,6 +148,9 @@ public class ScriptContextService {
    private static List<String> contextVars(ScriptTarget.Kind kind) {
       return switch(kind) {
          case ASSEMBLY_ON_CLICK -> CONTEXT_VARS;
+         // A calc field evaluates per ROW. There is no assembly API and no thisViewsheet in scope,
+         // so offering the viewsheet-level vars would advertise an API that is not there.
+         case CALC_FIELD -> CALC_FIELD_VARS;
          default -> CONTEXT_VARS.stream().filter(v -> !"event".equals(v)).toList();
       };
    }

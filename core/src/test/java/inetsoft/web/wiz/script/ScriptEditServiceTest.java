@@ -18,6 +18,8 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.pairing.TestPrincipals;
@@ -89,25 +91,31 @@ class ScriptEditServiceTest {
    }
 
    /**
-    * Not just "throws" -- a CALC_FIELD target matches no case in write()'s switch STATEMENT,
-    * so Java does not require exhaustiveness and an unhandled case would compile clean and
-    * silently do nothing. This is reachable today: of()/resolve() build CALC_FIELD targets
-    * happily since its Location is non-null. Refusing loudly here is the fix; asserting the
-    * specific message (naming Task 3, not permanent) is what proves it isn't just an
-    * accidental compile-time throw.
+    * write() now delegates a CALC_FIELD target to {@link CalcFieldService} for real, replacing
+    * the Task-3-placeholder throw. Verifies the wiring, not {@code CalcFieldService}'s own
+    * behavior (that is Task 2's coverage) -- the expression on the live {@link ExpressionRef}
+    * must actually change.
     */
    @Test
-   void writeRefusesACalcFieldTargetUntilTask3WiresItIn() throws Exception {
+   void writeDelegatesACalcFieldTargetToCalcFieldService() throws Exception {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName("Margin");
+      inner.setExpression("field['PRICE'] - field['COST']");
+      CalculateRef calc = new CalculateRef(true);
+      calc.setDataRef(inner);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcFields("Query1")).thenReturn(new CalculateRef[]{ calc });
+
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(new Viewsheet());
+      when(rvs.getViewsheet()).thenReturn(vs);
       ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
          mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
       ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
 
-      PairingException ex = assertThrows(PairingException.class,
-         () -> svc.write(rvs, target, "new text"));
-      assertTrue(ex.getMessage().contains("Task 3"),
-                 "must name what's missing, not just refuse: " + ex.getMessage());
+      svc.write(rvs, target, "field['PRICE'] * 2");
+
+      assertEquals("field['PRICE'] * 2", inner.getExpression());
    }
 
    /** setEnabled's refusal is PERMANENT -- a calc field has no per-field enable flag at all. */

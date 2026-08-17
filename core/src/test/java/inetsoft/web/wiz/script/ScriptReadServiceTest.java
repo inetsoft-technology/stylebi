@@ -19,6 +19,8 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -147,9 +149,74 @@ class ScriptReadServiceTest {
    @Test
    void advertisesOnlyTheKindsThisServerCanActuallyServe() {
       assertEquals(2, ScriptGrammar.VERSION);
-      assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick"),
+      assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick",
+                           "calcField"),
                    ScriptGrammar.supportedKinds());
       assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
                   "a reserved kind must not be advertised as servable");
+   }
+
+   /** A viewsheet whose Query1 carries one JS calc field. */
+   private static RuntimeViewsheet runtimeWithCalcField() {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName("Margin");
+      inner.setExpression("field['PRICE'] - field['COST']");
+      CalculateRef calc = new CalculateRef(true);
+      calc.setDataRef(inner);
+
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      info.setScript("");
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getName()).thenReturn("Chart1");
+      when(chart.getVSAssemblyInfo()).thenReturn(info);
+
+      ViewsheetInfo vsInfo = new ViewsheetInfo();
+      vsInfo.setScriptEnabled(true);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getViewsheetInfo()).thenReturn(vsInfo);
+      when(vs.getAssemblies()).thenReturn(new Assembly[]{ chart });
+      when(vs.getCalcFields("Query1")).thenReturn(new CalculateRef[]{ calc });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   @Test
+   void listsCalcFieldsAlongsideTheScriptTargets() {
+      ScriptTargetInfo calc = service.list(runtimeWithCalcField()).stream()
+         .filter(t -> "calcField".equals(t.kind()))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("no calcField target emitted"));
+
+      assertEquals("Query1", calc.assembly(), "the TABLE, for this kind");
+      assertEquals("Margin", calc.name());
+      assertEquals("per row, when the field is evaluated", calc.runsWhen());
+      assertTrue(calc.hasScript());
+      assertNull(calc.target(), "a calc field has no legacy string form");
+   }
+
+   @Test
+   void aCalcFieldsLabelSaysItIsAFieldOnATableNotAnAssemblyScript() {
+      ScriptTargetInfo calc = service.list(runtimeWithCalcField()).stream()
+         .filter(t -> "calcField".equals(t.kind())).findFirst().orElseThrow();
+
+      assertTrue(calc.label().contains("Margin") && calc.label().contains("Query1"),
+                 "label should name both: " + calc.label());
+   }
+
+   @Test
+   void everyNonCalcTargetStillReportsANullName() {
+      assertTrue(service.list(runtimeWithCalcField()).stream()
+                    .filter(t -> !"calcField".equals(t.kind()))
+                    .allMatch(t -> t.name() == null));
+   }
+
+   @Test
+   void calcFieldIsAdvertisedAsServableWithoutEditingScriptGrammar() {
+      assertTrue(ScriptGrammar.supportedKinds().contains("calcField"));
+      assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
+                  "reserved kinds still must not be advertised");
    }
 }

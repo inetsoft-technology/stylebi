@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -39,6 +40,15 @@ import java.util.List;
  */
 @Service
 public class ScriptReadService {
+
+   public ScriptReadService() {
+      this(new CalcFieldService());
+   }
+
+   @Autowired
+   public ScriptReadService(CalcFieldService calcFields) {
+      this.calcFields = calcFields;
+   }
 
    /** Enumerates every scriptable target on the viewsheet with its has-script/enabled state. */
    public List<ScriptTargetInfo> list(RuntimeViewsheet rvs) {
@@ -71,6 +81,10 @@ public class ScriptReadService {
          }
       }
 
+      for(CalcFieldService.Found f : calcFields.list(vs)) {
+         targets.add(describeCalcField(f));
+      }
+
       return targets;
    }
 
@@ -92,8 +106,36 @@ public class ScriptReadService {
       }
 
       return new ScriptTargetInfo(
-         target.id(), kind.wireName(), assembly, label(kind, assembly), runsWhen(kind),
+         target.id(), kind.wireName(), assembly, null, label(kind, assembly), runsWhen(kind),
          hasScript, enabled, enableScope(kind, assembly), "viewsheet", target.toString());
+   }
+
+   /**
+    * Projects one calc-field target. Kept apart from {@link #describe}, which every OTHER kind
+    * still uses: a calc field is addressed by (table, field name) rather than (kind, assembly)
+    * alone, has no legacy delimited form, and is always has-script/enabled (an expression, once
+    * created, has no disabled state) -- forcing it through {@code describe}'s four-boolean shape
+    * would just relitigate those differences inside a signature meant for the other four kinds.
+    */
+   private static ScriptTargetInfo describeCalcField(CalcFieldService.Found f) {
+      ScriptTarget target;
+
+      try {
+         target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, f.table(), f.name());
+      }
+      catch(PairingException ex) {
+         throw new IllegalStateException("cannot describe calc field " + f.name(), ex);
+      }
+
+      return new ScriptTargetInfo(
+         target.id(), ScriptTarget.Kind.CALC_FIELD.wireName(), f.table(), f.name(),
+         "Calculated field '" + f.name() + "' on " + f.table(),
+         "per row, when the field is evaluated",
+         true,                            // a calc field always has an expression
+         true,                            // no per-field enable flag exists
+         "calcField:" + f.table() + ":" + f.name(),
+         "viewsheet",
+         null);                           // no legacy string form
    }
 
    private static String label(ScriptTarget.Kind kind, String assembly) {
@@ -158,6 +200,11 @@ public class ScriptReadService {
             text = getOnClick(info);
             enabled = info.isScriptEnabled();
          }
+         case CALC_FIELD -> {
+            Viewsheet vs = requireViewsheet(rvs);
+            text = calcFields.read(vs, target.assemblyName(), target.name());
+            enabled = true;
+         }
          default -> throw new PairingException("Unsupported target: " + target);
       }
 
@@ -172,6 +219,16 @@ public class ScriptReadService {
       }
 
       return vs.getViewsheetInfo();
+   }
+
+   Viewsheet requireViewsheet(RuntimeViewsheet rvs) throws PairingException {
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         throw new PairingException("Viewsheet not found in runtime");
+      }
+
+      return vs;
    }
 
    VSAssemblyInfo requireAssemblyInfo(RuntimeViewsheet rvs, String name) throws PairingException {
@@ -225,4 +282,6 @@ public class ScriptReadService {
    private static boolean isBlank(String s) {
       return s == null || s.isEmpty();
    }
+
+   private final CalcFieldService calcFields;
 }
