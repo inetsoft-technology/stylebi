@@ -110,6 +110,7 @@ public class TabPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(tabAssemblyInfo.getScript() == null ?
                                               "" : tabAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -213,7 +214,7 @@ public class TabPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, tabAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(viewsheet);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);

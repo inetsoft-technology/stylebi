@@ -200,6 +200,7 @@ public class SelectionTreePropertyDialogService {
       vsAssemblyScriptPaneModel.expression(selectionTreeAssemblyInfo.getScript() == null ?
                                               "" : selectionTreeAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -306,7 +307,7 @@ public class SelectionTreePropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, streeInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       Viewsheet vs = viewsheet.getViewsheet();
       selectionTreeAssembly =

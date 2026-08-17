@@ -369,6 +369,7 @@ public class HighlightDialogService {
       }
 
       model.setHighlights(highlightModelList.toArray(new HighlightModel[0]));
+      model.setRevision(rvs.getWriteRevision());
       return model;
    }
 
@@ -420,7 +421,8 @@ public class HighlightDialogService {
       VSAssemblyInfo assemblyInfo = updateHighlights(model, oldAssemblyInfo, box.get(), principal);
 
       this.vsObjectPropertyService.editObjectProperty(
-         rvs, assemblyInfo, objectId, objectId, linkUri, principal, dispatcher);
+         rvs, assemblyInfo, objectId, objectId, linkUri, principal, dispatcher,
+         true, model.getRevision());
 
       return null;
    }

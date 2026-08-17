@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 /**
  * Data transfer object that represents the {@link ImagePropertyDialogModel} for the
  * image property dialog
@@ -54,6 +56,14 @@ public abstract class ImagePropertyDialogModel {
          .scriptEnabled(false)
          .build();
    }
+
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   @Nullable
+   public abstract Integer revision();
 
    public static Builder builder() {
       return new Builder();
