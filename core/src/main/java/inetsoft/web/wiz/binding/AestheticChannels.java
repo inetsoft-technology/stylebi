@@ -28,18 +28,27 @@ import java.util.List;
  * {@code texture} have frames but no field binding, so a caller asking to bind a field to
  * {@code line} gets told why instead of a shrug.
  *
- * <p>Node channels belong to relation charts and arrive with spec 2c Phase 3.
+ * <p>Node channels belong to relation charts (spec 2c Phase 3): {@code node-color} and
+ * {@code node-size} each take both a field binding and a frame, exactly like {@code color}/
+ * {@code size} — the model reuses the same {@code ColorFrameModel}/{@code SizeFrameModel} types,
+ * just on a second pair of properties ({@code nodeColorField}/{@code nodeSizeField}). They are
+ * kept out of {@link #FIELD_CHANNELS}/{@link #FRAME_CHANNELS} rather than merged in: the fields
+ * exist on {@code ChartBindingModel} for every chart type, but only render on a relation chart,
+ * so a caller working a bar or line chart must never be told they apply.
  */
 public final class AestheticChannels {
-   /** Channels that accept a field binding. */
+   /** Channels that accept a field binding, on every chart type. */
    public static final List<String> FIELD_CHANNELS = List.of("color", "shape", "size", "text");
 
-   /** Channels that accept a visual frame. */
+   /** Channels that accept a visual frame, on every chart type. */
    public static final List<String> FRAME_CHANNELS =
       List.of("color", "shape", "size", "line", "texture");
 
    /** Frame channels that can be written. Every frame channel is supported since 2c Phase 2. */
    public static final List<String> SUPPORTED_FRAME_CHANNELS = FRAME_CHANNELS;
+
+   /** Field+frame channels valid only when the target chart is a relation type. */
+   public static final List<String> NODE_CHANNELS = List.of("node-color", "node-size");
 
    private AestheticChannels() {
    }
@@ -49,7 +58,26 @@ public final class AestheticChannels {
    }
 
    public static String requireFieldChannel(String channel) {
+      return requireFieldChannel(channel, false);
+   }
+
+   /**
+    * @param relationChart whether the target chart is a relation type (network, tree, chord).
+    *                      Gates {@link #NODE_CHANNELS} — accepting one elsewhere would store a
+    *                      binding that this chart type never renders.
+    */
+   public static String requireFieldChannel(String channel, boolean relationChart) {
       String name = normalize(channel);
+
+      if(NODE_CHANNELS.contains(name)) {
+         if(relationChart) {
+            return name;
+         }
+
+         throw new IllegalArgumentException(
+            "Channel '" + channel + "' only applies to relation charts (network, tree, chord) " +
+            "— this chart is not one. Field channels: " + String.join(", ", FIELD_CHANNELS) + ".");
+      }
 
       if(FIELD_CHANNELS.contains(name)) {
          return name;
@@ -67,7 +95,22 @@ public final class AestheticChannels {
    }
 
    public static String requireFrameChannel(String channel) {
+      return requireFrameChannel(channel, false);
+   }
+
+   /** @param relationChart see {@link #requireFieldChannel(String, boolean)}. */
+   public static String requireFrameChannel(String channel, boolean relationChart) {
       String name = normalize(channel);
+
+      if(NODE_CHANNELS.contains(name)) {
+         if(relationChart) {
+            return name;
+         }
+
+         throw new IllegalArgumentException(
+            "Channel '" + channel + "' only applies to relation charts (network, tree, chord) " +
+            "— this chart is not one. Frame channels: " + String.join(", ", FRAME_CHANNELS) + ".");
+      }
 
       if(SUPPORTED_FRAME_CHANNELS.contains(name)) {
          return name;

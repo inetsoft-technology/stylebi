@@ -21,6 +21,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartAestheticService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
@@ -62,29 +64,33 @@ public class ChartAestheticAgentService {
                         FieldRef field, String linkUri) throws Exception
    {
       // Validated before the runtime is touched, so a bad channel costs nothing and does not
-      // open a checkpoint the caller then has to undo.
-      String name = AestheticChannels.requireFieldChannel(channel);
+      // open a checkpoint the caller then has to undo. This still needs the chart itself — node
+      // channels are only valid on a relation chart — so it costs a resolve, not a mutate.
+      boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
-            model -> ChartAestheticMutator.setField(model, name, field));
+            model -> ChartAestheticMutator.setField(model, name, field, relationChart));
    }
 
    public void clearField(String sessionToken, Principal user, String assemblyName,
                           String channel, String linkUri) throws Exception
    {
-      String name = AestheticChannels.requireFieldChannel(channel);
+      boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
-            model -> ChartAestheticMutator.clearField(model, name));
+            model -> ChartAestheticMutator.clearField(model, name, relationChart));
    }
 
    public void setFrame(String sessionToken, Principal user, String assemblyName, String channel,
                         Map<String, Object> frame, String linkUri) throws Exception
    {
-      String name = AestheticChannels.requireFrameChannel(channel);
+      boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
-            model -> ChartAestheticMutator.setFrame(model, name, frame));
+            model -> ChartAestheticMutator.setFrame(model, name, frame, relationChart));
    }
 
    /** Reads the channels without opening a checkpoint. */
@@ -93,16 +99,44 @@ public class ChartAestheticAgentService {
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ChartVSAssembly chart = requireChart(rvs, assemblyName);
-      return ChartAestheticMutator.describe((ChartBindingModel) binding.createModel(chart));
+      return ChartAestheticMutator.describe((ChartBindingModel) binding.createModel(chart),
+                                            isRelationChart(chart));
    }
 
-   /** The channels and frame types available, so an agent can discover rather than guess. */
+   /**
+    * The channels and frame types available, so an agent can discover rather than guess.
+    *
+    * <p>{@link AestheticChannels#NODE_CHANNELS} are deliberately not in {@code fieldChannels}/
+    * {@code frameChannels} here: this endpoint has no assembly, so no chart to check the type
+    * of, and listing them unconditionally would advertise a channel most charts cannot render.
+    * {@code get_chart_aesthetics} reports them per-chart, once there is one to check.
+    */
    public Map<String, Object> options() {
       return Map.of(
          "fieldChannels", AestheticChannels.FIELD_CHANNELS,
          "frameChannels", AestheticChannels.SUPPORTED_FRAME_CHANNELS,
          "frameTypes", List.of("static", "categorical", "gradient", "palette"),
-         "palettes", List.copyOf(VisualFrameAliases.PALETTES.keySet()));
+         "palettes", List.copyOf(VisualFrameAliases.PALETTES.keySet()),
+         "nodeChannels", AestheticChannels.NODE_CHANNELS,
+         "nodeChannelsNote", "node-color and node-size apply only to relation charts " +
+            "(network, tree, chord) — call get_chart_aesthetics on the chart to see whether " +
+            "they apply here.");
+   }
+
+   private boolean isRelationChart(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return isRelationChart(requireChart(rvs, assemblyName));
+   }
+
+   /**
+    * A bare mock in a test that never stubs {@code getVSChartInfo()} returns null for it, same
+    * as a chart assembly with no binding yet — neither is a relation chart.
+    */
+   private static boolean isRelationChart(ChartVSAssembly chart) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return info != null && GraphTypes.isRelation(info.getChartType());
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,

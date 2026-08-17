@@ -42,7 +42,14 @@ public final class ChartAestheticMutator {
 
    /** Binds a field to a channel. Replaces whatever that channel held; leaves the rest alone. */
    public static void setField(ChartBindingModel model, String channel, FieldRef field) {
-      String name = AestheticChannels.requireFieldChannel(channel);
+      setField(model, channel, field, false);
+   }
+
+   /** @param relationChart see {@link AestheticChannels#requireFieldChannel(String, boolean)}. */
+   public static void setField(ChartBindingModel model, String channel, FieldRef field,
+                               boolean relationChart)
+   {
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
       if(field == null) {
          throw new IllegalArgumentException(
@@ -59,15 +66,27 @@ public final class ChartAestheticMutator {
 
    /** Unbinds a channel. */
    public static void clearField(ChartBindingModel model, String channel) {
-      assign(model, AestheticChannels.requireFieldChannel(channel), null);
+      clearField(model, channel, false);
+   }
+
+   /** @param relationChart see {@link AestheticChannels#requireFieldChannel(String, boolean)}. */
+   public static void clearField(ChartBindingModel model, String channel, boolean relationChart) {
+      assign(model, AestheticChannels.requireFieldChannel(channel, relationChart), null);
    }
 
    /** Sets a channel's visual frame from the agent vocabulary. */
    public static void setFrame(ChartBindingModel model, String channel,
                                Map<String, Object> spec)
    {
-      String name = AestheticChannels.requireFrameChannel(channel);
-      VisualFrameModel frame = VisualFrameAliases.create(name, spec);
+      setFrame(model, channel, spec, false);
+   }
+
+   /** @param relationChart see {@link AestheticChannels#requireFieldChannel(String, boolean)}. */
+   public static void setFrame(ChartBindingModel model, String channel,
+                               Map<String, Object> spec, boolean relationChart)
+   {
+      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+      VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
 
       switch(name) {
          case "color" -> model.setColorFrame((ColorFrameModel) frame);
@@ -75,6 +94,8 @@ public final class ChartAestheticMutator {
          case "size" -> model.setSizeFrame((SizeFrameModel) frame);
          case "line" -> model.setLineFrame((LineFrameModel) frame);
          case "texture" -> model.setTextureFrame((TextureFrameModel) frame);
+         case "node-color" -> model.setNodeColorFrame((ColorFrameModel) frame);
+         case "node-size" -> model.setNodeSizeFrame((SizeFrameModel) frame);
          default -> throw new IllegalArgumentException("Unhandled frame channel '" + name + "'.");
       }
    }
@@ -85,6 +106,15 @@ public final class ChartAestheticMutator {
     * only what someone already set.
     */
    public static Map<String, Object> describe(ChartBindingModel model) {
+      return describe(model, false);
+   }
+
+   /**
+    * @param relationChart whether to also report {@link AestheticChannels#NODE_CHANNELS}. Left
+    *                      out for every other chart type, so the response never advertises a
+    *                      channel this chart cannot render.
+    */
+   public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart) {
       Map<String, Object> out = new LinkedHashMap<>();
 
       for(String channel : AestheticChannels.FIELD_CHANNELS) {
@@ -95,18 +125,33 @@ public final class ChartAestheticMutator {
          out.computeIfAbsent(channel, name -> channelView(model, name));
       }
 
+      if(relationChart) {
+         for(String channel : AestheticChannels.NODE_CHANNELS) {
+            out.put(channel, channelView(model, channel));
+         }
+      }
+
       return out;
+   }
+
+   private static boolean acceptsField(String channel) {
+      return AestheticChannels.FIELD_CHANNELS.contains(channel) ||
+         AestheticChannels.NODE_CHANNELS.contains(channel);
+   }
+
+   private static boolean acceptsFrame(String channel) {
+      return AestheticChannels.FRAME_CHANNELS.contains(channel) ||
+         AestheticChannels.NODE_CHANNELS.contains(channel);
    }
 
    private static Map<String, Object> channelView(ChartBindingModel model, String channel) {
       Map<String, Object> view = new LinkedHashMap<>();
-      AestheticInfo info = AestheticChannels.FIELD_CHANNELS.contains(channel)
-         ? read(model, channel) : null;
+      AestheticInfo info = acceptsField(channel) ? read(model, channel) : null;
 
       view.put("field", fieldNameOf(info));
       view.put("frame", VisualFrameAliases.describe(frameOf(model, channel)));
-      view.put("acceptsField", AestheticChannels.FIELD_CHANNELS.contains(channel));
-      view.put("acceptsFrame", AestheticChannels.FRAME_CHANNELS.contains(channel));
+      view.put("acceptsField", acceptsField(channel));
+      view.put("acceptsFrame", acceptsFrame(channel));
       return view;
    }
 
@@ -143,6 +188,8 @@ public final class ChartAestheticMutator {
          case "size" -> model.getSizeFrame();
          case "line" -> model.getLineFrame();
          case "texture" -> model.getTextureFrame();
+         case "node-color" -> model.getNodeColorFrame();
+         case "node-size" -> model.getNodeSizeFrame();
          default -> null;
       };
    }
@@ -153,6 +200,8 @@ public final class ChartAestheticMutator {
          case "shape" -> model.getShapeField();
          case "size" -> model.getSizeField();
          case "text" -> model.getTextField();
+         case "node-color" -> model.getNodeColorField();
+         case "node-size" -> model.getNodeSizeField();
          default -> null;
       };
    }
@@ -163,6 +212,8 @@ public final class ChartAestheticMutator {
          case "shape" -> model.setShapeField(info);
          case "size" -> model.setSizeField(info);
          case "text" -> model.setTextField(info);
+         case "node-color" -> model.setNodeColorField(info);
+         case "node-size" -> model.setNodeSizeField(info);
          default -> throw new IllegalArgumentException("Unhandled field channel '" + channel + "'.");
       }
    }

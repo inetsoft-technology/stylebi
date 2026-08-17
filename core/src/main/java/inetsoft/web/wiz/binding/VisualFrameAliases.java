@@ -114,11 +114,18 @@ public final class VisualFrameAliases {
     * @param spec    {@code {type, ...}} in the alias vocabulary
     */
    public static VisualFrameModel create(String channel, Map<String, Object> spec) {
+      return create(channel, spec, false);
+   }
+
+   /** @param relationChart see {@link AestheticChannels#requireFieldChannel(String, boolean)}. */
+   public static VisualFrameModel create(String channel, Map<String, Object> spec,
+                                         boolean relationChart)
+   {
       // The type is read before the channel is validated so a mismatch can name both. Being
       // told "the size channel is not supported" when you asked for a categorical colour
       // frame leaves you guessing which half of the call was wrong.
       String type = str(spec, "type");
-      String name = requireFrameChannelFor(channel, type);
+      String name = requireFrameChannelFor(channel, type, relationChart);
 
       if(type == null) {
          throw new IllegalArgumentException(
@@ -133,7 +140,9 @@ public final class VisualFrameAliases {
       // refused, naming both.
       requireNoUnusedKeys(name, type, spec);
 
-      return switch(name) {
+      // node-color/node-size reuse color/size's frame-type taxonomy verbatim: the model holds
+      // the identical ColorFrameModel/SizeFrameModel types, just on a second property pair.
+      return switch(frameFamily(name)) {
          case "color" -> colorFrame(spec, type);
          case "shape" -> shapeFrame(spec, type);
          case "size" -> sizeFrame(spec, type);
@@ -142,11 +151,23 @@ public final class VisualFrameAliases {
       };
    }
 
+   /**
+    * {@code node-color}/{@code node-size} map to {@code color}/{@code size} — same frame-type
+    * taxonomy, same model classes, just a second target property on {@code ChartBindingModel}.
+    */
+   private static String frameFamily(String channel) {
+      return switch(channel) {
+         case "node-color" -> "color";
+         case "node-size" -> "size";
+         default -> channel;
+      };
+   }
+
    /** The value keys a given channel and frame type actually read. */
    private static Set<String> consumedKeys(String channel, String type) {
       Set<String> keys = new LinkedHashSet<>(List.of("type"));
 
-      switch(channel) {
+      switch(frameFamily(channel)) {
          case "color" -> {
             switch(type) {
                case "static", "brightness", "saturation" -> keys.add("color");
@@ -692,9 +713,11 @@ public final class VisualFrameAliases {
 
    // ── helpers ───────────────────────────────────────────────────────────────
 
-   private static String requireFrameChannelFor(String channel, String type) {
+   private static String requireFrameChannelFor(String channel, String type,
+                                                boolean relationChart)
+   {
       try {
-         return AestheticChannels.requireFrameChannel(channel);
+         return AestheticChannels.requireFrameChannel(channel, relationChart);
       }
       catch(IllegalArgumentException e) {
          if(type == null) {
@@ -765,7 +788,7 @@ public final class VisualFrameAliases {
 
    /** The frame types valid for a channel, for discovery and for error messages. */
    public static List<String> typeNames(String channel) {
-      List<String> names = new ArrayList<>(switch(AestheticChannels.normalize(channel)) {
+      List<String> names = new ArrayList<>(switch(frameFamily(AestheticChannels.normalize(channel))) {
          case "color" -> List.of("static", "categorical", "gradient", "palette", "brightness",
                                  "saturation", "bipolar", "circular", "rainbow", "heat");
          case "shape" -> List.of("static", "categorical", "fill", "orientation", "oval",
