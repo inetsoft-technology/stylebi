@@ -132,7 +132,8 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
       setViewsheet(vs);
       // a newly created assembly inherits the host's mark, absence included; the parse funnel
       // never reaches here, so a loaded assembly is unaffected
-      info.setVizMark(vs == null ? null : vs.getVSAssemblyInfo().getVizMark());
+      VSAssemblyInfo hostInfo = vs == null ? null : vs.getVSAssemblyInfo();
+      info.setVizMark(hostInfo == null ? null : hostInfo.getVizMark());
    }
 
    /**
