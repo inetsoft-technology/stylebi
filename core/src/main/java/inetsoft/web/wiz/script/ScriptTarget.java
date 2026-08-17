@@ -251,6 +251,7 @@ public final class ScriptTarget {
     * @param vs            the joined viewsheet, for the exact-name precedence fix; may be null
     * @param id            preferred for an existing target — the caller copies it back verbatim
     * @param kind          the wire kind name, with {@code assembly} when the kind needs one
+    * @param assembly      the assembly name, required for kinds that need one
     * @param legacyTarget  the v1 delimited string, still accepted
     */
    public static ScriptTarget resolve(Viewsheet vs, String id, String kind, String assembly,

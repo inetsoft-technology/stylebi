@@ -19,11 +19,13 @@ package inetsoft.web.wiz.script;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.VSScriptableService;
+import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.AssemblyContext;
 import inetsoft.web.wiz.script.model.ScriptContext;
 import org.slf4j.Logger;
@@ -82,7 +84,72 @@ public class ScriptContextService {
       this.scriptableService = scriptableService;
    }
 
-   public ScriptContext context(RuntimeViewsheet rvs) {
+   /**
+    * The scriptable surface for one target.
+    *
+    * <p>Scoped because an unscoped dump is both enormous and the reason this tool got reached for
+    * during non-script work: the full apiTree for every assembly is a viewsheet-wide inventory,
+    * which is the pull the GUI-first rule exists to resist. Without a target the assembly LIST
+    * still comes back — that is what makes a target choosable — but without the trees.
+    *
+    * @param target null for the unscoped listing; a viewsheet-level kind keeps every tree, because
+    *               an onInit/onLoad script coordinates across assemblies by definition.
+    */
+   public ScriptContext context(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
+      List<AssemblyContext> all = describeAssemblies(rvs);
+
+      if(target == null) {
+         // No kind stated, so no basis for narrowing the vars: report the union rather than
+         // guessing a context the caller has not chosen.
+         return new ScriptContext(all.stream().map(ScriptContextService::withoutApiTree).toList(),
+                                  CONTEXT_VARS);
+      }
+
+      List<String> vars = contextVars(target.kind());
+
+      if(target.assemblyName() == null) {
+         return new ScriptContext(all, vars);
+      }
+
+      List<AssemblyContext> one = all.stream()
+         .filter(a -> target.assemblyName().equals(a.name()))
+         .toList();
+
+      if(one.isEmpty()) {
+         throw new PairingException("Assembly not found: " + target.assemblyName());
+      }
+
+      return new ScriptContext(one, vars);
+   }
+
+   /**
+    * The variables actually in scope for this kind.
+    *
+    * <p>The API differs by context, so reporting one flat list makes the tool wrong for every kind
+    * but one. {@code event} resolves from {@link ViewsheetScope}'s vmap
+    * ({@code ViewsheetScope.java:368}) and is populated only while an onClick is executing —
+    * offering it to an onInit script promises a variable that is always null there.
+    *
+    * <p>This is the seam Tier 2 kinds extend: a {@code calcField} runs per row with
+    * {@code field['x']} and no assembly API at all, so it will add a case here rather than a
+    * special path elsewhere.
+    */
+   private static List<String> contextVars(ScriptTarget.Kind kind) {
+      return switch(kind) {
+         case ASSEMBLY_ON_CLICK -> CONTEXT_VARS;
+         default -> CONTEXT_VARS.stream().filter(v -> !"event".equals(v)).toList();
+      };
+   }
+
+   private static AssemblyContext withoutApiTree(AssemblyContext a) {
+      return new AssemblyContext(a.name(), a.type(), a.scriptable(), a.scriptableMembers(), null);
+   }
+
+   /**
+    * Builds the per-assembly scriptable surface via the live {@code VSScriptableService} lookup,
+    * falling back to the curated member list for charts when the live lookup fails.
+    */
+   List<AssemblyContext> describeAssemblies(RuntimeViewsheet rvs) {
       List<AssemblyContext> assemblies = new ArrayList<>();
       Viewsheet vs = rvs.getViewsheet();
 
@@ -110,7 +177,7 @@ public class ScriptContextService {
          }
       }
 
-      return new ScriptContext(assemblies, CONTEXT_VARS);
+      return assemblies;
    }
 
    private final VSScriptableService scriptableService;

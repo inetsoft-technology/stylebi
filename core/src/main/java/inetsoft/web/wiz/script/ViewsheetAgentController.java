@@ -198,14 +198,25 @@ public class ViewsheetAgentController {
             rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.target()), req.confirmed()));
    }
 
-   /** Live introspection of the joined viewsheet's scriptable surface. */
+   /** Live introspection of the joined viewsheet's scriptable surface, scoped to a target. */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/context")
-   public ScriptContext context(@PathVariable String sessionToken, Principal user)
+   public ScriptContext context(@PathVariable String sessionToken,
+                                @RequestParam(required = false) String target,
+                                @RequestParam(required = false) String id,
+                                @RequestParam(required = false) String kind,
+                                @RequestParam(required = false) String assembly,
+                                Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return contextService.context(rvs);
+      // CONTROLLER RULING 5 — note the `&& isBlank(assembly)`, which this brief originally omitted.
+      // Without it, `?assembly=Chart1` with no `kind` is treated as "no target at all" and silently
+      // returns the whole-viewsheet context instead of erroring on an incomplete dialect. Including
+      // it routes that case to resolve(), which throws the error naming all three dialects.
+      boolean noTarget = isBlank(target) && isBlank(id) && isBlank(kind) && isBlank(assembly);
+      return contextService.context(
+         rvs, noTarget ? null : target(rvs, id, kind, assembly, target));
    }
 
    /**
@@ -238,7 +249,7 @@ public class ViewsheetAgentController {
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      boolean noTarget = isBlank(target) && isBlank(id) && isBlank(kind);
+      boolean noTarget = isBlank(target) && isBlank(id) && isBlank(kind) && isBlank(assembly);
       ScriptImageService.ChartImage img;
 
       if(noTarget) {
