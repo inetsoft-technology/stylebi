@@ -31,6 +31,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -113,5 +114,17 @@ class AbstractVSAssemblyVizMarkTest {
 
       assertEquals(VizMark.MODERN_DARK, assembly.getVSAssemblyInfo().getVizMark(),
                    "a format re-init must never fall back to the host's mark");
+   }
+
+   @Test
+   void aMockedHostWithNoAssemblyInfoStampsNoMark() {
+      // a real Viewsheet always has an info; a mocked one returns null for getVSAssemblyInfo(),
+      // which must read as an absent mark rather than NPE
+      Viewsheet host = mock(Viewsheet.class);
+
+      TextVSAssembly assembly = new TextVSAssembly(host, "Text1");
+
+      assertNull(assembly.getVSAssemblyInfo().getVizMark(),
+                 "a host whose provenance can't be read is treated as unmarked");
    }
 }
