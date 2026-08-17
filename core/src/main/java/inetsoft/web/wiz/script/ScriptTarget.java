@@ -17,7 +17,13 @@
  */
 package inetsoft.web.wiz.script;
 
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.pairing.PairingException;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
 
 /**
  * Parses/formats the {@code target} string the wiz-services proxy (and the MCP script tools)
@@ -29,8 +35,69 @@ import inetsoft.web.wiz.pairing.PairingException;
 public final class ScriptTarget {
    public enum Location { VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK }
 
-   private ScriptTarget(Location location, String assemblyName) {
-      this.location = location;
+   /**
+    * The wire vocabulary. Distinct from {@link Location}, which is the internal dispatch key every
+    * read/write/execute service already switches on: a wire rename must not ripple into five
+    * services, and two of these kinds have no Location at all until pane-scoped pairing lands.
+    */
+   public enum Kind {
+      VIEWSHEET_ON_INIT("viewsheetOnInit", Location.VS_INIT),
+      VIEWSHEET_ON_LOAD("viewsheetOnLoad", Location.VS_LOAD),
+      ASSEMBLY_MAIN("assemblyMain", Location.ASSEMBLY),
+      ASSEMBLY_ON_CLICK("assemblyOnClick", Location.ASSEMBLY_ONCLICK),
+      // Reserved so the schema does not churn when pane-scoped pairing lands. A session cannot be
+      // scoped to one yet, so ScriptTarget.of refuses them with a scope error.
+      WORKSHEET_EXPRESSION("worksheetExpression", null),
+      WORKSHEET_CONDITION("worksheetCondition", null);
+
+      Kind(String wireName, Location location) {
+         this.wireName = wireName;
+         this.location = location;
+      }
+
+      public String wireName() {
+         return wireName;
+      }
+
+      /** The internal dispatch key, or {@code null} for a kind no service can serve yet. */
+      public Location location() {
+         return location;
+      }
+
+      public static Kind fromWire(String wire) throws PairingException {
+         if(wire == null || wire.isBlank()) {
+            throw new PairingException("kind is required");
+         }
+
+         // Named explicitly rather than aliased: there is no onRefresh in viewsheet scripting, and
+         // silently mapping it to onLoad would teach the caller a location that does not exist.
+         if("onRefresh".equals(wire)) {
+            throw new PairingException(
+               "There is no 'onRefresh' script in StyleBI. 'viewsheetOnLoad' is the script that " +
+               "runs on every refresh; 'viewsheetOnInit' runs once at initialization.");
+         }
+
+         for(Kind k : values()) {
+            if(k.wireName.equals(wire)) {
+               return k;
+            }
+         }
+
+         throw new PairingException("Unknown kind: \"" + wire + "\". Expected one of " +
+                                    String.join(", ", wireNames()) + ".");
+      }
+
+      public static List<String> wireNames() {
+         return Arrays.stream(values()).map(Kind::wireName).toList();
+      }
+
+      private final String wireName;
+      private final Location location;
+   }
+
+   private ScriptTarget(Kind kind, String assemblyName) {
+      this.kind = kind;
+      this.location = kind.location();
       this.assemblyName = assemblyName;
    }
 
@@ -43,17 +110,93 @@ public final class ScriptTarget {
       return assemblyName;
    }
 
+   public Kind kind() {
+      return kind;
+   }
+
+   /**
+    * Builds a target from the canonical tuple.
+    *
+    * @throws PairingException if the kind has no servable location, or an assembly kind carries no
+    *                          assembly name.
+    */
+   public static ScriptTarget of(Kind kind, String assemblyName) throws PairingException {
+      if(kind == null) {
+         throw new PairingException("kind is required");
+      }
+
+      if(kind.location() == null) {
+         throw new PairingException(
+            "kind '" + kind.wireName() + "' requires a session paired from that expression's " +
+            "editor; this session is bound to a whole viewsheet.");
+      }
+
+      boolean needsAssembly = kind == Kind.ASSEMBLY_MAIN || kind == Kind.ASSEMBLY_ON_CLICK;
+
+      if(needsAssembly && (assemblyName == null || assemblyName.isBlank())) {
+         throw new PairingException("kind '" + kind.wireName() + "' requires an assembly name.");
+      }
+
+      if(!needsAssembly && assemblyName != null && !assemblyName.isBlank()) {
+         throw new PairingException(
+            "kind '" + kind.wireName() + "' is viewsheet-level and takes no assembly name.");
+      }
+
+      return new ScriptTarget(kind, needsAssembly ? assemblyName : null);
+   }
+
+   /**
+    * A stable, opaque, URL-safe id for this target.
+    *
+    * <p>A deterministic encoding of the canonical tuple, NOT a server-issued handle: the pairing
+    * store is in-memory, so an id that only resolved inside one session would strand every
+    * workflow that lists targets in one turn and edits in the next. Decodable, which keeps it
+    * readable in logs and errors.
+    */
+   public String id() {
+      String canonical = kind.wireName() + "|" + (assemblyName == null ? "" : assemblyName);
+      return Base64.getUrlEncoder().withoutPadding()
+         .encodeToString(canonical.getBytes(StandardCharsets.UTF_8));
+   }
+
+   public static ScriptTarget fromId(String id) throws PairingException {
+      if(id == null || id.isBlank()) {
+         throw new PairingException("id is required");
+      }
+
+      String canonical;
+
+      try {
+         canonical = new String(Base64.getUrlDecoder().decode(id), StandardCharsets.UTF_8);
+      }
+      catch(IllegalArgumentException ex) {
+         throw new PairingException("Invalid target id: \"" + id + "\".");
+      }
+
+      // Split once: the kind is a fixed vocabulary with no '|', everything after the first
+      // separator is the assembly name verbatim -- which is what makes a name containing ':'
+      // (or '|') addressable at all.
+      int sep = canonical.indexOf('|');
+
+      if(sep < 0) {
+         throw new PairingException("Invalid target id: \"" + id + "\".");
+      }
+
+      String assembly = canonical.substring(sep + 1);
+      return of(Kind.fromWire(canonical.substring(0, sep)), assembly.isEmpty() ? null : assembly);
+   }
+
    public static ScriptTarget parse(String target) throws PairingException {
       if(target == null || target.isBlank()) {
          throw new PairingException("target is required");
       }
 
       if("vs-init".equals(target)) {
-         return new ScriptTarget(Location.VS_INIT, null);
+         return new ScriptTarget(Kind.VIEWSHEET_ON_INIT, null);
       }
 
       if("vs-load".equals(target)) {
-         return new ScriptTarget(Location.VS_LOAD, null);
+         return new ScriptTarget(Kind.VIEWSHEET_ON_LOAD, null);
       }
 
       if(target.startsWith("assembly:")) {
@@ -66,18 +209,37 @@ public final class ScriptTarget {
                throw new PairingException("Invalid target: " + target);
             }
 
-            return new ScriptTarget(Location.ASSEMBLY_ONCLICK, name);
+            return new ScriptTarget(Kind.ASSEMBLY_ON_CLICK, name);
          }
 
          if(rest.isBlank()) {
             throw new PairingException("Invalid target: " + target);
          }
 
-         return new ScriptTarget(Location.ASSEMBLY, rest);
+         return new ScriptTarget(Kind.ASSEMBLY_MAIN, rest);
       }
 
       throw new PairingException("Invalid target: \"" + target +
          "\". Expected \"vs-init\", \"vs-load\", \"assembly:<name>\", or \"assembly:<name>:onClick\".");
+   }
+
+   /**
+    * The v1 string parse, but able to tell an assembly literally named {@code Foo:onClick} from
+    * the onClick script of an assembly named {@code Foo}. An exact assembly match always wins.
+    *
+    * <p>{@link #parse(String)} cannot do this — it is static with no viewsheet in hand — which is
+    * exactly why the delimited grammar is being retired.
+    */
+   public static ScriptTarget parse(Viewsheet vs, String target) throws PairingException {
+      if(vs != null && target != null && target.startsWith("assembly:")) {
+         String rest = target.substring("assembly:".length());
+
+         if(!rest.isBlank() && vs.getAssembly(rest) != null) {
+            return of(Kind.ASSEMBLY_MAIN, rest);
+         }
+      }
+
+      return parse(target);
    }
 
    @Override
@@ -90,6 +252,7 @@ public final class ScriptTarget {
       };
    }
 
+   private final Kind kind;
    private final Location location;
    private final String assemblyName;
 }
