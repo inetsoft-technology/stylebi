@@ -209,6 +209,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           openService);
@@ -240,6 +241,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));
@@ -268,6 +270,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));
@@ -376,6 +379,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           highlightService,
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));

@@ -66,6 +66,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyHighlightService highlightService,
                                    DateComparisonService comparisonService,
                                    AssemblyConvertService convertService,
+                                   SelectionRuntimeService selectionService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
                                    SheetOpenService openService)
@@ -87,6 +88,7 @@ public class ViewsheetAssemblyAgentController {
       this.highlightService = highlightService;
       this.comparisonService = comparisonService;
       this.convertService = convertService;
+      this.selectionService = selectionService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
       this.openService = openService;
@@ -371,6 +373,59 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return convertService.convert(sessionToken, user, request.assembly(), request.to(), linkUri);
    }
+
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/selection/vocabulary")
+   public Map<String, Object> selectionVocabulary() {
+      requireEnabled();
+      return selectionService.vocabulary();
+   }
+
+   /**
+    * Sets a selection assembly's state. The response reports how many sort cycles it took and
+    * whether an active search string scoped the apply — neither is visible in the dashboard.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection")
+   public Map<String, Object> setSelection(@PathVariable String sessionToken,
+                                           @RequestBody SelectionRequest request,
+                                           @RequestParam(required = false, defaultValue = "")
+                                           String linkUri,
+                                           Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
+                                          request.sortOrder(), request.singleSelect(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
+   public Map<String, Object> clearSelection(@PathVariable String sessionToken,
+                                             @RequestBody SelectionRequest request,
+                                             @RequestParam(required = false, defaultValue = "")
+                                             String linkUri,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.clearSelection(sessionToken, user, request.assembly(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/subtree")
+   public Map<String, Object> selectSubtree(@PathVariable String sessionToken,
+                                            @RequestBody SubtreeRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.selectSubtree(sessionToken, user, request.assembly(), request.path(),
+                                           request.mode(), linkUri);
+   }
+
+   public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
+                                  String sortOrder, Boolean singleSelect) {}
+   public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
 
    public record ConvertRequest(String assembly, String to) {}
 
@@ -754,6 +809,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyHighlightService highlightService;
    private final DateComparisonService comparisonService;
    private final AssemblyConvertService convertService;
+   private final SelectionRuntimeService selectionService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
