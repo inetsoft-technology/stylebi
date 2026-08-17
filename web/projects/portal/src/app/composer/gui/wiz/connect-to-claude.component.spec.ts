@@ -187,4 +187,19 @@ describe("ConnectToClaudeComponent", () => {
       const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
       expect("editorContext" in sent).toBe(false);
    });
+
+   // JSON.stringify drops keys whose value is `undefined` on its own, so a test that
+   // merely leaves editorContext unset (the previous test) would pass even without the
+   // `if(this.editorContext)` guard in requestCode(). Setting it to `null` explicitly
+   // forces the guard to do the work: without it, `payload.editorContext = null` would
+   // survive JSON.stringify and this assertion would fail.
+   it("omits editorContext when it is explicitly set to null", () => {
+      component.runtimeId = "vs-1";
+      component.sheetType = "VIEWSHEET";
+      component.editorContext = null;
+      component.requestCode();
+
+      const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
+      expect("editorContext" in sent).toBe(false);
+   });
 });
