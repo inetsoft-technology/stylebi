@@ -168,4 +168,23 @@ describe("ConnectToClaudeComponent", () => {
 
       expect(subSpy.unsubscribe).toHaveBeenCalled();
    });
+
+   it("includes editorContext in the mint payload when one is supplied", () => {
+      component.runtimeId = "vs-1";
+      component.sheetType = "VIEWSHEET";
+      component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+      component.requestCode();
+
+      const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
+      expect(sent.editorContext).toEqual({ kind: "assemblyMain", assembly: "Chart1" });
+   });
+
+   it("omits editorContext entirely for a toolbar mint", () => {
+      component.runtimeId = "vs-1";
+      component.sheetType = "VIEWSHEET";
+      component.requestCode();
+
+      const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
+      expect("editorContext" in sent).toBe(false);
+   });
 });

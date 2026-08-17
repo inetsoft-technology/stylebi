@@ -35,6 +35,8 @@ import {
 } from "@angular/core";
 import { DataRef } from "../../../common/data/data-ref";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { EditorContext } from "../../../composer/gui/wiz/editor-context";
+import { ConnectToClaudeComponent } from "../../../composer/gui/wiz/connect-to-claude.component";
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 import { HelpUrlService } from "../../help-link/help-url.service";
 import { TreeNodeModel } from "../../tree/tree-node-model";
@@ -55,7 +57,8 @@ const LINT_MARKERS = "CodeMirror-lint-markers";
     selector: "script-pane",
     templateUrl: "script-pane.component.html",
     styleUrls: ["script-pane.component.scss"],
-    imports: [VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective]
+    imports: [VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective,
+       ConnectToClaudeComponent]
 })
 export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDestroy, OnChanges {
    @Input() columnTreeRoot: TreeNodeModel;
@@ -79,6 +82,10 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    /** Socket connection for the runtime sheet, used to mint a pane-scoped
     *  pairing code. */
    @Input() socketConnection: ViewsheetClientService;
+   /** Names this pane's script location (e.g. a viewsheet's onInit script,
+    *  or a specific assembly's main/onClick script) so a pairing code minted
+    *  from here scopes the agent session to just this location. */
+   @Input() editorContext?: EditorContext;
    @Output() expressionChange: EventEmitter<any> = new EventEmitter<any>();
    @Output() analysisResultsChange = new EventEmitter<AnalysisResult[]>();
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();

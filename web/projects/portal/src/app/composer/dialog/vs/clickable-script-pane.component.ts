@@ -22,6 +22,7 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { ClickableScriptPaneModel } from "../../data/vs/clickable-script-pane-model";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { EditorContext } from "../../gui/wiz/editor-context";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -41,12 +42,19 @@ export class ClickableScriptPane implements OnInit{
    @Input() enableEnter = false;
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
+   /** Absolute name of the assembly this onClick/onEnter script belongs to,
+    *  used to scope a pane-minted pairing code to this specific assembly. */
+   @Input() assembly?: string;
    cursor: { line: number, ch: number };
    onClick: boolean = false;
    expression: string = "";
 
    constructor(private uiContextService: UIContextService) {
       this.onClick = uiContextService.getDefaultTab("vs.onClick", "false") == "true";
+   }
+
+   get editorContext(): EditorContext {
+      return { kind: "assemblyOnClick", assembly: this.assembly };
    }
 
    ngOnInit(): void {

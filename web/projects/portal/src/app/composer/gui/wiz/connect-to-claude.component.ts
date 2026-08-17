@@ -22,6 +22,7 @@ import { Subscription } from "rxjs";
 import { take } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { EditorContext } from "./editor-context";
 
 @Component({
    selector: "wiz-connect-to-claude",
@@ -33,6 +34,10 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
    @Input() runtimeId!: string;
    @Input() sheetType!: "WORKSHEET" | "VIEWSHEET";
    @Input() socketConnection!: ViewsheetClientService;
+   /** Scopes the pairing session to a single script/formula location rather
+    *  than the whole sheet. Omitted from the mint payload entirely (not sent
+    *  as null) when absent, e.g. a whole-sheet toolbar mint. */
+   @Input() editorContext?: EditorContext;
 
    code: string | null = null;
    loading = false;
@@ -86,10 +91,13 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
          });
          this.mintSubscription = sub;
 
-         conn.send("/events/wiz/pairing/mint", {}, JSON.stringify({
-            runtimeId: this.runtimeId,
-            sheetType: this.sheetType
-         }));
+         const payload: any = { runtimeId: this.runtimeId, sheetType: this.sheetType };
+
+         if(this.editorContext) {
+            payload.editorContext = this.editorContext;
+         }
+
+         conn.send("/events/wiz/pairing/mint", {}, JSON.stringify(payload));
       });
    }
 

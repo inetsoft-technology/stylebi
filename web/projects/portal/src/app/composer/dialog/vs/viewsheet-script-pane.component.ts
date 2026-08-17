@@ -22,6 +22,7 @@ import { ScriptTreeNodeData } from "../../../widget/formula-editor/script-tree-n
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ViewsheetScriptPaneModel } from "../../data/vs/viewsheet-script-pane-model";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { EditorContext } from "../../gui/wiz/editor-context";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -45,6 +46,13 @@ export class ViewsheetScriptPane implements OnInit {
    initScriptVisible = false;
 
    constructor(private uiContextService: UIContextService) {
+   }
+
+   /** Derived from the same initScriptVisible flag that drives the onInit/onRefresh
+    *  radio, so a pairing code minted from here always names the script actually
+    *  showing in the editor. */
+   get editorContext(): EditorContext {
+      return { kind: this.initScriptVisible ? "viewsheetOnInit" : "viewsheetOnLoad" };
    }
 
    ngOnInit() {
