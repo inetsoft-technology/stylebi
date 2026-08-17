@@ -208,6 +208,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           openService);
@@ -238,6 +239,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));
@@ -265,6 +267,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));

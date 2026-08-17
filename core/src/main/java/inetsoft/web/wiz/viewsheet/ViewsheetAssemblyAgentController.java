@@ -65,6 +65,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyConditionService conditionService,
                                    AssemblyHighlightService highlightService,
                                    DateComparisonService comparisonService,
+                                   AssemblyConvertService convertService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
                                    SheetOpenService openService)
@@ -85,6 +86,7 @@ public class ViewsheetAssemblyAgentController {
       this.conditionService = conditionService;
       this.highlightService = highlightService;
       this.comparisonService = comparisonService;
+      this.convertService = convertService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
       this.openService = openService;
@@ -347,6 +349,30 @@ public class ViewsheetAssemblyAgentController {
       chartRegionService.set(sessionToken, user, request.assembly(), request.region(),
                              request.target(), request.field(), request.properties(), linkUri);
    }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/convert/vocabulary")
+   public Map<String, Object> convertVocabulary() {
+      requireEnabled();
+      return convertService.vocabulary();
+   }
+
+   /**
+    * Changes an assembly's type. Returns what was converted and, for a crosstab, what the
+    * conversion discarded — the caller cannot see that from the resulting table.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/convert")
+   public Map<String, Object> convertAssembly(@PathVariable String sessionToken,
+                                              @RequestBody ConvertRequest request,
+                                              @RequestParam(required = false, defaultValue = "")
+                                              String linkUri,
+                                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return convertService.convert(sessionToken, user, request.assembly(), request.to(), linkUri);
+   }
+
+   public record ConvertRequest(String assembly, String to) {}
 
    public record RegionPropertiesRequest(String assembly, String region, String target,
                                          String field, Map<String, Object> properties) {}
@@ -727,6 +753,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyConditionService conditionService;
    private final AssemblyHighlightService highlightService;
    private final DateComparisonService comparisonService;
+   private final AssemblyConvertService convertService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
