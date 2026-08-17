@@ -3,12 +3,14 @@
     {
       "paged": "true",
       "name": "Public Events",
-      "suffix": "/events"
+      "suffix": "/events",
+      "description": "The public activity firehose of the whole of GitHub. Almost never the right table: it is unfiltered, and two hard limits apply to every events endpoint here. Events are kept for only about 90 DAYS and capped at roughly 300 per listing, so history beyond that simply does not exist. And delivery lags by anywhere from 30 seconds to SIX HOURS, so recent activity may be missing entirely -- this is not a real-time source and a count taken from it is a floor, not a total."
     },
     {
       "paged": "true",
       "name": "Repository Events",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/events"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/events",
+      "description": "The activity feed of one repository: pushes, issue and pull request activity, releases, forks and stars, each with actor, type and created_at. Requires the owner and repository name. Convenient as a timeline, but bound by the same 90-day retention, ~300-event cap and multi-hour lag -- for anything counted precisely, use the resource tables instead."
     },
     {
       "paged": "true",
@@ -21,97 +23,116 @@
           "key": "id",
           "parameterName": "Event ID"
         }
-      ]
+      ],
+      "description": "Every issue lifecycle event in one repository, across all issues. Requires the owner and repository name. The repository-wide version of Issue Events, and the practical basis for time-in-state analysis without one request per issue."
     },
     {
       "paged": "true",
       "name": "Public Events for Repository Network",
-      "suffix": "/networks/{Repository Owner}/{Repository Name}/events"
+      "suffix": "/networks/{Repository Owner}/{Repository Name}/events",
+      "description": "The public activity of a repository AND all of its forks together. Requires the owner and repository name. Use it to see what downstream forks are doing, which the repository's own feed omits."
     },
     {
       "paged": "true",
       "name": "Public Events for Organization",
-      "suffix": "/orgs/{Organization Name}/events"
+      "suffix": "/orgs/{Organization Name}/events",
+      "description": "The public activity of one organisation across its repositories. Requires the organisation. Same retention, cap and lag."
     },
     {
       "paged": "true",
       "name": "Events Received by User",
-      "suffix": "/users/{User Name}/received_events"
+      "suffix": "/users/{User Name}/received_events",
+      "description": "The activity feed one user SEES -- what the accounts and repositories they follow have been doing. Requires a username. It describes their inbox, not their work; Events Performed by User is the one about what they did."
     },
     {
       "paged": "true",
       "name": "Public Events Received by User",
-      "suffix": "/users/{User Name}/received_events/public"
+      "suffix": "/users/{User Name}/received_events/public",
+      "description": "The public subset of that same received feed."
     },
     {
       "paged": "true",
       "name": "Events Performed by User",
-      "suffix": "/users/{User Name}/events"
+      "suffix": "/users/{User Name}/events",
+      "description": "What one user did, across repositories. Requires a username. Private events appear only when authenticated as that same user; otherwise the feed is public activity only, and work in private repositories is invisible -- which makes this a poor basis for measuring anyone's output. Same retention, cap and lag."
     },
     {
       "paged": "true",
       "name": "Public Events Performed by User",
-      "suffix": "/users/{User Name}/events/public"
+      "suffix": "/users/{User Name}/events/public",
+      "description": "Only the public activity of one user, regardless of who is asking. Requires a username."
     },
     {
       "paged": "true",
       "name": "Events for Organization by User",
-      "suffix": "/users/{User Name}/events/orgs/{Organization Name}"
+      "suffix": "/users/{User Name}/events/orgs/{Organization Name}",
+      "description": "One user's organisation dashboard feed. Requires the username and organisation, and must be authenticated as that user."
     },
     {
       "paged": "true",
       "name": "Feeds",
-      "suffix": "/feeds"
+      "suffix": "/feeds",
+      "description": "The Atom feed URLs available to the caller -- timeline, user, and security advisories. Returns LINKS, not events: nothing here can be charted without fetching the feeds themselves, which are XML rather than JSON."
     },
     {
       "paged": "true",
       "name": "Notifications",
-      "suffix": "/notifications?all={Include Read?:true|false}&participating={Only Participating?:true|false}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}&before={Before?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/notifications?all={Include Read?:true|false}&participating={Only Participating?:true|false}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}&before={Before?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The authenticated user's notifications, most recently updated first, each with its subject, the repository, the reason it was sent, and whether it is unread. Always the caller's own inbox -- it cannot report anyone else's, so it is a personal work queue rather than a team measure. Read notifications are excluded unless all=true."
     },
     {
       "paged": "true",
       "name": "Notifications in Repository",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/notifications?all={Include Read?:true|false}&participating={Only Participating?:true|false}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}&before={Before?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/notifications?all={Include Read?:true|false}&participating={Only Participating?:true|false}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}&before={Before?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The caller's notifications limited to one repository. Requires the owner and repository name. Same caller scoping."
     },
     {
       "paged": "false",
       "name": "Notification Thread",
-      "suffix": "/notifications/threads/{Thread ID}"
+      "suffix": "/notifications/threads/{Thread ID}",
+      "description": "A single notification thread by id."
     },
     {
       "paged": "false",
       "name": "Thread Subscription",
-      "suffix": "/notifications/threads/{Thread ID}/subscription"
+      "suffix": "/notifications/threads/{Thread ID}/subscription",
+      "description": "Whether the caller is subscribed to one notification thread and whether they have ignored it."
     },
     {
       "paged": "true",
       "name": "Stargazers",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/stargazers"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stargazers",
+      "description": "The users who starred one repository. Requires the owner and repository name. By default the rows carry only the user, with no timestamp -- the starred_at date is returned only when the star+json media type is requested, so a chart of stars over time is not possible from the default response. Repository carries the running total."
     },
     {
       "paged": "true",
       "name": "Starred Repositories",
-      "suffix": "/users/{User Name}/starred"
+      "suffix": "/users/{User Name}/starred",
+      "description": "The repositories one user has starred. Requires a username. The interest signal from the user's side."
     },
     {
       "paged": "false",
       "name": "Starred Repository",
-      "suffix": "/user/starred/{Repository Owner}/{Repository Name}"
+      "suffix": "/user/starred/{Repository Owner}/{Repository Name}",
+      "description": "The repositories the authenticated user has starred. Always the caller's own list."
     },
     {
       "paged": "true",
       "name": "Watchers",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/subscribers"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/subscribers",
+      "description": "The users watching one repository -- that is, subscribed to its notifications. Requires the owner and repository name. Genuinely different from stargazers despite GitHub's confusing history with the term: the watchers_count field on Repository actually reports STARS, while this endpoint reports true subscribers. Do not pair the two expecting them to agree."
     },
     {
       "paged": "true",
       "name": "Watched Repositories",
-      "suffix": "/users/{User Name}/subscriptions"
+      "suffix": "/users/{User Name}/subscriptions",
+      "description": "The repositories one user is subscribed to. Requires a username."
     },
     {
       "paged": "false",
       "name": "Repository Subscription",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/subscription"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/subscription",
+      "description": "Whether the authenticated user is subscribed to one repository, and whether they are ignoring it. Requires the owner and repository name. One record about the caller only."
     },
     {
       "paged": "true",
@@ -128,7 +149,8 @@
           "key": "id",
           "parameterName": "Gist ID"
         }
-      ]
+      ],
+      "description": "The gists of one user -- standalone code snippets outside any repository. Requires a username. Carries description, the files with their languages and sizes, public flag, created_at, updated_at and comment count. File CONTENT is truncated in listings; the single-gist endpoint returns it in full."
     },
     {
       "paged": "true",
@@ -145,7 +167,8 @@
           "key": "id",
           "parameterName": "Gist ID"
         }
-      ]
+      ],
+      "description": "Every public gist on GitHub, most recently updated first. A firehose; filter by since to bound it."
     },
     {
       "paged": "true",
@@ -162,67 +185,80 @@
           "key": "id",
           "parameterName": "Gist ID"
         }
-      ]
+      ],
+      "description": "The gists the authenticated user has starred. Always the caller's own."
     },
     {
       "paged": "false",
       "name": "Gist",
-      "suffix": "/gists/{Gist ID}"
+      "suffix": "/gists/{Gist ID}",
+      "description": "A single gist by id, with its files' full content."
     },
     {
       "paged": "false",
       "name": "Gist Revision",
-      "suffix": "/gists/{Gist ID}/{Revision Hash}"
+      "suffix": "/gists/{Gist ID}/{Revision Hash}",
+      "description": "One gist at a specific revision sha, showing its content as it was then. Requires the gist id and revision."
     },
     {
       "paged": "true",
       "name": "Gist Commits",
-      "suffix": "/gists/{Gist ID}/commits"
+      "suffix": "/gists/{Gist ID}/commits",
+      "description": "The revision history of one gist, each entry with the committer, timestamp and a change summary of additions and deletions. Requires the gist id."
     },
     {
       "paged": "true",
       "name": "Gist Forks",
-      "suffix": "/gists/{Gist ID}/forks"
+      "suffix": "/gists/{Gist ID}/forks",
+      "description": "The forks of one gist, with who forked it and when. Requires the gist id."
     },
     {
       "paged": "true",
       "name": "Workflow Run Artifacts",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/artifacts"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/artifacts",
+      "description": "The artifacts produced by one run, with name, size_in_bytes, created_at, expires_at and whether each has already expired. Requires the owner, repository and run id. The table for Actions storage consumption -- size and expiry are here and nowhere else. Expired artifacts remain listed with expired set, so filter before summing current storage."
     },
     {
       "paged": "false",
       "name": "Workflow Run Artifact",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/artifacts/{Artifact ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/artifacts/{Artifact ID}",
+      "description": "A single artifact by id. Requires the owner and repository name. Same fields."
     },
     {
       "paged": "false",
       "name": "Repository Public Key",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets/public-key"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets/public-key",
+      "description": "The public key used to encrypt secrets before storing them. Requires the owner and repository name. A cryptographic helper for writing secrets, of no analytical use."
     },
     {
       "paged": "true",
       "name": "Repository Secrets",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets",
+      "description": "The names of the Actions secrets configured on one repository, with created_at and updated_at. Requires the owner and repository name and collaborator access. VALUES ARE NEVER RETURNED -- only names and dates, which is enough for an inventory or a staleness review and nothing more."
     },
     {
       "paged": "false",
       "name": "Repository Secret",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets/{Secret Name}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets/{Secret Name}",
+      "description": "A single secret's name and timestamps. Requires the owner, repository and secret name. The value is not returned."
     },
     {
       "paged": "true",
       "name": "Self-hosted Runner Downloads",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners/downloads"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners/downloads",
+      "description": "The runner application binaries available for download, by platform and architecture. Reference content shipped by GitHub, identical everywhere, not repository data."
     },
     {
       "paged": "true",
       "name": "Self-hosted Runners",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners",
+      "description": "The self-hosted Actions runners registered to one repository, with name, operating system, status (online or offline), whether one is busy, and its labels. Requires the owner and repository name and admin access. Runner labels decide which jobs may land on which machine, which is why jobs can queue while runners sit idle."
     },
     {
       "paged": "false",
       "name": "Self-hosted Runner",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners/{Runner ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners/{Runner ID}",
+      "description": "A single self-hosted runner by id. Requires the owner and repository name."
     },
     {
       "paged": "true",
@@ -235,27 +271,32 @@
           "key": "id",
           "parameterName": "Workflow ID"
         }
-      ]
+      ],
+      "description": "The GitHub Actions workflows defined in one repository, with name, path, state and timestamps. Requires the owner and repository name. The definitions only -- what they did is in Workflow Runs."
     },
     {
       "paged": "false",
       "name": "Workflow",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/workflows/{Workflow ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/workflows/{Workflow ID}",
+      "description": "A single workflow by id or by file name such as main.yaml. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Workflow Run Jobs",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/jobs"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/jobs",
+      "description": "The jobs of one run, with name, status, conclusion, started_at and completed_at, the runner that took it, and a nested steps array giving each step's own conclusion and timings. Requires the owner, repository and run id. The finest-grained CI table GitHub offers and the place to look for which step actually costs the time. Re-run attempts are separate rows, so a naive count of jobs overstates the work done."
     },
     {
       "paged": "false",
       "name": "Workflow Job",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/jobs/{Job ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/jobs/{Job ID}",
+      "description": "A single job by id. Requires the owner and repository name. Same fields as Workflow Run Jobs."
     },
     {
       "paged": "true",
       "name": "Workflow Job Logs",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/jobs/{Job ID}/logs"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/jobs/{Job ID}/logs",
+      "description": "A short-lived redirect to download one job's log as plain text. Requires the owner, repository and job id. NOT tabular data -- it returns a URL that expires after a minute, and the log itself is unstructured text."
     },
     {
       "paged": "true",
@@ -271,67 +312,80 @@
           "key": "id",
           "parameterName": "Run ID"
         }
-      ]
+      ],
+      "description": "The runs of ONE workflow rather than the whole repository. Requires the owner, repository and workflow id or file name. Same fields and the same status/conclusion distinction. Use it to compare one pipeline's reliability over time without separating workflows afterwards. Filter by actor, branch, event or status."
     },
     {
       "paged": "true",
       "name": "Repository Workflow Runs",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs?actor={Actor?}&branch={Branch?}&event={Event?:push|pull_request|issue|...}&status={Status?:success|completed|...}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs?actor={Actor?}&branch={Branch?}&event={Event?:push|pull_request|issue|...}&status={Status?:success|completed|...}",
+      "description": "Every Actions run in one repository, one row each. Requires the owner and repository name. Carries run_number, the workflow, head_branch and head_sha, the triggering event, run_started_at, created_at and updated_at, run_attempt, and both status and conclusion. THE TWO OUTCOME COLUMNS ARE NOT THE SAME: status is where the run is (queued, in_progress, completed) and conclusion is how it ended (success, failure, cancelled, skipped, timed_out, action_required). conclusion is null until the run completes, so a failure rate computed over all rows is wrong -- restrict to completed runs first. NOTE ALSO that there is no duration column; elapsed time has to be derived from run_started_at and updated_at, or summed from the jobs, which carry their own timings."
     },
     {
       "paged": "false",
       "name": "Workflow Run",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}",
+      "description": "A single run by id. Requires the owner and repository name. Same fields as the list, plus the referenced pull requests and the previous attempt where a run was re-run."
     },
     {
       "paged": "true",
       "name": "Workflow Run Logs",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/logs"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/logs",
+      "description": "A short-lived redirect to download a zip archive of all logs for one run. Same caveat: a URL that expires after a minute, wrapping unstructured text."
     },
     {
       "paged": "true",
       "name": "Issues",
-      "suffix": "/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "Issues assigned to the authenticated user across every visible repository. Always scoped to the caller, so it is a personal work list rather than an organisation-wide backlog. Contains pull requests as well, identifiable by the pull_request field."
     },
     {
       "paged": "true",
       "name": "Owned and Member Repository Issues",
-      "suffix": "/user/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/user/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "Issues assigned to the caller across owned and member repositories only, excluding organisation repositories they merely have access to. Same caller scoping and the same pull request mixing."
     },
     {
       "paged": "true",
       "name": "Organization Issues",
-      "suffix": "/orgs/{Organization Name}/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/orgs/{Organization Name}/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "Issues assigned to the caller within one organisation. Requires the organisation. Still scoped to the caller despite naming an organisation -- it does NOT return the organisation's issues at large, which is a common misreading. Also contains pull requests."
     },
     {
       "paged": "true",
       "name": "Repository Issues",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues?milestone={Milestone?}&state={State?:open|closed|all}&assignee={Assignee?:User name}&creator={Creator?:User name}&mentioned={Mentioned?:User name}&labels={Labels?:bug,ui,@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues?milestone={Milestone?}&state={State?:open|closed|all}&assignee={Assignee?:User name}&creator={Creator?:User name}&mentioned={Mentioned?:User name}&labels={Labels?:bug,ui,@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The issues of one repository, one row each. Requires the owner and repository name. Carries number, title, body, state, created_at, updated_at and closed_at, the user who opened it, assignees, labels, milestone, and comments count. TWO traps that change the answer. First, GitHub's REST API treats every pull request as an issue, so THIS TABLE CONTAINS PULL REQUESTS TOO -- they carry a pull_request field and issues do not, and any issue count taken without excluding them is inflated, often by half. Second, only OPEN issues are returned by default; pass state=all or state=closed, or closure and cycle-time questions will find nothing to measure."
     },
     {
       "paged": "false",
       "name": "Issue",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}",
+      "description": "A single issue by number. Requires the owner and repository name. Same fields as Repository Issues. Note this is the issue NUMBER shown in the URL and in '#123', not the internal id. Returns a redirect if the issue was moved to another repository."
     },
     {
       "paged": "true",
       "name": "Issue Assignees",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/assignees"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/assignees",
+      "description": "The users who CAN be assigned issues in one repository -- that is, those with push access. Requires the owner and repository name. A permission list, not a record of who is actually assigned to anything."
     },
     {
       "paged": "true",
       "name": "Issue Comments",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/comments?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/comments?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The comments on one issue, oldest first. Requires the owner, repository and issue number. Because pull requests are issues, this also returns the conversation comments of a pull request -- though not its line-by-line review comments, which this connector has no endpoint for."
     },
     {
       "paged": "true",
       "name": "Repository Issue Comments",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/comments?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/comments?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "Every issue comment in one repository, across all issues. Requires the owner and repository name. Use it for comment volume over time without walking issue by issue; each row carries the issue it belongs to."
     },
     {
       "paged": "false",
       "name": "Issue Comment",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/comments/{Comment ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/comments/{Comment ID}",
+      "description": "A single issue comment by its id. Requires the owner and repository name."
     },
     {
       "paged": "true",
@@ -344,107 +398,128 @@
           "key": "id",
           "parameterName": "Event ID"
         }
-      ]
+      ],
+      "description": "The lifecycle events of one issue: labelled, assigned, closed, reopened, milestoned, referenced and the rest, each with the actor and timestamp. Requires the owner, repository and issue number. The issue itself carries only its CURRENT state and labels -- this is the history, and the only source for how long an issue spent in any given state."
     },
     {
       "paged": "false",
       "name": "Issue Event",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/events/{Event ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/events/{Event ID}",
+      "description": "A single issue event by its id. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Repository Labels",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/labels"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/labels",
+      "description": "The labels defined in one repository, with name, colour, description and whether each is a default. Requires the owner and repository name. The dimension table for any label-based breakdown."
     },
     {
       "paged": "false",
       "name": "Repository Label",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/labels/{Label Name}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/labels/{Label Name}",
+      "description": "A single label by name. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Issue Labels",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/labels"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/labels",
+      "description": "The labels currently on one issue. Requires the owner, repository and issue number. Repository Issues already embeds the labels, so this is rarely needed on its own; the label HISTORY is in Issue Events."
     },
     {
       "paged": "true",
       "name": "Milestone Issue Labels",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/milestones/{Milestone Number}/labels"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/milestones/{Milestone Number}/labels",
+      "description": "The labels in use on the issues of one milestone. Requires the owner, repository and milestone number."
     },
     {
       "paged": "true",
       "name": "Organization Migrations",
-      "suffix": "/orgs/{Organization Name}/migrations"
+      "suffix": "/orgs/{Organization Name}/migrations",
+      "description": "The migration archives started for one organisation, with state, the repositories included, created_at and updated_at, and whether attachments were excluded. Requires the organisation. Operational records of exports, not repository content."
     },
     {
       "paged": "false",
       "name": "Organization Migration Status",
-      "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}"
+      "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}",
+      "description": "The state of one organisation migration: pending, exporting, exported or failed, plus the archive url once it is ready. Requires the organisation and migration id."
     },
     {
       "paged": "true",
       "name": "Organization Migration Repositories",
-      "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}/repositories"
+      "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}/repositories",
+      "description": "The repositories included in one organisation migration. Requires the organisation and migration id."
     },
     {
       "paged": "false",
       "name": "Source Import Progress",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/import",
+      "description": "The state of an import into one repository from an external version control system, with the stage reached, commit count and any failure. Requires the owner and repository name. A one-off migration record -- empty for any repository that was created on GitHub directly, which is most of them."
     },
     {
       "paged": "true",
       "name": "Source Import Authors",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/authors?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/authors?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The commit authors detected in a source import, so they can be mapped to GitHub accounts. Requires the owner and repository name. Only meaningful while an import is in progress."
     },
     {
       "paged": "true",
       "name": "Source Import Large Files",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/large_files"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/large_files",
+      "description": "The files in a source import that exceed GitHub's size limit and must be handled through Git LFS. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "User Migrations",
-      "suffix": "/user/migrations"
+      "suffix": "/user/migrations",
+      "description": "The migration archives started by the authenticated user. Always the caller's own."
     },
     {
       "paged": "false",
       "name": "User Migration",
-      "suffix": "/user/migrations/{Migration ID}"
+      "suffix": "/user/migrations/{Migration ID}",
+      "description": "The state of one user migration. Requires the migration id."
     },
     {
       "paged": "true",
       "name": "User Migration Repositories",
-      "suffix": "/user/migrations/{Migration ID}/repositories"
+      "suffix": "/user/migrations/{Migration ID}/repositories",
+      "description": "The repositories included in one user migration. Requires the migration id."
     },
     {
       "paged": "true",
       "name": "Gitignore Templates",
-      "suffix": "/gitignore/templates"
+      "suffix": "/gitignore/templates",
+      "description": "The names of the gitignore templates GitHub offers. Reference content shipped with GitHub."
     },
     {
       "paged": "false",
       "name": "Gitignore Template",
-      "suffix": "/gitignore/templates/{Template Name}"
+      "suffix": "/gitignore/templates/{Template Name}",
+      "description": "One gitignore template by name, with its contents. Reference content."
     },
     {
       "paged": "true",
       "name": "Licenses",
-      "suffix": "/licenses"
+      "suffix": "/licenses",
+      "description": "The open-source licences GitHub recognises, with key, name and SPDX id. Reference content, identical on every account. The licence a given repository uses is in Repository License."
     },
     {
       "paged": "false",
       "name": "License",
-      "suffix": "/licenses/{License Key}"
+      "suffix": "/licenses/{License Key}",
+      "description": "One licence by key, with its full text and its permissions, conditions and limitations. Reference content."
     },
     {
       "paged": "false",
       "name": "Repository License",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/license"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/license",
+      "description": "The licence file GitHub detected in one repository, with its name, SPDX id and full text. Requires the owner and repository name. Use it for licence compliance across an organisation; the Repository record carries the same licence name without the text."
     },
     {
       "paged": "true",
       "name": "User Organizations",
-      "suffix": "/users/{User Name}/orgs"
+      "suffix": "/users/{User Name}/orgs",
+      "description": "The organisations one user belongs to. Requires a username. IMPORTANT: this returns only the memberships that user has made PUBLIC. Someone in ten organisations privately appears in none, so an empty result means nothing."
     },
     {
       "paged": "true",
@@ -473,22 +548,26 @@
           "key": "login",
           "parameterName": "Organization Name"
         }
-      ]
+      ],
+      "description": "Every organisation on GitHub, in id order. A firehose for enumeration, not a searchable list, and almost never the right table."
     },
     {
       "paged": "true",
       "name": "Organization App Installations",
-      "suffix": "/orgs/{Organization Name}/installations"
+      "suffix": "/orgs/{Organization Name}/installations",
+      "description": "The GitHub Apps installed on one organisation, with the permissions and repository access each holds. Requires the organisation. Security and integration inventory -- apps hold access that appears in no member or collaborator list, which makes this table the blind spot in most access reviews."
     },
     {
       "paged": "false",
       "name": "Organization",
-      "suffix": "/orgs/{Organization Name}"
+      "suffix": "/orgs/{Organization Name}",
+      "description": "A single organisation. Requires the organisation name. Carries description, location, blog, email, created_at, the plan where visible, and the running public_repos, public_gists, followers and following counts. An authenticated member additionally sees total_private_repos, owned_private_repos, disk_usage, collaborators and the default repository permission -- so the size of a private estate is only visible to insiders."
     },
     {
       "paged": "true",
       "name": "Organization Credential Authorizations",
-      "suffix": "/orgs/{Organization Name}/credential-authorizations"
+      "suffix": "/orgs/{Organization Name}/credential-authorizations",
+      "description": "SAML single sign-on credential authorizations for an organisation -- which tokens and SSH keys were authorised for SSO, and by whom. RETIRED: no longer present in GitHub's current API description. It was the audit trail for SSO-authorised credentials, and there is no replacement here."
     },
     {
       "paged": "true",
@@ -516,7 +595,8 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "The users blocked from the organisation. Requires the organisation. Moderation record."
     },
     {
       "paged": "true",
@@ -544,7 +624,8 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "The members of one organisation. Requires the organisation. Returns user records; filter by role to separate admins from members, and by filter=2fa_disabled to find accounts without two-factor authentication -- a common security review. The list itself does not carry each member's role as a column, so a per-person role needs Organization Member."
     },
     {
       "paged": "true",
@@ -572,87 +653,104 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "Only the members who chose to make their membership public. Requires the organisation. A SUBSET, often a small one -- counting organisation size from this table undercounts, sometimes drastically. Organization Members is the roster."
     },
     {
       "paged": "false",
       "name": "Organization Member",
-      "suffix": "/orgs/{Organization Name}/memberships/{User Name}"
+      "suffix": "/orgs/{Organization Name}/memberships/{User Name}",
+      "description": "One person's membership in an organisation: their role (admin or member) and state (active or pending). Requires the organisation and username. The only place the role is stated per person."
     },
     {
       "paged": "true",
       "name": "Organization Invitation Teams",
-      "suffix": "/orgs/{Organization Name}/invitations/{Invitation ID}/teams"
+      "suffix": "/orgs/{Organization Name}/invitations/{Invitation ID}/teams",
+      "description": "The teams one pending invitation would place the invitee into. Requires the organisation and invitation id."
     },
     {
       "paged": "true",
       "name": "Organization Invitations",
-      "suffix": "/orgs/{Organization Name}/invitations"
+      "suffix": "/orgs/{Organization Name}/invitations",
+      "description": "Invitations to join the organisation that are still pending, with who was invited, by whom, their intended role and when it was sent. Requires the organisation. Use it for onboarding still outstanding; accepted invitations leave this table and become memberships."
     },
     {
       "paged": "true",
       "name": "User Organization Memberships",
-      "suffix": "/user/memberships/orgs?state={State?:active|pending}"
+      "suffix": "/user/memberships/orgs?state={State?:active|pending}",
+      "description": "The caller's own organisation memberships, with role and state. Always the caller's."
     },
     {
       "paged": "false",
       "name": "User Organization Membership",
-      "suffix": "/user/memberships/orgs/{Organization Name}"
+      "suffix": "/user/memberships/orgs/{Organization Name}",
+      "description": "The caller's membership in one named organisation. Requires the organisation."
     },
     {
       "paged": "true",
       "name": "Organization Outside Collaborators",
-      "suffix": "/orgs/{Organization Name}/outside_collaborators?filter={Filter?:2fa_disabled|all}"
+      "suffix": "/orgs/{Organization Name}/outside_collaborators?filter={Filter?:2fa_disabled|all}",
+      "description": "People with access to the organisation's repositories who are NOT members of it. Requires the organisation. Routinely missed in access reviews precisely because they are absent from the member list, while often holding write access."
     },
     {
       "paged": "true",
       "name": "Organization Webhooks",
-      "suffix": "/orgs/{Organization Name}/hooks"
+      "suffix": "/orgs/{Organization Name}/hooks",
+      "description": "The webhooks configured at organisation level, with target url, the events that fire them and whether each is active. Requires the organisation. Integration configuration; deliveries are not recorded here."
     },
     {
       "paged": "false",
       "name": "Organization Webhook",
-      "suffix": "/orgs/{Organization Name}/hooks/{Hook ID}"
+      "suffix": "/orgs/{Organization Name}/hooks/{Hook ID}",
+      "description": "A single organisation webhook by id."
     },
     {
       "paged": "true",
       "name": "User Repositories",
-      "suffix": "/users/{User Name}/repos?type={Type?:all|owner|member}"
+      "suffix": "/users/{User Name}/repos?type={Type?:all|owner|member}",
+      "description": "The public repositories of one user. Requires a username. Same fields as Repository. Sort by pushed, created, updated or full_name."
     },
     {
       "paged": "true",
       "name": "Organization Repositories",
-      "suffix": "/orgs/{Organization Name}/repos?type={Type?:all|public|private|forks|sources|member|internal}"
+      "suffix": "/orgs/{Organization Name}/repos?type={Type?:all|public|private|forks|sources|member|internal}",
+      "description": "The repositories of one organisation. Requires the organisation. Same fields as Repository; a token with the right access also sees private ones. This is the usual starting point for any organisation-wide analysis, since almost every other table needs a repository name."
     },
     {
       "paged": "true",
       "name": "Public Repositories",
-      "suffix": "/repositories?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/repositories?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "Every public repository on GitHub, in id order. There is no filtering and no search here -- it is a firehose meant for enumerating the whole of GitHub, and is almost never the right table. Use Search Repositories or the per-owner listings instead."
     },
     {
       "paged": "false",
       "name": "Repository",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}",
+      "description": "A single repository. Requires the owner and repository name. Carries name, full_name, description, the primary language, visibility and private flag, fork status and parent, default_branch, created_at, updated_at and pushed_at, size, licence, topics, and the running stargazers_count, watchers_count, forks_count and open_issues_count. NOTE that open_issues_count INCLUDES open pull requests, for the same reason the issues endpoints do. pushed_at, not updated_at, is the column that reflects actual code activity -- updated_at moves for metadata changes too."
     },
     {
       "paged": "true",
       "name": "Repository Contributors",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/contributors?anon={Include Anonymous?:true|false}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/contributors?anon={Include Anonymous?:true|false}",
+      "description": "Per-contributor commit counts for one repository, highest first. Requires the owner and repository name. Contributors are identified BY GIT AUTHOR EMAIL, so one person with two configured addresses appears twice and neither row necessarily maps to a GitHub account. The data is cached and may be a few hours stale. Cheap and useful for ranking, but Contributor Statistics is the one with additions, deletions and a weekly breakdown."
     },
     {
       "paged": "true",
       "name": "Repository Languages",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/languages"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/languages",
+      "description": "The languages of one repository as BYTES of code each, not percentages and not files. Requires the owner and repository name. Returned as one record of language-to-bytes pairs rather than one row per language, so it needs reshaping. The figures come from file extensions, and vendored or generated code is excluded by GitHub's own rules rather than by anything visible here."
     },
     {
       "paged": "true",
       "name": "Repository Teams",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/teams"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/teams",
+      "description": "The teams with access to one repository and the permission each holds. Requires the owner and repository name. The reverse of Team Repositories."
     },
     {
       "paged": "true",
       "name": "Repository Tags",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/tags"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/tags",
+      "description": "The tags of one repository, with name and the commit each points at. Requires the owner and repository name. NOT sorted by version or date -- and no tag date is returned, so ordering a release history from this table alone is not possible. Releases carries the dates."
     },
     {
       "paged": "true",
@@ -677,52 +775,62 @@
           "key": "name",
           "parameterName": "Branch Name"
         }
-      ]
+      ],
+      "description": "The branches of one repository, with name, the commit each points at, and whether it is protected. Requires the owner and repository name. NOTE there is no date column here -- the tip commit's sha is given but not its date, so stale-branch questions need a commit lookup per branch."
     },
     {
       "paged": "false",
       "name": "Branch",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}",
+      "description": "A single branch by name. Requires the owner and repository name. Adds the full tip commit and the branch's protection settings."
     },
     {
       "paged": "false",
       "name": "Branch Protection",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection",
+      "description": "The complete protection configuration of one branch: required reviews, required status checks, admin enforcement, push restrictions, and whether force pushes and deletions are allowed. Requires the owner, repository and branch name. This is the evidence auditors ask for -- the Branches list says only that a branch IS protected, never how. Returns an error rather than an empty record when the branch is unprotected, so absence reads as a failure and should be interpreted as 'not protected'."
     },
     {
       "paged": "false",
       "name": "Branch Required Status Checks",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_status_checks"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_status_checks",
+      "description": "Which checks must pass before a branch accepts a merge, and whether branches must be up to date first. Requires the owner, repository and branch name."
     },
     {
       "paged": "true",
       "name": "Branch Status Check Contexts",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_status_checks/contexts"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_status_checks/contexts",
+      "description": "Just the names of the required checks on one branch. A narrower slice of Branch Required Status Checks."
     },
     {
       "paged": "true",
       "name": "Branch Required Pull Request Reviews",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_pull_request_reviews"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_pull_request_reviews",
+      "description": "The review requirements on one branch: how many approvals are needed, whether stale approvals are dismissed on a new push, whether code owner review is required, and who may dismiss reviews. Requires the owner, repository and branch name. The strongest available evidence that changes are reviewed -- and worth noting that this connector has no endpoint for the reviews themselves, so this is the policy without the record of compliance."
     },
     {
       "paged": "true",
       "name": "Branch Required Signatures",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_signatures"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_signatures",
+      "description": "Whether commits on one branch must be signed. Requires the owner, repository and branch name."
     },
     {
       "paged": "false",
       "name": "Branch Admin Enforcement",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/enforce_admins"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/enforce_admins",
+      "description": "Whether the branch's protection rules also bind administrators. Requires the owner, repository and branch name. A rule that exempts admins is materially weaker, which no other field reveals."
     },
     {
       "paged": "true",
       "name": "Branch Restrictions",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions",
+      "description": "Who may push to one protected branch, as users, teams and apps. Requires the owner, repository and branch name."
     },
     {
       "paged": "true",
       "name": "Protected Branch Teams",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/teams"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/teams",
+      "description": "Just the teams allowed to push to one protected branch."
     },
     {
       "paged": "true",
@@ -750,37 +858,44 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "Just the users allowed to push to one protected branch."
     },
     {
       "paged": "true",
       "name": "Protected Branch Apps",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/apps"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/apps",
+      "description": "Just the GitHub Apps allowed to push to one protected branch. Often overlooked in access reviews, since an app is not a person and appears in no user list."
     },
     {
       "paged": "true",
       "name": "Repository Collaborators",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/collaborators?affiliation={Affiliation?:outside|direct|all}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/collaborators?affiliation={Affiliation?:outside|direct|all}",
+      "description": "The people with access to one repository. Requires the owner and repository name. By default this includes everyone -- direct collaborators, organisation members reaching it through a team, and outside collaborators alike -- so it is the fullest access list available. Use the affiliation parameter to separate direct from outside access, which matters because the two are governed very differently."
     },
     {
       "paged": "false",
       "name": "Repository Collaborator Permission",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/collaborators/{User Name}/permission"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/collaborators/{User Name}/permission",
+      "description": "One user's EFFECTIVE permission on one repository (admin, maintain, write, triage, read or none), after teams, organisation defaults and direct grants are resolved. Requires the owner, repository and username. The authoritative answer to 'what can this person actually do here', which no listing table gives."
     },
     {
       "paged": "true",
       "name": "Repository Comments",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/comments"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/comments",
+      "description": "Every commit comment in one repository. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Commit Comments",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Commit Hash}/comments"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Commit Hash}/comments",
+      "description": "The comments left on one commit. Requires the owner, repository and commit sha. Comments made during a pull request review are not here."
     },
     {
       "paged": "false",
       "name": "Commit Comment",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/comments/{Comment ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/comments/{Comment ID}",
+      "description": "A single commit comment by id. Requires the owner and repository name."
     },
     {
       "paged": "true",
@@ -793,192 +908,230 @@
           "key": "sha",
           "parameterName": "Commit Hash"
         }
-      ]
+      ],
+      "description": "The commit history of one repository, one row each. Requires the owner and repository name. Carries the sha, the commit message, the author and committer with their names, emails and dates, and a verification object saying whether the commit's signature was checked and trusted. IMPORTANT: the commit author's name and email come from the committer's local git config, while the separate author object is GitHub's guess at which account that maps to -- the latter is null whenever the email is not registered to an account, so attributing commits to people is unreliable and one person may appear under several addresses. Note also that author date and commit date differ after a rebase. Filter with sha, path, author, since and until."
     },
     {
       "paged": "false",
       "name": "Repository Commit",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}",
+      "description": "A single commit by sha, branch or tag. Requires the owner and repository name. Adds what the list omits: per-file changes and the additions, deletions and total line counts. A commit touching more than 300 files is paginated, and files beyond 3000 are not returned at all -- so line counts for very large commits are incomplete rather than wrong."
     },
     {
       "paged": "true",
       "name": "Repository Deploy Keys",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/keys"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/keys",
+      "description": "The deploy keys on one repository, with title, fingerprint, whether write access is granted, created_at and last_used. Requires the owner and repository name. Deploy keys grant repository access without belonging to any user, so they are access that no member or collaborator list will reveal -- and last_used is what identifies the ones nobody needs any more."
     },
     {
       "paged": "false",
       "name": "Repository Deploy Key",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/keys/{Key ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/keys/{Key ID}",
+      "description": "A single deploy key by id. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Deployments",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments?sha={Hash?}&ref={Reference?:branch|tag|hash}&task={Task?:deploy|deploy:migrations|none|...}&environment={Environment?:staging|production|none|...}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments?sha={Hash?}&ref={Reference?:branch|tag|hash}&task={Task?:deploy|deploy:migrations|none|...}&environment={Environment?:staging|production|none|...}",
+      "description": "The deployments recorded for one repository, one row each. Requires the owner and repository name. Carries the environment, ref and sha, task, description, the creator, and created_at and updated_at. CRUCIAL: a deployment row carries NO OUTCOME -- whether it succeeded, failed or was superseded lives in Deployment Statuses, one request per deployment. Deployment frequency can be counted here, but success rate cannot. Filter by sha, ref, task or environment."
     },
     {
       "paged": "false",
       "name": "Deployment",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}",
+      "description": "A single deployment by id. Requires the owner and repository name. Same fields, still without an outcome."
     },
     {
       "paged": "true",
       "name": "Deployment Statuses",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}/statuses"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}/statuses",
+      "description": "The status history of one deployment, newest first: each entry's state (queued, in_progress, success, failure, error or inactive), who set it, its description and created_at. Requires the owner, repository and deployment id. This is where a deployment's outcome and its duration come from -- the gap between the first and last status. inactive means a later deployment superseded this one."
     },
     {
       "paged": "false",
       "name": "Deployment Status",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}/statuses/{Status ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}/statuses/{Status ID}",
+      "description": "A single deployment status by id. Requires the owner, repository and deployment id."
     },
     {
       "paged": "true",
       "name": "Forks",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/forks"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/forks",
+      "description": "The forks of one repository, as full repository records. Requires the owner and repository name. Use it to see downstream copies; the parent link on each identifies where it came from."
     },
     {
       "paged": "true",
       "name": "Repository Invitations",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/invitations"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/invitations",
+      "description": "Pending invitations to collaborate on one repository, with invitee, inviter, permission offered and creation date. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "User Invitations",
-      "suffix": "/user/repository_invitations"
+      "suffix": "/user/repository_invitations",
+      "description": "Repository invitations awaiting the authenticated user's response. Always the caller's own."
     },
     {
       "paged": "true",
       "name": "Pages",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages",
+      "description": "The GitHub Pages configuration of one repository: its url, the source branch and path, build type, https enforcement and current status. Requires the owner and repository name. One record of configuration."
     },
     {
       "paged": "true",
       "name": "Pages Builds",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds",
+      "description": "The Pages build history of one repository, with status, error message, the commit and pusher, DURATION in milliseconds, and created_at. Requires the owner and repository name. Unlike Actions runs, duration is given directly here."
     },
     {
       "paged": "false",
       "name": "Latest Pages Build",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds/latest"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds/latest",
+      "description": "The most recent Pages build of one repository. Same fields as Pages Builds. The quick check for whether the published site is current."
     },
     {
       "paged": "false",
       "name": "Pages Build",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds/{Build ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds/{Build ID}",
+      "description": "A single Pages build by id. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Releases",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases",
+      "description": "The releases of one repository, one row each. Requires the owner and repository name. Carries tag_name, name, body, the draft and prerelease flags, the author, and the assets attached. A TRAP IN THE DATES: created_at is the date of the COMMIT the release points at, not when the release was drafted or published -- published_at is the one that records the release itself, and they can differ by a long way when an old commit is tagged later. Plain git tags with no release attached are absent here; those are in Repository Tags."
     },
     {
       "paged": "false",
       "name": "Release",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}",
+      "description": "A single release by id. Requires the owner and repository name. Same fields as Releases."
     },
     {
       "paged": "false",
       "name": "Latest Release",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/latest"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/latest",
+      "description": "The most recent published release of one repository, excluding drafts and prereleases. Requires the owner and repository name. GitHub picks it by created_at -- which, as above, is the commit date -- so the 'latest' release is not necessarily the one most recently published."
     },
     {
       "paged": "false",
       "name": "Release by Tag Name",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/tags/{Tag Name}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/tags/{Tag Name}",
+      "description": "One published release found by its tag. Requires the owner, repository and tag name. Useful when versions are known by tag rather than by id."
     },
     {
       "paged": "true",
       "name": "Release Assets",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}/assets"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}/assets",
+      "description": "The files attached to one release, with name, label, content type, size, state, created_at, updated_at and DOWNLOAD_COUNT. Requires the owner, repository and release id. download_count makes this one of the few genuine distribution-usage measures GitHub exposes -- it is how often a binary was actually fetched, which no other table reports."
     },
     {
       "paged": "false",
       "name": "Release Asset",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/assets/{Asset ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/assets/{Asset ID}",
+      "description": "A single release asset by its asset id. Requires the owner and repository name. Note the asset id alone identifies it; it is not addressed through its release."
     },
     {
       "paged": "true",
       "name": "Contributor Statistics",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/contributors"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/contributors",
+      "description": "Per-contributor commit totals for one repository, plus a WEEKLY breakdown for each: week start as a Unix timestamp, additions, deletions and commits. Requires the owner and repository name. The richest activity table GitHub offers, and far cheaper than paging every commit -- but note the shape: each contributor is one row containing a nested array of about a year of weeks, so it needs flattening before it can be charted by time. THE FIRST REQUEST MAY RETURN NO DATA while GitHub computes the statistics in the background; a repeat request a moment later returns them. Treat an empty first response as 'not ready', not as 'no activity'."
     },
     {
       "paged": "false",
       "name": "Commit Activity Statistics",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/commit_activity"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/commit_activity",
+      "description": "The last year of commit activity for one repository, one row per week, each with a total and a per-day breakdown starting on Sunday. Requires the owner and repository name. Use it for commit rhythm and for spotting quiet periods. Subject to the same background-computation delay on first request."
     },
     {
       "paged": "true",
       "name": "Code Frequency Statistics",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/code_frequency"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/code_frequency",
+      "description": "Weekly additions and deletions for one repository over its whole history. Requires the owner and repository name. Three values per row: the week as a Unix timestamp, additions, and deletions as a NEGATIVE number. NOT AVAILABLE for repositories with 10,000 commits or more -- those return an error rather than partial data, so the largest repositories cannot be measured this way at all."
     },
     {
       "paged": "true",
       "name": "Participation Statistics",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/participation"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/participation",
+      "description": "Commit counts for the last 52 weeks of one repository, split into two arrays: all commits, and the owner's commits. Requires the owner and repository name. Everyone else's contribution is the difference between them -- there is no per-contributor split here, which Contributor Statistics gives. Oldest week first, and the last entry is the current partial week."
     },
     {
       "paged": "true",
       "name": "Punch Card Statistics",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/punch_card"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/punch_card",
+      "description": "When commits happen in one repository, as day-of-week and hour-of-day pairs with a count each: day 0-6 is Sunday to Saturday, hour 0-23. Requires the owner and repository name. IMPORTANT: hours are taken from each commit's own local time zone, not normalised to one -- across a distributed team the peaks are local working hours, not a shared clock, and cannot be read as a single timeline."
     },
     {
       "paged": "true",
       "name": "Reference Statuses",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}/statuses"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}/statuses",
+      "description": "The CI and check statuses reported against one ref -- a sha, branch or tag -- most recent first. Requires the owner, repository and ref. Each carries a context naming the reporting system, a state, and a target url. These come from external services and from Actions alike."
     },
     {
       "paged": "true",
       "name": "Reference Combined Status",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}/status"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}/status",
+      "description": "The same statuses rolled up into one verdict for a ref, with the individual statuses alongside. Requires the owner, repository and ref. The combined state is failure if any context failed or errored, pending if any is pending or none has reported, and success only when all succeeded. Use it for 'is this commit green' without evaluating each context."
     },
     {
       "paged": "true",
       "name": "Referrers",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/popular/referrers"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/popular/referrers",
+      "description": "The top TEN sites sending traffic to one repository over the last 14 days, with view and unique-visitor counts. Requires push access. Ten rows at most -- the long tail is not available, so these are not shares of a whole."
     },
     {
       "paged": "true",
       "name": "Popular Paths",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/popular/paths"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/popular/paths",
+      "description": "The top TEN most-viewed paths in one repository over the last 14 days. Requires push access. Same ten-row cap and 14-day window."
     },
     {
       "paged": "true",
       "name": "View Counts",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/views?per={Breakdown By?:day|week}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/views?per={Breakdown By?:day|week}",
+      "description": "Page views of one repository for the LAST 14 DAYS ONLY, with totals, unique visitors and a per-day or per-week breakdown. Requires the owner and repository name and push access. The window is fixed and cannot be moved back, and GitHub keeps no history behind it -- a longer trend can only be built by collecting this repeatedly. Timestamps are aligned to UTC midnight; weeks start Monday."
     },
     {
       "paged": "true",
       "name": "Clone Counts",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/clones?per={Breakdown By?:day|week}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/clones?per={Breakdown By?:day|week}",
+      "description": "Clones of one repository for the last 14 days, with totals, unique cloners and a daily or weekly breakdown. Requires push access. Same fixed 14-day window and same absence of history."
     },
     {
       "paged": "true",
       "name": "Repository Webhooks",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/hooks"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/hooks",
+      "description": "The webhooks configured on one repository, with target url, subscribed events, whether active, and last_response giving the outcome of the most recent delivery. Requires the owner and repository name. last_response is the useful column: it identifies integrations that are configured but quietly failing."
     },
     {
       "paged": "false",
       "name": "Repository Webhook",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/hooks/{Hook ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/hooks/{Hook ID}",
+      "description": "A single repository webhook by id. Requires the owner and repository name."
     },
     {
       "paged": "true",
       "name": "Search Repositories",
-      "suffix": "/search/repositories?q={Query String}"
+      "suffix": "/search/repositories?q={Query String}",
+      "description": "Finds repositories by keyword and qualifiers such as language, stars, size and pushed date. Requires a query. Returns a total_count alongside the matching repository records. TWO limits worth knowing: search returns at most 1,000 results however many matched, so total_count can be far larger than what can actually be paged; and search is rate limited far more tightly than the rest of the API. Good for finding things, unsuitable as a data source to page in bulk."
     },
     {
       "paged": "true",
       "name": "Search Commits",
-      "suffix": "/search/commits?q={Query String}"
+      "suffix": "/search/commits?q={Query String}",
+      "description": "Finds commits by message, author, committer date and repository. Requires a query. Searches the DEFAULT BRANCH ONLY, so commits that never landed on it are invisible here. Same 1,000-result ceiling."
     },
     {
       "paged": "true",
       "name": "Search Code",
-      "suffix": "/search/code?q={Query String}"
+      "suffix": "/search/code?q={Query String}",
+      "description": "Finds source files containing given terms. Requires a query. Only the default branch is indexed, files over a size limit are skipped, and forks are excluded unless they have more stars than the parent -- so absence of a result is weak evidence. Same 1,000-result ceiling."
     },
     {
       "paged": "true",
       "name": "Search Issues",
-      "suffix": "/search/issues?q={Query String}"
+      "suffix": "/search/issues?q={Query String}",
+      "description": "Finds issues AND pull requests by keyword and qualifiers such as state, author, assignee, label and date. Requires a query. This is the one place pull requests can be reached in this connector -- the qualifier is:pr restricts to them, is:issue excludes them -- but it returns the issue-shaped record, without merge state, review outcome or line counts. Subject to the same 1,000-result ceiling and tighter rate limit."
     },
     {
       "paged": "true",
@@ -1006,12 +1159,14 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "Finds user and organisation accounts by name, location, language or follower count. Requires a query. Same 1,000-result ceiling."
     },
     {
       "paged": "true",
       "name": "Search Labels",
-      "suffix": "/search/labels?repository_id={Repository ID}&q={Query String}"
+      "suffix": "/search/labels?repository_id={Repository ID}&q={Query String}",
+      "description": "Finds labels in one repository whose name or description matches a term. Requires a repository id and a query. Note it takes the numeric repository ID, not owner and name."
     },
     {
       "paged": "true",
@@ -1031,47 +1186,56 @@
           "key": "slug",
           "parameterName": "Team Slug"
         }
-      ]
+      ],
+      "description": "The teams of one organisation, with name, slug, description, privacy, the permission they grant and their parent team. Requires the organisation. parent is what makes the hierarchy; a team with a parent inherits its access. Teams are how access is usually granted at scale, so this is the dimension that explains repository permissions."
     },
     {
       "paged": "false",
       "name": "Team",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}",
+      "description": "A single team by slug. Requires the organisation. Same fields, plus the counts of members and repositories."
     },
     {
       "paged": "true",
       "name": "Child Teams",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/teams"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/teams",
+      "description": "The direct child teams of one team. Requires the organisation and team slug. One level only -- a deep hierarchy must be walked."
     },
     {
       "paged": "true",
       "name": "Team Repositories",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/repos"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/repos",
+      "description": "The repositories one team has access to, with the permission level granted on each. Requires the organisation and team slug. Read together with Team Members, this is how a person's effective repository access is actually derived -- neither table shows it alone."
     },
     {
       "paged": "true",
       "name": "User Teams",
-      "suffix": "/user/teams"
+      "suffix": "/user/teams",
+      "description": "Every team the authenticated user belongs to, across organisations. Always the caller's own."
     },
     {
       "paged": "true",
       "name": "Team Discussions",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions",
+      "description": "Team discussion posts. RETIRED: GitHub removed team discussions from the REST API and this endpoint is no longer present in the current API description -- expect it to fail rather than return an empty list. Team conversation now lives in Discussions on repositories or organisations, which this connector has no endpoint for."
     },
     {
       "paged": "false",
       "name": "Team Discussion",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}",
+      "description": "A single team discussion post. Retired along with Team Discussions."
     },
     {
       "paged": "true",
       "name": "Team Discussion Comments",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}/comments"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}/comments",
+      "description": "Comments on a team discussion post. Retired along with Team Discussions."
     },
     {
       "paged": "false",
       "name": "Team Discussion Comment",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}/comments/{Comment Number}"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}/comments/{Comment Number}",
+      "description": "A single comment on a team discussion post. Retired along with Team Discussions."
     },
     {
       "paged": "true",
@@ -1099,37 +1263,44 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "The members of one team. Requires the organisation and team slug. Filter by role to separate maintainers from members. NOTE that members of child teams are included, which is correct for access but means the same person may appear under several teams."
     },
     {
       "paged": "false",
       "name": "Team Membership",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/memberships/{User Name}"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/memberships/{User Name}",
+      "description": "One person's membership in a team: role and state. Requires the organisation, team slug and username."
     },
     {
       "paged": "true",
       "name": "Pending Team Invitations",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/invitations"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/invitations",
+      "description": "Invitations to one team that have not yet been accepted. Requires the organisation and team slug."
     },
     {
       "paged": "true",
       "name": "Organization IdP Groups",
-      "suffix": "/orgs/{Organization Name}/team-sync/groups"
+      "suffix": "/orgs/{Organization Name}/team-sync/groups",
+      "description": "The identity provider groups available for team synchronisation. RETIRED: the team synchronisation API is no longer present in GitHub's current API description. Where SCIM or SAML provisioning is in use, that data is not reachable from this connector."
     },
     {
       "paged": "true",
       "name": "Team IdP Groups",
-      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/team-sync/group-mappings"
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/team-sync/group-mappings",
+      "description": "The identity provider groups mapped to one team. Retired along with Organization IdP Groups."
     },
     {
       "paged": "false",
       "name": "User",
-      "suffix": "/users/{User Name}"
+      "suffix": "/users/{User Name}",
+      "description": "A single user by login. Requires a username. Carries name, company, blog, location, bio, public_repos, public_gists, followers and following, created_at and updated_at. Private email and other private fields appear only when the caller is that user. Note the account type column distinguishes a User from an Organization -- both are returned by this endpoint."
     },
     {
       "paged": "false",
       "name": "User Contextual Info",
-      "suffix": "/users/{User Name}/hovercard?subject_type={Subject Type?:organization|repository|issue|pull_request}&subject_id={Subject ID?}"
+      "suffix": "/users/{User Name}/hovercard?subject_type={Subject Type?:organization|repository|issue|pull_request}&subject_id={Subject ID?}",
+      "description": "A short contextual summary about one user relative to a subject -- for example how they relate to a given organisation or repository. Requires a username and authentication. Returns a handful of display hints rather than analysable data."
     },
     {
       "paged": "true",
@@ -1157,7 +1328,8 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "Every user account on GitHub, in id order. An enumeration firehose with no filtering; use Search Users to find people."
     },
     {
       "paged": "true",
@@ -1185,37 +1357,44 @@
           "key": "login",
           "parameterName": "User Name"
         }
-      ]
+      ],
+      "description": "The users the authenticated user has blocked. Always the caller's own."
     },
     {
       "paged": "true",
       "name": "Email Addresses",
-      "suffix": "/user/emails"
+      "suffix": "/user/emails",
+      "description": "The authenticated user's email addresses, with which is primary, which are verified, and their visibility. Always the caller's own. Relevant because commits authored under any of these addresses belong to the same person -- and this is the only mapping between git author emails and a GitHub account, available for the caller alone."
     },
     {
       "paged": "true",
       "name": "Public Email Addresses",
-      "suffix": "/user/public_emails"
+      "suffix": "/user/public_emails",
+      "description": "Only the caller's publicly visible email addresses."
     },
     {
       "paged": "true",
       "name": "Followers",
-      "suffix": "/users/{User Name}/followers"
+      "suffix": "/users/{User Name}/followers",
+      "description": "The users following one user. Requires a username."
     },
     {
       "paged": "true",
       "name": "Following",
-      "suffix": "/users/{User Name}/following"
+      "suffix": "/users/{User Name}/following",
+      "description": "The users one user follows. Requires a username."
     },
     {
       "paged": "true",
       "name": "User Public Keys",
-      "suffix": "/users/{User Name}/keys"
+      "suffix": "/users/{User Name}/keys",
+      "description": "One user's public SSH keys. Requires a username. Public information; only the key and its id, with no title or dates."
     },
     {
       "paged": "true",
       "name": "User GPG Keys",
-      "suffix": "/users/{User Name}/gpg_keys"
+      "suffix": "/users/{User Name}/gpg_keys",
+      "description": "One user's GPG keys, with key id, emails, capabilities, created_at and expires_at. Requires a username. Pair with the verification object on Repository Commits for signing-compliance questions."
     }
   ]
 }
