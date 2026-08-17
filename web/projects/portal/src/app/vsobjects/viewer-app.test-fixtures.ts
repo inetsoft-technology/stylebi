@@ -423,9 +423,26 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
       ],
       componentProviders: [
          { provide: ViewsheetClientService, useValue: VS_CLIENT_MOCK },
-         { provide: DataTipService, useValue: { viewerOffsetFunc: null } },
+         {
+            provide: DataTipService,
+            useValue: {
+               viewerOffsetFunc: null,
+               registerDataTip: vi.fn(),
+               registerDataTipVisible: vi.fn(),
+               clearDataTipChild: vi.fn()
+            }
+         },
          { provide: AdhocFilterService, useValue: {} },
-         { provide: PopComponentService, useValue: { viewerOffsetFunc: null, getComponentModelFunc: null } },
+         {
+            provide: PopComponentService,
+            useValue: {
+               viewerOffsetFunc: null,
+               getComponentModelFunc: null,
+               registerPopComponent: vi.fn(),
+               registerPopComponentVisible: vi.fn(),
+               setPopLocation: vi.fn()
+            }
+         },
          { provide: VSChartService, useValue: {} },
          { provide: AssemblyActionFactory, useValue: ASSEMBLY_ACTION_FACTORY_MOCK },
          { provide: SelectionContainerChildrenService, useValue: {} },

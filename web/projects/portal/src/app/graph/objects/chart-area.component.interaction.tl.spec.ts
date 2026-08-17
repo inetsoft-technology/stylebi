@@ -148,18 +148,53 @@ describe("ChartArea — model setter", () => {
 // ---------------------------------------------------------------------------
 
 describe("ChartArea — selected setter", () => {
+   // Bug #76036: the paging control model is published after the current change detection
+   // pass (the setter runs while the parent view is being checked), so the call is deferred.
    it("should call showPagingControl when selected becomes true on a mobile device", () => {
-      const { comp, pagingControlService } = createComponent();
-      (comp as any).mobileDevice = true;
-      comp.selected = true;
-      expect(pagingControlService.setPagingControlModel).toHaveBeenCalled();
+      vi.useFakeTimers();
+
+      try {
+         const { comp, pagingControlService } = createComponent();
+         (comp as any).mobileDevice = true;
+         comp.selected = true;
+         expect(pagingControlService.setPagingControlModel).not.toHaveBeenCalled();
+         vi.runAllTimers();
+         expect(pagingControlService.setPagingControlModel).toHaveBeenCalled();
+      }
+      finally {
+         vi.useRealTimers();
+      }
    });
 
    it("should NOT call showPagingControl when selected becomes false", () => {
-      const { comp, pagingControlService } = createComponent();
-      (comp as any).mobileDevice = true;
-      comp.selected = false;
-      expect(pagingControlService.setPagingControlModel).not.toHaveBeenCalled();
+      vi.useFakeTimers();
+
+      try {
+         const { comp, pagingControlService } = createComponent();
+         (comp as any).mobileDevice = true;
+         comp.selected = false;
+         vi.runAllTimers();
+         expect(pagingControlService.setPagingControlModel).not.toHaveBeenCalled();
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+
+   it("should not publish the paging control model if deselected before the deferred call runs", () => {
+      vi.useFakeTimers();
+
+      try {
+         const { comp, pagingControlService } = createComponent();
+         (comp as any).mobileDevice = true;
+         comp.selected = true;
+         comp.selected = false;
+         vi.runAllTimers();
+         expect(pagingControlService.setPagingControlModel).not.toHaveBeenCalled();
+      }
+      finally {
+         vi.useRealTimers();
+      }
    });
 
    it("should reflect the assigned value via the getter", () => {
