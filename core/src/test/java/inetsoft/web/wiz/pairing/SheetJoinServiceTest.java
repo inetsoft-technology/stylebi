@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,6 +47,7 @@ import static org.mockito.Mockito.when;
  *                   throws PairingException with Kind.RATE_LIMITED
  * [differentKeys]   lockout of one caller does not affect a different caller
  * [resetOnSuccess]  a successful join resets the failure counter for that caller
+ * [editorContext]   a pane-scoped grant's editorContext is carried through to the JoinSession
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -293,5 +298,41 @@ class SheetJoinServiceTest {
 
       assertNotNull(session);
       assertEquals("Worksheet/mine-1", session.runtimeId());
+   }
+
+   // ---------------------------------------------------------------------------
+   // 12. carriesTheEditorContextFromGrantToSession
+   //
+   // Task 5: the editorContext recorded on the PairingGrant at mint time must survive onto the
+   // JoinSession that join() opens -- this is what lets every one of the four JoinResponse
+   // records (script/binding/viewsheet/worksheet) report it back to the agent. Minted through
+   // SheetPairingService directly rather than through REST: the REST mint endpoint
+   // (SheetPairingController#mint) still hardcodes a null editorContext and only the STOMP
+   // production path forwards a real one, so a pane-scoped grant can only be constructed here
+   // via the service.
+   // ---------------------------------------------------------------------------
+   @Test
+   void carriesTheEditorContextFromGrantToSession() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(mock(VSAssembly.class));
+      // A pairing service whose VIEWSHEET runtime lookup resolves "vs-1" to rvs, so mint's
+      // editorContext validation (added in Task 4) accepts the assembly it names.
+      SheetPairingService paneScopedPairing = new SheetPairingService(
+         () -> FIXED_NOW, runtimeId -> null, runtimeId -> "vs-1".equals(runtimeId) ? rvs : null);
+      SheetJoinService paneScopedSvc =
+         new SheetJoinService(paneScopedPairing, sessions, feature, runtimeAccess);
+
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      String code = paneScopedPairing.mint("vs-1", ALICE_KEY, "sock-pane-1", null,
+                                           SheetType.VIEWSHEET, ctx);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      JoinSession session = paneScopedSvc.join(code, alice);
+
+      assertEquals(ctx, session.editorContext());
    }
 }

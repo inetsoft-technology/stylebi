@@ -45,7 +45,7 @@ class SheetSessionServiceTest {
    @Test
    void openReturnsSessionWithToken() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null, null);
+      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null, null, null);
       assertNotNull(session);
       assertNotNull(session.sessionToken());
       assertFalse(session.sessionToken().isEmpty());
@@ -54,7 +54,7 @@ class SheetSessionServiceTest {
    @Test
    void resolveReturnsSessionMultipleTimes() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null, null);
+      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null, null, null);
       String token = session.sessionToken();
 
       JoinSession r1 = svc.resolve(token, "alice~;~org");
@@ -67,7 +67,7 @@ class SheetSessionServiceTest {
    @Test
    void resolveRejectsWrongUser() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-2", "alice~;~org", SheetType.WORKSHEET, null, null);
+      JoinSession session = svc.open("rt-2", "alice~;~org", SheetType.WORKSHEET, null, null, null);
       assertNull(svc.resolve(session.sessionToken(), "mallory~;~org"));
    }
 
@@ -80,7 +80,7 @@ class SheetSessionServiceTest {
    @Test
    void resolveExpiredSessionReturnsNull() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-3", "alice~;~org", SheetType.WORKSHEET, null, null);
+      JoinSession session = svc.open("rt-3", "alice~;~org", SheetType.WORKSHEET, null, null, null);
       String token = session.sessionToken();
 
       // advance clock past TTL
@@ -93,7 +93,7 @@ class SheetSessionServiceTest {
    void resolveRefreshesTtl() {
       long[] clock = { FIXED_NOW };
       SheetSessionService svc = new SheetSessionService(() -> clock[0]);
-      JoinSession session = svc.open("rt-4", "bob~;~org", SheetType.VIEWSHEET, null, null);
+      JoinSession session = svc.open("rt-4", "bob~;~org", SheetType.VIEWSHEET, null, null, null);
       String token = session.sessionToken();
 
       // advance to just before TTL
@@ -110,7 +110,7 @@ class SheetSessionServiceTest {
    @Test
    void closeInvalidatesToken() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-5", "carol~;~org", SheetType.WORKSHEET, null, null);
+      JoinSession session = svc.open("rt-5", "carol~;~org", SheetType.WORKSHEET, null, null, null);
       String token = session.sessionToken();
       svc.close(token);
       assertNull(svc.resolve(token, "carol~;~org"));
@@ -119,7 +119,7 @@ class SheetSessionServiceTest {
    @Test
    void findOpenReturnsTheMatchingSessionForOwnerAndType() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-6", "dave~;~org", SheetType.WORKSHEET, null, null);
+      JoinSession session = svc.open("rt-6", "dave~;~org", SheetType.WORKSHEET, null, null, null);
 
       JoinSession found = svc.findOpen("dave~;~org", SheetType.WORKSHEET);
 
@@ -130,8 +130,8 @@ class SheetSessionServiceTest {
    @Test
    void findOpenIgnoresWrongTypeWrongOwnerAndExpiredSessions() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      svc.open("rt-7", "erin~;~org", SheetType.VIEWSHEET, null, null);
-      svc.open("rt-8", "frank~;~org", SheetType.WORKSHEET, null, null);
+      svc.open("rt-7", "erin~;~org", SheetType.VIEWSHEET, null, null, null);
+      svc.open("rt-8", "frank~;~org", SheetType.WORKSHEET, null, null, null);
 
       assertNull(svc.findOpen("erin~;~org", SheetType.WORKSHEET),
                  "same owner but a viewsheet session should not satisfy a worksheet lookup");

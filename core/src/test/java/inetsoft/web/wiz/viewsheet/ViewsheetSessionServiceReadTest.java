@@ -119,7 +119,7 @@ class ViewsheetSessionServiceReadTest {
    private static Harness harness() throws Exception {
       JoinSession session = new JoinSession("tok", "rt1", "admin", SheetType.VIEWSHEET,
                                             Long.MAX_VALUE / 2, Long.MAX_VALUE / 2,
-                                            JoinSession.ConnectionMode.PAIRED, null, null);
+                                            JoinSession.ConnectionMode.PAIRED, null, null, null);
       SheetSessionService sessions = mock(SheetSessionService.class);
       when(sessions.resolve(anyString(), anyString())).thenReturn(session);
 

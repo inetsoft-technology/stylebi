@@ -79,20 +79,22 @@ public class BindingAgentController {
 
    public record JoinRequest(String code) {}
    /**
-    * @param sheetType the runtime's own type, {@code viewsheet} or {@code worksheet} — NOT the
-    *                  plugin that asked. Binding and script both drive a viewsheet runtime, and
-    *                  without this the client had to label the session from its own name, which is
-    *                  how one open viewsheet came to hold several unrelated sessions.
+    * @param sheetType     the runtime's own type, {@code viewsheet} or {@code worksheet} — NOT the
+    *                      plugin that asked. Binding and script both drive a viewsheet runtime, and
+    *                      without this the client had to label the session from its own name, which is
+    *                      how one open viewsheet came to hold several unrelated sessions.
+    * @param editorContext the script/formula location this session is scoped to, or {@code null}
+    *                      for a whole-sheet ("Connect to Claude" toolbar) session
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
-                              String sheetType) {}
+                              String sheetType, EditorContext editorContext) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
       requireEnabled();
       JoinSession session = joinService.join(body.code(), user);
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase());
+                              session.sheetType().name().toLowerCase(), session.editorContext());
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/fields")

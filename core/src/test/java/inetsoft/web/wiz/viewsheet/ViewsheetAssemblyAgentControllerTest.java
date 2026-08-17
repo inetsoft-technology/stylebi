@@ -175,7 +175,7 @@ class ViewsheetAssemblyAgentControllerTest {
       when(openService.openBaseWorksheet(eq("tok-vs"), any()))
          .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
                                      0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
-                                     "alice"));
+                                     "alice", null));
 
       ViewsheetAssemblyAgentController controller = controllerWith(openService);
 

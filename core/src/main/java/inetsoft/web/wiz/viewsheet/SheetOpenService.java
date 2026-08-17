@@ -119,10 +119,14 @@ public class SheetOpenService {
       // browser-owned with the agent reaching in through the flag; this matches it.
       String runtimeId = worksheetService.openWorksheet(baseEntry, rvs.getUser());
 
+      // The base worksheet is a distinct runtime from the viewsheet script pane that opened
+      // it -- any editorContext on vsSession names a location on the VIEWSHEET, not this new
+      // worksheet, so the new session is opened whole-sheet (null), matching how a base
+      // worksheet has always been opened.
       JoinSession wsSession = sheetSessions.open(runtimeId, vsSession.ownerIdentity(),
                                                   SheetType.WORKSHEET,
                                                   vsSession.socketSessionId(),
-                                                  vsSession.socketUserName());
+                                                  vsSession.socketUserName(), null);
 
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
          .assetId(baseEntry.toIdentifier())

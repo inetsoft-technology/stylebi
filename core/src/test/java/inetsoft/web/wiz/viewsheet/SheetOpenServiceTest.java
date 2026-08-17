@@ -272,7 +272,7 @@ class SheetOpenServiceTest {
          JoinSession vsSession = new JoinSession(
             "tok-vs", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
             SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-            socketSessionId, SOCKET_USER);
+            socketSessionId, SOCKET_USER, null);
 
          ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
          when(viewsheetSessions.requireSession(anyString(), any(Principal.class)))
@@ -282,7 +282,8 @@ class SheetOpenServiceTest {
          SheetSessionService sheetSessions = mock(SheetSessionService.class);
          JoinSession held = heldWorksheetRuntimeId == null ? null : new JoinSession(
             "tok-ws-held", heldWorksheetRuntimeId, OWNER, SheetType.WORKSHEET, 0L,
-            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, "sock-1", SOCKET_USER);
+            SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, "sock-1", SOCKET_USER,
+            null);
          // Stubbed for OWNER only. If the guard ever keys the lookup on the agent's principal name
          // instead of the session's ownerIdentity, this returns null and the test fails -- which is
          // the point of keeping the two values distinct.
@@ -303,9 +304,9 @@ class SheetOpenServiceTest {
          JoinSession newWsSession = new JoinSession(
             "tok-ws-new", "ws-runtime-1", OWNER, SheetType.WORKSHEET, 0L,
             SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-            socketSessionId, SOCKET_USER);
+            socketSessionId, SOCKET_USER, null);
          when(sheetSessions.open(eq("ws-runtime-1"), eq(OWNER), eq(SheetType.WORKSHEET),
-                                 eq(socketSessionId), eq(SOCKET_USER)))
+                                 eq(socketSessionId), eq(SOCKET_USER), isNull()))
             .thenReturn(newWsSession);
 
          broadcast = broadcastService == null
