@@ -124,8 +124,9 @@ public class SheetOpenService {
          .runtimeId(runtimeId)
          .build();
 
-      broadcast.sendToBrowser(vsSession.socketUserName(), vsSession.socketSessionId(), runtimeId,
-                              command);
+      // The Composer's own channel, not the paired sheet's: this command is handled by
+      // composer-main, which subscribes to /user/composer-client. See sendToComposer.
+      broadcast.sendToComposer(vsSession.socketSessionId(), command);
 
       return wsSession;
    }

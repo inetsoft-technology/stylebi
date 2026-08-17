@@ -29,9 +29,14 @@ import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.service.ComposerClientService;
+import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
 import java.security.Principal;
 
@@ -159,12 +164,45 @@ class SheetOpenServiceTest {
       service.openBaseWorksheet("tok-vs", principal());
 
       ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
-      verify(broadcast).sendToBrowser(eq(SOCKET_USER), eq("sock-1"), anyString(),
-                                       command.capture());
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
 
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertEquals("ws-runtime-1", sent.runtimeId(), "the browser must attach, not open its own");
       assertFalse(sent.viewsheet());
+   }
+
+   /**
+    * Which STOMP destination the command lands on -- the assertion whose absence let this ship
+    * broken.
+    *
+    * <p>{@code OpenComposerAssetCommand} has exactly one handler in the client: composer-main,
+    * fed by a subscription to {@code /user/composer-client}. Published instead to
+    * {@link inetsoft.web.viewsheet.service.CommandDispatcher#COMMANDS_TOPIC} ({@code "/commands"})
+    * it reaches the per-sheet client, which has no handler for it, and is dropped with no error --
+    * the user's Composer opens no tab while every call up the stack still reports success.
+    *
+    * <p>Both constants are named {@code COMMANDS_TOPIC}, on different classes, which is how the
+    * wrong one survived review. This test drives the <b>real</b> broadcast service over a mocked
+    * dispatcher: mocking the broadcast service is what made the sibling test above blind, since
+    * the destination is chosen inside the very method that was stubbed.
+    */
+   @Test
+   void theOpenCommandGoesToTheComposerClientTopicNotTheSheetRuntimeTopic() throws Exception {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService realBroadcast = new SheetAgentBroadcastService(
+         dispatcher, mock(VSObjectModelFactoryService.class));
+      SheetOpenService service =
+         serviceWithBase(worksheetEntry(), true, null, "sock-1", realBroadcast);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("sock-1"), eq(ComposerClientService.COMMANDS_TOPIC),
+         any(OpenComposerAssetCommand.class), headers.capture());
+
+      assertEquals("sock-1", SimpMessageHeaderAccessor.getSessionId(headers.getValue()),
+                   "must be delivered to the paired browser's socket session");
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
@@ -179,6 +217,18 @@ class SheetOpenServiceTest {
    private SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
                                              String heldWorksheetRuntimeId,
                                              String socketSessionId)
+   {
+      return serviceWithBase(base, hasPermission, heldWorksheetRuntimeId, socketSessionId, null);
+   }
+
+   /**
+    * @param broadcastService the collaborator to inject, or {@code null} for a mock. Pass a real
+    *                         one to assert on what actually reaches the dispatcher.
+    */
+   private SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
+                                             String heldWorksheetRuntimeId,
+                                             String socketSessionId,
+                                             SheetAgentBroadcastService broadcastService)
    {
       try {
          Viewsheet vs = mock(Viewsheet.class);
@@ -226,7 +276,8 @@ class SheetOpenServiceTest {
                                  eq(socketSessionId), eq(SOCKET_USER)))
             .thenReturn(newWsSession);
 
-         broadcast = mock(SheetAgentBroadcastService.class);
+         broadcast = broadcastService == null
+            ? mock(SheetAgentBroadcastService.class) : broadcastService;
 
          return new SheetOpenService(viewsheetSessions, sheetSessions, worksheetService,
                                       securityProvider, broadcast);
