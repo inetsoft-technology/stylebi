@@ -127,21 +127,21 @@ public class VSObjectPropertyService {
     *                         applied over whatever changed. See
     *                         {@code 2026-08-17-write-coordination-design.md}.
     */
-   public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
-                                  String newName, String linkUri, Principal user,
-                                  CommandDispatcher commandDispatcher, boolean propertyChanged,
-                                  Integer expectedRevision)
+   public boolean editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
+                                     String newName, String linkUri, Principal user,
+                                     CommandDispatcher commandDispatcher, boolean propertyChanged,
+                                     Integer expectedRevision)
       throws Exception
    {
       if(rvs == null || rvs.isDisposed()) {
-         return;
+         return false;
       }
 
       if(expectedRevision != null && expectedRevision != rvs.getWriteRevision()) {
          this.coreLifecycleService.sendMessage(
             Catalog.getCatalog().getString("common.writeConflict", oldName),
             MessageCommand.Type.ERROR, commandDispatcher);
-         return;
+         return false;
       }
 
       Viewsheet vs = rvs.getViewsheet();
@@ -169,7 +169,7 @@ public class VSObjectPropertyService {
             }
          }
 
-         return;
+         return false;
       }
 
       if(checkTipDependency(vs, info, new HashMap<>()) ||
@@ -178,13 +178,13 @@ public class VSObjectPropertyService {
          this.coreLifecycleService.sendMessage(
             Catalog.getCatalog().getString("common.dependencyCycle"),
             MessageCommand.Type.ERROR, commandDispatcher);
-         return;
+         return false;
       }
 
       if(info instanceof ListInputVSAssemblyInfo &&
          !checkInputList((ListInputVSAssemblyInfo) info, commandDispatcher))
       {
-         return;
+         return false;
       }
 
       String name = newName == null ? oldName : newName;
@@ -194,7 +194,7 @@ public class VSObjectPropertyService {
          this.coreLifecycleService.sendMessage(
             Catalog.getCatalog().getString("viewer.viewsheet.editPropertyFailed"),
             MessageCommand.Type.ERROR, commandDispatcher);
-         return;
+         return false;
       }
 
       VSAssemblyInfo oldInfo = vsAssembly.getVSAssemblyInfo();
@@ -225,7 +225,7 @@ public class VSObjectPropertyService {
             this.coreLifecycleService.sendMessage(
                Catalog.getCatalog().getString("viewer.viewsheet.scriptFailed",
                ex.getMessage()), MessageCommand.Type.CONFIRM, commandDispatcher);
-            return;
+            return false;
          }
       }
 
@@ -240,7 +240,7 @@ public class VSObjectPropertyService {
             this.coreLifecycleService.sendMessage(
                Catalog.getCatalog().getString("common.renameViewsheetFailed"),
                MessageCommand.Type.OK, commandDispatcher);
-            return;
+            return false;
          }
 
          if(vsAssembly.getContainer() instanceof TabVSAssembly) {
@@ -266,7 +266,7 @@ public class VSObjectPropertyService {
          rvs.bumpWriteRevision();
          this.coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(),
                                                      commandDispatcher, true);
-         return;
+         return true;
       }
 
       AbstractVSAssembly assembly = (AbstractVSAssembly) vsAssembly;
@@ -280,7 +280,7 @@ public class VSObjectPropertyService {
       if(!confirmed && checkTrap) {
          if(tinfo != null && tinfo.showWarning()) {
             //TODO show trap warning message
-            return;
+            return false;
          }
       }
 
@@ -416,7 +416,7 @@ public class VSObjectPropertyService {
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
-         return;
+         return true;
       }
 
       //first process selection by script
@@ -703,6 +703,7 @@ public class VSObjectPropertyService {
       //processRefresh(rvs, assembly, commandDispatcher);
 
       annotationEdited(rvs, assembly);
+      return true;
    }
 
    private void refreshTipAndPopAssembly(RuntimeViewsheet rvs, VSAssembly target, CommandDispatcher dispatcher)

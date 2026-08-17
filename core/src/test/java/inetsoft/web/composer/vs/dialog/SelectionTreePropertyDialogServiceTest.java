@@ -55,7 +55,7 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class SelectionTreePropertyDialogServiceTest {
    @BeforeEach
-   void setup(){
+   void setup() throws Exception {
       service = new SelectionTreePropertyDialogService(
          vsObjectPropertyService,
          vsOutputService,
@@ -67,6 +67,15 @@ class SelectionTreePropertyDialogServiceTest {
          assemblyInfoHandler,
          dataRefService,
          dataSourceRegistry);
+
+      // Every test below commits successfully -- editObjectProperty returning false would skip
+      // the post-rename selection update these tests exercise. See
+      // VSObjectPropertyServiceTest#refusesAStaleCommitAndNeverResolvesTheAssembly for the
+      // refusal case.
+      when(vsObjectPropertyService.editObjectProperty(
+         any(RuntimeViewsheet.class), any(), any(), any(), any(),
+         nullable(Principal.class), any(CommandDispatcher.class), anyBoolean(),
+         nullable(Integer.class))).thenReturn(true);
    }
 
    @Test

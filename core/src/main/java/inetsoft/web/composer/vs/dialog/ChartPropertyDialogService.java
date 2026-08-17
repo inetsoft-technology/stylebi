@@ -467,11 +467,14 @@ public class ChartPropertyDialogService {
          }
       }
 
-      this.vsObjectPropertyService.editObjectProperty(
+      boolean applied = this.vsObjectPropertyService.editObjectProperty(
          viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
          principal, commandDispatcher, true, value.getRevision());
 
-      if(viewsheet.getOriginalID() != null) {
+      // A refusal (write conflict, dependency cycle, ...) means assemblyInfo was never
+      // committed to the runtime -- pushing a binding model built from it here would tell
+      // the client the edit succeeded when it did not.
+      if(applied && viewsheet.getOriginalID() != null) {
          VSChartInfo cinfo = assemblyInfo.getVSChartInfo();
          cinfo.setChartDescriptor(((ChartDescriptor) chartDescriptor.clone()));
          GraphUtil.fixVisualFrames(cinfo);

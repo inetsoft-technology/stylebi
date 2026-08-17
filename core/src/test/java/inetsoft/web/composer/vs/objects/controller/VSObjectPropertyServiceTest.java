@@ -92,9 +92,13 @@ class VSObjectPropertyServiceTest {
       when(rvs.isDisposed()).thenReturn(false);
       when(rvs.getWriteRevision()).thenReturn(5);
 
-      controller.editObjectProperty(rvs, new GaugeVSAssemblyInfo(), "Gauge1", "Gauge1", "",
-                                    null, commandDispatcher, true, 4);
+      boolean applied = controller.editObjectProperty(rvs, new GaugeVSAssemblyInfo(), "Gauge1",
+                                                      "Gauge1", "", null, commandDispatcher, true, 4);
 
+      // Callers that do follow-up work keyed on the (possibly renamed) assembly -- e.g.
+      // SelectionTreePropertyDialogService re-resolving by newName -- must see this false and
+      // skip that work, or they NPE looking up a rename that never happened.
+      assertFalse(applied);
       verify(rvs, never()).getViewsheet();
       verify(coreLifecycleService).sendMessage(
          contains("Gauge1"), eq(MessageCommand.Type.ERROR), eq(commandDispatcher));
