@@ -67,6 +67,8 @@ public class ViewsheetAssemblyAgentController {
                                    DateComparisonService comparisonService,
                                    AssemblyConvertService convertService,
                                    SelectionRuntimeService selectionService,
+                                   CalendarDisplayService calendarService,
+                                   InputValueService inputService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
                                    SheetOpenService openService)
@@ -89,6 +91,8 @@ public class ViewsheetAssemblyAgentController {
       this.comparisonService = comparisonService;
       this.convertService = convertService;
       this.selectionService = selectionService;
+      this.calendarService = calendarService;
+      this.inputService = inputService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
       this.openService = openService;
@@ -425,6 +429,48 @@ public class ViewsheetAssemblyAgentController {
 
    public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
                                   String sortOrder, Boolean singleSelect) {}
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
+   public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
+                                                 @RequestBody CalendarDisplayRequest request,
+                                                 @RequestParam(required = false, defaultValue = "")
+                                                 String linkUri,
+                                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calendarService.setDisplay(sessionToken, user, request.assembly(), request.yearView(),
+                                       request.doubleCalendar(), request.rangeComparison(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/clear")
+   public Map<String, Object> clearCalendar(@PathVariable String sessionToken,
+                                            @RequestBody CalendarDisplayRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calendarService.clear(sessionToken, user, request.assembly(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/input/value")
+   public Map<String, Object> setInputValue(@PathVariable String sessionToken,
+                                            @RequestBody InputValueRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
+   }
+
+   public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
+                                        Boolean rangeComparison) {}
+   public record InputValueRequest(String assembly, java.util.List<Object> value) {}
+
    public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
 
    public record ConvertRequest(String assembly, String to) {}
@@ -810,6 +856,8 @@ public class ViewsheetAssemblyAgentController {
    private final DateComparisonService comparisonService;
    private final AssemblyConvertService convertService;
    private final SelectionRuntimeService selectionService;
+   private final CalendarDisplayService calendarService;
+   private final InputValueService inputService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
