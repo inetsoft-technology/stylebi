@@ -113,7 +113,7 @@ public class BindableFieldsService {
       List<BindableField> direct = new ArrayList<>();
 
       for(TreeNodeModel child : node.children()) {
-         if(child.leaf()) {
+         if(hasNoDescendants(child)) {
             direct.add(fieldOf(child));
          }
          else {
@@ -133,13 +133,36 @@ public class BindableFieldsService {
    /** Every column at or below this node, however deeply the Composer nests them. */
    private void gather(TreeNodeModel node, List<BindableField> out) {
       for(TreeNodeModel child : node.children()) {
-         if(child.leaf()) {
+         if(hasNoDescendants(child)) {
             out.add(fieldOf(child));
          }
          else {
             gather(child, out);
          }
       }
+   }
+
+   /**
+    * Whether a node is safe to treat as a column, checked by its actual children rather than the
+    * tree's own {@code leaf} flag.
+    *
+    * <p>{@code leaf} is a UI hint, not a structural guarantee, and the two can disagree:
+    * {@code VSTreeHandler.isLeaf} marks every {@code AssetEntry.Type.WORKSHEET} entry as a leaf so
+    * the Composer's asset browser does not expand into a referenced worksheet inline. But
+    * {@code VSEventUtil.refreshBaseWSTree} — the tree an unscoped {@code list_bindable_fields}
+    * reads — reuses a WORKSHEET-typed entry as the *container* holding the viewsheet's actual
+    * tables, which does have real children. {@code createNodeFromEntry} sets {@code .leaf(...)}
+    * and {@code .children(...)} independently, so that container node ends up {@code leaf: true}
+    * with real table children underneath it at the same time.
+    *
+    * <p>Trusting {@code leaf()} there treated the container itself as one column — {@code
+    * fieldOf(wsNode)} turned the worksheet's own label into a fabricated {@code {column, dataType:
+    * null, role: null}} — and never walked into the real tables beneath it, so an unscoped call
+    * returned that one manufactured field instead of the viewsheet's tables. A node with children
+    * is never a column regardless of what {@code leaf()} claims; only genuine childlessness is.
+    */
+   private static boolean hasNoDescendants(TreeNodeModel node) {
+      return node.children().isEmpty();
    }
 
    private BindableField fieldOf(TreeNodeModel node) {

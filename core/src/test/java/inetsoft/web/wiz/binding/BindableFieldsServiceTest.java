@@ -202,6 +202,43 @@ class BindableFieldsServiceTest {
       assertTrue(serviceReturning(null).list("rt1", null, principal()).isEmpty());
    }
 
+   /**
+    * The B3-observed live shape: an unscoped call's tree has a WORKSHEET-typed container node
+    * between the root and the real tables, and {@code VSTreeHandler.isLeaf} marks every
+    * {@code AssetEntry.Type.WORKSHEET} entry a leaf unconditionally -- so this container node is
+    * {@code leaf: true} at the same time as carrying real table children, because
+    * {@code createNodeFromEntry} sets the two independently.
+    *
+    * <p>Trusting {@code leaf()} treated the container itself as a column: {@code
+    * fieldOf(wsContainer)} turned its own label into a fabricated {@code {column, dataType: null,
+    * role: null}}, and the real table beneath it was never visited. Observed live as
+    * {@code {name: null, fields: [{column: "a1", dataType: null, role: null}]}} in place of the
+    * viewsheet's actual tables.
+    */
+   @Test
+   void walksIntoAWorksheetTypedContainerNodeDespiteItClaimingToBeALeaf() throws Exception {
+      TreeNodeModel column = TreeNodeModel.builder().label("Sales").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "Sales", "double")).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("Orders").data(entry(AssetEntry.Type.TABLE, "Orders", null))
+         .addChildren(column).build();
+      // The container: WORKSHEET-typed (so VSTreeHandler.isLeaf marks it leaf: true) but carrying
+      // the real table as a child regardless -- exactly what refreshBaseWSTree's non-direct-source
+      // branch builds.
+      TreeNodeModel wsContainer = TreeNodeModel.builder()
+         .label("MyWorksheet").leaf(true)
+         .data(entry(AssetEntry.Type.WORKSHEET, "MyWorksheet", null))
+         .addChildren(table).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(wsContainer).build();
+
+      List<BindableTable> tables = serviceReturning(root).list("rt1", null, principal());
+
+      assertEquals(1, tables.size(),
+                   "must not fabricate a field from the WORKSHEET container's own label");
+      assertEquals("Orders", tables.get(0).name());
+      assertEquals("Sales", tables.get(0).fields().get(0).column());
+   }
+
    // ── unknown assembly name (the D4 regression) ────────────────────────────
 
    /**
