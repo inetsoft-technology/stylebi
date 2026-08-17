@@ -302,6 +302,26 @@ class ViewsheetAssemblyAgentControllerTest {
                                                                           false)));
    }
 
+   /**
+    * {@code colName} is a standalone address, not a qualifier on {@code row}/{@code col} — a
+    * chart has no rows or columns, so picking one of its measures to highlight is addressed by
+    * {@code colName} alone, with {@code row}/{@code col} both omitted. An earlier version of
+    * {@code highlightRegion} checked only {@code row}/{@code col} for null and dropped a
+    * {@code colName}-only address into the "no location named" branch, silently losing it.
+    */
+   @Test
+   void listHighlightsPassesARealRegionWhenOnlyColNameWasNamed() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+
+      controller.listHighlights("tok", "Chart1", null, null, "Sum(Sales)", principal());
+
+      verify(highlightService).list(eq("tok"), any(Principal.class), eq("Chart1"),
+                                    eq(new AssemblyHighlightService.Region(null, null,
+                                                                          "Sum(Sales)", false,
+                                                                          false)));
+   }
+
    /** Same signal, reached through {@code HighlightRequest.region()} for set/delete. */
    @Test
    void setHighlightPassesANullRegionWhenNoLocationWasNamed() throws Exception {

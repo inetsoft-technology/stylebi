@@ -516,11 +516,21 @@ public class ViewsheetAssemblyAgentController {
     * a non-null {@code Region(0, 0, ...)} and the fall-forward became dead code. Omitting
     * {@code row}/{@code col} then always addressed cell (0,0) — a table's header — and was
     * refused for exposing no highlightable fields.
+    *
+    * <p>{@code colName} is a standalone address, not a qualifier on {@code row}/{@code col} — a
+    * chart has no rows or columns, so picking one of its measures to highlight is addressed by
+    * {@code colName} alone. Collapsing to {@code null} on {@code row == null && col == null}
+    * without also checking {@code colName} silently drops that address: {@code read()} then
+    * substitutes {@code Region.whole()}, whose {@code colName} is also null, so
+    * {@code HighlightDialogService} resolves no measure and the call is refused for exposing no
+    * highlightable fields. Before this method existed the same request worked, because the old
+    * unconditional {@code Region(row, col, colName, ...)} construction preserved {@code colName}
+    * even while normalizing {@code row}/{@code col} to 0.
     */
    private static AssemblyHighlightService.Region highlightRegion(Integer row, Integer col,
                                                                    String colName)
    {
-      return row == null && col == null ? null
+      return row == null && col == null && colName == null ? null
          : new AssemblyHighlightService.Region(row, col, colName, false, false);
    }
 
