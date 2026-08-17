@@ -37,6 +37,7 @@ import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.request.WizDatabaseTestRequest;
 import inetsoft.web.wiz.request.WizDatasourceStatusRequest;
+import inetsoft.web.wiz.service.EndpointCatalogReader;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -93,6 +94,7 @@ class WizDatabaseControllerSecurityTest {
          Set.of("/api/wiz/datasources/browser",
                 "/api/wiz/datasources/search",
                 "/api/wiz/datasources/statuses",
+                "/api/wiz/datasources/endpoint-catalog",
                 "/api/wiz/databases/meta",
                 "/api/wiz/databases/template",
                 "/api/wiz/databases/definition",
@@ -334,7 +336,7 @@ class WizDatabaseControllerSecurityTest {
             .when(databaseTypeService).getDatabaseType(MySQLDatabaseType.TYPE);
          controller = new WizDatabaseController(
             dataSourceBrowserService, dataSourceStatusService, databaseDatasourcesService,
-            databaseTypeService, securityEngine, uqlConfig, xrepository);
+            databaseTypeService, securityEngine, uqlConfig, xrepository, endpointCatalogReader);
       }
 
       final DataSourceBrowserService dataSourceBrowserService = mock(DataSourceBrowserService.class);
@@ -345,6 +347,7 @@ class WizDatabaseControllerSecurityTest {
       final SecurityEngine securityEngine = mock(SecurityEngine.class);
       final Config uqlConfig = mock(Config.class);
       final XRepository xrepository = mock(XRepository.class);
+      final EndpointCatalogReader endpointCatalogReader = mock(EndpointCatalogReader.class);
       final Principal principal = mock(Principal.class);
       final WizDatabaseController controller;
    }

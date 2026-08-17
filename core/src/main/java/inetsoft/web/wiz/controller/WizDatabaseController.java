@@ -47,6 +47,7 @@ import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.request.*;
+import inetsoft.web.wiz.service.EndpointCatalogReader;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,7 +104,8 @@ public class WizDatabaseController {
                                 DatabaseTypeService databaseTypeService,
                                 SecurityEngine securityEngine,
                                 Config uqlConfig,
-                                XRepository xrepository)
+                                XRepository xrepository,
+                                EndpointCatalogReader endpointCatalogReader)
    {
       this.dataSourceBrowserService = dataSourceBrowserService;
       this.dataSourceStatusService = dataSourceStatusService;
@@ -112,6 +114,7 @@ public class WizDatabaseController {
       this.securityEngine = securityEngine;
       this.uqlConfig = uqlConfig;
       this.xrepository = xrepository;
+      this.endpointCatalogReader = endpointCatalogReader;
    }
 
    /**
@@ -239,6 +242,67 @@ public class WizDatabaseController {
       }
 
       return result;
+   }
+
+   /**
+    * The endpoint catalogues for a set of data source types.
+    *
+    * <p>POST rather than GET because the type list is unbounded, matching {@code
+    * /datasources/search} and {@code /datasources/statuses} in this same controller.</p>
+    *
+    * <p>No permission gate: a catalogue is a property of the CONNECTOR, identical for every
+    * customer and carrying nothing about any one of them. There is no instance, no path and no
+    * stored data to authorize against. The listing endpoints, which do expose what an organization
+    * has configured, remain gated as before.</p>
+    *
+    * @param request the types to look up. An absent or empty list yields an empty answer rather
+    *                than an error — asking about nothing is not a fault.
+    */
+   @PostMapping(value = "/datasources/endpoint-catalog", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizEndpointCatalogResponse getEndpointCatalog(@RequestBody WizEndpointCatalogRequest request) {
+      Map<String, WizEndpointCatalog> catalogs = new LinkedHashMap<>();
+      List<String> notCatalogued = new ArrayList<>();
+      List<String> unavailable = new ArrayList<>();
+      List<String> types = request.getTypes() == null ? List.of() : request.getTypes();
+
+      for(String type : new LinkedHashSet<>(types)) {
+         Class<?> queryClass;
+
+         try {
+            String className = uqlConfig.getQueryClass(type);
+            queryClass = className == null ? null : uqlConfig.getClass(type, className);
+         }
+         catch(Throwable ex) {
+            // A connector whose plugin is absent cannot be read. That is an environment problem,
+            // not a verdict about the connector, so it must not land in notCatalogued.
+            LOG.debug("Failed to load the query class for type {}: {}", type, ex.getMessage());
+            queryClass = null;
+         }
+
+         if(queryClass == null) {
+            unavailable.add(type);
+            continue;
+         }
+
+         try {
+            WizEndpointCatalog catalog = endpointCatalogReader.read(queryClass);
+
+            if(catalog == null) {
+               notCatalogued.add(type);
+            }
+            else {
+               catalogs.put(type, catalog);
+            }
+         }
+         catch(Exception ex) {
+            // The resource is there but unreadable. Reporting it as "has no catalogue" would send
+            // the portal to ask the user for documentation it does not need.
+            LOG.warn("Failed to read the endpoint catalogue for type {}: {}", type, ex.getMessage());
+            unavailable.add(type);
+         }
+      }
+
+      return new WizEndpointCatalogResponse(catalogs, notCatalogued, unavailable);
    }
 
    /**
@@ -1073,6 +1137,7 @@ public class WizDatabaseController {
    private final SecurityEngine securityEngine;
    private final Config uqlConfig;
    private final XRepository xrepository;
+   private final EndpointCatalogReader endpointCatalogReader;
 
    /** Annotation classes. See {@link WizDatasourceEntry} for what each one means to the portal. */
    private static final String JDBC = "JDBC";
