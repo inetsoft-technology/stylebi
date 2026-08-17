@@ -110,6 +110,7 @@ export class CheckBoxActionHandlerDirective extends AbstractActionHandler implem
          dialog.variableValues =
             VSUtil.getVariableList(this.vsInfo.vsObjects, this.model.absoluteName);
          dialog.runtimeId = this.vsInfo.runtimeId;
+         dialog.socketConnection = this.vsInfo.socketConnection;
          dialog.assemblyName = this.model.absoluteName;
          dialog.openToScript = openToScript;
          dialog.scriptTreeModel = loadingScriptTreeModel;

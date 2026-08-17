@@ -103,6 +103,7 @@ export class ViewsheetActionHandlerDirective extends AbstractActionHandler imple
             });
          dialog.model = data;
          dialog.runtimeId = this.vsInfo.runtimeId;
+         dialog.socketConnection = this.vsInfo.socketConnection;
          dialog.variableValues =
             VSUtil.getVariableList(this.vsInfo.vsObjects, this.model.absoluteName);
          dialog.openToScript = openToScript;

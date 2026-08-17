@@ -124,6 +124,7 @@ export class TextActionHandlerDirective extends AbstractActionHandler implements
          dialog.variableValues =
             VSUtil.getVariableList(this.vsInfo.vsObjects, this.model.absoluteName, true);
          dialog.runtimeId = this.vsInfo.runtimeId;
+         dialog.socketConnection = this.vsInfo.socketConnection;
          dialog.assemblyName = this.model.absoluteName;
          dialog.openToScript = openToScript;
          dialog.scriptTreeModel = loadingScriptTreeModel;
