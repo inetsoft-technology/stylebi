@@ -23,7 +23,9 @@ import inetsoft.web.wiz.pairing.PairingException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parses/formats the {@code target} string the wiz-services proxy (and the MCP script tools)
@@ -76,6 +78,32 @@ public final class ScriptTarget {
          return location;
       }
 
+      /**
+       * Whether an action addressed to this kind may run only from a session paired at that
+       * expression's own script pane or formula editor -- never from a whole-sheet ("Connect to
+       * Claude" toolbar) session, regardless of the {@code wiz.agent.script.require-script-pane}
+       * strict posture (see {@link PaneScopeService}, which enforces this).
+       *
+       * <p>Deliberately NOT {@code location() == null}, even though every kind with no location
+       * yet (today {@code WORKSHEET_EXPRESSION}/{@code WORKSHEET_CONDITION}) does need this to be
+       * {@code true}. A future task giving those two a real {@code Location} (so they become
+       * servable) would silently flip this to {@code false} the moment {@code location()} stops
+       * being null -- exactly the kind of change that reports success while quietly inverting a
+       * security-relevant rule, since a calc field and a worksheet expression/condition column
+       * have no name or identity at the whole-sheet level regardless of whether a service can
+       * dispatch on their location yet.
+       *
+       * <p>Instead this is membership in {@link #EXPRESSION_LEVEL_LOCATIONS}, an explicit set
+       * that a new expression-level {@code Location} must be added to on purpose. Still derived
+       * from {@code kind} in one place (not a hand-maintained parallel list of {@code Kind}
+       * constants) -- the derivation just keys on the property that actually matters
+       * ("does this kind address something with sheet-level identity"), not on whether a service
+       * happens to be wired up yet.
+       */
+      public boolean requiresPaneSession() {
+         return location == null || EXPRESSION_LEVEL_LOCATIONS.contains(location);
+      }
+
       public static Kind fromWire(String wire) throws PairingException {
          if(wire == null || wire.isBlank()) {
             throw new PairingException("kind is required");
@@ -102,6 +130,17 @@ public final class ScriptTarget {
       public static List<String> wireNames() {
          return Arrays.stream(values()).map(Kind::wireName).toList();
       }
+
+      /**
+       * Every {@link Location} that addresses something with no name or identity outside its own
+       * expression editor. {@link #requiresPaneSession()} is {@code true} for a kind whose
+       * location is in this set, OR whose location is {@code null} (not servable at all yet).
+       *
+       * <p>A kind whose {@code Location} needs the same treatment must be added here explicitly —
+       * see {@link #requiresPaneSession()}'s javadoc for why this must not instead be derived from
+       * {@code location() == null}.
+       */
+      private static final Set<Location> EXPRESSION_LEVEL_LOCATIONS = EnumSet.of(Location.CALC_FIELD);
 
       private final String wireName;
       private final Location location;
