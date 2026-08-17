@@ -106,7 +106,11 @@ public class ScriptReadService {
       }
 
       return new ScriptTargetInfo(
-         target.id(), kind.wireName(), assembly, null, label(kind, assembly), runsWhen(kind),
+         target.id(), kind.wireName(), assembly,
+         null,                            // name: only a calc field is keyed by one
+         null,                            // sql: SQL-vs-JavaScript is a calc-field distinction
+         null,                            // baseOnDetail: likewise
+         label(kind, assembly), runsWhen(kind),
          hasScript, enabled, enableScope(kind, assembly), "viewsheet", target.toString());
    }
 
@@ -116,6 +120,11 @@ public class ScriptReadService {
     * alone, has no legacy delimited form, and is always has-script/enabled (an expression, once
     * created, has no disabled state) -- forcing it through {@code describe}'s four-boolean shape
     * would just relitigate those differences inside a signature meant for the other four kinds.
+    *
+    * <p>It is also the only kind that reports {@code sql} and {@code baseOnDetail}. Both say which
+    * expression LANGUAGE and which evaluation SCOPE an edit has to be written for, and a caller
+    * that cannot see them has to guess from the expression text -- {@code PRICE - COST} reads as
+    * either.
     */
    private static ScriptTargetInfo describeCalcField(CalcFieldService.Found f) {
       ScriptTarget target;
@@ -129,6 +138,7 @@ public class ScriptReadService {
 
       return new ScriptTargetInfo(
          target.id(), ScriptTarget.Kind.CALC_FIELD.wireName(), f.table(), f.name(),
+         f.sql(), f.baseOnDetail(),
          "Calculated field '" + f.name() + "' on " + f.table(),
          "per row, when the field is evaluated",
          true,                            // a calc field always has an expression

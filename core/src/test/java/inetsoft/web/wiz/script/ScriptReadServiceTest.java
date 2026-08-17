@@ -156,13 +156,22 @@ class ScriptReadServiceTest {
                   "a reserved kind must not be advertised as servable");
    }
 
+   private static CalculateRef calc(String name, String expression, boolean sql,
+                                    boolean baseOnDetail)
+   {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName(name);
+      inner.setExpression(expression);
+      // baseOnDetail is constructor-only; CalculateRef exposes no setter for it.
+      CalculateRef ref = new CalculateRef(baseOnDetail);
+      ref.setDataRef(inner);
+      ref.setSQL(sql);
+      return ref;
+   }
+
    /** A viewsheet whose Query1 carries one JS calc field. */
    private static RuntimeViewsheet runtimeWithCalcField() {
-      ExpressionRef inner = new ExpressionRef();
-      inner.setName("Margin");
-      inner.setExpression("field['PRICE'] - field['COST']");
-      CalculateRef calc = new CalculateRef(true);
-      calc.setDataRef(inner);
+      CalculateRef calc = calc("Margin", "field['PRICE'] - field['COST']", false, true);
 
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
       info.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
@@ -218,5 +227,79 @@ class ScriptReadServiceTest {
       assertTrue(ScriptGrammar.supportedKinds().contains("calcField"));
       assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
                   "reserved kinds still must not be advertised");
+   }
+
+   /**
+    * Two calc fields on one table that differ in BOTH reported flags: Margin is JavaScript over
+    * detail rows, TaxRate is SQL over aggregated rows. A fixture where both fields agree could not
+    * tell "reported correctly" from "hardcoded".
+    */
+   private static RuntimeViewsheet runtimeWithSqlAndJsCalcFields() {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      info.setScript("");
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getName()).thenReturn("Chart1");
+      when(chart.getVSAssemblyInfo()).thenReturn(info);
+
+      ViewsheetInfo vsInfo = new ViewsheetInfo();
+      vsInfo.setScriptEnabled(true);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getViewsheetInfo()).thenReturn(vsInfo);
+      when(vs.getAssemblies()).thenReturn(new Assembly[]{ chart });
+      when(vs.getCalcFields("Query1")).thenReturn(new CalculateRef[]{
+         calc("Margin", "field['PRICE'] - field['COST']", false, true),
+         calc("TaxRate", "PRICE * 0.2", true, false),
+      });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static ScriptTargetInfo calcNamed(List<ScriptTargetInfo> all, String name) {
+      return all.stream()
+         .filter(t -> "calcField".equals(t.kind()) && name.equals(t.name()))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("no calcField named " + name + " in " + all));
+   }
+
+   /**
+    * The flag that stops an agent rewriting a SQL expression as JavaScript. {@code PRICE * 0.2}
+    * and {@code field['PRICE'] - field['COST']} are told apart by this field, not by reading the
+    * text — and {@code update_script} writes whatever it is handed, verbatim.
+    */
+   @Test
+   void reportsWhetherACalcFieldIsSqlOrJavaScript() {
+      List<ScriptTargetInfo> all = service.list(runtimeWithSqlAndJsCalcFields());
+
+      assertEquals(Boolean.FALSE, calcNamed(all, "Margin").sql(), "Margin is JavaScript");
+      assertEquals(Boolean.TRUE, calcNamed(all, "TaxRate").sql(), "TaxRate is SQL");
+   }
+
+   @Test
+   void reportsWhetherACalcFieldEvaluatesOverDetailRows() {
+      List<ScriptTargetInfo> all = service.list(runtimeWithSqlAndJsCalcFields());
+
+      assertEquals(Boolean.TRUE, calcNamed(all, "Margin").baseOnDetail(), "Margin is per-detail");
+      assertEquals(Boolean.FALSE, calcNamed(all, "TaxRate").baseOnDetail(),
+                   "TaxRate evaluates over aggregated rows");
+   }
+
+   /**
+    * Neither flag is meaningful off a calc field, so the other four kinds report null rather than
+    * a default that reads as an answer — {@code sql=false} on an onInit script would claim the
+    * viewsheet's initializer is "JavaScript, not SQL", which is not a distinction it has.
+    */
+   @Test
+   void everyNonCalcTargetReportsNeitherFlag() {
+      List<ScriptTargetInfo> others = service.list(runtimeWithSqlAndJsCalcFields()).stream()
+         .filter(t -> !"calcField".equals(t.kind()))
+         .toList();
+
+      assertFalse(others.isEmpty(), "the fixture must carry non-calc targets to discriminate");
+      assertTrue(others.stream().allMatch(t -> t.sql() == null), "sql must be absent: " + others);
+      assertTrue(others.stream().allMatch(t -> t.baseOnDetail() == null),
+                 "baseOnDetail must be absent: " + others);
    }
 }
