@@ -3,7 +3,7 @@
     {
       "name": "Activities",
       "paged": true,
-      "suffix": "/v1/activities?user_id={User ID?}&filter_id={Filter ID?}&type={Type?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&done={Done?:0|1}",
+      "suffix": "/api/v2/activities?owner_id={Owner ID?}&filter_id={Filter ID?}&deal_id={Deal ID?}&person_id={Person ID?}&org_id={Organization ID?}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoint": "User",
@@ -30,13 +30,13 @@
           "parameterName": "Organization ID"
         }
       ],
-      "description": "The scheduled work against deals and contacts -- calls, meetings, tasks, deadlines and emails -- one row each. Carries type, subject, due_date and due_time, duration, the DONE flag, add_time and marked_as_done_time, the owning user, and the deal, person and organization it is attached to. The activity-versus-outcome table: done tells completion, due_date against marked_as_done_time tells punctuality, and an activity with no done marker and a past due date is overdue rather than absent. Same version note: moved to API v2."
+      "description": "The scheduled work against deals and contacts -- calls, meetings, tasks, deadlines and emails -- one row each. Carries type, subject, due_date and due_time, duration, the DONE flag, add_time and marked_as_done_time, the owning user, and the deal, person and organization it is attached to. The activity-versus-outcome table: done tells completion, due_date against marked_as_done_time tells punctuality, and an activity with no done marker and a past due date is overdue rather than absent. Filter by any of its parent ids, by done, and incrementally with updated_since."
     },
     {
       "name": "Activity",
       "paged": false,
-      "suffix": "/v1/activities/{Activity ID}",
-      "description": "One activity by id. Same fields, same version note."
+      "suffix": "/api/v2/activities/{Activity ID}?include_fields={Include Fields?}",
+      "description": "One activity by id."
     },
     {
       "name": "Activity Fields",
@@ -59,7 +59,7 @@
     {
       "name": "Deals",
       "paged": true,
-      "suffix": "/v1/deals?user_id={User ID?}&filter_id={Filter ID?}&stage_id={Stage ID?}&status={Status?:all_not_deleted|open|...}&owned_by_you={Owned By You?:0|1}",
+      "suffix": "/api/v2/deals?owner_id={Owner ID?}&filter_id={Filter ID?}&person_id={Person ID?}&org_id={Organization ID?}&pipeline_id={Pipeline ID?}&stage_id={Stage ID?}&status={Status?:open|won|lost|deleted}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoints": [
@@ -78,13 +78,13 @@
           "parameterName": "Deal ID"
         }
       ],
-      "description": "The sales opportunities on the account, one row each -- the central table of a Pipedrive CRM. Carries title, value and currency, STATUS, the pipeline and stage, the person and organization it belongs to, the owning user, add_time and update_time, expected_close_date, close_time, won_time, lost_time and lost_reason, plus probability and weighted_value. THE STATUS COLUMN HAS FOUR VALUES: open, won, lost and DELETED. Deleted deals are still returned, so any total that does not filter status counts records the business considers gone -- and a win rate is won over won plus lost, never over all rows. CUSTOM FIELDS ARRIVE AS 40-CHARACTER HASH KEYS such as 9dc80c50d78a15643bfc4ca79d76156a99a9ba60, with no name attached anywhere in this response; Deal Fields is the only thing that decodes them. VERSION NOTE: Pipedrive has moved this resource to API v2 and the v1 path this endpoint uses is being retired."
+      "description": "The sales opportunities on the account, one row each -- the central table of a Pipedrive CRM. Carries title, value and currency, STATUS, the pipeline and stage, the person and organization, the owner, add_time and update_time, expected_close_date, close_time, won_time, lost_time and lost_reason. THE STATUS COLUMN HAS FOUR VALUES: open, won, lost and DELETED. Deleted deals are still returned, so any total that does not filter status counts records the business considers gone -- and a win rate is won over won plus lost, never over all rows. CUSTOM FIELDS ARE NOT RETURNED BY DEFAULT: v2 keeps them in a custom_fields object and only includes the keys named in the custom_fields parameter, up to fifteen at a time -- so their absence is an unmade request rather than empty data, and Deal Fields is what supplies the 40-character keys to ask for. Filter incrementally with updated_since and updated_until."
     },
     {
       "name": "Deal Search",
       "paged": true,
-      "suffix": "/v1/deals/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&person_id={Person ID?}&organization_id={Organization ID?}&status={Status?:open|won|lost}",
-      "description": "Deals matching a search term across title, notes and custom fields. Returns matches with a relevance score rather than the full deal record, so it locates deals rather than reporting on them. Same version note."
+      "suffix": "/api/v2/deals/search?term={Term}&fields={Fields?:custom_fields,notes,title}&exact_match={Exact Match?:true|false}&person_id={Person ID?}&organization_id={Organization ID?}&status={Status?:open|won|lost}&include_fields={Include Fields?}",
+      "description": "Deals matching a search term across title, notes and custom fields. Returns matches with a relevance score rather than the full deal record, so it locates deals rather than reporting on them. Narrow with person_id, organization_id or status."
     },
     {
       "name": "Deal Summary",
@@ -101,13 +101,13 @@
     {
       "name": "Deal",
       "paged": false,
-      "suffix": "/v1/deals/{Deal ID}",
-      "description": "One deal by id. Same fields as Deals, including the hash-keyed custom fields. Same version note."
+      "suffix": "/api/v2/deals/{Deal ID}?include_fields={Include Fields?}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}",
+      "description": "One deal by id. Same fields as Deals, and the same custom_fields rule -- name the keys wanted or none arrive."
     },
     {
       "name": "Deal Activities",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/activities",
+      "suffix": "/api/v2/activities?deal_id={Deal ID}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoint": "User",
@@ -134,7 +134,7 @@
           "parameterName": "Organization ID"
         }
       ],
-      "description": "The activities linked to one deal. Requires a deal id. SUPERSEDED: Pipedrive replaced these per-parent listings with filters on the main collection in API v2, where the same rows come from the activities endpoint with a deal_id filter. This v1 path is absent from Pipedrive's current API description."
+      "description": "The activities linked to one deal. Requires a deal id. NOTE THE SHAPE: v2 replaced the per-deal listing with a deal_id filter on the activities collection, so this is the activities endpoint scoped to one deal rather than a separate resource -- and every activity filter, including done and the update-time range, is available on it."
     },
     {
       "name": "Deal Files",
@@ -183,14 +183,14 @@
     {
       "name": "Deal People",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/persons",
-      "description": "The people linked to one deal. Requires a deal id. SUPERSEDED in the same way -- v2 answers this with a deal_id filter on the persons collection, and this v1 path is absent from the current API description."
+      "suffix": "/api/v2/persons?deal_id={Deal ID}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "description": "The people linked to one deal. Requires a deal id. The persons collection filtered by deal_id, for the same reason."
     },
     {
       "name": "Deal Products",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/products?include_product_data={Include Product Data?:0|1}",
-      "description": "The products attached to one deal, with quantity, item price, discount and the resulting sum. Requires a deal id. A deal's value is a single number; what makes it up is only here. Same version note."
+      "suffix": "/api/v2/deals/{Deal ID}/products?sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "description": "The products attached to one deal, with quantity, item price, discount and the resulting sum. Requires a deal id. A deal's value is a single number; what makes it up is only here."
     },
     {
       "name": "Deal Fields",
@@ -343,7 +343,7 @@
     {
       "name": "Organizations",
       "paged": true,
-      "suffix": "/v1/organizations?user_id={User ID?}&filter_id={Filter ID?}&first_char={First Char?}",
+      "suffix": "/api/v2/organizations?owner_id={Owner ID?}&filter_id={Filter ID?}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoints": [
@@ -362,31 +362,31 @@
           "parameterName": "Organization ID"
         }
       ],
-      "description": "The companies on the account, one row each. Carries name, the address with its parsed components, the owning user, add_time and update_time, the label, cc_email, and running counts of people, open, won, lost and closed deals, and activities. The account-level dimension: deals and contacts both reference an org_id, so this is what per-customer analysis groups by. Custom fields are hash-keyed here too, decoded by Organization Fields. VERSION NOTE: moved to API v2; the v1 path is being retired."
+      "description": "The companies on the account, one row each. Carries name, the owning user, add_time and update_time, and running counts of people, open, won, lost and closed deals, and activities. The account-level dimension: deals and contacts both reference an org_id, so this is what per-customer analysis groups by. Custom fields follow the v2 rule and are decoded by Organization Fields."
     },
     {
       "name": "Organization Search",
       "paged": true,
-      "suffix": "/v1/organizations/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}",
-      "description": "Companies matching a search term across name, address and custom fields. Returns scored matches rather than full records. Same version note."
+      "suffix": "/api/v2/organizations/search?term={Term}&fields={Fields?:address,custom_fields,notes,name}&exact_match={Exact Match?:true|false}",
+      "description": "Companies matching a search term across name, address and custom fields. Returns scored matches."
     },
     {
       "name": "Organization",
       "paged": false,
-      "suffix": "/v1/organizations/{Organization ID}",
-      "description": "One company by id. Same fields, same version note."
+      "suffix": "/api/v2/organizations/{Organization ID}?include_fields={Include Fields?}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}",
+      "description": "One company by id. Same custom_fields rule."
     },
     {
       "name": "Organization Activities",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/activities?done={Done?:0|1}&exclude={Exclude?}",
-      "description": "The activities linked to one company. Requires an organization id. SUPERSEDED: v2 answers this with an org_id filter on the activities collection; this v1 path is absent from the current API description."
+      "suffix": "/api/v2/activities?org_id={Organization ID}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "description": "The activities linked to one company. Requires an organization id. The activities collection filtered by org_id."
     },
     {
       "name": "Organization Deals",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/deals?status={Status?:all_not_deleted|open|won|...}&only_primary_association={Only Primary Association?:0|1}",
-      "description": "The deals linked to one company. Requires an organization id. SUPERSEDED: v2 uses an org_id filter on the deals collection; this v1 path is absent from the current API description."
+      "suffix": "/api/v2/deals?org_id={Organization ID}&status={Status?:open|won|lost|deleted}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "description": "The deals linked to one company. Requires an organization id. The deals collection filtered by org_id."
     },
     {
       "name": "Organization Files",
@@ -421,8 +421,8 @@
     {
       "name": "Organization People",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/persons",
-      "description": "The contacts belonging to one company. Requires an organization id. SUPERSEDED: v2 uses an org_id filter on the persons collection; this v1 path is absent from the current API description."
+      "suffix": "/api/v2/persons?org_id={Organization ID}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "description": "The contacts belonging to one company. Requires an organization id. The persons collection filtered by org_id."
     },
     {
       "name": "Organization Relationships",
@@ -476,7 +476,7 @@
     {
       "name": "People",
       "paged": true,
-      "suffix": "/v1/persons?user_id={User ID?}&filter_id={Filter ID?}&first_char={First Char?}",
+      "suffix": "/api/v2/persons?owner_id={Owner ID?}&filter_id={Filter ID?}&org_id={Organization ID?}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoints": [
@@ -494,24 +494,24 @@
           "parameterName": "Person ID"
         }
       ],
-      "description": "The contacts on the account, one row each -- what Pipedrive calls persons. Carries name split into first and last, the organization and owning user, add_time and update_time, last_activity_date and next_activity_date, the label, and running counts of open, won, lost and closed deals plus done and undone activities. TWO SHAPE TRAPS. EMAIL AND PHONE ARE ARRAYS, not single values: each entry is an object with the value, a label such as work or home, and a primary flag, so a person with three addresses is one row with a nested list, and reading 'the email' means picking the primary one. And custom fields arrive under 40-character hash keys that only Person Fields decodes. The deal counts are already computed, so per-contact value questions rarely need the deals table at all. VERSION NOTE: moved to API v2; the v1 path this endpoint uses is being retired."
+      "description": "The contacts on the account, one row each -- what Pipedrive calls persons. Carries name, the organization and owning user, add_time and update_time, and the running counts of open, won, lost and closed deals plus done and undone activities. TWO SHAPE TRAPS. EMAILS AND PHONES ARE ARRAYS, not single values: each entry carries the value, a label such as work or home, and a primary flag, so a person with three addresses is one row with a nested list and reading 'the email' means picking the primary one. And custom fields follow the v2 rule -- returned only under the keys named in the custom_fields parameter, decoded by Person Fields. The deal counts are already computed, so per-contact value questions rarely need the deals table at all."
     },
     {
       "name": "Person Search",
       "paged": true,
-      "suffix": "/v1/persons/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&organization_id={Organization ID?}",
-      "description": "Contacts matching a search term across name, email, phone and custom fields. Returns matches with a relevance score rather than full records. Same version note."
+      "suffix": "/api/v2/persons/search?term={Term}&fields={Fields?:custom_fields,email,notes,phone,name}&exact_match={Exact Match?:true|false}&organization_id={Organization ID?}&include_fields={Include Fields?}",
+      "description": "Contacts matching a search term across name, email, phone and custom fields. Returns scored matches rather than full records."
     },
     {
       "name": "Person",
       "paged": false,
-      "suffix": "/v1/persons/{Person ID}",
-      "description": "One contact by id. Same fields and the same array-shaped email and phone. Same version note."
+      "suffix": "/api/v2/persons/{Person ID}?include_fields={Include Fields?}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}",
+      "description": "One contact by id. Same array-shaped emails and phones, same custom_fields rule."
     },
     {
       "name": "Person Activities",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/activities?done={Done?}&exclude={Exclude?}",
+      "suffix": "/api/v2/activities?person_id={Person ID}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoint": "User",
@@ -520,13 +520,13 @@
           "parameterName": "User ID"
         }
       ],
-      "description": "The activities linked to one contact. Requires a person id. SUPERSEDED: Pipedrive replaced these per-parent listings with filters on the main collection in v2, where the same rows come from the activities endpoint with a person_id filter. This v1 path is absent from the current API description."
+      "description": "The activities linked to one contact. Requires a person id. The activities collection filtered by person_id."
     },
     {
       "name": "Person Deals",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/deals?status={Status?:all_not_deleted|open|...}",
-      "description": "The deals linked to one contact. Requires a person id. SUPERSEDED in the same way -- v2 answers it with a person_id filter on the deals collection, and this v1 path is absent from the current API description."
+      "suffix": "/api/v2/deals?person_id={Person ID}&status={Status?:open|won|lost|deleted}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "description": "The deals linked to one contact. Requires a person id. The deals collection filtered by person_id, so the deal filters -- status, update-time range, custom fields -- all apply here too."
     },
     {
       "name": "Person Files",
@@ -579,7 +579,7 @@
     {
       "name": "Pipelines",
       "paged": true,
-      "suffix": "/v1/pipelines",
+      "suffix": "/api/v2/pipelines?sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoints": [
@@ -592,13 +592,13 @@
           "parameterName": "Pipeline ID"
         }
       ],
-      "description": "The sales pipelines on the account, each with name, order, whether it is active and whether deal probability is enabled on it. A pipeline is a sequence of stages, and most organisations run more than one -- so any funnel question needs to name the pipeline, or it mixes processes that are not comparable. Same version note as Deals: this resource has moved to API v2."
+      "description": "The sales pipelines on the account, each with name, order and whether deal probability is enabled. A pipeline is a sequence of stages, and most organisations run more than one -- so any funnel question needs to name the pipeline, or it mixes processes that are not comparable."
     },
     {
       "name": "Pipeline",
       "paged": false,
-      "suffix": "/v1/pipelines/{Pipeline ID}?totals_convert_currency={Totals Convert Currency?}",
-      "description": "One pipeline by id. Same fields, same version note."
+      "suffix": "/api/v2/pipelines/{Pipeline ID}",
+      "description": "One pipeline by id."
     },
     {
       "name": "Pipeline Conversion Rates",
@@ -621,7 +621,7 @@
     {
       "name": "Products",
       "paged": true,
-      "suffix": "/v1/products?user_id={User ID?}&filter_id={Filter ID?}&first_char={Starts With Character?}",
+      "suffix": "/api/v2/products?owner_id={Owner ID?}&filter_id={Filter ID?}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoints": [
@@ -635,19 +635,19 @@
           "parameterName": "Product ID"
         }
       ],
-      "description": "The products or services the account sells, one row each. Carries name, code, unit, tax, the active and selectable flags, visibility, and the owning user. NOTE THE PRICE SHAPE: prices is an ARRAY with one entry per currency, each carrying the price, cost and overhead cost -- there is no single price column, so reading 'the price' means choosing a currency first. What was actually charged on a deal is in Deal Products, not here. VERSION NOTE: moved to API v2; the v1 path is being retired."
+      "description": "The products or services the account sells, one row each. Carries name, code, unit, tax, the active and selectable flags, visibility, and the owning user. NOTE THE PRICE SHAPE: prices is an ARRAY with one entry per currency, each carrying the price, cost and overhead cost -- there is no single price column, so reading 'the price' means choosing a currency first. What was actually charged on a deal is in Deal Products, not here. Custom fields follow the v2 rule."
     },
     {
       "name": "Product Search",
       "paged": true,
-      "suffix": "/v1/products/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}",
-      "description": "Products matching a search term across name, code and custom fields. Returns scored matches. Same version note."
+      "suffix": "/api/v2/products/search?term={Term}&fields={Fields?:code,custom_fields,name}&exact_match={Exact Match?:true|false}&include_fields={Include Fields?}",
+      "description": "Products matching a search term across name, code and custom fields. Returns scored matches."
     },
     {
       "name": "Product",
       "paged": false,
-      "suffix": "/v1/products/{Product ID}",
-      "description": "One product by id, with its full per-currency price array. Same version note."
+      "suffix": "/api/v2/products/{Product ID}",
+      "description": "One product by id, with its full per-currency price array."
     },
     {
       "name": "Product Deals",
@@ -736,19 +736,19 @@
     {
       "name": "Search",
       "paged": true,
-      "suffix": "/v1/itemSearch?term={Term}&item_types={Item Types?:type1,type2,...}&fields={Fields?:field1,field2,...}&search_for_related_items={Search for Related Items?:true|false}&exact_match={Exact Match?:true|false}",
-      "description": "Searches across several item types at once -- deals, persons, organizations, products, files and more -- for a term. Returns matches with a relevance score and an item type on each, so the result set is mixed-shape rather than one table. Reach for a specific resource's own search when the type is already known; this is for when it is not. VERSION NOTE: moved to API v2; the v1 path is being retired."
+      "suffix": "/api/v2/itemSearch?term={Term}&item_types={Item Types?:deal,person,organization,product,...}&fields={Fields?:field1,field2,...}&search_for_related_items={Search for Related Items?:true|false}&exact_match={Exact Match?:true|false}&include_fields={Include Fields?}",
+      "description": "Searches across several item types at once -- deals, persons, organizations, products and more -- for a term. Returns matches with a relevance score and an item type on each, so the result set is mixed-shape rather than one table. Reach for a specific resource's own search when the type is already known; this is for when it is not."
     },
     {
       "name": "Field Search",
       "paged": true,
-      "suffix": "/v1/itemSearch/field?term={Term}&field_type={Field Type:dealField|personField|...}&field_key={Field Key}&exact_match={Exact Match?:true|false}&return_item_ids={Return Item IDs?:true|false}",
-      "description": "Searches one named field of one item type for a term, returning the matching values. Built for autocomplete, so it returns field values rather than whole records. Same version note."
+      "suffix": "/api/v2/itemSearch/field?term={Term}&entity_type={Entity Type:deal|person|organization|product|lead|project}&field={Field Key}&match={Match?:exact|beginning|middle}",
+      "description": "Searches ONE named field of one entity type for a term, returning the matching values. Built for autocomplete, so it returns field values rather than whole records. NOTE V2 RENAMED EVERY PARAMETER HERE: the entity is now entity_type, the field is field, and the old exact_match became a three-valued match of exact, beginning or middle."
     },
     {
       "name": "Stages",
       "paged": true,
-      "suffix": "/v1/stages?pipeline_id={Pipeline ID?}",
+      "suffix": "/api/v2/stages?pipeline_id={Pipeline ID?}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
       "lookups": [
         {
           "endpoint": "Stage Deals",
@@ -763,13 +763,13 @@
           "parameterName": "Pipeline ID"
         }
       ],
-      "description": "The stages making up the pipelines, each with its name, the pipeline it belongs to, its order_nr, and its deal_probability. Deals reference a stage_id, so this is the dimension any funnel breakdown joins to. NOTE the probability is a configured expectation, not a measured rate -- Pipeline Conversion Rates is where the measured one lives. Same version note: moved to API v2."
+      "description": "The stages making up the pipelines, each with its name, the pipeline it belongs to, its order_nr and its deal_probability. Deals reference a stage_id, so this is the dimension any funnel breakdown joins to. NOTE the probability is a configured expectation, not a measured rate -- Pipeline Conversion Rates is where the measured one lives. Filter by pipeline_id for one pipeline's stages in order."
     },
     {
       "name": "Stage",
       "paged": false,
-      "suffix": "/v1/stages/{Stage ID}",
-      "description": "One stage by id. Same fields, same version note."
+      "suffix": "/api/v2/stages/{Stage ID}",
+      "description": "One stage by id."
     },
     {
       "name": "Stage Deals",
