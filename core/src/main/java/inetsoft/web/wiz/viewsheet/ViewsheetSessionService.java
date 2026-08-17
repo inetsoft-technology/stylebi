@@ -126,6 +126,19 @@ public class ViewsheetSessionService {
             rvs.addCheckpoint(vs.prepareCheckpoint());
          }
 
+         // Every mutation through this method is a write to the live viewsheet, whether or not
+         // it fully succeeded (see the partial-apply reasoning above the checkpoint call, which
+         // applies identically here) -- and every one of the 20+ Composer dialogs that embed a
+         // script pane, or otherwise commit through VSObjectPropertyService/
+         // VSConditionDialogService/ViewsheetPropertyDialogService, checks this counter before
+         // committing its own stale snapshot. Without this bump, an agent write that lands
+         // through this seam (chart binding, aesthetics, table binding, calc layout -- anything
+         // that does not go through one of those three services directly) is invisible to that
+         // check: a human's dialog, opened before the agent's write and read at a now-stale
+         // revision, would still match on commit and silently overwrite it. See
+         // 2026-08-17-write-coordination-design.md / -implementation.md.
+         rvs.bumpWriteRevision();
+
          broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
       }
    }
