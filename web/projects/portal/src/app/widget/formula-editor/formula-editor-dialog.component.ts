@@ -124,6 +124,14 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    /** Socket connection for the runtime sheet, used to mint a pane-scoped
     *  pairing code. */
    @Input() socketConnection: ViewsheetClientService;
+   /** The table this expression belongs to, for editorContext's `assembly` field only.
+    *  A separate input from `assemblyName` on purpose: `assemblyName` already feeds
+    *  populateColumnTree/populateScriptDefinitions HTTP calls (see below), and several
+    *  callers of this dialog (e.g. editing a worksheet column's formula, or creating a
+    *  viewsheet calc field) know the owning table but never set `assemblyName` today —
+    *  repurposing it would change those existing HTTP call parameters. editorContext
+    *  prefers this field and falls back to `assemblyName` when it is absent. */
+   @Input() contextTable?: string;
 
    @Input() availableFields: DataRef[];
    @Input() availableCells: string[];
@@ -208,17 +216,20 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          return null;
       }
 
+      // contextTable, when the caller supplied it, over assemblyName -- see contextTable's
+      // doc comment for why they're not the same field.
+      const assembly = this.contextTable ?? this.assemblyName;
+
       if(this.isCalc) {
-         return { kind: "calcField", assembly: this.assemblyName, name: this.formulaName };
+         return { kind: "calcField", assembly, name: this.formulaName };
       }
 
       if(this.isCondition) {
-         return { kind: this.isVSContext ? "assemblyMain" : "worksheetCondition",
-                  assembly: this.assemblyName };
+         return { kind: this.isVSContext ? "assemblyMain" : "worksheetCondition", assembly };
       }
 
       return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
-               assembly: this.assemblyName, name: this.formulaName };
+               assembly, name: this.formulaName };
    }
 
    @Input()

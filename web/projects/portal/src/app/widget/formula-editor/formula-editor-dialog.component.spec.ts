@@ -106,6 +106,35 @@ describe("FormulaEditorDialog — editorContext", () => {
 
       expect(comp.editorContext).toBeNull();
    });
+
+   // ScriptTarget.java's CALC_FIELD kind is addressed by (table, field name): `assembly`
+   // carries the owning table, and the server throws a PairingException without it.
+   // `assemblyName` is a plain @Input already consumed by populateColumnTree /
+   // populateScriptDefinitions elsewhere on this component, so callers that know the
+   // table but never set `assemblyName` (calc-field creation, worksheet column editing)
+   // need a field of their own: `contextTable`.
+   it("prefers contextTable over assemblyName for a calcField's table", () => {
+      const comp = pairedDialog();
+      comp.isCalc = true;
+      comp.assemblyName = "Query1"; // set to a *different* value than contextTable, so this
+                                    // test can only pass if contextTable, not assemblyName,
+                                    // is what reaches `assembly`.
+      comp.contextTable = "Table1";
+      comp.formulaName = "Margin";
+
+      expect(comp.editorContext).toEqual(
+         { kind: "calcField", assembly: "Table1", name: "Margin" });
+   });
+
+   it("falls back to assemblyName for a calcField's table when contextTable is absent", () => {
+      const comp = pairedDialog();
+      comp.isCalc = true;
+      comp.assemblyName = "Table2";
+      comp.formulaName = "Margin";
+
+      expect(comp.editorContext).toEqual(
+         { kind: "calcField", assembly: "Table2", name: "Margin" });
+   });
 });
 
 describe("FormulaEditorDialog — canPair", () => {
