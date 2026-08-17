@@ -2212,9 +2212,15 @@ public class WizVsService {
     * Executes the sandbox for an existing assembly and returns headers/rows/hasData.
     * Called after {@code createViewsheetSkipExecution} to lazily populate row data
     * (e.g. for data insight generation on a type switch).
+    *
+    * <p>Public because it is also the whole of {@code POST /api/wiz/viewsheet/assembly-data}: a
+    * caller answering a question about a chart built earlier in a conversation needs that chart's
+    * own rows, and this reads exactly them — addressed by the same (runtimeId, assemblyName) pair
+    * the browser embed renders with, at whatever row cap that chart is already showing. There is
+    * deliberately no parameter to widen that cap; see AssemblyDataRequest.
     */
-   CreateViewsheetResult fetchAssemblyData(String runtimeId, String assemblyName,
-                                           Principal user) throws Exception
+   public CreateViewsheetResult fetchAssemblyData(String runtimeId, String assemblyName,
+                                                  Principal user) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
 

@@ -117,6 +117,27 @@ public class WizViewsheetController {
       return run("geo apply", () -> wizGeoService.apply(request, user));
    }
 
+   /**
+    * Read-only: returns an existing assembly's rendered data (headers + rows + binding).
+    *
+    * <p>For answering a question about a chart built EARLIER in a conversation. The caller holds no
+    * copy of that chart's rows; it addresses the chart the way the browser embed does — runtime id
+    * plus assembly name — and gets back what that chart is showing. Nothing here can change the
+    * chart's data range (see {@link AssemblyDataRequest}), so the answer and the chart on screen
+    * cannot disagree.
+    *
+    * <p>An assembly whose runtime has been reaped comes back as an empty result rather than an
+    * error: the chart is equally unavailable to the user at that point, so "no data to answer from"
+    * is the accurate outcome, not a failure to retry.
+    */
+   @PostMapping(value = "/viewsheet/assembly-data", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> assemblyData(@Valid @RequestBody AssemblyDataRequest request,
+                                         Principal user)
+   {
+      return run("read assembly data", () -> wizVsService.fetchAssemblyData(
+         request.getRuntimeId(), request.getAssemblyName(), user));
+   }
+
    @PostMapping(value = "/viewsheet/remove-visualization", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<?> removeVisualization(@Valid @RequestBody RemoveVisualizationRequest request,
                                                 Principal user)
