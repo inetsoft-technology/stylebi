@@ -21,6 +21,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartRefService;
 import inetsoft.web.binding.controller.ChangeChartTypeService;
 import inetsoft.web.binding.controller.ChangeSeparateStatusService;
@@ -137,11 +139,63 @@ public class ChartBindingService {
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
-         boolean multi = chart.getVSChartInfo().isMultiStyles();
+         VSChartInfo chartInfo = chart.getVSChartInfo();
+         boolean multi = chartInfo.isMultiStyles();
+
+         // ChangeSeparateStatusService forces separated=true unconditionally for these types,
+         // regardless of what is requested (event.isSeparate() is OR'd with the type checks, so
+         // it can only ever push the result toward true, never override it back to false). A
+         // caller asking for `separate: false` here would otherwise get `ok: true` and a message
+         // describing merged graphs while the chart stayed separated — the same
+         // plausible-but-wrong-result shape set_chart_type's own gap had. Refuse up front rather
+         // than report a resulting state that contradicts what was asked for; an agent told "no"
+         // learns something, one told "yes" when the answer is no builds on a false premise.
+         String forcedTypeName = separate ? null : forcedSeparateTypeName(chartInfo.getChartType());
+
+         if(forcedTypeName != null) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a " + forcedTypeName + " chart, which cannot be " +
+               "merged — StyleBI always renders it as separated graphs regardless of this " +
+               "setting. Call with separate: true, or leave it unset.");
+         }
 
          ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent(assemblyName, multi, separate);
          separateStatusService.changeSeparateStatus(runtimeId, event, user, dispatcher, linkUri);
       });
+   }
+
+   /**
+    * Names the chart type if it is one {@link ChangeSeparateStatusService} always forces to
+    * separated, regardless of the requested value; {@code null} otherwise. Mirrors that service's
+    * own {@code GraphTypes.isTreemap(...) || isMekko(...) || isScatteredContour(...)} check —
+    * kept local rather than shared, since it exists only to produce this one error message.
+    */
+   private static String forcedSeparateTypeName(int chartType) {
+      if(GraphTypes.isTreemap(chartType)) {
+         if(chartType == GraphTypes.CHART_SUNBURST) {
+            return "sunburst";
+         }
+
+         if(chartType == GraphTypes.CHART_CIRCLE_PACKING) {
+            return "circle-packing";
+         }
+
+         if(chartType == GraphTypes.CHART_ICICLE) {
+            return "icicle";
+         }
+
+         return "treemap";
+      }
+
+      if(GraphTypes.isMekko(chartType)) {
+         return "mekko";
+      }
+
+      if(GraphTypes.isScatteredContour(chartType)) {
+         return "scattered-contour";
+      }
+
+      return null;
    }
 
    public void swapAxes(String sessionToken, Principal user, String assemblyName, String linkUri)

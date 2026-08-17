@@ -150,6 +150,54 @@ class ChartBindingServiceTest {
       assertTrue(captor.getValue().isSeparate());
    }
 
+   /**
+    * ChangeSeparateStatusService forces separated=true unconditionally for these types
+    * (event.isSeparate() is OR'd with the type checks, so it can only push the result toward
+    * true, never back to false). Reporting "merged" for a chart that stayed separated would be
+    * the exact plausible-but-wrong-result shape set_chart_type's own 'separate' gap had —
+    * refuse before calling the endpoint at all rather than let that happen.
+    */
+   @Test
+   void refusesToMergeAChartTypeThatIsAlwaysSeparated() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      inetsoft.uql.viewsheet.graph.VSChartInfo chartInfo =
+         mock(inetsoft.uql.viewsheet.graph.VSChartInfo.class);
+      when(chart.getVSChartInfo()).thenReturn(chartInfo);
+      when(chartInfo.getChartType())
+         .thenReturn(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_TREEMAP);
+
+      ChartBindingService service = harnessWithAssembly(chart, new ChartBindingModel(),
+         mock(ChangeChartRefService.class), mock(ChangeChartTypeService.class),
+         mock(SwapXYBindingService.class), separateStatus);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setSeparateStatus("tok", principal(), "Chart1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("treemap"));
+      verifyNoInteractions(separateStatus);
+   }
+
+   @Test
+   void allowsRequestingSeparateOnAChartTypeThatIsAlwaysSeparated() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      inetsoft.uql.viewsheet.graph.VSChartInfo chartInfo =
+         mock(inetsoft.uql.viewsheet.graph.VSChartInfo.class);
+      when(chart.getVSChartInfo()).thenReturn(chartInfo);
+      when(chartInfo.getChartType())
+         .thenReturn(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_MEKKO);
+
+      // separate: true agrees with what the server would force anyway, so this must succeed --
+      // only the contradicting request (separate: false) is refused.
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class), separateStatus)
+         .setSeparateStatus("tok", principal(), "Chart1", true, "");
+
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), any(), any(Principal.class), any(),
+                                                  anyString());
+   }
+
    @Test
    void refusesANonChartAssemblyNamingIt() {
       ChartBindingService service = harnessWithAssembly(
