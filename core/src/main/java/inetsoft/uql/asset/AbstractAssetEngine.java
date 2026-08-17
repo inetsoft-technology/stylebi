@@ -2100,6 +2100,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
+      // Permissions are only keyed by path for global-scope assets. A user's private assets
+      // live in the same path namespace (the owner is carried by the entry, not the path), so
+      // transferring the permission of a private folder would move/clear the permission of the
+      // same-named folder in the global repository.
+      if(oentry.getScope() != GLOBAL_SCOPE) {
+         return;
+      }
+
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
       ResourceType type = getAssetResourceType(oentry);
       Permission oldPermission = securityEngine.getPermission(type, oentry.getPath());
@@ -2109,7 +2117,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       securityEngine.removePermission(type, oentry.getPath());
-      securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+
+      // moving out of the global repository (e.g. into a user's private assets); the old
+      // permission no longer applies to any path and must not be copied to the private path
+      if(nentry.getScope() == GLOBAL_SCOPE) {
+         securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+      }
    }
 
    /**
