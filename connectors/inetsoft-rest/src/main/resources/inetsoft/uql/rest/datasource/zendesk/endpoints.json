@@ -991,12 +991,14 @@
           "key": "id",
           "parameterName": "Trigger ID"
         }
-      ]
+      ],
+      "description": "The rules that fire the moment a ticket is created or updated, each with its conditions, the actions it performs, whether it is active, and its position in the run order. WORTH READING BEFORE INTERPRETING TICKET DATA: triggers set priority, assign groups, add tags and send notifications automatically, so a great many field values on a ticket were put there by a rule rather than by a person. Position matters -- triggers run in order and a later one can overwrite an earlier one's work, which is why the same conditions can produce different outcomes."
     },
     {
       "name": "Support Trigger",
       "pageType": "none",
-      "suffix": "/api/v2/triggers/{Trigger ID}.json"
+      "suffix": "/api/v2/triggers/{Trigger ID}.json",
+      "description": "One trigger by id, with its full condition and action set."
     },
     {
       "name": "Support Active Triggers",
@@ -1009,7 +1011,8 @@
           "key": "id",
           "parameterName": "Trigger ID"
         }
-      ]
+      ],
+      "description": "Only the triggers currently switched on. A subset of Support Triggers, and the one that reflects what is actually happening to tickets now -- inactive rules remain in the full list and explain nothing about current behaviour."
     },
     {
       "name": "Support Trigger Search",
@@ -1022,42 +1025,50 @@
           "key": "id",
           "parameterName": "Trigger ID"
         }
-      ]
+      ],
+      "description": "Triggers matching a search term across name and description. Use it to find the rule responsible for a behaviour when its name is only half remembered."
     },
     {
       "name": "Support Trigger Definitions",
       "pageType": "link",
-      "suffix": "/api/v2/triggers/definitions.json"
+      "suffix": "/api/v2/triggers/definitions.json",
+      "description": "The conditions and actions a trigger may be built from, as reference data. The vocabulary rules are written in -- useful for interpreting a condition whose field name means nothing on its own."
     },
     {
       "name": "Support Trigger Revisions",
       "pageType": "link",
-      "suffix": "/api/v2/triggers/{Trigger ID}/revisions.json"
+      "suffix": "/api/v2/triggers/{Trigger ID}/revisions.json",
+      "description": "The CHANGE HISTORY of one trigger: each past version with who saved it and when. Requires a trigger id. Genuinely an audit trail rather than configuration -- when ticket behaviour changed on a particular date and nobody remembers why, this is where the answer is, and no ticket table records it."
     },
     {
       "name": "Support Trigger Revision",
       "pageType": "none",
-      "suffix": "/api/v2/triggers/{Trigger ID}/revisions/{Revision ID}.json"
+      "suffix": "/api/v2/triggers/{Trigger ID}/revisions/{Revision ID}.json",
+      "description": "One past version of a trigger, with its conditions and actions as they stood. Requires the trigger id and revision id. Use it to see exactly what a rule did during a period being analysed."
     },
     {
       "name": "Support Automations",
       "pageType": "link",
-      "suffix": "/api/v2/automations.json?active={Active?:true|false}"
+      "suffix": "/api/v2/automations.json?active={Active?:true|false}",
+      "description": "The rules that fire on ELAPSED TIME rather than on an event -- escalate after four hours, close after seven days, notify when an SLA is about to breach. Each carries conditions, actions and whether it is active. The distinction from triggers matters: automations run hourly against every open ticket, so status changes and escalations that appear to have no actor behind them usually came from here."
     },
     {
       "name": "Support Automation",
       "pageType": "none",
-      "suffix": "/api/v2/automations/{Automation ID}.json"
+      "suffix": "/api/v2/automations/{Automation ID}.json",
+      "description": "One automation by id, with its conditions and actions."
     },
     {
       "name": "Support Active Automations",
       "pageType": "link",
-      "suffix": "/api/v2/automations/active.json"
+      "suffix": "/api/v2/automations/active.json",
+      "description": "Only the automations currently switched on."
     },
     {
       "name": "Support Automation Search",
       "pageType": "link",
-      "suffix": "/api/v2/automations/search.json?query={Query}&active={Active?:true|false}"
+      "suffix": "/api/v2/automations/search.json?query={Query}&active={Active?:true|false}",
+      "description": "Automations matching a search term."
     },
     {
       "name": "Support SLA Policies",
@@ -1080,22 +1091,26 @@
     {
       "name": "Support Targets",
       "pageType": "link",
-      "suffix": "/api/v2/targets.json"
+      "suffix": "/api/v2/targets.json",
+      "description": "The external destinations Zendesk can notify when a rule fires -- an HTTP endpoint, an email address, or a third-party service. Configuration; the notifications themselves are not recorded here, but their FAILURES are, in Support Target Failures."
     },
     {
       "name": "Support Target",
       "pageType": "none",
-      "suffix": "/api/v2/targets/{Target ID}.json"
+      "suffix": "/api/v2/targets/{Target ID}.json",
+      "description": "One target by id, with its type and destination."
     },
     {
       "name": "Support Target Failures",
       "pageType": "link",
-      "suffix": "/api/v2/target_failures"
+      "suffix": "/api/v2/target_failures",
+      "description": "The notifications to external targets that FAILED, with the target, the response received, and when it happened. NOT configuration -- this is operational data, and the only place a silently broken integration shows up: a rule that fires correctly into a dead endpoint leaves no mark on any ticket, and this table is the mark."
     },
     {
       "name": "Support Target Failure",
       "pageType": "none",
-      "suffix": "/api/v2/target_failures/{Failure ID}"
+      "suffix": "/api/v2/target_failures/{Failure ID}",
+      "description": "One target failure by id, with the full request and response bodies. The detail behind a failure, and where the actual payload is visible."
     },
     {
       "name": "Support Macros",
@@ -1108,47 +1123,56 @@
           "key": "id",
           "parameterName": "Macro ID"
         }
-      ]
+      ],
+      "description": "The bulk actions agents apply to tickets by hand -- set status, add a canned reply, change assignee, all in one click. Each carries its actions, whether it is active, and its restriction. Macros are the closest thing to a record of standard practice: which are used and which are not says a good deal about how a team actually works, though the usage counts themselves are not in this connector."
     },
     {
       "name": "Support Macro",
       "pageType": "none",
-      "suffix": "/api/v2/macros/{Macro ID}.json"
+      "suffix": "/api/v2/macros/{Macro ID}.json",
+      "description": "One macro by id, with its full action set."
     },
     {
       "name": "Support Active Macros",
       "pageType": "link",
-      "suffix": "/api/v2/macros/active.json?access={Access?:personal|shared|account}&category={Category?}&group_id={Group ID?}"
+      "suffix": "/api/v2/macros/active.json?access={Access?:personal|shared|account}&category={Category?}&group_id={Group ID?}",
+      "description": "Only the macros currently available. A subset of Support Macros."
     },
     {
       "name": "Support Macro Categories",
       "pageType": "link",
-      "suffix": "/api/v2/macros/categories.json"
+      "suffix": "/api/v2/macros/categories.json",
+      "description": "The categories macros are filed under, as a plain list of names. Organisational grouping."
     },
     {
       "name": "Support Macro Search",
       "pageType": "link",
-      "suffix": "/api/v2/macros/search.json?query={Query}&access={Access?:personal|shared|account}&active={Active?:true|false}&category={Category?}&group_id={Group ID?}&only_viewable={Only Viewable?:true|false}"
+      "suffix": "/api/v2/macros/search.json?query={Query}&access={Access?:personal|shared|account}&active={Active?:true|false}&category={Category?}&group_id={Group ID?}&only_viewable={Only Viewable?:true|false}",
+      "description": "Macros matching a search term."
     },
     {
       "name": "Support Macro Actions",
       "pageType": "link",
-      "suffix": "/api/v2/macros/actions.json"
+      "suffix": "/api/v2/macros/actions.json",
+      "description": "The actions across all macros. Use it to find every macro that sets a particular field or applies a particular tag -- which the per-macro records cannot answer without reading each one."
     },
     {
       "name": "Support Macro Action Definitions",
       "pageType": "link",
-      "suffix": "/api/v2/macros/definitions.json"
+      "suffix": "/api/v2/macros/definitions.json",
+      "description": "The actions a macro may be built from, as reference data."
     },
     {
       "name": "Support Macro Attachments",
       "pageType": "link",
-      "suffix": "/api/v2/macros/{Macro ID}/attachments.json"
+      "suffix": "/api/v2/macros/{Macro ID}/attachments.json",
+      "description": "The files attached to one macro, so that applying it also attaches them. Requires a macro id."
     },
     {
       "name": "Support Macro Attachment",
       "pageType": "none",
-      "suffix": "/api/v2/macros/attachments/{Attachment ID}.json"
+      "suffix": "/api/v2/macros/attachments/{Attachment ID}.json",
+      "description": "One macro attachment by id."
     },
     {
       "name": "Support Brands",
@@ -1173,12 +1197,14 @@
     {
       "name": "Support Host Mapping Validity",
       "pageType": "none",
-      "suffix": "/api/v2/brands/check_host_mapping.json?host_mapping={Host Mapping}&subdomain={Subdomain}"
+      "suffix": "/api/v2/brands/check_host_mapping.json?host_mapping={Host Mapping}&subdomain={Subdomain}",
+      "description": "Checks whether a proposed host mapping resolves correctly in DNS. A validation call rather than a data endpoint -- it reports on a hostname supplied to it, not on anything stored."
     },
     {
       "name": "Support Host Mapping Validity for Brand",
       "pageType": "none",
-      "suffix": "/api/v2/brands/{Brand ID}/check_host_mapping.json"
+      "suffix": "/api/v2/brands/{Brand ID}/check_host_mapping.json",
+      "description": "The same DNS check for one existing brand. Requires a brand id. Use it to find a brand whose custom domain has stopped resolving, which would otherwise surface only as customers unable to reach the help centre."
     },
     {
       "name": "Support Dynamic Content Items",
@@ -1191,22 +1217,26 @@
           "key": "id",
           "parameterName": "Item ID"
         }
-      ]
+      ],
+      "description": "The reusable text snippets used in macros, triggers and automations, each with a default locale and a placeholder name. Content rather than configuration: the words customers actually receive live here rather than in the rules that send them, so the text of an automated reply is only readable through this table."
     },
     {
       "name": "Support Dynamic Content Item",
       "pageType": "none",
-      "suffix": "/api/v2/dynamic_content/items/{Item ID}.json"
+      "suffix": "/api/v2/dynamic_content/items/{Item ID}.json",
+      "description": "One dynamic content item by id, with its variants."
     },
     {
       "name": "Support Dynamic Content Variants",
       "pageType": "link",
-      "suffix": "/api/v2/dynamic_content/items/{Item ID}/variants.json"
+      "suffix": "/api/v2/dynamic_content/items/{Item ID}/variants.json",
+      "description": "The per-locale translations of one item, each with its locale, its text, and whether it is the default and whether it is active. Requires an item id. A multilingual account keeps its real customer-facing wording here, one row per language."
     },
     {
       "name": "Support Dynamic Content Variant",
       "pageType": "none",
-      "suffix": "/api/v2/dynamic_content/items/{Item ID}/variants/{Variant ID}.json"
+      "suffix": "/api/v2/dynamic_content/items/{Item ID}/variants/{Variant ID}.json",
+      "description": "One variant by id. Requires the item id as well."
     },
     {
       "name": "Support Locales",
@@ -1273,22 +1303,26 @@
     {
       "name": "Support Sharing Agreements",
       "pageType": "link",
-      "suffix": "/api/v2/sharing_agreements.json"
+      "suffix": "/api/v2/sharing_agreements.json",
+      "description": "The agreements to share tickets with other Zendesk accounts, with the partner, the direction and the status. Genuinely worth knowing when reconciling counts: tickets shared in from a partner appear in this account, and tickets shared out are worked on elsewhere, so a volume figure can include or exclude work the team never touched."
     },
     {
       "name": "Support Sharing Agreement",
       "pageType": "none",
-      "suffix": "/api/v2/sharing_agreements/{Agreement ID}.json"
+      "suffix": "/api/v2/sharing_agreements/{Agreement ID}.json",
+      "description": "One sharing agreement by id."
     },
     {
       "name": "Support Addresses",
       "pageType": "link",
-      "suffix": "/api/v2/recipient_addresses.json"
+      "suffix": "/api/v2/recipient_addresses.json",
+      "description": "The support email addresses the account receives on, with the address, the brand it belongs to, its default flag, and its forwarding and DNS verification status. Inbound mail arrives through these, so this is what maps an incoming ticket to a brand or a product line -- and the verification status is why mail to a given address may not be arriving at all."
     },
     {
       "name": "Support Address",
       "pageType": "none",
-      "suffix": "/api/v2/recipient_addresses/{Address ID}.json"
+      "suffix": "/api/v2/recipient_addresses/{Address ID}.json",
+      "description": "One recipient address by id, with its verification status."
     },
     {
       "name": "Support Ticket Forms",
@@ -1401,67 +1435,80 @@
           "key": "id",
           "parameterName": "Attribute ID"
         }
-      ]
+      ],
+      "description": "The skills defined for skills-based routing -- language, product, tier -- each with a name. Requires the skills-based routing feature. The definitions; which agents hold them and which tickets need them are separate tables."
     },
     {
       "name": "Support Routing Attribute",
       "pageType": "none",
-      "suffix": "/api/v2/routing/attributes/{Attribute ID}.json"
+      "suffix": "/api/v2/routing/attributes/{Attribute ID}.json",
+      "description": "One routing attribute by id."
     },
     {
       "name": "Support Routing Attribute Definitions",
       "pageType": "link",
-      "suffix": "/api/v2/routing/attributes/definitions.json"
+      "suffix": "/api/v2/routing/attributes/definitions.json",
+      "description": "The conditions skill routing rules may be built from, as reference data."
     },
     {
       "name": "Support Routing Attribute Values",
       "pageType": "link",
-      "suffix": "/api/v2/routing/attributes/{Attribute ID}/values.json"
+      "suffix": "/api/v2/routing/attributes/{Attribute ID}/values.json",
+      "description": "The possible values of one attribute -- the individual skills within a category, such as the languages under Language. Requires an attribute id. THE KEY to the skill assignments: agent and ticket records reference these values by id."
     },
     {
       "name": "Support Routing Attribute Value",
       "pageType": "none",
-      "suffix": "/api/v2/routing/attributes/{Attribute ID}/values/{Value ID}.json"
+      "suffix": "/api/v2/routing/attributes/{Attribute ID}/values/{Value ID}.json",
+      "description": "One attribute value by id. Requires the attribute id as well."
     },
     {
       "name": "Support Routing Attribute Values for Ticket",
       "pageType": "link",
-      "suffix": "/api/v2/routing/tickets/{Ticket ID}/instance_values.json"
+      "suffix": "/api/v2/routing/tickets/{Ticket ID}/instance_values.json",
+      "description": "The skills one ticket requires. Requires a ticket id. Paired with the agent skills, this is what determined who the ticket could be routed to."
     },
     {
       "name": "Support Routing Attribute Values for Agent",
       "pageType": "link",
-      "suffix": "/api/v2/routing/agents/{Agent ID}/instance_values.json"
+      "suffix": "/api/v2/routing/agents/{Agent ID}/instance_values.json",
+      "description": "The skills one agent actually holds. Requires a user id. Data rather than configuration -- it is the answer to who can handle what, and the constraint that explains why a ticket sat unassigned while agents were free."
     },
     {
       "name": "Support Tickets Fulfilled by Current User",
       "pageType": "link",
-      "suffix": "/api/v2/routing/requirements/fulfilled.json"
+      "suffix": "/api/v2/routing/requirements/fulfilled.json",
+      "description": "The tickets whose skill requirements the calling agent satisfies. Scoped to the caller, so it describes one person's eligible queue rather than the account's routing state."
     },
     {
       "name": "Support Workspaces",
       "pageType": "link",
-      "suffix": "/api/v2/workspaces.json"
+      "suffix": "/api/v2/workspaces.json",
+      "description": "The agent workspaces configured -- named combinations of ticket form, macros and apps that appear together for particular kinds of work. Requires the feature to be enabled. Configuration of the agent interface; it shapes how tickets are handled but records nothing about any ticket."
     },
     {
       "name": "Support Workspace",
       "pageType": "none",
-      "suffix": "/api/v2/workspaces/{Workspace ID}.json"
+      "suffix": "/api/v2/workspaces/{Workspace ID}.json",
+      "description": "One workspace by id."
     },
     {
       "name": "Support Apps",
       "pageType": "link",
-      "suffix": "/api/v2/apps.json"
+      "suffix": "/api/v2/apps.json",
+      "description": "The Zendesk apps available to the account, with name, author, state and the settings each defines. Apps extend the agent interface and frequently write their own data into ticket fields or custom objects, so an unexplained field on a ticket is often an app's doing -- which makes this list worth checking before concluding a column has no source."
     },
     {
       "name": "Support App",
       "pageType": "none",
-      "suffix": "/api/v2/apps/{App ID}.json"
+      "suffix": "/api/v2/apps/{App ID}.json",
+      "description": "One app by id, with its full settings definition."
     },
     {
       "name": "Support Owned Apps",
       "pageType": "link",
-      "suffix": "/api/v2/apps/owned.json"
+      "suffix": "/api/v2/apps/owned.json",
+      "description": "Only the apps this account authored, as opposed to those installed from the marketplace."
     },
     {
       "name": "Support App Installations",
@@ -1474,42 +1521,50 @@
           "key": "id",
           "parameterName": "Installation ID"
         }
-      ]
+      ],
+      "description": "The apps actually INSTALLED, with their configured settings and whether each is enabled. The distinction from Support Apps matters: that lists what is available, this lists what is running, and only the second explains current behaviour."
     },
     {
       "name": "Support App Installation",
       "pageType": "none",
-      "suffix": "/api/v2/apps/installations/{Installation ID}.json"
+      "suffix": "/api/v2/apps/installations/{Installation ID}.json",
+      "description": "One app installation by id, with its settings as configured on this account."
     },
     {
       "name": "Support App Installation Status",
       "pageType": "none",
-      "suffix": "/api/v2/apps/installations/job_status/{Job ID}.json"
+      "suffix": "/api/v2/apps/installations/job_status/{Job ID}.json",
+      "description": "The progress of an app installation job. Operational, and short-lived."
     },
     {
       "name": "Support App Requirements",
       "pageType": "link",
-      "suffix": "/api/v2/apps/installations/{Installation ID}/requirements.json"
+      "suffix": "/api/v2/apps/installations/{Installation ID}/requirements.json",
+      "description": "The Zendesk objects an installed app created for itself -- custom ticket fields, targets, triggers and the like. Requires an installation id. THE ANSWER TO WHERE AN UNEXPLAINED FIELD CAME FROM: objects listed here were created by the app rather than by an administrator, and removing the app removes them."
     },
     {
       "name": "Support App Location Installations",
       "pageType": "link",
-      "suffix": "/api/v2/apps/location_installations.json"
+      "suffix": "/api/v2/apps/location_installations.json",
+      "description": "Which apps occupy which interface locations, and in what order. Interface configuration."
     },
     {
       "name": "Support App Locations",
       "pageType": "link",
-      "suffix": "/api/v2/apps/locations.json"
+      "suffix": "/api/v2/apps/locations.json",
+      "description": "The places in the interface an app can appear -- ticket sidebar, top bar, modal. Reference data, identical on every account."
     },
     {
       "name": "Support App Location",
       "pageType": "none",
-      "suffix": "/api/v2/apps/locations/{Location ID}.json"
+      "suffix": "/api/v2/apps/locations/{Location ID}.json",
+      "description": "One app location by id."
     },
     {
       "name": "Support OAuth Clients",
       "pageType": "link",
-      "suffix": "/api/v2/oauth/clients.json"
+      "suffix": "/api/v2/oauth/clients.json",
+      "description": "The OAuth applications registered against the account, each with its name, identifier and redirect URLs. Integration and security inventory -- these are the applications permitted to act on the account's behalf, and they hold access that appears in no user or agent list."
     },
     {
       "name": "Support OAuth Clients for Current User",
@@ -1520,32 +1575,38 @@
     {
       "name": "Support OAuth Client",
       "pageType": "none",
-      "suffix": "/api/v2/oauth/clients/{Client ID}.json"
+      "suffix": "/api/v2/oauth/clients/{Client ID}.json",
+      "description": "One OAuth client by id."
     },
     {
       "name": "Support OAuth Tokens",
       "pageType": "link",
-      "suffix": "/api/v2/oauth/tokens.json"
+      "suffix": "/api/v2/oauth/tokens.json",
+      "description": "The ACTIVE access tokens issued, with the client they belong to, the scopes granted, and when each was created and last used. Security audit material rather than configuration: a token nobody recognises, or one with broad scopes and no recent use, is exactly what an access review looks for."
     },
     {
       "name": "Support OAuth Token",
       "pageType": "none",
-      "suffix": "/api/v2/oauth/tokens/{Token ID}.json"
+      "suffix": "/api/v2/oauth/tokens/{Token ID}.json",
+      "description": "One OAuth token by id, with its scopes."
     },
     {
       "name": "Support OAuth Current Token",
       "pageType": "none",
-      "suffix": "/api/v2/oauth/tokens/current.json"
+      "suffix": "/api/v2/oauth/tokens/current.json",
+      "description": "The token the current request is authenticated with, and its scopes. One record, always the caller's -- and the quickest explanation for a permission error, since the scopes here decide what the rest of this connector can reach."
     },
     {
       "name": "Support Authorized Global Clients",
       "pageType": "link",
-      "suffix": "/api/v2/oauth/global_clients..json"
+      "suffix": "/api/v2/oauth/global_clients..json",
+      "description": "The globally registered Zendesk applications this account has authorised. Third-party access granted at the marketplace level rather than by the account itself."
     },
     {
       "name": "Support Account Settings",
       "pageType": "none",
-      "suffix": "/api/v2/account/settings.json"
+      "suffix": "/api/v2/account/settings.json",
+      "description": "Every account-level setting in one record -- which channels are enabled, whether satisfaction ratings are collected, whether voting and following are on, the ticket and branding options, and the active feature set. READ THIS FIRST WHEN A TABLE COMES BACK EMPTY. Several endpoints in this connector return nothing not because there is no data but because the feature behind them is switched off, and this is the only place that distinction is visible: satisfaction ratings absent because CSAT was never enabled looks identical to satisfaction ratings absent because nobody responded."
     },
     {
       "name": "Support Audit Logs",
@@ -1562,17 +1623,20 @@
     {
       "name": "Support Bookmarks",
       "pageType": "link",
-      "suffix": "/api/v2/bookmarks.json"
+      "suffix": "/api/v2/bookmarks.json",
+      "description": "The tickets the calling agent has bookmarked. Always the caller's own, so it is a personal shortlist rather than any measure of the account."
     },
     {
       "name": "Support Resource Collections",
       "pageType": "link",
-      "suffix": "/api/v2/resource_collections.json"
+      "suffix": "/api/v2/resource_collections.json",
+      "description": "Bundles of Zendesk objects created together by an app or an installation, tracked as a unit so they can be removed together. Housekeeping metadata; the objects themselves live in their own tables."
     },
     {
       "name": "Support Resource Collection",
       "pageType": "none",
-      "suffix": "/api/v2/resource_collections/{Collection ID}.json"
+      "suffix": "/api/v2/resource_collections/{Collection ID}.json",
+      "description": "One resource collection by id, with the objects it groups."
     },
     {
       "name": "Help Desk Articles",
@@ -1764,12 +1828,14 @@
     {
       "name": "Help Desk Permission Groups",
       "pageType": "link",
-      "suffix": "/api/v2/guide/permission_groups.json"
+      "suffix": "/api/v2/guide/permission_groups.json",
+      "description": "The groups controlling who may create and edit knowledge base content, with each group's name and membership. Guide's authoring permissions, and therefore the explanation for who could have written or changed an article -- the article itself records only its author."
     },
     {
       "name": "Help Desk Permission Group",
       "pageType": "none",
-      "suffix": "/api/v2/guide/permission_groups/{Group ID}.json"
+      "suffix": "/api/v2/guide/permission_groups/{Group ID}.json",
+      "description": "One permission group by id."
     },
     {
       "name": "Help Desk Article Search",
@@ -1834,17 +1900,20 @@
     {
       "name": "Help Desk Themes",
       "pageType": "link",
-      "suffix": "/api/v2/guide/theming/themes?brand_id={Brand ID?}"
+      "suffix": "/api/v2/guide/theming/themes?brand_id={Brand ID?}",
+      "description": "The Guide themes installed for the help centre, with name, version, author and which is live. Presentation of the customer-facing knowledge base; it affects nothing in the content tables."
     },
     {
       "name": "Help Desk Theme",
       "pageType": "none",
-      "suffix": "/api/v2/guide/theming/themes/{Theme ID}"
+      "suffix": "/api/v2/guide/theming/themes/{Theme ID}",
+      "description": "One theme by id, with its settings and assets."
     },
     {
       "name": "Help Desk Theming Job",
       "pageType": "none",
-      "suffix": "/api/v2/guide/theming/jobs/{Job ID}"
+      "suffix": "/api/v2/guide/theming/jobs/{Job ID}",
+      "description": "The progress of a theme import or update job. Operational and short-lived."
     },
     {
       "name": "Help Desk Topics",
@@ -2148,42 +2217,50 @@
     {
       "name": "Talk Phone Number Search",
       "pageType": "link",
-      "suffix": "/api/v2/channels/voice/phone_numbers/search.json?country={Country ISO Code}&toll_free={Toll Free?:true|false}&area_code={Area Code?}&contains={Contains?:regular expression}"
+      "suffix": "/api/v2/channels/voice/phone_numbers/search.json?country={Country ISO Code}&toll_free={Toll Free?:true|false}&area_code={Area Code?}&contains={Contains?:regular expression}",
+      "description": "Available numbers to purchase, by country and pattern. A procurement lookup against Zendesk's inventory rather than anything the account holds."
     },
     {
       "name": "Talk Phone Numbers",
       "pageType": "link",
-      "suffix": "/api/v2/channels/voice/phone_numbers.json"
+      "suffix": "/api/v2/channels/voice/phone_numbers.json",
+      "description": "The phone numbers the account owns, each with its number, country, capabilities (voice, SMS, MMS), the brand and group it routes to, whether recording and voicemail are enabled, and its monthly price. Not purely configuration: the price column makes this the voice channel's cost table, and the routing columns explain which team a call reached."
     },
     {
       "name": "Talk Phone Number",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/phone_numbers/{Phone Number ID}.json"
+      "suffix": "/api/v2/channels/voice/phone_numbers/{Phone Number ID}.json",
+      "description": "One phone number by id, with its routing and recording settings."
     },
     {
       "name": "Talk Availability",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/availabilities/{Availability ID}.json"
+      "suffix": "/api/v2/channels/voice/availabilities/{Availability ID}.json",
+      "description": "One agent's voice availability -- whether they are accepting calls, and their status. Requires a user id. A live snapshot rather than a history, so it answers who is available now and cannot describe any past period."
     },
     {
       "name": "Talk Greeting Categories",
       "pageType": "link",
-      "suffix": "/api/v2/channels/voice/greeting_categories.json"
+      "suffix": "/api/v2/channels/voice/greeting_categories.json",
+      "description": "The kinds of greeting a recording can be -- voicemail, hold, wait, and so on. Reference data, fixed by Zendesk."
     },
     {
       "name": "Talk Greeting Category",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/greeting_categories/{Category ID}.json"
+      "suffix": "/api/v2/channels/voice/greeting_categories/{Category ID}.json",
+      "description": "One greeting category by id."
     },
     {
       "name": "Talk Greetings",
       "pageType": "link",
-      "suffix": "/api/v2/channels/voice/greetings.json"
+      "suffix": "/api/v2/channels/voice/greetings.json",
+      "description": "The recorded greetings the account uses, each with its category, name, and which numbers it is assigned to. Configuration of what callers hear."
     },
     {
       "name": "Talk Greeting",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/greetings/{Greeting ID}.json"
+      "suffix": "/api/v2/channels/voice/greetings/{Greeting ID}.json",
+      "description": "One greeting by id."
     },
     {
       "name": "Talk Current Queue Activity",
@@ -2212,12 +2289,14 @@
     {
       "name": "Talk Addresses",
       "pageType": "link",
-      "suffix": "/api/v2/channels/voice/addresses.json"
+      "suffix": "/api/v2/channels/voice/addresses.json",
+      "description": "The physical addresses registered for voice numbers, held for regulatory compliance. Many countries require a verified local address before a number can be bought or kept, so this is what explains a number that cannot be provisioned."
     },
     {
       "name": "Talk Address",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/addresses/{Address ID}.json"
+      "suffix": "/api/v2/channels/voice/addresses/{Address ID}.json",
+      "description": "One voice address by id."
     },
     {
       "name": "Talk Interactive Voice Responses",
@@ -2230,12 +2309,14 @@
           "key": "id",
           "parameterName": "IVR ID"
         }
-      ]
+      ],
+      "description": "The IVR phone menus configured -- the 'press one for sales' trees. Each carries its name and the phone numbers it answers. The structure here decides which queue a caller lands in, so it is the explanation for how call volume is distributed across groups; the calls themselves are in the Talk statistics endpoints."
     },
     {
       "name": "Talk Interactive Voice Response",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}.json"
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}.json",
+      "description": "One IVR by id, with its menus."
     },
     {
       "name": "Talk Interactive Voice Response Menus",
@@ -2248,22 +2329,26 @@
           "key": "id",
           "parameterName": "Menu ID"
         }
-      ]
+      ],
+      "description": "The menus within one IVR, including which is the greeting menu. Requires an IVR id. A menu is one level of the tree."
     },
     {
       "name": "Talk Interactive Voice Response Menu",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}.json"
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}.json",
+      "description": "One IVR menu by id. Requires the IVR id as well."
     },
     {
       "name": "Talk Interactive Voice Response Routes",
       "pageType": "link",
-      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}/routes.json"
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}/routes.json",
+      "description": "The options within one menu -- which keypress leads where, whether to a group, another menu or voicemail. Requires the IVR and menu ids. THE ACTUAL ROUTING RULES: this is the level at which a caller's choice becomes a destination, and therefore where a misrouted queue is diagnosed."
     },
     {
       "name": "Talk Interactive Voice Response Route",
       "pageType": "none",
-      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}/routes/{Route ID}.json"
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}/routes/{Route ID}.json",
+      "description": "One IVR route by id, with its keypress and destination."
     }
   ]
 }
