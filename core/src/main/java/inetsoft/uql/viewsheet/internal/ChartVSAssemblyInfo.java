@@ -86,12 +86,13 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void setDefaultFormat(boolean border, boolean setFormat, boolean fill) {
       setPadding(new Insets(10, 10, 10, 10));
       super.setDefaultFormat(border, setFormat, fill);
-      getFormat().getDefaultFormat().setBackgroundValue(VSObjectChromeDefaults.cardBackgroundCss());
+      VizContext ctx = VizContext.ofGate();
+      getFormat().getDefaultFormat().setBackgroundValue(VSObjectChromeDefaults.cardBackgroundCss(ctx));
       // Enable round corners by default for newly created charts.
       // Existing charts loaded from XML default to false for backward compatibility.
       getChartDescriptor().getLegendsDescriptor().setRoundCorners(true);
 
-      if(VSObjectChromeDefaults.isModern()) {
+      if(ctx.modern) {
          PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
          plotDesc.setBarCornerRadius(0.3);
          plotDesc.setModernCornerSeed(true);

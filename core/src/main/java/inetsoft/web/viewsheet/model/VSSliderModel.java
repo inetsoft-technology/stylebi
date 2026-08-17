@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.SliderVSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.springframework.stereotype.Component;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -42,7 +43,7 @@ public class VSSliderModel extends VSNumericRangeModel<SliderVSAssembly> {
 
       // dark mode: the tick/value labels use the object foreground (default black) -> dark-on-dark.
       // Lift it to the light neutral unless the user/CSS set a foreground. Server-side so export agrees.
-      String darkForeground = VSObjectChromeDefaults.textForegroundCss();
+      String darkForeground = VSObjectChromeDefaults.textForegroundCss(VizContext.ofGate());
 
       if(darkForeground != null) {
          VSCompositeFormat objFmt = assemblyInfo.getFormat();

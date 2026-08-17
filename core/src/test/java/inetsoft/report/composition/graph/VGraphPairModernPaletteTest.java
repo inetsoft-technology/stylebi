@@ -44,7 +44,6 @@ class VGraphPairModernPaletteTest {
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
-      SreeEnv.setProperty("viewsheet.modernChartPalette", null);
    }
 
    @Test
@@ -52,7 +51,8 @@ class VGraphPairModernPaletteTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       CategoricalColorFrame frame = new CategoricalColorFrame();
       // same resolver call the VGraphPair seam makes after setParentParams
-      inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults.applyModernPalette(frame);
+      inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults.applyModernPalette(
+         frame, inetsoft.uql.viewsheet.internal.VizContext.ofGate());
       assertEquals(new Color(0x00D4E8), frame.getColor(0));
    }
 
@@ -60,7 +60,8 @@ class VGraphPairModernPaletteTest {
    void gateOffLeavesLegacyPalette() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       CategoricalColorFrame frame = new CategoricalColorFrame();
-      inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults.applyModernPalette(frame);
+      inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults.applyModernPalette(
+         frame, inetsoft.uql.viewsheet.internal.VizContext.ofGate());
       assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
    }
 }

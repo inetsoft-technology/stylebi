@@ -42,8 +42,8 @@ public final class VSCalendarChromeDefaults {
     * (not dark, or already customized). Applied to the DEFAULT tier of a clone, so the stored format
     * is never mutated or serialized and a user (USER tier) or format.css (CSS tier) color still wins.
     */
-   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat fmt) {
-      if(!VSDensityDefaults.isDark() || fmt == null) {
+   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat fmt, VizContext ctx) {
+      if(!ctx.dark || fmt == null) {
          return fmt;
       }
 

@@ -136,8 +136,9 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
     * use the raw getCellHeight() so the stored value round-trips.
     */
    public int getEffectiveCellHeight() {
-      return VSDensityDefaults.isModern() && !userCellHeight && cellHeight == AssetUtil.defh ?
-         VSDensityDefaults.cellHeight() : cellHeight;
+      VizContext ctx = VizContext.ofGate();
+      return ctx.modern && !userCellHeight && cellHeight == AssetUtil.defh ?
+         VSDensityDefaults.cellHeight(ctx) : cellHeight;
    }
 
    /**

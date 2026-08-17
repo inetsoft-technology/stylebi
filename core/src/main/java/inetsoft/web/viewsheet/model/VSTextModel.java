@@ -208,7 +208,7 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
                                              VSAssemblyInfo assemblyInfo)
    {
       return new VSFormatModel(
-         VSOutputChromeDefaults.applyModernDefaults(compositeFormat), assemblyInfo, true);
+         VSOutputChromeDefaults.applyModernDefaults(compositeFormat, VizContext.ofGate()), assemblyInfo, true);
    }
 
    private String text;

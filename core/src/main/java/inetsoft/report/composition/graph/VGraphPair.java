@@ -1018,19 +1018,20 @@ public class VGraphPair {
 
       ArrayList<CSSParameter> parentParams = info.getCssParentParameters();
       ChartDescriptor desc = info.getChartDescriptor();
+      VizContext ctx = VizContext.ofGate();
 
       if(desc != null) {
          LegendsDescriptor legendsDesc = desc.getLegendsDescriptor();
 
          if(legendsDesc != null) {
-            legendsDesc.initDefaultFormat(true);
+            legendsDesc.initDefaultFormat(ctx);
             copyDefaultFormat(legendsDesc.getTitleTextFormat().getDefaultFormat(), objFmt);
             CSSTextFormat legendTitle = legendsDesc.getTitleTextFormat().getCSSFormat();
             legendTitle.setParentCSSParams(parentParams);
             LegendDescriptor colorDesc = legendsDesc.getColorLegendDescriptor();
 
             if(colorDesc != null) {
-               colorDesc.initDefaultFormat(true);
+               colorDesc.initDefaultFormat(ctx);
                copyDefaultFormat(colorDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                colorDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1038,7 +1039,7 @@ public class VGraphPair {
             LegendDescriptor shapeDesc = legendsDesc.getShapeLegendDescriptor();
 
             if(shapeDesc != null) {
-               shapeDesc.initDefaultFormat(true);
+               shapeDesc.initDefaultFormat(ctx);
                copyDefaultFormat(shapeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                shapeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1046,7 +1047,7 @@ public class VGraphPair {
             LegendDescriptor sizeDesc = legendsDesc.getSizeLegendDescriptor();
 
             if(sizeDesc != null) {
-               sizeDesc.initDefaultFormat(true);
+               sizeDesc.initDefaultFormat(ctx);
                copyDefaultFormat(sizeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                sizeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1058,7 +1059,7 @@ public class VGraphPair {
             TitleDescriptor xDesc = titlesDesc.getXTitleDescriptor();
 
             if(xDesc != null) {
-               xDesc.initDefaultFormat(true);
+               xDesc.initDefaultFormat(ctx);
                copyDefaultFormat(xDesc.getTextFormat().getDefaultFormat(), objFmt);
                xDesc.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1066,7 +1067,7 @@ public class VGraphPair {
             TitleDescriptor xDesc2 = titlesDesc.getX2TitleDescriptor();
 
             if(xDesc2 != null) {
-               xDesc2.initDefaultFormat(true);
+               xDesc2.initDefaultFormat(ctx);
                copyDefaultFormat(xDesc2.getTextFormat().getDefaultFormat(), objFmt);
                xDesc2.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1074,7 +1075,7 @@ public class VGraphPair {
             TitleDescriptor yDesc = titlesDesc.getYTitleDescriptor();
 
             if(yDesc != null) {
-               yDesc.initDefaultFormat(true);
+               yDesc.initDefaultFormat(ctx);
                copyDefaultFormat(yDesc.getTextFormat().getDefaultFormat(), objFmt);
                yDesc.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1082,7 +1083,7 @@ public class VGraphPair {
             TitleDescriptor yDesc2 = titlesDesc.getY2TitleDescriptor();
 
             if(yDesc2 != null) {
-               yDesc2.initDefaultFormat(true);
+               yDesc2.initDefaultFormat(ctx);
                copyDefaultFormat(yDesc2.getTextFormat().getDefaultFormat(), objFmt);
                yDesc2.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1093,13 +1094,13 @@ public class VGraphPair {
          if(plotDesc != null) {
             plotDesc.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             plotDesc.getErrorFormat().getCSSFormat().setParentCSSParams(parentParams);
-            plotDesc.initDefaultFormat(true);
+            plotDesc.initDefaultFormat(ctx);
             copyDefaultFormat(plotDesc.getTextFormat().getDefaultFormat(), objFmt);
          }
 
          for(int i = 0; i < desc.getTargetCount(); i++) {
             GraphTarget graphTarget = desc.getTarget(i);
-            graphTarget.initDefaultFormat(true);
+            graphTarget.initDefaultFormat(ctx);
             copyDefaultFormat(graphTarget.getTextFormat().getDefaultFormat(), objFmt);
             graphTarget.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
          }
@@ -1111,14 +1112,14 @@ public class VGraphPair {
          LegendsDescriptor legendsDesc = rdesc.getLegendsDescriptor();
 
          if(legendsDesc != null) {
-            legendsDesc.initDefaultFormat(true);
+            legendsDesc.initDefaultFormat(ctx);
             copyDefaultFormat(legendsDesc.getTitleTextFormat().getDefaultFormat(), objFmt);
             CSSTextFormat legendTitle = legendsDesc.getTitleTextFormat().getCSSFormat();
             legendTitle.setParentCSSParams(parentParams);
             LegendDescriptor colorDesc = legendsDesc.getColorLegendDescriptor();
 
             if(colorDesc != null) {
-               colorDesc.initDefaultFormat(true);
+               colorDesc.initDefaultFormat(ctx);
                copyDefaultFormat(colorDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                colorDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1126,7 +1127,7 @@ public class VGraphPair {
             LegendDescriptor shapeDesc = legendsDesc.getShapeLegendDescriptor();
 
             if(shapeDesc != null) {
-               shapeDesc.initDefaultFormat(true);
+               shapeDesc.initDefaultFormat(ctx);
                copyDefaultFormat(shapeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                shapeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1134,7 +1135,7 @@ public class VGraphPair {
             LegendDescriptor sizeDesc = legendsDesc.getSizeLegendDescriptor();
 
             if(sizeDesc != null) {
-               sizeDesc.initDefaultFormat(true);
+               sizeDesc.initDefaultFormat(ctx);
                copyDefaultFormat(sizeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                sizeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1146,7 +1147,7 @@ public class VGraphPair {
             TitleDescriptor xDesc = titlesDesc.getXTitleDescriptor();
 
             if(xDesc != null) {
-               xDesc.initDefaultFormat(true);
+               xDesc.initDefaultFormat(ctx);
                copyDefaultFormat(xDesc.getTextFormat().getDefaultFormat(), objFmt);
                xDesc.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1154,7 +1155,7 @@ public class VGraphPair {
             TitleDescriptor xDesc2 = titlesDesc.getX2TitleDescriptor();
 
             if(xDesc2 != null) {
-               xDesc2.initDefaultFormat(true);
+               xDesc2.initDefaultFormat(ctx);
                copyDefaultFormat(xDesc2.getTextFormat().getDefaultFormat(), objFmt);
                xDesc2.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1162,7 +1163,7 @@ public class VGraphPair {
             TitleDescriptor yDesc = titlesDesc.getYTitleDescriptor();
 
             if(yDesc != null) {
-               yDesc.initDefaultFormat(true);
+               yDesc.initDefaultFormat(ctx);
                copyDefaultFormat(yDesc.getTextFormat().getDefaultFormat(), objFmt);
                yDesc.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1170,7 +1171,7 @@ public class VGraphPair {
             TitleDescriptor yDesc2 = titlesDesc.getY2TitleDescriptor();
 
             if(yDesc2 != null) {
-               yDesc2.initDefaultFormat(true);
+               yDesc2.initDefaultFormat(ctx);
                copyDefaultFormat(yDesc2.getTextFormat().getDefaultFormat(), objFmt);
                yDesc2.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1181,13 +1182,13 @@ public class VGraphPair {
          if(plotDesc != null) {
             plotDesc.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             plotDesc.getErrorFormat().getCSSFormat().setParentCSSParams(parentParams);
-            plotDesc.initDefaultFormat(true);
+            plotDesc.initDefaultFormat(ctx);
             copyDefaultFormat(plotDesc.getTextFormat().getDefaultFormat(), objFmt);
          }
 
          for(int i = 0; i < rdesc.getTargetCount(); i++) {
             GraphTarget graphTarget = rdesc.getTarget(i);
-            graphTarget.initDefaultFormat(true);
+            graphTarget.initDefaultFormat(ctx);
             copyDefaultFormat(graphTarget.getTextFormat().getDefaultFormat(), objFmt);
             graphTarget.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
          }
@@ -1199,7 +1200,7 @@ public class VGraphPair {
          AxisDescriptor axisDesc = ((RadarChartInfo) chartInfo).getLabelAxisDescriptor();
 
          if(axisDesc != null) {
-            axisDesc.initDefaultFormat(true);
+            axisDesc.initDefaultFormat(ctx);
             copyDefaultFormat(axisDesc.getAxisLabelTextFormat().getDefaultFormat(), objFmt);
             axisDesc.getAxisLabelTextFormat().getCSSFormat().setParentCSSParams(parentParams);
 
@@ -1226,7 +1227,7 @@ public class VGraphPair {
                AxisDescriptor axisDesc = ref.getAxisDescriptor();
 
                if(axisDesc != null) {
-                  axisDesc.initDefaultFormat(true);
+                  axisDesc.initDefaultFormat(ctx);
                   copyDefaultFormat(axisDesc.getAxisLabelTextFormat().getDefaultFormat(),
                                     objFmt);
                   axisDesc.getAxisLabelTextFormat().getCSSFormat().setParentCSSParams(parentParams);
@@ -1240,7 +1241,7 @@ public class VGraphPair {
                                                                 .getDefaultFormat().getFont());
                         }
 
-                        initDefaultFormat(colFmt);
+                        initDefaultFormat(colFmt, ctx);
                         copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
                         colFmt.getCSSFormat().setParentCSSParams(parentParams);
                      }
@@ -1249,14 +1250,14 @@ public class VGraphPair {
 
                if(ref instanceof VSChartAggregateRef) {
                   VSChartAggregateRef aggr = (VSChartAggregateRef) ref;
-                  aggr.initDefaultFormat(true);
+                  aggr.initDefaultFormat(ctx);
                   ColorFrame colorFrame = aggr.getColorFrame();
 
                   if(aggr.getTextField() != null &&
                      aggr.getTextField().getDataRef() instanceof ChartRef)
                   {
                      ChartRef textfield = (ChartRef) aggr.getTextField().getDataRef();
-                     initDefaultFormat(textfield);
+                     initDefaultFormat(textfield, ctx);
                      copyDefaultFormat(textfield.getTextFormat().getDefaultFormat(), objFmt);
                   }
 
@@ -1281,7 +1282,7 @@ public class VGraphPair {
          for(VSDataRef ref : vsDataRefs) {
             if(ref instanceof VSChartDimensionRef) {
                VSChartDimensionRef chartDimRef = (VSChartDimensionRef) ref;
-               chartDimRef.initDefaultFormat(true);
+               chartDimRef.initDefaultFormat(ctx);
                copyDefaultFormat(chartDimRef.getTextFormat().getDefaultFormat(), objFmt);
                chartDimRef.getTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -1289,14 +1290,14 @@ public class VGraphPair {
 
          for(boolean runtime: new boolean[] { false, true }) {
             for(AestheticRef ref : chartInfo.getAestheticRefs(runtime)) {
-               ref.getLegendDescriptor().initDefaultFormat(true);
+               ref.getLegendDescriptor().initDefaultFormat(ctx);
                copyDefaultFormat(ref.getLegendDescriptor().getContentTextFormat()
                                  .getDefaultFormat(), objFmt);
 
                if(ref.getVisualFrame() instanceof CategoricalColorFrame) {
                   CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
                   ccf.setParentParams(parentParams);
-                  VSChartPaletteDefaults.applyModernPalette(ccf);
+                  VSChartPaletteDefaults.applyModernPalette(ccf, ctx);
                }
                else if(ref.getVisualFrame() instanceof GradientColorFrame) {
                   ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
@@ -1319,7 +1320,7 @@ public class VGraphPair {
                   for(AestheticRef aref : arefs) {
                      if(aref != null) {
                         CompositeTextFormat fmt = aref.getLegendDescriptor().getContentTextFormat();
-                        initDefaultFormat(fmt);
+                        initDefaultFormat(fmt, ctx);
                         copyDefaultFormat(fmt.getDefaultFormat(), objFmt);
                      }
                   }
@@ -1328,22 +1329,22 @@ public class VGraphPair {
          AxisDescriptor axisDesc = chartInfo.getAxisDescriptor();
          AxisDescriptor axisDesc2 = chartInfo.getAxisDescriptor2();
 
-         copyDefaultFormat(objFmt, parentParams, axisDesc);
-         copyDefaultFormat(objFmt, parentParams, axisDesc2);
+         copyDefaultFormat(objFmt, parentParams, axisDesc, ctx);
+         copyDefaultFormat(objFmt, parentParams, axisDesc2, ctx);
 
          // the value axis renders from the runtime descriptor, cloned during execution before this
          // formatting pass, so seed it too or its labels keep the legacy default color. Gated so
          // gate-off leaves the runtime descriptor untouched, exactly as today.
-         if(VSChartChromeDefaults.isModern()) {
-            copyDefaultFormat(objFmt, parentParams, chartInfo.getRTAxisDescriptor());
-            copyDefaultFormat(objFmt, parentParams, chartInfo.getRTAxisDescriptor2());
+         if(ctx.modern) {
+            copyDefaultFormat(objFmt, parentParams, chartInfo.getRTAxisDescriptor(), ctx);
+            copyDefaultFormat(objFmt, parentParams, chartInfo.getRTAxisDescriptor2(), ctx);
          }
 
          if(chartInfo.getTextField() != null && chartInfo.getTextField().getDataRef() instanceof ChartRef) {
             ChartRef ref = (ChartRef) chartInfo.getTextField().getDataRef();
 
             if(ref != null) {
-               initDefaultFormat(ref);
+               initDefaultFormat(ref, ctx);
                copyDefaultFormat(ref.getTextFormat().getDefaultFormat(), objFmt);
             }
          }
@@ -1353,17 +1354,17 @@ public class VGraphPair {
    }
 
    private void copyDefaultFormat(VSCompositeFormat objFmt, ArrayList<CSSParameter> parentParams,
-                                  AxisDescriptor axisDesc)
+                                  AxisDescriptor axisDesc, VizContext ctx)
    {
       if(axisDesc != null) {
-         axisDesc.initDefaultFormat(true);
+         axisDesc.initDefaultFormat(ctx);
          copyDefaultFormat(axisDesc.getAxisLabelTextFormat().getDefaultFormat(), objFmt);
          axisDesc.getAxisLabelTextFormat().getCSSFormat().setParentCSSParams(parentParams);
 
          // the measure axis resolves its labels through a per-column format, not the axis-wide one;
          // under the modern gate, seed those too or they keep the legacy default color (mirrors the
          // per-ref loop). Gated so gate-off leaves the value-axis per-column formats exactly as today.
-         if(VSChartChromeDefaults.isModern()) {
+         if(ctx.modern) {
             for(String col : axisDesc.getColumnLabelTextFormatColumns()) {
                CompositeTextFormat colFmt = axisDesc.getColumnLabelTextFormat(col);
 
@@ -1373,7 +1374,7 @@ public class VGraphPair {
                         axisDesc.getAxisLabelTextFormat().getDefaultFormat().getFont());
                   }
 
-                  initDefaultFormat(colFmt);
+                  initDefaultFormat(colFmt, ctx);
                   copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
                   colFmt.getCSSFormat().setParentCSSParams(parentParams);
                }
@@ -1382,16 +1383,16 @@ public class VGraphPair {
       }
    }
 
-   private void initDefaultFormat(ChartRef ref) {
+   private void initDefaultFormat(ChartRef ref, VizContext ctx) {
       if(ref instanceof VSChartDimensionRef) {
-         ((VSChartDimensionRef) ref).initDefaultFormat(true);
+         ((VSChartDimensionRef) ref).initDefaultFormat(ctx);
       }
       else if(ref instanceof VSChartAggregateRef) {
-         ((VSChartAggregateRef) ref).initDefaultFormat(true);
+         ((VSChartAggregateRef) ref).initDefaultFormat(ctx);
       }
    }
 
-   private void initDefaultFormat(CompositeTextFormat format) {
+   private void initDefaultFormat(CompositeTextFormat format, VizContext ctx) {
       if(format == null) {
          return;
       }
@@ -1399,8 +1400,8 @@ public class VGraphPair {
       TextFormat deffmt = format.getDefaultFormat();
       // match the modern chrome label default so per-column axis-label formats (e.g. the measure
       // axis, which resolves through a per-column format) aren't left on the legacy color
-      deffmt.setColor(VSChartChromeDefaults.isModern() ?
-                         VSChartChromeDefaults.labelColor() : GDefaults.DEFAULT_TEXT_COLOR);
+      deffmt.setColor(ctx.modern ?
+                         VSChartChromeDefaults.labelColor(ctx) : GDefaults.DEFAULT_TEXT_COLOR);
    }
 
    /**

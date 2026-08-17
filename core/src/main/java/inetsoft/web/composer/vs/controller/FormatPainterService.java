@@ -214,11 +214,13 @@ public class FormatPainterService {
       // modern chrome defaults so the picker matches the rendered value (design-time WYSIWYG); the
       // apply-back change-detection against the echoed origFormat keeps an unchanged panel from
       // persisting it, so gate-off stays byte-identical
+      VizContext ctx = VizContext.ofGate();
+
       if(dataPath != null && dataPath.getType() == TableDataPath.TITLE) {
-         VSTitleChromeDefaults.applyModernDefaultsInPlace(format);
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(format, ctx);
       }
       else if(assembly instanceof TextVSAssembly) {
-         VSOutputChromeDefaults.applyModernDefaultsInPlace(format);
+         VSOutputChromeDefaults.applyModernDefaultsInPlace(format, ctx);
       }
 
       if(assembly instanceof Viewsheet) {

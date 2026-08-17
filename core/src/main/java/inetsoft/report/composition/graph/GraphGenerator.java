@@ -2342,8 +2342,9 @@ public abstract class GraphGenerator {
 
                // axis color can't be controlled by user. use the x axis.
                if(xdesc != null) {
+                  VizContext ctx = VizContext.ofGate();
                   yscale.getAxisSpec().setLineColor(
-                     VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor()));
+                     VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor(), ctx));
                   yscale.getAxisSpec().setLineVisible(xdesc.isLineVisible());
                }
             }
@@ -2566,6 +2567,7 @@ public abstract class GraphGenerator {
    protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary,
                                 boolean linear)
    {
+      VizContext ctx = VizContext.ofGate();
       CompositeTextFormat format = getAxisLabelFormat(axisD, flds, secondary);
       // should only use the first field's default format (e.g. date comparison %change&value)
       String fld = flds.length > 0 ? flds[0] : null;
@@ -2577,7 +2579,7 @@ public abstract class GraphGenerator {
       Format fmt = fld != null ? getDefaultFormat(fld) : null;
       fmt = fmt == null && fld != null ? getDefaultFormat(ChartAggregateRef.getBaseName(fld)) : fmt;
       // modern chrome: unify the axis line with the gridlines when it is still the legacy default
-      axis.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(axisD.getLineColor()));
+      axis.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(axisD.getLineColor(), ctx));
       axis.setLineVisible(!maxMode && axisD.isLineVisible() || maxMode && axisD.isMaxModeLineVisible());
       axis.setTickVisible(axisD.isTicksVisible());
       axis.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));

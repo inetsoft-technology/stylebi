@@ -1890,7 +1890,7 @@ public class ChangeChartProcessor {
             if(ref.getVisualFrame() instanceof CategoricalColorFrame) {
                CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
                ccf.setParentParams(parentParams);
-               VSChartPaletteDefaults.applyModernPalette(ccf);
+               VSChartPaletteDefaults.applyModernPalette(ccf, VizContext.ofGate());
             }
             else if(ref.getVisualFrame() instanceof GradientColorFrame) {
                ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);

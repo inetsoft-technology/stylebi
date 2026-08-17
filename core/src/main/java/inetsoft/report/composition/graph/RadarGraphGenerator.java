@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogLevel;
@@ -166,6 +167,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
     * Set coordinate properties.
     */
    private void fixParallelCoord(AbstractParallelCoord coord) {
+      VizContext ctx = VizContext.ofGate();
       AxisDescriptor xdesc = null;
       AxisSpec spec = new AxisSpec();
       final Scale scale = coord.getAxisLabelScale();
@@ -199,7 +201,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
          format = xdesc.getAxisLabelTextFormat();
       }
 
-      spec.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor()));
+      spec.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor(), ctx));
       spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible());
       spec.setTickVisible(xdesc.isTicksVisible());
       spec.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));

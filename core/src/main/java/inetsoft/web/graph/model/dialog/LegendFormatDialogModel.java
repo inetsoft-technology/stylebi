@@ -22,6 +22,7 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -64,7 +65,7 @@ public class LegendFormatDialogModel implements Serializable {
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
             "#" + Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor())));
+               VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), VizContext.ofGate())));
       }
 
       if(legendsDesc.getLayout() >= 1) {
@@ -124,7 +125,7 @@ public class LegendFormatDialogModel implements Serializable {
       legendsDesc.setBorder(generalPaneModel.getStyle(), false);
       Color color = Tool.getColorFromHexString(generalPaneModel.getFillColor());
 
-      if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor()))) {
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), VizContext.ofGate()))) {
          legendsDesc.setBorderColor(color, false);
       }
       legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);

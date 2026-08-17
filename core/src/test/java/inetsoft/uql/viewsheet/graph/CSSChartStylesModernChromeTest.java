@@ -24,6 +24,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.css.CSSParameter;
 import inetsoft.util.css.CSSStyle;
@@ -85,11 +86,11 @@ class CSSChartStylesModernChromeTest {
 
          CSSChartStyles.apply(desc, info, null, null);
 
-         Color modern = VSChartChromeDefaults.gridlineColor();
+         Color modern = VSChartChromeDefaults.gridlineColor(VizContext.ofGate());
          assertEquals(modern, desc.getPlotDescriptor().getXGridColor());
          assertEquals(modern, desc.getPlotDescriptor().getYGridColor());
          assertEquals(modern, desc.getPlotDescriptor().getFacetGridColor());
-         assertEquals(VSChartChromeDefaults.legendBorderColor(),
+         assertEquals(VSChartChromeDefaults.legendBorderColor(VizContext.ofGate()),
                       desc.getLegendsDescriptor().getBorderColor());
       }
       finally {
@@ -118,7 +119,7 @@ class CSSChartStylesModernChromeTest {
 
          assertEquals(Color.RED, desc.getPlotDescriptor().getXGridColor(),
                       "customer format.css line_x_color overrides the modern baseline");
-         assertEquals(VSChartChromeDefaults.gridlineColor(), desc.getPlotDescriptor().getYGridColor(),
+         assertEquals(VSChartChromeDefaults.gridlineColor(VizContext.ofGate()), desc.getPlotDescriptor().getYGridColor(),
                       "y grid, unset by format.css, keeps the modern baseline");
       }
       finally {
@@ -153,12 +154,12 @@ class CSSChartStylesModernChromeTest {
 
       try {
          SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-         assertEquals(VSChartChromeDefaults.gridlineColor(),
-                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR),
+         assertEquals(VSChartChromeDefaults.gridlineColor(VizContext.ofGate()),
+                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
                       "legacy-default axis line unifies with the gridlines under the gate");
-         assertEquals(Color.RED, VSChartChromeDefaults.resolveAxisLineColor(Color.RED),
+         assertEquals(Color.RED, VSChartChromeDefaults.resolveAxisLineColor(Color.RED, VizContext.ofGate()),
                       "a customer/user axis-line color is preserved");
-         assertNull(VSChartChromeDefaults.resolveAxisLineColor(null),
+         assertNull(VSChartChromeDefaults.resolveAxisLineColor(null, VizContext.ofGate()),
                     "null (no line color) stays null");
       }
       finally {
@@ -173,7 +174,7 @@ class CSSChartStylesModernChromeTest {
       try {
          SreeEnv.setProperty("viewsheet.modernVisualization", "false");
          assertEquals(GDefaults.DEFAULT_LINE_COLOR,
-                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR),
+                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
                       "gate off leaves the legacy axis-line color unchanged");
       }
       finally {
@@ -187,17 +188,17 @@ class CSSChartStylesModernChromeTest {
 
       try {
          SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-         assertEquals(VSChartChromeDefaults.gridlineColor(),
-                      VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR),
+         assertEquals(VSChartChromeDefaults.gridlineColor(VizContext.ofGate()),
+                      VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, VizContext.ofGate()),
                       "legacy-default gridline shows the modern neutral under the gate");
-         assertEquals(Color.RED, VSChartChromeDefaults.resolveGridlineColor(Color.RED),
+         assertEquals(Color.RED, VSChartChromeDefaults.resolveGridlineColor(Color.RED, VizContext.ofGate()),
                       "a user/customer gridline color is preserved");
-         assertNull(VSChartChromeDefaults.resolveGridlineColor(null),
+         assertNull(VSChartChromeDefaults.resolveGridlineColor(null, VizContext.ofGate()),
                     "null (no gridline color) stays null");
-         assertEquals(VSChartChromeDefaults.legendBorderColor(),
-                      VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR),
+         assertEquals(VSChartChromeDefaults.legendBorderColor(VizContext.ofGate()),
+                      VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
                       "legacy-default legend border shows the modern neutral under the gate");
-         assertEquals(Color.RED, VSChartChromeDefaults.resolveLegendBorderColor(Color.RED),
+         assertEquals(Color.RED, VSChartChromeDefaults.resolveLegendBorderColor(Color.RED, VizContext.ofGate()),
                       "a user/customer legend border color is preserved");
       }
       finally {
@@ -212,10 +213,10 @@ class CSSChartStylesModernChromeTest {
       try {
          SreeEnv.setProperty("viewsheet.modernVisualization", "false");
          assertEquals(GDefaults.DEFAULT_GRIDLINE_COLOR,
-                      VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR),
+                      VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, VizContext.ofGate()),
                       "gate off leaves the legacy gridline color unchanged");
          assertEquals(GDefaults.DEFAULT_LINE_COLOR,
-                      VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR),
+                      VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
                       "gate off leaves the legacy legend border color unchanged");
       }
       finally {
