@@ -3,47 +3,56 @@
     {
       "name": "Attachment",
       "paged": true,
-      "suffix": "/1.0/attachments/{Attachment}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/attachments/{Attachment}?opt_fields={Returned Fields?}",
+      "description": "One file attached to a task, project brief or other object, by gid, with its name, size, host and download url."
     },
     {
       "name": "Task Attachments",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/attachments?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/attachments?parent={Task}&opt_fields={Returned Fields?}",
+      "description": "The attachments on one task. Requires the task gid as the parent parameter. NOTE THE SHAPE: Asana replaced the nested per-task path with a single attachments endpoint filtered by parent, and parent accepts a project brief or project as well as a task -- so this endpoint is general, and the task case is one use of it."
     },
     {
       "name": "Custom Field",
       "paged": false,
-      "suffix": "/1.0/custom_fields/{Custom Field}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/custom_fields/{Custom Field}?opt_fields={Returned Fields?}",
+      "description": "One custom field definition by gid, with its name, type (text, number, enum, multi-enum, date, people) and, for enum fields, the option list. Requires a custom field gid."
     },
     {
       "name": "Workspace Custom Fields",
       "paged": true,
-      "suffix": "/1.0/workspaces/{Workspace}/custom_fields?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/workspaces/{Workspace}/custom_fields?opt_fields={Returned Fields?}",
+      "description": "Every custom field defined in one workspace. Requires a workspace id. The account's vocabulary for describing work beyond Asana's built-in fields."
     },
     {
       "name": "Project Custom Fields",
       "paged": true,
-      "suffix": "/1.0/projects/{Project}/custom_field_settings?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/projects/{Project}/custom_field_settings?opt_fields={Returned Fields?}",
+      "description": "The custom fields ENABLED ON one project, as settings records carrying the field, whether it is important, and its parent. Requires a project id. A workspace can define many fields while a project uses a few, so this is what says which columns a project's tasks actually carry -- and therefore which are meaningfully empty rather than simply not applicable."
     },
     {
       "name": "Portfolio Custom Fields",
       "paged": true,
-      "suffix": "/1.0/portfolios/{Portfolio}/custom_field_settings?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/portfolios/{Portfolio}/custom_field_settings?opt_fields={Returned Fields?}",
+      "description": "The custom fields enabled on one portfolio. Requires a portfolio id. The same distinction at the programme level."
     },
     {
       "name": "Events",
       "paged": true,
-      "suffix": "/1.0/events?resource={Resource}&sync={Sync?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/events?resource={Resource}&sync={Sync?}&opt_fields={Returned Fields?}",
+      "description": "The change stream for one resource -- a project, task or workspace -- returning what has happened since the last call. Requires a resource gid and a SYNC TOKEN, and the first call has no token: it returns an error carrying a fresh token, which is the intended way to start rather than a failure. Events are retained for about 24 HOURS, so a gap longer than that invalidates the token and the stream must be restarted from a full read. Built for incremental sync, not for history."
     },
     {
       "name": "Job",
       "paged": false,
-      "suffix": "/1.0/jobs/{Job}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/jobs/{Job}?opt_fields={Returned Fields?}",
+      "description": "The status of one asynchronous job by gid -- duplicating a project or task, or instantiating a template -- with its state and the resource it produced. Operational: it reports whether a long-running action finished, since the action itself only reports being queued."
     },
     {
       "name": "Organization Export Request",
       "paged": true,
-      "suffix": "/1.0/organization_exports/{Organization Export}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/organization_exports/{Organization Export}?opt_fields={Returned Fields?}",
+      "description": "The status of one full organization export by gid, with its state and, when complete, the download url. Requires organization admin rights. The route to a complete account snapshot, which no listing endpoint can assemble -- and the practical answer when the task listing constraints make a full extract impractical."
     },
     {
       "name": "Portfolios",
@@ -56,32 +65,38 @@
           "key": "gid",
           "parameterName": "Portfolio"
         }
-      ]
+      ],
+      "description": "The portfolios the caller owns, within a workspace. Requires a workspace and an owner. A portfolio is a collection of projects used for programme-level roll-up -- so it is the only container above the project, and where a question about an initiative spanning projects is answered. A Premium feature: on a free workspace this returns an error rather than an empty list, which is a licensing fact and not an absence of programmes."
     },
     {
       "name": "Portfolio",
       "paged": false,
-      "suffix": "/1.0/portfolios/{Portfolio}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/portfolios/{Portfolio}?opt_fields={Returned Fields?}",
+      "description": "One portfolio by gid, with its name, owner, colour and custom field settings."
     },
     {
       "name": "Portfolio Items",
       "paged": true,
-      "suffix": "/1.0/portfolios/{Portfolio}/items?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/portfolios/{Portfolio}/items?opt_fields={Returned Fields?}",
+      "description": "The projects inside one portfolio. Requires a portfolio id. The link from a programme to the work making it up; progress must be rolled up from those projects, since the portfolio carries no aggregate of its own."
     },
     {
       "name": "Portfolio Memberships",
       "paged": true,
-      "suffix": "/1.0/portfolio_memberships?portfolio={Portfolio?}&workspace={Workspace?}&user={User?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/portfolio_memberships?portfolio={Portfolio?}&workspace={Workspace?}&user={User?}&opt_fields={Returned Fields?}",
+      "description": "Portfolio membership records, filtered by portfolio, workspace or user. Who can see and edit a portfolio."
     },
     {
       "name": "Portfolio Membership",
       "paged": false,
-      "suffix": "/1.0/portfolio_memberships/{Portfolio Membership}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/portfolio_memberships/{Portfolio Membership}?opt_fields={Returned Fields?}",
+      "description": "One portfolio membership by gid."
     },
     {
       "name": "Memberships from a Portfolio",
       "paged": true,
-      "suffix": "/1.0/portfolios/{Portfolio}/portfolio_memberships?user={User?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/portfolios/{Portfolio}/portfolio_memberships?user={User?}&opt_fields={Returned Fields?}",
+      "description": "The membership records of one portfolio. Requires a portfolio id."
     },
     {
       "name": "Projects",
@@ -120,57 +135,68 @@
           "parameterName": "Project",
           "inheritParameters": false
         }
-      ]
+      ],
+      "description": "The projects visible to the caller. With opt_fields each carries name, notes, the owning team, created_at and modified_at, due_on and start_on, archived, public, color, and the current status. Projects are the container tasks are reached through, so this is usually the first request in any Asana question. ARCHIVED PROJECTS ARE INCLUDED unless filtered out, and they are the normal resting state of finished work -- so a count of active projects needs the archived flag."
     },
     {
       "name": "Project",
       "paged": false,
-      "suffix": "/1.0/projects/{Project}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/projects/{Project}?opt_fields={Returned Fields?}",
+      "description": "One project by gid, with its full field set when requested."
     },
     {
       "name": "Task Projects",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/projects?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}/projects?opt_fields={Returned Fields?}",
+      "description": "The projects one task belongs to. Requires a task gid. A task can be in several, which is why project-level totals overlap."
     },
     {
       "name": "Team Projects",
       "paged": true,
-      "suffix": "/1.0/teams/{Team}/projects?archived={Archived?:false|true}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/teams/{Team}/projects?archived={Archived?:false|true}&opt_fields={Returned Fields?}",
+      "description": "The projects owned by one team. Requires a team id. The per-team slice."
     },
     {
       "name": "Workspace Projects",
       "paged": true,
-      "suffix": "/1.0/workspaces/{Workspace}/projects?archived={Archived?:false|true}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/workspaces/{Workspace}/projects?archived={Archived?:false|true}&opt_fields={Returned Fields?}",
+      "description": "The projects in one workspace. Requires a workspace id. The account-wide project list, and the practical starting point for walking to tasks."
     },
     {
       "name": "Project Task Count",
       "paged": false,
-      "suffix": "/1.0/projects/{Project}/task_counts?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/projects/{Project}/task_counts?opt_fields={Returned Fields?}",
+      "description": "The task counts of one project: total, completed, incomplete, milestones and their completed counts. Requires a project id, and each count must be requested by name in opt_fields. A ready-made aggregate -- far cheaper than paging every task -- but note it counts the project's own tasks, so subtasks are excluded here too."
     },
     {
       "name": "Project Membership",
       "paged": false,
-      "suffix": "/1.0/project_memberships/{Project Membership}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/project_memberships/{Project Membership}?opt_fields={Returned Fields?}",
+      "description": "One project membership by gid."
     },
     {
       "name": "Project Memberships",
       "paged": true,
-      "suffix": "/1.0/projects/{Project}/project_memberships?user={User?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/projects/{Project}/project_memberships?user={User?}&opt_fields={Returned Fields?}",
+      "description": "The membership records of one project -- who has access and at what write level. Requires a project id. Project access in Asana is a mix of explicit members and team-wide access, so this lists the explicit ones; a person reaching the project through its team may not appear."
     },
     {
       "name": "Project Status",
       "paged": false,
-      "suffix": "/1.0/project_statuses/{Project Status}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/project_statuses/{Project Status}?opt_fields={Returned Fields?}",
+      "description": "One project status update by gid."
     },
     {
       "name": "Project Statuses",
       "paged": true,
-      "suffix": "/1.0/projects/{Project}/project_statuses?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/projects/{Project}/project_statuses?opt_fields={Returned Fields?}",
+      "description": "The status updates posted on one project, each with its text, the colour signalling green, yellow or red, the author and when it was posted. Requires a project id. The narrative record of how a project was reported over time, which no task data reconstructs -- and the colour is the only explicit health signal Asana holds."
     },
     {
       "name": "Section",
       "paged": false,
-      "suffix": "/1.0/sections/{Section}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/sections/{Section}?opt_fields={Returned Fields?}",
+      "description": "One section by gid, with its name and project."
     },
     {
       "name": "Project Sections",
@@ -184,37 +210,44 @@
           "parameterName": "Section",
           "inheritParameters": false
         }
-      ]
+      ],
+      "description": "The sections of one project, in order. Requires a project id. Sections are the board columns or list headings -- so they are where a team's workflow stages are actually named, and the dimension a 'what stage is work in' question groups by."
     },
     {
       "name": "Story",
       "paged": false,
-      "suffix": "/1.0/stories/{Story}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/stories/{Story}?opt_fields={Returned Fields?}",
+      "description": "One story by gid, with its text, type and author."
     },
     {
       "name": "Task Stories",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/stories?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}/stories?opt_fields={Returned Fields?}",
+      "description": "The activity feed of one task: every comment AND every system event -- assigned, completed, due date changed, added to a project, moved between sections -- each with its author and created_at. Requires a task gid. THE TASK CARRIES ONLY ITS CURRENT STATE, so this is the sole source for when it moved, how long it sat in a section, and who changed what. Comments and system events are mixed together and told apart by the type field, so filter before counting either: system stories usually outnumber human comments several times over."
     },
     {
       "name": "Tags",
       "paged": true,
-      "suffix": "/1.0/tags?workspace={Workspace?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tags?workspace={Workspace?}&opt_fields={Returned Fields?}",
+      "description": "The tags defined across the caller's workspaces, with name and colour. Tags are Asana's cross-project labelling, so they are how work is grouped when projects are the wrong axis."
     },
     {
       "name": "Tag",
       "paged": false,
-      "suffix": "/1.0/tags/{Tag}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tags/{Tag}?opt_fields={Returned Fields?}",
+      "description": "One tag by gid."
     },
     {
       "name": "Task Tags",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/tags?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}/tags?opt_fields={Returned Fields?}",
+      "description": "The tags on one task. Requires a task gid."
     },
     {
       "name": "Workspace Tags",
       "paged": false,
-      "suffix": "/1.0/workspaces/{Workspace}/tags?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/workspaces/{Workspace}/tags?opt_fields={Returned Fields?}",
+      "description": "The tags in one workspace. Requires a workspace id. The account-level tag vocabulary, worth reading before filtering tasks by tag since near-duplicates are unconstrained."
     },
     {
       "name": "Tasks",
@@ -222,67 +255,81 @@
       "suffix": "/1.0/tasks?assignee={Assignee?}&project={Project?}&section={Section?}&workspace={Workspace?}&completed_since={Completed Since?:yyyy-MM-ddTHH:mm:ssZ}&modified_since={Modified Since?:yyyy-MM-ddTHH:mm:ssZ}",
       "lookups": [
         {
-          "endpoints": ["Task", "Task Stories"],
+          "endpoints": [
+            "Task",
+            "Task Stories"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "gid",
           "parameterName": "Task"
         }
-      ]
+      ],
+      "description": "Tasks, the unit of work in Asana -- but READ THE CONSTRAINT FIRST: this endpoint REQUIRES a filter and refuses an unfiltered request. There is no 'all tasks in the account' listing anywhere in Asana; a task set must be reached through a project, a section, a tag, a user task list, or an assignee together with a workspace. Any question phrased as 'all our tasks' is really a loop over projects. THE SECOND CONSTRAINT applies to every endpoint in this connector: Asana returns a COMPACT record by default, carrying only gid, name and resource_type. Completed, due_on, assignee, created_at, custom_fields and the rest are ABSENT unless named in opt_fields -- and their absence looks like empty data rather than an unmade request."
     },
     {
       "name": "Task",
       "paged": false,
-      "suffix": "/1.0/tasks/{Task}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}?opt_fields={Returned Fields?}",
+      "description": "One task by gid. Requires the task gid. With opt_fields it carries name, notes, completed and completed_at, due_on and due_at, start_on, the assignee and assignee_status, created_at and modified_at, its projects and tags, its parent task, custom_fields, and memberships. NOTE THAT COMPLETION IS TWO COLUMNS: completed is the flag, completed_at the timestamp, and cycle-time questions need the second, which the compact record does not include."
     },
     {
       "name": "Project Tasks",
       "paged": true,
-      "suffix": "/1.0/projects/{Project}/tasks?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/projects/{Project}/tasks?opt_fields={Returned Fields?}",
+      "description": "The tasks in one project. Requires a project id. The usual entry point to a task set, since the unfiltered task list is refused. Note a task can belong to several projects, so summing across projects double-counts shared work."
     },
     {
       "name": "Section Tasks",
       "paged": true,
-      "suffix": "/1.0/sections/{Section}/tasks?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/sections/{Section}/tasks?opt_fields={Returned Fields?}",
+      "description": "The tasks in one section. Requires a section id. Sections are the columns of a board or the headings of a list, so this is the per-stage slice."
     },
     {
       "name": "Tag Tasks",
       "paged": true,
-      "suffix": "/1.0/tags/{Tag}/tasks?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tags/{Tag}/tasks?opt_fields={Returned Fields?}",
+      "description": "The tasks carrying one tag. Requires a tag id."
     },
     {
       "name": "User Task List Tasks",
       "paged": true,
-      "suffix": "/1.0/user_task_lists/{User Task List}/tasks?completed_since={Completed Since?:yyyy-MM-ddTHH:mm:ssZ}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/user_task_lists/{User Task List}/tasks?completed_since={Completed Since?:yyyy-MM-ddTHH:mm:ssZ}&opt_fields={Returned Fields?}",
+      "description": "The tasks in one user's My Tasks list. Requires a user task list id. A personal queue rather than a project view, and the only place a task assigned but filed in no project reliably appears."
     },
     {
       "name": "Task Subtasks",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/subtasks?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}/subtasks?opt_fields={Returned Fields?}",
+      "description": "The subtasks of one task. Requires a task gid. SUBTASKS ARE TASKS: they have their own assignees, due dates and completion, and they are NOT returned by the project task list, so a project's task count excludes them. Counting work per project without walking subtasks understates it, sometimes heavily."
     },
     {
       "name": "Task Dependencies",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/dependencies?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}/dependencies?opt_fields={Returned Fields?}",
+      "description": "The tasks one task is waiting on. Requires a task gid. The blocking relationships, which no task field expresses."
     },
     {
       "name": "Task Dependents",
       "paged": true,
-      "suffix": "/1.0/tasks/{Task}/dependents?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/tasks/{Task}/dependents?opt_fields={Returned Fields?}",
+      "description": "The tasks waiting on this one. Requires a task gid. The reverse direction -- use it to find what a delay will hold up."
     },
     {
       "name": "Workspace Task Search",
       "paged": false,
-      "suffix": "/1.0/workspaces/{Workspace}/tasks/search?limit=100&text={Text?}&resource_subtype={Resource Subtype?}&assignee.any={Assignee?}&projects.any={Projects?}&tags.any={Tags?}&teams.any={Teams?}"
+      "suffix": "/1.0/workspaces/{Workspace}/tasks/search?limit=100&text={Text?}&resource_subtype={Resource Subtype?}&assignee.any={Assignee?}&projects.any={Projects?}&tags.any={Tags?}&teams.any={Teams?}",
+      "description": "Advanced task search within one workspace, filtering on assignee, project, section, tag, completion, due date, creation date, custom field values and more. Requires a workspace id. The only way to reach a task set by CRITERIA rather than by container, and therefore the closest thing to a general query -- a Premium feature, so it returns an error rather than results on a free workspace."
     },
     {
       "name": "Team",
       "paged": false,
-      "suffix": "/1.0/teams/{Team}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/teams/{Team}?opt_fields={Returned Fields?}",
+      "description": "One team by gid, with its name, description and organization."
     },
     {
       "name": "Organization Teams",
       "paged": true,
-      "suffix": "/1.0/organizations/{Workspace}/teams?opt_fields={Returned Fields?}",
+      "suffix": "/1.0/workspaces/{Workspace}/teams?opt_fields={Returned Fields?}",
       "lookups": [
         {
           "endpoint": "Team Memberships",
@@ -290,37 +337,44 @@
           "key": "gid",
           "parameterName": "Team"
         }
-      ]
+      ],
+      "description": "The teams in one workspace or organization. Requires the workspace gid. Teams own projects, so this is the organisational dimension above projects and the axis most cross-project reporting groups by. NOTE THE PATH: Asana renamed this from an organizations path to a workspaces one, since an organization is a workspace; the connector now uses the current form."
     },
     {
       "name": "User Teams",
       "paged": true,
-      "suffix": "/1.0/users/{User}/teams?organization={Organization}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/users/{User}/teams?organization={Organization}&opt_fields={Returned Fields?}",
+      "description": "The teams one user belongs to. Requires a user id and a workspace. The per-person view of team membership."
     },
     {
       "name": "Team Membership",
       "paged": false,
-      "suffix": "/1.0/team_memberships/{Team Membership}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/team_memberships/{Team Membership}?opt_fields={Returned Fields?}",
+      "description": "One team membership by gid."
     },
     {
       "name": "Team Memberships",
       "paged": true,
-      "suffix": "/1.0/team_memberships?team={Team?}&user={User?}&workspace={Workspace?}"
+      "suffix": "/1.0/team_memberships?team={Team?}&user={User?}&workspace={Workspace?}",
+      "description": "Team membership records, filtered by team, user or workspace. Each carries the user, the team, and whether they are a guest or a limited-access member. The guest flag matters for access questions: a guest sees only what they are explicitly added to."
     },
     {
       "name": "Memberships from a Team",
       "paged": true,
-      "suffix": "/1.0/teams/{Team}/team_memberships?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/teams/{Team}/team_memberships?opt_fields={Returned Fields?}",
+      "description": "The membership records of one team. Requires a team id. Richer than Team Users, which returns the users without the membership attributes."
     },
     {
       "name": "Memberships from a User",
       "paged": true,
-      "suffix": "/1.0/users/{User}/team_memberships?workspace={Workspace}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/users/{User}/team_memberships?workspace={Workspace}&opt_fields={Returned Fields?}",
+      "description": "One user's team memberships. Requires a user id and a workspace."
     },
     {
       "name": "Typeahead Search",
       "paged": true,
-      "suffix": "/1.0/workspaces/{Workspace}/typeahead?resource_type={Resource Type:custom_field|project|portfolio|tag|task|user}&type={Type?}&query={Query?}&count={Count?}"
+      "suffix": "/1.0/workspaces/{Workspace}/typeahead?resource_type={Resource Type:custom_field|project|portfolio|tag|task|user}&type={Type?}&query={Query?}&count={Count?}",
+      "description": "Objects matching a partial string within one workspace -- tasks, projects, users, tags and more. Requires a workspace id and a resource type. BUILT FOR AN AUTOCOMPLETE CONTROL: results are truncated, ranked for display, and biased toward the caller's recent activity, so it is unsuitable as a data source. Workspace Task Search is the one to use for anything counted."
     },
     {
       "name": "Users",
@@ -358,7 +412,8 @@
           "key": "gid",
           "parameterName": "User"
         }
-      ]
+      ],
+      "description": "Users visible to the caller, filtered by workspace or team. Same thin record. There is no account-wide user listing without naming a workspace."
     },
     {
       "name": "User",
@@ -369,27 +424,30 @@
           "endpoint": "User Teams",
           "jsonPath": "$.data.workspaces.[*]",
           "key": "$(User)",
-           "parameterName": "User",
-           "parameters": {
-              "Organization": "$.gid"
-           }
+          "parameterName": "User",
+          "parameters": {
+            "Organization": "$.gid"
+          }
         }
-      ]
+      ],
+      "description": "One user by gid, or the literal 'me' for the caller. Carries name, email and photo, and the workspaces they belong to."
     },
     {
       "name": "User Favorites",
       "paged": true,
-      "suffix": "/1.0/users/{User}/favorites?resource_type={Resource Type:project|team|portfolio|user|tag}&workspace={Workspace}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/users/{User}/favorites?resource_type={Resource Type:project|team|portfolio|user|tag}&workspace={Workspace}&opt_fields={Returned Fields?}",
+      "description": "The projects, portfolios, tags or users one person has starred. Requires a user id and a resource type. A personal interest signal, scoped to that user."
     },
     {
       "name": "Team Users",
       "paged": true,
-      "suffix": "/1.0/teams/{Team}/users?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/teams/{Team}/users?opt_fields={Returned Fields?}",
+      "description": "The users in one team. Requires a team id."
     },
     {
       "name": "Workspace Users",
       "paged": true,
-       "suffix": "/1.0/workspaces/{Workspace}/users?opt_fields={Returned Fields?}",
+      "suffix": "/1.0/workspaces/{Workspace}/users?opt_fields={Returned Fields?}",
       "lookups": [
         {
           "endpoint": "Portfolios",
@@ -397,27 +455,32 @@
           "key": "gid",
           "parameterName": "Owner"
         }
-      ]
+      ],
+      "description": "The users in one workspace or organization. Requires a workspace id. The roster any per-person analysis joins to. Note Asana user records are thin -- name, email and photo -- with no role, activity or last-login information anywhere in the API, so questions about who is active have to be answered from the work itself."
     },
     {
       "name": "User Task List",
       "paged": true,
-      "suffix": "/1.0/user_task_lists/{User Task List}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/user_task_lists/{User Task List}?opt_fields={Returned Fields?}",
+      "description": "One user task list by gid, with its owner and workspace."
     },
     {
       "name": "User's Task List",
       "paged": true,
-      "suffix": "/1.0/users/{User}/user_task_list?workspace={Workspace}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/users/{User}/user_task_list?workspace={Workspace}&opt_fields={Returned Fields?}",
+      "description": "The My Tasks list belonging to one user, as a container record. Requires a user id and a workspace. The tasks themselves come from User Task List Tasks."
     },
     {
       "name": "Webhooks",
       "paged": true,
-      "suffix": "/1.0/webhooks?workspace={Workspace}&resource={Resource?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/webhooks?workspace={Workspace}&resource={Resource?}&opt_fields={Returned Fields?}",
+      "description": "The webhooks registered by the calling application, filtered by workspace. Each carries the resource it watches, the target url, its filters and whether it is active. Note it lists only THIS application's webhooks, not every webhook on the workspace."
     },
     {
       "name": "Webhook",
       "paged": false,
-      "suffix": "/1.0/webhooks/{Webhook}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/webhooks/{Webhook}?opt_fields={Returned Fields?}",
+      "description": "One webhook by gid, with its resource, target and last delivery result. The delivery result is the useful part: it identifies integrations that are configured and quietly failing."
     },
     {
       "name": "Workspaces",
@@ -461,27 +524,32 @@
           "key": "gid",
           "parameterName": "Workspace"
         }
-      ]
+      ],
+      "description": "The workspaces and organizations the caller belongs to. AN ORGANIZATION IS A WORKSPACE with email-domain membership -- the is_organization flag distinguishes them, and the same gid works wherever either is asked for. Nearly every other endpoint here needs a workspace gid, so this is the natural first request."
     },
     {
       "name": "Workspace",
       "paged": false,
-      "suffix": "/1.0/workspaces/{Workspace}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/workspaces/{Workspace}?opt_fields={Returned Fields?}",
+      "description": "One workspace by gid, with its name, is_organization flag and email domains."
     },
     {
       "name": "Workspace Membership",
       "paged": false,
-      "suffix": "/1.0/workspace_memberships/{Workspace Membership}?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/workspace_memberships/{Workspace Membership}?opt_fields={Returned Fields?}",
+      "description": "One workspace membership by gid."
     },
     {
       "name": "User Workspace Memberships",
       "paged": true,
-      "suffix": "/1.0/users/{User}/workspace_memberships?opt_fields={Returned Fields?}"
+      "suffix": "/1.0/users/{User}/workspace_memberships?opt_fields={Returned Fields?}",
+      "description": "The workspaces one user belongs to, as membership records. Requires a user id."
     },
     {
       "name": "Workspace Memberships",
       "paged": true,
-      "suffix": "/1.0/workspaces/{Workspace}/workspace_memberships?user={User?}&opt_fields={Returned Fields?}"
+      "suffix": "/1.0/workspaces/{Workspace}/workspace_memberships?user={User?}&opt_fields={Returned Fields?}",
+      "description": "The membership records of one workspace, one per user. Requires a workspace id. Carries whether each person is an ACTIVE member, whether they are a guest, and their user task list. The active flag is the closest thing Asana offers to a deactivated-user marker, and guests are the external collaborators -- both are worth separating before counting an organisation's size."
     }
   ]
 }
