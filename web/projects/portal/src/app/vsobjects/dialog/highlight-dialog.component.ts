@@ -136,7 +136,7 @@ export class HighlightDialog extends AbstractHighlight implements OnInit {
    }
 
    apply(event: boolean): void {
-      this.onApply.emit({collapse: event, result: this.getServerAppliedModel()});
+      this.onApply.emit({collapse: event, result: this.getServerAppliedModel(false)});
    }
 }
 

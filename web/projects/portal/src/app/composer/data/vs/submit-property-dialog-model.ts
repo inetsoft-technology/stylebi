@@ -21,4 +21,10 @@ import { ClickableScriptPaneModel } from "./clickable-script-pane-model";
 export interface SubmitPropertyDialogModel {
    submitGeneralPaneModel: SubmitGeneralPaneModel;
    clickableScriptPaneModel: ClickableScriptPaneModel;
+
+   // The write-coordination revision this model was read at. Sent back only on a final commit
+   // (OK), never on Apply -- the dialog's own held copy is never refreshed after a commit, so
+   // echoing it back on Apply would make the dialog conflict with its own prior Apply. See
+   // 2026-08-17-write-coordination-design.md.
+   revision?: number;
 }
