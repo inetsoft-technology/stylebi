@@ -143,4 +143,13 @@ class ScriptReadServiceTest {
    void everyTargetIsHostedOnTheViewsheet() {
       assertTrue(service.list(runtime()).stream().allMatch(t -> "viewsheet".equals(t.hostSheet())));
    }
+
+   @Test
+   void advertisesOnlyTheKindsThisServerCanActuallyServe() {
+      assertEquals(2, ScriptGrammar.VERSION);
+      assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick"),
+                   ScriptGrammar.supportedKinds());
+      assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
+                  "a reserved kind must not be advertised as servable");
+   }
 }

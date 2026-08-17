@@ -28,7 +28,7 @@ import inetsoft.web.wiz.script.model.FunctionSignature;
 import inetsoft.web.wiz.script.model.ScriptContext;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
-import inetsoft.web.wiz.script.model.ScriptTargetInfo;
+import inetsoft.web.wiz.script.model.ScriptTargetsResponse;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -40,7 +40,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -108,14 +107,15 @@ public class ViewsheetAgentController {
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
                               String sheetType) {}
 
-   /** Enumerates every scriptable target on the joined viewsheet. */
+   /** Enumerates every scriptable target on the joined viewsheet, with the grammar it speaks. */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/targets")
-   public List<ScriptTargetInfo> targets(@PathVariable String sessionToken, Principal user)
+   public ScriptTargetsResponse targets(@PathVariable String sessionToken, Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return readService.list(rvs);
+      return new ScriptTargetsResponse(ScriptGrammar.VERSION, ScriptGrammar.supportedKinds(),
+                                       readService.list(rvs));
    }
 
    /** Reads the current text + enabled-state of {@code target}. */
