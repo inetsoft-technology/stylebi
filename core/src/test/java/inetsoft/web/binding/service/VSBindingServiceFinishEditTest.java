@@ -91,6 +91,13 @@ class VSBindingServiceFinishEditTest {
          service.finishEdit(viewsheetService, "nid1", "Chart1", null, null, null));
 
       verify(orvs, never()).setViewsheet(any());
+
+      // The refusal must still tear the clone runtime down -- otherwise the base keeps
+      // believing a binding session is open and the clone runtime never closes, wedging the
+      // session on every retry.
+      verify(orvs).setBindingID(null);
+      verify(viewsheetService).flushRuntimeSheet("oid1");
+      verify(viewsheetService).closeViewsheet("nid1", null);
    }
 
    @Test
