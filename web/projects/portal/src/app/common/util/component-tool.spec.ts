@@ -23,14 +23,21 @@ function fakeModal() {
    const onCommit = new Subject<any>();
    const onCancel = new Subject<any>();
    const componentInstance: any = { onApply, onCommit, onCancel };
+   let resolveResult: (v: any) => void;
    const modalRef: any = {
       componentInstance,
-      // Never resolves in these tests -- only the synchronous apply path is exercised.
-      result: new Promise<any>(() => {})
+      result: new Promise<any>((resolve) => { resolveResult = resolve; }),
+      close: (v: any) => resolveResult(v)
    };
    const modalService: any = { open: () => modalRef, objectChange: () => {} };
 
-   return { onApply, modalService };
+   return { onApply, onCommit, modalService };
+}
+
+// Flushes the "wait for next cycle" setTimeout(0) in showDialog's commit path, and the
+// microtask it schedules by resolving modal.result.
+function flush(): Promise<void> {
+   return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 describe("ComponentTool.showDialog", () => {
@@ -62,5 +69,39 @@ describe("ComponentTool.showDialog", () => {
       onApply.next({ collapse: false, result: { other: "x" } });
 
       expect(received).toEqual({ other: "x" });
+   });
+
+   // stylebi#4637: "Apply then OK discards your edits". An Apply bumps the server's revision
+   // but nothing refreshes the dialog's held copy, so the FINAL commit (OK) that follows still
+   // carries the pre-apply revision and would otherwise be wrongly refused as a conflict with
+   // the dialog's own prior apply.
+   it("strips a stale revision from the final commit once an apply has already happened", async () => {
+      const { onApply, onCommit, modalService } = fakeModal();
+      let received: any;
+
+      ComponentTool.showDialog(modalService, class {} as any,
+         (v: any) => { received = v; }, {});
+
+      onApply.next({ collapse: false, result: { revision: 7, other: "x" } });
+      onCommit.next({ revision: 7, other: "y" });
+      await flush();
+      await flush();
+
+      expect(received.revision).toBeUndefined();
+      expect(received.other).toBe("y");
+   });
+
+   it("does not touch the commit's revision when no apply happened first", async () => {
+      const { onCommit, modalService } = fakeModal();
+      let received: any;
+
+      ComponentTool.showDialog(modalService, class {} as any,
+         (v: any) => { received = v; }, {});
+
+      onCommit.next({ revision: 7, other: "y" });
+      await flush();
+      await flush();
+
+      expect(received.revision).toBe(7);
    });
 });

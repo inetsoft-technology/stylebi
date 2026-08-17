@@ -101,6 +101,15 @@ export namespace ComponentTool {
       let commitSubscription: Subscription;
       let cancelSubscription: Subscription;
       let applySubscription: Subscription;
+      // Write coordination: once this dialog session has already committed one Apply, the
+      // revision it captured on open is stale by construction -- that Apply bumped the
+      // server's counter and nothing refreshes the dialog's held copy (see the apply
+      // subscription below). Sending it on the FINAL commit (OK) would wrongly refuse the
+      // user's own un-conflicting edit -- the "Apply then OK discards your edits" shape of
+      // stylebi#4637. Real conflict detection for a dialog that has already Applied would need
+      // the server to echo the new revision back, which this architecture has no response
+      // channel for; until that exists, don't block the user's own sequential edits.
+      let appliedAtLeastOnce = false;
 
       commitSubscription = modal.componentInstance[commitEmitter]?.subscribe((v: any) => {
          commitSubscription.unsubscribe();
@@ -108,6 +117,10 @@ export namespace ComponentTool {
 
          if(applySubscription) {
             applySubscription.unsubscribe();
+         }
+
+         if(appliedAtLeastOnce && v && typeof v === "object" && "revision" in v) {
+            v = {...v, revision: undefined};
          }
 
          if(options.objectId) {
@@ -133,6 +146,8 @@ export namespace ComponentTool {
 
       if(modal.componentInstance[applyEmitter]) {
          applySubscription = modal.componentInstance[applyEmitter].subscribe((v: any) => {
+            appliedAtLeastOnce = true;
+
             if(v.collapse != null && v.result != null) {
                if(v.collapse && (<any> modal).setExpanded) {
                   setTimeout(() => slideout.setExpanded(false), 0);
