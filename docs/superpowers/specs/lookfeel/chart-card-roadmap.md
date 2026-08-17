@@ -85,7 +85,9 @@ Four corrections this picture carries against the external set, all recorded in
 [the corrections doc](./chart-card-source-doc-corrections.md):
 
 - **M does not gate F.** The toolbar rollout writes no persisted state — every file in all three shipped
-  slices is under `web/projects/portal/src` — so there is no reversibility record for it to miss. Both v3
+  slices is under `web/projects/portal/src` — so there is no reversibility record for it to miss. M does not
+  block F, but it does change it: the forward-half design's §3 has the mark turning F's gate test into a mark
+  test. Both v3
   documents that draw this reverted to a pre-correction body, and the handoff went further: it now orders
   `M precedes F (and H)` and says the calendar and container slices "should wait for the mark." They should
   not, for the same reason the three shipped slices correctly did not. See §5.1 and §5.4.
@@ -230,6 +232,14 @@ Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
 ---
 
 ## The long pole: the seed mark
+
+**The forward half is now designed, 2026-08-14 — see
+[2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md).** It covers the
+mark, the re-keying of every read path onto it, the per-assembly browser scope and the Modernize action, in six
+phases. It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms and the card
+radius out of scope — so it unblocks the six items behind M but does **not** clear the release gate. It also
+pulls Modernize forward out of the reverse half, because without it no existing dashboard has any route to
+modern and the flip is untestable.
 
 **Superseded by a product decision set, 2026-08-12. Read
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
@@ -462,6 +472,10 @@ decisions and this roadmap.
 - [chart-card-anchored-strip-lane-decisions.md](./chart-card-anchored-strip-lane-decisions.md) — which v3
   document governs the title lane, the strip's size and containment, and what suppresses it. **Overrides
   `Chart Card Spec v3.dc.html` §04's lane model and §03's title-hidden overlay**
+- [2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md) — **how M is
+  built**: the mark's field and stamp sites, `VizContext` and the ~90 re-keyed call sites, the per-assembly
+  browser scope, Modernize and its composer bar, in six phases. Authority on mechanism; the decisions file
+  stays the authority on behaviour
 - [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) — the seed mark,
   the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
   below**, which still lists version-blindness as the open question
