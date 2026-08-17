@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.binding.model.BindableField;
@@ -199,11 +202,73 @@ class BindableFieldsServiceTest {
       assertTrue(serviceReturning(null).list("rt1", null, principal()).isEmpty());
    }
 
+   // ── unknown assembly name (the D4 regression) ────────────────────────────
+
+   /**
+    * {@code VSBindingTreeService.getBinding} resolves {@code viewsheet.getAssembly(name)}, which
+    * returns {@code null} for an unknown name exactly as it does for {@code null} itself — so
+    * scoping to a name that does not exist used to fall into the same "list everything" branch as
+    * not scoping at all, and silently returned the whole-viewsheet field list instead of refusing.
+    */
+   @Test
+   void refusesAnAssemblyNameThatDoesNotExistRatherThanListingEverything() throws Exception {
+      TreeNodeModel root = TreeNodeModel.builder().label("root").build();
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Nope")).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class))).thenReturn(root);
+      BindableFieldsService service = new BindableFieldsService(tree, engine);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.list("rt1", "Nope", principal()));
+
+      assertTrue(thrown.getMessage().contains("Nope"));
+      verify(tree, never()).getBinding(anyString(), any(), anyBoolean(), any(Principal.class));
+   }
+
+   /** A real assembly name still resolves normally, without touching the existence check's error. */
+   @Test
+   void listsNormallyWhenTheAssemblyNameIsReal() throws Exception {
+      inetsoft.uql.viewsheet.VSAssembly assembly = mock(inetsoft.uql.viewsheet.VSAssembly.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Table1")).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), eq("Table1"), anyBoolean(), any(Principal.class)))
+         .thenReturn(null);
+      BindableFieldsService service = new BindableFieldsService(tree, engine);
+
+      assertTrue(service.list("rt1", "Table1", principal()).isEmpty());
+   }
+
+   /** Omitting the assembly is the deliberate "list everything" request; it must not resolve one. */
+   @Test
+   void doesNotResolveAnAssemblyWhenNoneWasNamed() throws Exception {
+      ViewsheetService engine = mock(ViewsheetService.class);
+      serviceReturning(null, engine).list("rt1", null, principal());
+
+      verify(engine, never()).getViewsheet(anyString(), any(Principal.class));
+   }
+
    private static BindableFieldsService serviceReturning(TreeNodeModel root) throws Exception {
+      return serviceReturning(root, mock(ViewsheetService.class));
+   }
+
+   private static BindableFieldsService serviceReturning(TreeNodeModel root,
+                                                         ViewsheetService engine)
+      throws Exception
+   {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class)))
          .thenReturn(root);
-      return new BindableFieldsService(tree);
+      return new BindableFieldsService(tree, engine);
    }
 
    private static Principal principal() {

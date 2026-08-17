@@ -17,8 +17,11 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.binding.model.BindableField;
@@ -40,13 +43,38 @@ import java.util.List;
 @Service
 public class BindableFieldsService {
    @Autowired
-   public BindableFieldsService(VSBindingTreeService tree) {
+   public BindableFieldsService(VSBindingTreeService tree, ViewsheetService viewsheetService) {
       this.tree = tree;
+      this.viewsheetService = viewsheetService;
    }
 
+   /**
+    * Refuses an {@code assembly} that does not exist, rather than silently listing everything.
+    *
+    * <p>{@code VSBindingTreeService.getBinding} resolves the assembly with
+    * {@code viewsheet.getAssembly(name)}, which returns {@code null} for an unknown name exactly
+    * as it does for {@code null} itself — so "list every table" and "list the tables for a name
+    * that doesn't exist" fell into the identical fallback branch and returned the identical
+    * whole-viewsheet tree. An agent scoping to the wrong assembly name got a full, plausible field
+    * list back and had no way to tell its scoping request was silently ignored (CLAUDE.md's
+    * tool-misuse-accepted-silently class). {@code assembly == null} is the caller's deliberate
+    * "list everything," so only a non-null name that fails to resolve is refused.
+    */
    public List<BindableTable> list(String runtimeId, String assembly, Principal user)
       throws Exception
    {
+      if(assembly != null) {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+         if(vs == null || vs.getAssembly(assembly) == null) {
+            throw new IllegalArgumentException(
+               "'" + assembly + "' is not an assembly on this viewsheet. Omit 'assembly' to list " +
+               "every table the viewsheet offers, or call read_viewsheet_model to see what " +
+               "assemblies exist.");
+         }
+      }
+
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
@@ -190,4 +218,5 @@ public class BindableFieldsService {
    private static final String MEASURE = "measure";
 
    private final VSBindingTreeService tree;
+   private final ViewsheetService viewsheetService;
 }
