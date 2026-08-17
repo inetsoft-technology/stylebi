@@ -3,97 +3,116 @@
     {
       "pageType": 1,
       "name": "Competitor Keywords",
-      "suffix": "/v1/compare/keywords/{Site ID}/{Start Date}/{End Date}/{Competitors}"
+      "suffix": "/v1/compare/keywords/{Site ID}/{Start Date}/{End Date}/{Competitors}",
+      "description": "The keywords named competitors rank for alongside the site, over a range. Requires the site, dates and competitors. Where a competitive gap is actually located, keyword by keyword."
     },
     {
       "pageType": 1,
       "name": "Group Competitor Keywords",
-      "suffix": "/v1/compare/keywords/{Site ID}/{Start Date}/{End_date}/{Competitors}/{Group ID}"
+      "suffix": "/v1/compare/keywords/{Site ID}/{Start Date}/{End_date}/{Competitors}/{Group ID}",
+      "description": "The same competitor keyword comparison within one group."
     },
     {
       "pageType": 0,
       "name": "Competitor Visibility Score",
-      "suffix": "/v1/compare/competitors/visibility_score/{Site ID}/{Start Date}/{End Date}?group_id={Group ID?}&competitors={Competitors?}&device={Device?:1|2}"
+      "suffix": "/v1/compare/competitors/visibility_score/{Site ID}/{Start Date}/{End Date}?group_id={Group ID?}&competitors={Competitors?}&device={Device?:1|2}",
+      "description": "The same visibility measure for named competitors alongside the site, over a range. Requires the site, dates and competitor domains. The comparative view: a site's own score falling while competitors rise means something different from everyone falling together."
     },
     {
       "pageType": 0,
       "name": "Group Competitor Visibility Score",
-      "suffix": "/v1/compare/competitors/visibility_score/{Site ID}/{Start Date}/{End Date}/{Competitors}/{Group ID?}?device={Device?:1|2}"
+      "suffix": "/v1/compare/competitors/visibility_score/{Site ID}/{Start Date}/{End Date}/{Competitors}/{Group ID?}?device={Device?:1|2}",
+      "description": "The competitor comparison restricted to one keyword group. Useful where a competitor is strong in one product area and absent elsewhere, which the site-wide score averages away."
     },
     {
       "pageType": 2,
       "name": "Content Performance",
-      "suffix": "/v1/content/{Site ID}/{Start Date}/{End Date}"
+      "suffix": "/v1/content/{Site ID}/{Start Date}/{End Date}",
+      "description": "Per-page performance over a range: the traffic, rankings and keywords each page attracts. Requires the site id and dates. The page-centric view, as opposed to the keyword-centric one everything else here offers."
     },
     {
       "pageType": 0,
       "name": "Devices",
-      "suffix": "/v1/devices"
+      "suffix": "/v1/devices",
+      "description": "The devices rankings are tracked for -- desktop and mobile. Small reference list, but not incidental: RANKINGS DIFFER BETWEEN DEVICES, often substantially, so any position figure is device-specific and comparing across them without saying which is meaningless."
     },
     {
       "pageType": 0,
       "name": "Forecast",
-      "suffix": "/v1/on_target/{Site ID}"
+      "suffix": "/v1/on_target/{Site ID}",
+      "description": "SeoMonitor's projection of where a site's rankings and traffic are heading against its targets. Requires a site id. Modelled rather than measured -- useful as a target, not as evidence."
     },
     {
       "pageType": 0,
       "name": "Forecast by Date",
-      "suffix": "/v1/on_target/by_dates/{Site ID}"
+      "suffix": "/v1/on_target/by_dates/{Site ID}",
+      "description": "The same projection broken out by date rather than as a summary."
     },
     {
       "pageType": 0,
       "name": "Groups",
-      "suffix": "/v1/groups_list/{Site ID}"
+      "suffix": "/v1/groups_list/{Site ID}",
+      "description": "The keyword groups defined for one site. Requires a site id. Groups are how an account divides its keywords -- by product, by intent, by funnel stage -- and are the only dimension available for slicing rankings beyond individual keywords. What they mean is entirely account-specific."
     },
     {
       "pageType": 0,
       "name": "Group Details",
-      "suffix": "/v1/group_details/{Site ID}/{Group ID}/{Start Date}/{End Date}"
+      "suffix": "/v1/group_details/{Site ID}/{Group ID}/{Start Date}/{End Date}",
+      "description": "The performance of one keyword group over a date range: its keywords, their ranks and the group's aggregate figures. Requires the site id, group id and dates."
     },
     {
       "pageType": 0,
       "name": "All Group Details",
-      "suffix": "/v1/all_group_details/{Site ID}/{Start Date}/{End Date}"
+      "suffix": "/v1/all_group_details/{Site ID}/{Start Date}/{End Date}",
+      "description": "The same figures for every group of a site in one request. Requires the site id and dates. Far cheaper than looping groups, and the natural starting point for a whole-site breakdown."
     },
     {
       "pageType": 2,
       "name": "Keyword Data",
-      "suffix": "/v1/keyword_data/{Site ID}/{Start Date}/{End Date}?keyword_name={Keyword Name?}"
+      "suffix": "/v1/keyword_data/{Site ID}/{Start Date}/{End Date}?keyword_name={Keyword Name?}",
+      "description": "Per-keyword detail for one site over a range: search volume, difficulty, the tracked position and its movement. Requires the site id and dates. VOLUME IS THE MISSING HALF OF ANY RANK ANALYSIS -- a first position on a keyword nobody searches is worth less than a fifth on one they do, and rank alone cannot say which is which."
     },
     {
       "pageType": 2,
       "name": "Group Keyword Data",
-      "suffix": "/v1/keyword_data/{Site ID}/{Group ID}/{Start Date}/{End Date}?keyword_name={Keyword Name?}"
+      "suffix": "/v1/keyword_data/{Site ID}/{Group ID}/{Start Date}/{End Date}?keyword_name={Keyword Name?}",
+      "description": "The same per-keyword detail restricted to one group."
     },
     {
       "pageType": 0,
       "name": "Top Landing Pages",
-      "suffix": "/v1/keyword_serp/{Site ID}?keyword_name={Keyword Name}&mobile={Mobile?:0|1}&full_lp={Full URLs?:0|1}"
+      "suffix": "/v1/keyword_serp/{Site ID}?keyword_name={Keyword Name}&mobile={Mobile?:0|1}&full_lp={Full URLs?:0|1}",
+      "description": "The pages ranking for one keyword in the search results, with their positions. Requires the site id and keyword name. The link from a keyword to the page that actually earns it -- which matters because the page ranking is often not the one intended."
     },
     {
       "pageType": 0,
       "name": "Top Landing Pages by ID",
-      "suffix": "/v1/keyword_serp/{Site ID}/{Keyword ID}?mobile={Mobile?:0|1}&full_lp={Full URLs?:0|1}"
+      "suffix": "/v1/keyword_serp/{Site ID}/{Keyword ID}?mobile={Mobile?:0|1}&full_lp={Full URLs?:0|1}",
+      "description": "The same, addressed by keyword id rather than name. Safer where keyword text contains characters awkward in a URL."
     },
     {
       "pageType": 0,
       "name": "Organic Traffic Statistics",
-      "suffix": "/v1/organic_traffic/{Site ID}/{Start Date}/{End Date}"
+      "suffix": "/v1/organic_traffic/{Site ID}/{Start Date}/{End Date}",
+      "description": "Organic sessions for one site over a date range. Requires the site id and dates. The outcome measure rankings are a proxy for -- worth pairing, since positions can improve while traffic does not."
     },
     {
       "pageType": 0,
       "name": "Organic Traffic Statistics by Brand/Non-brand",
-      "suffix": "/v1/organic_traffic/split/{Site ID}/{Start Date}/{End Date}?type={Type?:brand|non-brand}"
+      "suffix": "/v1/organic_traffic/split/{Site ID}/{Start Date}/{End Date}?type={Type?:brand|non-brand}",
+      "description": "The same traffic SPLIT INTO BRANDED AND NON-BRANDED searches. Requires the site id and dates. The more honest measure of SEO effort: branded traffic follows marketing and word of mouth, non-branded is what optimisation actually won, and a total that mixes them credits SEO with demand it did not create."
     },
     {
       "pageType": 3,
       "name": "Ranks",
-      "suffix": "/v1/ranks/{Site ID}/{Start Date}/{End Date}"
+      "suffix": "/v1/ranks/{Site ID}/{Start Date}/{End Date}",
+      "description": "Keyword positions for one site over a date range -- the core SEO table. Requires the site id and dates. Note a keyword with no ranking in the top results returns a sentinel rather than a position, so averaging raw values without excluding those distorts the figure badly."
     },
     {
       "pageType": 3,
       "name": "Group Ranks",
-      "suffix": "/v1/ranks/{Site ID}/{Start Date}/{End Date}/{Group ID}"
+      "suffix": "/v1/ranks/{Site ID}/{Start Date}/{End Date}/{Group ID}",
+      "description": "The same rankings restricted to one keyword group. Requires the group id as well."
     },
     {
       "pageType": 0,
@@ -101,17 +120,23 @@
       "suffix": "/v1/sites",
       "lookups": [
         {
-          "endpoints": ["Forecast", "Forecast by Date", "Groups"],
+          "endpoints": [
+            "Forecast",
+            "Forecast by Date",
+            "Groups"
+          ],
           "jsonPath": "$.[*]",
           "key": "id",
           "parameterName": "Site ID"
         }
-      ]
+      ],
+      "description": "The sites tracked in the account, each with its id, domain and settings. Every other endpoint here needs a site id, so this is the first request."
     },
     {
       "pageType": 0,
       "name": "Visibility Score",
-      "suffix": "/v1/visibility_score_data/{Site ID}/{Group ID}/{Start Date}/{End Date}?device={Device?:1|2}"
+      "suffix": "/v1/visibility_score_data/{Site ID}/{Group ID}/{Start Date}/{End Date}?device={Device?:1|2}",
+      "description": "SeoMonitor's composite measure of how visible a site is for its tracked keywords, over a date range -- rankings weighted by search volume and expected click-through. Requires the site, group and dates. A single trend line where ranks are hundreds, and the usual answer to whether SEO is improving overall."
     }
   ]
 }

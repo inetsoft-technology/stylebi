@@ -3,17 +3,20 @@
     {
       "paged": "false",
       "name": "Data Source",
-      "suffix": "/v1/data_sources/{Data Source UUID}"
+      "suffix": "/v1/data_sources/{Data Source UUID}",
+      "description": "One data source by UUID, with its sync status."
     },
     {
       "paged": "true",
       "name": "Data Sources",
-      "suffix": "/v1/data_sources?name={Name?}&system={System?:Stripe|Recurly|Chargify|Import API}"
+      "suffix": "/v1/data_sources?name={Name?}&system={System?:Stripe|Recurly|Chargify|Import API}",
+      "description": "The billing systems feeding ChartMogul -- Stripe, Recurly, Chargify, an import and so on -- with their name, system and status. Every customer, plan and invoice belongs to one, which is what makes the source dimension necessary when a business bills through more than one."
     },
     {
       "paged": "false",
       "name": "Customer",
-      "suffix": "/v1/customers/{Customer UUID}"
+      "suffix": "/v1/customers/{Customer UUID}",
+      "description": "One customer by UUID, with their full attributes and current MRR."
     },
     {
       "paged": "true",
@@ -22,113 +25,133 @@
       "lookups": [
         {
           "endpoints": [
-             "Customer",
-             "Customer's Subscriptions",
-             "Customer's Invoices",
-             "Customer's Attributes",
-             "Customer Subscriptions",
-             "Customer Activities"
+            "Customer",
+            "Customer's Subscriptions",
+            "Customer's Invoices",
+            "Customer's Attributes",
+            "Customer Subscriptions",
+            "Customer Activities"
           ],
           "jsonPath": "$.entries[*]",
           "key": "uuid",
           "parameterName": "Customer UUID"
         }
-      ]
+      ],
+      "description": "The customers in the account, with name, company, email, country, the data source they came from, their status, and their current MRR. Filterable by data source, external id and status. The subject table: metrics aggregate these."
     },
     {
       "paged": "false",
       "name": "Plan",
-      "suffix": "/v1/plans/{Plan UUID}"
+      "suffix": "/v1/plans/{Plan UUID}",
+      "description": "One plan by UUID."
     },
     {
       "paged": "true",
       "name": "Plans",
-      "suffix": "/v1/plans?data_source_uuid={Data Source UUID?}&external_id={External ID?}&system={System?:Stripe|Recurly|Chargify|Import API}"
+      "suffix": "/v1/plans?data_source_uuid={Data Source UUID?}&external_id={External ID?}&system={System?:Stripe|Recurly|Chargify|Import API}",
+      "description": "The subscription plans imported, with name, interval, interval count and the data source each came from. Plans are per data source, so THE SAME COMMERCIAL PLAN IMPORTED FROM TWO BILLING SYSTEMS APPEARS TWICE -- a breakdown by plan double-counts unless they have been merged in ChartMogul."
     },
     {
       "paged": "true",
       "name": "Customer's Subscriptions",
-      "suffix": "/v1/import/customers/{Customer UUID}/subscriptions"
+      "suffix": "/v1/import/customers/{Customer UUID}/subscriptions",
+      "description": "The subscriptions of one customer as recorded through the import API, with the source system's own identifiers. Requires the UUID. The import view rather than the computed one -- useful for reconciling against the billing system that fed it."
     },
     {
       "paged": "false",
       "name": "Invoice",
-      "suffix": "/v1/invoices/{Invoice UUID}"
+      "suffix": "/v1/invoices/{Invoice UUID}",
+      "description": "One invoice by UUID, with its line items and transactions."
     },
     {
       "paged": "true",
       "name": "Customer's Invoices",
-      "suffix": "/v1/import/customers/{Customer UUID}/invoices"
+      "suffix": "/v1/import/customers/{Customer UUID}/invoices",
+      "description": "The invoices of one customer. Requires the UUID."
     },
     {
       "paged": "true",
       "name": "Invoices",
-      "suffix": "/v1/invoices?data_source_uuid={Data Source UUID?}&customer_uuid={Customer UUID?}&external_id={External ID?}"
+      "suffix": "/v1/invoices?data_source_uuid={Data Source UUID?}&customer_uuid={Customer UUID?}&external_id={External ID?}",
+      "description": "The invoices imported into ChartMogul, with the customer, date, currency, line items and payment status. Filterable by data source and customer. The billing evidence beneath the metrics."
     },
     {
       "paged": "true",
       "name": "Search for Customers",
-      "suffix": "/v1/customers/search?email={Email}"
+      "suffix": "/v1/customers/search?email={Email}",
+      "description": "Customers matching an email address. The lookup when the UUID is not known -- note it searches email specifically rather than free text."
     },
     {
       "paged": "false",
       "name": "Customer's Attributes",
-      "suffix": "/v1/customers/{Customer UUID}/attributes"
+      "suffix": "/v1/customers/{Customer UUID}/attributes",
+      "description": "The tags and custom attributes on one customer. Requires the UUID. Where a business records segment, plan tier or account owner -- ChartMogul defines no meaning for these, so this is often the only place a customer dimension beyond country exists."
     },
     {
       "paged": "false",
       "name": "Metrics",
-      "suffix": "/v1/metrics/all?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/all?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "ChartMogul's full subscription metric set over a date range, in one call: MRR, ARR, ARPA, ASP, customer count, customer churn rate, MRR churn rate and LTV, per interval. Requires start and end dates and an interval. THE ENDPOINT MOST QUESTIONS SHOULD USE -- it returns every headline metric together rather than one per request, and ChartMogul has already applied the subscription accounting (proration, currency normalisation, upgrade and downgrade attribution) that reconstructing from invoices would mean reimplementing."
     },
     {
       "paged": "false",
       "name": "Monthly Recurring Revenue",
-      "suffix": "/v1/metrics/mrr?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/mrr?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "MRR over a date range, broken into its MOVEMENTS -- new business, expansion, contraction, churn and reactivation -- per interval. This decomposition is the point: a flat MRR line can hide large new business exactly offset by large churn, and only the movement breakdown shows it."
     },
     {
       "paged": "false",
       "name": "Annualized Run Rate",
-      "suffix": "/v1/metrics/arr?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/arr?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "ARR over a date range. Derived directly from MRR, so it carries no information MRR does not; useful where the business reports in annual terms."
     },
     {
       "paged": "false",
       "name": "Average Revenue Per Account",
-      "suffix": "/v1/metrics/arpa?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/arpa?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "ARPA over a date range. Moves when the customer mix changes as well as when prices do, so a rise here is not by itself evidence of a pricing gain."
     },
     {
       "paged": "false",
       "name": "Average Sale Price",
-      "suffix": "/v1/metrics/asp?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/asp?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "The average value of new subscriptions closed in each interval. Unlike ARPA this covers only NEW business, which makes it the measure of what is being sold now rather than of the whole base."
     },
     {
       "paged": "false",
       "name": "Customer Count",
-      "suffix": "/v1/metrics/customer-count?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/customer-count?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "The number of paying customers at each interval. The denominator for most per-customer figures, and it counts customers rather than subscriptions -- one customer with three subscriptions is one row."
     },
     {
       "paged": "false",
       "name": "Customer Churn Rate",
-      "suffix": "/v1/metrics/customer-churn-rate?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/customer-churn-rate?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "The percentage of customers lost per interval. Distinct from MRR churn: losing many small customers and losing one large one look very different in these two, which is why both exist."
     },
     {
       "paged": "false",
       "name": "MRR Churn Rate",
-      "suffix": "/v1/metrics/mrr-churn-rate?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/mrr-churn-rate?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "The percentage of recurring revenue lost per interval, net of expansion. CAN BE NEGATIVE where expansion within the retained base exceeds losses, which is a healthy result and not an error."
     },
     {
       "paged": "false",
       "name": "Customer Lifetime Value",
-      "suffix": "/v1/metrics/ltv?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+      "suffix": "/v1/metrics/ltv?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&geo={Geo?:US,GB,DE}&plans={Plans?}",
+      "description": "Computed LTV per interval. A modelled figure derived from churn and ARPA rather than an observed one, so it is a projection whose accuracy depends on churn staying as it was."
     },
     {
       "paged": "true",
       "name": "Customer Subscriptions",
-      "suffix": "/v1/customers/{Customer UUID}/subscriptions"
+      "suffix": "/v1/customers/{Customer UUID}/subscriptions",
+      "description": "The subscriptions of one customer, with plan, quantity, MRR and the period each covers. Requires the UUID. What makes up a customer's MRR, which the customer record only totals."
     },
     {
       "paged": "true",
       "name": "Customer Activities",
-      "suffix": "/v1/customers/{Customer UUID}/activities"
+      "suffix": "/v1/customers/{Customer UUID}/activities",
+      "description": "The subscription events of one customer over time -- new business, expansion, contraction, churn, reactivation -- each with its date and MRR change. Requires the UUID. THE PER-CUSTOMER MOVEMENT HISTORY: the aggregate movements in the MRR endpoint are sums of these, so this is where a particular month's churn is traced to the accounts responsible."
     }
   ]
 }
