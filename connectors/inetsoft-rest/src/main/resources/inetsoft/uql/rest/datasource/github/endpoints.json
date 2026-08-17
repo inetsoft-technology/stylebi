@@ -187,7 +187,7 @@
     {
       "paged": "true",
       "name": "Workflow Run Artifacts",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/runs/{Run ID}/artifacts"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/artifacts"
     },
     {
       "paged": "false",
@@ -207,7 +207,7 @@
     {
       "paged": "false",
       "name": "Repository Secret",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secret/{Secret Name}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets/{Secret Name}"
     },
     {
       "paged": "true",
@@ -893,7 +893,7 @@
     {
       "paged": "false",
       "name": "Release Asset",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}/assets/{Asset ID}"
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/assets/{Asset ID}"
     },
     {
       "paged": "true",
