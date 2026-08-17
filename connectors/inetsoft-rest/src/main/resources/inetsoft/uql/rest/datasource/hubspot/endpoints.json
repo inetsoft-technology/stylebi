@@ -210,7 +210,7 @@
       "name": "Contact Profile",
       "pageType": 0,
       "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
-      "description": "One contact by their tracking cookie token. The route from an anonymous website visitor to a known contact."
+      "description": "One contact by their tracking cookie token. The route from an anonymous website visitor to a known contact. NOTE this is the same endpoint as Contact By User Token, which the connector carries under a second name."
     },
     {
       "name": "Contact By User Token",
@@ -884,7 +884,7 @@
       "name": "Email Event",
       "pageType": 0,
       "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}",
-      "description": "One email event by its creation timestamp and id."
+      "description": "One email event by its creation timestamp and id. NOTE the connector also carries this same path under the name Associated Engagements."
     },
     {
       "name": "Engagement",
@@ -920,7 +920,7 @@
       "name": "Events",
       "pageType": 0,
       "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}",
-      "description": "The custom behavioural events defined and recorded. Events are whatever the portal's own tracking sends, so their names and meanings are entirely account-specific."
+      "description": "The custom behavioural events defined and recorded. Events are whatever the portal's own tracking sends, so their names and meanings are entirely account-specific. NOTE this is the same endpoint as Events Data, which the connector carries under a second name; either will do."
     },
     {
       "name": "Event",
