@@ -3,37 +3,44 @@
     {
       "name": "Client Contacts",
       "paged": true,
-      "suffix": "/v2/contacts?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/contacts?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The people at each client, with name, email, phone and the client they belong to. Who invoices are addressed to."
     },
     {
       "name": "Client Contact",
       "paged": false,
-      "suffix": "/v2/contacts/{Contact ID}"
+      "suffix": "/v2/contacts/{Contact ID}",
+      "description": "One client contact by id."
     },
     {
       "name": "Clients",
       "paged": true,
-      "suffix": "/v2/clients?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/clients?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The clients, with name, currency and active state. The billing entity projects belong to. NOTE THE CURRENCY IS PER CLIENT, so totals spanning clients mix currencies and Harvest converts nothing."
     },
     {
       "name": "Client",
       "paged": false,
-      "suffix": "/v2/clients/{Client ID}"
+      "suffix": "/v2/clients/{Client ID}",
+      "description": "One client by id."
     },
     {
       "name": "Company",
       "paged": false,
-      "suffix": "/v2/company"
+      "suffix": "/v2/company",
+      "description": "The Harvest account's own settings: name, base currency, week start day, whether time is tracked by duration or by start and end times, and the decimal format. THE TIME-TRACKING MODE MATTERS: a duration-tracking account has no start and end times on its entries at all, so questions about when in the day work happened are unanswerable there."
     },
     {
       "name": "Invoice Messages",
       "paged": true,
-      "suffix": "/v2/invoices/{Invoice ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/invoices/{Invoice ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The emails sent about one invoice, with recipients and dates. Requires an invoice id. The record of whether an invoice was actually sent or chased."
     },
     {
       "name": "Invoice Payments",
       "paged": true,
-      "suffix": "/v2/invoices/{Invoice ID}/payments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/invoices/{Invoice ID}/payments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The payments received against one invoice, with amount and date. Requires an invoice id. The invoice carries the balance; this says when the money actually arrived, which is what a collection-time question needs."
     },
     {
       "name": "Invoices",
@@ -49,27 +56,32 @@
           "key": "id",
           "parameterName": "Invoice ID"
         }
-      ]
+      ],
+      "description": "The invoices issued, with the client, number, subject, issue and due dates, the state (draft, open, paid or closed), currency, the amount and the amount due, and the period they cover. Filter by client, project or updated_since. Only issued invoices represent real obligations, so state has to be read before any revenue total."
     },
     {
       "name": "Invoice",
       "paged": false,
-      "suffix": "/v2/invoices/{Invoice ID}"
+      "suffix": "/v2/invoices/{Invoice ID}",
+      "description": "One invoice by id, with its line items."
     },
     {
       "name": "Invoice Item Categories",
       "paged": true,
-      "suffix": "/v2/invoice_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/invoice_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The categories invoice line items are classified under. The revenue-type dimension."
     },
     {
       "name": "Invoice Item Category",
       "paged": false,
-      "suffix": "/v2/invoice_item_categories/{Invoice Item Category ID}"
+      "suffix": "/v2/invoice_item_categories/{Invoice Item Category ID}",
+      "description": "One invoice item category by id."
     },
     {
       "name": "Estimate Messages",
       "paged": true,
-      "suffix": "/v2/estimates/{Estimate ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/estimates/{Estimate ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The emails sent about one estimate. Requires an estimate id."
     },
     {
       "name": "Estimates",
@@ -82,92 +94,110 @@
           "key": "id",
           "parameterName": "Estimate ID"
         }
-      ]
+      ],
+      "description": "The quotes issued to clients, with the client, number, subject, dates, state and amount. The pipeline before an invoice: an estimate's state (draft, sent, accepted, declined) is the closest thing Harvest has to a sales funnel."
     },
     {
       "name": "Estimate",
       "paged": false,
-      "suffix": "/v2/estimates/{Estimate ID}"
+      "suffix": "/v2/estimates/{Estimate ID}",
+      "description": "One estimate by id, with its line items."
     },
     {
       "name": "Estimate Item Categories",
       "paged": true,
-      "suffix": "/v2/estimate_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/estimate_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The categories estimate line items are classified under."
     },
     {
       "name": "Estimate Item Category",
       "paged": false,
-      "suffix": "/v2/estimate_item_categories/{Estimate Item Category ID}"
+      "suffix": "/v2/estimate_item_categories/{Estimate Item Category ID}",
+      "description": "One estimate item category by id."
     },
     {
       "name": "Expenses",
       "paged": true,
-      "suffix": "/v2/expenses?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&is_billed={Billed Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/expenses?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&is_billed={Billed Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The expenses recorded, with the user, project, client, expense category, date, total cost, units where the category is unit-based, the billable flag, and the invoice it was billed on. Project profitability is time cost plus these, so an expense-blind margin overstates it."
     },
     {
       "name": "Expense",
       "paged": false,
-      "suffix": "/v2/expenses/{Expense ID}"
+      "suffix": "/v2/expenses/{Expense ID}",
+      "description": "One expense by id."
     },
     {
       "name": "Expense Categories",
       "paged": true,
-      "suffix": "/v2/expense_categories?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/expense_categories?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The expense categories, each with a unit name and unit price where it is charged per unit rather than at cost -- mileage being the usual case. The unit price is what turns a distance into money."
     },
     {
       "name": "Expense Category",
       "paged": false,
-      "suffix": "/v2/expense_categories/{Expense Category ID}"
+      "suffix": "/v2/expense_categories/{Expense Category ID}",
+      "description": "One expense category by id."
     },
     {
       "name": "Tasks",
       "paged": true,
-      "suffix": "/v2/tasks?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/tasks?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The task types time can be booked against -- design, development, meetings -- with a default hourly rate and whether each is billable by default. Account-wide definitions; which apply to a project is in Task Assignments."
     },
     {
       "name": "Task",
       "paged": false,
-      "suffix": "/v2/tasks/{Task ID}"
+      "suffix": "/v2/tasks/{Task ID}",
+      "description": "One task by id."
     },
     {
       "name": "Time Entries",
       "paged": true,
-      "suffix": "/v2/time_entries?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&task_id={Task ID?}&is_billed={Billed Only?:true|false}&is_running={Running Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/time_entries?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&task_id={Task ID?}&is_billed={Billed Only?:true|false}&is_running={Running Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The time entries recorded, one row each -- the central table. Carries the user, client, project, task, the spent_date, HOURS AS A DECIMAL, notes, the billable and billed flags, the billable_rate and cost_rate applied, and the invoice it was billed on. THIS IS RARE AND WORTH KNOWING: unlike most time trackers, Harvest stamps the rates ONTO THE ENTRY at the moment it is recorded, so revenue and cost are readable directly without joining to a project or person, and a historical entry keeps the rate that applied then rather than today's. Filter by user, client, project or updated_since."
     },
     {
       "name": "Time Entry",
       "paged": false,
-      "suffix": "/v2/time_entries/{Time Entry ID}"
+      "suffix": "/v2/time_entries/{Time Entry ID}",
+      "description": "One time entry by id, with its rates and invoice link."
     },
     {
       "name": "User Assignments",
       "paged": true,
-      "suffix": "/v2/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "Which people are assigned to which projects, each with their billable flag, hourly rate and role on that project. THE PER-PROJECT PERSON RATE, which overrides both the project rate and the person's default -- so this is the table any accurate revenue figure passes through."
     },
     {
       "name": "Project User Assignments",
       "paged": true,
-      "suffix": "/v2/projects/{Project ID}/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/projects/{Project ID}/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The people assigned to one project. Requires a project id."
     },
     {
       "name": "User Assignment",
       "paged": false,
-      "suffix": "/v2/projects/{Project ID}/user_assignments/{User Assignment ID}"
+      "suffix": "/v2/projects/{Project ID}/user_assignments/{User Assignment ID}",
+      "description": "One user assignment by id. Requires the project id."
     },
     {
       "name": "Task Assignments",
       "paged": true,
-      "suffix": "/v2/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "Which tasks are available on which projects, each with its own billable flag, hourly rate and budget. The per-project override of the account-wide task defaults, and therefore the rate that actually applies."
     },
     {
       "name": "Project Task Assignments",
       "paged": true,
-      "suffix": "/v2/projects/{Project ID}/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/projects/{Project ID}/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The task assignments of one project. Requires a project id."
     },
     {
       "name": "Task Assignment",
       "paged": false,
-      "suffix": "/v2/projects/{Project ID}/task_assignments/{Task Assignment ID}"
+      "suffix": "/v2/projects/{Project ID}/task_assignments/{Task Assignment ID}",
+      "description": "One task assignment by id. Requires the project id."
     },
     {
       "name": "Projects",
@@ -183,47 +213,56 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "The projects, with name, code, the client, whether active, the billing method (by project, by task, by person or fixed fee), the budget and how it is measured, and the hourly rate. Requires nothing; filter by client or active state. THE BILLING METHOD DECIDES WHICH RATE APPLIES -- a project billed by person uses the person's rate rather than the project's, so a revenue calculation that assumes one method is wrong for the others. Inactive projects are excluded when filtered, which drops completed work from historical totals."
     },
     {
       "name": "Project",
       "paged": false,
-      "suffix": "/v2/projects/{Project ID}"
+      "suffix": "/v2/projects/{Project ID}",
+      "description": "One project by id, with its budget and billing configuration."
     },
     {
       "name": "Roles",
       "paged": true,
-      "suffix": "/v2/roles"
+      "suffix": "/v2/roles",
+      "description": "The roles defined, each with the users assigned. Organisational grouping of people."
     },
     {
       "name": "Role",
       "paged": false,
-      "suffix": "/v2/roles/{Role ID}"
+      "suffix": "/v2/roles/{Role ID}",
+      "description": "One role by id."
     },
     {
       "name": "User Billable Rates",
       "paged": true,
-      "suffix": "/v2/users/{User ID}/billable_rates"
+      "suffix": "/v2/users/{User ID}/billable_rates",
+      "description": "The history of one person's billable rate, each entry with the date it took effect. Requires a user id. Rates change over time, and this is the record of when -- which matters for restating past periods correctly."
     },
     {
       "name": "User Billable Rate",
       "paged": false,
-      "suffix": "/v2/users/{User ID}/billable_rates/{Billable Rate ID}"
+      "suffix": "/v2/users/{User ID}/billable_rates/{Billable Rate ID}",
+      "description": "One billable rate entry by id."
     },
     {
       "name": "User Cost Rates",
       "paged": true,
-      "suffix": "/v2/users/{User ID}/cost_rates"
+      "suffix": "/v2/users/{User ID}/cost_rates",
+      "description": "The history of one person's COST rate -- what they cost the business, as opposed to what they are billed at. Requires a user id. The margin on a project is the gap between these two tables, and cost rates exist nowhere else."
     },
     {
       "name": "User Cost Rate",
       "paged": false,
-      "suffix": "/v2/users/{User ID}/cost_rates/{Cost Rate ID}"
+      "suffix": "/v2/users/{User ID}/cost_rates/{Cost Rate ID}",
+      "description": "One cost rate entry by id."
     },
     {
       "name": "User Project Assignments",
       "paged": true,
-      "suffix": "/v2/users/{User ID}/project_assignments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+      "suffix": "/v2/users/{User ID}/project_assignments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "description": "The projects one person is assigned to. Requires a user id. The reverse view, and the answer to what someone is able to book time against."
     },
     {
       "name": "Users",
@@ -240,12 +279,14 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The people in the account, with name, email, whether active, their role, weekly capacity, and default rates. Capacity is what makes a utilisation figure possible: hours recorded mean nothing without the hours available."
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/v2/users/{User ID}"
+      "suffix": "/v2/users/{User ID}",
+      "description": "One user by id, with their capacity and default rates."
     }
   ]
 }

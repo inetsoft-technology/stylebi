@@ -1,199 +1,238 @@
 {
-    "endpoints": [
-        {
-            "name": "Root",
-            "paged": false,
-            "suffix": "/v2/"
-        },
-        {
-            "name": "Product",
-            "paged": false,
-            "suffix": "/v2/products/{Product ID}"
-        },
-        {
-            "name": "Product Search",
-            "paged": false,
-            "suffix": "/v2/products/search/{Term}?filter={Filter?}"
-        },
-        {
-            "name": "Product by Store ID",
-            "paged": false,
-            "suffix": "/v2/products/{Store}/{Store ID}"
-        },
-        {
-            "name": "My Products",
-            "paged": false,
-            "suffix": "/v2/products/mine?store={Store Name?}"
-        },
-        {
-            "name": "Report Regions",
-            "paged": false,
-            "suffix": "/v2/reports/sales/regions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?:daily|weekly|monthly|yearly}&products={ProductIDs?}&countries={Countries?}&dataset={Dataset?:none|financial}&include_inapps={Include In Apps?:true|false}"
-        },
-        {
-            "name": "Report Revenue",
-            "paged": false,
-            "suffix": "/v2/reports/revenue?group_by={Group By?:product|country|date|store}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
-        },
-        {
-            "name": "Reports Subscriptions",
-            "paged": false,
-            "suffix": "/v2/reports/subscriptions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
-        },
-        {
-            "name": "Reports Subscription",
-            "paged": false,
-            "suffix": "/v2/reports/subscriptions?group_by={Group By?:product|country|date|store}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
-        },
-        {
-            "name": "Reports Ads",
-            "paged": false,
-            "suffix": "/v2/reports/ads?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}&networks={Networks?}"
-        },
-        {
-            "name": "Reports Ads Details",
-            "paged": false,
-            "suffix": "/v2/reports/ads?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
-        },
-        {
-            "name": "Advertiser Analytics",
-            "paged": false,
-            "suffix": "/v2/reports/adspend?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}&networks={Networks?}"
-        },
-        {
-            "name": "Ratings",
-            "paged": false,
-            "suffix": "/v2/reports/ratings?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}"
-        },
-        {
-            "name": "Ratings Details",
-            "paged": false,
-            "suffix": "/v2/reports/ratings?group_by={Group By?:product|country|date}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}"
-        },
-        {
-            "name": "Usages",
-            "paged": false,
-            "suffix": "/v2/reports/usage?group_by={Group By?:product|country|date|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Product IDs?}&countries={Countries?}&networks={Networks?}"
-        },
-        {
-            "name": "All Usages",
-            "paged": false,
-            "suffix": "/v2/usage"
-        },
-        {
-            "name": "Report Sales",
-            "paged": false,
-            "suffix": "/v2/reports/sales?group_by={Group By?:products|countries|dates|stores}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Product IDs?}&countries={Countries?}"
-        },
-        {
-            "name": "Ranks",
-            "paged": false,
-            "suffix": "/v2/ranks/{Product IDS}/{Granularity:hourly|daily}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}&filter={Filter?}&tz={Timezone?:user|utc|est}"
-        },
-        {
-            "name": "Ranks Snapshot",
-            "paged": false,
-           "suffix": "/v2/ranks/snapshots/{Time:HH-MM-SS}/{Country}/{Category}/{Subcategory:free|paid|topgrossing}?top={Top?}"
-        },
-        {
-            "name": "Featured",
-            "paged": false,
-            "suffix": "/v2/featured/summary/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?products={Products?}"
-        },
-        {
-            "name": "Featured Full",
-            "paged": false,
-            "suffix": "/v2/featured/full/{Product ID}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}"
-        },
-        {
-            "name": "Featured Count",
-            "paged": false,
-            "suffix": "/v2/featured/counts?end={End Date?:YYYY-MM-DD}&products={Products?}&granularity={Granularity?:daily|weekly}&show_empty={Show Empty?:true|false}"
-        },
-        {
-            "name": "Featured History",
-            "paged": false,
-            "suffix": "/v2/featured/history/{Product ID}/{Featured Category ID}"
-        },
-        {
-            "name": "Review",
-            "paged": false,
-            "suffix": "/v2/reviews?stars={Stars?}"
-        },
-        {
-            "name": "Review Filters Counts",
-            "paged": false,
-            "suffix": "/v2/reviews/count?stars={Stars?}"
-        },
-        {
-            "name": "Events",
-            "paged": false,
-            "suffix": "/v2/events/"
-        },
-        {
-            "name": "Archive",
-            "paged": false,
-            "suffix": "/v2/archive?type={Type?:daily|weekly|monthly|yearly|finance|payment|all}&date={Date?:YYYY-MM-DD}"
-        },
-        {
-            "name": "Latest Report Listings",
-            "paged": false,
-            "suffix": "/v2/archive/latest?type={Type?:daily|weekly|monthly|yearly|finance|payment|all}"
-        },
-        {
-            "name": "Raw Report Data",
-            "paged": false,
-            "suffix": "/v2/archive/raw/{ID}/"
-        },
-        {
-            "name": "Users",
-            "paged": false,
-            "suffix": "/v2/users/{Email}"
-        },
-        {
-            "name": "Accounts",
-            "paged": false,
-            "suffix": "/v2/external_accounts"
-        },
-        {
-            "name": "Account",
-            "paged": false,
-            "suffix": "/v2/external_accounts/{External Account ID}"
-        },
-        {
-            "name": "Categories",
-            "paged": false,
-            "suffix": "/v2/data/categories"
-        },
-        {
-            "name": "Countries",
-            "paged": false,
-            "suffix": "/v2/data/countries"
-        },
-        {
-            "name": "Apple Country",
-            "paged": false,
-            "suffix": "/v2/data/countries/apple"
-        },
-        {
-            "name": "Languages",
-            "paged": false,
-            "suffix": "/v2/data/languages"
-        },
-        {
-            "name": "Currencies",
-            "paged": false,
-            "suffix": "/v2/data/currencies"
-        },
-        {
-            "name": "Stores",
-            "paged": false,
-            "suffix": "/v2/data/stores"
-        },
-        {
-            "name": "Sdks",
-            "paged": false,
-            "suffix": "/v2/data/sdks"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Root",
+      "paged": false,
+      "suffix": "/v2/",
+      "description": "The API root, listing the available resources and the authenticated account. A discovery and connectivity check."
+    },
+    {
+      "name": "Product",
+      "paged": false,
+      "suffix": "/v2/products/{Product ID}",
+      "description": "One app by its Appfigures product id, with its store metadata."
+    },
+    {
+      "name": "Product Search",
+      "paged": false,
+      "suffix": "/v2/products/search/{Term}?filter={Filter?}",
+      "description": "Apps matching a search term across the connected stores, including apps the account does not own. Competitor discovery."
+    },
+    {
+      "name": "Product by Store ID",
+      "paged": false,
+      "suffix": "/v2/products/{Store}/{Store ID}",
+      "description": "One app looked up by store and the store's own id. The bridge from an App Store or Play Store identifier to the Appfigures product id everything else needs."
+    },
+    {
+      "name": "My Products",
+      "paged": false,
+      "suffix": "/v2/products/mine?store={Store Name?}",
+      "description": "The apps connected to the account, optionally filtered by store. THE STARTING POINT: every report here takes product ids, and these are the ones the account actually owns, as opposed to the whole store catalogue the product endpoints can reach."
+    },
+    {
+      "name": "Report Regions",
+      "paged": false,
+      "suffix": "/v2/reports/sales/regions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?:daily|weekly|monthly|yearly}&products={ProductIDs?}&countries={Countries?}&dataset={Dataset?:none|financial}&include_inapps={Include In Apps?:true|false}",
+      "description": "Sales broken down by region over a date range. The geographic cut of the sales report."
+    },
+    {
+      "name": "Report Revenue",
+      "paged": false,
+      "suffix": "/v2/reports/revenue?group_by={Group By?:product|country|date|store}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}",
+      "description": "Revenue over a date range, grouped the same ways. Distinct from Report Sales, which counts units: revenue is net of the store's commission and of refunds, so revenue and downloads do not move together."
+    },
+    {
+      "name": "Reports Subscriptions",
+      "paged": false,
+      "suffix": "/v2/reports/subscriptions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}",
+      "description": "Subscription figures over a date range -- active subscriptions, new, renewals, cancellations and revenue. The recurring-revenue view, which the one-off sales report cannot express."
+    },
+    {
+      "name": "Reports Subscription",
+      "paged": false,
+      "suffix": "/v2/reports/subscriptions?group_by={Group By?:product|country|date|store}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}",
+      "description": "The same subscription figures with an explicit grouping. Identical endpoint to Reports Subscriptions, differing only in which parameters the connector fills in."
+    },
+    {
+      "name": "Reports Ads",
+      "paged": false,
+      "suffix": "/v2/reports/ads?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}&networks={Networks?}",
+      "description": "Advertising revenue earned from the ad networks connected -- impressions, clicks, fill rate and revenue -- grouped by product, country, date, store or network. The monetisation side that has nothing to do with app sales, and where an ad-funded app's actual income is."
+    },
+    {
+      "name": "Reports Ads Details",
+      "paged": false,
+      "suffix": "/v2/reports/ads?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}",
+      "description": "The same ad revenue report at a finer grouping. The same endpoint as Reports Ads with a different default grouping."
+    },
+    {
+      "name": "Advertiser Analytics",
+      "paged": false,
+      "suffix": "/v2/reports/adspend?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}&networks={Networks?}",
+      "description": "Advertising SPEND -- what was paid to acquire users, by product, country, date, store or network. The opposite side of Reports Ads: that is money earned from showing ads, this is money spent buying installs, and user acquisition profitability is the gap between them."
+    },
+    {
+      "name": "Ratings",
+      "paged": false,
+      "suffix": "/v2/reports/ratings?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}",
+      "description": "Star ratings over a date range, with the counts at each star level. The rating snapshot rather than the reviews behind it."
+    },
+    {
+      "name": "Ratings Details",
+      "paged": false,
+      "suffix": "/v2/reports/ratings?group_by={Group By?:product|country|date}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}",
+      "description": "The same ratings with an explicit grouping by product, country or date. Same endpoint as Ratings."
+    },
+    {
+      "name": "Usages",
+      "paged": false,
+      "suffix": "/v2/reports/usage?group_by={Group By?:product|country|date|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Product IDs?}&countries={Countries?}&networks={Networks?}",
+      "description": "App usage figures -- sessions and active users -- grouped by product, country, date or network, over a range. Only populated where a usage SDK is connected, so an empty result here is an integration fact rather than an absence of use."
+    },
+    {
+      "name": "All Usages",
+      "paged": false,
+      "suffix": "/v2/usage",
+      "description": "The account-wide usage summary."
+    },
+    {
+      "name": "Report Sales",
+      "paged": false,
+      "suffix": "/v2/reports/sales?group_by={Group By?:products|countries|dates|stores}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Product IDs?}&countries={Countries?}",
+      "description": "Sales and download figures across the connected app stores, grouped by product, country, date or store, over a date range. THE CENTRAL REPORT: it unifies Apple, Google and the other stores into one shape, which is the whole point of Appfigures -- each store reports differently and this is the normalised view. Note the figures are as the STORES report them, so they arrive with the stores' own delay and are restated when a store restates."
+    },
+    {
+      "name": "Ranks",
+      "paged": false,
+      "suffix": "/v2/ranks/{Product IDS}/{Granularity:hourly|daily}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}&filter={Filter?}&tz={Timezone?:user|utc|est}",
+      "description": "The store rank history of given products at hourly or daily granularity over a date range. Requires product ids and dates. The historical series; every other rank endpoint here is a snapshot."
+    },
+    {
+      "name": "Ranks Snapshot",
+      "paged": false,
+      "suffix": "/v2/ranks/snapshots/{Time:HH-MM-SS}/{Country}/{Category}/{Subcategory:free|paid|topgrossing}?top={Top?}",
+      "description": "The chart standings at one moment, for a country, category and subcategory. Requires the time and the chart coordinates. Who was where at a point in time, including competitors the account does not own."
+    },
+    {
+      "name": "Featured",
+      "paged": false,
+      "suffix": "/v2/featured/summary/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?products={Products?}",
+      "description": "A summary of the store featuring one or more products received over a date range. Being featured by a store is the single largest driver of a download spike, and this is the only record of it."
+    },
+    {
+      "name": "Featured Full",
+      "paged": false,
+      "suffix": "/v2/featured/full/{Product ID}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}",
+      "description": "The full featuring detail for one product over a range -- every placement, where and when. Requires a product id and dates."
+    },
+    {
+      "name": "Featured Count",
+      "paged": false,
+      "suffix": "/v2/featured/counts?end={End Date?:YYYY-MM-DD}&products={Products?}&granularity={Granularity?:daily|weekly}&show_empty={Show Empty?:true|false}",
+      "description": "How many featuring placements products received, without the detail. The cheap size check."
+    },
+    {
+      "name": "Featured History",
+      "paged": false,
+      "suffix": "/v2/featured/history/{Product ID}/{Featured Category ID}",
+      "description": "The featuring history of one product in one featured category. Requires the product id and category id."
+    },
+    {
+      "name": "Review",
+      "paged": false,
+      "suffix": "/v2/reviews?stars={Stars?}",
+      "description": "User reviews, filterable by star rating. The qualitative record behind a rating movement."
+    },
+    {
+      "name": "Review Filters Counts",
+      "paged": false,
+      "suffix": "/v2/reviews/count?stars={Stars?}",
+      "description": "How many reviews match given filters, without returning them. The cheap way to size a review set before fetching it."
+    },
+    {
+      "name": "Events",
+      "paged": false,
+      "suffix": "/v2/events/",
+      "description": "The dated events recorded on the account -- releases, campaigns, price changes. The business context behind a movement in the numbers, which no report explains on its own."
+    },
+    {
+      "name": "Archive",
+      "paged": false,
+      "suffix": "/v2/archive?type={Type?:daily|weekly|monthly|yearly|finance|payment|all}&date={Date?:YYYY-MM-DD}",
+      "description": "The raw report files the stores delivered, by type and period. The unprocessed source behind the normalised reports, and the way to reconcile a figure against what a store actually sent."
+    },
+    {
+      "name": "Latest Report Listings",
+      "paged": false,
+      "suffix": "/v2/archive/latest?type={Type?:daily|weekly|monthly|yearly|finance|payment|all}",
+      "description": "The most recent report file of each type. The quick check on whether a store's data has arrived."
+    },
+    {
+      "name": "Raw Report Data",
+      "paged": false,
+      "suffix": "/v2/archive/raw/{ID}/",
+      "description": "The contents of one archived report file by id. The store's own format, unnormalised."
+    },
+    {
+      "name": "Users",
+      "paged": false,
+      "suffix": "/v2/users/{Email}",
+      "description": "One Appfigures user by email address. Administrative."
+    },
+    {
+      "name": "Accounts",
+      "paged": false,
+      "suffix": "/v2/external_accounts",
+      "description": "The store and network accounts connected to Appfigures -- iTunes Connect, Google Play, ad networks. Their status is what determines whether a report has data at all: a broken connection produces gaps that look like zero sales."
+    },
+    {
+      "name": "Account",
+      "paged": false,
+      "suffix": "/v2/external_accounts/{External Account ID}",
+      "description": "One connected external account by id, with its sync status."
+    },
+    {
+      "name": "Categories",
+      "paged": false,
+      "suffix": "/v2/data/categories",
+      "description": "The store category taxonomy across the supported stores. Reference data; category ids differ per store, which is why a cross-store category comparison needs this."
+    },
+    {
+      "name": "Countries",
+      "paged": false,
+      "suffix": "/v2/data/countries",
+      "description": "The country codes used across reports. Reference data."
+    },
+    {
+      "name": "Apple Country",
+      "paged": false,
+      "suffix": "/v2/data/countries/apple",
+      "description": "Apple's own country and storefront codes, which differ from the general list. The decoder for App Store regional figures."
+    },
+    {
+      "name": "Languages",
+      "paged": false,
+      "suffix": "/v2/data/languages",
+      "description": "The language codes used in store listings and reviews. Reference data."
+    },
+    {
+      "name": "Currencies",
+      "paged": false,
+      "suffix": "/v2/data/currencies",
+      "description": "The currencies revenue is reported in. Relevant because store payouts arrive in several, and totals across them need conversion Appfigures does not perform in these endpoints."
+    },
+    {
+      "name": "Stores",
+      "paged": false,
+      "suffix": "/v2/data/stores",
+      "description": "The app stores Appfigures supports, with their ids. The decoder for the store column that appears throughout the reports."
+    },
+    {
+      "name": "Sdks",
+      "paged": false,
+      "suffix": "/v2/data/sdks",
+      "description": "The SDK catalogue Appfigures recognises. Reference data for SDK-based product searches."
+    }
+  ]
 }
