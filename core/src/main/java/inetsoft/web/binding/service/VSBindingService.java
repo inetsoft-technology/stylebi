@@ -1824,6 +1824,7 @@ public class VSBindingService {
          }
 
          nrvs.setOriginalID(vsId);
+         nrvs.setBaseWriteRevisionAtOpen(rvs.getWriteRevision());
          nrvs.setViewsheet(vs);
          nrvs.setVSTemporaryInfo(wizardTemporaryInfoService.getVSTemporaryInfo(rvs));
          engine.flushRuntimeSheet(id);
@@ -1894,6 +1895,19 @@ public class VSBindingService {
             obox.get().getVariableTable().addAll(nbox.get().getVariableTable());
          }
 
+         // Write coordination: the binding editor edits a CLONE (createRuntimeSheet) and
+         // replaces the base runtime's ENTIRE viewsheet on finish, not just the assembly
+         // being bound -- the largest blast radius of any write path in the Composer. Refuse
+         // rather than silently discard whatever changed in the base viewsheet (any assembly,
+         // via any other write tool) while this binding session was open. See
+         // 2026-08-17-write-coordination-design.md / -implementation.md.
+         Integer expectedRevision = nrvs.getBaseWriteRevisionAtOpen();
+
+         if(expectedRevision != null && expectedRevision != orvs.getWriteRevision()) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.writeConflict", "the viewsheet"));
+         }
+
          updateVSAssemblyBoundAssemblies(nrvs, orvs, assemblyName);
          Viewsheet nvs = nrvs.getViewsheet().clone();
          VSAssembly assembly = nvs.getAssembly(assemblyName);
@@ -1919,6 +1933,7 @@ public class VSBindingService {
          }
 
       orvs.setViewsheet(nvs);
+      orvs.bumpWriteRevision();
       // setViewsheet() triggers resetRuntime() which clears parametersApplied.
       // Mark parameters as already applied so that applyParameterToInput() does
       // not overwrite input-assembly selections with stale variable-table entries

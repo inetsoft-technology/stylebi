@@ -2119,6 +2119,21 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * For the binding editor's cloned runtime only: the base runtime's write revision at the
+    * moment editing started. {@code finishEdit} compares this against the base runtime's
+    * CURRENT revision before replacing its whole viewsheet, so a concurrent write elsewhere in
+    * the base viewsheet during the binding session is not silently discarded. {@code null} on
+    * every runtime that isn't a binding-editor clone.
+    */
+   public Integer getBaseWriteRevisionAtOpen() {
+      return baseWriteRevisionAtOpen;
+   }
+
+   public void setBaseWriteRevisionAtOpen(Integer baseWriteRevisionAtOpen) {
+      this.baseWriteRevisionAtOpen = baseWriteRevisionAtOpen;
+   }
+
+   /**
     * Get the base worksheet.
     */
    public RuntimeWorksheet getRuntimeWorksheet() {
@@ -2909,6 +2924,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private boolean needRefresh = false; // force refresh
    private int mode; // viewsheet mode
    private transient int writeRevision; // bumped on every dialog-owning commit; see getWriteRevision
+   private transient Integer baseWriteRevisionAtOpen; // binding-editor clones only; see accessor
    private ViewsheetSandbox box; // query sandbox
    private AssetRepository rep; // asset repository
    private String execSessionID; // Execution Session ID used for Auditing
