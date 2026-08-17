@@ -37,10 +37,12 @@ import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import inetsoft.web.viewsheet.service.ComposerClientService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -203,6 +205,38 @@ public class SheetAgentBroadcastService {
 
    private void sendCommand(String user, String sessionId, String runtimeId, Object command) {
       sendToBrowser(user, sessionId, runtimeId, command);
+   }
+
+   /**
+    * Push a <b>composer-level</b> command — one addressed at the Composer application itself
+    * rather than at any open sheet — to the browser holding a paired session.
+    *
+    * <p>Deliberately not {@link #sendToBrowser}. That publishes to
+    * {@link CommandDispatcher#COMMANDS_TOPIC} ({@code "/commands"}), the per-sheet-runtime channel
+    * a {@code ViewsheetClientService} listens on and filters by
+    * {@link CommandDispatcher#RUNTIME_ID_ATTR}. An {@code OpenComposerAssetCommand} has no open
+    * sheet to be filtered by — the runtime it names is precisely the one the browser has not
+    * opened yet — and its only client handler subscribes to {@code /user/composer-client}. Sent to
+    * the sheet channel it is delivered to a destination with no handler and dropped silently,
+    * while every call up the stack still reports success.
+    *
+    * <p>The two destination constants are both named {@code COMMANDS_TOPIC}, on
+    * {@link CommandDispatcher} and {@link ComposerClientService}. Reaching for the wrong one is a
+    * one-word mistake that produces no error anywhere. This mirrors {@code ComposerController}'s
+    * native "Edit Data" send: address the socket session, set no runtime header.
+    *
+    * @param socketSessionId the paired browser's STOMP session id — both the destination user and
+    *                        the session header, as the native path does
+    */
+   public void sendToComposer(String socketSessionId, Object command) {
+      SimpMessageHeaderAccessor headers =
+         SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+      headers.setSessionId(socketSessionId);
+      headers.setLeaveMutable(true);
+
+      commandDispatcherService.convertAndSendToUser(
+         socketSessionId, ComposerClientService.COMMANDS_TOPIC, command,
+         headers.getMessageHeaders());
    }
 
    /**

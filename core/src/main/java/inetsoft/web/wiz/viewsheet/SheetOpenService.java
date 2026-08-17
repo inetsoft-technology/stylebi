@@ -111,7 +111,13 @@ public class SheetOpenService {
             "open_base_worksheet.");
       }
 
-      String runtimeId = worksheetService.openWorksheet(baseEntry, user);
+      // Owned by the BROWSER's principal, not the agent's. WorksheetEngine.getSheet refuses a
+      // principal that does not match the runtime's owner unless it carries pairedAgent or
+      // supportLogin: the agent has pairedAgent, the browser has neither. Opening as the agent
+      // makes the user's own browser the outsider and its attach dies on "Invalid user found",
+      // two principals for the same user differing only by session. A paired viewsheet is already
+      // browser-owned with the agent reaching in through the flag; this matches it.
+      String runtimeId = worksheetService.openWorksheet(baseEntry, rvs.getUser());
 
       JoinSession wsSession = sheetSessions.open(runtimeId, vsSession.ownerIdentity(),
                                                   SheetType.WORKSHEET,
@@ -124,8 +130,9 @@ public class SheetOpenService {
          .runtimeId(runtimeId)
          .build();
 
-      broadcast.sendToBrowser(vsSession.socketUserName(), vsSession.socketSessionId(), runtimeId,
-                              command);
+      // The Composer's own channel, not the paired sheet's: this command is handled by
+      // composer-main, which subscribes to /user/composer-client. See sendToComposer.
+      broadcast.sendToComposer(vsSession.socketSessionId(), command);
 
       return wsSession;
    }

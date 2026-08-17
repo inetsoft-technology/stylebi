@@ -20,6 +20,8 @@ package inetsoft.web.composer.ws.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 @Value.Immutable
 @JsonDeserialize(builder = OpenWorksheetEvent.Builder.class)
 public abstract class OpenWorksheetEvent {
@@ -30,6 +32,17 @@ public abstract class OpenWorksheetEvent {
    public abstract boolean gettingStartedWs();
 
    public abstract boolean createQuery();
+
+   /**
+    * A runtime the server already opened, which this browser must attach to instead of opening
+    * its own — the {@code open_base_worksheet} agent flow. {@code null} for the normal case where
+    * the browser is the one opening the worksheet.
+    *
+    * <p>Mirrors {@code OpenViewsheetEvent.runtimeViewsheetId}, which the viewsheet pane has long
+    * used for the same purpose.
+    */
+   @Nullable
+   public abstract String runtimeId();
 
    public static Builder builder() {
       return new Builder();

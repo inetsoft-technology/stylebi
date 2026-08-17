@@ -29,9 +29,14 @@ import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.service.ComposerClientService;
+import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
 import java.security.Principal;
 
@@ -57,6 +62,16 @@ class SheetOpenServiceTest {
     * to the browser, without threading a mock through every call site.
     */
    private SheetAgentBroadcastService broadcast;
+
+   /** Populated by {@code serviceWithBase} so tests can assert which principal opened the runtime. */
+   private WorksheetService worksheetService;
+
+   /**
+    * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
+    * Deliberately a different object from {@link #principal()}, the agent: the two are the same
+    * logical user but different sessions, and the ownership check compares sessions.
+    */
+   private static final Principal BROWSER_PRINCIPAL = () -> OWNER;
 
    /**
     * Necessarily equal to {@link #OWNER}: {@code SheetSessionService.resolve} refuses a session
@@ -159,12 +174,66 @@ class SheetOpenServiceTest {
       service.openBaseWorksheet("tok-vs", principal());
 
       ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
-      verify(broadcast).sendToBrowser(eq(SOCKET_USER), eq("sock-1"), anyString(),
-                                       command.capture());
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
 
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertEquals("ws-runtime-1", sent.runtimeId(), "the browser must attach, not open its own");
       assertFalse(sent.viewsheet());
+   }
+
+   /**
+    * Which STOMP destination the command lands on -- the assertion whose absence let this ship
+    * broken.
+    *
+    * <p>{@code OpenComposerAssetCommand} has exactly one handler in the client: composer-main,
+    * fed by a subscription to {@code /user/composer-client}. Published instead to
+    * {@link inetsoft.web.viewsheet.service.CommandDispatcher#COMMANDS_TOPIC} ({@code "/commands"})
+    * it reaches the per-sheet client, which has no handler for it, and is dropped with no error --
+    * the user's Composer opens no tab while every call up the stack still reports success.
+    *
+    * <p>Both constants are named {@code COMMANDS_TOPIC}, on different classes, which is how the
+    * wrong one survived review. This test drives the <b>real</b> broadcast service over a mocked
+    * dispatcher: mocking the broadcast service is what made the sibling test above blind, since
+    * the destination is chosen inside the very method that was stubbed.
+    */
+   @Test
+   void theOpenCommandGoesToTheComposerClientTopicNotTheSheetRuntimeTopic() throws Exception {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService realBroadcast = new SheetAgentBroadcastService(
+         dispatcher, mock(VSObjectModelFactoryService.class));
+      SheetOpenService service =
+         serviceWithBase(worksheetEntry(), true, null, "sock-1", realBroadcast);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("sock-1"), eq(ComposerClientService.COMMANDS_TOPIC),
+         any(OpenComposerAssetCommand.class), headers.capture());
+
+      assertEquals("sock-1", SimpMessageHeaderAccessor.getSessionId(headers.getValue()),
+                   "must be delivered to the paired browser's socket session");
+   }
+
+   /**
+    * Who owns the new runtime. The browser must, not the agent.
+    *
+    * <p>{@code WorksheetEngine.getSheet} rejects a principal that does not match the runtime's
+    * owner unless it carries {@code pairedAgent} or {@code supportLogin}. The agent carries
+    * {@code pairedAgent}; the user's browser carries neither. Opening the runtime as the agent
+    * therefore makes the <em>browser</em> the outsider, and its attach dies on "Invalid user
+    * found" — two principals for the same admin differing only by session id.
+    *
+    * <p>A paired viewsheet already has this the right way round: the browser opened it and the
+    * agent reaches it through the flag. Mirroring that keeps one rule for both sheet types.
+    */
+   @Test
+   void opensTheRuntimeAsTheViewsheetsOwnerSoTheBrowserCanAttach() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      verify(worksheetService).openWorksheet(any(AssetEntry.class), same(BROWSER_PRINCIPAL));
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
@@ -180,12 +249,25 @@ class SheetOpenServiceTest {
                                              String heldWorksheetRuntimeId,
                                              String socketSessionId)
    {
+      return serviceWithBase(base, hasPermission, heldWorksheetRuntimeId, socketSessionId, null);
+   }
+
+   /**
+    * @param broadcastService the collaborator to inject, or {@code null} for a mock. Pass a real
+    *                         one to assert on what actually reaches the dispatcher.
+    */
+   private SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
+                                             String heldWorksheetRuntimeId,
+                                             String socketSessionId,
+                                             SheetAgentBroadcastService broadcastService)
+   {
       try {
          Viewsheet vs = mock(Viewsheet.class);
          when(vs.getBaseEntry()).thenReturn(base);
 
          RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
          when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.getUser()).thenReturn(BROWSER_PRINCIPAL);
 
          JoinSession vsSession = new JoinSession(
             "tok-vs", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
@@ -206,7 +288,7 @@ class SheetOpenServiceTest {
          // the point of keeping the two values distinct.
          when(sheetSessions.findOpen(OWNER, SheetType.WORKSHEET)).thenReturn(held);
 
-         WorksheetService worksheetService = mock(WorksheetService.class);
+         worksheetService = mock(WorksheetService.class);
          when(worksheetService.openWorksheet(any(AssetEntry.class), any(Principal.class)))
             .thenReturn("ws-runtime-1");
 
@@ -226,7 +308,8 @@ class SheetOpenServiceTest {
                                  eq(socketSessionId), eq(SOCKET_USER)))
             .thenReturn(newWsSession);
 
-         broadcast = mock(SheetAgentBroadcastService.class);
+         broadcast = broadcastService == null
+            ? mock(SheetAgentBroadcastService.class) : broadcastService;
 
          return new SheetOpenService(viewsheetSessions, sheetSessions, worksheetService,
                                       securityProvider, broadcast);
