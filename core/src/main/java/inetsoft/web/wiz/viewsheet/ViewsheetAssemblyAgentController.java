@@ -65,6 +65,10 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyConditionService conditionService,
                                    AssemblyHighlightService highlightService,
                                    DateComparisonService comparisonService,
+                                   AssemblyConvertService convertService,
+                                   SelectionRuntimeService selectionService,
+                                   CalendarDisplayService calendarService,
+                                   InputValueService inputService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
                                    SheetOpenService openService)
@@ -85,6 +89,10 @@ public class ViewsheetAssemblyAgentController {
       this.conditionService = conditionService;
       this.highlightService = highlightService;
       this.comparisonService = comparisonService;
+      this.convertService = convertService;
+      this.selectionService = selectionService;
+      this.calendarService = calendarService;
+      this.inputService = inputService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
       this.openService = openService;
@@ -347,6 +355,125 @@ public class ViewsheetAssemblyAgentController {
       chartRegionService.set(sessionToken, user, request.assembly(), request.region(),
                              request.target(), request.field(), request.properties(), linkUri);
    }
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/convert/vocabulary")
+   public Map<String, Object> convertVocabulary() {
+      requireEnabled();
+      return convertService.vocabulary();
+   }
+
+   /**
+    * Changes an assembly's type. Returns what was converted and, for a crosstab, what the
+    * conversion discarded — the caller cannot see that from the resulting table.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/convert")
+   public Map<String, Object> convertAssembly(@PathVariable String sessionToken,
+                                              @RequestBody ConvertRequest request,
+                                              @RequestParam(required = false, defaultValue = "")
+                                              String linkUri,
+                                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return convertService.convert(sessionToken, user, request.assembly(), request.to(), linkUri);
+   }
+
+
+   @GetMapping("/api/wiz/v1/agent/viewsheet/selection/vocabulary")
+   public Map<String, Object> selectionVocabulary() {
+      requireEnabled();
+      return selectionService.vocabulary();
+   }
+
+   /**
+    * Sets a selection assembly's state. The response reports how many sort cycles it took and
+    * whether an active search string scoped the apply — neither is visible in the dashboard.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection")
+   public Map<String, Object> setSelection(@PathVariable String sessionToken,
+                                           @RequestBody SelectionRequest request,
+                                           @RequestParam(required = false, defaultValue = "")
+                                           String linkUri,
+                                           Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
+                                          request.sortOrder(), request.singleSelect(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
+   public Map<String, Object> clearSelection(@PathVariable String sessionToken,
+                                             @RequestBody SelectionRequest request,
+                                             @RequestParam(required = false, defaultValue = "")
+                                             String linkUri,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.clearSelection(sessionToken, user, request.assembly(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/subtree")
+   public Map<String, Object> selectSubtree(@PathVariable String sessionToken,
+                                            @RequestBody SubtreeRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.selectSubtree(sessionToken, user, request.assembly(), request.path(),
+                                           request.mode(), linkUri);
+   }
+
+   public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
+                                  String sortOrder, Boolean singleSelect) {}
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
+   public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
+                                                 @RequestBody CalendarDisplayRequest request,
+                                                 @RequestParam(required = false, defaultValue = "")
+                                                 String linkUri,
+                                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calendarService.setDisplay(sessionToken, user, request.assembly(), request.yearView(),
+                                       request.doubleCalendar(), request.rangeComparison(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/clear")
+   public Map<String, Object> clearCalendar(@PathVariable String sessionToken,
+                                            @RequestBody CalendarDisplayRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return calendarService.clear(sessionToken, user, request.assembly(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/input/value")
+   public Map<String, Object> setInputValue(@PathVariable String sessionToken,
+                                            @RequestBody InputValueRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
+   }
+
+   public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
+                                        Boolean rangeComparison) {}
+   public record InputValueRequest(String assembly, java.util.List<Object> value) {}
+
+   public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
+
+   public record ConvertRequest(String assembly, String to) {}
 
    public record RegionPropertiesRequest(String assembly, String region, String target,
                                          String field, Map<String, Object> properties) {}
@@ -727,6 +854,10 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyConditionService conditionService;
    private final AssemblyHighlightService highlightService;
    private final DateComparisonService comparisonService;
+   private final AssemblyConvertService convertService;
+   private final SelectionRuntimeService selectionService;
+   private final CalendarDisplayService calendarService;
+   private final InputValueService inputService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
