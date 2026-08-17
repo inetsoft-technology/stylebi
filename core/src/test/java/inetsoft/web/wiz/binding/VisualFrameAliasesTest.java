@@ -426,4 +426,47 @@ class VisualFrameAliasesTest {
       assertEquals(false, described.get("useGlobal"));
       assertEquals(Map.of("East", "#4E79A7"), described.get("mapping"));
    }
+
+   // ── node channels (spec 2c Phase 3) ───────────────────────────────────────
+
+   /**
+    * {@code node-color}/{@code node-size} reuse {@code color}/{@code size}'s frame-type
+    * taxonomy verbatim — the model holds the identical {@code ColorFrameModel}/
+    * {@code SizeFrameModel} types, just on a second property pair.
+    */
+   @Test
+   void buildsANodeColorFrameUsingTheColorTaxonomy() {
+      VisualFrameModel frame = VisualFrameAliases.create(
+         "node-color", spec("type", "static", "color", "#4e79a7"), true);
+
+      assertInstanceOf(StaticColorModel.class, frame);
+      assertEquals("#4E79A7", ((StaticColorModel) frame).getColor());
+   }
+
+   @Test
+   void buildsANodeSizeFrameUsingTheSizeTaxonomy() {
+      VisualFrameModel frame = VisualFrameAliases.create(
+         "node-size", spec("type", "static", "size", 5.0), true);
+
+      assertInstanceOf(StaticSizeModel.class, frame);
+   }
+
+   @Test
+   void refusesANodeChannelWhenTheChartIsNotARelationChart() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("node-color", spec("type", "static", "color", "#000"),
+                                         false));
+
+      assertTrue(thrown.getMessage().contains("relation"));
+   }
+
+   @Test
+   void refusesANodeSizeKeyMeantForColor() {
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("node-size", spec("type", "static", "color", "#000"),
+                                         true),
+         "'color' is not a key node-size's static frame reads -- it reads 'size'");
+   }
 }
