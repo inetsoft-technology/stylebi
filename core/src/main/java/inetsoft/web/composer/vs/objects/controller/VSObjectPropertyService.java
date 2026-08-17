@@ -114,7 +114,33 @@ public class VSObjectPropertyService {
                                   CommandDispatcher commandDispatcher, boolean propertyChanged)
       throws Exception
    {
+      editObjectProperty(rvs, info, oldName, newName, linkUri, user, commandDispatcher,
+                         propertyChanged, null);
+   }
+
+   /**
+    * @param expectedRevision the write revision the caller's dialog model was read at, or
+    *                         {@code null} if the caller does not participate in write
+    *                         coordination (every caller but a dialog commit today). When
+    *                         non-null and stale -- something else committed to this viewsheet
+    *                         since the dialog opened -- the edit is refused rather than silently
+    *                         applied over whatever changed. See
+    *                         {@code 2026-08-17-write-coordination-design.md}.
+    */
+   public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
+                                  String newName, String linkUri, Principal user,
+                                  CommandDispatcher commandDispatcher, boolean propertyChanged,
+                                  Integer expectedRevision)
+      throws Exception
+   {
       if(rvs == null || rvs.isDisposed()) {
+         return;
+      }
+
+      if(expectedRevision != null && expectedRevision != rvs.getWriteRevision()) {
+         this.coreLifecycleService.sendMessage(
+            Catalog.getCatalog().getString("common.writeConflict", oldName),
+            MessageCommand.Type.ERROR, commandDispatcher);
          return;
       }
 
@@ -237,6 +263,7 @@ public class VSObjectPropertyService {
       //embedded viewsheet
       if(!(vsAssembly instanceof AbstractVSAssembly)) {
          vsAssembly.setVSAssemblyInfo(info);
+         rvs.bumpWriteRevision();
          this.coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(),
                                                      commandDispatcher, true);
          return;
@@ -331,6 +358,7 @@ public class VSObjectPropertyService {
       int hint = 0;
 
       hint = assembly.setVSAssemblyInfo(info);
+      rvs.bumpWriteRevision();
       // if script contains binding change, re-process data
       hint = assembly instanceof SelectionVSAssembly ? (hint | hintScript) : hint;
 

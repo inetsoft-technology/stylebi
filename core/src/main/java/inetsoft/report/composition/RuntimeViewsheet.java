@@ -2099,6 +2099,26 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Get the current write revision. A Composer dialog captures this when it reads its model and
+    * sends it back on commit; a commit whose revision no longer matches is stale and must be
+    * refused rather than silently applied over whatever changed in between. See
+    * {@code 2026-08-17-write-coordination-design.md} for why this exists and
+    * {@code 2026-08-17-write-coordination-implementation.md} for why it is a dedicated counter
+    * rather than the undo-checkpoint index.
+    */
+   public int getWriteRevision() {
+      return writeRevision;
+   }
+
+   /**
+    * Bump the write revision after a dialog-owning commit lands. Returns the new value so a caller
+    * can report it in the same step.
+    */
+   public int bumpWriteRevision() {
+      return ++writeRevision;
+   }
+
+   /**
     * Get the base worksheet.
     */
    public RuntimeWorksheet getRuntimeWorksheet() {
@@ -2888,6 +2908,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private boolean preview; // preview flag
    private boolean needRefresh = false; // force refresh
    private int mode; // viewsheet mode
+   private transient int writeRevision; // bumped on every dialog-owning commit; see getWriteRevision
    private ViewsheetSandbox box; // query sandbox
    private AssetRepository rep; // asset repository
    private String execSessionID; // Execution Session ID used for Auditing
