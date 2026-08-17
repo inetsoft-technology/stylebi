@@ -105,18 +105,31 @@ public class JiraQuery extends EndpointJsonQuery<JiraEndpoint> {
 
    @Override
    protected void updatePagination(JiraEndpoint endpoint) {
-      if(endpoint.isPaged()) {
+      if(!endpoint.isPaged()) {
+         paginationSpec = PaginationSpec.builder()
+            .type(PaginationType.NONE)
+            .build();
+      }
+      else if(endpoint.getPageType() == PaginationType.ITERATION) {
+         // Jira's enhanced issue search pages by an opaque token and deliberately returns no
+         // total, so offset paging cannot drive it: there is nothing to count towards and no
+         // startAt to advance. The token is null on the last page, which is the end condition.
+         paginationSpec = PaginationSpec.builder()
+            .type(PaginationType.ITERATION)
+            .hasNextParam(PaginationParamType.JSON_PATH, "$.nextPageToken")
+            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.nextPageToken")
+            .pageOffsetParamToWrite(PaginationParamType.QUERY, "nextPageToken")
+            .build();
+      }
+      else {
+         // How every other Jira endpoint pages. Left as the default so that endpoints which do
+         // not declare a pageType keep the behaviour they have always had.
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.TOTAL_COUNT_AND_OFFSET)
             .totalCountParam(PaginationParamType.JSON_PATH, "$.total")
             .offsetParam(PaginationParamType.QUERY, "startAt")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "maxResults")
             .maxResultsPerPage(10)
-            .build();
-      }
-      else {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.NONE)
             .build();
       }
    }
