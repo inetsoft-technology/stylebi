@@ -3,57 +3,68 @@
     {
       "name": "Account Details",
       "pageType": 0,
-      "suffix": "/integrations/v1/me"
+      "suffix": "/integrations/v1/me",
+      "description": "The portal's own details -- portal id, time zone, currency and the account type. One record, and the time zone matters because analytics periods are computed in it."
     },
     {
       "name": "Category Analytics Data",
       "pageType": 1,
-      "suffix": "/analytics/v2/reports/{Breakdown By:totals|sessions|sources|geolocation|utm-[campaigns|contents|mediums|sources]}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start  Date:YYYYMMDD}&end={End Date:YYYYMMDD}&d1={First Drilldown?}&d2={Second Drilldown?}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+      "suffix": "/analytics/v2/reports/{Breakdown By:totals|sessions|sources|geolocation|utm-[campaigns|contents|mediums|sources]}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start  Date:YYYYMMDD}&end={End Date:YYYYMMDD}&d1={First Drilldown?}&d2={Second Drilldown?}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}",
+      "description": "Traffic and conversion analytics broken down by a chosen category -- totals, sessions, sources, geolocation, devices and more. Requires the breakdown and a date range. HUBSPOT'S ANALYTICS IS BREAKDOWN-DRIVEN: the same endpoint returns a different report depending on the breakdown asked for, so the question defines the request."
     },
     {
       "name": "Object Type Analytics Data",
       "pageType": 1,
-      "suffix": "/analytics/v2/reports/{Object Type:event-completions|forms|pages|social-assists}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+      "suffix": "/analytics/v2/reports/{Object Type:event-completions|forms|pages|social-assists}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}",
+      "description": "Analytics broken down by object type -- event completions, forms, pages, CTAs. Requires the object type and dates."
     },
     {
       "name": "Hosted Content Analytics Data",
       "pageType": 1,
-      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}",
+      "description": "Analytics for hosted content -- landing pages, site pages, blog posts. Requires the content type and dates."
     },
     {
       "name": "Page Analytics Details",
       "pageType": 1,
-      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/{Page ID}/sources/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/{Page ID}/sources/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}",
+      "description": "Per-page analytics detail. Requires the content type and dates."
     },
     {
       "name": "Blog Analytics details",
       "pageType": 1,
-      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/content-group/{Blog ID}/sources/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/content-group/{Blog ID}/sources/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}",
+      "description": "Per-blog-post analytics detail. Requires the content type and dates."
     },
     {
       "name": "Object Type Analytics Data Exists",
       "pageType": 0,
-      "suffix": "/analytics/v2/reports/{Object Type:event-completions|forms|pages|social-assists|landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/exists"
+      "suffix": "/analytics/v2/reports/{Object Type:event-completions|forms|pages|social-assists|landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/exists",
+      "description": "Whether analytics data exists for one object type. A cheap existence check before a full report."
     },
     {
       "name": "Events Data",
       "pageType": 0,
-      "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}"
+      "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}",
+      "description": "The behavioural events recorded in the portal. The same endpoint as Events, under a second name."
     },
     {
       "name": "Calendar Events",
       "pageType": 0,
-      "suffix": "/calendar/v1/events/content?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign Guid?}&includeNoCampaigns={Include No Campaigns?:true|false}"
+      "suffix": "/calendar/v1/events/content?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign Guid?}&includeNoCampaigns={Include No Campaigns?:true|false}",
+      "description": "The content calendar entries -- planned pages, posts and emails, with their dates and states. The publishing plan, as opposed to what was published."
     },
     {
       "name": "Calendar Social  Events",
       "pageType": 0,
-      "suffix": "/calendar/v1/events/social?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign GUID?}&includeNoCampaigns={Include No Campaigns?:true|false}"
+      "suffix": "/calendar/v1/events/social?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign GUID?}&includeNoCampaigns={Include No Campaigns?:true|false}",
+      "description": "The planned social posts on the content calendar."
     },
     {
       "name": "Calendar Task Events",
       "pageType": 0,
-      "suffix": "/calendar/v1/events?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&type={Type?:CONTENT,SOCIAL,PUBLISHING_TASK,PUBLISHING_TASK}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign Guid?}&includeNoCampaigns={Include No Campaigns?:true|false}"
+      "suffix": "/calendar/v1/events?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&type={Type?:CONTENT,SOCIAL,PUBLISHING_TASK,PUBLISHING_TASK}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign Guid?}&includeNoCampaigns={Include No Campaigns?:true|false}",
+      "description": "The tasks on the content calendar."
     },
     {
       "name": "Companies",
@@ -72,7 +83,8 @@
           "key": "companyId",
           "parameterName": "Company ID"
         }
-      ]
+      ],
+      "description": "The companies in the CRM, paged. Same properties model as contacts -- values live in a properties object keyed by internal name, and Company Properties is the decoder. Identified by companyId."
     },
     {
       "name": "Recently Modified Companies",
@@ -91,7 +103,8 @@
           "key": "companyId",
           "parameterName": "Company ID"
         }
-      ]
+      ],
+      "description": "Companies changed most recently. The incremental-sync route."
     },
     {
       "name": "Recently Created Companies",
@@ -110,37 +123,44 @@
           "key": "companyID",
           "parameterName": "Company ID"
         }
-      ]
+      ],
+      "description": "Companies created most recently."
     },
     {
       "name": "Company",
       "pageType": 0,
-      "suffix": "/companies/v2/companies/{Company ID}?includeMergeAudits={Include Merge Audits?:true|false}"
+      "suffix": "/companies/v2/companies/{Company ID}?includeMergeAudits={Include Merge Audits?:true|false}",
+      "description": "One company by id, with its full properties."
     },
     {
       "name": "Company Contacts",
       "pageType": 3,
-      "suffix": "/companies/v2/companies/{Company ID}/contacts"
+      "suffix": "/companies/v2/companies/{Company ID}/contacts",
+      "description": "The contacts associated with one company. Requires a company id."
     },
     {
       "name": "Contacts IDs",
       "pageType": 3,
-      "suffix": "/companies/v2/companies/{Company ID}/vids"
+      "suffix": "/companies/v2/companies/{Company ID}/vids",
+      "description": "Just the vids of one company's contacts. Requires a company id. Cheaper than the full contact records when only the association matters."
     },
     {
       "name": "Company Properties",
       "pageType": 0,
-      "suffix": "/properties/v1/companies/properties"
+      "suffix": "/properties/v1/companies/properties",
+      "description": "Every property a company can carry, standard and custom. The decoder for company data."
     },
     {
       "name": "Company Property",
       "pageType": 0,
-      "suffix": "/properties/v1/companies/properties/named/{Property Name}"
+      "suffix": "/properties/v1/companies/properties/named/{Property Name}",
+      "description": "One company property by internal name."
     },
     {
       "name": "Company Groups",
       "pageType": 0,
-      "suffix": "/properties/v1/companies/groups?includeProperties={Include Properties?:true|false}"
+      "suffix": "/properties/v1/companies/groups?includeProperties={Include Properties?:true|false}",
+      "description": "The groups company properties are organised into."
     },
     {
       "name": "All Contacts",
@@ -153,62 +173,74 @@
           "key": "vid",
           "parameterName": "Contact ID"
         }
-      ]
+      ],
+      "description": "Every contact in the portal, paged. THE SINGLE MOST IMPORTANT THING ABOUT HUBSPOT'S CRM DATA: a contact's fields are not columns on the record, they live in a PROPERTIES object keyed by internal property name, each holding a value and a version history. Custom property internal names are generated rather than chosen, so Contact Properties is the only decoder. AND THE LISTING RETURNS ONLY A SMALL DEFAULT SET OF PROPERTIES -- everything else, including most custom fields, must be named in the property parameter or it is simply absent. Contacts are identified by vid, not by email."
     },
     {
       "name": "Recently Modified Contacts",
       "pageType": 3,
-      "suffix": "/contacts/v1/lists/recently_updated/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/lists/recently_updated/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "Contacts changed most recently, newest first. The incremental-sync route; the full listing has no date filter."
     },
     {
       "name": "Recently Created Contacts",
       "pageType": 3,
-      "suffix": "/contacts/v1/lists/all/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/lists/all/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "Contacts created most recently, newest first."
     },
     {
       "name": "Contact Profile By ID",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/vid/{Contact ID}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/contact/vid/{Contact ID}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "One contact by vid, with the full property set and their form submissions and list memberships."
     },
     {
-      "name": "Contacts\u00a0Informations",
+      "name": "Contacts Informations",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/vids/batch?&&vid={Contact ID}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}&includeDeletes={Include Deletes?:true|false}"
+      "suffix": "/contacts/v1/contact/vids/batch?&&vid={Contact ID}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}&includeDeletes={Include Deletes?:true|false}",
+      "description": "Several contacts by vid, in one request. The efficient way to hydrate a known set rather than fetching one at a time."
     },
     {
       "name": "Contact (By Email)",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/email/{Contact Email Address}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/contact/email/{Contact Email Address}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "One contact by email address. The lookup when the vid is unknown -- and note an email can be reassigned between contacts, so the vid is the stable identifier."
     },
     {
       "name": "Contact Profile",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "One contact by their tracking cookie token. The route from an anonymous website visitor to a known contact."
     },
     {
       "name": "Contact By User Token",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "One contact by tracking token. The same endpoint as Contact Profile under a second name; either will do."
     },
     {
       "name": "Contacts By User Token",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/utks/batch?utk={Contact user token}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/contact/utks/batch?utk={Contact user token}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "Several contacts by tracking token, in one request."
     },
     {
       "name": "Search Contacts",
       "pageType": 2,
-      "suffix": "/contacts/v1/search/query?q={Search Query}&property={Property?}"
+      "suffix": "/contacts/v1/search/query?q={Search Query}&property={Property?}",
+      "description": "Contacts matching a free-text query across name, email and company. Locates contacts rather than reporting on them."
     },
     {
       "name": "Contacts Lifecycle Stage Metrics",
       "pageType": 0,
-      "suffix": "/contacts/v1/search/external/lifecyclestages?fromTimestamp={From Timestamp}&toTimestamp={To Timestamp}&aggregationProperty={Aggregation Property?}"
+      "suffix": "/contacts/v1/search/external/lifecyclestages?fromTimestamp={From Timestamp}&toTimestamp={To Timestamp}&aggregationProperty={Aggregation Property?}",
+      "description": "Contact counts by lifecycle stage. THE FUNNEL: HubSpot's lifecycle stage runs subscriber, lead, marketing qualified, sales qualified, opportunity, customer, and this is the pre-computed count at each."
     },
     {
       "name": "Contact Statistics",
       "pageType": 0,
-      "suffix": "/contacts/v1/contacts/statistics?includeTotalContacts={Include Total Contacts?:true|false}&includeLastNewContactAt={Include Last Contact At?:true|false}"
+      "suffix": "/contacts/v1/contacts/statistics?includeTotalContacts={Include Total Contacts?:true|false}&includeLastNewContactAt={Include Last Contact At?:true|false}",
+      "description": "Portal-wide contact counts -- total, new, and by lifecycle stage. A ready-made summary rather than a scan."
     },
     {
       "name": "Contact lists",
@@ -227,12 +259,14 @@
           "key": "listId",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The contact lists in the portal, with name, size and whether each is static or dynamic."
     },
     {
       "name": "Contact Lists By Its Unique ID",
       "pageType": 0,
-      "suffix": "/contacts/v1/lists/{List ID}"
+      "suffix": "/contacts/v1/lists/{List ID}",
+      "description": "One list by id."
     },
     {
       "name": "A Group Of Contact Lists",
@@ -251,47 +285,56 @@
           "key": "listId",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "Several lists by id, in one request."
     },
     {
       "name": "Static Contact Lists",
       "pageType": 2,
-      "suffix": "/contacts/v1/lists/static"
+      "suffix": "/contacts/v1/lists/static",
+      "description": "Only the static lists -- fixed membership, added explicitly."
     },
     {
       "name": "Dynamic Contact Lists (Active Lists)",
       "pageType": 2,
-      "suffix": "/contacts/v1/lists/dynamic"
+      "suffix": "/contacts/v1/lists/dynamic",
+      "description": "Only the dynamic lists -- membership defined by filters and re-evaluated continuously. THE DISTINCTION MATTERS: a dynamic list's size changes on its own, so a membership count is a moment in time rather than a stable figure, and its filters state the business's own definition of the segment."
     },
     {
       "name": "Contacts In A List",
       "pageType": 3,
-      "suffix": "/contacts/v1/lists/{List ID}/contacts/all?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/lists/{List ID}/contacts/all?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "The contacts in one list. Requires a list id."
     },
     {
       "name": "Recently Added Contacts From A List",
       "pageType": 3,
-      "suffix": "/contacts/v1/lists/{List ID}/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+      "suffix": "/contacts/v1/lists/{List ID}/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "description": "The contacts most recently added to one list. Requires a list id. The incremental view of a growing segment."
     },
     {
       "name": "Contact Properties",
       "pageType": 0,
-      "suffix": "/properties/v1/contacts/properties"
+      "suffix": "/properties/v1/contacts/properties",
+      "description": "Every property a contact can carry, standard and custom, with internal name, label, type, field type and options. THE DECODER without which contact data is values against opaque names."
     },
     {
       "name": "Contact Property",
       "pageType": 0,
-      "suffix": "/properties/v1/contacts/properties/named/{Property Name}"
+      "suffix": "/properties/v1/contacts/properties/named/{Property Name}",
+      "description": "One contact property by internal name."
     },
     {
       "name": "Contact Property Groups",
       "pageType": 0,
-      "suffix": "/properties/v1/contacts/groups?includeProperties={Include Properties?:true|false}"
+      "suffix": "/properties/v1/contacts/groups?includeProperties={Include Properties?:true|false}",
+      "description": "The groups contact properties are organised into."
     },
     {
       "name": "Contact Property Group Details",
       "pageType": 0,
-      "suffix": "/properties/v1/contacts/groups/named/{Group Name}?includeProperties={Include Properties?:true|false}"
+      "suffix": "/properties/v1/contacts/groups/named/{Group Name}?includeProperties={Include Properties?:true|false}",
+      "description": "One contact property group by name, with its properties."
     },
     {
       "name": "List Blogs",
@@ -304,47 +347,56 @@
           "key": "id",
           "parameterName": "Blog ID"
         }
-      ]
+      ],
+      "description": "The blogs configured in the portal -- a portal can run several."
     },
     {
       "name": "Blog By ID",
       "pageType": 0,
-      "suffix": "/content/api/v2/blogs/{Blog ID}"
+      "suffix": "/content/api/v2/blogs/{Blog ID}",
+      "description": "One blog by id, with its settings."
     },
     {
       "name": "Blog Previous Versions",
       "pageType": 0,
-      "suffix": "/content/api/v2/blogs/{Blog ID}/versions"
+      "suffix": "/content/api/v2/blogs/{Blog ID}/versions",
+      "description": "The version history of one blog's settings."
     },
     {
       "name": "Blog Previous Version",
       "pageType": 0,
-      "suffix": "/content/api/v2/blogs/{Blog ID}/versions/{Blog Version ID}"
+      "suffix": "/content/api/v2/blogs/{Blog ID}/versions/{Blog Version ID}",
+      "description": "One earlier version of a blog's settings."
     },
     {
       "name": "Blog Authors (v3)",
       "pageType": 1,
-      "suffix": "/blogs/v3/blog-authors?id={ID?}&fullName={Full Name?}&slug={Slug?}&created={Created?:milliseconds }&updated={Updated?:milliseconds}&email={Email?}&casing={Casing?}"
+      "suffix": "/blogs/v3/blog-authors?id={ID?}&fullName={Full Name?}&slug={Slug?}&created={Created?:milliseconds }&updated={Updated?:milliseconds}&email={Email?}&casing={Casing?}",
+      "description": "The blog authors, with name, bio and social links. The per-writer dimension."
     },
     {
       "name": "Search Blog Authors (v3)",
       "pageType": 1,
-      "suffix": "/blogs/v3/blog-authors/search?casing={Casing?:snake_case|camelCase}&q={Query String?}&active={Active?:true|false}&blog={Blog ID?}"
+      "suffix": "/blogs/v3/blog-authors/search?casing={Casing?:snake_case|camelCase}&q={Query String?}&active={Active?:true|false}&blog={Blog ID?}",
+      "description": "Blog authors matching a query."
     },
     {
       "name": "Blog Author By ID (v3)",
       "pageType": 0,
-      "suffix": "/blogs/v3/blog-authors/{Blog Author ID}?casing={Casing?:snake_case|camelCase}"
+      "suffix": "/blogs/v3/blog-authors/{Blog Author ID}?casing={Casing?:snake_case|camelCase}",
+      "description": "One blog author by id."
     },
     {
       "name": "List Comments",
       "pageType": 1,
-      "suffix": "/comments/v3/comments?portalId={Portal Number?}&state={Comment State?:APPROVED|SPAM|REJECTED|PENDING_MODERATION}&contentId={Post ID?}&reverse={Reverse?:true|false}&query={Query String?}"
+      "suffix": "/comments/v3/comments?portalId={Portal Number?}&state={Comment State?:APPROVED|SPAM|REJECTED|PENDING_MODERATION}&contentId={Post ID?}&reverse={Reverse?:true|false}&query={Query String?}",
+      "description": "The comments on blog posts, with author, content and moderation state. Note unapproved and spam comments share this table, so an engagement count that does not filter includes them."
     },
     {
       "name": "Blog Comment By ID",
       "pageType": 0,
-      "suffix": "/comments/v3/comments/{Comment ID}?"
+      "suffix": "/comments/v3/comments/{Comment ID}?",
+      "description": "One comment by id."
     },
     {
       "name": "Blog Posts",
@@ -357,62 +409,74 @@
           "key": "id",
           "parameterName": "Blog Post ID"
         }
-      ]
+      ],
+      "description": "The blog posts, with title, slug, author, publish date, state and content. The content table."
     },
     {
       "name": "Blog Post By ID",
       "pageType": 0,
-      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}"
+      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}",
+      "description": "One blog post by id."
     },
     {
       "name": "Blog Posts Buffer Contents",
       "pageType": 0,
-      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}/buffer"
+      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}/buffer",
+      "description": "The unpublished draft edits of one post. What has been written but not yet published."
     },
     {
       "name": "Blog Post Previous Version",
       "pageType": 0,
-      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}/versions/{Version ID}"
+      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}/versions/{Version ID}",
+      "description": "One earlier version of a blog post. The edit history, which the post itself does not carry."
     },
     {
       "name": "Blog Topics",
       "pageType": 1,
-      "suffix": "/blogs/v3/topics?id={ID?}&slug={Slug?}&created={Created?:milliseconds}&casing={Casing?}"
+      "suffix": "/blogs/v3/topics?id={ID?}&slug={Slug?}&created={Created?:milliseconds}&casing={Casing?}",
+      "description": "The topics posts are tagged with. The content taxonomy, and the dimension subject-level performance groups by."
     },
     {
       "name": "Search Blog Topics",
       "pageType": 1,
-      "suffix": "/blogs/v3/topics/search?id={ID?}&slug={Slug?}&created={Created?:milliseconds}&casing={Casing?}&q={Query String?}&active={Active?:true|false}&blog={Blog Version ID?}"
+      "suffix": "/blogs/v3/topics/search?id={ID?}&slug={Slug?}&created={Created?:milliseconds}&casing={Casing?}&q={Query String?}&active={Active?:true|false}&blog={Blog Version ID?}",
+      "description": "Topics matching a query."
     },
     {
       "name": "Blog Topic By ID",
       "pageType": 0,
-      "suffix": "/blogs/v3/topics/{Topic ID}?casing={Casing?}"
+      "suffix": "/blogs/v3/topics/{Topic ID}?casing={Casing?}",
+      "description": "One topic by id."
     },
     {
       "name": "Domains",
       "pageType": 1,
-      "suffix": "/cos-domains/v1/domains?created={Created?}&domain={Domain?}&id={ID?}&is_resolving={Is Resolving?:true|false}&primary_site_page={Primary Site Page?}"
+      "suffix": "/cos-domains/v1/domains?created={Created?}&domain={Domain?}&id={ID?}&is_resolving={Is Resolving?:true|false}&primary_site_page={Primary Site Page?}",
+      "description": "The domains connected to the portal, with their type and whether each is primary. Which domain content is served from, and the explanation for a page's public URL."
     },
     {
       "name": "Domain By ID",
       "pageType": 0,
-      "suffix": "/cos-domains/v1/domains/{Domain ID}"
+      "suffix": "/cos-domains/v1/domains/{Domain ID}",
+      "description": "One domain by id."
     },
     {
       "name": "Files Metadata",
       "pageType": 1,
-      "suffix": "/filemanager/api/v2/files?alt_key={Alt Key?}&created={Created?}&deleted_at={Deleted At?:milliseconds}&extension={Extension?}&folder_id={Folder ID?}&id={ID?}&name={Name?}&type={Type?}"
+      "suffix": "/filemanager/api/v2/files?alt_key={Alt Key?}&created={Created?}&deleted_at={Deleted At?:milliseconds}&extension={Extension?}&folder_id={Folder ID?}&id={ID?}&name={Name?}&type={Type?}",
+      "description": "The files in the file manager, with name, type, size, folder and URL. Metadata; contents are served from their URLs."
     },
     {
       "name": "File Metadata",
       "pageType": 0,
-      "suffix": "/filemanager/api/v2/files/{File ID}?"
+      "suffix": "/filemanager/api/v2/files/{File ID}?",
+      "description": "One file by id."
     },
     {
       "name": "Folder by ID",
       "pageType": 0,
-      "suffix": "/filemanager/api/v2/folders/{Folder ID}?"
+      "suffix": "/filemanager/api/v2/folders/{Folder ID}?",
+      "description": "One file manager folder by id."
     },
     {
       "name": "Tables",
@@ -431,22 +495,26 @@
           "key": "id",
           "parameterName": "Table ID"
         }
-      ]
+      ],
+      "description": "The HubDB tables -- HubSpot's own structured data store for driving dynamic pages. USER-DEFINED SCHEMA: each table's columns are whatever its creator chose, so Table Details must be read before its rows mean anything."
     },
     {
       "name": "Table Details",
       "pageType": 0,
-      "suffix": "/hubdb/api/v2/tables/{Table ID}"
+      "suffix": "/hubdb/api/v2/tables/{Table ID}",
+      "description": "One HubDB table's schema and settings. Requires a table id. The decoder for its rows."
     },
     {
       "name": "Table Draft Details",
       "pageType": 0,
-      "suffix": "/hubdb/api/v2/tables/{Table ID}/draft"
+      "suffix": "/hubdb/api/v2/tables/{Table ID}/draft",
+      "description": "The unpublished draft schema of one table. Where a schema change is pending."
     },
     {
       "name": "Table Rows",
       "pageType": 1,
-      "suffix": "/hubdb/api/v2/tables/{Table ID}/rows"
+      "suffix": "/hubdb/api/v2/tables/{Table ID}/rows",
+      "description": "The rows of one HubDB table. Requires a table id. The data behind dynamic pages, and often where a business keeps reference data HubSpot has no native object for."
     },
     {
       "name": "Layouts",
@@ -471,27 +539,32 @@
           "key": "id",
           "parameterName": "Layout ID"
         }
-      ]
+      ],
+      "description": "The page layouts defined."
     },
     {
       "name": "Layout Buffer Contents",
       "pageType": 0,
-      "suffix": "/content/api/v2/layouts/{Layout ID}/buffer?"
+      "suffix": "/content/api/v2/layouts/{Layout ID}/buffer?",
+      "description": "The unpublished edits of one layout."
     },
     {
       "name": "Layout Previous Versions",
       "pageType": 0,
-      "suffix": "/content/api/v2/layouts/{Layout ID}/versions"
+      "suffix": "/content/api/v2/layouts/{Layout ID}/versions",
+      "description": "The version history of one layout."
     },
     {
       "name": "Layout Previous Version",
       "pageType": 0,
-      "suffix": "/content/api/v2/layouts/{Layout ID}/versions/{Version ID}"
+      "suffix": "/content/api/v2/layouts/{Layout ID}/versions/{Version ID}",
+      "description": "One earlier version of a layout."
     },
     {
       "name": "If Live Layout Has Buffered changes",
       "pageType": 0,
-      "suffix": "/content/api/v2/layouts/{Layout ID}/has-buffered-changes"
+      "suffix": "/content/api/v2/layouts/{Layout ID}/has-buffered-changes",
+      "description": "Whether one layout has unpublished edits."
     },
     {
       "name": "Pages",
@@ -510,42 +583,50 @@
           "key": "id",
           "parameterName": "Page ID"
         }
-      ]
+      ],
+      "description": "The website and landing pages, with name, slug, state, publish date and their content. Landing pages are the conversion side of HubSpot's marketing, so their performance links to the forms they carry."
     },
     {
       "name": "Page",
       "pageType": 0,
-      "suffix": "/content/api/v2/pages/{Page ID}"
+      "suffix": "/content/api/v2/pages/{Page ID}",
+      "description": "One page by id."
     },
     {
       "name": "Page Buffer Contents",
       "pageType": 0,
-      "suffix": "/content/api/v2/pages/{Page ID}/buffer"
+      "suffix": "/content/api/v2/pages/{Page ID}/buffer",
+      "description": "The unpublished draft edits of one page."
     },
     {
       "name": "Page Previous Versions",
       "pageType": 0,
-      "suffix": "/content/api/v2/pages/{Page ID}/versions"
+      "suffix": "/content/api/v2/pages/{Page ID}/versions",
+      "description": "The version history of one page."
     },
     {
       "name": "Site Maps",
       "pageType": 1,
-      "suffix": "/content/api/v2/site-maps?deleted_at={Deleted At?:milliseconds}&id={ID?}&name={Name?}"
+      "suffix": "/content/api/v2/site-maps?deleted_at={Deleted At?:milliseconds}&id={ID?}&name={Name?}",
+      "description": "The sitemaps generated for the portal."
     },
     {
       "name": "Site Map",
       "pageType": 0,
-      "suffix": "/content/api/v2/site-maps/{Site Map ID}"
+      "suffix": "/content/api/v2/site-maps/{Site Map ID}",
+      "description": "One sitemap by id."
     },
     {
       "name": "Search Your Site",
       "pageType": 1,
-      "suffix": "/contentsearch/v2/search?portalId={Portal ID}&term={Search Term}&type={Type?:SITE_PAGE,LANDING_PAGE,BLOG_POST,LISTING_PAGE,KNOWLEDGE_ARTICLE}&domain={Domain?}&language={Language?}&property={Property?:title|description|html|author_full_name|author_handle}&groupId={Group ID?}&tableId={Table ID?}&hubdbQuery={HubDB Query?}&pathPrefix={Path Prefix?}&matchPrefix={Match Prefix?:true|false}"
+      "suffix": "/contentsearch/v2/search?portalId={Portal ID}&term={Search Term}&type={Type?:SITE_PAGE,LANDING_PAGE,BLOG_POST,LISTING_PAGE,KNOWLEDGE_ARTICLE}&domain={Domain?}&language={Language?}&property={Property?:title|description|html|author_full_name|author_handle}&groupId={Group ID?}&tableId={Table ID?}&hubdbQuery={HubDB Query?}&pathPrefix={Path Prefix?}&matchPrefix={Match Prefix?:true|false}",
+      "description": "Searches the portal's published content. The site search readers themselves use."
     },
     {
       "name": "Indexed Properties",
       "pageType": 0,
-      "suffix": "/contentsearch/v2/search/{Document ID}?portalId={Portal ID}&type={Type:SITE_PAGE|BLOG_POST|KNOWLEDGE_ARTICLE}"
+      "suffix": "/contentsearch/v2/search/{Document ID}?portalId={Portal ID}&type={Type:SITE_PAGE|BLOG_POST|KNOWLEDGE_ARTICLE}",
+      "description": "The indexed fields of one search document. Requires the document id. What the site search actually matches on."
     },
     {
       "name": "Templates",
@@ -564,167 +645,200 @@
           "key": "id",
           "parameterName": "Template ID"
         }
-      ]
+      ],
+      "description": "The page and email templates in the design manager."
     },
     {
       "name": "Template",
       "pageType": 0,
-      "suffix": "/content/api/v2/templates/{Template ID}"
+      "suffix": "/content/api/v2/templates/{Template ID}",
+      "description": "One template by id, with its source."
     },
     {
       "name": "Template Buffer Contents",
       "pageType": 0,
-      "suffix": "/content/api/v2/templates/{Template ID}/buffer"
+      "suffix": "/content/api/v2/templates/{Template ID}/buffer",
+      "description": "The unpublished edits of one template."
     },
     {
       "name": "Template Previous Versions",
       "pageType": 0,
-      "suffix": "/content/api/v2/templates/{Template ID}/versions"
+      "suffix": "/content/api/v2/templates/{Template ID}/versions",
+      "description": "The version history of one template."
     },
     {
       "name": "Template Previous Version",
       "pageType": 0,
-      "suffix": "/content/api/v2/templates/{Template ID}/versions/{Version ID}"
+      "suffix": "/content/api/v2/templates/{Template ID}/versions/{Version ID}",
+      "description": "One earlier version of a template."
     },
     {
       "name": "URL Mappings",
       "pageType": 1,
-      "suffix": "/url-mappings/v3/url-mappings?id={ID?}&routePrefix={Route Prefix?}&destination={Destination?}&contentGroupId={Content Group ID?}&name={name?}&isOnlyAfterNotFound={Is Only After Not Found?:true|false}&isRegex={Is Regex?:true|false}&isMatchFullUrl={Is Match Full Url?:true|false}&isPattern={Is Pattern?:true|false}&created={Created?:milliseconds }&deleted_at={Deleted at?:milliseconds}&updated={Updated?:milliseconds}&causing={Causing?}"
+      "suffix": "/url-mappings/v3/url-mappings?id={ID?}&routePrefix={Route Prefix?}&destination={Destination?}&contentGroupId={Content Group ID?}&name={name?}&isOnlyAfterNotFound={Is Only After Not Found?:true|false}&isRegex={Is Regex?:true|false}&isMatchFullUrl={Is Match Full Url?:true|false}&isPattern={Is Pattern?:true|false}&created={Created?:milliseconds }&deleted_at={Deleted at?:milliseconds}&updated={Updated?:milliseconds}&causing={Causing?}",
+      "description": "The URL redirects configured. Where content moved, and the record of what used to live at an address."
     },
     {
       "name": "URL Mapping",
       "pageType": 0,
-      "suffix": "/url-mappings/v3/url-mappings/{Url Mapping ID}?casing={Casing?}"
+      "suffix": "/url-mappings/v3/url-mappings/{Url Mapping ID}?casing={Casing?}",
+      "description": "One URL mapping by id."
     },
     {
       "name": "CRM Object Associations",
       "pageType": 1,
-      "suffix": "/crm-associations/v1/associations/{Object ID}/HUBSPOT_DEFINED/{Association Type}"
+      "suffix": "/crm-associations/v1/associations/{Object ID}/HUBSPOT_DEFINED/{Association Type}",
+      "description": "The objects associated with one record, by association type. Requires the object id and association type id. HUBSPOT MODELS RELATIONSHIPS AS TYPED ASSOCIATIONS with numeric type ids, so the graph is only traversable through this and the type id decides what the relationship means."
     },
     {
       "name": "View Object Type",
       "pageType": 0,
-      "suffix": "/extensions/sales-objects/v1/object-types/{Object Type ID}"
+      "suffix": "/extensions/sales-objects/v1/object-types/{Object Type ID}",
+      "description": "The definition of one sales object type. Requires the object type id."
     },
     {
       "name": "Object Properties",
       "pageType": 0,
-      "suffix": "/properties/v2/{Object Type:tickets|products|line_items}/properties"
+      "suffix": "/properties/v2/{Object Type:tickets|products|line_items}/properties",
+      "description": "Every property of one crm-objects type -- tickets, products, line items. Requires the object type. The decoder for the newer object model, as the per-object property endpoints are for the legacy one."
     },
     {
       "name": "Object Property Groups",
       "pageType": 0,
-      "suffix": "/properties/v2/{Object Type:tickets|products|line_items}/groups"
+      "suffix": "/properties/v2/{Object Type:tickets|products|line_items}/groups",
+      "description": "The property groups of one crm-objects type."
     },
     {
       "name": "Object Type Pipelines",
       "pageType": 0,
-      "suffix": "/crm-pipelines/v1/pipelines/{Object Type:tickets|deals}?includeInactive={Include Inactive?:EXCLUDE_DELETED|INCLUDE_DELETED}"
+      "suffix": "/crm-pipelines/v1/pipelines/{Object Type:tickets|deals}?includeInactive={Include Inactive?:EXCLUDE_DELETED|INCLUDE_DELETED}",
+      "description": "The pipelines of one object type -- tickets and deals both have them. Requires the object type. Ticket pipelines are the support workflow, so this is what turns a ticket's stage id into a status."
     },
     {
       "name": "Deals",
       "pageType": 7,
-      "suffix": "/deals/v1/deal/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeAssociations={Associations?:true|false}"
+      "suffix": "/deals/v1/deal/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeAssociations={Associations?:true|false}",
+      "description": "The deals in the CRM, paged. Carries the properties object holding amount, closedate, dealstage, pipeline and any custom fields. DEALSTAGE IS AN INTERNAL ID, not a label, and stages are defined per pipeline -- so Deal Pipelines is required to make a funnel readable, and stages from different pipelines are not comparable."
     },
     {
       "name": "Recently Modified Deals",
       "pageType": 2,
-      "suffix": "/deals/v1/deal/recent/modified?since={Since?:milliseconds}&includePropertyVersions={Include Property Versions?:true|false}"
+      "suffix": "/deals/v1/deal/recent/modified?since={Since?:milliseconds}&includePropertyVersions={Include Property Versions?:true|false}",
+      "description": "Deals changed most recently. The incremental-sync route."
     },
     {
       "name": "Recently Created Deals",
       "pageType": 2,
-      "suffix": "/deals/v1/deal/recent/created?since={Since?:milliseconds}&includePropertyVersions={Include Property Versions?:true|false}"
+      "suffix": "/deals/v1/deal/recent/created?since={Since?:milliseconds}&includePropertyVersions={Include Property Versions?:true|false}",
+      "description": "Deals created most recently."
     },
     {
       "name": "Deal",
       "pageType": 0,
-      "suffix": "/deals/v1/deal/{Deal ID}?includePropertyVersions={Include Property Versions?:true|false}"
+      "suffix": "/deals/v1/deal/{Deal ID}?includePropertyVersions={Include Property Versions?:true|false}",
+      "description": "One deal by id, with its properties and associations."
     },
     {
       "name": "Associated Deals",
       "pageType": 6,
-      "suffix": "/deals/v1/deal/associated/{Object Type:CONTACT|COMPANY}/{Object ID}/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeAssociations={Associations?:true|false}"
+      "suffix": "/deals/v1/deal/associated/{Object Type:CONTACT|COMPANY}/{Object ID}/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeAssociations={Associations?:true|false}",
+      "description": "The deals associated with one contact, company or other object. Requires the object type and id."
     },
     {
       "name": "Deal Pipeline",
       "pageType": 0,
-      "suffix": "/deals/v1/pipelines/{Pipeline ID}"
+      "suffix": "/deals/v1/pipelines/{Pipeline ID}",
+      "description": "One deal pipeline by id, with its stages."
     },
     {
       "name": "Deal Pipelines",
       "pageType": 0,
-      "suffix": "/deals/v1/pipelines"
+      "suffix": "/deals/v1/pipelines",
+      "description": "The deal pipelines, each with its stages, their order and their probability. THE DECODER for dealstage, and most portals run more than one pipeline."
     },
     {
       "name": "Deal Properties",
       "pageType": 0,
-      "suffix": "/properties/v1/deals/properties/"
+      "suffix": "/properties/v1/deals/properties/",
+      "description": "Every property a deal can carry, standard and custom."
     },
     {
       "name": "Deal Property",
       "pageType": 0,
-      "suffix": "/properties/v1/deals/properties/named/{Property Name}"
+      "suffix": "/properties/v1/deals/properties/named/{Property Name}",
+      "description": "One deal property by internal name."
     },
     {
       "name": "Deal Property Groups",
       "pageType": 0,
-      "suffix": "/properties/v1/deals/groups?includeProperties={Include Properties?:true|false}"
+      "suffix": "/properties/v1/deals/groups?includeProperties={Include Properties?:true|false}",
+      "description": "The groups deal properties are organised into."
     },
     {
       "name": "Deal Property Group",
       "pageType": 0,
-      "suffix": "/properties/v1/deals/groups/named/{Property Group}?includeProperties={Include Properties?:true|false}"
+      "suffix": "/properties/v1/deals/groups/named/{Property Group}?includeProperties={Include Properties?:true|false}",
+      "description": "One deal property group by name."
     },
     {
       "name": "Ecommerce Settings",
       "pageType": 0,
-      "suffix": "/extensions/ecomm/v2/settings?showProvidedMappings={Show Provided Mappings?:true|false}"
+      "suffix": "/extensions/ecomm/v2/settings?showProvidedMappings={Show Provided Mappings?:true|false}",
+      "description": "The e-commerce integration settings of the portal."
     },
     {
       "name": "Stores",
       "pageType": 0,
-      "suffix": "/extensions/ecomm/v2/stores"
+      "suffix": "/extensions/ecomm/v2/stores",
+      "description": "The e-commerce stores connected to the portal. The bridge to purchase data."
     },
     {
       "name": "Store Details",
       "pageType": 0,
-      "suffix": "/extensions/ecomm/v2/stores/{Store ID}"
+      "suffix": "/extensions/ecomm/v2/stores/{Store ID}",
+      "description": "One store by id, with its sync settings."
     },
     {
       "name": "App Sync Errors",
       "pageType": 4,
-      "suffix": "/extensions/ecomm/v2/sync/errors/app/{App ID}?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}"
+      "suffix": "/extensions/ecomm/v2/sync/errors/app/{App ID}?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}",
+      "description": "The sync errors for one connected app. Requires the app id. Where a silently broken e-commerce sync shows up."
     },
     {
       "name": "Account Sync Errors",
       "pageType": 4,
-      "suffix": "/extensions/ecomm/v2/sync/errors/portal?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}"
+      "suffix": "/extensions/ecomm/v2/sync/errors/portal?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}",
+      "description": "The sync errors across the portal."
     },
     {
       "name": "App Account Sync Errors",
       "pageType": 4,
-      "suffix": "/extensions/ecomm/v2/sync/errors?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}"
+      "suffix": "/extensions/ecomm/v2/sync/errors?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}",
+      "description": "The sync errors for apps on this account."
     },
     {
       "name": "Object Sync Status",
       "pageType": 0,
-      "suffix": "/extensions/ecomm/v2/sync/status/{Store ID}/{Object Type:CONTACT|DEAL|PRODUCT|LINE_ITEM}/{External Object ID}"
+      "suffix": "/extensions/ecomm/v2/sync/status/{Store ID}/{Object Type:CONTACT|DEAL|PRODUCT|LINE_ITEM}/{External Object ID}",
+      "description": "The sync state of one object type in one store. Requires the store id and object type. Whether purchase data is actually flowing, which an empty result cannot distinguish from no sales."
     },
     {
       "name": "Email Subscription Types",
       "pageType": 0,
-      "suffix": "/email/public/v1/subscriptions?portalId={Portal ID}"
+      "suffix": "/email/public/v1/subscriptions?portalId={Portal ID}",
+      "description": "The subscription types recipients can opt into or out of -- newsletters, product updates. Opting out of one is not opting out of all, so this is what distinguishes a lost topic from a lost subscriber."
     },
     {
       "name": "View Portal Subscriptions Timeline",
       "pageType": 1,
-      "suffix": "/email/public/v1/subscriptions/timeline?changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&includeSnapshots={Include Snapshots?}"
+      "suffix": "/email/public/v1/subscriptions/timeline?changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&includeSnapshots={Include Snapshots?}",
+      "description": "The subscription changes across the portal over time. When people opted in and out, which the current status cannot say."
     },
     {
       "name": "Email Subscription Status",
       "pageType": 0,
-      "suffix": "/email/public/v1/subscriptions/{Email Address}?portalId={Portal ID}"
+      "suffix": "/email/public/v1/subscriptions/{Email Address}?portalId={Portal ID}",
+      "description": "One address's subscription status across every type. Requires the email address. Whether a specific person can still be mailed, and about what."
     },
     {
       "name": "Portal Campaign IDs",
@@ -737,7 +851,8 @@
           "key": "id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "The ids of every email campaign in the portal. The index that makes the campaign detail endpoint usable."
     },
     {
       "name": "Portal Campaign IDs With Recent Activity",
@@ -750,107 +865,128 @@
           "key": "id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "Only campaigns with recent activity. The narrower, more useful list on a portal with a long history."
     },
     {
       "name": "Campaign Data",
       "pageType": 0,
-      "suffix": "/email/public/v1/campaigns/{Campaign ID}"
+      "suffix": "/email/public/v1/campaigns/{Campaign ID}",
+      "description": "One email campaign's aggregate figures by id -- sent, opened, clicked, bounced and the counts behind them. The campaign-level rollup of the event stream."
     },
     {
       "name": "Email Events",
       "pageType": 7,
-      "suffix": "/email/public/v1/events?appId={HubSpot App ID?}&campaignId={HubSpot Campaign ID?}&recipient={Recipient Email Address?}&eventType={Event type?}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&excludeFilteredEvents={Exclude Filtered Events?:true|false}"
+      "suffix": "/email/public/v1/events?appId={HubSpot App ID?}&campaignId={HubSpot Campaign ID?}&recipient={Recipient Email Address?}&eventType={Event type?}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&excludeFilteredEvents={Exclude Filtered Events?:true|false}",
+      "description": "The individual email event stream -- every SENT, DELIVERED, OPEN, CLICK, BOUNCE, DROPPED, SPAMREPORT and UNSUBSCRIBE, with the recipient, campaign and timestamp. THE ROW-LEVEL COMPANION to the aggregate statistics, and where a specific recipient's experience is traced. Very large on an active portal, so bound it by campaign or time."
     },
     {
       "name": "Email Event",
       "pageType": 0,
-      "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}"
+      "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}",
+      "description": "One email event by its creation timestamp and id."
     },
     {
       "name": "Engagement",
       "pageType": 0,
-      "suffix": "/engagements/v1/engagements/{Engagement ID}"
+      "suffix": "/engagements/v1/engagements/{Engagement ID}",
+      "description": "One engagement by id, with its associations."
     },
     {
       "name": "Engagements",
       "pageType": 6,
-      "suffix": "/engagements/v1/engagements/paged"
+      "suffix": "/engagements/v1/engagements/paged",
+      "description": "THE ACTIVITY TABLE -- notes, calls, emails, meetings and tasks are all engagements, distinguished by a type field, each with its own metadata shape and the contacts, companies and deals it is associated with. Paged. Sales activity, meeting counts and call logging all come from here, and the per-type metadata means one parsing rule does not fit all of them."
     },
     {
       "name": "Recent Engagements",
       "pageType": 2,
-      "suffix": "/engagements/v1/engagements/recent/modified"
+      "suffix": "/engagements/v1/engagements/recent/modified",
+      "description": "Engagements changed most recently. The incremental-sync route."
     },
     {
       "name": "Associated Engagements",
       "pageType": 0,
-      "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}"
+      "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}",
+      "description": "The same path as Email Event; the connector carries it under a second name."
     },
     {
       "name": "Call Engagement Dispositions",
       "pageType": 0,
-      "suffix": "/calling/v1/dispositions"
+      "suffix": "/calling/v1/dispositions",
+      "description": "The call outcome values configured -- connected, left voicemail, no answer. The decoder for a call engagement's disposition, and what turns call volume into call effectiveness."
     },
     {
       "name": "Events",
       "pageType": 0,
-      "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}"
+      "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}",
+      "description": "The custom behavioural events defined and recorded. Events are whatever the portal's own tracking sends, so their names and meanings are entirely account-specific."
     },
     {
       "name": "Event",
       "pageType": 0,
-      "suffix": "/reports/v2/events/{Event ID}?includeDeletes={Include Deleted?:true|false}"
+      "suffix": "/reports/v2/events/{Event ID}?includeDeletes={Include Deleted?:true|false}",
+      "description": "One event definition by id."
     },
     {
       "name": "A Group Of Events",
       "pageType": 0,
-      "suffix": "/reports/v2/events/batch?id={ID}&includeDeleted={Include Deleted?:true|false}"
+      "suffix": "/reports/v2/events/batch?id={ID}&includeDeleted={Include Deleted?:true|false}",
+      "description": "Several events by id, in one request."
     },
     {
       "name": "Forms",
       "pageType": 1,
-      "suffix": "/forms/v2/forms?formTypes={Form Types?}"
+      "suffix": "/forms/v2/forms?formTypes={Form Types?}",
+      "description": "The forms in the portal, with name, fields, submission counts and the lists they feed. The acquisition mechanism, and the explanation for where contacts came from."
     },
     {
       "name": "Form",
       "pageType": 0,
-      "suffix": "/forms/v2/forms/{Form GUID}?"
+      "suffix": "/forms/v2/forms/{Form GUID}?",
+      "description": "One form by GUID, with its full field definitions."
     },
     {
       "name": "Form Submissions",
       "pageType": 5,
-      "suffix": "/form-integrations/v1/submissions/forms/{Form ID}"
+      "suffix": "/form-integrations/v1/submissions/forms/{Form ID}",
+      "description": "The submissions of one form, with the values entered and the timestamp. Requires the form id. THE RAW LEAD CAPTURE -- a contact record shows the current value of a field, this shows what was actually typed and when."
     },
     {
       "name": "File Uploaded Via Form",
       "pageType": 0,
-      "suffix": "/form-integrations/v1/uploaded-files/signed-url-redirect/{File ID}"
+      "suffix": "/form-integrations/v1/uploaded-files/signed-url-redirect/{File ID}",
+      "description": "A signed redirect to a file uploaded through a form. Returns a link rather than data."
     },
     {
       "name": "Form Fields",
       "pageType": 0,
-      "suffix": "/forms/v2/fields/{Form GUID}"
+      "suffix": "/forms/v2/fields/{Form GUID}",
+      "description": "The fields of one form. Requires the form GUID. The decoder for a submission's values, which reference field names."
     },
     {
       "name": "Form Single Field",
       "pageType": 0,
-      "suffix": "/forms/v2/fields/{Form GUID}/{Field Name}"
+      "suffix": "/forms/v2/fields/{Form GUID}/{Field Name}",
+      "description": "One field of one form."
     },
     {
       "name": "Line Items",
       "pageType": 6,
-      "suffix": "/crm-objects/v1/objects/line_items/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}"
+      "suffix": "/crm-objects/v1/objects/line_items/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}",
+      "description": "The line items on deals -- the products actually sold and at what price. Paged. A deal carries a single amount; what makes it up is only here, so product-level revenue analysis depends on this table."
     },
     {
       "name": "Line Item",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/objects/line_items/{Line Item ID}?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeDeletes={Include Deletes?:true|false}"
+      "suffix": "/crm-objects/v1/objects/line_items/{Line Item ID}?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeDeletes={Include Deletes?:true|false}",
+      "description": "One line item by id."
     },
     {
       "name": "Line items Change Log",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/change-log/line_items}?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+      "suffix": "/crm-objects/v1/change-log/line_items?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}",
+      "description": "The change history of line items since a point."
     },
     {
       "name": "Marketing Emails",
@@ -875,107 +1011,128 @@
           "key": "id",
           "parameterName": "Email ID"
         }
-      ]
+      ],
+      "description": "The marketing emails in the portal, with name, subject, state, publish date and the lists targeted. The campaign catalogue."
     },
     {
       "name": "Marketing Email Revisions",
       "pageType": 0,
-      "suffix": "/marketing-emails/v1/emails/{Email ID}/versions"
+      "suffix": "/marketing-emails/v1/emails/{Email ID}/versions",
+      "description": "The version history of one marketing email. Requires the email id."
     },
     {
       "name": "Marketing Email Statistics",
       "pageType": 0,
-      "suffix": "/marketing-emails/v1/emails/with-statistics/{Email ID}"
+      "suffix": "/marketing-emails/v1/emails/with-statistics/{Email ID}",
+      "description": "The statistics of one email by id. Requires the email id."
     },
     {
       "name": "If Email Has Buffered Changes",
       "pageType": 0,
-      "suffix": "/marketing-emails/v1/emails/{Email ID}/has-buffered-changes"
+      "suffix": "/marketing-emails/v1/emails/{Email ID}/has-buffered-changes",
+      "description": "Whether one email has unpublished edits. Requires the email id."
     },
     {
       "name": "Marketing Emails Statistics",
       "pageType": 1,
-      "suffix": "/marketing-emails/v1/emails/with-statistics"
+      "suffix": "/marketing-emails/v1/emails/with-statistics",
+      "description": "The same emails WITH their performance -- sent, delivered, opened, clicked, bounced, unsubscribed and the derived rates. THE ONE TO USE for email performance; the plain listing carries no statistics at all."
     },
     {
       "name": "Owners",
       "pageType": 0,
-      "suffix": "/owners/v2/owners?includeInactive={Include Inactive?:true|false}&email={Email address}"
+      "suffix": "/owners/v2/owners?includeInactive={Include Inactive?:true|false}&email={Email address}",
+      "description": "The HubSpot users records can be assigned to, with name, email and their remote ids. Every CRM record carries an owner id, so this is the dimension per-person performance joins to."
     },
     {
       "name": "Owner",
       "pageType": 0,
-      "suffix": "/owners/v2/owners/{Owner ID}"
+      "suffix": "/owners/v2/owners/{Owner ID}",
+      "description": "One owner by id."
     },
     {
       "name": "Products",
       "pageType": 6,
-      "suffix": "/crm-objects/v1/objects/products/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}"
+      "suffix": "/crm-objects/v1/objects/products/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}",
+      "description": "The product catalogue, paged. Part of the crm-objects model."
     },
     {
       "name": "Product",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/objects/products/{Product ID}?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}&includeDeletes={Include Deleted?:true|false}"
+      "suffix": "/crm-objects/v1/objects/products/{Product ID}?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}&includeDeletes={Include Deleted?:true|false}",
+      "description": "One product by id."
     },
     {
       "name": "ProductsChange Log",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/change-log/products?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+      "suffix": "/crm-objects/v1/change-log/products?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}",
+      "description": "The change history of products since a point."
     },
     {
       "name": "Publishing Channels",
       "pageType": 0,
-      "suffix": "/broadcast/v1/channels/setting/publish/current"
+      "suffix": "/broadcast/v1/channels/setting/publish/current",
+      "description": "The social accounts connected for publishing. Whether a channel is connected decides whether broadcast data exists for it."
     },
     {
       "name": "Broadcast Messages",
       "pageType": 2,
-      "suffix": "/broadcast/v1/broadcasts?status={Filter By Status?:success|waiting|canceled|error_fatal}&since={Filter By Created At?:milliseconds }&channelGuid={Filter By Channel?}"
+      "suffix": "/broadcast/v1/broadcasts?status={Filter By Status?:success|waiting|canceled|error_fatal}&since={Filter By Created At?:milliseconds }&channelGuid={Filter By Channel?}",
+      "description": "The social media posts published through HubSpot, with the channel, content, timing and their interaction counts. Social reach, which the content analytics does not cover."
     },
     {
       "name": "Broadcast Message",
       "pageType": 0,
-      "suffix": "/broadcast/v1/broadcasts/{Broadcast GUID}"
+      "suffix": "/broadcast/v1/broadcasts/{Broadcast GUID}",
+      "description": "One social message by GUID."
     },
     {
       "name": "Tickets",
       "pageType": 7,
-      "suffix": "/crm-objects/v1/objects/tickets/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}"
+      "suffix": "/crm-objects/v1/objects/tickets/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}",
+      "description": "The support tickets, paged. Part of HubSpot's newer crm-objects model rather than the legacy per-object APIs, so the shape differs slightly from contacts and deals -- properties still carry the data."
     },
     {
       "name": "Ticket",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/objects/tickets/{Ticket ID}?properties={Properties?}&propertiesWithHistory={Ticket Properties With History?:true|false}&includeDeletes={Include Deleted?:true|false}"
+      "suffix": "/crm-objects/v1/objects/tickets/{Ticket ID}?properties={Properties?}&propertiesWithHistory={Ticket Properties With History?:true|false}&includeDeletes={Include Deleted?:true|false}",
+      "description": "One ticket by id."
     },
     {
       "name": "Tickets Change Log",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/change-log/tickets?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+      "suffix": "/crm-objects/v1/change-log/tickets?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}",
+      "description": "The change history of tickets since a point. The incremental-sync feed, and the only record of what a ticket's earlier values were."
     },
     {
       "name": "Timeline Event",
       "pageType": 0,
-      "suffix": "/integrations/v1/{Application ID}/timeline/event/{Event type ID}/{Event ID}?access_token={Access Token}"
+      "suffix": "/integrations/v1/{Application ID}/timeline/event/{Event type ID}/{Event ID}?access_token={Access Token}",
+      "description": "One timeline event by id. Requires the application id."
     },
     {
       "name": "Timeline Event Types",
       "pageType": 0,
-      "suffix": "/integrations/v1/{Application ID}/timeline/event-types"
+      "suffix": "/integrations/v1/{Application ID}/timeline/event-types",
+      "description": "The custom timeline event types an application has defined. Requires the application id. Integrations write their own events onto contact timelines, so this is the vocabulary of what a given app records."
     },
     {
       "name": "Timeline Event By ID",
       "pageType": 0,
-      "suffix": "/integrations/v1/{Application ID}/timeline/event-types/{Event type ID}"
+      "suffix": "/integrations/v1/{Application ID}/timeline/event-types/{Event type ID}",
+      "description": "One timeline event type by id."
     },
     {
       "name": "Timeline Event Type Properties",
       "pageType": 0,
-      "suffix": "/integrations/v1/{Application ID}/timeline/event-types/{Event type ID}/properties"
+      "suffix": "/integrations/v1/{Application ID}/timeline/event-types/{Event type ID}/properties",
+      "description": "The properties of one timeline event type. The decoder for its event data."
     },
     {
       "name": "SMTP API Tokens",
       "pageType": 0,
-      "suffix": "/email/public/v1/smtpapi/tokens"
+      "suffix": "/email/public/v1/smtpapi/tokens",
+      "description": "The SMTP tokens issued for sending transactional mail through HubSpot. Security inventory."
     },
     {
       "name": "Workflows",
@@ -988,17 +1145,20 @@
           "key": "id",
           "parameterName": "Workflow ID"
         }
-      ]
+      ],
+      "description": "The automation workflows, with name, type, enrolment criteria and whether each is enabled. WHERE MOST MARKETING ACTION HAPPENS in a HubSpot portal -- contacts move through these based on behaviour, so a campaign-only view of activity understates it."
     },
     {
       "name": "Workflow",
       "pageType": 0,
-      "suffix": "/automation/v3/workflows/{Workflow ID}?errors={Error?:true|false}&stats={Stats?:true|false}"
+      "suffix": "/automation/v3/workflows/{Workflow ID}?errors={Error?:true|false}&stats={Stats?:true|false}",
+      "description": "One workflow by id, with its actions and enrolment settings."
     },
     {
       "name": "Workflow Performance Statistics",
       "pageType": 0,
-      "suffix": "/automation/v3/performance/workflow/{Workflow ID}?start={Start Date?:milliseconds}&end={End Date?:milliseconds}&bucket={Time Period?:DAY|WEEK|MONTH}"
+      "suffix": "/automation/v3/performance/workflow/{Workflow ID}?start={Start Date?:milliseconds}&end={End Date?:milliseconds}&bucket={Time Period?:DAY|WEEK|MONTH}",
+      "description": "The performance of one workflow -- enrolments, completions and conversion. Requires a workflow id. Whether the automation is achieving anything, which the definition cannot say."
     }
   ]
 }
