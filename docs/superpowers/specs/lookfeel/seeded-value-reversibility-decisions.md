@@ -187,8 +187,15 @@ not forgivable the way a colour is.
 |---|---|
 | New assembly created on a viewsheet | the **host viewsheet's** mark (which, for a new viewsheet, is the gate) |
 | Copy / paste of an existing assembly | the **source asset's** mark, preserved |
+| Type conversion of an existing assembly | the **converted object's own** mark, preserved |
 | Embedded viewsheet | the embedded asset's own marks, preserved |
 | Save As / duplicate of a whole viewsheet | marks preserved |
+
+**Type conversion was added 2026-08-14**, after implementation found the table silent on it. Converting a
+range slider to a selection list, or a table to a freehand table, is closer to "bring this thing as it is"
+than to "make me one like this dashboard": the object already existed and already had provenance. Taking the
+host's mark instead would silently legacy-ify a modern assembly that happened to be sitting in a legacy
+dashboard.
 
 **Why the asymmetry is right.** Creating means "make me one like this dashboard"; pasting means "bring this
 thing as it is." Modern-ness is more than chrome — `ChartVSAssemblyInfo:94-100` seeds
