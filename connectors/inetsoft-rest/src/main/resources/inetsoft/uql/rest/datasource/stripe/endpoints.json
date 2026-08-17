@@ -556,9 +556,9 @@
     },
     {
       "name": "Account Bank Accounts",
-      "description": "The external accounts of one connected account -- where its payouts are sent. Requires an account id. Note this returns every external account, bank accounts and cards alike; despite the name it applies no filter, and Account Cards calls exactly the same URL.",
+      "description": "The bank accounts attached to one connected account for payouts, with the bank name, last four digits, currency, country and status. Requires an account id. NOTE THE FILTER: external_accounts holds bank accounts and debit cards together, and object=bank_account is what separates them -- without it the endpoint returns both kinds mixed, which is how the same list can appear under two names.",
       "paged": true,
-      "suffix": "/v1/accounts/{Account ID}/external_accounts"
+      "suffix": "/v1/accounts/{Account ID}/external_accounts?object=bank_account"
     },
     {
       "name": "Account Card",
@@ -568,9 +568,9 @@
     },
     {
       "name": "Account Cards",
-      "description": "The external accounts of one connected account. Requires an account id. Note this returns every external account, cards and bank accounts alike; despite the name it applies no filter, and Account Bank Accounts calls exactly the same URL.",
+      "description": "The debit cards attached to one connected account for payouts, with brand, last four digits, expiry and country. Requires an account id. The object=card filter is what distinguishes this from Account Bank Accounts; the underlying endpoint is the same and returns both kinds unfiltered.",
       "paged": true,
-      "suffix": "/v1/accounts/{Account ID}/external_accounts"
+      "suffix": "/v1/accounts/{Account ID}/external_accounts?object=card"
     },
     {
       "name": "Person",
