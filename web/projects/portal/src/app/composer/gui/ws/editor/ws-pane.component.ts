@@ -785,6 +785,15 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       const event = new OpenWorksheetEvent();
       event.setId(this.worksheet.id);
 
+      // The server already opened this runtime and told us to attach to it (open_base_worksheet).
+      // Without both of these the browser opens a SECOND runtime of the same asset: the agent
+      // edits one, the user watches the other, and every call on both sides still succeeds.
+      // Mirrors openExistingViewsheet, which sets runtimeViewsheetId and binds its client.
+      if(this.worksheet.runtimeId) {
+         event.setRuntimeId(this.worksheet.runtimeId);
+         this.worksheetClient.runtimeId = this.worksheet.runtimeId;
+      }
+
       if(this.worksheet.gettingStarted) {
          event.setGettingStartedWs(true);
          event.setCreateQuery(this.gettingStartedService.isCreateQuery());
