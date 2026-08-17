@@ -1,289 +1,346 @@
 {
   "endpoints": [
     {
-      "paged": "true", 
-      "name": "Clients", 
-      "suffix": "/client?localid={Local ID?}&active={Active?:t|f}&search={Search Text?}&projectsonly={With Active Projects Only?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Clients",
+      "suffix": "/client?localid={Local ID?}&active={Active?:t|f}&search={Search Text?}&projectsonly={With Active Projects Only?:t|f}",
+      "description": "The client organisations, filterable by active state and search term. The billing entity projects belong to."
+    },
     {
-      "paged": "false", 
+      "paged": "false",
       "name": "Client",
-      "suffix": "/client/{Client ID}"
-    }, 
+      "suffix": "/client/{Client ID}",
+      "description": "One client by id."
+    },
     {
-      "paged": "false", 
-      "name": "Contact Descriptors", 
-      "suffix": "/contactdescriptor?contacttypeid={Contact Type ID?}"
-    }, 
+      "paged": "false",
+      "name": "Contact Descriptors",
+      "suffix": "/contactdescriptor?contacttypeid={Contact Type ID?}",
+      "description": "The descriptors within one contact type -- work, home, mobile. Requires the contact type id."
+    },
     {
-      "paged": "false", 
-      "name": "Contact Types", 
-      "suffix": "/contacttype"
-    }, 
+      "paged": "false",
+      "name": "Contact Types",
+      "suffix": "/contacttype",
+      "description": "The contact types available -- phone, email, address and so on. The decoder for a person contact's type."
+    },
     {
-      "paged": "false", 
-      "name": "Customers", 
-      "suffix": "/customer"
-    }, 
+      "paged": "false",
+      "name": "Customers",
+      "suffix": "/customer",
+      "description": "The customer contacts associated with clients. The people at a client, as opposed to the client itself."
+    },
     {
-      "paged": "true", 
-      "name": "Documents", 
-      "suffix": "/document?public={Visible to Executive-level Only?:t|f}&taskid={Task ID?}&milestoneid={Milestone ID?}&queueid={Queue ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&personId={Person ID?}&search={Search Text?}&projectactive={Active Projects?:t|f}&taskassignedorownedby={Tasks Assigned or Owned By?:Person ID}&tag={Tag?}&datebegin={Uploaded On or After?:yyyy-MM-dd}&dateend={Uploaded On or Before?:yyyy-MM-dd}"
-    }, 
+      "paged": "true",
+      "name": "Documents",
+      "suffix": "/document?public={Visible to Executive-level Only?:t|f}&taskid={Task ID?}&milestoneid={Milestone ID?}&queueid={Queue ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&personId={Person ID?}&search={Search Text?}&projectactive={Active Projects?:t|f}&taskassignedorownedby={Tasks Assigned or Owned By?:Person ID}&tag={Tag?}&datebegin={Uploaded On or After?:yyyy-MM-dd}&dateend={Uploaded On or Before?:yyyy-MM-dd}",
+      "description": "The documents stored, filterable by visibility and tags. Metadata rather than content."
+    },
     {
-      "paged": "false", 
-      "name": "Document", 
-      "suffix": "/document/{Document ID}"
-    }, 
+      "paged": "false",
+      "name": "Document",
+      "suffix": "/document/{Document ID}",
+      "description": "One document by id."
+    },
     {
-      "paged": "true", 
-      "name": "Expenses", 
-      "suffix": "/expense?projectid={Project ID?}&personid={Person ID?}&clientid={Client ID?}&managerid={Manager ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&date={Date Passed?:yyyy-MM-dd}"
-    }, 
+      "paged": "true",
+      "name": "Expenses",
+      "suffix": "/expense?projectid={Project ID?}&personid={Person ID?}&clientid={Client ID?}&managerid={Manager ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&date={Date Passed?:yyyy-MM-dd}",
+      "description": "The expenses recorded, filterable by project, person, client and date. Carries the amount, the expense type, whether billable, and the project. Project profitability is time cost plus these, so an expense-blind margin overstates it."
+    },
     {
-      "paged": "false", 
-      "name": "Expense", 
-      "suffix": "/expense/{Expense ID}"
-    }, 
+      "paged": "false",
+      "name": "Expense",
+      "suffix": "/expense/{Expense ID}",
+      "description": "One expense by id."
+    },
     {
-      "paged": "false", 
-      "name": "Groups", 
-      "suffix": "/group"
-    }, 
+      "paged": "false",
+      "name": "Groups",
+      "suffix": "/group",
+      "description": "The groups people belong to. The team dimension."
+    },
     {
-      "paged": "true", 
-      "name": "Invoices", 
-      "suffix": "/invoice?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&status={Status?:outstanding|paid}&search={Search Text?}"
-    }, 
+      "paged": "true",
+      "name": "Invoices",
+      "suffix": "/invoice?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&status={Status?:outstanding|paid}&search={Search Text?}",
+      "description": "The invoices issued, filterable by client, project and status. Carries the client, dates, status and totals. Only issued invoices are revenue; drafts are not."
+    },
     {
-      "paged": "false", 
-      "name": "Invoice", 
-      "suffix": "/invoice/{Invoice ID}"
-    }, 
+      "paged": "false",
+      "name": "Invoice",
+      "suffix": "/invoice/{Invoice ID}",
+      "description": "One invoice by id."
+    },
     {
-      "paged": "true", 
-      "name": "Invoice Items", 
-      "suffix": "/invoiceitem?invoiceid={Invoice ID?}"
-    }, 
+      "paged": "true",
+      "name": "Invoice Items",
+      "suffix": "/invoiceitem?invoiceid={Invoice ID?}",
+      "description": "The line items on one invoice, optionally filtered by invoice. Requires an invoice id in practice. What was billed, as opposed to the invoice total."
+    },
     {
-      "paged": "false", 
-      "name": "Invoice Item", 
-      "suffix": "/invoiceitem/{Invoice Item ID}"
-    }, 
+      "paged": "false",
+      "name": "Invoice Item",
+      "suffix": "/invoiceitem/{Invoice Item ID}",
+      "description": "One invoice item by id."
+    },
     {
-      "paged": "true", 
-      "name": "Invoice Notes", 
-      "suffix": "/invoicenote?invoiceid={Invoice ID?}&authorid={Author ID?}"
-    }, 
+      "paged": "true",
+      "name": "Invoice Notes",
+      "suffix": "/invoicenote?invoiceid={Invoice ID?}&authorid={Author ID?}",
+      "description": "Notes attached to invoices, filterable by invoice and author."
+    },
     {
-      "paged": "false", 
-      "name": "Invoice Note", 
-      "suffix": "/invoicenote/{Invoice Note ID}"
-    }, 
+      "paged": "false",
+      "name": "Invoice Note",
+      "suffix": "/invoicenote/{Invoice Note ID}",
+      "description": "One invoice note by id."
+    },
     {
-      "paged": "false", 
-      "name": "Invoice Terms", 
-      "suffix": "/invoiceterm"
-    }, 
+      "paged": "false",
+      "name": "Invoice Terms",
+      "suffix": "/invoiceterm",
+      "description": "The payment terms available. The decoder for an invoice's term, and what determines its due date."
+    },
     {
-      "paged": "false", 
-      "name": "Current User", 
-      "suffix": "/me"
-    }, 
+      "paged": "false",
+      "name": "Current User",
+      "suffix": "/me",
+      "description": "The account the credentials belong to, with its permissions. Worth reading first, since Intervals restricts visibility by role and two users legitimately see different rows."
+    },
     {
-      "paged": "true", 
-      "name": "Milestones", 
-      "suffix": "/milestone?localid={Local ID?}&search={Search Text?}&clientid={Client ID?}&projectid={Project ID?}&ownerid={Owner ID?}&hasmilestonerelation={Related To?:Person ID}&complete={Complete?:t|f}&dateduebegin={Due Date On or After?:yyyy-MM-dd}&datedueend={Due Date On or Before?:yyyy-MM-dd}&title={Title Contains?}"
-    }, 
+      "paged": "true",
+      "name": "Milestones",
+      "suffix": "/milestone?localid={Local ID?}&search={Search Text?}&clientid={Client ID?}&projectid={Project ID?}&ownerid={Owner ID?}&hasmilestonerelation={Related To?:Person ID}&complete={Complete?:t|f}&dateduebegin={Due Date On or After?:yyyy-MM-dd}&datedueend={Due Date On or Before?:yyyy-MM-dd}&title={Title Contains?}",
+      "description": "The project milestones, filterable by client, project and search term. Carries the title, date and the project it belongs to. The planning layer above tasks."
+    },
     {
-      "paged": "false", 
-      "name": "Milestone", 
-      "suffix": "/milestone/{Milestone ID}"
-    }, 
+      "paged": "false",
+      "name": "Milestone",
+      "suffix": "/milestone/{Milestone ID}",
+      "description": "One milestone by id."
+    },
     {
-      "paged": "true", 
-      "name": "Milestone Notes", 
-      "suffix": "/milestonenote?milestoneid={Milestone ID?}"
-    }, 
+      "paged": "true",
+      "name": "Milestone Notes",
+      "suffix": "/milestonenote?milestoneid={Milestone ID?}",
+      "description": "Notes on one milestone. Requires the milestone id."
+    },
     {
-      "paged": "false", 
-      "name": "Milestone Note", 
-      "suffix": "/milestonenote/{Milestone Note ID}"
-    }, 
+      "paged": "false",
+      "name": "Milestone Note",
+      "suffix": "/milestonenote/{Milestone Note ID}",
+      "description": "One milestone note by id."
+    },
     {
-      "paged": "true", 
-      "name": "Modules", 
-      "suffix": "/module?active={Active?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Modules",
+      "suffix": "/module?active={Active?:t|f}",
+      "description": "The module definitions available across the account, filterable by active state. The catalogue; which are enabled per project is in Project Modules."
+    },
     {
-      "paged": "false", 
-      "name": "Module", 
-      "suffix": "/module/{Module ID}"
-    }, 
+      "paged": "false",
+      "name": "Module",
+      "suffix": "/module/{Module ID}",
+      "description": "One module by id."
+    },
     {
-      "paged": "true", 
-      "name": "Payments", 
-      "suffix": "/payment?clientid={Client ID?}&projectid={Project ID?}&personid={Person ID?}&date={Date Passed?:yyyy-MM-dd}&typeid={Type ID?}&invoiceid={Invoice ID?}"
-    }, 
+      "paged": "true",
+      "name": "Payments",
+      "suffix": "/payment?clientid={Client ID?}&projectid={Project ID?}&personid={Person ID?}&date={Date Passed?:yyyy-MM-dd}&typeid={Type ID?}&invoiceid={Invoice ID?}",
+      "description": "The payments received, filterable by client, project and person. The invoice carries a balance; this says when money actually arrived, which is what a collection-time question needs."
+    },
     {
-      "paged": "false", 
-      "name": "Payment", 
-      "suffix": "/payment/{Payment ID}"
-    }, 
+      "paged": "false",
+      "name": "Payment",
+      "suffix": "/payment/{Payment ID}",
+      "description": "One payment by id."
+    },
     {
-      "paged": "false", 
-      "name": "Payment Types", 
-      "suffix": "/paymenttype"
-    }, 
+      "paged": "false",
+      "name": "Payment Types",
+      "suffix": "/paymenttype",
+      "description": "The payment methods configured. The decoder for a payment's type."
+    },
     {
-      "paged": "true", 
-      "name": "People", 
-      "suffix": "/person?localid={Local ID?}&username={Username?}&email={Email?}&firstname={First Name?}&lastname={Last Name?}&excludegroupids={Exclude Group IDs?:1,2,...}&projectid={Project IDs?:1,2,...}&clientid={Client IDs?:1,2,...}&projectclientid={Projects Belonging to Clients?:clientId1,clientId2,...}&search={Search Text?}&active={Active?:t|f}&groupId={Group ID?}&allprojects={Should be Added to All Future Projects?:t|f}&restricttasks={Restricted to Owned or Assigned Tasks?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "People",
+      "suffix": "/person?localid={Local ID?}&username={Username?}&email={Email?}&firstname={First Name?}&lastname={Last Name?}&excludegroupids={Exclude Group IDs?:1,2,...}&projectid={Project IDs?:1,2,...}&clientid={Client IDs?:1,2,...}&projectclientid={Projects Belonging to Clients?:clientId1,clientId2,...}&search={Search Text?}&active={Active?:t|f}&groupId={Group ID?}&allprojects={Should be Added to All Future Projects?:t|f}&restricttasks={Restricted to Owned or Assigned Tasks?:t|f}",
+      "description": "The people in the account, filterable by username, email and active state. Carries name, email, role and active state."
+    },
     {
-      "paged": "false", 
-      "name": "Person", 
-      "suffix": "/person/{Person ID}"
-    }, 
+      "paged": "false",
+      "name": "Person",
+      "suffix": "/person/{Person ID}",
+      "description": "One person by id."
+    },
     {
-      "paged": "false", 
-      "name": "Person Contacts", 
-      "suffix": "/personcontact?personid={Person ID?}&contacttypeid={Contact Type ID?}&contactdescriptorid={Contact Descriptor ID?}"
-    }, 
+      "paged": "false",
+      "name": "Person Contacts",
+      "suffix": "/personcontact?personid={Person ID?}&contacttypeid={Contact Type ID?}&contactdescriptorid={Contact Descriptor ID?}",
+      "description": "The contact details recorded for one person, by contact type. Requires the person id."
+    },
     {
-      "paged": "false", 
-      "name": "Person Contact", 
-      "suffix": "/personcontact/{Person Contact ID}"
-    }, 
+      "paged": "false",
+      "name": "Person Contact",
+      "suffix": "/personcontact/{Person Contact ID}",
+      "description": "One person contact entry by id."
+    },
     {
-      "paged": "true", 
-      "name": "Projects", 
-      "suffix": "/project?localid={Local ID?}&clientid={Client ID?}&managerid={Manager ID?}&name={Name?}&datestart={Beginning On?:yyyy-MM-dd}&dateend={Ending On?:yyyy-MM-dd}&search={Search Text?}&active={Active?:t|f}&billable={Billable?:t|f}&personid={Accessable By?:Person ID}"
-    }, 
+      "paged": "true",
+      "name": "Projects",
+      "suffix": "/project?localid={Local ID?}&clientid={Client ID?}&managerid={Manager ID?}&name={Name?}&datestart={Beginning On?:yyyy-MM-dd}&dateend={Ending On?:yyyy-MM-dd}&search={Search Text?}&active={Active?:t|f}&billable={Billable?:t|f}&personid={Accessable By?:Person ID}",
+      "description": "The projects, filterable by client, manager and active state. Carries the name, client, manager, dates, and the budget. The container time and expenses are booked against."
+    },
     {
-      "paged": "false", 
-      "name": "Project", 
-      "suffix": "/project/{Project ID}"
-    }, 
+      "paged": "false",
+      "name": "Project",
+      "suffix": "/project/{Project ID}",
+      "description": "One project by id."
+    },
     {
-      "paged": "true", 
-      "name": "Project Modules", 
-      "suffix": "/projectmodule?projectid={Project ID}&active={Active?:t|f}&personid={Accessable By?:Person ID}"
-    }, 
+      "paged": "true",
+      "name": "Project Modules",
+      "suffix": "/projectmodule?projectid={Project ID}&active={Active?:t|f}&personid={Accessable By?:Person ID}",
+      "description": "The modules enabled on one project, with their budgets. Requires a project id. A MODULE IS INTERVALS'S SUB-PROJECT DIVISION -- phases or workstreams -- and budgets can be set per module, so project-level budget tracking misses where the overrun actually is."
+    },
     {
-      "paged": "false", 
-      "name": "Project Module", 
-      "suffix": "/projectmodule/{Project Module ID}"
-    }, 
+      "paged": "false",
+      "name": "Project Module",
+      "suffix": "/projectmodule/{Project Module ID}",
+      "description": "One project module by id."
+    },
     {
-      "paged": "true", 
-      "name": "Project Notes", 
-      "suffix": "/projectnote?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&authorid={Author ID?}&title={Title?}&search={Search Text?}&noteid={Note ID?}"
-    }, 
+      "paged": "true",
+      "name": "Project Notes",
+      "suffix": "/projectnote?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&authorid={Author ID?}&title={Title?}&search={Search Text?}&noteid={Note ID?}",
+      "description": "Notes recorded against projects, filterable by client, project and date. The narrative record of a project -- scope changes, client decisions, the reasons behind an overrun -- which no time or budget figure explains on its own."
+    },
     {
-      "paged": "false", 
-      "name": "Project Note", 
-      "suffix": "/projectnote/{Project Note ID}"
-    }, 
+      "paged": "false",
+      "name": "Project Note",
+      "suffix": "/projectnote/{Project Note ID}",
+      "description": "One project note by id."
+    },
     {
-      "paged": "true", 
-      "name": "Project Work Types", 
-      "suffix": "/projectworktype?projectid={Project ID?}&active={Active?:t|f}&personid={Person ID}"
-    }, 
+      "paged": "true",
+      "name": "Project Work Types",
+      "suffix": "/projectworktype?projectid={Project ID?}&active={Active?:t|f}&personid={Person ID}",
+      "description": "The work types enabled on one project, each with its own billable rate. Requires a project id. THE RATE THAT ACTUALLY APPLIES: a time entry carries hours and a work type, and this is what prices it -- so revenue is a join, and the same work type can be priced differently on two projects."
+    },
     {
-      "paged": "false", 
-      "name": "Project Work Type", 
-      "suffix": "/projectworktype/{Project Work Type ID}"
-    }, 
+      "paged": "false",
+      "name": "Project Work Type",
+      "suffix": "/projectworktype/{Project Work Type ID}",
+      "description": "One project work type by id."
+    },
     {
-      "paged": "true", 
-      "name": "Work Requests", 
-      "suffix": "/request?priorityid={Priority ID?}&personid={Person ID?}&projectid={Project ID?}"
-    }, 
+      "paged": "true",
+      "name": "Work Requests",
+      "suffix": "/request?priorityid={Priority ID?}&personid={Person ID?}&projectid={Project ID?}",
+      "description": "Incoming requests for work, filterable by priority, person and project. The intake queue before something becomes a task -- so demand that was never scheduled is only visible here."
+    },
     {
-      "paged": "false", 
-      "name": "Work Request", 
-      "suffix": "/request/{Work Request ID}"
-    }, 
+      "paged": "false",
+      "name": "Work Request",
+      "suffix": "/request/{Work Request ID}",
+      "description": "One work request by id."
+    },
     {
-      "paged": "true", 
-      "name": "Tasks", 
-      "suffix": "/task?localid={Local ID?}&personid={Person ID?}&assigneeid={Assignee ID?}&followerid={Follower ID?}&statusid={Status ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&milestoneid={Milestone ID?}&title={Title?}&dateopen={Opening On or After?:yyyy-MM-dd}&dateopenbegin={Starting After?:yyyy-MM-dd}&datedue={Date Due?:yyyy-MM-dd}&dateduebegin={Date Due After?:yyyy-MM-dd}&datedueend={Date Due Before?:yyyy-MM-dd}&dateclosed={Date Closed?:yyyy-MM-dd}&dateclosedbegin={Date Closed After?:yyyy-MM-dd}&dateclosedend={Date Closed Before?:yyyy-MM-dd}&hasduedate={Has Due Date?:t|f}&ownerid={Owner ID?}&priorityid={Priority ID?}&tasklistfilterid={Task List Filter ID?}&overdue={Overdue?:t|f}&excludeclosed={Exclude Closed?:t|f}&hastaskrelation={Related To?:Person ID}&search={Search Text?}"
-    }, 
+      "paged": "true",
+      "name": "Tasks",
+      "suffix": "/task?localid={Local ID?}&personid={Person ID?}&assigneeid={Assignee ID?}&followerid={Follower ID?}&statusid={Status ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&milestoneid={Milestone ID?}&title={Title?}&dateopen={Opening On or After?:yyyy-MM-dd}&dateopenbegin={Starting After?:yyyy-MM-dd}&datedue={Date Due?:yyyy-MM-dd}&dateduebegin={Date Due After?:yyyy-MM-dd}&datedueend={Date Due Before?:yyyy-MM-dd}&dateclosed={Date Closed?:yyyy-MM-dd}&dateclosedbegin={Date Closed After?:yyyy-MM-dd}&dateclosedend={Date Closed Before?:yyyy-MM-dd}&hasduedate={Has Due Date?:t|f}&ownerid={Owner ID?}&priorityid={Priority ID?}&tasklistfilterid={Task List Filter ID?}&overdue={Overdue?:t|f}&excludeclosed={Exclude Closed?:t|f}&hastaskrelation={Related To?:Person ID}&search={Search Text?}",
+      "description": "The tasks work is booked against, filterable by person, assignee, project, status and priority. Carries the title, project, module, assignees, estimated hours, status and priority."
+    },
     {
-      "paged": "false", 
-      "name": "Task", 
-      "suffix": "/task/{Task ID}"
-    }, 
+      "paged": "false",
+      "name": "Task",
+      "suffix": "/task/{Task ID}",
+      "description": "One task by id."
+    },
     {
-      "paged": "true", 
-      "name": "Task List Filters", 
-      "suffix": "/tasklistfilter"
-    }, 
+      "paged": "true",
+      "name": "Task List Filters",
+      "suffix": "/tasklistfilter",
+      "description": "The saved task filters defined. These encode the queues the team actually works from."
+    },
     {
-      "paged": "false", 
-      "name": "Task List Filter", 
-      "suffix": "/tasklistfilter/{Task List Filter ID}"
-    }, 
+      "paged": "false",
+      "name": "Task List Filter",
+      "suffix": "/tasklistfilter/{Task List Filter ID}",
+      "description": "One saved task filter by id."
+    },
     {
-      "paged": "true", 
-      "name": "Task Notes", 
-      "suffix": "/tasknote?taskid={Task ID?}&title={Title?}&date={Date Created?:yyyy-MM-dd}&datebegin={Created On or After?:yyyy-MM-dd}&dateend={Created On or Before?:yyyy-MM-dd}&datemodifiedbegin={Modified On or After?:yyyy-MM-dd}&datemodifiedend={Modified On or Before?:yyyy-MM-dd}&authorid={Author ID?}&public={Public?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Task Notes",
+      "suffix": "/tasknote?taskid={Task ID?}&title={Title?}&date={Date Created?:yyyy-MM-dd}&datebegin={Created On or After?:yyyy-MM-dd}&dateend={Created On or Before?:yyyy-MM-dd}&datemodifiedbegin={Modified On or After?:yyyy-MM-dd}&datemodifiedend={Modified On or Before?:yyyy-MM-dd}&authorid={Author ID?}&public={Public?:t|f}",
+      "description": "Notes on tasks, filterable by task, title and date. The discussion beside the task record."
+    },
     {
-      "paged": "false", 
-      "name": "Task Note", 
-      "suffix": "/tasknote/{Task Note ID}"
-    }, 
+      "paged": "false",
+      "name": "Task Note",
+      "suffix": "/tasknote/{Task Note ID}",
+      "description": "One task note by id."
+    },
     {
-      "paged": "true", 
-      "name": "Task Priorities", 
-      "suffix": "/taskpriority?active={Active?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Task Priorities",
+      "suffix": "/taskpriority?active={Active?:t|f}",
+      "description": "The task priorities configured. The decoder for a task's priority id."
+    },
     {
-      "paged": "false", 
-      "name": "Task Priority", 
-      "suffix": "/taskpriority/{Task Priority ID}"
-    }, 
+      "paged": "false",
+      "name": "Task Priority",
+      "suffix": "/taskpriority/{Task Priority ID}",
+      "description": "One task priority by id."
+    },
     {
-      "paged": "true", 
-      "name": "Task Statuses", 
-      "suffix": "/taskstatus?active={Active?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Task Statuses",
+      "suffix": "/taskstatus?active={Active?:t|f}",
+      "description": "The task statuses configured, filterable by active state. Account-specific, and the decoder for a task's status id."
+    },
     {
-      "paged": "false", 
-      "name": "Task Status", 
-      "suffix": "/taskstatus/{Task Status ID}"
-    }, 
+      "paged": "false",
+      "name": "Task Status",
+      "suffix": "/taskstatus/{Task Status ID}",
+      "description": "One task status by id."
+    },
     {
-      "paged": "true", 
-      "name": "Times", 
-      "suffix": "/time?activeonly={Active Only?:t|f}&moduleid={Module ID?}&taskid={Task ID?}&worktypeid={Work Type ID?}&personid={Person ID?}&clientid={Client ID?}&projectid={Project ID?}&milestoneid={Milestone ID?}&date={Date Passed?:yyyy-MM-dd}&datebegin={Pased On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&billable={Billable?:t|f}&approved={Approved?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Times",
+      "suffix": "/time?activeonly={Active Only?:t|f}&moduleid={Module ID?}&taskid={Task ID?}&worktypeid={Work Type ID?}&personid={Person ID?}&clientid={Client ID?}&projectid={Project ID?}&milestoneid={Milestone ID?}&date={Date Passed?:yyyy-MM-dd}&datebegin={Pased On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&billable={Billable?:t|f}&approved={Approved?:t|f}",
+      "description": "The time entries recorded -- the central table. Carries the person, project, module, work type, task, the date, HOURS AS A DECIMAL, the billable flag, and whether it has been invoiced. Filterable by module, person, project and date. NOTE THE INVOICED FLAG: once time is billed it is locked to an invoice, so unbilled work in progress and already-invoiced revenue are distinguished here and nowhere else."
+    },
     {
-      "paged": "false", 
-      "name": "Time", 
-      "suffix": "/time/{Time ID}"
-    }, 
+      "paged": "false",
+      "name": "Time",
+      "suffix": "/time/{Time ID}",
+      "description": "One time entry by id."
+    },
     {
-      "paged": "true", 
-      "name": "Timers", 
-      "suffix": "/timer?generaltimers={General Timers?:t|f}&gettimerinfo={Include Timer Info?:t|f}&taskid={Task ID?}&personid={Person ID?}&projectid={Project ID?}&clientid={Client ID?}"
-    }, 
+      "paged": "true",
+      "name": "Timers",
+      "suffix": "/timer?generaltimers={General Timers?:t|f}&gettimerinfo={Include Timer Info?:t|f}&taskid={Task ID?}&personid={Person ID?}&projectid={Project ID?}&clientid={Client ID?}",
+      "description": "The timers currently running, optionally with their detail. A live view of who is working on what right now, not history -- a running timer has produced no time entry yet, so work in progress is invisible in the Times table until it is stopped."
+    },
     {
-      "paged": "false", 
-      "name": "Timer", 
-      "suffix": "/timer/{Timer ID}"
-    }, 
+      "paged": "false",
+      "name": "Timer",
+      "suffix": "/timer/{Timer ID}",
+      "description": "One timer by id."
+    },
     {
-      "paged": "true", 
-      "name": "Work Types", 
-      "suffix": "/worktype?active={Active?:t|f}"
-    }, 
+      "paged": "true",
+      "name": "Work Types",
+      "suffix": "/worktype?active={Active?:t|f}",
+      "description": "The work type definitions across the account -- design, development, project management -- with their default rates. The catalogue behind the per-project overrides."
+    },
     {
-      "paged": "false", 
-      "name": "Work Type", 
-      "suffix": "/worktype/{Work Type ID}"
+      "paged": "false",
+      "name": "Work Type",
+      "suffix": "/worktype/{Work Type ID}",
+      "description": "One work type by id."
     }
   ]
 }

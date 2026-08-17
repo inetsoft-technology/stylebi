@@ -1,289 +1,346 @@
 {
   "endpoints": [
     {
-      "paged": "false", 
-      "name": "Ticket", 
-      "suffix": "/v2/tickets/{Ticket ID}"
-    }, 
+      "paged": "false",
+      "name": "Ticket",
+      "suffix": "/v2/tickets/{Ticket ID}",
+      "description": "One ticket by id, with its full field set. Related records -- conversations, requester, company -- are inlined only when explicitly included."
+    },
     {
-      "paged": "true", 
-      "name": "Tickets", 
-      "suffix": "/v2/tickets?query={Query?:(status:1 OR tag:'tag')}"
-    }, 
+      "paged": "true",
+      "name": "Tickets",
+      "suffix": "/v2/tickets?query={Query?:(status:1 OR tag:'tag')}",
+      "description": "The support tickets, with subject, description, the requester, the agent and group assigned, the product, source, tags, custom fields, and created, updated and due timestamps. The query parameter takes Freshdesk's own filter syntax. NOTE THE CODED COLUMNS, which Freshdesk fixes rather than exposing a decoder for: STATUS is 2 Open, 3 Pending, 4 Resolved, 5 Closed; PRIORITY is 1 Low, 2 Medium, 3 High, 4 Urgent; SOURCE is 1 Email, 2 Portal, 3 Phone, 7 Chat, 9 Feedback Widget, 10 Outbound Email. A breakdown left as raw integers is unreadable. NOTE ALSO THAT THE DEFAULT LISTING RETURNS ONLY THE LAST 30 DAYS unless a date filter says otherwise, which silently truncates any historical question."
+    },
     {
-      "paged": "true", 
-      "name": "Ticket Fields", 
-      "suffix": "/v2/ticket_fields?type={Type?}"
-    }, 
+      "paged": "true",
+      "name": "Ticket Fields",
+      "suffix": "/v2/ticket_fields?type={Type?}",
+      "description": "Every field a ticket can carry, standard and custom, with type, whether required at which stage, and for dropdowns the allowed choices. The decoder for custom fields, and the statement of what the account actually records."
+    },
     {
-      "paged": "true", 
-      "name": "Ticket Conversations", 
-      "suffix": "/v2/tickets/{Ticket ID}/conversations"
-    }, 
+      "paged": "true",
+      "name": "Ticket Conversations",
+      "suffix": "/v2/tickets/{Ticket ID}/conversations",
+      "description": "The replies and private notes on one ticket, with author, body, whether each is private, and timestamps. Requires a ticket id. THE PRIVATE FLAG MATTERS: internal notes and customer-facing replies share this table, and counting both as responses overstates how much the customer heard."
+    },
     {
-      "paged": "true", 
-      "name": "Ticket Time Entries", 
-      "suffix": "/v2/tickets/{Ticket ID}/time_entries"
-    }, 
+      "paged": "true",
+      "name": "Ticket Time Entries",
+      "suffix": "/v2/tickets/{Ticket ID}/time_entries",
+      "description": "The time logged against one ticket, with the agent, duration, whether it is billable, and any note. Requires a ticket id. Cost of support is only answerable through this; the ticket itself carries no effort figure."
+    },
     {
-      "paged": "true", 
-      "name": "Ticket Satisfaction Ratings", 
-      "suffix": "/v2/tickets/{Ticket ID}/satisfaction_ratings"
-    }, 
+      "paged": "true",
+      "name": "Ticket Satisfaction Ratings",
+      "suffix": "/v2/tickets/{Ticket ID}/satisfaction_ratings",
+      "description": "The satisfaction responses for one ticket. Requires a ticket id."
+    },
     {
-      "paged": "false", 
-      "name": "Contact", 
-      "suffix": "/v2/contacts/{Contact ID}"
-    }, 
+      "paged": "false",
+      "name": "Contact",
+      "suffix": "/v2/contacts/{Contact ID}",
+      "description": "One contact by id."
+    },
     {
-      "paged": "true", 
-      "name": "Contacts", 
-      "suffix": "/v2/contacts?query={Query?:(active:true AND tag:'tag')}"
-    }, 
+      "paged": "true",
+      "name": "Contacts",
+      "suffix": "/v2/contacts?query={Query?:(active:true AND tag:'tag')}",
+      "description": "The end users who raise tickets, with name, email, phone, the company, tags, custom fields, and their active state. The query parameter takes the filter syntax. Note contacts and AGENTS are separate tables in Freshdesk, so a count of people in the system is the sum of both."
+    },
     {
-      "paged": "true", 
-      "name": "Contact Fields", 
-      "suffix": "/v2/contact_fields"
-    }, 
+      "paged": "true",
+      "name": "Contact Fields",
+      "suffix": "/v2/contact_fields",
+      "description": "Every field a contact can carry, standard and custom."
+    },
     {
-      "paged": "false", 
-      "name": "Contact Imports", 
-      "suffix": "/v2/contacts/imports?status={Status?:in_progress|completed|cancelled|failed}"
-    }, 
+      "paged": "false",
+      "name": "Contact Imports",
+      "suffix": "/v2/contacts/imports?status={Status?:in_progress|completed|cancelled|failed}",
+      "description": "Bulk contact import jobs and their status. Where a data load's outcome, including failed rows, is recorded -- the import itself reports only that it was queued."
+    },
     {
-      "paged": "false", 
+      "paged": "false",
       "name": "Contact Import",
-      "suffix": "/v2/contacts/imports/{Import ID}"
-    }, 
+      "suffix": "/v2/contacts/imports/{Import ID}",
+      "description": "One contact import by id, with its per-row errors."
+    },
     {
-      "paged": "false", 
-      "name": "Agent", 
-      "suffix": "/v2/agents/{Agent ID}"
-    }, 
+      "paged": "false",
+      "name": "Agent",
+      "suffix": "/v2/agents/{Agent ID}",
+      "description": "One agent by id."
+    },
     {
-      "paged": "true", 
-      "name": "Agents", 
-      "suffix": "/v2/agents?email={Email Address?}&mobile={Mobile Phone?}&phone={Phone?}&state={State?:fulltime|occasional}"
-    }, 
+      "paged": "true",
+      "name": "Agents",
+      "suffix": "/v2/agents?email={Email Address?}&mobile={Mobile Phone?}&phone={Phone?}&state={State?:fulltime|occasional}",
+      "description": "The support staff, with name, email, ticket scope, groups, roles, whether available, and their signature. Filterable by email, phone or state. TICKET SCOPE decides which tickets an agent can see, and is therefore why two agents running the same query get different counts."
+    },
     {
-      "paged": "false", 
-      "name": "Current Agent", 
-      "suffix": "/v2/agents/me"
-    }, 
+      "paged": "false",
+      "name": "Current Agent",
+      "suffix": "/v2/agents/me",
+      "description": "The agent the credentials belong to, with their scope and roles. Worth reading first, since that scope filters nearly everything else here."
+    },
     {
-      "paged": "false", 
-      "name": "Skill", 
-      "suffix": "/v2/skills/{Skill ID}"
-    }, 
+      "paged": "false",
+      "name": "Skill",
+      "suffix": "/v2/skills/{Skill ID}",
+      "description": "One skill by id."
+    },
     {
-      "paged": "true", 
-      "name": "Skills", 
-      "suffix": "/v2/skills"
-    }, 
+      "paged": "true",
+      "name": "Skills",
+      "suffix": "/v2/skills",
+      "description": "The skills defined for skills-based routing, with the agents holding each. Where routing depends on capability rather than group, this is what determines who could take a ticket."
+    },
     {
-      "paged": "false", 
-      "name": "Role", 
-      "suffix": "/v2/roles/{Role ID}"
-    }, 
+      "paged": "false",
+      "name": "Role",
+      "suffix": "/v2/roles/{Role ID}",
+      "description": "One role by id."
+    },
     {
-      "paged": "true", 
-      "name": "Roles", 
-      "suffix": "/v2/roles"
-    }, 
+      "paged": "true",
+      "name": "Roles",
+      "suffix": "/v2/roles",
+      "description": "The permission roles agents hold, with the abilities each grants."
+    },
     {
-      "paged": "false", 
-      "name": "Group", 
-      "suffix": "/v2/groups/{Group ID}"
-    }, 
+      "paged": "false",
+      "name": "Group",
+      "suffix": "/v2/groups/{Group ID}",
+      "description": "One group by id."
+    },
     {
-      "paged": "true", 
-      "name": "Groups", 
-      "suffix": "/v2/groups"
-    }, 
+      "paged": "true",
+      "name": "Groups",
+      "suffix": "/v2/groups",
+      "description": "The agent groups tickets are assigned to, with their business hours, escalation settings and members. The team dimension, and the business-hours link is what makes SLA timings interpretable."
+    },
     {
-      "paged": "false", 
-      "name": "Company", 
-      "suffix": "/v2/companies/{Company ID}"
-    }, 
+      "paged": "false",
+      "name": "Company",
+      "suffix": "/v2/companies/{Company ID}",
+      "description": "One company by id."
+    },
     {
-      "paged": "true", 
-      "name": "Companies", 
-      "suffix": "/v2/companies?query={Query?:(domain:inetsoft.com AND created_at:2020-01-15)}"
-    }, 
+      "paged": "true",
+      "name": "Companies",
+      "suffix": "/v2/companies?query={Query?:(domain:inetsoft.com AND created_at:2020-01-15)}",
+      "description": "The customer organisations contacts belong to, with name, domains, description, custom fields and account tier. The account-level dimension ticket volume is grouped by."
+    },
     {
-      "paged": "true", 
-      "name": "Company Search", 
-      "suffix": "/v2/companies/autocomplete?name={Name}"
-    }, 
+      "paged": "true",
+      "name": "Company Search",
+      "suffix": "/v2/companies/autocomplete?name={Name}",
+      "description": "Companies whose name matches a term. The autocomplete lookup, for when the id is not known."
+    },
     {
-      "paged": "true", 
-      "name": "Company Fields", 
-      "suffix": "/v2/company_fields"
-    }, 
+      "paged": "true",
+      "name": "Company Fields",
+      "suffix": "/v2/company_fields",
+      "description": "Every field a company can carry, standard and custom."
+    },
     {
-      "paged": "false", 
-      "name": "Company Imports", 
-      "suffix": "/v2/companies/imports?status={Status?:in_progress|completed|cancelled|failed}"
-    }, 
+      "paged": "false",
+      "name": "Company Imports",
+      "suffix": "/v2/companies/imports?status={Status?:in_progress|completed|cancelled|failed}",
+      "description": "Bulk company import jobs and their status."
+    },
     {
-      "paged": "false", 
+      "paged": "false",
       "name": "Company Import",
-      "suffix": "/v2/companies/imports/{Import ID}"
-    }, 
+      "suffix": "/v2/companies/imports/{Import ID}",
+      "description": "One company import by id."
+    },
     {
-      "paged": "true", 
-      "name": "Canned Response Folders", 
-      "suffix": "/v2/canned_response_folders"
-    }, 
+      "paged": "true",
+      "name": "Canned Response Folders",
+      "suffix": "/v2/canned_response_folders",
+      "description": "The folders canned responses are filed under."
+    },
     {
-      "paged": "true", 
-      "name": "Canned Responses", 
-      "suffix": "/v2/canned_response_folders/{Folder ID}"
-    }, 
+      "paged": "true",
+      "name": "Canned Responses",
+      "suffix": "/v2/canned_response_folders/{Folder ID}",
+      "description": "The canned responses in one folder, by title. Requires a folder id."
+    },
     {
-      "paged": "true", 
-      "name": "Detailed Canned Responses", 
-      "suffix": "/v2/canned_response_folders/{Folder ID}/responses"
-    }, 
+      "paged": "true",
+      "name": "Detailed Canned Responses",
+      "suffix": "/v2/canned_response_folders/{Folder ID}/responses",
+      "description": "The canned responses in one folder WITH their full content. Requires a folder id. Which responses exist says a good deal about the standard cases a team handles."
+    },
     {
-      "paged": "false", 
-      "name": "Forum Category", 
-      "suffix": "/v2/discussions/categories/{Category ID}"
-    }, 
+      "paged": "false",
+      "name": "Forum Category",
+      "suffix": "/v2/discussions/categories/{Category ID}",
+      "description": "One forum category by id."
+    },
     {
-      "paged": "true", 
-      "name": "Forum Categories", 
-      "suffix": "/v2/discussions/categories"
-    }, 
+      "paged": "true",
+      "name": "Forum Categories",
+      "suffix": "/v2/discussions/categories",
+      "description": "The top level of the community forums."
+    },
     {
-      "paged": "true", 
-      "name": "Forums in Category", 
-      "suffix": "/v2/discussions/categories/{Category ID}/forums"
-    }, 
+      "paged": "true",
+      "name": "Forums in Category",
+      "suffix": "/v2/discussions/categories/{Category ID}/forums",
+      "description": "The forums within one category. Requires a category id."
+    },
     {
-      "paged": "false", 
-      "name": "Forum", 
-      "suffix": "/v2/discussions/forums/{Forum ID}"
-    }, 
+      "paged": "false",
+      "name": "Forum",
+      "suffix": "/v2/discussions/forums/{Forum ID}",
+      "description": "One forum by id, with its type -- questions, ideas, problems or announcements. The type decides what the topics within mean."
+    },
     {
-      "paged": "true", 
-      "name": "Forum Topics", 
-      "suffix": "/v2/discussions/forums/{Forum ID}/topics"
-    }, 
+      "paged": "true",
+      "name": "Forum Topics",
+      "suffix": "/v2/discussions/forums/{Forum ID}/topics",
+      "description": "The topics in one forum, with author, replies and votes. Requires a forum id. Community demand: an idea topic's vote count is the closest thing to a feature request tally."
+    },
     {
-      "paged": "false", 
-      "name": "Forum Topic", 
-      "suffix": "/v2/discussions/topics/{Topic ID}"
-    }, 
+      "paged": "false",
+      "name": "Forum Topic",
+      "suffix": "/v2/discussions/topics/{Topic ID}",
+      "description": "One topic by id."
+    },
     {
-      "paged": "true", 
-      "name": "Forum Topic Comments", 
-      "suffix": "/v2/discussions/topics/{Topic ID}/comments"
-    }, 
+      "paged": "true",
+      "name": "Forum Topic Comments",
+      "suffix": "/v2/discussions/topics/{Topic ID}/comments",
+      "description": "The replies on one topic. Requires a topic id."
+    },
     {
-      "paged": "true", 
-      "name": "Monitored Topics", 
-      "suffix": "/v2/discussions/topics/followed_by?user_id={User ID}"
-    }, 
+      "paged": "true",
+      "name": "Monitored Topics",
+      "suffix": "/v2/discussions/topics/followed_by?user_id={User ID}",
+      "description": "The topics one user follows. Requires a user id."
+    },
     {
-      "paged": "true", 
-      "name": "Participated Topics", 
-      "suffix": "/v2/discussions/topics/participated_by?user_id={User ID}"
-    }, 
+      "paged": "true",
+      "name": "Participated Topics",
+      "suffix": "/v2/discussions/topics/participated_by?user_id={User ID}",
+      "description": "The topics one user has replied to. Requires a user id."
+    },
     {
-      "paged": "false", 
-      "name": "Solution Category", 
-      "suffix": "/v2/solutions/categories/{Category ID}/{Language Code?}"
-    }, 
+      "paged": "false",
+      "name": "Solution Category",
+      "suffix": "/v2/solutions/categories/{Category ID}/{Language Code?}",
+      "description": "One knowledge base category by id and language."
+    },
     {
-      "paged": "true", 
-      "name": "Solutions Categories", 
-      "suffix": "/v2/solutions/categories/{Language Code?}"
-    }, 
+      "paged": "true",
+      "name": "Solutions Categories",
+      "suffix": "/v2/solutions/categories/{Language Code?}",
+      "description": "The top level of the knowledge base, optionally in a given language."
+    },
     {
-      "paged": "false", 
-      "name": "Solution Folder", 
-      "suffix": "/v2/solutions/folders/{Folder ID}/{Language Code?}"
-    }, 
+      "paged": "false",
+      "name": "Solution Folder",
+      "suffix": "/v2/solutions/folders/{Folder ID}/{Language Code?}",
+      "description": "One folder by id and language."
+    },
     {
-      "paged": "true", 
-      "name": "Solution Folders in Category", 
-      "suffix": "/v2/solutions/categories/{Category ID}/folders/{Language Code?}"
-    }, 
+      "paged": "true",
+      "name": "Solution Folders in Category",
+      "suffix": "/v2/solutions/categories/{Category ID}/folders/{Language Code?}",
+      "description": "The folders within one category. Requires a category id."
+    },
     {
-      "paged": "false", 
-      "name": "Solution Article", 
-      "suffix": "/v2/solutions/articles/{Article ID}/{Language Code?}"
-    }, 
+      "paged": "false",
+      "name": "Solution Article",
+      "suffix": "/v2/solutions/articles/{Article ID}/{Language Code?}",
+      "description": "One article by id and language, with its body and vote counts."
+    },
     {
-      "paged": "true", 
-      "name": "Solution Articles in Folder", 
-      "suffix": "/v2/solutions/folders/{Folder ID}/articles/{Language Code?}"
-    }, 
+      "paged": "true",
+      "name": "Solution Articles in Folder",
+      "suffix": "/v2/solutions/folders/{Folder ID}/articles/{Language Code?}",
+      "description": "The articles in one folder, with title, status, and the thumbs-up and thumbs-down counts. Requires a folder id. THE VOTE COUNTS ARE THE USEFUL PART: they identify documentation that is present but not helping, which no ticket table reveals."
+    },
     {
-      "paged": "true", 
-      "name": "Solution Article Search", 
-      "suffix": "/v2/search/solutions?term={Keyword}"
-    }, 
+      "paged": "true",
+      "name": "Solution Article Search",
+      "suffix": "/v2/search/solutions?term={Keyword}",
+      "description": "Articles matching a keyword. The search customers themselves use."
+    },
     {
-      "paged": "true", 
-      "name": "Surveys", 
-      "suffix": "/v2/surveys"
-    }, 
+      "paged": "true",
+      "name": "Surveys",
+      "suffix": "/v2/surveys",
+      "description": "The satisfaction surveys configured, with their questions and rating scales. The decoder for what a rating value means, since the scale is configurable."
+    },
     {
-      "paged": "true", 
-      "name": "Satisfaction Ratings", 
-      "suffix": "/v2/surveys/satisfaction_ratings?created_since={Created Since?:yyyy-MM-ddTHH:mm:ssZ}&userId={User ID?}"
-    }, 
+      "paged": "true",
+      "name": "Satisfaction Ratings",
+      "suffix": "/v2/surveys/satisfaction_ratings?created_since={Created Since?:yyyy-MM-ddTHH:mm:ssZ}&userId={User ID?}",
+      "description": "Satisfaction survey responses across the account, filterable by date. The CSAT table. Ratings attach to a ticket and an agent, so this is where support quality is measured -- and the response rate matters, since only a fraction of tickets are rated and the rated ones skew towards strong feelings."
+    },
     {
-      "paged": "false", 
-      "name": "Email Mailbox", 
-      "suffix": "/v2/email/mailboxes/{Mailbox ID}"
-    }, 
+      "paged": "false",
+      "name": "Email Mailbox",
+      "suffix": "/v2/email/mailboxes/{Mailbox ID}",
+      "description": "One mailbox by id."
+    },
     {
-      "paged": "true", 
-      "name": "Email Mailboxes", 
-      "suffix": "/v2/email/mailboxes?support_email={Support Email?}&forward_email={Forward Email?}&product_id={Product ID?}&group_id={Group ID?}&active={Active?:true|false}"
-    }, 
+      "paged": "true",
+      "name": "Email Mailboxes",
+      "suffix": "/v2/email/mailboxes?support_email={Support Email?}&forward_email={Forward Email?}&product_id={Product ID?}&group_id={Group ID?}&active={Active?:true|false}",
+      "description": "The support mailboxes configured, with their addresses and forwarding state. Inbound mail arrives through these, so this maps an incoming ticket to a product or group -- and the verification state is why mail to an address may not be arriving."
+    },
     {
-      "paged": "false", 
-      "name": "Mailbox Settings", 
-      "suffix": "/v2/email/settings"
-    }, 
+      "paged": "false",
+      "name": "Mailbox Settings",
+      "suffix": "/v2/email/settings",
+      "description": "The account's email settings. Configuration."
+    },
     {
-      "paged": "false", 
-      "name": "Automatic Bcc Emails", 
-      "suffix": "/v2/notifications/email/bcc"
-    }, 
+      "paged": "false",
+      "name": "Automatic Bcc Emails",
+      "suffix": "/v2/notifications/email/bcc",
+      "description": "The addresses blind-copied on outgoing notifications. Configuration."
+    },
     {
-      "paged": "false", 
-      "name": "Product", 
-      "suffix": "/v2/products/{Product ID}"
-    }, 
+      "paged": "false",
+      "name": "Product",
+      "suffix": "/v2/products/{Product ID}",
+      "description": "One product by id."
+    },
     {
-      "paged": "true", 
-      "name": "Products", 
-      "suffix": "/v2/products"
-    }, 
+      "paged": "true",
+      "name": "Products",
+      "suffix": "/v2/products",
+      "description": "The products tickets can be raised against, each with its own portal and support email. Multi-product accounts route by product, so this is a routing dimension as well as a reporting one."
+    },
     {
-      "paged": "false", 
-      "name": "Business Hour", 
-      "suffix": "/v2/business_hours/{Business Hour ID}"
-    }, 
+      "paged": "false",
+      "name": "Business Hour",
+      "suffix": "/v2/business_hours/{Business Hour ID}",
+      "description": "One business hours calendar by id, with its holidays."
+    },
     {
-      "paged": "true", 
-      "name": "Business Hours", 
-      "suffix": "/v2/business_hours"
-    }, 
+      "paged": "true",
+      "name": "Business Hours",
+      "suffix": "/v2/business_hours",
+      "description": "The working-hour calendars, with the daily hours and holidays of each. SLA CLOCKS COUNT BUSINESS HOURS rather than wall-clock time where a calendar applies, so a duration read as elapsed time is simply wrong for those tickets."
+    },
     {
-      "paged": "true", 
-      "name": "SLA Policies", 
-      "suffix": "/v2/sla_policies"
-    }, 
+      "paged": "true",
+      "name": "SLA Policies",
+      "suffix": "/v2/sla_policies",
+      "description": "The service level policies, with the response and resolution targets per priority and the conditions each applies under. THE TARGETS THAT MAKE A DURATION FAST OR SLOW -- a resolution time is meaningless without them, and the policies are applied conditionally, so different tickets are held to different targets."
+    },
     {
-      "paged": "false", 
-      "name": "Helpdesk Settings", 
-      "suffix": "/v2/settings/helpdesk"
+      "paged": "false",
+      "name": "Helpdesk Settings",
+      "suffix": "/v2/settings/helpdesk",
+      "description": "The account's helpdesk settings, including the primary language and the languages supported. WORTH READING BEFORE THE KNOWLEDGE BASE ENDPOINTS, which all take a language code: an article requested in an unsupported language returns nothing rather than falling back."
     }
   ]
 }
