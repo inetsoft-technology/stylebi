@@ -149,6 +149,12 @@ public class ScriptEditService {
             VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
             ScriptReadService.setOnClick(info, text);
          }
+         // Not permanent, unlike setEnabled's refusal below: CalcFieldService (Task 3) replaces
+         // this case with a real write. Until then this is a switch STATEMENT, so leaving it
+         // unhandled would compile clean and silently do nothing -- the exact silent-acceptance
+         // pattern this project treats as a defect, not a corner to route around.
+         case CALC_FIELD -> throw new PairingException(
+            "calcField writes are not wired yet — CalcFieldService lands in Task 3.");
       }
    }
 
@@ -160,6 +166,10 @@ public class ScriptEditService {
          case VS_INIT, VS_LOAD -> vs.getViewsheetInfo().setScriptEnabled(enabled);
          case ASSEMBLY, ASSEMBLY_ONCLICK ->
             ScriptReadService.requireAssemblyInfo(vs, target.assemblyName()).setScriptEnabled(enabled);
+         // Permanent, unlike write's refusal above: a calculated field has no per-field enable
+         // flag at all, so there is nothing for Task 3 (or anyone) to wire in here later.
+         case CALC_FIELD -> throw new PairingException(
+            "A calculated field has no enable flag; only scripts can be enabled or disabled.");
       }
    }
 

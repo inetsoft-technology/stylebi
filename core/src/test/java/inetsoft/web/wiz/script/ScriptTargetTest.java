@@ -23,6 +23,9 @@ import inetsoft.web.wiz.pairing.PairingException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -272,5 +275,21 @@ class ScriptTargetTest {
 
       assertEquals("Od|d", back.assemblyName());
       assertEquals("Ma|rgin", back.name());
+   }
+
+   /**
+    * A trailing unpaired '\' cannot come from escape() -- it always emits '\' paired with the
+    * character it guards -- so one showing up here means the id is corrupted or hand-crafted,
+    * and must be refused rather than silently kept as a literal backslash.
+    */
+   @Test
+   void aDanglingEscapeInAnIdIsRefused() {
+      String canonical = "calcField|Query1|Ma\\";
+      String id = Base64.getUrlEncoder().withoutPadding()
+         .encodeToString(canonical.getBytes(StandardCharsets.UTF_8));
+
+      PairingException ex = assertThrows(PairingException.class, () -> ScriptTarget.fromId(id));
+      assertTrue(ex.getMessage().contains(id),
+                 "the refusal must name the offending id: " + ex.getMessage());
    }
 }

@@ -254,8 +254,8 @@ public final class ScriptTarget {
          throw new PairingException("Invalid target id: \"" + id + "\".");
       }
 
-      String assembly = unescape(canonical.substring(firstSep + 1, secondSep));
-      String name = unescape(canonical.substring(secondSep + 1));
+      String assembly = unescape(canonical.substring(firstSep + 1, secondSep), id);
+      String name = unescape(canonical.substring(secondSep + 1), id);
 
       return of(kind, assembly.isEmpty() ? null : assembly, name.isEmpty() ? null : name);
    }
@@ -281,13 +281,24 @@ public final class ScriptTarget {
       return sb.toString();
    }
 
-   private static String unescape(String s) {
+   /**
+    * Reverses {@link #escape}. A trailing unpaired {@code '\'} cannot come from anything
+    * {@code escape} produced -- it always emits {@code '\'} in a pair with the character it
+    * guards -- so one showing up here means the id is corrupted or was hand-crafted, and is
+    * refused rather than silently kept as a literal backslash.
+    */
+   private static String unescape(String s, String id) throws PairingException {
       StringBuilder sb = new StringBuilder(s.length());
 
       for(int i = 0; i < s.length(); i++) {
          char c = s.charAt(i);
 
-         if(c == '\\' && i + 1 < s.length()) {
+         if(c == '\\') {
+            if(i + 1 >= s.length()) {
+               throw new PairingException(
+                  "Invalid target id: \"" + id + "\" (dangling escape character).");
+            }
+
             sb.append(s.charAt(++i));
          }
          else {
