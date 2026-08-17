@@ -1,612 +1,704 @@
 {
-    "endpoints": [
-        {
-            "name": "V1 Requests",
-            "paged": false,
-            "suffix": "/debug/requests/?seconds={Seconds?}",
-            "post": false
-        },
-        {
-            "name": "V1 Statistics",
-            "paged": false,
-            "suffix": "/debug/vars",
-            "post": false
-        },
-        {
-            "name": "V1 Query",
-            "paged": false,
-            "suffix": "/query?db={Database Name}&q={Query Statement}&chunked={Chunked?:true|false}&epoch={Epoch?:ns|U|ms|s|m|h}",
-            "post": false
-        },
-        {
-            "name": "Authorizations",
-            "paged": false,
-            "suffix": "/api/v2/authorizations?org={Organization Name?}&orgID={Organization ID?}&user={User Name?}&userID={User ID?}",
-            "post": false
-        },
-        {
-            "name": "Authorization",
-            "paged": false,
-            "suffix": "/api/v2/authorizations/{Authorization ID}",
-            "post": false
-        },
-        {
-            "name": "Metadata Snapshot",
-            "paged": false,
-            "suffix": "/api/v2/backup/metadata",
-            "post": false
-        },
-        {
-            "name": "TSM Data Snapshot",
-            "paged": false,
-            "suffix": "/api/v2/backup/shards/{Shard ID}?since={Since?}",
-            "post": false
-        },
-        {
-            "name": "Buckets",
-            "paged": true,
-            "suffix": "/api/v2/buckets?id={Bucket ID?}&name={Bucket Name?}&org={Organization Name?}&orgID={Organization ID?}&after={After ID?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Bucket Labels",
-					"Bucket Members",
-					"Bucket Owners"
-				],
-				"jsonPath": "$.buckets[*]",
-				"key": "id",
-				"parameterName": "Bucket ID"
-			}]
-        },
-        {
-            "name": "Bucket",
-            "paged": false,
-            "suffix": "/api/v2/buckets/{Bucket ID?}",
-            "post": false
-        },
-        {
-            "name": "Bucket Labels",
-            "paged": false,
-            "suffix": "/api/v2/buckets/{Bucket ID?}/labels",
-            "post": false
-        },
-        {
-            "name": "Bucket Members",
-            "paged": false,
-            "suffix": "/api/v2/buckets/{Bucket ID?}/members",
-            "post": false
-        },
-        {
-            "name": "Bucket Owners",
-            "paged": false,
-            "suffix": "/api/v2/buckets/{Bucket ID?}/owners",
-            "post": false
-        },
-        {
-            "name": "Source Buckets",
-            "paged": false,
-            "suffix": "/api/v2/sources/{Source ID}/buckets?org={Organization Name?}",
-            "post": false
-        },
-        {
-            "name": "Cell View",
-            "paged": false,
-            "suffix": "/api/v2/dashboards/{Dashboard ID}/cells/{Cell ID}/view",
-            "post": false
-        },
-        {
-            "name": "Checks",
-            "paged": true,
-            "suffix": "/api/v2/checks?orgID={Organization ID}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Check Labels",
-					"Check Query"
-				],
-				"jsonPath": "$.checks[*]",
-				"key": "id",
-				"parameterName": "Check ID"
-			}]
-        },
-        {
-            "name": "Check",
-            "paged": false,
-            "suffix": "/api/v2/checks/{Check ID}",
-            "post": false
-        },
-        {
-            "name": "Check Labels",
-            "paged": false,
-            "suffix": "/api/v2/checks/{Check ID}/labels",
-            "post": false
-        },
-        {
-            "name": "Check Query",
-            "paged": false,
-            "suffix": "/api/v2/checks/{Check ID}/query",
-            "post": false
-        },
-        {
-            "name": "Dashboards",
-            "paged": true,
-            "suffix": "/api/v2/dashboards?descending={Descending?:true|false}&id={Dashboard ID?}&org={Organization Name?}&orgID={Organization ID?}&owner={Owner?}",
-            "post": false
-        },
-        {
-            "name": "Dashboard",
-            "paged": true,
-            "suffix": "/api/v2/dashboards/{Dashboard ID?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Dashboard Labels",
-					"Dashboard Members",
-					"Dashboard Owners"
-				],
-				"jsonPath": "$.dashboards[*]",
-				"key": "id",
-				"parameterName": "Dashboard ID"
-			}]
-        },
-        {
-            "name": "Dashboard Labels",
-            "paged": true,
-            "suffix": "/api/v2/dashboards/{Dashboard ID?}/labels",
-            "post": false
-        },
-        {
-            "name": "Dashboard Members",
-            "paged": true,
-            "suffix": "/api/v2/dashboards/{Dashboard ID?}/members",
-            "post": false
-        },
-        {
-            "name": "Dashboard Owners",
-            "paged": true,
-            "suffix": "/api/v2/dashboards/{Dashboard ID?}/owners",
-            "post": false
-        },
-        {
-            "name": "Database Retention Policy Mappings",
-            "paged": false,
-            "suffix": "/api/v2/dbrps?bucketID={Bucket ID?}&db={Database?}&default={Default Filter?:true|false}&id={Mapping ID?}&org={Organization Name?}&orgID={Organization ID?}&rp={Retention Policy?}",
-            "post": false
-        },
-        {
-            "name": "Database Retention Policy Mapping",
-            "paged": false,
-            "suffix": "/api/v2/dbrps/{dbrpsID}",
-            "post": false
-        },
-        {
-            "name": "Health",
-            "paged": false,
-            "suffix": "/health",
-            "post": false
-        },
-        {
-            "name": "Labels",
-            "paged": false,
-            "suffix": "/api/v2/labels?orgID={Organization ID?}",
-            "post": false
-        },
-        {
-            "name": "Label",
-            "paged": false,
-            "suffix": "/api/v2/labels/{Label ID}",
-            "post": false
-        },
-        {
-            "name": "Legacy Authorizations",
-            "paged": false,
-            "suffix": "/legacy/authorizations?authID={Authorization ID?}&org={Organization Name?}&orgID={Organization ID?}&token={Token (Authorization Name)?}&user={User Name?}&userID={User ID?}",
-            "post": false
-        },
-        {
-            "name": "Legacy Authorization",
-            "paged": false,
-            "suffix": "/legacy/authorizations/{Authorization ID?}",
-            "post": false
-        },
-        {
-            "name": "Metrics",
-            "paged": false,
-            "suffix": "/metrics",
-            "post": false
-        },
-        {
-            "name": "Notification Endpoints",
-            "paged": true,
-            "suffix": "/api/v2/notificationEndpoints?orgID={Organization ID}",
-            "post": false
-        },
-        {
-            "name": "Notification Endpoint",
-            "paged": false,
-            "suffix": "/api/v2/notificationEndpoints/{Endpoint ID}",
-            "post": false
-        },
-        {
-            "name": "Notification Endpoint Labels",
-            "paged": false,
-            "suffix": "/api/v2/notificationEndpoints/{Endpoint ID}/labels",
-            "post": false
-        },
-        {
-            "name": "Notification Rules",
-            "paged": true,
-            "suffix": "/api/v2/notificationRules?checkID={Check ID?}&orgID={Organization ID}&tag={Tag}",
-            "post": false
-        },
-        {
-            "name": "Notification Rule",
-            "paged": true,
-            "suffix": "/api/v2/notificationRules/{Rule ID}",
-            "post": false
-        },
-        {
-            "name": "Notification Rule Labels",
-            "paged": true,
-            "suffix": "/api/v2/notificationRules/{Rule ID}/labels",
-            "post": false
-        },
-        {
-            "name": "Organizations",
-            "paged": true,
-            "suffix": "/api/v2/orgs?descending={Descending?:true|false}&org={Organization Name?}&orgID={Organization ID?}&userID={User ID?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Organization Members",
-					"Organization Owners",
-					"Authorizations",
-					"Buckets",
-					"Checks",
-					"Dashboards",
-					"Database Retention Policy Mappings",
-					"Labels",
-					"Legacy Authorizations",
-					"Notification Endpoints",
-					"Notification Rules",
-					"Scraper Targets",
-					"Tasks",
-					"Telegraf Configurations",
-					"Installed Templates",
-					"Variables"
-				],
-				"jsonPath": "$.orgs[*]",
-				"key": "id",
-				"parameterName": "Organization ID"
-			}]
-        },
-        {
-            "name": "Organization",
-            "paged": false,
-            "suffix": "/api/v2/orgs/{Organization ID}",
-            "post": false
-        },
-        {
-            "name": "Organization Members",
-            "paged": false,
-            "suffix": "/api/v2/orgs/{Organization ID}/members",
-            "post": false
-        },
-        {
-            "name": "Organization Owners",
-            "paged": false,
-            "suffix": "/api/v2/orgs/{Organization ID}/owners",
-            "post": false
-        },
-		{
-            "name": "Ping",
-            "paged": false,
-            "suffix": "/ping",
-            "post": false
-        },
-        {
-            "name": "Query",
-            "paged": false,
-            "suffix": "/query?org={Organization?}&orgID={Organization ID?}",
-            "post": true
-        },
-        {
-            "name": "Analyze Flux Query",
-            "paged": false,
-            "suffix": "/query/analyze",
-            "post": true
-        },
-        {
-            "name": "Generate Abstract Syntax Tree from a Query",
-            "paged": false,
-            "suffix": "/api/v2/query/ast",
-            "post": true
-        },
-        {
-            "name": "Instance Readiness",
-            "paged": false,
-            "suffix": "/ready",
-            "post": false
-        },
-        {
-            "name": "Resources",
-            "paged": false,
-            "suffix": "/api/v2/resources",
-            "post": false
-        },
-        {
-            "name": "Routes",
-            "paged": false,
-            "suffix": "/api/v2/",
-            "post": false
-        },
-        {
-            "name": "Notification Rule Array",
-            "paged": false,
-            "suffix": "/api/v2/notificationRules/{Rule ID}/query",
-            "post": false
-        },
-        {
-            "name": "Scraper Targets",
-            "paged": false,
-            "suffix": "/api/v2/scrapers?id={Scraper Target ID?}&name={Scraper Name ID?}&org={Organization Name?}&orgID={Organization ID?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Scraper Target Labels",
-					"Scraper Target Members",
-					"Scraper Target Owners"
-				],
-				"jsonPath": "$.configurations[*]",
-				"key": "id",
-				"parameterName": "Scraper Target ID"
-			}]
-        },
-        {
-            "name": "Scraper Target",
-            "paged": false,
-            "suffix": "/api/v2/scrapers/{Scraper Target ID}",
-            "post": false
-        },
-        {
-            "name": "Scraper Target Labels",
-            "paged": false,
-            "suffix": "/api/v2/scrapers/{Scraper Target ID}/labels",
-            "post": false
-        },
-        {
-            "name": "Scraper Target Members",
-            "paged": false,
-            "suffix": "/api/v2/scrapers/{Scraper Target ID}/members",
-            "post": false
-        },
-        {
-            "name": "Scraper Target Owners",
-            "paged": false,
-            "suffix": "/api/v2/scrapers/{Scraper Target ID}/owners",
-            "post": false
-        },
-        {
-            "name": "Secret Keys",
-            "paged": false,
-            "suffix": "/api/v2/orgs/{Organization ID}/secrets",
-            "post": false
-        },
-        {
-            "name": "Check Default User, Org, Bucket",
-            "paged": false,
-            "suffix": "/api/v2/setup",
-            "post": false
-        },
-        {
-            "name": "Sources",
-            "paged": false,
-            "suffix": "/api/v2/sources?&org={Organization Name?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Source Health",
-					"Source Buckets"
-				],
-				"jsonPath": "$.sources[*]",
-				"key": "id",
-				"parameterName": "Source ID"
-			}]
-        },
-        {
-            "name": "Source",
-            "paged": false,
-            "suffix": "/api/v2/sources/{Source ID}",
-            "post": false
-        },
-        {
-            "name": "Source Health",
-            "paged": false,
-            "suffix": "/api/v2/sources/{Source ID}/health",
-            "post": false
-        },
-        {
-            "name": "Tasks",
-            "paged": false,
-            "suffix": "/api/v2/tasks?limit=500&after={After ID?}&name={Task Name?}&org={Organization Name?}&orgID={Organization ID?}&status={Status?:active|inactive}&type={Type?:basic|system}&user={User ID}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Task Labels",
-					"Task Logs",
-					"Task Members",
-					"Task Owners",
-					"Task Runs"
-				],
-				"jsonPath": "$.tasks[*]",
-				"key": "id",
-				"parameterName": "Task ID"
-			}]
-        },
-        {
-            "name": "Task",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}",
-            "post": false
-        },
-        {
-            "name": "Task Labels",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/labels",
-            "post": false
-        },
-        {
-            "name": "Task Logs",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/logs",
-            "post": false
-        },
-        {
-            "name": "Task Members",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/members",
-            "post": false
-        },
-        {
-            "name": "Task Owners",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/owners",
-            "post": false
-        },
-        {
-            "name": "Task Runs",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/runs?limit=500&after={After ID?}&afterTime={After Time?}&beforeTime={Before Time?}",
-            "post": false
-        },
-        {
-            "name": "Task Run",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/runs/{Run ID}",
-            "post": false
-        },
-        {
-            "name": "Task Run Logs",
-            "paged": false,
-            "suffix": "/api/v2/tasks/{Task ID}/runs/{Run ID}/logs",
-            "post": false
-        },
-        {
-            "name": "Telegraf Plugins",
-            "paged": false,
-            "suffix": "/api/v2/telegraf/plugins?type={Type?}",
-            "post": false
-        },
-        {
-            "name": "Telegraf Configurations",
-            "paged": false,
-            "suffix": "/api/v2/telegrafs?orgID={Organization ID?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Telegraf Configuration Labels",
-					"Telegraf Configuration Members",
-					"Telegraf Configuration Owners"
-				],
-				"jsonPath": "$.configurations[*]",
-				"key": "id",
-				"parameterName": "Telegraf Configuration ID"
-			}]
-        },
-        {
-            "name": "Telegraf Configuration",
-            "paged": false,
-            "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}",
-            "post": false
-        },
-        {
-            "name": "Telegraf Configuration Labels",
-            "paged": false,
-            "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/labels",
-            "post": false
-        },
-        {
-            "name": "Telegraf Configuration Members",
-            "paged": false,
-            "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/members",
-            "post": false
-        },
-        {
-            "name": "Telegraf Configuration Owners",
-            "paged": false,
-            "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/owners",
-            "post": false
-        },
-        {
-            "name": "Installed Templates",
-            "paged": false,
-            "suffix": "/api/v2/stacks?&orgID={Organization ID}&name={Name?}&stackID={Stack ID?}",
-            "post": false
-        },
-        {
-            "name": "Stack",
-            "paged": false,
-            "suffix": "/api/v2/stacks/{Stack ID}",
-            "post": false
-        },
-        {
-            "name": "Current User Feature Flags",
-            "paged": false,
-            "suffix": "/api/v2/flags",
-            "post": false
-        },
-        {
-            "name": "Current User",
-            "paged": false,
-            "suffix": "/api/v2/me",
-            "post": false
-        },
-        {
-            "name": "Users",
-            "paged": true,
-            "suffix": "/api/v2/users?after={After ID?}&id={User ID?}&name={User Name?}",
-            "post": false
-        },
-        {
-            "name": "User",
-            "paged": false,
-            "suffix": "/api/v2/users/{User ID}",
-            "post": false
-        },
-        {
-            "name": "Variables",
-            "paged": false,
-            "suffix": "/api/v2/variables?org={Organization Name?}&orgID={Organization ID?}",
-            "post": false,
-			"lookups": [
-			{
-				"endpoints": [
-					"Variable Labels"
-				],
-				"jsonPath": "$.variables[*]",
-				"key": "id",
-				"parameterName": "Variable ID"
-			}]
-        },
-        {
-            "name": "Variable",
-            "paged": false,
-            "suffix": "/api/v2/variables/{Variable ID}",
-            "post": false
-        },
-        {
-            "name": "Variable Labels",
-            "paged": false,
-            "suffix": "/api/v2/variables/{Variable ID}/labels",
-            "post": false
+  "endpoints": [
+    {
+      "name": "V1 Requests",
+      "paged": false,
+      "suffix": "/debug/requests/?seconds={Seconds?}",
+      "post": false,
+      "description": "The requests the instance received over a recent window, by user and database. Operational, and useful for finding which client is generating load."
+    },
+    {
+      "name": "V1 Statistics",
+      "paged": false,
+      "suffix": "/debug/vars",
+      "post": false,
+      "description": "The instance's internal statistics in the v1 debug format. Operational."
+    },
+    {
+      "name": "V1 Query",
+      "paged": false,
+      "suffix": "/query?db={Database Name}&q={Query Statement}&chunked={Chunked?:true|false}&epoch={Epoch?:ns|U|ms|s|m|h}",
+      "post": false,
+      "description": "Runs an INFLUXQL query against a v1-style database. Requires the database name and the statement. The compatibility endpoint for installations and tools written against InfluxDB 1.x; it returns JSON rather than the CSV the Flux endpoint returns, which is why both exist."
+    },
+    {
+      "name": "Authorizations",
+      "paged": false,
+      "suffix": "/api/v2/authorizations?org={Organization Name?}&orgID={Organization ID?}&user={User Name?}&userID={User ID?}",
+      "post": false,
+      "description": "The API tokens issued, with their permissions, the organisation and user, and their status. Security inventory -- a token's permission set is what decides which of these endpoints it can reach."
+    },
+    {
+      "name": "Authorization",
+      "paged": false,
+      "suffix": "/api/v2/authorizations/{Authorization ID}",
+      "post": false,
+      "description": "One authorization by id, with its permissions."
+    },
+    {
+      "name": "Metadata Snapshot",
+      "paged": false,
+      "suffix": "/api/v2/backup/metadata",
+      "post": false,
+      "description": "A backup of the instance's metadata. Operational, and returns a binary payload rather than rows."
+    },
+    {
+      "name": "TSM Data Snapshot",
+      "paged": false,
+      "suffix": "/api/v2/backup/shards/{Shard ID}?since={Since?}",
+      "post": false,
+      "description": "A backup of one shard's time series data. Requires a shard id. Binary backup content, not queryable data."
+    },
+    {
+      "name": "Buckets",
+      "paged": true,
+      "suffix": "/api/v2/buckets?id={Bucket ID?}&name={Bucket Name?}&org={Organization Name?}&orgID={Organization ID?}&after={After ID?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Bucket Labels",
+            "Bucket Members",
+            "Bucket Owners"
+          ],
+          "jsonPath": "$.buckets[*]",
+          "key": "id",
+          "parameterName": "Bucket ID"
         }
-    ]
+      ],
+      "description": "The buckets on the instance -- the containers time series are written into, each with its organisation and its RETENTION PERIOD. Filterable by name, id and organisation. THE RETENTION PERIOD BOUNDS EVERY QUERY AGAINST A BUCKET: data older than it has been deleted, so an empty result for last year is expected behaviour rather than missing data, and this is the only place that boundary is visible."
+    },
+    {
+      "name": "Bucket",
+      "paged": false,
+      "suffix": "/api/v2/buckets/{Bucket ID?}",
+      "post": false,
+      "description": "One bucket by id, with its retention rules."
+    },
+    {
+      "name": "Bucket Labels",
+      "paged": false,
+      "suffix": "/api/v2/buckets/{Bucket ID?}/labels",
+      "post": false,
+      "description": "The labels on one bucket. Requires a bucket id."
+    },
+    {
+      "name": "Bucket Members",
+      "paged": false,
+      "suffix": "/api/v2/buckets/{Bucket ID?}/members",
+      "post": false,
+      "description": "The users with member access to one bucket."
+    },
+    {
+      "name": "Bucket Owners",
+      "paged": false,
+      "suffix": "/api/v2/buckets/{Bucket ID?}/owners",
+      "post": false,
+      "description": "The users owning one bucket."
+    },
+    {
+      "name": "Source Buckets",
+      "paged": false,
+      "suffix": "/api/v2/sources/{Source ID}/buckets?org={Organization Name?}",
+      "post": false,
+      "description": "The buckets available through one source. Requires a source id."
+    },
+    {
+      "name": "Cell View",
+      "paged": false,
+      "suffix": "/api/v2/dashboards/{Dashboard ID}/cells/{Cell ID}/view",
+      "post": false,
+      "description": "The visualisation configuration of one dashboard cell, INCLUDING THE FLUX QUERY BEHIND IT. Requires the dashboard and cell ids. The map from a chart back to the query producing it, which is the fastest route to a known-good query for a metric."
+    },
+    {
+      "name": "Checks",
+      "paged": true,
+      "suffix": "/api/v2/checks?orgID={Organization ID}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Check Labels",
+            "Check Query"
+          ],
+          "jsonPath": "$.checks[*]",
+          "key": "id",
+          "parameterName": "Check ID"
+        }
+      ],
+      "description": "The monitoring checks defined -- the queries evaluated on a schedule to decide a status. Requires an organisation id. Checks produce statuses, notification rules act on them, and notification endpoints deliver them: the three together are InfluxDB's alerting, and none makes sense alone."
+    },
+    {
+      "name": "Check",
+      "paged": false,
+      "suffix": "/api/v2/checks/{Check ID}",
+      "post": false,
+      "description": "One check by id, with its thresholds and schedule."
+    },
+    {
+      "name": "Check Labels",
+      "paged": false,
+      "suffix": "/api/v2/checks/{Check ID}/labels",
+      "post": false,
+      "description": "The labels on one check."
+    },
+    {
+      "name": "Check Query",
+      "paged": false,
+      "suffix": "/api/v2/checks/{Check ID}/query",
+      "post": false,
+      "description": "The Flux query one check actually runs. Requires a check id. What a check MEANS, as opposed to its name."
+    },
+    {
+      "name": "Dashboards",
+      "paged": true,
+      "suffix": "/api/v2/dashboards?descending={Descending?:true|false}&id={Dashboard ID?}&org={Organization Name?}&orgID={Organization ID?}&owner={Owner?}",
+      "post": false,
+      "description": "The dashboards defined, with their cells and the organisation. What the operators actually watch, which is a fair guide to the metrics that matter on this instance."
+    },
+    {
+      "name": "Dashboard",
+      "paged": true,
+      "suffix": "/api/v2/dashboards/{Dashboard ID?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Dashboard Labels",
+            "Dashboard Members",
+            "Dashboard Owners"
+          ],
+          "jsonPath": "$.dashboards[*]",
+          "key": "id",
+          "parameterName": "Dashboard ID"
+        }
+      ],
+      "description": "One dashboard by id, with its cells."
+    },
+    {
+      "name": "Dashboard Labels",
+      "paged": true,
+      "suffix": "/api/v2/dashboards/{Dashboard ID?}/labels",
+      "post": false,
+      "description": "The labels on one dashboard."
+    },
+    {
+      "name": "Dashboard Members",
+      "paged": true,
+      "suffix": "/api/v2/dashboards/{Dashboard ID?}/members",
+      "post": false,
+      "description": "The users with member access to one dashboard."
+    },
+    {
+      "name": "Dashboard Owners",
+      "paged": true,
+      "suffix": "/api/v2/dashboards/{Dashboard ID?}/owners",
+      "post": false,
+      "description": "The users owning one dashboard."
+    },
+    {
+      "name": "Database Retention Policy Mappings",
+      "paged": false,
+      "suffix": "/api/v2/dbrps?bucketID={Bucket ID?}&db={Database?}&default={Default Filter?:true|false}&id={Mapping ID?}&org={Organization Name?}&orgID={Organization ID?}&rp={Retention Policy?}",
+      "post": false,
+      "description": "The mappings from v1-style database and retention-policy names onto v2 buckets. THE TRANSLATION LAYER: a v1 query names a database and retention policy, and this is what resolves those to the bucket actually holding the data."
+    },
+    {
+      "name": "Database Retention Policy Mapping",
+      "paged": false,
+      "suffix": "/api/v2/dbrps/{dbrpsID}",
+      "post": false,
+      "description": "One mapping by id."
+    },
+    {
+      "name": "Health",
+      "paged": false,
+      "suffix": "/health",
+      "post": false,
+      "description": "Whether the instance is healthy. A liveness check."
+    },
+    {
+      "name": "Labels",
+      "paged": false,
+      "suffix": "/api/v2/labels?orgID={Organization ID?}",
+      "post": false,
+      "description": "The labels defined, optionally by organisation. The cross-cutting tagging of buckets, dashboards, tasks and checks -- the only organisational dimension InfluxDB offers besides the organisation itself."
+    },
+    {
+      "name": "Label",
+      "paged": false,
+      "suffix": "/api/v2/labels/{Label ID}",
+      "post": false,
+      "description": "One label by id."
+    },
+    {
+      "name": "Legacy Authorizations",
+      "paged": false,
+      "suffix": "/legacy/authorizations?authID={Authorization ID?}&org={Organization Name?}&orgID={Organization ID?}&token={Token (Authorization Name)?}&user={User Name?}&userID={User ID?}",
+      "post": false,
+      "description": "The v1-compatible tokens issued. Present where 1.x tools still write to this instance."
+    },
+    {
+      "name": "Legacy Authorization",
+      "paged": false,
+      "suffix": "/legacy/authorizations/{Authorization ID?}",
+      "post": false,
+      "description": "One legacy authorization by id."
+    },
+    {
+      "name": "Metrics",
+      "paged": false,
+      "suffix": "/metrics",
+      "post": false,
+      "description": "The instance's own operational metrics in Prometheus format. NOT the time series data stored in buckets -- this is InfluxDB reporting on itself, and it is the endpoint for questions about the database's own load rather than its contents."
+    },
+    {
+      "name": "Notification Endpoints",
+      "paged": true,
+      "suffix": "/api/v2/notificationEndpoints?orgID={Organization ID}",
+      "post": false,
+      "description": "Where notifications are delivered -- Slack, PagerDuty, HTTP. Requires an organisation id. The final layer; a rule firing into a dead endpoint is silent."
+    },
+    {
+      "name": "Notification Endpoint",
+      "paged": false,
+      "suffix": "/api/v2/notificationEndpoints/{Endpoint ID}",
+      "post": false,
+      "description": "One notification endpoint by id."
+    },
+    {
+      "name": "Notification Endpoint Labels",
+      "paged": false,
+      "suffix": "/api/v2/notificationEndpoints/{Endpoint ID}/labels",
+      "post": false,
+      "description": "The labels on one notification endpoint."
+    },
+    {
+      "name": "Notification Rules",
+      "paged": true,
+      "suffix": "/api/v2/notificationRules?checkID={Check ID?}&orgID={Organization ID}&tag={Tag}",
+      "post": false,
+      "description": "The rules deciding which check statuses become notifications, filterable by check. The middle layer of alerting."
+    },
+    {
+      "name": "Notification Rule",
+      "paged": true,
+      "suffix": "/api/v2/notificationRules/{Rule ID}",
+      "post": false,
+      "description": "One notification rule by id."
+    },
+    {
+      "name": "Notification Rule Labels",
+      "paged": true,
+      "suffix": "/api/v2/notificationRules/{Rule ID}/labels",
+      "post": false,
+      "description": "The labels on one notification rule."
+    },
+    {
+      "name": "Organizations",
+      "paged": true,
+      "suffix": "/api/v2/orgs?descending={Descending?:true|false}&org={Organization Name?}&orgID={Organization ID?}&userID={User ID?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Organization Members",
+            "Organization Owners",
+            "Authorizations",
+            "Buckets",
+            "Checks",
+            "Dashboards",
+            "Database Retention Policy Mappings",
+            "Labels",
+            "Legacy Authorizations",
+            "Notification Endpoints",
+            "Notification Rules",
+            "Scraper Targets",
+            "Tasks",
+            "Telegraf Configurations",
+            "Installed Templates",
+            "Variables"
+          ],
+          "jsonPath": "$.orgs[*]",
+          "key": "id",
+          "parameterName": "Organization ID"
+        }
+      ],
+      "description": "The organisations on the instance. Everything in InfluxDB 2 belongs to an organisation -- buckets, dashboards, tasks, tokens -- so this is the first request and the scope every other one needs."
+    },
+    {
+      "name": "Organization",
+      "paged": false,
+      "suffix": "/api/v2/orgs/{Organization ID}",
+      "post": false,
+      "description": "One organisation by id."
+    },
+    {
+      "name": "Organization Members",
+      "paged": false,
+      "suffix": "/api/v2/orgs/{Organization ID}/members",
+      "post": false,
+      "description": "The users with member access to one organisation."
+    },
+    {
+      "name": "Organization Owners",
+      "paged": false,
+      "suffix": "/api/v2/orgs/{Organization ID}/owners",
+      "post": false,
+      "description": "The users owning one organisation."
+    },
+    {
+      "name": "Ping",
+      "paged": false,
+      "suffix": "/ping",
+      "post": false,
+      "description": "Whether the instance is reachable, and its version. The lightest connectivity check, and the version matters because available endpoints differ between releases."
+    },
+    {
+      "name": "Query",
+      "paged": false,
+      "suffix": "/query?org={Organization?}&orgID={Organization ID?}",
+      "post": true,
+      "description": "Runs a FLUX query and returns its results. THE DATA ENDPOINT: InfluxDB holds time series, and there is no table to list -- a query defines what comes back, so the question is the request. Requires an organisation. Results come back as annotated CSV rather than JSON, which is the single most surprising thing about this API and means the response needs parsing differently from every other endpoint here."
+    },
+    {
+      "name": "Analyze Flux Query",
+      "paged": false,
+      "suffix": "/query/analyze",
+      "post": true,
+      "description": "Checks a Flux query for errors without running it. Requires the query. Validation rather than data -- useful for confirming a generated query before spending a long-running request on it."
+    },
+    {
+      "name": "Generate Abstract Syntax Tree from a Query",
+      "paged": false,
+      "suffix": "/api/v2/query/ast",
+      "post": true,
+      "description": "Parses a Flux query into its syntax tree. For tooling that manipulates queries programmatically; of no analytical use."
+    },
+    {
+      "name": "Instance Readiness",
+      "paged": false,
+      "suffix": "/ready",
+      "post": false,
+      "description": "Whether the instance has finished starting and is ready to serve. Distinct from health, which reports on a running instance."
+    },
+    {
+      "name": "Resources",
+      "paged": false,
+      "suffix": "/api/v2/resources",
+      "post": false,
+      "description": "The resource types the API exposes. Reference data for building permission sets."
+    },
+    {
+      "name": "Routes",
+      "paged": false,
+      "suffix": "/api/v2/",
+      "post": false,
+      "description": "The API's own route listing. A discovery endpoint."
+    },
+    {
+      "name": "Notification Rule Array",
+      "paged": false,
+      "suffix": "/api/v2/notificationRules/{Rule ID}/query",
+      "post": false,
+      "description": "The Flux query one notification rule runs. Requires a rule id."
+    },
+    {
+      "name": "Scraper Targets",
+      "paged": false,
+      "suffix": "/api/v2/scrapers?id={Scraper Target ID?}&name={Scraper Name ID?}&org={Organization Name?}&orgID={Organization ID?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Scraper Target Labels",
+            "Scraper Target Members",
+            "Scraper Target Owners"
+          ],
+          "jsonPath": "$.configurations[*]",
+          "key": "id",
+          "parameterName": "Scraper Target ID"
+        }
+      ],
+      "description": "The Prometheus-format endpoints InfluxDB scrapes on a schedule, with their URL and target bucket. Where data arrives without anything writing to InfluxDB explicitly."
+    },
+    {
+      "name": "Scraper Target",
+      "paged": false,
+      "suffix": "/api/v2/scrapers/{Scraper Target ID}",
+      "post": false,
+      "description": "One scraper target by id."
+    },
+    {
+      "name": "Scraper Target Labels",
+      "paged": false,
+      "suffix": "/api/v2/scrapers/{Scraper Target ID}/labels",
+      "post": false,
+      "description": "The labels on one scraper target."
+    },
+    {
+      "name": "Scraper Target Members",
+      "paged": false,
+      "suffix": "/api/v2/scrapers/{Scraper Target ID}/members",
+      "post": false,
+      "description": "The users with member access to one scraper target."
+    },
+    {
+      "name": "Scraper Target Owners",
+      "paged": false,
+      "suffix": "/api/v2/scrapers/{Scraper Target ID}/owners",
+      "post": false,
+      "description": "The users owning one scraper target."
+    },
+    {
+      "name": "Secret Keys",
+      "paged": false,
+      "suffix": "/api/v2/orgs/{Organization ID}/secrets",
+      "post": false,
+      "description": "The names of the secrets stored for one organisation. Requires an organisation id. Names only -- values are never returned -- and useful for knowing what a task can reference."
+    },
+    {
+      "name": "Check Default User, Org, Bucket",
+      "paged": false,
+      "suffix": "/api/v2/setup",
+      "post": false,
+      "description": "Whether the instance has completed initial setup, and its default user, organisation and bucket. A first-run check."
+    },
+    {
+      "name": "Sources",
+      "paged": false,
+      "suffix": "/api/v2/sources?&org={Organization Name?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Source Health",
+            "Source Buckets"
+          ],
+          "jsonPath": "$.sources[*]",
+          "key": "id",
+          "parameterName": "Source ID"
+        }
+      ],
+      "description": "The data sources configured, optionally by organisation. Connections to other InfluxDB instances."
+    },
+    {
+      "name": "Source",
+      "paged": false,
+      "suffix": "/api/v2/sources/{Source ID}",
+      "post": false,
+      "description": "One source by id."
+    },
+    {
+      "name": "Source Health",
+      "paged": false,
+      "suffix": "/api/v2/sources/{Source ID}/health",
+      "post": false,
+      "description": "Whether one source is reachable. Requires a source id."
+    },
+    {
+      "name": "Tasks",
+      "paged": false,
+      "suffix": "/api/v2/tasks?limit=500&after={After ID?}&name={Task Name?}&org={Organization Name?}&orgID={Organization ID?}&status={Status?:active|inactive}&type={Type?:basic|system}&user={User ID}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Task Labels",
+            "Task Logs",
+            "Task Members",
+            "Task Owners",
+            "Task Runs"
+          ],
+          "jsonPath": "$.tasks[*]",
+          "key": "id",
+          "parameterName": "Task ID"
+        }
+      ],
+      "description": "The scheduled Flux tasks, with their name, cron or interval, status, and the organisation. TASKS ARE HOW DERIVED DATA IS PRODUCED -- downsampling, alerting, materialised aggregates -- so a bucket that appears to hold suspiciously tidy data usually has a task behind it, and this is where that is visible."
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}",
+      "post": false,
+      "description": "One task by id, with its Flux script."
+    },
+    {
+      "name": "Task Labels",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/labels",
+      "post": false,
+      "description": "The labels on one task."
+    },
+    {
+      "name": "Task Logs",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/logs",
+      "post": false,
+      "description": "The recent log entries across one task's runs. Requires a task id."
+    },
+    {
+      "name": "Task Members",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/members",
+      "post": false,
+      "description": "The users with member access to one task."
+    },
+    {
+      "name": "Task Owners",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/owners",
+      "post": false,
+      "description": "The users owning one task."
+    },
+    {
+      "name": "Task Runs",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/runs?limit=500&after={After ID?}&afterTime={After Time?}&beforeTime={Before Time?}",
+      "post": false,
+      "description": "The execution history of one task, with each run's scheduled time, start and finish, and status. Requires a task id. WHETHER A TASK ACTUALLY RAN is what determines whether the data it produces is complete, and a silently failing task leaves gaps that look like an absence of activity."
+    },
+    {
+      "name": "Task Run",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/runs/{Run ID}",
+      "post": false,
+      "description": "One task run by id, with its outcome."
+    },
+    {
+      "name": "Task Run Logs",
+      "paged": false,
+      "suffix": "/api/v2/tasks/{Task ID}/runs/{Run ID}/logs",
+      "post": false,
+      "description": "The log output of one task run. Requires the task and run ids. Where a failure's cause is found."
+    },
+    {
+      "name": "Telegraf Plugins",
+      "paged": false,
+      "suffix": "/api/v2/telegraf/plugins?type={Type?}",
+      "post": false,
+      "description": "The Telegraf plugins available, by type. Reference data."
+    },
+    {
+      "name": "Telegraf Configurations",
+      "paged": false,
+      "suffix": "/api/v2/telegrafs?orgID={Organization ID?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Telegraf Configuration Labels",
+            "Telegraf Configuration Members",
+            "Telegraf Configuration Owners"
+          ],
+          "jsonPath": "$.configurations[*]",
+          "key": "id",
+          "parameterName": "Telegraf Configuration ID"
+        }
+      ],
+      "description": "The Telegraf agent configurations stored, filterable by organisation. Telegraf is the collection agent, so these describe what is being collected and from where -- which explains the shape of the data in a bucket."
+    },
+    {
+      "name": "Telegraf Configuration",
+      "paged": false,
+      "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}",
+      "post": false,
+      "description": "One Telegraf configuration by id, with its full TOML."
+    },
+    {
+      "name": "Telegraf Configuration Labels",
+      "paged": false,
+      "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/labels",
+      "post": false,
+      "description": "The labels on one Telegraf configuration."
+    },
+    {
+      "name": "Telegraf Configuration Members",
+      "paged": false,
+      "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/members",
+      "post": false,
+      "description": "The users with member access to one Telegraf configuration."
+    },
+    {
+      "name": "Telegraf Configuration Owners",
+      "paged": false,
+      "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/owners",
+      "post": false,
+      "description": "The users owning one Telegraf configuration."
+    },
+    {
+      "name": "Installed Templates",
+      "paged": false,
+      "suffix": "/api/v2/stacks?&orgID={Organization ID}&name={Name?}&stackID={Stack ID?}",
+      "post": false,
+      "description": "The template stacks installed on the instance, filterable by organisation. Stacks are bundles of dashboards, tasks and buckets installed together, so this explains resources nobody created individually."
+    },
+    {
+      "name": "Stack",
+      "paged": false,
+      "suffix": "/api/v2/stacks/{Stack ID}",
+      "post": false,
+      "description": "One template stack by id, with the resources it created."
+    },
+    {
+      "name": "Current User Feature Flags",
+      "paged": false,
+      "suffix": "/api/v2/flags",
+      "post": false,
+      "description": "The feature flags in force for the caller. Explains why a documented capability is or is not present."
+    },
+    {
+      "name": "Current User",
+      "paged": false,
+      "suffix": "/api/v2/me",
+      "post": false,
+      "description": "The account the token belongs to. One record, always the caller -- and the explanation for what the rest of this connector can see, since InfluxDB scopes everything by token permissions."
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/api/v2/users?after={After ID?}&id={User ID?}&name={User Name?}",
+      "post": false,
+      "description": "The users on the instance, filterable by id and name. Administrative."
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/api/v2/users/{User ID}",
+      "post": false,
+      "description": "One user by id."
+    },
+    {
+      "name": "Variables",
+      "paged": false,
+      "suffix": "/api/v2/variables?org={Organization Name?}&orgID={Organization ID?}",
+      "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Variable Labels"
+          ],
+          "jsonPath": "$.variables[*]",
+          "key": "id",
+          "parameterName": "Variable ID"
+        }
+      ],
+      "description": "The dashboard variables defined, each with its query or value list. Variables parameterise dashboard queries, so a cell's query is incomplete without them."
+    },
+    {
+      "name": "Variable",
+      "paged": false,
+      "suffix": "/api/v2/variables/{Variable ID}",
+      "post": false,
+      "description": "One variable by id."
+    },
+    {
+      "name": "Variable Labels",
+      "paged": false,
+      "suffix": "/api/v2/variables/{Variable ID}/labels",
+      "post": false,
+      "description": "The labels on one variable."
+    }
+  ]
 }

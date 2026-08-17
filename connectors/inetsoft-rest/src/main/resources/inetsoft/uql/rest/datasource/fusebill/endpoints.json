@@ -95,42 +95,50 @@
           "key": "id",
           "parameterName": "Customer ID"
         }
-      ]
+      ],
+      "description": "The customers on the account, filterable with Fusebill's query syntax. Carries the company or personal name, reference, status, currency, the primary contact and addresses. THE QUERY PARAMETER IS THE FILTERING MODEL throughout this connector -- a field:value expression rather than named parameters -- so most questions are shaped by what that syntax supports."
     },
     {
       "paged": "false",
       "name": "Customer Overview",
-      "suffix": "/v1/customers/{Customer ID}/overview"
+      "suffix": "/v1/customers/{Customer ID}/overview",
+      "description": "One customer's headline figures in a single call -- balances, subscription counts and recent activity. Requires a customer id. The efficient summary, as opposed to assembling it from the subscription, invoice and payment tables separately."
     },
     {
       "paged": "false",
       "name": "Customer",
-      "suffix": "/v1/customers/{Customer ID}"
+      "suffix": "/v1/customers/{Customer ID}",
+      "description": "One customer by id."
     },
     {
       "paged": "false",
       "name": "Customer Email Preferences",
-      "suffix": "/v1/customers/{Customer ID}/CustomerEmailPreferences"
+      "suffix": "/v1/customers/{Customer ID}/CustomerEmailPreferences",
+      "description": "Which billing emails one customer receives. Requires a customer id."
     },
     {
       "paged": "false",
       "name": "Customer Billing Settings",
-      "suffix": "/v1/customerbillingsetting/{Customer ID}"
+      "suffix": "/v1/customerbillingsetting/{Customer ID}",
+      "description": "One customer's billing configuration -- payment terms, currency, tax settings and collection behaviour. Requires a customer id. Collection behaviour is what explains an invoice sitting unpaid by design rather than through failure."
     },
     {
       "paged": "false",
       "name": "Customer Address Preferences",
-      "suffix": "/v1/customerAddressPreferences/{Customer ID}"
+      "suffix": "/v1/customerAddressPreferences/{Customer ID}",
+      "description": "The address configuration of one customer -- which address is used for billing, shipping and tax. Requires a customer id. Tax is computed against one of these, so it matters for reconciling a tax figure."
     },
     {
       "paged": "false",
       "name": "Customer Ship/Bill Address",
-      "suffix": "/v1/Addresses/{Address ID}"
+      "suffix": "/v1/Addresses/{Address ID}",
+      "description": "One address by id, with its full detail."
     },
     {
       "paged": "false",
       "name": "Countries",
-      "suffix": "/v1/Countries"
+      "suffix": "/v1/Countries",
+      "description": "The countries and their subdivisions Fusebill recognises. Reference data, and relevant because tax rules are keyed on them."
     },
     {
       "paged": "true",
@@ -155,222 +163,266 @@
           "key": "id",
           "parameterName": "Subscription ID"
         }
-      ]
+      ],
+      "description": "Every subscription on the account, filterable by query. Carries the customer, status, activation and cancellation dates, the billing period, and the products attached. The recurring-revenue backbone."
     },
     {
       "paged": "true",
       "name": "Subscription Summaries",
-      "suffix": "/v1/subscriptionSummary?query={Query?:field:queryString}"
+      "suffix": "/v1/subscriptionSummary?query={Query?:field:queryString}",
+      "description": "A condensed view of subscriptions, filterable by query. Cheaper than the full records when only status and value are wanted."
     },
     {
       "paged": "true",
       "name": "Customer Subscriptions",
-      "suffix": "/v1/customers/{Customer ID}/subscriptions?query={Query?:parameterName:value}"
+      "suffix": "/v1/customers/{Customer ID}/subscriptions?query={Query?:parameterName:value}",
+      "description": "The subscriptions of one customer. Requires a customer id."
     },
     {
       "paged": "false",
       "name": "Subscription",
-      "suffix": "/v1/subscriptions/{Subscription ID}"
+      "suffix": "/v1/subscriptions/{Subscription ID}",
+      "description": "One subscription by id, with its products and schedule."
     },
     {
       "paged": "false",
       "name": "Subscription Count by Status",
-      "suffix": "/v1/customers/customerId/subscriptions/GetCountByStatus?status={Status:Active|Draft|Cancelled|Provisioning|Expired|Suspended}"
+      "suffix": "/v1/customers/customerId/subscriptions/GetCountByStatus?status={Status:Active|Draft|Cancelled|Provisioning|Expired|Suspended}",
+      "description": "How many subscriptions sit in each status. A ready-made aggregate, and the cheapest health check on a recurring-revenue base."
     },
     {
       "paged": "false",
       "name": "Subscription Product",
-      "suffix": "/v1/SubscriptionProducts/{Subscription Product ID}"
+      "suffix": "/v1/SubscriptionProducts/{Subscription Product ID}",
+      "description": "One product on one subscription, with its price, quantity and schedule. What a subscription actually consists of, as opposed to its header."
     },
     {
       "paged": "true",
       "name": "Customer Billing Period Definitions",
-      "suffix": "/v1/customers/{Customer ID}/billingperioddefinitions"
+      "suffix": "/v1/customers/{Customer ID}/billingperioddefinitions",
+      "description": "The billing periods configured for one customer. Requires a customer id. When a customer is billed, which decides which period a charge falls in."
     },
     {
       "paged": "false",
       "name": "Subscription Billing Period Definition",
-      "suffix": "/v1/BillingPeriodDefinitions/GetBySubscription/{Subscription ID}"
+      "suffix": "/v1/BillingPeriodDefinitions/GetBySubscription/{Subscription ID}",
+      "description": "The billing period of one subscription. Requires a subscription id."
     },
     {
       "paged": "false",
       "name": "Billing Period Definition Details",
-      "suffix": "/v1/BillingPeriodDefinitions/{Billing Period Definition ID}"
+      "suffix": "/v1/BillingPeriodDefinitions/{Billing Period Definition ID}",
+      "description": "One billing period definition by id, with its start, end and cycle."
     },
     {
       "paged": "true",
       "name": "Coupons",
-      "suffix": "/v1/Coupons?query={Query?:parameterName:value}"
+      "suffix": "/v1/Coupons?query={Query?:parameterName:value}",
+      "description": "The coupons defined, filterable by query. Campaign-level discounting, as opposed to per-purchase discounts."
     },
     {
       "paged": "false",
       "name": "Coupon",
-      "suffix": "/v1/Coupons/{Coupon ID}"
+      "suffix": "/v1/Coupons/{Coupon ID}",
+      "description": "One coupon by id, with its redemption terms."
     },
     {
       "paged": "false",
       "name": "Subscription Scheduled Migrations",
-      "suffix": "/v1/subscriptions/{Subscription ID}/migrate"
+      "suffix": "/v1/subscriptions/{Subscription ID}/migrate",
+      "description": "The plan changes already scheduled for one subscription. Requires a subscription id. FORWARD-LOOKING: the subscription shows today's plan, so a revenue projection that ignores this misses committed upgrades and downgrades."
     },
     {
       "paged": "true",
       "name": "Purchases by Product",
-      "suffix": "/v1/Purchases/GetByProductId?id={Product ID}&query={Query?:parameterName:value}"
+      "suffix": "/v1/Purchases/GetByProductId?id={Product ID}&query={Query?:parameterName:value}",
+      "description": "The purchases of one product across customers. Requires a product id. Which customers bought a given item."
     },
     {
       "paged": "true",
       "name": "Purchases by Customer",
-      "suffix": "/v1/Customers/{Customer ID}/Purchases?query={Query?:field:queryString}"
+      "suffix": "/v1/Customers/{Customer ID}/Purchases?query={Query?:field:queryString}",
+      "description": "The one-off purchases of one customer, filterable by query. Requires a customer id. Non-recurring revenue, which the subscription tables do not represent -- a total that counts only subscriptions understates what a customer paid."
     },
     {
       "paged": "false",
       "name": "Purchase",
-      "suffix": "/v1/Purchases/{Purchase ID}"
+      "suffix": "/v1/Purchases/{Purchase ID}",
+      "description": "One purchase by id, with its items."
     },
     {
       "paged": "false",
       "name": "Purchase Discount",
-      "suffix": "/v1/PurchaseDiscounts/{Purchase Discount ID}"
+      "suffix": "/v1/PurchaseDiscounts/{Purchase Discount ID}",
+      "description": "One discount applied to a purchase, by id."
     },
     {
       "paged": "true",
       "name": "Tracked Items",
-      "suffix": "/v1/ProductItems?query={Query?:parameterName:Value}"
+      "suffix": "/v1/ProductItems?query={Query?:parameterName:Value}",
+      "description": "The item types tracked for quantity-based billing -- seats, users, devices. The unit definitions behind usage counts."
     },
     {
       "paged": "true",
       "name": "Subscription Product Items",
-      "suffix": "/v1/subscriptionProducts/{Subscription Product ID}/items?query={Query?:parameterName:value}"
+      "suffix": "/v1/subscriptionProducts/{Subscription Product ID}/items?query={Query?:parameterName:value}",
+      "description": "The tracked items within one subscription product. Requires a subscription product id. The unit level -- seats, licences, devices -- that quantity-based billing counts."
     },
     {
       "paged": "false",
       "name": "Subscription Product Item",
-      "suffix": "/v1/subscriptionproductitems/{Subscription Product Item ID}"
+      "suffix": "/v1/subscriptionproductitems/{Subscription Product Item ID}",
+      "description": "One subscription product item by id."
     },
     {
       "paged": "false",
       "name": "Purchase Product Item",
-      "suffix": "/v1/purchaseProductItems/{Purchase Product Item ID}"
+      "suffix": "/v1/purchaseProductItems/{Purchase Product Item ID}",
+      "description": "One purchased item by id."
     },
     {
       "paged": "false",
       "name": "Related Statuses",
-      "suffix": "/v1/SubscriptionProductItemStatuses?reference={Reference}&parentId={Product ID}"
+      "suffix": "/v1/SubscriptionProductItemStatuses?reference={Reference}&parentId={Product ID}",
+      "description": "The statuses a subscription product item can hold, by reference. The decoder for an item's status."
     },
     {
       "paged": "false",
       "name": "Sales Tracking Code by Type",
-      "suffix": "/v1/salesTrackingCodes/{Type:Sales Tracking Code 1|Sales Tracking Code 2|...}"
+      "suffix": "/v1/salesTrackingCodes/{Type:Sales Tracking Code 1|Sales Tracking Code 2|...}",
+      "description": "The sales tracking codes of one type. Fusebill offers several free-form tracking code slots, which is where an account records campaign, region or rep attribution -- and their meaning is entirely account-specific."
     },
     {
       "paged": "false",
       "name": "Sales Tracking Code by Type and Code",
-      "suffix": "/v1/SalesTrackingCodes?type={Type:Sales Tracking Code 1|Sales Tracking Code 2|...}&code={Code?}"
+      "suffix": "/v1/SalesTrackingCodes?type={Type:Sales Tracking Code 1|Sales Tracking Code 2|...}&code={Code?}",
+      "description": "One tracking code by its type and value."
     },
     {
       "paged": "false",
       "name": "Payment Details",
-      "suffix": "/v1/payments/{Payment ID}"
+      "suffix": "/v1/payments/{Payment ID}",
+      "description": "One payment by id, with its method, amount and outcome."
     },
     {
       "paged": "true",
       "name": "Customer Payment Activities",
-      "suffix": "/v1/customers/{Customer ID}/paymentactivities?query={Query?:parameterName:value}"
+      "suffix": "/v1/customers/{Customer ID}/paymentactivities?query={Query?:parameterName:value}",
+      "description": "The payment activity of one customer. Requires a customer id."
     },
     {
       "paged": "true",
       "name": "Payment Activities",
-      "suffix": "/v1/PaymentActivities/GetByAccountID?query={Query?:parameterName:value}"
+      "suffix": "/v1/PaymentActivities/GetByAccountID?query={Query?:parameterName:value}",
+      "description": "Payment activity across the account, filterable by query. The transaction log: attempts, successes and failures. FAILED PAYMENTS ARE HERE AND NOT ON THE INVOICE, which is where involuntary churn is diagnosed."
     },
     {
       "paged": "true",
       "name": "Child Payment Activities",
-      "suffix": "/v1/customers/{Customer ID}/childPaymentActivities?query={Query?:field:querystring}"
+      "suffix": "/v1/customers/{Customer ID}/childPaymentActivities?query={Query?:field:querystring}",
+      "description": "The payment activity of a customer's child accounts. Requires the parent customer id. Where a parent pays for children, revenue read at the parent alone misattributes it."
     },
     {
       "paged": "false",
       "name": "Payment Activity",
-      "suffix": "/v1/PaymentActivities/{Payment Activity ID}"
+      "suffix": "/v1/PaymentActivities/{Payment Activity ID}",
+      "description": "One payment activity by id, with its gateway response."
     },
     {
       "paged": "false",
       "name": "Refund",
-      "suffix": "/v1/Refunds/{Transaction ID}"
+      "suffix": "/v1/Refunds/{Transaction ID}",
+      "description": "One refund by transaction id."
     },
     {
       "paged": "true",
       "name": "Payment Methods",
-      "suffix": "/v1/customers/{Customer ID}/paymentMethods/all?query={Query?:parameterName:value}"
+      "suffix": "/v1/customers/{Customer ID}/paymentMethods/all?query={Query?:parameterName:value}",
+      "description": "All payment methods on file for one customer. Requires a customer id."
     },
     {
       "paged": "true",
       "name": "Credit Card Payment Methods",
-      "suffix": "/v1/customers/{Customer ID}/paymentMethods/creditCard?query={Query?:field:queryString}"
+      "suffix": "/v1/customers/{Customer ID}/paymentMethods/creditCard?query={Query?:field:queryString}",
+      "description": "The cards on file for one customer, with expiry and last four digits. Requires a customer id. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN, and the expiry here is the only place it can be anticipated."
     },
     {
       "paged": "false",
       "name": "Credit Card Payment Method",
-      "suffix": "/v1/paymentMethods/{Payment Method ID}/creditCard"
+      "suffix": "/v1/paymentMethods/{Payment Method ID}/creditCard",
+      "description": "One card payment method by id."
     },
     {
       "paged": "true",
       "name": "ACH Payment Methods",
-      "suffix": "/v1/customers/{Customer ID}/paymentMethods/achCard?query={Query?:parameterName:Value}"
+      "suffix": "/v1/customers/{Customer ID}/paymentMethods/achCard?query={Query?:parameterName:Value}",
+      "description": "The bank-draft payment methods on file for one customer. Requires a customer id. ACH fails differently from cards -- later and for different reasons -- so the two are worth separating in any failure analysis."
     },
     {
       "paged": "false",
       "name": "ACH Payment Method",
-      "suffix": "/v1/paymentMethods/{Payment Method ID}/achCard"
+      "suffix": "/v1/paymentMethods/{Payment Method ID}/achCard",
+      "description": "One ACH payment method by id."
     },
     {
       "paged": "true",
       "name": "AR Activities",
-      "suffix": "/v1/aractivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}"
+      "suffix": "/v1/aractivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}",
+      "description": "Accounts receivable activity over a date range -- invoices raised, payments received, credits applied. The ledger view of what customers owe and have paid."
     },
     {
       "paged": "true",
       "name": "Customer AR Activities",
-      "suffix": "/v1/customers/{Customer ID}/customerArActivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}"
+      "suffix": "/v1/customers/{Customer ID}/customerArActivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}",
+      "description": "The receivable activity of one customer. Requires a customer id. The per-account statement."
     },
     {
       "paged": "false",
       "name": "Credit",
-      "suffix": "/v1/Credits/{Transaction ID}"
+      "suffix": "/v1/Credits/{Transaction ID}",
+      "description": "One credit transaction by id."
     },
     {
       "paged": "false",
       "name": "Debit",
-      "suffix": "/v1/Debits/{Transaction ID}"
+      "suffix": "/v1/Debits/{Transaction ID}",
+      "description": "One debit transaction by id."
     },
     {
       "paged": "true",
       "name": "Credit Note Summaries",
-      "suffix": "/v1/CreditNotes?query={Query?:parameterName:value}"
+      "suffix": "/v1/CreditNotes?query={Query?:parameterName:value}",
+      "description": "The credit notes issued, filterable by query. Revenue net of credits requires this; invoice totals alone overstate it."
     },
     {
       "paged": "false",
       "name": "Credit Note",
-      "suffix": "/v1/CreditNotes/{Credit Note ID}"
+      "suffix": "/v1/CreditNotes/{Credit Note ID}",
+      "description": "One credit note by id."
     },
     {
       "paged": "true",
       "name": "Draft Invoice Summaries",
-      "suffix": "/v1/DraftInvoices?query={Query?:parameterName:value}"
+      "suffix": "/v1/DraftInvoices?query={Query?:parameterName:value}",
+      "description": "The draft invoices, filterable by query. NOT YET ISSUED -- they represent charges accrued and about to be billed, so they are the forward view that the issued-invoice table cannot give."
     },
     {
       "paged": "true",
       "name": "Customer Draft Invoices",
-      "suffix": "/v1/Customers/{Customer ID}/DraftInvoices?query={Query?:parameterName:value}"
+      "suffix": "/v1/Customers/{Customer ID}/DraftInvoices?query={Query?:parameterName:value}",
+      "description": "The draft invoices of one customer. Requires a customer id."
     },
     {
       "paged": "false",
       "name": "Draft Invoice",
-      "suffix": "/v1/DraftInvoices/{Draft Invoice ID}"
+      "suffix": "/v1/DraftInvoices/{Draft Invoice ID}",
+      "description": "One draft invoice by id, with its lines."
     },
     {
       "paged": "true",
       "name": "Invoice Summaries",
-      "suffix": "/v1/invoiceSummaries?query={Query?:parameterName:value}"
+      "suffix": "/v1/invoiceSummaries?query={Query?:parameterName:value}",
+      "description": "A condensed invoice listing, filterable by query. Cheaper for totals and status than the full records."
     },
     {
       "paged": "true",
@@ -389,17 +441,20 @@
           "key": "id",
           "parameterName": "Invoice ID"
         }
-      ]
+      ],
+      "description": "The invoices issued, filterable by query. Carries the customer, number, dates, status, totals and line items. Only issued invoices are revenue; drafts are a separate table entirely."
     },
     {
       "paged": "true",
       "name": "Customer Invoices",
-      "suffix": "/v1/Customers/{Customer ID}/Invoices/?showZeroDollarCharges={Show Zero Dollar Changes?:true|false}&query={Query?:filter:queryString}"
+      "suffix": "/v1/Customers/{Customer ID}/Invoices/?showZeroDollarCharges={Show Zero Dollar Changes?:true|false}&query={Query?:filter:queryString}",
+      "description": "The invoices of one customer, optionally including zero-dollar ones. Requires a customer id. ZERO-DOLLAR INVOICES ARE EXCLUDED BY DEFAULT, which quietly changes an invoice count -- they are real documents produced by fully discounted or credited subscriptions."
     },
     {
       "paged": "false",
       "name": "Invoice",
-      "suffix": "/v1/Invoices/{Invoice ID}"
+      "suffix": "/v1/Invoices/{Invoice ID}",
+      "description": "One invoice by id, with its lines."
     },
     {
       "paged": "false",
@@ -412,7 +467,8 @@
           "key": "creditId",
           "parameterName": "Transaction ID"
         }
-      ]
+      ],
+      "description": "How credits were applied to one invoice. Requires an invoice id. An invoice's balance falls through payment or credit, and only this distinguishes the two."
     },
     {
       "paged": "false",
@@ -425,12 +481,14 @@
           "key": "paymentId",
           "parameterName": "Payment ID"
         }
-      ]
+      ],
+      "description": "How payments were applied to one invoice. Requires an invoice id. The other half of how a balance was settled."
     },
     {
       "paged": "true",
       "name": "Charge Summary",
-      "suffix": "/v1/customers/{Customer ID}/chargeSummary?query={Query?:parameterName:value}"
+      "suffix": "/v1/customers/{Customer ID}/chargeSummary?query={Query?:parameterName:value}",
+      "description": "The charges accrued for one customer, filterable by query. Requires a customer id. Accrued rather than billed, which is why it and the invoice total legitimately differ mid-period."
     },
     {
       "paged": "true",
@@ -449,17 +507,20 @@
           "key": "id",
           "parameterName": "Plan ID"
         }
-      ]
+      ],
+      "description": "The subscription plans offered, filterable by query. What is sold on a recurring basis."
     },
     {
       "paged": "false",
       "name": "Plan",
-      "suffix": "/v1/Plans/{Plan ID}"
+      "suffix": "/v1/Plans/{Plan ID}",
+      "description": "One plan by id."
     },
     {
       "paged": "true",
       "name": "Product Summaries",
-      "suffix": "/v1/ProductSummary/?query={Query?:parameterName:value}"
+      "suffix": "/v1/ProductSummary/?query={Query?:parameterName:value}",
+      "description": "A condensed product listing, filterable by query."
     },
     {
       "paged": "true",
@@ -472,72 +533,86 @@
           "key": "id",
           "parameterName": "Product ID"
         }
-      ]
+      ],
+      "description": "The product catalogue, optionally with pricing. The individual sellable items plans are built from."
     },
     {
       "paged": "false",
       "name": "Product",
-      "suffix": "/v1/Products/{Product ID}"
+      "suffix": "/v1/Products/{Product ID}",
+      "description": "One product by id."
     },
     {
       "paged": "true",
       "name": "Plan Products by Plan",
-      "suffix": "/v1/plans/{Plan ID}/planProducts?query={Query?:parameterName:value}"
+      "suffix": "/v1/plans/{Plan ID}/planProducts?query={Query?:parameterName:value}",
+      "description": "The products within one plan, with their prices. Requires a plan id. What a plan actually includes."
     },
     {
       "paged": "true",
       "name": "Plan Products by Catalog Product",
-      "suffix": "/v1/products/{Product ID}/planProducts?query={Query?:parameterName:value}"
+      "suffix": "/v1/products/{Product ID}/planProducts?query={Query?:parameterName:value}",
+      "description": "The plans one product appears in. Requires a product id. The reverse view -- where a product is sold."
     },
     {
       "paged": "false",
       "name": "Plan Product",
-      "suffix": "/v1/PlanProducts/{Plan Product ID}"
+      "suffix": "/v1/PlanProducts/{Plan Product ID}",
+      "description": "One plan product by id."
     },
     {
       "paged": "true",
       "name": "Discounts",
-      "suffix": "/v1/Discounts?query={Query?:field:querystring}"
+      "suffix": "/v1/Discounts?query={Query?:field:querystring}",
+      "description": "The discounts defined, filterable by query. The gap between list price and realised price."
     },
     {
       "paged": "false",
       "name": "Discount",
-      "suffix": "/v1/Discounts/{Discount ID}"
+      "suffix": "/v1/Discounts/{Discount ID}",
+      "description": "One discount by id."
     },
     {
       "paged": "false",
       "name": "Plan Families",
-      "suffix": "/v1/PlanFamilies"
+      "suffix": "/v1/PlanFamilies",
+      "description": "The families plans are grouped into. The catalogue's top level, and the axis that separates product lines."
     },
     {
       "paged": "false",
       "name": "Plan Family",
-      "suffix": "/v1/PlanFamilies/{Plan Family ID}"
+      "suffix": "/v1/PlanFamilies/{Plan Family ID}",
+      "description": "One plan family by id."
     },
     {
       "paged": "false",
       "name": "Plan Families by Plan",
-      "suffix": "/v1/PlanFamilies/ByPlan/{Plan ID}"
+      "suffix": "/v1/PlanFamilies/ByPlan/{Plan ID}",
+      "description": "The families one plan belongs to. Requires a plan id."
     },
     {
       "paged": "false",
       "name": "Plan Families by Subscription",
-      "suffix": "/v1/planFamilies/bySubscription/{Subscription ID}"
+      "suffix": "/v1/planFamilies/bySubscription/{Subscription ID}",
+      "description": "The families reached through one subscription. Requires a subscription id."
     },
     {
       "paged": "false",
       "name": "QuickBooks Online Exchange Rates",
-      "suffix": "/v1/QuickBooksOnlineExchangeRates"
+      "suffix": "/v1/QuickBooksOnlineExchangeRates",
+      "description": "The exchange rates synced from QuickBooks Online. Relevant because Fusebill holds amounts in their own currencies and this is where conversion comes from."
     },
     {
       "paged": "false",
       "name": "Net Collections Summary",
-      "suffix": "/v1/NetCollections?currency={Currency:USD|EUR|GBP|...}"
+      "suffix": "/v1/NetCollections?currency={Currency:USD|EUR|GBP|...}",
+      "description": "Net cash collected in one currency, as a summary. A ready-made figure, and it separates cash from billings, which accrual-based invoice totals conflate."
     },
     {
       "paged": "false",
       "name": "Net Earned Revenue Summary",
-      "suffix": "/v1/NetEarned?currency={Currency:USD|EUR|GBP|...}"
+      "suffix": "/v1/NetEarned?currency={Currency:USD|EUR|GBP|...}",
+      "description": "Net earned revenue in one currency. The accrual counterpart to net collections -- the two answer different questions and diverge exactly by deferred revenue."
     }
   ]
 }
