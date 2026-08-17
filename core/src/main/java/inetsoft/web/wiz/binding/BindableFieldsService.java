@@ -113,7 +113,7 @@ public class BindableFieldsService {
       List<BindableField> direct = new ArrayList<>();
 
       for(TreeNodeModel child : node.children()) {
-         if(hasNoDescendants(child)) {
+         if(isColumn(child)) {
             direct.add(fieldOf(child));
          }
          else {
@@ -133,7 +133,7 @@ public class BindableFieldsService {
    /** Every column at or below this node, however deeply the Composer nests them. */
    private void gather(TreeNodeModel node, List<BindableField> out) {
       for(TreeNodeModel child : node.children()) {
-         if(hasNoDescendants(child)) {
+         if(isColumn(child)) {
             out.add(fieldOf(child));
          }
          else {
@@ -143,8 +143,8 @@ public class BindableFieldsService {
    }
 
    /**
-    * Whether a node is safe to treat as a column, checked by its actual children rather than the
-    * tree's own {@code leaf} flag.
+    * Whether a node is safe to treat as a column — checked by its actual children rather than the
+    * tree's own {@code leaf} flag, and never true for a table, columns or not.
     *
     * <p>{@code leaf} is a UI hint, not a structural guarantee, and the two can disagree:
     * {@code VSTreeHandler.isLeaf} marks every {@code AssetEntry.Type.WORKSHEET} entry as a leaf so
@@ -160,9 +160,17 @@ public class BindableFieldsService {
     * null, role: null}} — and never walked into the real tables beneath it, so an unscoped call
     * returned that one manufactured field instead of the viewsheet's tables. A node with children
     * is never a column regardless of what {@code leaf()} claims; only genuine childlessness is.
+    *
+    * <p>Childlessness alone is not sufficient, though: a table with nothing exposed under it
+    * (permission-filtered, a fresh embedded table, mid-load metadata) has no children either, and
+    * without the {@link #isTable} exclusion this reintroduces the exact defect it fixes one level
+    * up — an empty table's own label gets fabricated into a column standing in for the table,
+    * instead of correctly reporting no fields for it. {@code isTable} was already the answer to
+    * "is this a table" everywhere else in this class; the childlessness check must defer to it
+    * rather than deciding leaf-ness on its own.
     */
-   private static boolean hasNoDescendants(TreeNodeModel node) {
-      return node.children().isEmpty();
+   private boolean isColumn(TreeNodeModel node) {
+      return node.children().isEmpty() && !isTable(node);
    }
 
    private BindableField fieldOf(TreeNodeModel node) {

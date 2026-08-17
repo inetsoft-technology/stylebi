@@ -239,6 +239,27 @@ class BindableFieldsServiceTest {
       assertEquals("Sales", tables.get(0).fields().get(0).column());
    }
 
+   /**
+    * Review finding (larryliang-inetsoft): trusting childlessness alone reintroduces the same
+    * defect one level up. A table with nothing exposed under it -- permission-filtered, a fresh
+    * embedded table, mid-load metadata -- has no children either, so without excluding tables
+    * from {@code isColumn} its own label gets fabricated into a column standing in for it, the
+    * same shape as the WORKSHEET-container bug this fix closes. The old {@code leaf()}-based code
+    * never had this failure mode, because {@code leaf()} is hardcoded false for table types
+    * regardless of children.
+    */
+   @Test
+   void anEmptyTableYieldsNoFieldsRatherThanFabricatingOneFromItsOwnLabel() throws Exception {
+      TreeNodeModel emptyTable = TreeNodeModel.builder()
+         .label("EmptyTable").data(entry(AssetEntry.Type.TABLE, "EmptyTable", null)).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(emptyTable).build();
+
+      List<BindableTable> tables = serviceReturning(root).list("rt1", null, principal());
+
+      assertTrue(tables.isEmpty(),
+                 "an empty table must report no fields, not a fabricated column named after it");
+   }
+
    // ── unknown assembly name (the D4 regression) ────────────────────────────
 
    /**
