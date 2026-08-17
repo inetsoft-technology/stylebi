@@ -433,6 +433,112 @@
     },
     {
       "paged": "true",
+      "name": "Repository Pull Requests",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls?state={State?:open|closed|all}&head={Head?:user:branch}&base={Base?:Branch name}&sort={Sort?:created|updated|popularity|long-running}&direction={Direction?:asc|desc}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Pull Request",
+            "Pull Request Commits",
+            "Pull Request Files",
+            "Pull Request Reviews",
+            "Pull Request Review Comments",
+            "Requested Reviewers"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "number",
+          "parameterName": "Pull Number"
+        }
+      ],
+      "description": "The pull requests of one repository, one row each -- the table code review and delivery questions actually need, and the one the issues endpoints cannot answer. Requires the owner and repository name. Carries number, title, body, user, assignees, requested_reviewers, labels, milestone, draft, the head and base branches, created_at, updated_at, closed_at and MERGED_AT. THE STATE COLUMN HAS ONLY TWO VALUES, open and closed -- a merged pull request is closed, and so is an abandoned one. The two are told apart by merged_at being present or null, and treating state=closed as 'merged' overstates delivery by however many were rejected. NOTE ALSO that this list omits the size and discussion counts: additions, deletions, changed_files, commits, comments, review_comments and mergeable exist ONLY on Pull Request, one request each. Only open pull requests are returned unless state is passed. Draft pull requests are included and are not yet under review, so leaving them in distorts any review-latency measure."
+    },
+    {
+      "paged": "false",
+      "name": "Pull Request",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}",
+      "description": "A single pull request by its number. Requires the owner and repository name. Returns everything the list returns PLUS what the list omits: additions, deletions, changed_files, the commits count, comments and review_comments counts, the merged flag with who merged it, and mergeable and rebaseable. Change-size analysis has to come from here, or from Pull Request Files -- at one request per pull request either way."
+    },
+    {
+      "paged": "true",
+      "name": "Pull Request Commits",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/commits",
+      "description": "The commits a pull request contains, with sha, message, author and committer and their dates. Requires the owner, repository and pull request number. Use it to size a change in commits, or to connect commit authorship to the review that accepted it. Capped at 250 commits -- a larger pull request is truncated here rather than reported as such."
+    },
+    {
+      "paged": "true",
+      "name": "Pull Request Files",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/files",
+      "description": "The files a pull request touches, one row each, with filename, status (added, modified, removed, renamed), additions, deletions, changes and the patch text. Requires the owner, repository and pull request number. The per-file view of change size, and the way to tell a large refactor from a small fix without fetching the whole pull request. Capped at 3,000 files, and the patch is omitted for very large diffs -- so line counts on huge changes are incomplete rather than wrong."
+    },
+    {
+      "paged": "true",
+      "name": "Pull Request Reviews",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/reviews",
+      "lookups": [
+        {
+          "endpoints": [
+            "Pull Request Review",
+            "Review Comments for Review"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Review ID"
+        }
+      ],
+      "description": "The reviews submitted on one pull request, one row each. Requires the owner, repository and pull request number. Carries the reviewer, body, the commit reviewed, submitted_at, and STATE -- APPROVED, CHANGES_REQUESTED, COMMENTED or DISMISSED. This is the review outcome, and the only place it exists: whether a change was approved, by whom and when. Review latency is the gap between the pull request's created_at and the earliest submitted_at here. Note that a reviewer can submit several reviews on the same pull request, so counting rows is not counting reviewers, and PENDING reviews are visible only to their own author."
+    },
+    {
+      "paged": "false",
+      "name": "Pull Request Review",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/reviews/{Review ID}",
+      "description": "A single review by its id. Requires the owner, repository and pull request number. Same fields as Pull Request Reviews."
+    },
+    {
+      "paged": "true",
+      "name": "Review Comments for Review",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/reviews/{Review ID}/comments",
+      "description": "The line-level comments belonging to ONE review. Requires the owner, repository, pull request number and review id. Pull Request Review Comments returns every review comment on the pull request regardless of which review it came from; this groups them by the review that submitted them."
+    },
+    {
+      "paged": "true",
+      "name": "Pull Request Review Comments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/comments?direction={Direction?:asc|desc}",
+      "description": "The line-level review comments on one pull request: each with the file path, the line and diff_hunk it was left on, the author, created_at, and in_reply_to_id where it answers another. Requires the owner, repository and pull request number. GENUINELY DIFFERENT from Issue Comments, which returns the pull request's conversation comments -- code feedback is here, discussion is there, and neither contains the other. Both are needed for a full picture of review effort."
+    },
+    {
+      "paged": "true",
+      "name": "Repository Review Comments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/comments?sort={Sort?:created|updated}&direction={Direction?:asc|desc}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoint": "Review Comment",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Comment ID"
+        }
+      ],
+      "description": "Every pull request review comment in one repository, across all pull requests. Requires the owner and repository name. The practical basis for review-effort analysis over time -- who reviews, how much, and on which files -- without one request per pull request. Filter with since."
+    },
+    {
+      "paged": "false",
+      "name": "Review Comment",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/comments/{Comment ID}",
+      "description": "A single pull request review comment by its id. Requires the owner and repository name."
+    },
+    {
+      "paged": "false",
+      "name": "Requested Reviewers",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pulls/{Pull Number}/requested_reviewers",
+      "description": "The reviewers still awaited on one pull request, as separate lists of users and teams. Requires the owner, repository and pull request number. IMPORTANT: a reviewer is REMOVED from this list once they submit a review, so it reports outstanding requests, not who was asked -- for that, Pull Request Reviews shows who actually responded. Returned as one record holding two arrays rather than one row per reviewer."
+    },
+    {
+      "paged": "true",
+      "name": "Commit Pull Requests",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Commit Hash}/pulls",
+      "description": "The pull requests a given commit belongs to. Requires the owner, repository and commit sha. The reverse of Pull Request Commits: use it to attribute a commit found in the repository history back to the review that accepted it."
+    },
+    {
+      "paged": "true",
       "name": "Organization Migrations",
       "suffix": "/orgs/{Organization Name}/migrations",
       "description": "The migration archives started for one organisation, with state, the repositories included, created_at and updated_at, and whether attachments were excluded. Requires the organisation. Operational records of exports, not repository content."
