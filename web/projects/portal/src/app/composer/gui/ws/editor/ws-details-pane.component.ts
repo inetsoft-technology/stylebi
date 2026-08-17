@@ -507,6 +507,8 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
             dialog.columnTreeRoot = model.columnTree;
             dialog.scriptDefinitions = model.scriptDefinitions;
             dialog.isVSContext = false;
+            dialog.runtimeId = this.worksheet.runtimeId;
+            dialog.socketConnection = this.worksheetClient;
             dialog.submitCallback = (formulaModel: FormulaEditorDialogModel) =>
                this.submitExpressionCallback(model, formulaModel);
             dialog.sqlMergeable = model.sqlMergeable;

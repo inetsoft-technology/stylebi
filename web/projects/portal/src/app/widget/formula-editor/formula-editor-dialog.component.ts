@@ -60,6 +60,9 @@ import { InputTrimDirective } from "../directive/input-trim.directive";
 
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { EditorContext } from "../../composer/gui/wiz/editor-context";
+import { ConnectToClaudeComponent } from "../../composer/gui/wiz/connect-to-claude.component";
 
 const DATE_PARTS: any[] = [
    { label: "_#(js:Year)", data: "year" },
@@ -87,7 +90,7 @@ const DATE_TIME_PARTS: any[] = [
     selector: "formula-editor-dialog",
     templateUrl: "formula-editor-dialog.component.html",
     styleUrls: ["formula-editor-dialog.component.scss"],
-    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, ScriptPane, NewAggrDialog]
+    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, ScriptPane, NewAggrDialog, ConnectToClaudeComponent]
 })
 export class FormulaEditorDialog extends BaseResizeableDialogComponent implements
    OnInit, OnDestroy, AfterViewInit
@@ -113,6 +116,14 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() isVSContext: boolean = true;
    @Input() isHighlight: boolean = false;
    @Input() isCalcTable: boolean = false;
+
+   /** Runtime identifier of the sheet hosting the expression this dialog is
+    *  editing. Scopes an agent pairing session to this expression's sheet
+    *  instance rather than the whole sheet. */
+   @Input() runtimeId: string;
+   /** Socket connection for the runtime sheet, used to mint a pane-scoped
+    *  pairing code. */
+   @Input() socketConnection: ViewsheetClientService;
 
    @Input() availableFields: DataRef[];
    @Input() availableCells: string[];
@@ -181,6 +192,33 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
    get aggregateOnly(): boolean {
       return this.calcType == "aggregate";
+   }
+
+   get canPair(): boolean {
+      return !!this.runtimeId && !!this.socketConnection;
+   }
+
+   /** Derives the script location this dialog is editing from its own inputs
+    *  so a pairing code minted from here scopes the agent session to just
+    *  this expression rather than the whole sheet. A viewsheet-hosted
+    *  condition (isVSContext) binds to the assembly's main script context;
+    *  a worksheet-hosted condition binds to the worksheet condition itself. */
+   get editorContext(): EditorContext | null {
+      if(!this.canPair) {
+         return null;
+      }
+
+      if(this.isCalc) {
+         return { kind: "calcField", assembly: this.assemblyName, name: this.formulaName };
+      }
+
+      if(this.isCondition) {
+         return { kind: this.isVSContext ? "assemblyMain" : "worksheetCondition",
+                  assembly: this.assemblyName };
+      }
+
+      return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
+               assembly: this.assemblyName, name: this.formulaName };
    }
 
    @Input()

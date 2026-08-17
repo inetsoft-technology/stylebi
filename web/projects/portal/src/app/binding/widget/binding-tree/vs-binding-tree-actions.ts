@@ -283,6 +283,8 @@ export class VSBindingTreeActions extends ContextMenuActions {
          calcDialog.formulaType = FormulaType.SCRIPT;
          calcDialog.expression = "";
          calcDialog.vsId = this.runtimeId;
+         calcDialog.runtimeId = this.runtimeId;
+         calcDialog.socketConnection = this.socket;
          calcDialog.availableFields = <DataRef[]> fieldsInfo.aggregateFields;
          calcDialog.columns = <DataRef[]> fieldsInfo.columnFields;
          calcDialog.aggregates = <DataRef[]> fieldsInfo.aggregateFields;
@@ -332,6 +334,8 @@ export class VSBindingTreeActions extends ContextMenuActions {
             this.currentEntry.properties["dtype"] : "double";
          dialog.createCalcField = true;
          dialog.vsId = this.runtimeId;
+         dialog.runtimeId = this.runtimeId;
+         dialog.socketConnection = this.socket;
          dialog.availableFields = <DataRef[]> fieldsInfo.aggregateFields;
          dialog.userAggNames = <string[]> fieldsInfo.userAggNames;
          dialog.columns = <DataRef[]> fieldsInfo.columnFields;
