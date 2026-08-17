@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ChangeChartRefService;
 import inetsoft.web.binding.controller.ChangeChartTypeService;
+import inetsoft.web.binding.controller.ChangeSeparateStatusService;
 import inetsoft.web.binding.controller.SwapXYBindingService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
@@ -54,7 +55,8 @@ class ChartBindingServiceTest {
       existing.setChartType(42);
       ChangeChartRefService refs = mock(ChangeChartRefService.class);
 
-      harness(existing, refs, mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class))
+      harness(existing, refs, mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+              mock(ChangeSeparateStatusService.class))
          .setShelf("tok", principal(), "Chart1", "x",
                    List.of(new FieldRef("Region", "dimension", null, null, null)), "");
 
@@ -74,7 +76,8 @@ class ChartBindingServiceTest {
       Map<String, Object> before = ChartBindingFields.snapshotAesthetics(existing);
       ChangeChartRefService refs = mock(ChangeChartRefService.class);
 
-      harness(existing, refs, mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class))
+      harness(existing, refs, mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+              mock(ChangeSeparateStatusService.class))
          .setShelf("tok", principal(), "Chart1", "y",
                    List.of(new FieldRef("Sales", "measure", "Sum", null, null)), "");
 
@@ -91,7 +94,7 @@ class ChartBindingServiceTest {
       ChangeChartTypeService types = mock(ChangeChartTypeService.class);
 
       harness(new ChartBindingModel(), mock(ChangeChartRefService.class), types,
-              mock(SwapXYBindingService.class))
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
          .setChartType("tok", principal(), "Chart1", 3, null, null, null, "");
 
       ArgumentCaptor<ChangeChartTypeEvent> captor =
@@ -107,7 +110,7 @@ class ChartBindingServiceTest {
       SwapXYBindingService swap = mock(SwapXYBindingService.class);
 
       harness(new ChartBindingModel(), mock(ChangeChartRefService.class),
-              mock(ChangeChartTypeService.class), swap)
+              mock(ChangeChartTypeService.class), swap, mock(ChangeSeparateStatusService.class))
          .swapAxes("tok", principal(), "Chart1", "");
 
       ArgumentCaptor<ChangeSeparateStatusEvent> captor =
@@ -117,12 +120,90 @@ class ChartBindingServiceTest {
       assertEquals("Chart1", captor.getValue().getName());
    }
 
+   /**
+    * set_chart_type's own separate parameter is a silent no-op unless multi also changes in the
+    * same call (ChangeChartTypeService.handleMulti gates on omulti != nmulti). This tool calls
+    * ChangeSeparateStatusService directly instead, and reads the chart's current multi state so
+    * the caller does not have to restate it.
+    */
+   @Test
+   void setSeparateStatusCallsTheDedicatedEndpointWithTheCurrentMultiState() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      inetsoft.uql.viewsheet.graph.VSChartInfo chartInfo =
+         mock(inetsoft.uql.viewsheet.graph.VSChartInfo.class);
+      when(chart.getVSChartInfo()).thenReturn(chartInfo);
+      when(chartInfo.isMultiStyles()).thenReturn(true);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                          separateStatus)
+         .setSeparateStatus("tok", principal(), "Chart1", true, "");
+
+      ArgumentCaptor<ChangeSeparateStatusEvent> captor =
+         ArgumentCaptor.forClass(ChangeSeparateStatusEvent.class);
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), captor.capture(),
+                                                  any(Principal.class), any(), anyString());
+      assertEquals("Chart1", captor.getValue().getName());
+      assertTrue(captor.getValue().isMulti(),
+                 "must read the chart's own current multi state, not invent one");
+      assertTrue(captor.getValue().isSeparate());
+   }
+
+   /**
+    * ChangeSeparateStatusService forces separated=true unconditionally for these types
+    * (event.isSeparate() is OR'd with the type checks, so it can only push the result toward
+    * true, never back to false). Reporting "merged" for a chart that stayed separated would be
+    * the exact plausible-but-wrong-result shape set_chart_type's own 'separate' gap had —
+    * refuse before calling the endpoint at all rather than let that happen.
+    */
+   @Test
+   void refusesToMergeAChartTypeThatIsAlwaysSeparated() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      inetsoft.uql.viewsheet.graph.VSChartInfo chartInfo =
+         mock(inetsoft.uql.viewsheet.graph.VSChartInfo.class);
+      when(chart.getVSChartInfo()).thenReturn(chartInfo);
+      when(chartInfo.getChartType())
+         .thenReturn(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_TREEMAP);
+
+      ChartBindingService service = harnessWithAssembly(chart, new ChartBindingModel(),
+         mock(ChangeChartRefService.class), mock(ChangeChartTypeService.class),
+         mock(SwapXYBindingService.class), separateStatus);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setSeparateStatus("tok", principal(), "Chart1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("treemap"));
+      verifyNoInteractions(separateStatus);
+   }
+
+   @Test
+   void allowsRequestingSeparateOnAChartTypeThatIsAlwaysSeparated() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      inetsoft.uql.viewsheet.graph.VSChartInfo chartInfo =
+         mock(inetsoft.uql.viewsheet.graph.VSChartInfo.class);
+      when(chart.getVSChartInfo()).thenReturn(chartInfo);
+      when(chartInfo.getChartType())
+         .thenReturn(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_MEKKO);
+
+      // separate: true agrees with what the server would force anyway, so this must succeed --
+      // only the contradicting request (separate: false) is refused.
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class), separateStatus)
+         .setSeparateStatus("tok", principal(), "Chart1", true, "");
+
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), any(), any(Principal.class), any(),
+                                                  anyString());
+   }
+
    @Test
    void refusesANonChartAssemblyNamingIt() {
       ChartBindingService service = harnessWithAssembly(
          mock(TextVSAssembly.class), new ChartBindingModel(),
          mock(ChangeChartRefService.class), mock(ChangeChartTypeService.class),
-         mock(SwapXYBindingService.class));
+         mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class));
 
       Exception thrown = assertThrows(
          Exception.class,
@@ -133,9 +214,11 @@ class ChartBindingServiceTest {
    private static ChartBindingService harness(ChartBindingModel model,
                                               ChangeChartRefService refs,
                                               ChangeChartTypeService types,
-                                              SwapXYBindingService swap)
+                                              SwapXYBindingService swap,
+                                              ChangeSeparateStatusService separateStatus)
    {
-      return harnessWithAssembly(mock(ChartVSAssembly.class), model, refs, types, swap);
+      return harnessWithAssembly(mock(ChartVSAssembly.class), model, refs, types, swap,
+                                 separateStatus);
    }
 
    /**
@@ -146,7 +229,8 @@ class ChartBindingServiceTest {
                                                           ChartBindingModel model,
                                                           ChangeChartRefService refs,
                                                           ChangeChartTypeService types,
-                                                          SwapXYBindingService swap)
+                                                          SwapXYBindingService swap,
+                                                          ChangeSeparateStatusService separateStatus)
    {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
@@ -169,7 +253,7 @@ class ChartBindingServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
 
-      return new ChartBindingService(sessions, binding, refs, types, swap);
+      return new ChartBindingService(sessions, binding, refs, types, swap, separateStatus);
    }
 
    private static Principal principal() {
