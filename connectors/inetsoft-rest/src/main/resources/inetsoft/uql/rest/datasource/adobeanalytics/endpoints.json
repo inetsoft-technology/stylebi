@@ -1,84 +1,100 @@
 {
-    "endpoints": [
-        {
-            "name": "Caluculated Metrics",
-            "paged": false,
-            "suffix": "/calculatedmetrics?expansion={Additional Fields?}&rsids={RSIDs?}&ownerId={Owner ID?}&filterByIds={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tage Names?}&includeType={Include Type?:all|shared|templates}"
-        },
-        {
-            "name": "Calculated Metric",
-            "paged": false,
-            "suffix": "/calculatedmetrics/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}"
-        },
-        {
-            "name": "Calculated Metric Functions",
-            "paged": false,
-            "suffix": "/calculatedmetrics/functions?locale={Locale?:en_US}"
-        },
-        {
-            "name": "Calculated Metric Function",
-            "paged": false,
-            "suffix": "/calculatedmetrics/functions/{ID}?locale={Locale?:en_US}"
-        },
-        {
-            "name": "Report Suites",
-            "paged": false,
-            "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains{RSID Contains?}"
-        },
-        {
-            "name": "Report Suite",
-            "paged": false,
-            "suffix": "/collections/suites/{RSID}?expansion={Additional Fields?}"
-        },
-        {
-            "name": "Dateranges",
-            "paged": false,
-            "suffix": "/dateranges?expansion={Additional Fields?}&locale={Locale?:en_US}&filterByIds={Daterange IDs}&includeType={Include Type?:all|shared|templates}"
-        },
-        {
-            "name": "Daterange",
-            "paged": false,
-            "suffix": "/dateranges/{Daterange ID}?expansion={Additional Fields?}&locale={Locale?:en_US}"
-        },
-        {
-            "name": "Dimensions",
-            "paged": false,
-            "suffix": "/dimensions?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}&reportable={Reportable?}&classifiable={Classifiable?}"
-        },
-        {
-            "name": "Dimension",
-            "paged": false,
-            "suffix": "/dimensions/{Dimension ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}"
-        },
-        {
-            "name": "Metrics",
-            "paged": false,
-            "suffix": "/metrics?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}"
-        },
-        {
-            "name": "Metric",
-            "paged": false,
-            "suffix": "/metrics/{ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}"
-        },
-        {
-            "name": "Segments",
-            "paged": false,
-            "suffix": "/segments?expansion={Additional Fields?}&rsids={RSIDs?}&segmentFilter={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tag Names?}&filterByPublishedSegments={Filter by Published Segments}&includeType={Include Type?:all|shared|templates}"
-        },
-        {
-            "name": "Segment",
-            "paged": false,
-            "suffix": "/segments/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}"
-        },
-        {
-            "name": "Users",
-            "paged": false,
-            "suffix": "/users"
-        },
-        {
-            "name": "Current User",
-            "paged": false,
-            "suffix": "/users/me"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Caluculated Metrics",
+      "paged": false,
+      "suffix": "/calculatedmetrics?expansion={Additional Fields?}&rsids={RSIDs?}&ownerId={Owner ID?}&filterByIds={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tage Names?}&includeType={Include Type?:all|shared|templates}",
+      "description": "The calculated metrics defined on the account -- derived measures built from other metrics, such as revenue per visit or a custom conversion rate. Each carries its name, the report suites it applies to, its owner and its formula. THE FORMULA IS THE POINT: a calculated metric is where the business's own definition of a KPI is written down, and the name alone rarely conveys it."
+    },
+    {
+      "name": "Calculated Metric",
+      "paged": false,
+      "suffix": "/calculatedmetrics/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}",
+      "description": "One calculated metric by id, with its full definition."
+    },
+    {
+      "name": "Calculated Metric Functions",
+      "paged": false,
+      "suffix": "/calculatedmetrics/functions?locale={Locale?:en_US}",
+      "description": "The functions available for building calculated metrics, with their parameters. Reference data for reading or constructing a formula."
+    },
+    {
+      "name": "Calculated Metric Function",
+      "paged": false,
+      "suffix": "/calculatedmetrics/functions/{ID}?locale={Locale?:en_US}",
+      "description": "One calculated metric function by id."
+    },
+    {
+      "name": "Report Suites",
+      "paged": false,
+      "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains{RSID Contains?}",
+      "description": "The report suites the account can reach, each with its id, name, timezone, currency and calendar type. A report suite is the container all Adobe Analytics data belongs to, and every metadata endpoint here needs an RSID -- so this is the first request. The TIMEZONE and CALENDAR TYPE matter for any period comparison, since suites can be configured on a retail rather than a Gregorian calendar."
+    },
+    {
+      "name": "Report Suite",
+      "paged": false,
+      "suffix": "/collections/suites/{RSID}?expansion={Additional Fields?}",
+      "description": "One report suite by RSID, with its settings."
+    },
+    {
+      "name": "Dateranges",
+      "paged": false,
+      "suffix": "/dateranges?expansion={Additional Fields?}&locale={Locale?:en_US}&filterByIds={Daterange IDs}&includeType={Include Type?:all|shared|templates}",
+      "description": "The saved date ranges, with name and definition -- rolling windows such as last 30 days as well as fixed periods. Requires nothing but the account. Useful because a report referencing one of these is only interpretable through it."
+    },
+    {
+      "name": "Daterange",
+      "paged": false,
+      "suffix": "/dateranges/{Daterange ID}?expansion={Additional Fields?}&locale={Locale?:en_US}",
+      "description": "One saved date range by id."
+    },
+    {
+      "name": "Dimensions",
+      "paged": false,
+      "suffix": "/dimensions?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}&reportable={Reportable?}&classifiable={Classifiable?}",
+      "description": "The dimensions available in one report suite -- page, referrer, eVars, props, marketing channel and the rest -- each with its id, display name, type, category and whether it supports segmentation or pathing. Requires an RSID. THE DECODER FOR ADOBE'S FIELD IDS: a dimension is referenced in queries as something like variables/evar12, and this is the only place that resolves it to the name the business gave it. eVar and prop names are entirely account-specific, so this table is not optional."
+    },
+    {
+      "name": "Dimension",
+      "paged": false,
+      "suffix": "/dimensions/{Dimension ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}",
+      "description": "One dimension by id. Requires the RSID."
+    },
+    {
+      "name": "Metrics",
+      "paged": false,
+      "suffix": "/metrics?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}",
+      "description": "The metrics available in one report suite -- occurrences, visits, visitors, revenue, custom events -- each with id, name, type, and the polarity that says whether higher is better. Requires an RSID. Custom events are named per account in the same way eVars are, so metrics/event7 means nothing without this."
+    },
+    {
+      "name": "Metric",
+      "paged": false,
+      "suffix": "/metrics/{ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}",
+      "description": "One metric by id. Requires the RSID."
+    },
+    {
+      "name": "Segments",
+      "paged": false,
+      "suffix": "/segments?expansion={Additional Fields?}&rsids={RSIDs?}&segmentFilter={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tag Names?}&filterByPublishedSegments={Filter by Published Segments}&includeType={Include Type?:all|shared|templates}",
+      "description": "The saved segments defined on the account, with name, description, the report suite each belongs to, its definition and owner. Segments are the audience filters the business has already agreed on, so their definitions carry the organisation's own meaning of terms like 'engaged visitor' -- worth reading before inventing an equivalent."
+    },
+    {
+      "name": "Segment",
+      "paged": false,
+      "suffix": "/segments/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}",
+      "description": "One segment by id, with its full definition."
+    },
+    {
+      "name": "Users",
+      "paged": false,
+      "suffix": "/users",
+      "description": "The users of the Analytics account, with name, email and login. Administrative."
+    },
+    {
+      "name": "Current User",
+      "paged": false,
+      "suffix": "/users/me",
+      "description": "The account the credentials belong to, with the report suites it can reach. One record, and the explanation for why a suite is missing from the list."
+    }
+  ]
 }

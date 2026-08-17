@@ -15,52 +15,62 @@
           "key": "Name",
           "parameterName": "Container"
         }
-      ]
+      ],
+      "description": "The containers in the storage account, each with its name, last-modified time, lease state and public access level. The top level of blob storage and the starting point, since everything else needs a container name. Note this returns XML rather than JSON, as does every endpoint in this connector -- Azure's Blob REST API is XML-only."
     },
     {
       "name": "Blob Service Properties",
       "paged": false,
-      "suffix": "/?restype=service&comp=properties&timeout={Timeout?}"
+      "suffix": "/?restype=service&comp=properties&timeout={Timeout?}",
+      "description": "The account's blob service settings: logging, metrics, CORS rules, the default service version and the soft-delete retention policy. The soft-delete policy is worth reading alongside any storage figure, since deleted blobs continue to be billed for its duration."
     },
     {
       "name": "Account",
       "paged": false,
-      "suffix": "/?restype=account&comp=properties"
+      "suffix": "/?restype=account&comp=properties",
+      "description": "The storage account's kind and SKU. One record, and the context for everything else -- the SKU determines which tiers and features are available at all."
     },
     {
       "name": "Container Properties",
       "paged": false,
-      "suffix": "/{Container}?restype=container&timeout={Timeout?}"
+      "suffix": "/{Container}?restype=container&timeout={Timeout?}",
+      "description": "One container's properties: last-modified, ETag, lease status and public access. Requires a container name."
     },
     {
       "name": "Container Metadata",
       "paged": false,
-      "suffix": "/{Container}?restype=container&comp=metadata&timeout={Timeout?}"
+      "suffix": "/{Container}?restype=container&comp=metadata&timeout={Timeout?}",
+      "description": "The user-defined name-value metadata on one container. Requires a container name. Azure defines no meaning for these, so organisations use them to record things the service has no field for -- worth checking before concluding some attribute is unavailable."
     },
     {
       "name": "Container ACL",
       "paged": false,
-      "suffix": "/{Container}?restype=container&comp=acl&timeout={Timeout?}"
+      "suffix": "/{Container}?restype=container&comp=acl&timeout={Timeout?}",
+      "description": "The public access level of one container and its stored access policies, with their permissions and expiry. Requires a container name. THE SECURITY-REVIEW ENDPOINT: a container set to blob or container access is readable without credentials, which is the single most consequential setting in a storage account."
     },
     {
       "name": "Blobs",
       "paged": true,
-      "suffix": "/{Container}?restype=container&comp=list&prefix={Prefix?}&delimiter={Delimiter?}&include={Include?:snapshots|metadata|uncommittedblobs|copy|deleted}&timeout={Timeout?}"
+      "suffix": "/{Container}?restype=container&comp=list&prefix={Prefix?}&delimiter={Delimiter?}&include={Include?:snapshots|metadata|uncommittedblobs|copy|deleted}&timeout={Timeout?}",
+      "description": "The blobs inside one container, with name, size, content type, last-modified, ETag, blob type, access tier and lease state. Requires a container name. Storage and lifecycle questions are answered here: size and access tier together are what determine cost. THE DELIMITER PARAMETER IS WHAT MAKES IT LOOK LIKE FOLDERS -- blob storage is flat, and a delimiter of / groups by prefix to simulate a directory tree; without it every blob in the container comes back regardless of depth. Snapshots and versions are excluded unless asked for by the include parameter, so a size total omits them by default even though they are billed."
     },
     {
       "name": "Blob Metadata",
       "paged": false,
-      "suffix": "/{Container}/{Blob}?comp=metadata&snapshot={Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&timeout={Timeout?}"
+      "suffix": "/{Container}/{Blob}?comp=metadata&snapshot={Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&timeout={Timeout?}",
+      "description": "The user-defined metadata on one blob. Requires the container and blob names."
     },
     {
       "name": "Block List",
       "paged": false,
-      "suffix": "/{Container}/{Blob}?comp=blocklist&snapshot={Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&blocklisttype={Blocklist Type:committed|uncommitted|all}&timeout={Timeout?}"
+      "suffix": "/{Container}/{Blob}?comp=blocklist&snapshot={Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&blocklisttype={Blocklist Type:committed|uncommitted|all}&timeout={Timeout?}",
+      "description": "The blocks making up one block blob, committed and uncommitted, with their sizes. Requires the container and blob names. UNCOMMITTED BLOCKS ARE BILLED BUT INVISIBLE in the blob listing -- an abandoned upload leaves them behind, and this is the only endpoint that shows them, which makes it the explanation for a storage bill that exceeds the sum of the blobs."
     },
     {
       "name": "Page Ranges",
       "paged": false,
-      "suffix": "/{Container}/{Blob}?comp=pagelist&snapshot={Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&prevsnapshot={Previous Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&timeout={Timeout?}"
+      "suffix": "/{Container}/{Blob}?comp=pagelist&snapshot={Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&prevsnapshot={Previous Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&timeout={Timeout?}",
+      "description": "The ranges of one page blob that actually hold data, optionally as the difference against an earlier snapshot. Requires the container and blob names. A page blob is sparse -- virtual machine disks are the usual case -- so its declared size and its billed size differ, and only this endpoint gives the second."
     }
   ]
 }

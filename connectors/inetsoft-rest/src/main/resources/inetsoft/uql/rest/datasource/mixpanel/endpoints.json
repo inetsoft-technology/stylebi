@@ -1,84 +1,100 @@
 {
-    "endpoints": [
-        {
-            "name": "Annotations",
-            "paged": false,
-            "suffix": "/app/projects/{projectId}/annotations?from_date={From Date?:yyyy-mm-dd}&to_date={To Date?:yyyy-mm-dd}"
-        },
-        {
-            "name": "Top Events for Today",
-            "paged": false,
-            "suffix": "query/events/top?project_id={projectId}&workspace_id={workspaceId?}&type={Type:general|unique|average}&limit={Maximum Number of Events?}"
-        },
-        {
-            "name": "Common Event Names",
-            "paged": false,
-            "suffix": "query/events/names?project_id={projectId}&workspace_id={workspaceId?}&type={Type:general|unique|average}&limit={Maximum Number of Events?}"
-        },
-        {
-            "name": "Event Properties",
-            "paged": false,
-            "suffix": "/query/events/properties?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&name={Property Name}&type={Type:general|unique|average}&unit={Unit:minute|hour|day|week|month}&values={Values?:[\"value1\",\"value2\"...]}&interval={Interval?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&format=json&limit={Maximum Number of Values?}"
-        },
-        {
-            "name": "Top Property Names for Event",
-            "paged": false,
-            "suffix": "query/events/properties/top?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&limit={Maximum Number of Properties?}"
-        },
-        {
-            "name": "Top Values for Property",
-            "paged": false,
-            "suffix": "query/events/properties/values?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&name={Property Name}&limit={Maximum Number of Values?}"
-        },
-        {
-            "name": "Funnel",
-            "paged": false,
-            "suffix": "/query/funnels?project_id={projectId}&workspace_id={workspaceId?}&funnel_id={Funnel ID}&unit={Unit?:day|week|month}&interval={Interval?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&length={Length?}&length_unit={Length Unit?:second|minute|hour|day}&on={On?}&where={Where?}&limit={Maximum Number of Values?}"
-        },
-        {
-            "name": "Funnels",
-            "paged": false,
-            "suffix": "/query/funnels/list?project_id={projectId}&workspace_id={workspaceId?}"
-        },
-        {
-            "name": "Segmentation Event Data",
-            "paged": false,
-            "suffix": "/query/segmentation?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&type={Type?:general|unique|average}&unit={Unit?:minute|hour|day|month}&interval={Interval?}&on={On?}&where={Where?}&format=json&limit={Maximum Number of Values?}"
-        },
-        {
-            "name": "Numeric Event Data",
-            "paged": false,
-            "suffix": "/query/segmentation/numeric?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&type={Type?:general|unique|average}&unit={Unit?:hour|day}&where={Where?}"
-        },
-        {
-            "name": "Sum",
-            "paged": false,
-            "suffix": "/query/segmentation/sum?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&unit={Unit?:hour|day}&where={Where?}"
-        },
-        {
-            "name": "Average",
-            "paged": false,
-            "suffix": "/query/segmentation/average?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&unit={Unit?:hour|day}&where={Where?}"
-        },
-        {
-            "name": "Retention",
-            "paged": false,
-            "suffix": "/query/retention?project_id={projectId}&workspace_id={workspaceId?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&retention_type={Retention Type?:birth|compounded}&born_event={Born Event?}&event={Event Name?}&where={Where?}&interval={Interval?}&interval_count={Interval Count?}&unit={Unit?:day|week|month}&on={On?}&limit={Maximum Number of Values?}"
-        },
-        {
-            "name": "Addiction",
-            "paged": false,
-            "suffix": "/query/retention/addiction?project_id={projectId}&workspace_id={workspaceId?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&unit={Unit:day|week|month}&addiction_unit={Addiction Unit:hour|day}&event={Event Name?}&on={On?}&where={Where?}&limit={Maximum Number of Values?}"
-        },
-        {
-            "name": "Engage",
-            "paged": true,
-            "suffix": "/query/engage?project_id={projectId}&workspace_id={workspaceId?}&distinct_id={Distinct ID?}&distinct_ids={Distinct Ids?:[\"id1\",\"id2\",...]}&where={Where?}&output_properties={Output Properties?:[\"prop1\",\"prop2\",...]}&session_id={Session ID?}&behaviors={Behaviors?}&as_of_timestamp={As of Timestamp?:Unix timestamp}&filter_by_cohort={Filter By Cohort?}&include_all_users={Include All Users?:True|False}"
-        },
-        {
-            "name": "Scheduled Pipelines",
-            "paged": false,
-            "suffix": "/2.0/nessie/pipeline/jobs?project_id={projectId}"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Annotations",
+      "paged": false,
+      "suffix": "/app/projects/{projectId}/annotations?from_date={From Date?:yyyy-mm-dd}&to_date={To Date?:yyyy-mm-dd}",
+      "description": "The dated notes recorded on the project -- releases, campaigns, incidents. Requires the project id and a date range. The only place the business context behind a jump in the numbers is written down."
+    },
+    {
+      "name": "Top Events for Today",
+      "paged": false,
+      "suffix": "query/events/top?project_id={projectId}&workspace_id={workspaceId?}&type={Type:general|unique|average}&limit={Maximum Number of Events?}",
+      "description": "Today's most frequent events with their counts. A quick pulse rather than an analysis; the date range cannot be moved."
+    },
+    {
+      "name": "Common Event Names",
+      "paged": false,
+      "suffix": "query/events/names?project_id={projectId}&workspace_id={workspaceId?}&type={Type:general|unique|average}&limit={Maximum Number of Events?}",
+      "description": "The event names most frequently seen, by volume. The vocabulary of the project -- event names are defined by whatever the application sends, so this is the only way to learn what exists before querying it."
+    },
+    {
+      "name": "Event Properties",
+      "paged": false,
+      "suffix": "/query/events/properties?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&name={Property Name}&type={Type:general|unique|average}&unit={Unit:minute|hour|day|week|month}&values={Values?:[\"value1\",\"value2\"...]}&interval={Interval?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&format=json&limit={Maximum Number of Values?}",
+      "description": "The properties recorded on one event. Requires the event name. The decoder for what can be segmented on -- properties are application-defined, so nothing about them is knowable in advance."
+    },
+    {
+      "name": "Top Property Names for Event",
+      "paged": false,
+      "suffix": "query/events/properties/top?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&limit={Maximum Number of Properties?}",
+      "description": "The most common property names on one event, by volume. The shorter, more useful version of the full property list on a busy event."
+    },
+    {
+      "name": "Top Values for Property",
+      "paged": false,
+      "suffix": "query/events/properties/values?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&name={Property Name}&limit={Maximum Number of Values?}",
+      "description": "The most common values of one property on one event. Requires the event and property names. Use it to see the actual vocabulary a property takes before filtering on it, since free-text properties often hold far more variation than expected."
+    },
+    {
+      "name": "Funnel",
+      "paged": false,
+      "suffix": "/query/funnels?project_id={projectId}&workspace_id={workspaceId?}&funnel_id={Funnel ID}&unit={Unit?:day|week|month}&interval={Interval?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&length={Length?}&length_unit={Length Unit?:second|minute|hour|day}&on={On?}&where={Where?}&limit={Maximum Number of Values?}",
+      "description": "The conversion of one saved funnel over a date range, step by step, with the count reaching each step and the overall conversion rate. Requires the project id and a funnel id. FUNNELS MUST BE DEFINED IN MIXPANEL FIRST -- this endpoint evaluates a saved definition and cannot construct one, so the steps and the conversion window are whatever was configured there."
+    },
+    {
+      "name": "Funnels",
+      "paged": false,
+      "suffix": "/query/funnels/list?project_id={projectId}&workspace_id={workspaceId?}",
+      "description": "The saved funnels on the project, with their ids and names. The lookup that makes the funnel endpoint usable, and a fair guide to the conversions the business considers worth measuring."
+    },
+    {
+      "name": "Segmentation Event Data",
+      "paged": false,
+      "suffix": "/query/segmentation?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&type={Type?:general|unique|average}&unit={Unit?:minute|hour|day|month}&interval={Interval?}&on={On?}&where={Where?}&format=json&limit={Maximum Number of Values?}",
+      "description": "Counts of one event over a date range, optionally split by a property and filtered by an expression. Requires the project id, the event name and a date range. THE WORKHORSE: most questions of the form 'how many times did X happen, broken down by Y' are this endpoint. Note the unit parameter chooses hour, day, week or month buckets, and Mixpanel returns a nested object keyed by segment and then by date rather than flat rows, so it needs reshaping."
+    },
+    {
+      "name": "Numeric Event Data",
+      "paged": false,
+      "suffix": "/query/segmentation/numeric?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&type={Type?:general|unique|average}&unit={Unit?:hour|day}&where={Where?}",
+      "description": "The same segmentation with a NUMERIC property bucketed into ranges rather than grouped by value. Requires a numeric property. Use it for distributions -- order values, session lengths -- where grouping by exact value would produce thousands of segments."
+    },
+    {
+      "name": "Sum",
+      "paged": false,
+      "suffix": "/query/segmentation/sum?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&unit={Unit?:hour|day}&where={Where?}",
+      "description": "The sum of a numeric property across one event over a range. Requires the project, event, property and dates. Revenue and quantity totals come from here; the plain segmentation endpoint counts occurrences and cannot sum a value."
+    },
+    {
+      "name": "Average",
+      "paged": false,
+      "suffix": "/query/segmentation/average?project_id={projectId}&workspace_id={workspaceId?}&event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&unit={Unit?:hour|day}&where={Where?}",
+      "description": "The average of a numeric property across one event over a range. Same inputs as Sum."
+    },
+    {
+      "name": "Retention",
+      "paged": false,
+      "suffix": "/query/retention?project_id={projectId}&workspace_id={workspaceId?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&retention_type={Retention Type?:birth|compounded}&born_event={Born Event?}&event={Event Name?}&where={Where?}&interval={Interval?}&interval_count={Interval Count?}&unit={Unit?:day|week|month}&on={On?}&limit={Maximum Number of Values?}",
+      "description": "Cohort retention: of the users who did a first event in each period, how many returned to do a second event in the periods after. Requires the project, the born event, the return event and a date range. The standard retention grid, computed by Mixpanel rather than reconstructed -- which would otherwise require the full event stream."
+    },
+    {
+      "name": "Addiction",
+      "paged": false,
+      "suffix": "/query/retention/addiction?project_id={projectId}&workspace_id={workspaceId?}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&unit={Unit:day|week|month}&addiction_unit={Addiction Unit:hour|day}&event={Event Name?}&on={On?}&where={Where?}&limit={Maximum Number of Values?}",
+      "description": "Frequency retention: how MANY of the periods in a window each cohort was active in, rather than whether they returned at all. Requires the same inputs. Answers engagement depth where Retention answers survival."
+    },
+    {
+      "name": "Engage",
+      "paged": true,
+      "suffix": "/query/engage?project_id={projectId}&workspace_id={workspaceId?}&distinct_id={Distinct ID?}&distinct_ids={Distinct Ids?:[\"id1\",\"id2\",...]}&where={Where?}&output_properties={Output Properties?:[\"prop1\",\"prop2\",...]}&session_id={Session ID?}&behaviors={Behaviors?}&as_of_timestamp={As of Timestamp?:Unix timestamp}&filter_by_cohort={Filter By Cohort?}&include_all_users={Include All Users?:True|False}",
+      "description": "User profiles, filtered by an expression over profile properties. Requires the project id. THE USER TABLE rather than the event stream: profiles carry whatever properties the application set on them, so their shape is entirely account-specific. This is where a per-user attribute lives; events carry only what was passed at the time."
+    },
+    {
+      "name": "Scheduled Pipelines",
+      "paged": false,
+      "suffix": "/2.0/nessie/pipeline/jobs?project_id={projectId}",
+      "description": "The status of scheduled data export pipelines on the project. Operational: pipelines are how a full event history reaches a warehouse, since the query endpoints aggregate rather than dump."
+    }
+  ]
 }

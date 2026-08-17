@@ -4,19 +4,22 @@
       "post": "true",
       "name": "Query",
       "bodyTemplate": "{\n  \"startDate\":\"YYYY-MM-DD\",\n  \"endDate\":\"YYYY-MM-DD\"\n}",
-      "suffix": "/v3/sites/{Site URL}/searchAnalytics/query"
+      "suffix": "/v3/sites/{Site URL}/searchAnalytics/query",
+      "description": "Search performance for one verified site: clicks, impressions, CTR and average position, broken down by whatever dimensions the request asks for -- query, page, country, device, searchAppearance, date. Sent as a POST with a body, so the date range and dimensions travel in the body rather than the URL. FOUR THINGS SHAPE THE ANSWER. Data is delayed by two to three days, so the most recent dates are missing rather than zero. ROWS ARE CAPPED at 25,000 per request and the API drops the long tail rather than paging it fully, so totals built from a query breakdown fall short of the site totals. Google WITHHOLDS rare queries for privacy, which is the main reason those two figures disagree. And average position is an average of averages, so it cannot be re-aggregated across rows."
     },
     {
       "post": "false",
       "name": "Sitemaps",
-      "bodyTemplate": null, 
-      "suffix": "/v3/sites/{Site URL}/sitemaps"
+      "bodyTemplate": null,
+      "suffix": "/v3/sites/{Site URL}/sitemaps",
+      "description": "The sitemaps submitted for one site, each with the submission and last-download dates, whether it is an index, warning and error counts, and per-content-type counts of URLs submitted and indexed. Requires a site URL. The submitted-versus-indexed gap is the useful part -- it is the direct measure of how much of a site Google actually took."
     },
     {
       "post": "false",
       "name": "Sitemap",
       "bodyTemplate": null,
-      "suffix": "/v3/sites/{Site URL}/sitemaps/{Feedpath}"
+      "suffix": "/v3/sites/{Site URL}/sitemaps/{Feedpath}",
+      "description": "One sitemap by its full URL. Requires the site URL and the sitemap path."
     },
     {
       "post": "false",
@@ -33,19 +36,22 @@
           "key": "siteUrl",
           "parameterName": "Site URL"
         }
-      ]
+      ],
+      "description": "The properties the authenticated account has access to in Search Console, each with its URL and the permission level held. The starting point: every other endpoint here needs a site URL, and it must be given in exactly the form listed here, including the protocol and trailing slash, or the request fails."
     },
     {
       "post": "false",
       "name": "Site",
       "bodyTemplate": null,
-      "suffix": "/v3/sites/{Site URL}"
+      "suffix": "/v3/sites/{Site URL}",
+      "description": "One property by its URL, with the permission level. Requires the site URL exactly as Sites reports it."
     },
     {
       "post": "true",
       "name": "URL Inspection",
       "bodyTemplate": "{\n  \"inspectionUrl\":\"https://www.example.com/mypage\",\n  \"siteUrl\":\"https://www.example.com/\"\n}",
-      "suffix": "/v1/urlInspection/index:inspect"
+      "suffix": "/v1/urlInspection/index:inspect",
+      "description": "What Google knows about ONE URL: whether it is indexed, the canonical it chose, when it was last crawled, the crawling user agent, and the results of the mobile-usability and rich-results checks. Sent as a POST with the URL in the body. Diagnostic rather than analytical -- one URL per request, and heavily rate limited, so it answers why a page is missing rather than surveying a site."
     }
   ]
 }
