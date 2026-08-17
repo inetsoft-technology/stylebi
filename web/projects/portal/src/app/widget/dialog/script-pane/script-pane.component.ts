@@ -34,6 +34,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { DataRef } from "../../../common/data/data-ref";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 import { HelpUrlService } from "../../help-link/help-url.service";
 import { TreeNodeModel } from "../../tree/tree-node-model";
@@ -72,6 +73,12 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    @Input() disabled: boolean = false;
    @Input() showOriginalName: boolean = false;
    @Input() propertyDefinitions: any;
+   /** Runtime identifier of the sheet this script pane is editing. Scopes an
+    *  agent pairing session to this pane's sheet instance. */
+   @Input() runtimeId: string;
+   /** Socket connection for the runtime sheet, used to mint a pane-scoped
+    *  pairing code. */
+   @Input() socketConnection: ViewsheetClientService;
    @Output() expressionChange: EventEmitter<any> = new EventEmitter<any>();
    @Output() analysisResultsChange = new EventEmitter<AnalysisResult[]>();
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();

@@ -46,7 +46,8 @@
         <a ngbNavLink>_#(Script)</a>
         <ng-template ngbNavContent>
           <vsassembly-script-pane [model]="model.vsAssemblyScriptPane"
-            [scriptTreeModel]="scriptTreeModel">
+            [scriptTreeModel]="scriptTreeModel"
+            [runtimeId]="runtimeId" [socketConnection]="socketConnection">
           </vsassembly-script-pane>
         </ng-template>
       </ng-container>

@@ -25,6 +25,7 @@
       [functionTreeEnabled]="!!scriptTreeModel.functionTree"
       [operatorTreeRoot]="scriptTreeModel.operatorTree"
       [scriptDefinitions]="scriptTreeModel.scriptDefinitions"
+      [runtimeId]="runtimeId" [socketConnection]="socketConnection"
       (expressionChange)="onExpressionChange($event)">
     </script-pane>
     <div class="form-row-float-label row mt-2">

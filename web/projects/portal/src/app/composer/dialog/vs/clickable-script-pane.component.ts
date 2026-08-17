@@ -21,6 +21,7 @@ import { ScriptTreeNodeData } from "../../../widget/formula-editor/script-tree-n
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
 import { ClickableScriptPaneModel } from "../../data/vs/clickable-script-pane-model";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -38,6 +39,8 @@ export class ClickableScriptPane implements OnInit{
    @Input() scriptTreeModel: ScriptPaneTreeModel;
    @Input() preventEscape = false;
    @Input() enableEnter = false;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    cursor: { line: number, ch: number };
    onClick: boolean = false;
    expression: string = "";

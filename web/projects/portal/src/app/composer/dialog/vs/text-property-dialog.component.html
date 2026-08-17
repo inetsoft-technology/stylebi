@@ -43,7 +43,8 @@
         <a ngbNavLink>_#(Script)</a>
         <ng-template ngbNavContent>
           <clickable-script-pane [model]="model.clickableScriptPaneModel"
-            [scriptTreeModel]="scriptTreeModel" [preventEscape]="true">
+            [scriptTreeModel]="scriptTreeModel" [preventEscape]="true"
+            [runtimeId]="runtimeId" [socketConnection]="socketConnection">
           </clickable-script-pane>
         </ng-template>
       </ng-container>

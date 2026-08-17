@@ -18,6 +18,7 @@
 import { Component, Input } from "@angular/core";
 import { ScriptTreeNodeData } from "../../formula-editor/script-tree-node-data";
 import { TreeNodeModel } from "../../tree/tree-node-model";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ScriptPaneTreeModel } from "../script-pane/script-pane-tree-model";
 import { ScriptPane } from "../script-pane/script-pane.component";
 import { VSAssemblyScriptPaneModel } from "./vsassembly-script-pane-model";
@@ -34,6 +35,8 @@ export class VSAssemblyScriptPane {
    @Input() view: string;
    @Input() model: VSAssemblyScriptPaneModel;
    @Input() scriptTreeModel: ScriptPaneTreeModel;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    cursor: {line: number, ch: number};
 
    private queryPath(root: TreeNodeModel, label: string, end: string): string {

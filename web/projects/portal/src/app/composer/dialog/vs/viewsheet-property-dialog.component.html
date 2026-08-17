@@ -51,7 +51,8 @@
     }
     <ng-template wDialogTab title="_#(Script)">
       @if (model) {
-        <viewsheet-script-pane [model]="model.vsScriptPane" [scriptTreeModel]="scriptTreeModel">
+        <viewsheet-script-pane [model]="model.vsScriptPane" [scriptTreeModel]="scriptTreeModel"
+          [runtimeId]="viewsheet?.runtimeId" [socketConnection]="viewsheet?.socketConnection">
         </viewsheet-script-pane>
       }
     </ng-template>
