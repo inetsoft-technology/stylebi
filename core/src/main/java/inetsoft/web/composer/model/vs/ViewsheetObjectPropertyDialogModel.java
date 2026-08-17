@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 /**
  * Data transfer object that represents the {@link ViewsheetObjectPropertyDialogModel}
  * for the embedded viewsheet property dialog
@@ -45,6 +47,13 @@ public abstract class ViewsheetObjectPropertyDialogModel {
    public SizePositionPaneModel sizePositionPaneModel() {
       return new SizePositionPaneModel();
    }
+
+   /**
+    * The write revision this model was read at. See {@link inetsoft.report.composition.
+    * RuntimeViewsheet#getWriteRevision()} and 2026-08-17-write-coordination-implementation.md.
+    */
+   @Nullable
+   public abstract Integer revision();
 
    public static Builder builder() {
       return new Builder();

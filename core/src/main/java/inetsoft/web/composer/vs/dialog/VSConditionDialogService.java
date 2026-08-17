@@ -39,6 +39,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Catalog;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -50,6 +51,7 @@ import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.ws.assembly.ConditionTrapModel;
 import inetsoft.web.composer.ws.assembly.ConditionTrapValidator;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
 
@@ -93,6 +95,7 @@ public class VSConditionDialogService {
       }
 
       VSConditionDialogModel model = new VSConditionDialogModel();
+      model.setRevision(rvs.getWriteRevision());
 
       if(!(vsAssembly instanceof DynamicBindableVSAssembly)) {
          return model;
@@ -173,6 +176,20 @@ public class VSConditionDialogService {
                         Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      // Write coordination: refuse a stale commit rather than silently applying it over
+      // whatever changed since this dialog's model was read. See
+      // 2026-08-17-write-coordination-design.md / -implementation.md.
+      Integer expectedRevision = model.getRevision();
+
+      if(expectedRevision != null && expectedRevision != rvs.getWriteRevision()) {
+         MessageCommand command = new MessageCommand();
+         command.setMessage(Catalog.getCatalog().getString("common.writeConflict", assemblyName));
+         command.setType(MessageCommand.Type.ERROR);
+         commandDispatcher.sendCommand(command);
+         return null;
+      }
+
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
@@ -205,6 +222,7 @@ public class VSConditionDialogService {
 
          this.vsAssemblyInfoHandler.apply(rvs, info, viewsheetService, false, false,
                                           true, false, commandDispatcher, null, null, linkUri, null);
+         rvs.bumpWriteRevision();
       }
       finally {
          box.get().unlockWrite();

@@ -134,6 +134,14 @@ public class ScriptEditService {
 
       mutation.accept(rvs);
 
+      // Write coordination: this is a direct live write, not routed through any
+      // XxxPropertyDialogService, so it must bump the shared counter itself -- otherwise a
+      // property dialog with an embedded script pane (Gauge, Chart, ... -- 15 of the 18
+      // registered types) would read this write's revision as unchanged and silently clobber
+      // it on its own later commit. See 2026-08-17-write-coordination-design.md /
+      // -implementation.md.
+      rvs.bumpWriteRevision();
+
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
    }
 

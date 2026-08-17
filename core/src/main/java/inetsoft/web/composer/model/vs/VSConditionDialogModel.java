@@ -50,10 +50,24 @@ public class VSConditionDialogModel implements Serializable {
       this.fields = fields;
    }
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "jsonType")
    @JsonSubTypes({ @JsonSubTypes.Type(value = ConditionModel.class, name = "condition"),
                    @JsonSubTypes.Type(value = JunctionOperatorModel.class, name = "junction") })
    private Object[] conditionList;
    private String tableName;
    private DataRefModel[] fields;
+   private Integer revision;
 }

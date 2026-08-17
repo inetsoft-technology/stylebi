@@ -110,6 +110,7 @@ public class TabPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(tabAssemblyInfo.getScript() == null ?
                                               "" : tabAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -211,13 +212,17 @@ public class TabPropertyDialogService {
       tabAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       tabAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
 
-      this.vsObjectPropertyService.editObjectProperty(
+      boolean applied = this.vsObjectPropertyService.editObjectProperty(
          viewsheet, tabAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
-      VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(viewsheet);
-      PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
-      commandDispatcher.sendCommand(treeCommand);
+      // A refusal means the tab's tree position/labels never changed -- pushing a fresh tree
+      // to the client here would misreport a no-op as applied.
+      if(applied) {
+         VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(viewsheet);
+         PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
+         commandDispatcher.sendCommand(treeCommand);
+      }
 
       return null;
    }

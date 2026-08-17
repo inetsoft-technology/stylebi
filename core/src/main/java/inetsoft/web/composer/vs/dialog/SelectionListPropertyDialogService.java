@@ -173,6 +173,7 @@ public class SelectionListPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(selectionListAssemblyInfo.getScript() == null ?
                                               "" : selectionListAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -271,7 +272,7 @@ public class SelectionListPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, selectionListAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       return null;
    }

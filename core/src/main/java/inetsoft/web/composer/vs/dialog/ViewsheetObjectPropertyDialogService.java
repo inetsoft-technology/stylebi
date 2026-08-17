@@ -87,6 +87,7 @@ public class ViewsheetObjectPropertyDialogService {
       sizePositionPaneModel.setPositions(pos, size);
       sizePositionPaneModel.setContainer(embeddedVs.getContainer() != null);
       model.sizePositionPaneModel(sizePositionPaneModel);
+      model.revision(rvs.getWriteRevision());
 
       return model.build();
    }
@@ -118,7 +119,7 @@ public class ViewsheetObjectPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, info, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, model.revision());
 
       return null;
    }

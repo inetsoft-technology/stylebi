@@ -55,7 +55,7 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class SelectionTreePropertyDialogServiceTest {
    @BeforeEach
-   void setup(){
+   void setup() throws Exception {
       service = new SelectionTreePropertyDialogService(
          vsObjectPropertyService,
          vsOutputService,
@@ -67,6 +67,15 @@ class SelectionTreePropertyDialogServiceTest {
          assemblyInfoHandler,
          dataRefService,
          dataSourceRegistry);
+
+      // Every test below commits successfully -- editObjectProperty returning false would skip
+      // the post-rename selection update these tests exercise. See
+      // VSObjectPropertyServiceTest#refusesAStaleCommitAndNeverResolvesTheAssembly for the
+      // refusal case.
+      when(vsObjectPropertyService.editObjectProperty(
+         any(RuntimeViewsheet.class), any(), any(), any(), any(),
+         nullable(Principal.class), any(CommandDispatcher.class), anyBoolean(),
+         nullable(Integer.class))).thenReturn(true);
    }
 
    @Test
@@ -98,7 +107,9 @@ class SelectionTreePropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       assertNotNull(argument.getValue().getLabelValue());
 
@@ -155,7 +166,9 @@ class SelectionTreePropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       SelectionTreeVSAssemblyInfo result = argument.getValue();
       // switching from dropdown to list: listHeight(6) * cellHeight(20) = 120
@@ -212,7 +225,9 @@ class SelectionTreePropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       SelectionTreeVSAssemblyInfo result = argument.getValue();
       // switching from list to dropdown: size.height = titleHeight = 20
@@ -270,7 +285,9 @@ class SelectionTreePropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       SelectionTreeVSAssemblyInfo result = argument.getValue();
       // dropdown stays dropdown, title height changed to 30

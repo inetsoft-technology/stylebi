@@ -226,6 +226,19 @@ public class HyperlinkDialogModel implements Serializable {
       this.emptyPlotLink = emptyPlotLink;
    }
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
    @Override
    public String toString() {
       return "HyperlinkDialogModel{" +
@@ -272,4 +285,5 @@ public class HyperlinkDialogModel implements Serializable {
    private DataRefModel[] grayedOutFields;
    private boolean titleLink;
    private boolean emptyPlotLink;
+   private Integer revision;
 }

@@ -153,6 +153,19 @@ public class HighlightDialogModel implements Serializable {
       this.text = text;
    }
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
     private int row;
     private int col;
     private String measure;
@@ -169,4 +182,5 @@ public class HighlightDialogModel implements Serializable {
     private List<String> nonsupportBrowseFields;
     private boolean axis;
     private boolean text;
+    private Integer revision;
 }

@@ -211,6 +211,7 @@ public class RangeSliderPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(timeSliderAssemblyInfo.getScript() == null ?
                                               "" : timeSliderAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -289,7 +290,7 @@ public class RangeSliderPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, info, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       return null;
    }
