@@ -23,14 +23,28 @@ package inetsoft.web.wiz.script.model;
  * @param id         opaque and stable; copy it back verbatim rather than composing an identifier
  * @param kind       the wire vocabulary, e.g. {@code assemblyOnClick}
  * @param assembly   the owning assembly, or {@code null} for viewsheet-level kinds
+ * @param name       the calculated field's own name, for {@code calcField}; {@code null} for every
+ *                   kind addressed by (kind, assembly) alone. Populated for exactly one kind today
+ *                   — it exists because a calc field is keyed by (table, field) and cannot be
+ *                   addressed without it.
+ * @param sql        {@code true} when a {@code calcField}'s expression is SQL rather than
+ *                   JavaScript; {@code null} for every kind that is not a calc field. It decides
+ *                   which language an edit must be written in — {@code PRICE - COST} is a valid
+ *                   SQL expression and rewriting it as {@code field['PRICE'] - field['COST']}
+ *                   corrupts the field silently, so the caller must be told before it edits
+ * @param baseOnDetail {@code true} when a {@code calcField} evaluates over detail rows rather than
+ *                   aggregated ones; {@code null} for every kind that is not a calc field. Like
+ *                   {@code sql}, it constrains which expression forms are valid
  * @param label      human-readable; for display and logs only, never an identifier
  * @param runsWhen   when StyleBI executes this script, in plain words
  * @param enableScope the flag {@code enabled} reflects. onInit and onLoad share ONE viewsheet
  *                    flag, and an assembly's main and onClick scripts share ONE assembly flag --
  *                    so disabling "the onClick" also disables that assembly's main script
  * @param hostSheet  {@code viewsheet} or {@code worksheet}
- * @param target     the v1 delimited string, retained so an older plugin still reads this array
+ * @param target     the v1 delimited string, or {@code null} for a kind the legacy grammar never
+ *                   addressed
  */
-public record ScriptTargetInfo(String id, String kind, String assembly, String label,
-                               String runsWhen, boolean hasScript, boolean enabled,
-                               String enableScope, String hostSheet, String target) {}
+public record ScriptTargetInfo(String id, String kind, String assembly, String name, Boolean sql,
+                               Boolean baseOnDetail, String label, String runsWhen,
+                               boolean hasScript, boolean enabled, String enableScope,
+                               String hostSheet, String target) {}

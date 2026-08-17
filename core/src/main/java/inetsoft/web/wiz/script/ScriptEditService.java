@@ -39,14 +39,23 @@ import java.util.function.Predicate;
 @Service
 public class ScriptEditService {
 
-   @Autowired
    public ScriptEditService(SheetSessionService sessions,
                             SheetRuntimeAccess runtimeAccess,
                             SheetAgentBroadcastService broadcast)
    {
+      this(sessions, runtimeAccess, broadcast, new CalcFieldService());
+   }
+
+   @Autowired
+   public ScriptEditService(SheetSessionService sessions,
+                            SheetRuntimeAccess runtimeAccess,
+                            SheetAgentBroadcastService broadcast,
+                            CalcFieldService calcFields)
+   {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
+      this.calcFields = calcFields;
    }
 
    /**
@@ -157,6 +166,7 @@ public class ScriptEditService {
             VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
             ScriptReadService.setOnClick(info, text);
          }
+         case CALC_FIELD -> calcFields.write(vs, target.assemblyName(), target.name(), text);
       }
    }
 
@@ -168,6 +178,10 @@ public class ScriptEditService {
          case VS_INIT, VS_LOAD -> vs.getViewsheetInfo().setScriptEnabled(enabled);
          case ASSEMBLY, ASSEMBLY_ONCLICK ->
             ScriptReadService.requireAssemblyInfo(vs, target.assemblyName()).setScriptEnabled(enabled);
+         // Permanent, unlike write's refusal above: a calculated field has no per-field enable
+         // flag at all, so there is nothing for Task 3 (or anyone) to wire in here later.
+         case CALC_FIELD -> throw new PairingException(
+            "A calculated field has no enable flag; only scripts can be enabled or disabled.");
       }
    }
 
@@ -215,4 +229,5 @@ public class ScriptEditService {
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private final CalcFieldService calcFields;
 }

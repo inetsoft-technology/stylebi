@@ -120,6 +120,12 @@ public class ScriptExecuteService {
       String assemblyName = switch(target.location()) {
          case VS_INIT, VS_LOAD -> null;
          case ASSEMBLY, ASSEMBLY_ONCLICK -> target.assemblyName();
+         // Permanent, not a placeholder: a calculated field is an expression evaluated per row,
+         // not a runnable script, so there is no "wire it up later" for this case the way there
+         // is for write/setEnabled elsewhere.
+         case CALC_FIELD -> throw new PairingException(
+            "A calculated field is an expression evaluated per row, not a runnable script. " +
+            "Use read_script/update_script on it instead.");
       };
 
       try {

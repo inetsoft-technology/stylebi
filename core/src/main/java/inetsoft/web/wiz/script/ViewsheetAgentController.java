@@ -125,16 +125,17 @@ public class ViewsheetAgentController {
                                 @RequestParam(required = false) String id,
                                 @RequestParam(required = false) String kind,
                                 @RequestParam(required = false) String assembly,
+                                @RequestParam(required = false) String name,
                                 Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return readService.read(rvs, target(rvs, id, kind, assembly, target));
+      return readService.read(rvs, target(rvs, id, kind, assembly, name, target));
    }
 
    public record WriteScriptRequest(String target, String id, String kind, String assembly,
-                                    String text) {}
+                                    String name, String text) {}
 
    /** Overwrites the script text at {@code target} and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/script")
@@ -144,11 +145,12 @@ public class ViewsheetAgentController {
    {
       requireEnabled();
       editService.apply(sessionToken, user, rvs -> editService.write(
-         rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.target()), req.text()));
+         rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target()),
+         req.text()));
    }
 
    public record SetEnabledRequest(String target, String id, String kind, String assembly,
-                                   boolean enabled) {}
+                                   String name, boolean enabled) {}
 
    /** Toggles whether the script at {@code target} is enabled and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/enable")
@@ -158,10 +160,12 @@ public class ViewsheetAgentController {
    {
       requireEnabled();
       editService.apply(sessionToken, user, rvs -> editService.setEnabled(
-         rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.target()), req.enabled()));
+         rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target()),
+         req.enabled()));
    }
 
-   public record ExecuteRequest(String target, String id, String kind, String assembly) {}
+   public record ExecuteRequest(String target, String id, String kind, String assembly,
+                                String name) {}
 
    /**
     * Dry-runs the script currently saved at {@code target} (see {@link ScriptExecuteService}).
@@ -179,12 +183,12 @@ public class ViewsheetAgentController {
       requireEnabled();
       return editService.applyOnRuntimeIfChanged(sessionToken, user,
          rvs -> executeService.dryRun(
-            rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.target())),
+            rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target())),
          result -> result.changed() != null && !result.changed().isEmpty());
    }
 
    public record ExecuteLiveRequest(String target, String id, String kind, String assembly,
-                                    boolean confirmed) {}
+                                    String name, boolean confirmed) {}
 
    /** Runs the script currently saved at {@code target} live and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/execute-live")
@@ -195,7 +199,8 @@ public class ViewsheetAgentController {
       requireEnabled();
       return editService.applyOnRuntime(sessionToken, user,
          rvs -> executeService.runLive(
-            rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.target()), req.confirmed()));
+            rvs, target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target()),
+            req.confirmed()));
    }
 
    /** Live introspection of the joined viewsheet's scriptable surface, scoped to a target. */
@@ -205,6 +210,7 @@ public class ViewsheetAgentController {
                                 @RequestParam(required = false) String id,
                                 @RequestParam(required = false) String kind,
                                 @RequestParam(required = false) String assembly,
+                                @RequestParam(required = false) String name,
                                 Principal user)
       throws PairingException
    {
@@ -216,7 +222,7 @@ public class ViewsheetAgentController {
       // it routes that case to resolve(), which throws the error naming all three dialects.
       boolean noTarget = isBlank(target) && isBlank(id) && isBlank(kind) && isBlank(assembly);
       return contextService.context(
-         rvs, noTarget ? null : target(rvs, id, kind, assembly, target));
+         rvs, noTarget ? null : target(rvs, id, kind, assembly, name, target));
    }
 
    /**
@@ -242,6 +248,7 @@ public class ViewsheetAgentController {
                                    @RequestParam(required = false) String id,
                                    @RequestParam(required = false) String kind,
                                    @RequestParam(required = false) String assembly,
+                                   @RequestParam(required = false) String name,
                                    @RequestParam(required = false) Integer width,
                                    @RequestParam(required = false) Integer height,
                                    Principal user)
@@ -256,7 +263,7 @@ public class ViewsheetAgentController {
          img = imageService.getViewsheetImage(rvs, width, height, user);
       }
       else {
-         ScriptTarget t = target(rvs, id, kind, assembly, target);
+         ScriptTarget t = target(rvs, id, kind, assembly, name, target);
 
          if(t.location() != ScriptTarget.Location.ASSEMBLY) {
             throw new PairingException(
@@ -345,11 +352,11 @@ public class ViewsheetAgentController {
 
    /** Resolves a target against the joined viewsheet, so the exact-name fix applies everywhere. */
    private ScriptTarget target(RuntimeViewsheet rvs, String id, String kind, String assembly,
-                               String legacyTarget)
+                               String name, String legacyTarget)
       throws PairingException
    {
       return ScriptTarget.resolve(rvs == null ? null : rvs.getViewsheet(), id, kind, assembly,
-                                  legacyTarget);
+                                  name, legacyTarget);
    }
 
    private static String agentKey(Principal agent) {

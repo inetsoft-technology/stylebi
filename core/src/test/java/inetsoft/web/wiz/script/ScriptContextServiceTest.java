@@ -135,4 +135,23 @@ class ScriptContextServiceTest {
       assertThrows(inetsoft.web.wiz.pairing.PairingException.class,
                    () -> service.context(mock(RuntimeViewsheet.class), target));
    }
+
+   /**
+    * A calc field's context is genuinely different in kind, not a subset. It evaluates per row with
+    * field[...] and has NO assembly API — offering thisViewsheet or an apiTree here would advertise
+    * an API that is not in scope during evaluation.
+    */
+   @Test
+   void aCalcFieldGetsThePerRowContextAndNoAssemblyApi() throws Exception {
+      ScriptContext ctx = serviceReturning(FULL).context(
+         mock(RuntimeViewsheet.class),
+         ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin"));
+
+      assertTrue(ctx.contextVars().contains("field"),
+                 "the per-row accessor must be offered: " + ctx.contextVars());
+      assertFalse(ctx.contextVars().contains("event"));
+      assertFalse(ctx.contextVars().contains("thisViewsheet"),
+                  "no viewsheet API during per-row evaluation");
+      assertTrue(ctx.assemblies().isEmpty(), "no assembly surface for a calc field");
+   }
 }

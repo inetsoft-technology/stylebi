@@ -35,6 +35,10 @@ public final class ScriptGrammar {
     * The kinds this server can serve — those with an internal location behind them. Reserved
     * kinds are deliberately absent: advertising one and then refusing it is the silent capability
     * lie this contract exists to prevent.
+    *
+    * <p>{@link ScriptTarget.Kind#CALC_FIELD} is included: {@link ScriptReadService},
+    * {@code ScriptEditService}, and {@code ScriptContextService} are now wired to it, so its
+    * real {@link ScriptTarget.Location} is actually servable rather than merely present.
     */
    public static List<String> supportedKinds() {
       return Arrays.stream(ScriptTarget.Kind.values())

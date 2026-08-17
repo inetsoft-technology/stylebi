@@ -33,7 +33,7 @@ import java.util.List;
  * {@code "assembly:<name>:onClick"}.</p>
  */
 public final class ScriptTarget {
-   public enum Location { VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK }
+   public enum Location { VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD }
 
    /**
     * The wire vocabulary. Distinct from {@link Location}, which is the internal dispatch key every
@@ -45,6 +45,18 @@ public final class ScriptTarget {
       VIEWSHEET_ON_LOAD("viewsheetOnLoad", Location.VS_LOAD),
       ASSEMBLY_MAIN("assemblyMain", Location.ASSEMBLY),
       ASSEMBLY_ON_CLICK("assemblyOnClick", Location.ASSEMBLY_ONCLICK),
+
+      /**
+       * A viewsheet calculated field's expression.
+       *
+       * <p>Addressed by (table, field name), not by assembly — {@code Viewsheet.getCalcFields}
+       * is keyed by table. So for THIS kind {@code assemblyName()} carries the TABLE name and
+       * {@code name()} carries the field's own name. That asymmetry is deliberate: a fourth
+       * addressing component, or renaming {@code assembly} to {@code owner} across all five
+       * kinds, would be a larger change than the one thing this kind actually needs.
+       */
+      CALC_FIELD("calcField", Location.CALC_FIELD),
+
       // Reserved so the schema does not churn when pane-scoped pairing lands. A session cannot be
       // scoped to one yet, so ScriptTarget.of refuses them with a scope error.
       WORKSHEET_EXPRESSION("worksheetExpression", null),
@@ -96,18 +108,33 @@ public final class ScriptTarget {
    }
 
    private ScriptTarget(Kind kind, String assemblyName) {
+      this(kind, assemblyName, null);
+   }
+
+   private ScriptTarget(Kind kind, String assemblyName, String name) {
       this.kind = kind;
       this.location = kind.location();
       this.assemblyName = assemblyName;
+      this.name = name;
    }
 
    public Location location() {
       return location;
    }
 
-   /** The assembly name, or {@code null} for {@code VS_INIT}/{@code VS_LOAD}. */
+   /**
+    * The assembly name, or {@code null} for {@code VS_INIT}/{@code VS_LOAD}.
+    *
+    * <p>For {@link Kind#CALC_FIELD}, this carries the TABLE the field belongs to, not an
+    * assembly — see the javadoc on that constant.
+    */
    public String assemblyName() {
       return assemblyName;
+   }
+
+   /** The calc field's own name, or {@code null} for every kind that needs no third component. */
+   public String name() {
+      return name;
    }
 
    public Kind kind() {
@@ -121,6 +148,20 @@ public final class ScriptTarget {
     *                          assembly name.
     */
    public static ScriptTarget of(Kind kind, String assemblyName) throws PairingException {
+      return of(kind, assemblyName, null);
+   }
+
+   /**
+    * Builds a target from the canonical tuple, with the third component {@link Kind#CALC_FIELD}
+    * needs.
+    *
+    * @throws PairingException if the kind has no servable location, an assembly kind carries no
+    *                          assembly name, {@code CALC_FIELD} is missing its table or field
+    *                          name, or a non-{@code CALC_FIELD} kind is given a name.
+    */
+   public static ScriptTarget of(Kind kind, String assemblyName, String name)
+      throws PairingException
+   {
       if(kind == null) {
          throw new PairingException("kind is required");
       }
@@ -129,6 +170,24 @@ public final class ScriptTarget {
          throw new PairingException(
             "kind '" + kind.wireName() + "' requires a session paired from that expression's " +
             "editor; this session is bound to a whole viewsheet.");
+      }
+
+      if(kind == Kind.CALC_FIELD) {
+         if(assemblyName == null || assemblyName.isBlank()) {
+            throw new PairingException(
+               "kind 'calcField' requires the table the field belongs to, in 'assembly'.");
+         }
+
+         if(name == null || name.isBlank()) {
+            throw new PairingException("kind 'calcField' requires the field's 'name'.");
+         }
+
+         return new ScriptTarget(kind, assemblyName, name);
+      }
+
+      if(name != null && !name.isBlank()) {
+         throw new PairingException(
+            "kind '" + kind.wireName() + "' takes no 'name'; only calcField is addressed by one.");
       }
 
       boolean needsAssembly = kind == Kind.ASSEMBLY_MAIN || kind == Kind.ASSEMBLY_ON_CLICK;
@@ -142,7 +201,7 @@ public final class ScriptTarget {
             "kind '" + kind.wireName() + "' is viewsheet-level and takes no assembly name.");
       }
 
-      return new ScriptTarget(kind, needsAssembly ? assemblyName : null);
+      return new ScriptTarget(kind, needsAssembly ? assemblyName : null, null);
    }
 
    /**
@@ -154,7 +213,7 @@ public final class ScriptTarget {
     * readable in logs and errors.
     */
    public String id() {
-      String canonical = kind.wireName() + "|" + (assemblyName == null ? "" : assemblyName);
+      String canonical = kind.wireName() + "|" + escape(assemblyName) + "|" + escape(name);
       return Base64.getUrlEncoder().withoutPadding()
          .encodeToString(canonical.getBytes(StandardCharsets.UTF_8));
    }
@@ -173,17 +232,105 @@ public final class ScriptTarget {
          throw new PairingException("Invalid target id: \"" + id + "\".");
       }
 
-      // Split once: the kind is a fixed vocabulary with no '|', everything after the first
-      // separator is the assembly name verbatim -- which is what makes a name containing ':'
-      // (or '|') addressable at all.
-      int sep = canonical.indexOf('|');
+      // The kind is a fixed vocabulary containing no '|' or '\', so the first UNESCAPED separator
+      // ends it. Assembly and name are arbitrary strings that may themselves contain '|' -- each
+      // is escaped ('\' -> '\\', '|' -> '\|') before encoding, so decoding scans for the next
+      // separator NOT preceded by an escape, rather than splitting blindly on every '|' or trusting
+      // the last '|' in the string to be the true boundary. (A naive "first separator ends the
+      // kind, last separator begins the name" split is NOT sufficient on its own: when the table
+      // name and the field name both contain a literal '|', the last '|' in the string can land
+      // inside the field name rather than at the true assembly/name boundary -- escaping is what
+      // actually makes every component position-independent.)
+      int firstSep = indexOfUnescapedSeparator(canonical, 0);
 
-      if(sep < 0) {
+      if(firstSep < 0) {
          throw new PairingException("Invalid target id: \"" + id + "\".");
       }
 
-      String assembly = canonical.substring(sep + 1);
-      return of(Kind.fromWire(canonical.substring(0, sep)), assembly.isEmpty() ? null : assembly);
+      Kind kind = Kind.fromWire(canonical.substring(0, firstSep));
+      int secondSep = indexOfUnescapedSeparator(canonical, firstSep + 1);
+
+      if(secondSep < 0) {
+         throw new PairingException("Invalid target id: \"" + id + "\".");
+      }
+
+      String assembly = unescape(canonical.substring(firstSep + 1, secondSep), id);
+      String name = unescape(canonical.substring(secondSep + 1), id);
+
+      return of(kind, assembly.isEmpty() ? null : assembly, name.isEmpty() ? null : name);
+   }
+
+   /** Escapes '\' and '|' so a literal '|' inside a component is never mistaken for a separator. */
+   private static String escape(String s) {
+      if(s == null || s.isEmpty()) {
+         return "";
+      }
+
+      StringBuilder sb = new StringBuilder(s.length());
+
+      for(int i = 0; i < s.length(); i++) {
+         char c = s.charAt(i);
+
+         if(c == '\\' || c == '|') {
+            sb.append('\\');
+         }
+
+         sb.append(c);
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Reverses {@link #escape}. A trailing unpaired {@code '\'} cannot come from anything
+    * {@code escape} produced -- it always emits {@code '\'} in a pair with the character it
+    * guards -- so one showing up here means the id is corrupted or was hand-crafted, and is
+    * refused rather than silently kept as a literal backslash.
+    */
+   private static String unescape(String s, String id) throws PairingException {
+      StringBuilder sb = new StringBuilder(s.length());
+
+      for(int i = 0; i < s.length(); i++) {
+         char c = s.charAt(i);
+
+         if(c == '\\') {
+            if(i + 1 >= s.length()) {
+               throw new PairingException(
+                  "Invalid target id: \"" + id + "\" (dangling escape character).");
+            }
+
+            sb.append(s.charAt(++i));
+         }
+         else {
+            sb.append(c);
+         }
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Index of the next {@code '|'} at or after {@code from} that is not preceded by an unpaired
+    * {@code '\'} escape, or {@code -1} if none.
+    */
+   private static int indexOfUnescapedSeparator(String s, int from) {
+      boolean escaped = false;
+
+      for(int i = from; i < s.length(); i++) {
+         char c = s.charAt(i);
+
+         if(escaped) {
+            escaped = false;
+         }
+         else if(c == '\\') {
+            escaped = true;
+         }
+         else if(c == '|') {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    public static ScriptTarget parse(String target) throws PairingException {
@@ -251,11 +398,14 @@ public final class ScriptTarget {
     * @param vs            the joined viewsheet, for the exact-name precedence fix; may be null
     * @param id            preferred for an existing target — the caller copies it back verbatim
     * @param kind          the wire kind name, with {@code assembly} when the kind needs one
-    * @param assembly      the assembly name, required for kinds that need one
+    * @param assembly      the assembly name, required for kinds that need one; the TABLE name for
+    *                      {@code calcField}
+    * @param name          the calc field's own name; required for (and only meaningful to)
+    *                      {@code calcField}
     * @param legacyTarget  the v1 delimited string, still accepted
     */
    public static ScriptTarget resolve(Viewsheet vs, String id, String kind, String assembly,
-                                      String legacyTarget)
+                                      String name, String legacyTarget)
       throws PairingException
    {
       if(id != null && !id.isBlank()) {
@@ -263,7 +413,7 @@ public final class ScriptTarget {
       }
 
       if(kind != null && !kind.isBlank()) {
-         return of(Kind.fromWire(kind), assembly);
+         return of(Kind.fromWire(kind), assembly, name);
       }
 
       if(legacyTarget != null && !legacyTarget.isBlank()) {
@@ -282,10 +432,19 @@ public final class ScriptTarget {
          case VS_LOAD -> "vs-load";
          case ASSEMBLY -> "assembly:" + assemblyName;
          case ASSEMBLY_ONCLICK -> "assembly:" + assemblyName + ":onClick";
+         // A calc field has no legacy PARSEABLE form -- parse(String) does not (and must not)
+         // recognize this -- the v1 grammar never addressed one, and coining a parseable
+         // "calc:Query1:Margin" would recreate the delimiter ambiguity this design removed. This
+         // is a display string only, e.g. for error messages built by callers that string-concat
+         // a target (see ScriptReadService's "Unsupported target: " + target on an unwired
+         // location) -- it must not throw, or every such message breaks instead of reporting
+         // the thing it was trying to report.
+         case CALC_FIELD -> "calcField:" + assemblyName + ":" + name;
       };
    }
 
    private final Kind kind;
    private final Location location;
    private final String assemblyName;
+   private final String name;
 }

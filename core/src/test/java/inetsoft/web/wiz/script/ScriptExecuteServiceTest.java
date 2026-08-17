@@ -21,8 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
+import inetsoft.web.wiz.script.model.ScriptInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -124,5 +126,50 @@ class ScriptExecuteServiceTest {
       assertTrue(result.ok());
       assertEquals(java.util.List.of(), result.changed());
       verify(scope, never()).execute(anyString(), nullable(String.class));
+   }
+
+   /**
+    * Mocks ScriptReadService (rather than using the real one, as every other test here does) so
+    * execution reaches ScriptExecuteService's OWN switch(target.location()) instead of being
+    * refused earlier by ScriptReadService's unrelated "Unsupported target" default case. That
+    * switch is a switch EXPRESSION with no default, so a fifth Location value made it fail to
+    * compile at all until CALC_FIELD was added — this proves the added case both compiles and
+    * refuses with the intended, permanent message (a calc field is an expression, not a script).
+    */
+   @Test
+   void dryRunRefusesACalcFieldTargetWithASpecificMessage() throws Exception {
+      ScriptReadService readService = mock(ScriptReadService.class);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+      when(readService.read(any(), eq(target))).thenReturn(new ScriptInfo(null, "irrelevant", true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getScope()).thenReturn(mock(ViewsheetScope.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+
+      ScriptExecuteService svc = new ScriptExecuteService(readService);
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.dryRun(rvs, target));
+      assertTrue(ex.getMessage().contains("not a runnable script"),
+                 "must explain WHY, not just refuse: " + ex.getMessage());
+   }
+
+   @Test
+   void runLiveRefusesACalcFieldTargetWithASpecificMessage() throws Exception {
+      ScriptReadService readService = mock(ScriptReadService.class);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+      when(readService.read(any(), eq(target))).thenReturn(new ScriptInfo(null, "irrelevant", true));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getScope()).thenReturn(mock(ViewsheetScope.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+
+      ScriptExecuteService svc = new ScriptExecuteService(readService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.runLive(rvs, target, true));
+      assertTrue(ex.getMessage().contains("not a runnable script"),
+                 "must explain WHY, not just refuse: " + ex.getMessage());
    }
 }
