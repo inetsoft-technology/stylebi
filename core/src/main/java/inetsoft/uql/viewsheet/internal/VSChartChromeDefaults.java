@@ -18,7 +18,6 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.internal.GDefaults;
-import inetsoft.sree.SreeEnv;
 
 import java.awt.Color;
 
@@ -30,42 +29,30 @@ import java.awt.Color;
  * The gridline and legend-border colors are written to the CSS tier of the descriptor CompositeValues
  * (in CSSChartStyles.apply) as a baseline that the format.css dictionary overrides and a user picker
  * (USER tier) beats; the CSS tier is not serialized, so this behaves as a default without dirtying
- * saved charts. The label/title text colors seed descriptor default formats. Mirrors
- * VSTableStructureDefaults' gate.
+ * saved charts. The label/title text colors seed descriptor default formats.
  */
 public final class VSChartChromeDefaults {
    private VSChartChromeDefaults() {
    }
 
-   /**
-    * Whether modern chart chrome is active: the modern-visualization gate plus its chrome toggle,
-    * which defaults on when modern is enabled.
-    */
-   public static boolean isModern() {
-      // default on when the modern gate is on; only an explicit "false" opts out (there is no
-      // default-value overload on getBooleanProperty, so read the raw property)
-      return VSDensityDefaults.isModern() &&
-         !"false".equals(SreeEnv.getProperty("viewsheet.modernChartChrome", false, true));
-   }
-
    /** Interior gridline / facet-grid color — matches the table gridline so chrome reads as one system. */
-   public static Color gridlineColor() {
-      return VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE;
+   public static Color gridlineColor(VizContext ctx) {
+      return ctx.dark ? GRIDLINE_DARK : GRIDLINE;
    }
 
    /** Legend border color — the same hairline neutral as the gridlines. */
-   public static Color legendBorderColor() {
-      return VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE;
+   public static Color legendBorderColor(VizContext ctx) {
+      return ctx.dark ? GRIDLINE_DARK : GRIDLINE;
    }
 
    /** Chrome label text color (axis tick labels, legend content) — quiet muted neutral. */
-   public static Color labelColor() {
-      return VSDensityDefaults.isDark() ? LABEL_DARK : LABEL;
+   public static Color labelColor(VizContext ctx) {
+      return ctx.dark ? LABEL_DARK : LABEL;
    }
 
    /** Chrome title text color (axis titles, legend title) — slightly stronger than labels. */
-   public static Color titleColor() {
-      return VSDensityDefaults.isDark() ? TITLE_DARK : TITLE;
+   public static Color titleColor(VizContext ctx) {
+      return ctx.dark ? TITLE_DARK : TITLE;
    }
 
    /**
@@ -73,8 +60,8 @@ public final class VSChartChromeDefaults {
     * white otherwise (light modern and legacy unchanged). Seeded only in the modern chart context,
     * mirroring the label/title color gate.
     */
-   public static Color legendBackground() {
-      return VSDensityDefaults.isDark() ? LEGEND_BG_DARK : Color.WHITE;
+   public static Color legendBackground(VizContext ctx) {
+      return ctx.dark ? LEGEND_BG_DARK : Color.WHITE;
    }
 
    /**
@@ -83,9 +70,9 @@ public final class VSChartChromeDefaults {
     * (a customer/user color, or gate off) leave it unchanged. Compared against the hardcoded fallback
     * so a format.css or user-picker color, which resolves to something else, is preserved.
     */
-   public static Color resolveAxisLineColor(Color current) {
-      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current)
-         ? (VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE) : current;
+   public static Color resolveAxisLineColor(Color current, VizContext ctx) {
+      return ctx.modern && GDefaults.DEFAULT_LINE_COLOR.equals(current)
+         ? (ctx.dark ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
    /**
@@ -94,18 +81,18 @@ public final class VSChartChromeDefaults {
     * leave it unchanged. Compared against the hardcoded fallback so a format.css or user-picker color
     * is preserved.
     */
-   public static Color resolveGridlineColor(Color current) {
-      return isModern() && GDefaults.DEFAULT_GRIDLINE_COLOR.equals(current)
-         ? (VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE) : current;
+   public static Color resolveGridlineColor(Color current, VizContext ctx) {
+      return ctx.modern && GDefaults.DEFAULT_GRIDLINE_COLOR.equals(current)
+         ? (ctx.dark ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
    /**
     * Resolve a legend-border color for display: modern neutral iff the gate is on and the color is
     * still the legacy default; otherwise unchanged.
     */
-   public static Color resolveLegendBorderColor(Color current) {
-      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current)
-         ? (VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE) : current;
+   public static Color resolveLegendBorderColor(Color current, VizContext ctx) {
+      return ctx.modern && GDefaults.DEFAULT_LINE_COLOR.equals(current)
+         ? (ctx.dark ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
    // modern warm-neutral chrome. Warmer/subtler than the legacy GDefaults #EEEEEE, and equal to

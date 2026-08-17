@@ -18,7 +18,6 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
 import inetsoft.util.css.CSSDictionary;
@@ -44,11 +43,6 @@ public final class VSChartPaletteDefaults {
    private VSChartPaletteDefaults() {
    }
 
-   public static boolean isModern() {
-      return VSDensityDefaults.isModern() &&
-         !"false".equals(SreeEnv.getProperty("viewsheet.modernChartPalette", false, true));
-   }
-
    public static Color[] modernPalette() {
       return resolve(MODERN_NAME, MODERN_HEAD);
    }
@@ -60,22 +54,22 @@ public final class VSChartPaletteDefaults {
    /**
     * The palette a modern chart renders. Does not check the modern gate; callers do.
     */
-   public static Color[] activePalette() {
-      return VSDensityDefaults.isDark() ? darkPalette() : modernPalette();
+   public static Color[] activePalette(VizContext ctx) {
+      return ctx.dark ? darkPalette() : modernPalette();
    }
 
    /**
     * The 40 colors a chart color picker should offer for the current gate state.
     */
-   public static Color[] pickerPalette() {
-      return isModern()
-         ? activePalette()
+   public static Color[] pickerPalette(VizContext ctx) {
+      return ctx.modern
+         ? activePalette(ctx)
          : fromFrame(getPaletteSafely(DEFAULT_NAME), CategoricalColorFrame.COLOR_PALETTE);
    }
 
-   public static void applyModernPalette(CategoricalColorFrame frame) {
-      if(frame != null && isModern()) {
-         frame.setDefaultColors(activePalette());
+   public static void applyModernPalette(CategoricalColorFrame frame, VizContext ctx) {
+      if(frame != null && ctx.modern) {
+         frame.setDefaultColors(activePalette(ctx));
       }
    }
 

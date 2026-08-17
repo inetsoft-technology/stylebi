@@ -17,8 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.sree.SreeEnv;
-
 import java.awt.Color;
 
 /**
@@ -27,54 +25,43 @@ import java.awt.Color;
  *
  * The colors are overlaid onto a per-assembly clone of the shipped "Default Style" in
  * DataVSAQuery, so they behave as DEFAULTS: user cell/column/row formats merge on top and win, and a
- * table assigned a non-default style is left untouched. Mirrors VSDensityDefaults' gate.
+ * table assigned a non-default style is left untouched.
  */
 public final class VSTableStructureDefaults {
    private VSTableStructureDefaults() {
    }
 
-   /**
-    * Whether modern table structure is active: the modern-visualization gate plus its structure
-    * toggle, which defaults on when modern is enabled.
-    */
-   public static boolean isModern() {
-      // default on when the modern gate is on; only an explicit "false" opts out (there is no
-      // default-value overload on getBooleanProperty, so read the raw property)
-      return VSDensityDefaults.isModern() &&
-         !"false".equals(SreeEnv.getProperty("viewsheet.modernTableStructure", false, true));
-   }
-
    /** Interior gridline + outer border color (unifies the legacy #E6E6E6 body and #CCCCCC frame). */
-   public static Color gridlineColor() {
-      return VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE;
+   public static Color gridlineColor(VizContext ctx) {
+      return ctx.dark ? GRIDLINE_DARK : GRIDLINE;
    }
 
    /** Header-row and header-column background. */
-   public static Color headerBackground() {
-      return VSDensityDefaults.isDark() ? HEADER_BG_DARK : HEADER_BG;
+   public static Color headerBackground(VizContext ctx) {
+      return ctx.dark ? HEADER_BG_DARK : HEADER_BG;
    }
 
    /** Header-row and header-column text color. */
-   public static Color headerForeground() {
-      return VSDensityDefaults.isDark() ? HEADER_FG_DARK : HEADER_FG;
+   public static Color headerForeground(VizContext ctx) {
+      return ctx.dark ? HEADER_FG_DARK : HEADER_FG;
    }
 
    /**
     * Header→body separator rule — stronger than the interior gridline for hierarchy. Equals the
     * shell/DOM structural border (#D9D5CC), so the viewsheet header rule matches the rest of the product.
     */
-   public static Color headerSeparator() {
-      return VSDensityDefaults.isDark() ? HEADER_SEPARATOR_DARK : HEADER_SEPARATOR;
+   public static Color headerSeparator(VizContext ctx) {
+      return ctx.dark ? HEADER_SEPARATOR_DARK : HEADER_SEPARATOR;
    }
 
    /** Grand-total (trailer row/column) background. */
-   public static Color totalBackground() {
-      return VSDensityDefaults.isDark() ? TOTAL_BG_DARK : TOTAL_BG;
+   public static Color totalBackground(VizContext ctx) {
+      return ctx.dark ? TOTAL_BG_DARK : TOTAL_BG;
    }
 
    /** Interior group-subtotal background — lighter than the grand-total band for hierarchy. */
-   public static Color subtotalBackground() {
-      return VSDensityDefaults.isDark() ? SUBTOTAL_BG_DARK : SUBTOTAL_BG;
+   public static Color subtotalBackground(VizContext ctx) {
+      return ctx.dark ? SUBTOTAL_BG_DARK : SUBTOTAL_BG;
    }
 
    /**
@@ -82,8 +69,8 @@ public final class VSTableStructureDefaults {
     * bands are light, so their default dark text stays legible and is left untouched (null); in dark
     * mode the bands are dark, so band text must lift to the header neutral to stay readable.
     */
-   public static Color bandForeground() {
-      return VSDensityDefaults.isDark() ? HEADER_FG_DARK : null;
+   public static Color bandForeground(VizContext ctx) {
+      return ctx.dark ? HEADER_FG_DARK : null;
    }
 
    /**
@@ -91,8 +78,8 @@ public final class VSTableStructureDefaults {
     * Default Style hardcodes dark-gray body text, which is dark-on-dark once the interior darkens, so
     * dark mode lifts it to the strong light neutral (brighter than the muted header text).
     */
-   public static Color bodyForeground() {
-      return VSDensityDefaults.isDark() ? BODY_FG_DARK : null;
+   public static Color bodyForeground(VizContext ctx) {
+      return ctx.dark ? BODY_FG_DARK : null;
    }
 
    /**
@@ -100,8 +87,8 @@ public final class VSTableStructureDefaults {
     * light/legacy. Dark mode fills it with the card surface so body cells are dark independent of the
     * object card (which only re-seeds for newly created tables).
     */
-   public static Color bodyBackground() {
-      return VSDensityDefaults.isDark() ? BODY_BG_DARK : null;
+   public static Color bodyBackground(VizContext ctx) {
+      return ctx.dark ? BODY_BG_DARK : null;
    }
 
    /**
@@ -109,8 +96,8 @@ public final class VSTableStructureDefaults {
     * light/legacy. The zebra is a style Specification that wins over the body background, so dark mode
     * darkens it separately — a subtle lift above the base body so the stripe still reads.
     */
-   public static Color zebraBackground() {
-      return VSDensityDefaults.isDark() ? ZEBRA_BG_DARK : null;
+   public static Color zebraBackground(VizContext ctx) {
+      return ctx.dark ? ZEBRA_BG_DARK : null;
    }
 
    // modern warm-neutral structure palette (light mode)

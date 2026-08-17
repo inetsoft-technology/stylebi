@@ -23,6 +23,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.XTableUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -102,7 +103,7 @@ class DataVSAQueryDarkStructureTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       XTableStyle style = styleWithZebra();
-      DataVSAQuery.applyModernTableStructure(style);
+      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate());
       assertEquals(new Color(0x2D2B30), regularSpecBackground(style),
                    "dark zebra applied through the gated zebraBackground() accessor");
    }
@@ -112,7 +113,7 @@ class DataVSAQueryDarkStructureTest {
       // modern on, dark off: the dark interior accessors return null, so the shipped stripe stands
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       XTableStyle style = styleWithZebra();
-      DataVSAQuery.applyModernTableStructure(style);
+      DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate());
       assertEquals(new Color(0xF5F5F5), regularSpecBackground(style),
                    "light-modern leaves the shipped #F5F5F5 stripe");
    }

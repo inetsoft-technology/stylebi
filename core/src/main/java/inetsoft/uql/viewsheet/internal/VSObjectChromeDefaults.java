@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 
 import java.awt.Color;
@@ -28,30 +27,20 @@ import java.awt.Color;
  * written to the assembly's default format at creation (VSAssemblyInfo.setDefaultFormat and
  * ViewsheetVSAssemblyInfo.setDefaultFormat), so a new object created under the gate carries the modern
  * default (visible in the format editor, effective in the viewer and export). A user format or a
- * format.css class still overrides it via the normal USER > CSS > DEFAULT tier precedence. Shares the
- * viewsheet.modernObjectChrome toggle with VSTitleChromeDefaults so object chrome modernizes together.
+ * format.css class still overrides it via the normal USER > CSS > DEFAULT tier precedence.
  */
 public final class VSObjectChromeDefaults {
    private VSObjectChromeDefaults() {
    }
 
-   /**
-    * Whether modern object chrome is active: the modern-visualization gate plus its chrome toggle,
-    * which defaults on when modern is enabled.
-    */
-   public static boolean isModern() {
-      return VSDensityDefaults.isModern() &&
-         !"false".equals(SreeEnv.getProperty("viewsheet.modernObjectChrome", false, true));
-   }
-
    /** Object-frame border default — the shared structural neutral (= --border-default), dark in dark mode. */
-   public static Color objectBorderColor() {
-      return VSDensityDefaults.isDark() ? OBJECT_BORDER_DARK : OBJECT_BORDER;
+   public static Color objectBorderColor(VizContext ctx) {
+      return ctx.dark ? OBJECT_BORDER_DARK : OBJECT_BORDER;
    }
 
    /** Viewsheet page/canvas background default, as a CSS hex string (= --surface-canvas), dark in dark mode. */
-   public static String pageBackgroundCss() {
-      Color bg = VSDensityDefaults.isDark() ? PAGE_BG_DARK : PAGE_BG;
+   public static String pageBackgroundCss(VizContext ctx) {
+      Color bg = ctx.dark ? PAGE_BG_DARK : PAGE_BG;
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
@@ -60,8 +49,8 @@ public final class VSObjectChromeDefaults {
     * keeps white cards); a lifted dark surface in dark mode so light chart/output chrome stays legible
     * on the card (= --dark-surface-default, one step above the darker page).
     */
-   public static String cardBackgroundCss() {
-      Color bg = VSDensityDefaults.isDark() ? CARD_BG_DARK : CARD_BG;
+   public static String cardBackgroundCss(VizContext ctx) {
+      Color bg = ctx.dark ? CARD_BG_DARK : CARD_BG;
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
@@ -77,7 +66,8 @@ public final class VSObjectChromeDefaults {
     * additionally exempts tab formats, whose default tier can hold a laundered user radius.
     */
    public static int resolveSeededCorner(int radius) {
-      return radius == CARD_CORNER_RADIUS && !isModern() ? 0 : radius;
+      // reads the gate directly: the only caller is a VSFormat getter with no context to hand
+      return radius == CARD_CORNER_RADIUS && !VSDensityDefaults.isModern() ? 0 : radius;
    }
 
    /**
@@ -85,9 +75,8 @@ public final class VSObjectChromeDefaults {
     * whose default is a fixed dark color (black) and would be dark-on-dark otherwise; callers apply it
     * only when the user/CSS has not set a foreground. Must be applied server-side so exports match.
     */
-   public static String textForegroundCss() {
-      return VSDensityDefaults.isDark()
-         ? String.format("#%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF) : null;
+   public static String textForegroundCss(VizContext ctx) {
+      return ctx.dark ? String.format("#%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF) : null;
    }
 
    /**
@@ -96,8 +85,8 @@ public final class VSObjectChromeDefaults {
     * bare-default object text (fixed black) stay legible on the dark canvas; a user or format.css color
     * still wins. Never mutates the source. Applied at both live model build and the export painter.
     */
-   public static VSCompositeFormat applyDarkForeground(VSCompositeFormat fmt) {
-      if(!VSDensityDefaults.isDark() || fmt == null) {
+   public static VSCompositeFormat applyDarkForeground(VSCompositeFormat fmt, VizContext ctx) {
+      if(!ctx.dark || fmt == null) {
          return fmt;
       }
 

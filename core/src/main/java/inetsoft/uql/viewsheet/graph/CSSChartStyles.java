@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.XAggregateRef;
 import inetsoft.uql.viewsheet.graph.aesthetic.SizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.css.*;
 
 import java.awt.*;
@@ -102,7 +103,7 @@ public class CSSChartStyles {
       // below overrides it. Precedence is USER > CSS > DEFAULT, so a customer's format.css chrome and
       // a user picker both still win; gate off skips this, leaving the GDefaults default. The CSS tier
       // is not serialized, so this is a default that never dirties saved charts.
-      boolean modernChrome = VSChartChromeDefaults.isModern();
+      VizContext ctx = VizContext.ofGate();
 
       ChartType chartType = getChartType(info);
       LegendsDescriptor legendsDesc = desc.getLegendsDescriptor();
@@ -110,8 +111,8 @@ public class CSSChartStyles {
       if(legendsDesc != null) {
          legendsDesc.resetCompositeValues(CompositeValue.Type.CSS);
 
-         if(modernChrome) {
-            legendsDesc.setBorderColor(VSChartChromeDefaults.legendBorderColor(),
+         if(ctx.modern) {
+            legendsDesc.setBorderColor(VSChartChromeDefaults.legendBorderColor(ctx),
                                        CompositeValue.Type.CSS);
          }
 
@@ -147,9 +148,9 @@ public class CSSChartStyles {
       if(plotDesc != null) {
          plotDesc.resetCompositeValues(CompositeValue.Type.CSS);
 
-         if(modernChrome) {
+         if(ctx.modern) {
             // set both x and y so graph inversion (which swaps them) is a no-op
-            Color gridColor = VSChartChromeDefaults.gridlineColor();
+            Color gridColor = VSChartChromeDefaults.gridlineColor(ctx);
             plotDesc.setXGridColor(gridColor, CompositeValue.Type.CSS);
             plotDesc.setYGridColor(gridColor, CompositeValue.Type.CSS);
             plotDesc.setFacetGridColor(gridColor, CompositeValue.Type.CSS);
