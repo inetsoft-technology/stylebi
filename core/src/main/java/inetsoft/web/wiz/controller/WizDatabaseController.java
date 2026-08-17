@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -35,6 +36,7 @@ import inetsoft.web.admin.content.database.types.*;
 import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceInfo;
@@ -483,6 +485,50 @@ public class WizDatabaseController {
       int index = database.lastIndexOf('/');
 
       return toSaveResult(status, index < 0 ? name : database.substring(0, index + 1) + name);
+   }
+
+   /**
+    * Creates a folder in the data source repository.
+    *
+    * <p>Gated by the same rule as {@link #createDatabase}: WRITE on the parent folder, or, at the
+    * root only, the standalone {@code CREATE_DATA_SOURCE} grant. {@code addDatasourceFolder} itself
+    * performs no duplicate check and no permission check — the native
+    * {@code DataSourceController} guards both in the caller, and this mirrors that rather than
+    * relying on the service to catch either.</p>
+    *
+    * <p>{@code userScope} is always {@code false}: that flag grants the creator personal
+    * READ/WRITE/DELETE on the new folder, which is how the native "create in my own scope" affordance
+    * works for a user with no root WRITE. The wiz portal has no such affordance — a caller who
+    * reaches this endpoint at the root already holds {@code CREATE_DATA_SOURCE} — so passing
+    * {@code true} here would grant permissions the wiz portal never asked for.</p>
+    *
+    * @param request   the parent folder and the new folder's name.
+    * @param principal the current user.
+    *
+    * @return the new folder's path, or {@code DUPLICATE_NAME} when a folder or data source of that
+    *         name already exists in the parent.
+    */
+   @PostMapping(value = "/datasources/folders/create", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizFolderSaveResult createFolder(@RequestBody WizFolderCreateRequest request,
+                                           Principal principal)
+      throws Exception
+   {
+      String name = requireFolderName(request);
+      String parentPath = normalizePath(request.parentPath());
+
+      requireCreatePermission(parentPath, principal);
+
+      String path = parentPath == null ? name : parentPath + "/" + name;
+      CheckDuplicateResponse duplicate = dataSourceBrowserService.checkFolderDuplicate(path);
+
+      if(duplicate != null && duplicate.isDuplicate()) {
+         return WizFolderSaveResult.failed(WizFolderSaveResult.DUPLICATE_NAME);
+      }
+
+      String auditPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
+      dataSourceBrowserService.addDatasourceFolder(path, auditPath, principal, false);
+
+      return WizFolderSaveResult.ok(path);
    }
 
    /**
@@ -995,6 +1041,25 @@ public class WizDatabaseController {
 
       if(name == null || name.isEmpty()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
+      }
+
+      return name;
+   }
+
+   private static String requireFolderName(WizFolderCreateRequest request) {
+      if(request == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "request is required");
+      }
+
+      String name = request.name() == null ? null : request.name().trim();
+
+      if(name == null || name.isEmpty()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
+      }
+
+      if(name.contains("/")) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "name must be a single path segment");
       }
 
       return name;

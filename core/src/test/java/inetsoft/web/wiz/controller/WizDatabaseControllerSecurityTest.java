@@ -27,6 +27,7 @@ import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.types.MySQLDatabaseType;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceStatus;
@@ -37,6 +38,7 @@ import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.request.WizDatabaseTestRequest;
 import inetsoft.web.wiz.request.WizDatasourceStatusRequest;
+import inetsoft.web.wiz.request.WizFolderCreateRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -44,6 +46,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -99,7 +102,8 @@ class WizDatabaseControllerSecurityTest {
                 "/api/wiz/databases/default-test-query",
                 "/api/wiz/databases/test",
                 "/api/wiz/databases/create",
-                "/api/wiz/databases/update"),
+                "/api/wiz/databases/update",
+                "/api/wiz/datasources/folders/create"),
          new HashSet<>(mappedPaths()));
    }
 
@@ -245,6 +249,82 @@ class WizDatabaseControllerSecurityTest {
 
       assertTrue(result.isEmpty(), "an unreadable path yields no status rather than an error");
       verifyNoInteractions(fixture.dataSourceStatusService);
+   }
+
+   @Test
+   void createFolder_succeedsUnderAnExistingParent() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.checkFolderDuplicate("Examples/Sales"))
+         .thenReturn(new CheckDuplicateResponse(false));
+
+      WizFolderSaveResult result = fixture.controller.createFolder(
+         new WizFolderCreateRequest("Examples", "Sales"), fixture.principal);
+
+      assertTrue(result.ok(), "an unclaimed name under a writable parent must be created");
+      assertEquals("Examples/Sales", result.path());
+      assertNull(result.reason());
+      verify(fixture.dataSourceBrowserService)
+         .addDatasourceFolder(eq("Examples/Sales"), any(), eq(fixture.principal), eq(false));
+   }
+
+   /**
+    * {@code addDatasourceFolder} performs no duplicate check of its own, so the controller must run
+    * {@code checkFolderDuplicate} itself before calling it — otherwise a name collision would either
+    * silently overwrite the existing folder or fail deep inside the repository with no stable reason
+    * code to report.
+    */
+   @Test
+   void createFolder_reportsDuplicateNameWithoutCallingAddFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.checkFolderDuplicate("Examples/Sales"))
+         .thenReturn(new CheckDuplicateResponse(true));
+
+      WizFolderSaveResult result = fixture.controller.createFolder(
+         new WizFolderCreateRequest("Examples", "Sales"), fixture.principal);
+
+      assertFalse(result.ok());
+      assertEquals(WizFolderSaveResult.DUPLICATE_NAME, result.reason());
+      assertNull(result.path());
+      verify(fixture.dataSourceBrowserService, never())
+         .addDatasourceFolder(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void createFolder_deniesWithoutWriteOnTheParentOrRootCreatePermission() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("/"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(false);
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.CREATE_DATA_SOURCE), eq("*"),
+         eq(ResourceAction.ACCESS)))
+         .thenReturn(false);
+
+      WizFolderCreateRequest request = new WizFolderCreateRequest(null, "NewFolder");
+
+      assertThrows(SecurityException.class,
+                   () -> fixture.controller.createFolder(request, fixture.principal));
+      verifyNoInteractions(fixture.dataSourceBrowserService);
+   }
+
+   @Test
+   void createFolder_rejectsANameThatIsNotASinglePathSegment() {
+      Fixture fixture = new Fixture();
+      WizFolderCreateRequest request = new WizFolderCreateRequest("Examples", "Sales/2026");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> fixture.controller.createFolder(request, fixture.principal));
+      assertEquals(400, ex.getStatusCode().value());
+      verifyNoInteractions(fixture.dataSourceBrowserService);
    }
 
    /**
