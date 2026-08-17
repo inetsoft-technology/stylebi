@@ -29,27 +29,32 @@
           "key": "org_id",
           "parameterName": "Organization ID"
         }
-      ]
+      ],
+      "description": "The scheduled work against deals and contacts -- calls, meetings, tasks, deadlines and emails -- one row each. Carries type, subject, due_date and due_time, duration, the DONE flag, add_time and marked_as_done_time, the owning user, and the deal, person and organization it is attached to. The activity-versus-outcome table: done tells completion, due_date against marked_as_done_time tells punctuality, and an activity with no done marker and a past due date is overdue rather than absent. Same version note: moved to API v2."
     },
     {
       "name": "Activity",
       "paged": false,
-      "suffix": "/v1/activities/{Activity ID}"
+      "suffix": "/v1/activities/{Activity ID}",
+      "description": "One activity by id. Same fields, same version note."
     },
     {
       "name": "Activity Fields",
       "paged": true,
-      "suffix": "/v1/activityFields"
+      "suffix": "/v1/activityFields",
+      "description": "Every field an activity can carry, standard and custom, with key, name and type. The decoder for hash-keyed custom fields on activities, as Deal Fields is for deals."
     },
     {
       "name": "Activity Types",
       "paged": true,
-      "suffix": "/v1/activityTypes"
+      "suffix": "/v1/activityTypes",
+      "description": "The activity types configured on the account -- call, meeting, task, deadline, email, lunch and any custom ones -- with name, key_string, icon and order. Activities carry a type key, so this is what turns it into a readable label; custom types make the set account-specific, so it cannot be assumed."
     },
     {
       "name": "Currencies",
       "paged": true,
-      "suffix": "/v1/currencies?term={Term?}"
+      "suffix": "/v1/currencies?term={Term?}",
+      "description": "The currencies Pipedrive supports, with code, name, symbol, decimal places and whether each is a custom currency. Small reference table, and a necessary one: deal, product and goal values are each stored in their own currency with no conversion anywhere in the API, so any total spanning currencies has to be built deliberately rather than summed."
     },
     {
       "name": "Deals",
@@ -72,27 +77,32 @@
           "key": "id",
           "parameterName": "Deal ID"
         }
-      ]
+      ],
+      "description": "The sales opportunities on the account, one row each -- the central table of a Pipedrive CRM. Carries title, value and currency, STATUS, the pipeline and stage, the person and organization it belongs to, the owning user, add_time and update_time, expected_close_date, close_time, won_time, lost_time and lost_reason, plus probability and weighted_value. THE STATUS COLUMN HAS FOUR VALUES: open, won, lost and DELETED. Deleted deals are still returned, so any total that does not filter status counts records the business considers gone -- and a win rate is won over won plus lost, never over all rows. CUSTOM FIELDS ARRIVE AS 40-CHARACTER HASH KEYS such as 9dc80c50d78a15643bfc4ca79d76156a99a9ba60, with no name attached anywhere in this response; Deal Fields is the only thing that decodes them. VERSION NOTE: Pipedrive has moved this resource to API v2 and the v1 path this endpoint uses is being retired."
     },
     {
       "name": "Deal Search",
       "paged": true,
-      "suffix": "/v1/deals/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&person_id={Person ID?}&organization_id={Organization ID?}&status={Status?:open|won|lost}"
+      "suffix": "/v1/deals/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&person_id={Person ID?}&organization_id={Organization ID?}&status={Status?:open|won|lost}",
+      "description": "Deals matching a search term across title, notes and custom fields. Returns matches with a relevance score rather than the full deal record, so it locates deals rather than reporting on them. Same version note."
     },
     {
       "name": "Deal Summary",
       "paged": true,
-      "suffix": "/v1/deals/summary?status={Status?:open|won|lost}&filter_id={Filter ID?}&user_id={User ID?}&stage_id={Stage ID?}"
+      "suffix": "/v1/deals/summary?status={Status?:open|won|lost}&filter_id={Filter ID?}&user_id={User ID?}&stage_id={Stage ID?}",
+      "description": "Aggregate totals across deals -- count and value, broken down by currency and by status, optionally scoped to a filter, user or stage. A ready-made roll-up: it answers 'how much is in the pipeline' without paging a single deal, and it splits by currency, which matters because deal values are stored in their own currencies and cannot be summed directly."
     },
     {
       "name": "Deal Timeline",
       "paged": true,
-      "suffix": "/v1/deals/timeline?start_date={Start Date:YYYY-MM-DD}?interval={Interval:day|week|...}&amount={Amount}&field_key={Field Key}&user_id={User ID?}&pipeline_id={Pipeline ID?}&filter_id={Filter ID?}&exclude_deals={Exclude Deals?:0|1}&totals_convert_currency={Totals Convert Currency?}"
+      "suffix": "/v1/deals/timeline?start_date={Start Date:YYYY-MM-DD}?interval={Interval:day|week|...}&amount={Amount}&field_key={Field Key}&user_id={User ID?}&pipeline_id={Pipeline ID?}&filter_id={Filter ID?}&exclude_deals={Exclude Deals?:0|1}&totals_convert_currency={Totals Convert Currency?}",
+      "description": "Deals grouped into time periods -- by day, week, month or quarter -- with the count and total value opened in each, and separate totals for won and lost. The trend table: it answers how the pipeline moved over time, which Deals itself can only give by aggregating every row. Choose the field the periods are cut on (add_time, close_time and so on), since the same deals produce a different picture depending on which date is used."
     },
     {
       "name": "Deal",
       "paged": false,
-      "suffix": "/v1/deals/{Deal ID}"
+      "suffix": "/v1/deals/{Deal ID}",
+      "description": "One deal by id. Same fields as Deals, including the hash-keyed custom fields. Same version note."
     },
     {
       "name": "Deal Activities",
@@ -123,17 +133,20 @@
           "key": "org_id",
           "parameterName": "Organization ID"
         }
-      ]
+      ],
+      "description": "The activities linked to one deal. Requires a deal id. SUPERSEDED: Pipedrive replaced these per-parent listings with filters on the main collection in API v2, where the same rows come from the activities endpoint with a deal_id filter. This v1 path is absent from Pipedrive's current API description."
     },
     {
       "name": "Deal Files",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+      "suffix": "/v1/deals/{Deal ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "description": "The files attached to one deal, with name, type, size and who added them. Requires a deal id."
     },
     {
       "name": "Deal Updates",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/flow"
+      "suffix": "/v1/deals/{Deal ID}/flow",
+      "description": "The change history of one deal: every field that changed, with its old and new value, who changed it and when. Requires a deal id. The deal record carries only its CURRENT stage and status -- this is the only source for when it entered a stage, how long it sat there, and how often its value was revised. Note the feed also carries notes, activities and file additions, so filter by change type before treating it as a field-change log."
     },
     {
       "name": "Deal Followers",
@@ -146,52 +159,62 @@
           "key": "user_id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The users following one deal. Requires a deal id. Internal interest, not customer involvement."
     },
     {
       "name": "Deal Mail Messages",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/mailMessages"
+      "suffix": "/v1/deals/{Deal ID}/mailMessages",
+      "description": "The email correspondence linked to one deal, with subject, sender, recipients and timestamps. Requires a deal id. Where email sync is enabled this is the record of actual customer contact, which activities alone do not capture."
     },
     {
       "name": "Deal Participants",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/participants"
+      "suffix": "/v1/deals/{Deal ID}/participants",
+      "description": "The people involved in one deal beyond its primary contact. Requires a deal id. A deal has one person_id but often several real participants, so this is the honest answer to who was involved."
     },
     {
       "name": "Deal Permitted Users",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/permittedUsers"
+      "suffix": "/v1/deals/{Deal ID}/permittedUsers",
+      "description": "The users allowed to see one deal. Requires a deal id. Visibility configuration, and the explanation for why two people counting the same pipeline get different totals."
     },
     {
       "name": "Deal People",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/persons"
+      "suffix": "/v1/deals/{Deal ID}/persons",
+      "description": "The people linked to one deal. Requires a deal id. SUPERSEDED in the same way -- v2 answers this with a deal_id filter on the persons collection, and this v1 path is absent from the current API description."
     },
     {
       "name": "Deal Products",
       "paged": true,
-      "suffix": "/v1/deals/{Deal ID}/products?include_product_data={Include Product Data?:0|1}"
+      "suffix": "/v1/deals/{Deal ID}/products?include_product_data={Include Product Data?:0|1}",
+      "description": "The products attached to one deal, with quantity, item price, discount and the resulting sum. Requires a deal id. A deal's value is a single number; what makes it up is only here. Same version note."
     },
     {
       "name": "Deal Fields",
       "paged": true,
-      "suffix": "/v1/dealFields"
+      "suffix": "/v1/dealFields",
+      "description": "Every field a deal can carry, standard and custom, with the field KEY, its human name, field_type, and for enum and set fields the option list with each option's id and label. THE KEY TO DEAL DATA. Pipedrive names custom fields with a 40-character hash, and deals return values under those hashes with nothing else to identify them -- so a column of hashes is unreadable without this table, and single-select values are option ids that only the options list here resolves."
     },
     {
       "name": "Deal Field",
       "paged": false,
-      "suffix": "/v1/dealFields/{Field ID}"
+      "suffix": "/v1/dealFields/{Field ID}",
+      "description": "One deal field by id, with its options."
     },
     {
       "name": "Files",
       "paged": true,
-      "suffix": "/v1/files?include_deleted_files={Include Deleted Files?:0|1}"
+      "suffix": "/v1/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "description": "Every file uploaded to the account, with name, type, size, who added it, and the deal, person, organization, product or activity it is attached to. Metadata only -- the contents are a separate download. Useful for storage review and for finding which records carry supporting documents."
     },
     {
       "name": "File",
       "paged": false,
-      "suffix": "/v1/files/{File ID}"
+      "suffix": "/v1/files/{File ID}",
+      "description": "One file's metadata by id."
     },
     {
       "name": "Filters",
@@ -204,52 +227,62 @@
           "key": "user_id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The saved filters on the account, each with its name, the item type it applies to (deals, persons, organizations, products or activities), its owner, and the conditions defining it. Filters are the queries the organisation has already agreed on -- 'my open deals', 'stale leads' -- and most listing endpoints accept a filter_id, so these are reusable definitions rather than just UI state. Reading the conditions is usually faster than guessing at what a business term means."
     },
     {
       "name": "Filter Helpers",
       "paged": true,
-      "suffix": "/v1/filters/helpers"
+      "suffix": "/v1/filters/helpers",
+      "description": "The fields, operators and value types filters can be built from. Reference data for constructing or interpreting a filter's conditions."
     },
     {
       "name": "Filter",
       "paged": false,
-      "suffix": "/v1/filters/{Filter ID}"
+      "suffix": "/v1/filters/{Filter ID}",
+      "description": "One filter by id, with its full condition tree. The conditions are the filter's real meaning; the name rarely states them."
     },
     {
       "name": "Global Messages",
       "paged": true,
-      "suffix": "/v1/globalMessages"
+      "suffix": "/v1/globalMessages",
+      "description": "Announcement messages shown to the user in the Pipedrive interface. REMOVED: absent from Pipedrive's current API description, and product announcements rather than CRM data in any case."
     },
     {
       "name": "Goals",
       "paged": true,
-      "suffix": "/v1/goals/find?type.name={Type Name?}&title={Title?}&is_active={Is Active?}&assignee.id={Assignee ID?}&assignee.type={Assignee Type?:person|company|term}&expected_outcome.target={Expected Outcome Target?}&expected_outcome.tracking_metric={Expected Outcome Tracking Metric?:quantity|sum}"
+      "suffix": "/v1/goals/find?type.name={Type Name?}&title={Title?}&is_active={Is Active?}&assignee.id={Assignee ID?}&assignee.type={Assignee Type?:person|company|term}&expected_outcome.target={Expected Outcome Target?}&expected_outcome.tracking_metric={Expected Outcome Tracking Metric?:quantity|sum}",
+      "description": "The sales targets set on the account, each with what is being measured (deals won, deals progressed, activities completed or revenue), the target value, the period it covers, its interval, and whether it is assigned to a user, a team or the whole company. Targets stated by the business rather than derived from the data -- so this is what turns a number into 'ahead' or 'behind', which no deal table can say on its own. Progress against them is in Goal Result."
     },
     {
       "name": "Goal Result",
       "paged": true,
-      "suffix": "/v1/goals/{Goal ID}/results?period.start={Period Start:YYYY-MM-DD}&period.end={Period End:YYYY-MM-DD}"
+      "suffix": "/v1/goals/{Goal ID}/results?period.start={Period Start:YYYY-MM-DD}&period.end={Period End:YYYY-MM-DD}",
+      "description": "The progress of one goal: the achieved value against the target for each period in its range. Requires a goal id and a date range. Pipedrive computes this, so attainment does not have to be reconstructed from the deals."
     },
     {
       "name": "Mail Message",
       "paged": false,
-      "suffix": "/v1/mailbox/mailMessages/{Message ID}?include_body={Include Body?:0|1}"
+      "suffix": "/v1/mailbox/mailMessages/{Message ID}?include_body={Include Body?:0|1}",
+      "description": "One mail message by id, with its full body and headers."
     },
     {
       "name": "Mail Threads",
       "paged": true,
-      "suffix": "/v1/mailbox/mailThreads?folder={Folder:inbox|drafts|...}"
+      "suffix": "/v1/mailbox/mailThreads?folder={Folder:inbox|drafts|...}",
+      "description": "The email conversations synced into the account, one thread each, with subject, participants, message count, and the deal or contact they are linked to. Requires a folder such as inbox, drafts or sent. Depends on email sync being enabled for the user; without it these tables are empty, which is not the same as no email having been exchanged."
     },
     {
       "name": "Mail Thread",
       "paged": false,
-      "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}"
+      "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}",
+      "description": "One mail thread by id, with its participants and linkage."
     },
     {
       "name": "Mail Thread Messages",
       "paged": true,
-      "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}/mailMessages"
+      "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}/mailMessages",
+      "description": "The individual messages within one thread, with sender, recipients, subject, body and timestamp. Requires a thread id. The message-level detail behind the thread summary."
     },
     {
       "name": "Notes",
@@ -280,27 +313,32 @@
           "key": "org_id",
           "parameterName": "Organization ID"
         }
-      ]
+      ],
+      "description": "The free-text notes written against deals, contacts, organizations and leads, one row each. Carries the content, the author, add_time and update_time, and the deal, person, organization or lead it is attached to. The qualitative record alongside the structured one -- why a deal was lost is usually written here and nowhere else. Filter by the parent id or by date; the content is HTML, not plain text."
     },
     {
       "name": "Note",
       "paged": false,
-      "suffix": "/v1/notes/{Note ID}"
+      "suffix": "/v1/notes/{Note ID}",
+      "description": "One note by id."
     },
     {
       "name": "Note Fields",
       "paged": true,
-      "suffix": "/v1/noteFields"
+      "suffix": "/v1/noteFields",
+      "description": "The fields a note can carry. A small reference list; notes have few fields and no custom ones in the way deals do."
     },
     {
       "name": "Organization Fields",
       "paged": true,
-      "suffix": "/v1/organizationFields"
+      "suffix": "/v1/organizationFields",
+      "description": "Every field a company can carry, standard and custom, with key, name, type and option lists. The decoder for the hash-keyed custom fields on organizations."
     },
     {
       "name": "Organization Field",
       "paged": true,
-      "suffix": "/v1/organizationFields/{Field ID}"
+      "suffix": "/v1/organizationFields/{Field ID}",
+      "description": "One organization field by id, with its options."
     },
     {
       "name": "Organizations",
@@ -323,67 +361,80 @@
           "key": "id",
           "parameterName": "Organization ID"
         }
-      ]
+      ],
+      "description": "The companies on the account, one row each. Carries name, the address with its parsed components, the owning user, add_time and update_time, the label, cc_email, and running counts of people, open, won, lost and closed deals, and activities. The account-level dimension: deals and contacts both reference an org_id, so this is what per-customer analysis groups by. Custom fields are hash-keyed here too, decoded by Organization Fields. VERSION NOTE: moved to API v2; the v1 path is being retired."
     },
     {
       "name": "Organization Search",
       "paged": true,
-      "suffix": "/v1/organizations/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}"
+      "suffix": "/v1/organizations/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}",
+      "description": "Companies matching a search term across name, address and custom fields. Returns scored matches rather than full records. Same version note."
     },
     {
       "name": "Organization",
       "paged": false,
-      "suffix": "/v1/organizations/{Organization ID}"
+      "suffix": "/v1/organizations/{Organization ID}",
+      "description": "One company by id. Same fields, same version note."
     },
     {
       "name": "Organization Activities",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/activities?done={Done?:0|1}&exclude={Exclude?}"
+      "suffix": "/v1/organizations/{Organization ID}/activities?done={Done?:0|1}&exclude={Exclude?}",
+      "description": "The activities linked to one company. Requires an organization id. SUPERSEDED: v2 answers this with an org_id filter on the activities collection; this v1 path is absent from the current API description."
     },
     {
       "name": "Organization Deals",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/deals?status={Status?:all_not_deleted|open|won|...}&only_primary_association={Only Primary Association?:0|1}"
+      "suffix": "/v1/organizations/{Organization ID}/deals?status={Status?:all_not_deleted|open|won|...}&only_primary_association={Only Primary Association?:0|1}",
+      "description": "The deals linked to one company. Requires an organization id. SUPERSEDED: v2 uses an org_id filter on the deals collection; this v1 path is absent from the current API description."
     },
     {
       "name": "Organization Files",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+      "suffix": "/v1/organizations/{Organization ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "description": "The files attached to one company. Requires an organization id."
     },
     {
       "name": "Organization Updates",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/flow"
+      "suffix": "/v1/organizations/{Organization ID}/flow",
+      "description": "The change history of one company, with field changes and linked records. Requires an organization id."
     },
     {
       "name": "Organization Followers",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/followers"
+      "suffix": "/v1/organizations/{Organization ID}/followers",
+      "description": "The users following one company. Requires an organization id."
     },
     {
       "name": "Organization Mail Messages",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/mailMessages"
+      "suffix": "/v1/organizations/{Organization ID}/mailMessages",
+      "description": "The email correspondence linked to one company. Requires an organization id. Depends on email sync being enabled."
     },
     {
       "name": "Organization Permitted Users",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/permittedUsers"
+      "suffix": "/v1/organizations/{Organization ID}/permittedUsers",
+      "description": "The users allowed to see one company. Requires an organization id."
     },
     {
       "name": "Organization People",
       "paged": true,
-      "suffix": "/v1/organizations/{Organization ID}/persons"
+      "suffix": "/v1/organizations/{Organization ID}/persons",
+      "description": "The contacts belonging to one company. Requires an organization id. SUPERSEDED: v2 uses an org_id filter on the persons collection; this v1 path is absent from the current API description."
     },
     {
       "name": "Organization Relationships",
       "paged": true,
-      "suffix": "/v1/organizationRelationships?org_id={Organization ID}"
+      "suffix": "/v1/organizationRelationships?org_id={Organization ID}",
+      "description": "The links between one company and others -- parent, subsidiary and related. Requires an organization id. Corporate structure, which the organization record itself does not express: without this a parent group and its subsidiaries look like unrelated customers."
     },
     {
       "name": "Organization Relationship",
       "paged": true,
-      "suffix": "/v1/organizationRelationships/{Organization Relationship ID}?org_id={Organization ID}"
+      "suffix": "/v1/organizationRelationships/{Organization Relationship ID}?org_id={Organization ID}",
+      "description": "One organization relationship by id, with both sides and the relationship type."
     },
     {
       "name": "Permission Sets",
@@ -399,12 +450,14 @@
           "key": "id",
           "parameterName": "Permission Set ID"
         }
-      ]
+      ],
+      "description": "The permission sets available on the account -- named bundles of capabilities such as admin, manager or regular user. The vocabulary that roles and users are granted from."
     },
     {
       "name": "Permission Set",
       "paged": false,
-      "suffix": "/v1/permissionSets/{Permission Set ID}"
+      "suffix": "/v1/permissionSets/{Permission Set ID}",
+      "description": "One permission set by id, with the capabilities it contains."
     },
     {
       "name": "Permission Set Assignments",
@@ -417,7 +470,8 @@
           "key": "user_id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The users holding one permission set. Requires a permission set id."
     },
     {
       "name": "People",
@@ -439,17 +493,20 @@
           "key": "id",
           "parameterName": "Person ID"
         }
-      ]
+      ],
+      "description": "The contacts on the account, one row each -- what Pipedrive calls persons. Carries name split into first and last, the organization and owning user, add_time and update_time, last_activity_date and next_activity_date, the label, and running counts of open, won, lost and closed deals plus done and undone activities. TWO SHAPE TRAPS. EMAIL AND PHONE ARE ARRAYS, not single values: each entry is an object with the value, a label such as work or home, and a primary flag, so a person with three addresses is one row with a nested list, and reading 'the email' means picking the primary one. And custom fields arrive under 40-character hash keys that only Person Fields decodes. The deal counts are already computed, so per-contact value questions rarely need the deals table at all. VERSION NOTE: moved to API v2; the v1 path this endpoint uses is being retired."
     },
     {
       "name": "Person Search",
       "paged": true,
-      "suffix": "/v1/persons/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&organization_id={Organization ID?}"
+      "suffix": "/v1/persons/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&organization_id={Organization ID?}",
+      "description": "Contacts matching a search term across name, email, phone and custom fields. Returns matches with a relevance score rather than full records. Same version note."
     },
     {
       "name": "Person",
       "paged": false,
-      "suffix": "/v1/persons/{Person ID}"
+      "suffix": "/v1/persons/{Person ID}",
+      "description": "One contact by id. Same fields and the same array-shaped email and phone. Same version note."
     },
     {
       "name": "Person Activities",
@@ -462,52 +519,62 @@
           "key": "user_id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The activities linked to one contact. Requires a person id. SUPERSEDED: Pipedrive replaced these per-parent listings with filters on the main collection in v2, where the same rows come from the activities endpoint with a person_id filter. This v1 path is absent from the current API description."
     },
     {
       "name": "Person Deals",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/deals?status={Status?:all_not_deleted|open|...}"
+      "suffix": "/v1/persons/{Person ID}/deals?status={Status?:all_not_deleted|open|...}",
+      "description": "The deals linked to one contact. Requires a person id. SUPERSEDED in the same way -- v2 answers it with a person_id filter on the deals collection, and this v1 path is absent from the current API description."
     },
     {
       "name": "Person Files",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+      "suffix": "/v1/persons/{Person ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "description": "The files attached to one contact. Requires a person id."
     },
     {
       "name": "Person Updates",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/flow"
+      "suffix": "/v1/persons/{Person ID}/flow",
+      "description": "The change history of one contact: field changes with old and new values, plus linked notes, activities and files. Requires a person id. The contact record carries only its current state, so this is the only source for when it changed."
     },
     {
       "name": "Person Followers",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/followers"
+      "suffix": "/v1/persons/{Person ID}/followers",
+      "description": "The users following one contact. Requires a person id. Internal interest."
     },
     {
       "name": "Person Mail Messages",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/mailMessages"
+      "suffix": "/v1/persons/{Person ID}/mailMessages",
+      "description": "The email correspondence linked to one contact. Requires a person id. Requires email sync to be enabled; without it this is empty rather than absent, which reads as 'no contact was made'."
     },
     {
       "name": "Person Permitted Users",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/permittedUsers"
+      "suffix": "/v1/persons/{Person ID}/permittedUsers",
+      "description": "The users allowed to see one contact. Requires a person id. Visibility configuration."
     },
     {
       "name": "Person Products",
       "paged": true,
-      "suffix": "/v1/persons/{Person ID}/products"
+      "suffix": "/v1/persons/{Person ID}/products",
+      "description": "The products associated with one contact. Requires a person id. Derived from the deals they are on, so it reflects what they have been quoted rather than a purchase history."
     },
     {
       "name": "Person Fields",
       "paged": true,
-      "suffix": "/v1/personFields"
+      "suffix": "/v1/personFields",
+      "description": "Every field a contact can carry, standard and custom, with the field key, name, field_type, and the option list for enum and set fields. THE KEY TO CONTACT DATA -- custom fields appear on persons as 40-character hashes and single-select values as option ids, neither readable without this table."
     },
     {
       "name": "Person Field",
       "paged": false,
-      "suffix": "/v1/personFields/{Field ID}"
+      "suffix": "/v1/personFields/{Field ID}",
+      "description": "One person field by id, with its options."
     },
     {
       "name": "Pipelines",
@@ -524,27 +591,32 @@
           "key": "id",
           "parameterName": "Pipeline ID"
         }
-      ]
+      ],
+      "description": "The sales pipelines on the account, each with name, order, whether it is active and whether deal probability is enabled on it. A pipeline is a sequence of stages, and most organisations run more than one -- so any funnel question needs to name the pipeline, or it mixes processes that are not comparable. Same version note as Deals: this resource has moved to API v2."
     },
     {
       "name": "Pipeline",
       "paged": false,
-      "suffix": "/v1/pipelines/{Pipeline ID}?totals_convert_currency={Totals Convert Currency?}"
+      "suffix": "/v1/pipelines/{Pipeline ID}?totals_convert_currency={Totals Convert Currency?}",
+      "description": "One pipeline by id. Same fields, same version note."
     },
     {
       "name": "Pipeline Conversion Rates",
       "paged": true,
-      "suffix": "/v1/pipelines/{Pipeline ID}/conversion_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID}"
+      "suffix": "/v1/pipelines/{Pipeline ID}/conversion_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID}",
+      "description": "Stage-to-stage conversion for one pipeline over a period: how many deals moved from each stage to the next, the conversion rate at each step, and the overall won rate. Requires a pipeline id and a date range. A READY-MADE FUNNEL -- computing this from the deal records would need the full stage history out of Deal Updates, one request per deal, so this endpoint saves a great deal and is the right answer to where deals stall."
     },
     {
       "name": "Pipeline Deals",
       "paged": false,
-      "suffix": "/v1/pipelines/{Pipeline ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}&stage_id={Stage ID?}&get_summary={Get Summary?:0|1}&totals_convert_currency={Totals Convert Currency?}"
+      "suffix": "/v1/pipelines/{Pipeline ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}&stage_id={Stage ID?}&get_summary={Get Summary?:0|1}&totals_convert_currency={Totals Convert Currency?}",
+      "description": "The deals currently in one pipeline. Requires a pipeline id. Equivalent to filtering Deals by pipeline_id, and it can be grouped by stage in the response, which is what makes it convenient for a funnel snapshot."
     },
     {
       "name": "Pipeline Deal Movement",
       "paged": true,
-      "suffix": "/v1/pipelines/{Pipeline ID}/movement_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID?}"
+      "suffix": "/v1/pipelines/{Pipeline ID}/movement_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID?}",
+      "description": "How deals moved through one pipeline over a period: what entered each stage, what left, what was won and lost, and the average time spent per stage. Requires a pipeline id and a date range. The velocity companion to the conversion rates -- it answers how LONG a stage takes, not just how many survive it."
     },
     {
       "name": "Products",
@@ -562,52 +634,62 @@
           "key": "id",
           "parameterName": "Product ID"
         }
-      ]
+      ],
+      "description": "The products or services the account sells, one row each. Carries name, code, unit, tax, the active and selectable flags, visibility, and the owning user. NOTE THE PRICE SHAPE: prices is an ARRAY with one entry per currency, each carrying the price, cost and overhead cost -- there is no single price column, so reading 'the price' means choosing a currency first. What was actually charged on a deal is in Deal Products, not here. VERSION NOTE: moved to API v2; the v1 path is being retired."
     },
     {
       "name": "Product Search",
       "paged": true,
-      "suffix": "/v1/products/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}"
+      "suffix": "/v1/products/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}",
+      "description": "Products matching a search term across name, code and custom fields. Returns scored matches. Same version note."
     },
     {
       "name": "Product",
       "paged": false,
-      "suffix": "/v1/products/{Product ID}"
+      "suffix": "/v1/products/{Product ID}",
+      "description": "One product by id, with its full per-currency price array. Same version note."
     },
     {
       "name": "Product Deals",
       "paged": true,
-      "suffix": "/v1/products/{Product ID}/deals?status={Status?:all_not_deleted|open|\u2026}"
+      "suffix": "/v1/products/{Product ID}/deals?status={Status?:all_not_deleted|open|…}",
+      "description": "The deals a given product is attached to, with the quantity and price on each. Requires a product id. Revenue per product is built from here -- the product record itself carries a list price, not what was actually sold."
     },
     {
       "name": "Product Files",
       "paged": true,
-      "suffix": "/v1/products/{Product ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+      "suffix": "/v1/products/{Product ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "description": "The files attached to one product. Requires a product id."
     },
     {
       "name": "Product Followers",
       "paged": true,
-      "suffix": "/v1/products/{Product ID}/followers"
+      "suffix": "/v1/products/{Product ID}/followers",
+      "description": "The users following one product. Requires a product id."
     },
     {
       "name": "Product Permitted Users",
       "paged": true,
-      "suffix": "/v1/products/{Product ID}/permittedUsers"
+      "suffix": "/v1/products/{Product ID}/permittedUsers",
+      "description": "The users allowed to see one product. Requires a product id."
     },
     {
       "name": "Product Fields",
       "paged": true,
-      "suffix": "/v1/productFields"
+      "suffix": "/v1/productFields",
+      "description": "Every field a product can carry, standard and custom, with key, name, type and options. The decoder for hash-keyed product custom fields."
     },
     {
       "name": "Product Field",
       "paged": false,
-      "suffix": "/v1/productFields/{Product Field ID}"
+      "suffix": "/v1/productFields/{Product Field ID}",
+      "description": "One product field by id, with its options."
     },
     {
       "name": "Recent Changes",
       "paged": true,
-      "suffix": "/v1/recents?since_timestamp={Since Timestamp:YYYY-MM-DDTHH:mm:ssZ}&items={Items?:activity|activityType|...}"
+      "suffix": "/v1/recents?since_timestamp={Since Timestamp:YYYY-MM-DDTHH:mm:ssZ}&items={Items?:activity|activityType|...}",
+      "description": "Everything created or modified across the account since a given timestamp -- deals, persons, organizations, activities, notes, files, users and more in ONE feed, each row tagged with its item type. Requires a since_timestamp. This is the incremental-sync endpoint: it exists so a downstream copy can be kept current without re-reading every collection, and it is the only place a single query spans all object types. Rows of different types have different shapes, so it cannot be treated as one uniform table."
     },
     {
       "name": "Roles",
@@ -624,37 +706,44 @@
           "key": "id",
           "parameterName": "Role ID"
         }
-      ]
+      ],
+      "description": "The roles defined on the account, with name, the parent role, and how many users and other roles sit under each. Roles nest, and a child inherits from its parent, so a permission not visible on a role may still apply through the one above it."
     },
     {
       "name": "Role",
       "paged": false,
-      "suffix": "/v1/roles/{Role ID}"
+      "suffix": "/v1/roles/{Role ID}",
+      "description": "One role by id, with its parent and counts."
     },
     {
       "name": "Role Assignments",
       "paged": true,
-      "suffix": "/v1/roles/{Role ID}/assignments"
+      "suffix": "/v1/roles/{Role ID}/assignments",
+      "description": "The users assigned to one role. Requires a role id. The membership behind a role, which the role record only counts."
     },
     {
       "name": "Sub-roles",
       "paged": true,
-      "suffix": "/v1/roles/{Role ID}/roles"
+      "suffix": "/v1/roles/{Role ID}/roles",
+      "description": "The roles nested under one role. REMOVED: absent from Pipedrive's current API description. The hierarchy is still readable from the parent_role_id column on Roles."
     },
     {
       "name": "Role Settings",
       "paged": true,
-      "suffix": "/v1/roles/{Role ID}/settings"
+      "suffix": "/v1/roles/{Role ID}/settings",
+      "description": "The permission settings of one role -- what its members may see and do. Requires a role id. Where visibility rules are actually written, and therefore the explanation for records that some users cannot see at all."
     },
     {
       "name": "Search",
       "paged": true,
-      "suffix": "/v1/itemSearch?term={Term}&item_types={Item Types?:type1,type2,...}&fields={Fields?:field1,field2,...}&search_for_related_items={Search for Related Items?:true|false}&exact_match={Exact Match?:true|false}"
+      "suffix": "/v1/itemSearch?term={Term}&item_types={Item Types?:type1,type2,...}&fields={Fields?:field1,field2,...}&search_for_related_items={Search for Related Items?:true|false}&exact_match={Exact Match?:true|false}",
+      "description": "Searches across several item types at once -- deals, persons, organizations, products, files and more -- for a term. Returns matches with a relevance score and an item type on each, so the result set is mixed-shape rather than one table. Reach for a specific resource's own search when the type is already known; this is for when it is not. VERSION NOTE: moved to API v2; the v1 path is being retired."
     },
     {
       "name": "Field Search",
       "paged": true,
-      "suffix": "/v1/itemSearch/field?term={Term}&field_type={Field Type:dealField|personField|...}&field_key={Field Key}&exact_match={Exact Match?:true|false}&return_item_ids={Return Item IDs?:true|false}"
+      "suffix": "/v1/itemSearch/field?term={Term}&field_type={Field Type:dealField|personField|...}&field_key={Field Key}&exact_match={Exact Match?:true|false}&return_item_ids={Return Item IDs?:true|false}",
+      "description": "Searches one named field of one item type for a term, returning the matching values. Built for autocomplete, so it returns field values rather than whole records. Same version note."
     },
     {
       "name": "Stages",
@@ -673,22 +762,25 @@
           "key": "pipeline_id",
           "parameterName": "Pipeline ID"
         }
-      ]
+      ],
+      "description": "The stages making up the pipelines, each with its name, the pipeline it belongs to, its order_nr, and its deal_probability. Deals reference a stage_id, so this is the dimension any funnel breakdown joins to. NOTE the probability is a configured expectation, not a measured rate -- Pipeline Conversion Rates is where the measured one lives. Same version note: moved to API v2."
     },
     {
       "name": "Stage",
       "paged": false,
-      "suffix": "/v1/stages/{Stage ID}"
+      "suffix": "/v1/stages/{Stage ID}",
+      "description": "One stage by id. Same fields, same version note."
     },
     {
       "name": "Stage Deals",
       "paged": true,
-      "suffix": "/v1/stages/{Stage ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}"
+      "suffix": "/v1/stages/{Stage ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}",
+      "description": "The deals currently sitting in one stage. Requires a stage id. A snapshot of the stage's contents; how deals arrived and how long they have been there comes from Pipeline Deal Movement."
     },
     {
       "name": "Teams",
       "paged": true,
-      "suffix": "/v1/teams?skip_users={Skip Users?:0|1}",
+      "suffix": "/v1/legacyTeams?skip_users={Skip Users?:0|1}",
       "lookups": [
         {
           "endpoint": "Team Users",
@@ -696,22 +788,26 @@
           "key": "id",
           "parameterName": "Team ID"
         }
-      ]
+      ],
+      "description": "The teams on the account, with name, manager, members and whether each is active. Teams group users for goals and reporting, so this is the dimension a per-team target is measured against. NOTE THE PATH: Pipedrive renamed this resource to legacyTeams when it introduced a newer teams feature, and the connector now points at the current name."
     },
     {
       "name": "Team",
       "paged": false,
-      "suffix": "/v1/teams/{Team ID}?skip_users={Skip Users?:0|1}"
+      "suffix": "/v1/legacyTeams/{Team ID}?skip_users={Skip Users?:0|1}",
+      "description": "One team by id, with its members."
     },
     {
       "name": "Team Users",
       "paged": true,
-      "suffix": "/v1/teams/{Team ID}/users"
+      "suffix": "/v1/legacyTeams/{Team ID}/users",
+      "description": "The users in one team. Requires a team id."
     },
     {
       "name": "User Teams",
       "paged": true,
-      "suffix": "/v1/teams/user/{User ID}?skip_users={Skip Users?:0|1}"
+      "suffix": "/v1/legacyTeams/user/{User ID}?skip_users={Skip Users?:0|1}",
+      "description": "The teams one user belongs to. Requires a user id. A user can be in several."
     },
     {
       "name": "Users",
@@ -730,62 +826,74 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The user accounts on the account, one row each, with name, email, whether each is active, their locale and timezone, created and modified times, and their role and access rights. Deals, activities and every other record carry an owner user_id, so this is the dimension all per-person performance analysis joins to. Note that deactivated users remain here with active_flag false and still own their historical records -- excluding them loses that history rather than tidying it."
     },
     {
       "name": "User Search",
       "paged": true,
-      "suffix": "/v1/users/find?term={Term}&search_by_email={Search By Email?:0|1}"
+      "suffix": "/v1/users/find?term={Term}&search_by_email={Search By Email?:0|1}",
+      "description": "Users matching a name or email term. The lookup route when the user id is not known."
     },
     {
       "name": "Currenct User",
       "paged": true,
-      "suffix": "/v1/users/me"
+      "suffix": "/v1/users/me",
+      "description": "The account the API token belongs to, with its company, locale and access rights. One record, always the caller. Worth reading first when results look short, since visibility rules filter nearly every listing by what this user may see. (The endpoint name carries a typo in the connector; the resource is the current user.)"
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/v1/users/{User ID}"
+      "suffix": "/v1/users/{User ID}",
+      "description": "One user by id. Same fields."
     },
     {
       "name": "Blacklisted Email Addresses",
       "paged": true,
-      "suffix": "/v1/users/{User ID}/blacklistedEmails"
+      "suffix": "/v1/users/{User ID}/blacklistedEmails",
+      "description": "Email addresses excluded from one user's mail sync. Requires a user id. REMOVED: absent from Pipedrive's current API description."
     },
     {
       "name": "User Followers",
       "paged": false,
-      "suffix": "/v1/users/{User ID}/followers"
+      "suffix": "/v1/users/{User ID}/followers",
+      "description": "The users following one user. Requires a user id."
     },
     {
       "name": "User Permissions",
       "paged": true,
-      "suffix": "/v1/users/{User ID}/permissions"
+      "suffix": "/v1/users/{User ID}/permissions",
+      "description": "The permissions one user holds: whether they can add or delete deals, see other users' records, export data and so on. Requires a user id. The direct explanation for why one person's totals differ from another's."
     },
     {
       "name": "User Roles",
       "paged": true,
-      "suffix": "/v1/users/{User ID}/roleAssignments"
+      "suffix": "/v1/users/{User ID}/roleAssignments",
+      "description": "The roles assigned to one user. Requires a user id. Roles carry the permission settings, so this is one half of what a person can do; Role Settings is the other."
     },
     {
       "name": "User Role Settings",
       "paged": true,
-      "suffix": "/v1/users/{User ID}/roleSettings"
+      "suffix": "/v1/users/{User ID}/roleSettings",
+      "description": "The permission settings that apply to one user through their role. Requires a user id. The resolved answer, as opposed to the role assignment alone."
     },
     {
       "name": "User Connections",
       "paged": true,
-      "suffix": "/v1/userConnections"
+      "suffix": "/v1/userConnections",
+      "description": "The third-party accounts the calling user has connected, such as Google or Microsoft. Integration state, and what determines whether the mail and calendar tables have anything in them."
     },
     {
       "name": "Current User Settings",
       "paged": true,
-      "suffix": "/v1/userSettings"
+      "suffix": "/v1/userSettings",
+      "description": "The calling user's own settings -- display preferences, default currency, timezone. Personal configuration."
     },
     {
       "name": "Webhooks",
       "paged": true,
-      "suffix": "/v1/webhooks"
+      "suffix": "/v1/webhooks",
+      "description": "The webhooks configured on the account: the target URL, the event and object each subscribes to, and its owner. Integration configuration -- deliveries are not recorded here. Worth checking to find out whether an external system is already receiving this data in real time."
     }
   ]
 }
