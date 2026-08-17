@@ -74,7 +74,7 @@ public class VSSelectionListHelper extends ExporterHelper {
 
          if(finfo != null) {
             format = VSTitleChromeDefaults.applyModernDefaults(finfo.getFormat(
-               new TableDataPath(-1, TableDataPath.TITLE), false));
+               new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.ofGate());
          }
 
          CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo)

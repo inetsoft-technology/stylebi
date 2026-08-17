@@ -45,7 +45,15 @@ public final class VSDensityDefaults {
     * master modern gate and recolors only surfaces that are already modern.
     */
    public static boolean isDark() {
-      return isModern() && SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true);
+      return isDark(isModern());
+   }
+
+   /**
+    * Same as isDark(), for a caller that already has the modern flag and would otherwise read the
+    * gate property a second time.
+    */
+   static boolean isDark(boolean modern) {
+      return modern && SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true);
    }
 
    /**
@@ -65,25 +73,25 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * Default data-row height for the active mode, or the legacy default when the gate is off.
+    * Default data-row height for the context's mode, or the legacy default when it is not modern.
     */
-   public static int rowHeight() {
-      return isModern() ? rowHeightForMode(mode()) : AssetUtil.defh;
+   public static int rowHeight(VizContext ctx) {
+      return ctx.modern ? rowHeightForMode(ctx.density) : AssetUtil.defh;
    }
 
    /**
-    * Default header-row height for the active mode, or the legacy default when the gate is off.
+    * Default header-row height for the context's mode, or the legacy default when not modern.
     */
-   public static int headerRowHeight() {
-      return isModern() ? headerRowHeightForMode(mode()) : AssetUtil.defh;
+   public static int headerRowHeight(VizContext ctx) {
+      return ctx.modern ? headerRowHeightForMode(ctx.density) : AssetUtil.defh;
    }
 
    /**
-    * Default selection-list cell height for the active mode, or the legacy default when the gate
-    * is off. Selection cells are a data surface, so they share the table row-height matrix.
+    * Default selection-list cell height. Selection cells are a data surface, so they share the
+    * table row-height matrix.
     */
-   public static int cellHeight() {
-      return isModern() ? rowHeightForMode(mode()) : AssetUtil.defh;
+   public static int cellHeight(VizContext ctx) {
+      return ctx.modern ? rowHeightForMode(ctx.density) : AssetUtil.defh;
    }
 
    /**
@@ -91,8 +99,8 @@ public final class VSDensityDefaults {
     * hold the 24px anchored strip with clearance; dense stays at defh, which is the one tier that
     * must equal legacy and the one where the strip does not anchor at all.
     */
-   public static int titleHeight() {
-      return isModern() ? titleHeightForMode(mode()) : AssetUtil.defh;
+   public static int titleHeight(VizContext ctx) {
+      return ctx.modern ? titleHeightForMode(ctx.density) : AssetUtil.defh;
    }
 
    /**

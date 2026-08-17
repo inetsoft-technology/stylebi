@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSFormat;
 
@@ -35,37 +34,25 @@ import java.awt.Color;
  * (live model build, export title draw), only when neither the user (USER tier) nor a format.css TITLE
  * class (CSS tier) has set the value — so a user title format and a customer format.css class both
  * still win. applyModernDefaults returns a clone (never mutates the source); applyModernDefaultsInPlace
- * mutates directly, for the export copy where the viewsheet is already cloned. Mirrors
- * VSChartChromeDefaults' gate.
+ * mutates directly, for the export copy where the viewsheet is already cloned.
  */
 public final class VSTitleChromeDefaults {
    private VSTitleChromeDefaults() {
    }
 
-   /**
-    * Whether modern object chrome is active: the modern-visualization gate plus its chrome toggle,
-    * which defaults on when modern is enabled.
-    */
-   public static boolean isModern() {
-      // default on when the modern gate is on; only an explicit "false" opts out (there is no
-      // default-value overload on getBooleanProperty, so read the raw property)
-      return VSDensityDefaults.isModern() &&
-         !"false".equals(SreeEnv.getProperty("viewsheet.modernObjectChrome", false, true));
-   }
-
    /** Title-bar background — quiet warm neutral, equal to the table header background so chrome reads as one system; dark neutral when dark mode is on. */
-   public static Color titleBackground() {
-      return VSDensityDefaults.isDark() ? TITLE_BG_DARK : TITLE_BG;
+   public static Color titleBackground(VizContext ctx) {
+      return ctx.dark ? TITLE_BG_DARK : TITLE_BG;
    }
 
    /** Title-bar text color — muted, equal to the table header / chart label foreground; dark neutral when dark mode is on. */
-   public static Color titleForeground() {
-      return VSDensityDefaults.isDark() ? TITLE_FG_DARK : TITLE_FG;
+   public static Color titleForeground(VizContext ctx) {
+      return ctx.dark ? TITLE_FG_DARK : TITLE_FG;
    }
 
    /** Title→body bottom-border color — the shared structural border (matches the table header rule); dark neutral when dark mode is on. */
-   public static Color titleBorderColor() {
-      return VSDensityDefaults.isDark() ? TITLE_BORDER_DARK : TITLE_BORDER;
+   public static Color titleBorderColor(VizContext ctx) {
+      return ctx.dark ? TITLE_BORDER_DARK : TITLE_BORDER;
    }
 
    /**
@@ -76,8 +63,8 @@ public final class VSTitleChromeDefaults {
     * a specific default color — because legacy title backgrounds vary by widget (white, #f5f5f5,
     * transparent); modern mode gives them all one consistent title bar.
     */
-   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat titleFmt) {
-      if(!isModern() || titleFmt == null) {
+   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat titleFmt, VizContext ctx) {
+      if(!ctx.modern || titleFmt == null) {
          return titleFmt;
       }
 
@@ -89,7 +76,7 @@ public final class VSTitleChromeDefaults {
       }
 
       VSCompositeFormat clone = titleFmt.clone();
-      applyTo(clone.getDefaultFormat(), bg, fg);
+      applyTo(clone.getDefaultFormat(), bg, fg, ctx);
       return clone;
    }
 
@@ -100,17 +87,17 @@ public final class VSTitleChromeDefaults {
     * No-op when the gate is off or the value is already user / format.css customized; never touches a
     * persisted format (export clones upstream).
     */
-   public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt) {
-      if(!isModern() || titleFmt == null) {
+   public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt, VizContext ctx) {
+      if(!ctx.modern || titleFmt == null) {
          return;
       }
 
       applyTo(titleFmt.getDefaultFormat(),
-              !isBackgroundCustomized(titleFmt), !isForegroundCustomized(titleFmt));
+              !isBackgroundCustomized(titleFmt), !isForegroundCustomized(titleFmt), ctx);
    }
 
-   private static void applyTo(VSFormat def, boolean bg, boolean fg) {
-      boolean dark = VSDensityDefaults.isDark();
+   private static void applyTo(VSFormat def, boolean bg, boolean fg, VizContext ctx) {
+      boolean dark = ctx.dark;
 
       if(bg) {
          def.setBackgroundValue(toValue(dark ? TITLE_BG_DARK : TITLE_BG));

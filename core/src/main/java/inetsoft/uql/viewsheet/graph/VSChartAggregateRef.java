@@ -24,6 +24,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
 import org.slf4j.Logger;
@@ -62,11 +63,11 @@ public class VSChartAggregateRef extends VSAggregateRef
    }
 
    public void initDefaultFormat() {
-      initDefaultFormat(false);
+      initDefaultFormat(VizContext.LEGACY);
    }
 
-   public void initDefaultFormat(boolean vs) {
-      this.refImpl.initDefaultFormat(vs);
+   public void initDefaultFormat(VizContext ctx) {
+      this.refImpl.initDefaultFormat(ctx);
    }
 
    /**

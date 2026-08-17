@@ -5,6 +5,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.XTableUtil;
 import inetsoft.uql.viewsheet.internal.VSTableStructureDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +36,7 @@ class XTableStyleGroupSubtotalOrderTest {
       style.addSpecification(zebra);
 
       // reproduce the production insertion: levels 0-9, both axes, prepended in order
-      Color subtotal = VSTableStructureDefaults.subtotalBackground();
+      Color subtotal = VSTableStructureDefaults.subtotalBackground(VizContext.ofGate());
       int pos = 0;
 
       for(int level = 0; level < 10; level++) {

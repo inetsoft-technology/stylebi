@@ -37,7 +37,8 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       TableDataVSAssemblyInfo tinfo = (TableDataVSAssemblyInfo) info;
       TableDataPath titlePath = new TableDataPath(-1, TableDataPath.TITLE);
-      VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(info.getFormatInfo().getFormat(titlePath, false));
+      VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(
+         info.getFormatInfo().getFormat(titlePath, false), VizContext.ofGate());
       titleFormat = new VSFormatModel(compositeFormat, info);
       title = tinfo.getTitle();
       empty = tinfo.getTableName() == null;

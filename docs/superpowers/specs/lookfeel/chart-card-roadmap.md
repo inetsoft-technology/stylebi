@@ -1,9 +1,12 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-13 (third revision — the density gating and the userTitleHeight flag both committed)
-**Verified against:** community `viz-updates` @ `8357e05d8`, which is `HEAD`. The code baseline is
-`307a6ee09`; `55c3bad1a` shipped the density gating and `07c91926e`/`307a6ee09` the userTitleHeight flag.
-Every code claim below was re-checked against it.
+**Date:** 2026-08-15 (fifth revision — the seed mark's P2 is built, so `VizContext` is threaded and the four
+sub-gates are gone; the fourth revision's rebase note is retained below because it still governs how to
+check a hash)
+**Verified against:** community `viz-updates` @ `e670744c1` plus P2's uncommitted working tree.
+`8f75872a6` shipped the seed mark's P1; **P2 is complete, reviewed and manually verified but not yet
+committed**, so it has no hash to cite — every P2 claim below was checked against the working tree.
+`380705bc1` shipped the density gating; `1d26dbefb`/`d4d0d5d48` the userTitleHeight flag.
 **Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
 it, and the decisions that gate what remains
 
@@ -16,13 +19,16 @@ sync — the 2026-08-12 regeneration overwrote four of them. This pointer lives 
 **Verify before trusting.** This branch moves daily. Every claim below cites a commit or a file so it can be
 checked rather than believed. If a claim and the branch disagree, the branch is right.
 
-**Hashes go stale when the branch is rewritten, and it has been.** The rebase that produced `2310cea37`
-gave every commit in the Done table a new hash; the ones this file cited until 2026-08-13 still resolved
-with `git show`, because the old objects were still in the repo, while being unreachable from `HEAD` —
-they would fail in a fresh clone and after a `gc`. The table below carries the current hashes. When
-checking any hash in this tree, use `git merge-base --is-ancestor <hash> HEAD` rather than `git show`;
-`git show` succeeding proves nothing. Other files under `docs/superpowers/` still carry the pre-rebase
-hashes.
+**Hashes go stale when the branch is rewritten, and it has happened twice.** The 2026-08-14 rebase moved
+all 62 commits onto `e7ef501fb` and rewrote every hash this file cited at the third revision — checked,
+and **not one of `8357e05d8`, `952614aa7`, `1c0ace705`, `55c3bad1a`, `07c91926e` or `307a6ee09` is an
+ancestor of `HEAD` any more.** They still resolve with `git show`, because the old objects linger in the
+repo while being unreachable, so they would fail in a fresh clone and after a `gc`. The Done table below
+carries the post-rebase hashes. When checking any hash in this tree, use
+`git merge-base --is-ancestor <hash> HEAD` rather than `git show`; `git show` succeeding proves nothing.
+Every other file under `docs/superpowers/` still carries pre-rebase hashes and should be read with that in
+mind — the design docs' *file and line* citations were re-derived and are current, but their commit hashes
+were not.
 
 ## How to read this
 
@@ -40,37 +46,50 @@ rather than repairing it — the whole of its content is one reading of the two 
 
 ```
   L. Strip density gating ──→ F. Rollout slices 4–5
-     SHIPPED 55c3bad1a          NO LONGER BLOCKED · container, calendar
+     SHIPPED 380705bc1          NO LONGER BLOCKED · container, calendar
      the interim · L'' replaces it
 
   N. userTitleHeight flag ──┐
-     SHIPPED 07c91926e      │
-     307a6ee09              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
+     SHIPPED 1d26dbefb      │
+     d4d0d5d48              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
                             │    DESIGN ANSWERED, NOT BUILT      DECIDED 2026-08-13
-  M. Seed mark (below) ─────┘    20/26/30 · titleHeight() exists  MUST NOT PRECEDE L'
-                                 but is uncalled                  replaces L's density test
-                                 decisions 5-8 · SCHEDULED AFTER M
+  M-P4. Read paths ─────────┘    20/26/30 · titleHeight() exists  MUST NOT PRECEDE L'
+        (not P1)                 but is uncalled                  replaces L's density test
+                                 SCHEDULED AFTER M-P4
 
-     N answers "did the author choose this height" · M answers "is this assembly modern"
+     N answers "did the author choose this height" · the MARK answers "is this assembly modern"
      The row needs both. On the flag alone it resizes every dashboard ever saved.
+     P1 and P2 landing do NOT free it: the row must READ the mark, and nothing reads it until P4.
 
-  M. Seed mark — widget spec §03 ──┬──→ L' above, and §04's other density heights
-     DECIDED IN FULL, NOT BUILT    │
-     seeded-value decisions 1–12   ├──→ Card radius 12→6, retire resolveSeededCorner()
-     ALSO THE RELEASE GATE         │
-                                   ├──→ §07 derived selection, retire the teal family
-                                   │         │
-                                   │         └──→ Range slider — painter half
-                                   │
-                                   └──→ Outlined text conversion (also behind G)
+  M. Seed mark — five phases. P1 + P2 SHIPPED; P3–P5 remain.
+     design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–12
+     ALSO THE RELEASE GATE (needs the revert sweep, out of the forward half's scope)
+
+     P1  the field, persisted, stamped at creation      SHIPPED 8f75872a6 — nothing reads it
+      │
+     P2  VizContext threaded, 70 files, ofGate()        SHIPPED (pending commit)
+      │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
+     P3  decision 11's enumeration point + Modernize    STARTABLE · the only route in for old content
+      │
+     P4  server reads follow the mark                   THE BEHAVIOUR REVERSAL
+      │                                                 unblocks L' above
+     P5  browser reads follow the mark
+      └──┬──→ Card radius 12→6, retire resolveSeededCorner()
+         ├──→ §07 derived selection, retire the teal family
+         │         └──→ Range slider — painter half
+         └──→ Outlined text conversion (also behind G)
+
+     Only P5 unblocks the six items. P1 and P2 unblocked none of them, by design.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
 
-  Ungated: dark (four DOM surfaces) · chart interior dark palette · affordance sweep ·
-           selection list interior · Resize Plot sliders · nav bar · data-tip registry
-           remainder · chart colour literals · drill and DC tips · zoom naming ·
-           dead menu icons · title band
+  Ungated: chart interior dark palette · affordance sweep · selection list interior ·
+           Resize Plot sliders · nav bar · data-tip registry remainder · chart colour
+           literals · drill and DC tips · zoom naming · dead menu icons · title band
+
+  Cheaper AFTER P5, not ungated: dark (four DOM surfaces) — decision 4 turns viz-dark
+           from a body class into a per-assembly scope, so doing it first means doing it twice
 ```
 
 **The one hard sequencing rule in this picture: L'' must not ship before L'.** Geometric suppression
@@ -95,37 +114,69 @@ Four corrections this picture carries against the external set, all recorded in
   or the density gating, though widget spec §08 step 3 still claims to unblock the rollout. The one item
   that does precede slices 4–5 was dropped in the sync that reinstated one that does not.
 - **M *does* gate the height row.** The widget spec's §05 says heights move only for marked gate-on
-  assemblies, and `titleHeight()` has no per-assembly condition because there is no field to condition on.
-  The 2026-08-11 edition of this roadmap said the row "needs no server change"; that was wrong twice over.
-  See §3.3.
+  assemblies, and `titleHeight()` still has no per-assembly condition. The field to condition on now exists —
+  P1 shipped it — but nothing reads it yet, so the row waits on P4 rather than on the field. The 2026-08-11
+  edition of this roadmap said the row "needs no server change"; that was wrong twice over. See §3.3.
 - **The 32px chrome floor does not reach dense.** It is a card-height rule, not a lane rule, so the v3
   reversal in §05 does not follow from it. See §1.1. This was the live decision until 2026-08-12; the
   outcome was adopted and the mechanism written explicitly rather than inherited, and it shipped in
-  `55c3bad1a`.
+  `380705bc1`.
 
 ---
 
 ## What to pick up next
 
-**Ranked 2026-08-13, re-derived against `8357e05d8` after N shipped.** This is a reading of the picture
-above, not a new decision — it goes stale as things land, and the picture is what to re-derive it from.
-Effort is relative to this track, not absolute.
+**Ranked 2026-08-15, re-derived after the seed mark's P2 shipped.** This is a reading of
+the picture above, not a new decision — it goes stale as things land, and the picture is what to re-derive it
+from. Effort is relative to this track, not absolute.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **M — the seed mark** | **highest** — the release gate, and now L''s blocker too | **XL** | six items | reverses shipped `viz-updates` behaviour |
-| 2 | **L' — the title lane height row** | high, visible | **M–L** | L'' | scheduled after M (decision 8); export-affecting; carries UI work |
-| 3 | **Rollout slices 4–5** | closes the rollout | **S–M** | nothing | modifies shipped slice-3 behaviour |
-| 4 | **Dark — four browser surfaces** | fixes a visible defect | **S** — plan written | nothing | reworked when M lands, see below |
-| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | **M-P3 — enumeration point + Modernize** | the only route in for existing content | **M** | P4's testability | reads still unchanged; nothing renders differently until pressed |
+| 2 | **M-P4 — server reads follow the mark** | **the behaviour reversal** | **M–L** | L', and half of the six | legacy dashboards stop looking modern; export-affecting, manual pass needed |
+| 3 | **M-P5 — browser reads follow the mark** | closes the forward half | **M** | the six items | modifies shipped slices 1–3; body class becomes per-assembly |
+| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**M moved to the top in this revision.** It was third when L' looked startable on its own. It is not: the
-row needs the mark to avoid resizing legacy content, so the mark now gates six things rather than five,
-and every one of the track's remaining large items sits behind it.
+**The seed mark is no longer one XL item, and two of its five phases are now behind us.** P1 shipped the
+field; P2 shipped the carrier. Both deliberately unblocked **nothing**, because nothing reads the mark yet.
+What used to be "M, XL, six items" is three remaining phases, and only the last of them frees the six.
 
-**L' is the highest-value item, and its four design questions are now answered — but it is not startable
-on its own.** `VSDensityDefaults.titleHeight()` resolves defh/26/30 and is still uncalled, and
-`userTitleHeight` now tells an author's height from a default one. That is one half of what the row needs.
+**P2 shipped: `VizContext` is threaded and all four sub-gates are gone.** Every `VS*Defaults` value method
+now takes a context; every call site passes `VizContext.ofGate()`, which reads exactly what the statics read
+before, so nothing renders differently. `viewsheet.modernObjectChrome`, `modernChartChrome`,
+`modernChartPalette` and `modernTableStructure` are read nowhere in `core/src` — main, test and comments
+alike — and exactly one `public static boolean isModern()` survives, `VSDensityDefaults`', as the master-gate
+reader. Sizing note for anyone budgeting a comparable sweep: the design guessed ~90 call sites, this file
+previously recorded an audited 115, and the landed change is **70 files** (56 production, 14 test) — the
+count that matters is files touched per class, not raw call sites, because a single method often holds
+several.
+
+**P2 answered both of the design's open plumbing questions, and the answers shape P4.**
+
+- **The three composer dialog models have no route to an assembly** — `ChartLinePaneModel`,
+  `AxisPropertyDialogModel`, `LegendFormatDialogModel` see only `ChartInfo`, `PlotDescriptor`,
+  `AxisDescriptor` or `ChartArea`. But `ChartPropertyDialogService` and `RegionPropertyDialogService` each
+  hold a `ChartVSAssemblyInfo` one or two call-hops up and simply do not forward it. So P4 chooses: thread it
+  down, or accept `ofGate()` for dialog previews and document that a dialog shows org-gate chrome rather than
+  the assembly's own.
+- **`CSSProcessor.applyCSS` has no route structurally, not merely today.** Every hop back from it stays inside
+  the legacy report / `ReportSheet` / `ChartElementDef` model, which never carries a `VSAssembly` — and
+  `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules. It is report-path
+  only, so P4 most likely wants `VizContext.LEGACY` there rather than a threaded context.
+
+**One thing P2 introduced that P4 must not trip over.** `VizContext` now carries an implicit fourth axis —
+*is this a viewsheet chart at all* — encoded as **identity** against `VizContext.LEGACY`. Seven chart
+descriptors' font lines read `ctx != VizContext.LEGACY`, which is what the old bare `vs` boolean meant, and
+identity is the only faithful encoding: with the gate off, `ofGate()` returns a context *value-equal* to
+`LEGACY` that must still count as a viewsheet chart. No factory may return the `LEGACY` instance, and two
+tests hold that line. P4 should either add an explicit `viewsheet` field or write the contract into the
+design. Related: the design says the context is each method's **first** parameter; all 44 landed signatures
+take it **trailing**, which is the better shape and what the plan's own snippets did.
+
+**L' is still the highest-value visible item, and P1 did not free it.** `VSDensityDefaults.titleHeight()`
+resolves defh/26/30 and is still uncalled, and `userTitleHeight` now tells an author's height from a default
+one. That is one half of what the row needs. The other half is *reading* the mark at the title-height
+resolver — which is P4, not P1. A mark that exists but is never consulted moves nothing.
 
 **The other half is the seed mark, and it is the correction this ranking previously got wrong.** An
 earlier revision called the flag a cheaper alternative to the mark. They answer different questions:
@@ -140,7 +191,7 @@ decision 8). Shipping it dormant looks like free parallelism and is not — noth
 manual export pass could not run, the checkbox would ship doing nothing observable, and the only question
 a dormant build answers early is the cheapest part of the work. The cost is accepted: the title lane keeps
 its legacy 20px everywhere until the mark lands, the anchored strip's density approximation
-(`55c3bad1a`) stays in place longer, and L'' stays behind L'.
+(`380705bc1`) stays in place longer, and L'' stays behind L'.
 
 ### The four L' design questions — answered 2026-08-13
 
@@ -199,7 +250,7 @@ without its painter half ([decisions](./chart-card-open-item-decisions.md) §3),
 
 ---
 
-## The density gating — shipped in `55c3bad1a`
+## The density gating — shipped in `380705bc1`
 
 Twelve files, two under `core/` and ten under `web/projects/portal/src`. This section described them as
 in flight until 2026-08-13; they are committed, and the two things that outlive the commit are the
@@ -215,7 +266,7 @@ decision it records and the interim it leaves behind.
 
 **What shipped is the interim, not the rule.** The commit message is explicit: "the lane test is
 approximated by density for now." Density selects the lane's default height, which puts dense alone below
-the bound; the direct comparison is L'' and still waits on L'. Do not read `55c3bad1a` as having
+the bound; the direct comparison is L'' and still waits on L'. Do not read `380705bc1` as having
 implemented [strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 3.
 
 **The decision the v3 sync reopened is settled: v3 is accepted** —
@@ -233,13 +284,57 @@ Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
 
 ## The long pole: the seed mark
 
-**The forward half is now designed, 2026-08-14 — see
-[2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md).** It covers the
-mark, the re-keying of every read path onto it, the per-assembly browser scope and the Modernize action, in six
-phases. It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms and the card
-radius out of scope — so it unblocks the six items behind M but does **not** clear the release gate. It also
-pulls Modernize forward out of the reverse half, because without it no existing dashboard has any route to
-modern and the flip is untestable.
+**The forward half is designed and its P1 and P2 are built — see
+[2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md).** The design
+covers the mark, the re-keying of every read path onto it, the per-assembly browser scope and the Modernize
+action, in six phases. It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms
+and the card radius out of scope — so it unblocks the six items behind M but does **not** clear the release
+gate. It also pulls Modernize forward out of the reverse half, because without it no existing dashboard has
+any route to modern and the flip is untestable.
+
+**P1 shipped in `8f75872a6`.** `VizMark` (`modern-light`/`modern-dark`, absent meaning unmarked) on
+`VSAssemblyInfo`, persisted as one attribute and **cleared unconditionally on parse when absent**; a sheet
+stamps itself from the gate in `ViewsheetVSAssemblyInfo`'s constructor; an assembly inherits its host's mark
+in `AbstractVSAssembly`'s two-arg constructor; `copyViewInfo` carries it; and a type conversion keeps the
+converted object's own mark. 22 tests across six classes. **Nothing reads it** — that is the phase's central
+constraint, not an omission, and it is why P1 unblocked none of the six items.
+
+Three things P1 established that change how the rest should be read:
+
+- **Assembly creation has no single funnel.** The design assumed `VSEventUtil.createVSAssembly` was one; it
+  is not, and roughly 74 sites construct assemblies directly. That cost an extra task and moved the stamp
+  from a service method to a constructor. Any later phase that assumes a chokepoint should check first.
+- **`initDefaultFormat()` is not the hook it looks like.** Every one of those sites calls it, but it also
+  *resets* an existing assembly's format, so stamping there would destroy a pasted assembly's provenance.
+- **The human partner decided type conversion keeps the converted object's own mark**, extending decision 3,
+  whose table had been silent on it. Recorded in the decisions file.
+
+**P2 shipped (pending commit).** `VizContext` — immutable, `modern`/`dark`/`density`, factories `ofGate()`,
+`of(VSAssemblyInfo)`, `of(VizMark)` and the `LEGACY` constant — is threaded through all eight in-scope
+`VS*Defaults` classes and the nine chart descriptors' `initDefaultFormat`. The six per-class `isModern()`
+predicates and all four sub-gate properties are deleted. Every call site passes `ofGate()`, so **nothing
+renders differently**; the manual gate-on/gate-off and PDF/Excel export pass confirmed it. 70 files, and the
+full `core` suite is green at 4846 tests.
+
+Four things P2 established that the later phases should read before starting:
+
+- **`of(VizMark)` keeps the gate term.** A marked assembly reads modern only while the org gate is also on —
+  `modern = VSDensityDefaults.isModern() && mark != null`, with `dark` gated behind `modern` so the
+  never-dark-without-modern invariant holds structurally. The P2 plan had dropped that term and a test had
+  pinned the omission; the design's §2 "interim term" paragraph is authoritative and was restored. Deleting it
+  is still the one-line change the revert sweep makes.
+- **`VizContext.LEGACY` is a sentinel whose identity is load-bearing.** See the note in "What to pick up next"
+  — seven descriptor font lines compare against it to mean *is a viewsheet chart*, and no factory may return
+  it.
+- **Two methods still read the gate directly, on purpose and commented.**
+  `VSObjectChromeDefaults.resolveSeededCorner` is called from a `VSCompositeFormat` getter with no route to a
+  context, and `PlotDescriptor`'s two seed-boolean getters are the interim reversal mechanisms the sweep
+  deletes. A third, `AbstractChartInfo`'s tooltip-style resolution, is now commented the same way — so the
+  claim "no resolver reads `SreeEnv` for the gate" is true of the eight `VS*Defaults` classes, not of every
+  read path.
+- **`ofGate()` is called per-row.** `SelectionBaseVSAssemblyInfo.getEffectiveCellHeight()` runs once per
+  displayed row from two `getRowHeights` loops and once per selection value. P2 removed the redundant
+  double gate read this exposed; anything P4 adds to the factories pays that multiplier.
 
 **Superseded by a product decision set, 2026-08-12. Read
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
@@ -273,17 +368,20 @@ opposite failure: while mark and gate agree no recompute runs, so an assembly cr
 existed never picks it up, and two same-type assemblies render differently by age. Worth fixing; not the
 data-loss the ticket is arguing against. Versioning a mark is a migration you cannot undo cheaply.
 
-**Settle axis-blindness first — it fails today, on two axes.** The gate is three properties
+**Settle axis-blindness first — it fails today, on two axes.** *(Half of this is now obsolete: P2 deleted the
+sub-gates, so only the dark axis survives. The chrome bullet is retained as the record of how the question was
+framed, and because §04's rationale is still cited elsewhere.)* The gate was three properties
 (`viewsheet.modernVisualization` `VSDensityDefaults:40`, `viewsheet.modernObjectChrome`
 `VSObjectChromeDefaults:44`, `viewsheet.darkMode` `VSDensityDefaults:48`) and the mark records one.
 
-- **Dark.** All three persisted colour seeds branch on `isDark()` (`:49`, `:54`, `:64`). Create with modern
+- **Dark. Still live.** All three persisted colour seeds branch on `isDark()`. Create with modern
   and dark on, turn dark off: mark and master gate still agree, nothing recomputes, the dark card
-  background stays in a light dashboard forever.
-- **Chrome sub-gate.** The seeds guard on the *composed* `VSObjectChromeDefaults.isModern()`; the mark
-  records the *master* gate — and §04 line 381 defends that choice explicitly. Turn
-  `modernObjectChrome` off with master on and the same stranding occurs. §04's rationale is what makes the
-  mark insufficient for §03's own chrome path.
+  background stays in a light dashboard forever. Decision 9 keys the dark axis off the mark; P4 is where that
+  lands.
+- ~~**Chrome sub-gate.**~~ **Gone.** The seeds guarded on the *composed* `VSObjectChromeDefaults.isModern()`
+  while the mark recorded the *master* gate, and §04 line 381 defended that choice. P2 deleted both the
+  property and that `isModern()`, so the composed predicate no longer exists and this axis cannot strand
+  anything. The citation `VSObjectChromeDefaults:44` above no longer resolves to a property read.
 
 Neither needs a future default or a schema change — both are reachable now by toggling one EM property
 twice. The answer determines the mark's field format, the one thing that is expensive to change after the
@@ -341,8 +439,15 @@ leaves persisted dark card backgrounds under read-time light chart chrome (decis
 spec's values are taken, the strip stays 24px and contained, suppression becomes geometric, and a hidden
 title suppresses the strip. The paragraph below records why the first attempt was abandoned; the 13.3
 `userDataRowHeight` pattern is the mechanism it was missing. That mechanism now exists — `userTitleHeight`
-shipped in `07c91926e`/`307a6ee09` — so the row is no longer gated on the seed mark or on anything else.
-What it still needs is the four decisions listed under "Decide before writing the L' plan" above.
+shipped in `1d26dbefb`/`d4d0d5d48`.
+
+**But the row is still gated, and this paragraph has now been wrong twice in the same way.** An earlier
+revision said the row "needs no server change"; the third revision replaced that with "no longer gated on the
+seed mark or on anything else." Both were wrong, and for the same reason: the row needs to *read* whether an
+assembly is modern. `userTitleHeight` answers a different question — whether an author chose the height — and
+P1's mark, though it now exists and persists, is read by nothing. The row is gated on **P4**, when the read
+paths start consulting the mark. Its four design questions are answered; its blocker is a phase, not a
+decision.
 
 Specified at 20/26/30 in widget spec §04 and §08 step 3. Attempted and
 abandoned. All five `getTitleHeight()` overrides are the identical line `return titleInfo.getTitleHeight();`
@@ -364,7 +469,7 @@ Nothing below is blocked.
 
 | Item | Source | Note |
 |---|---|---|
-| **Dark — four browser-DOM surfaces** | [Decisions](./chart-card-open-item-decisions.md) §2, plan at `plans/2026-08-11-chart-card-dark-browser-surfaces.md` | CSS only. The v3 dark ticket's dependency claims apply to the server half, which is different work — see §4.2 |
+| **Dark — four browser-DOM surfaces** — *moved out of "ready", see below* | [Decisions](./chart-card-open-item-decisions.md) §2, plan at `plans/2026-08-11-chart-card-dark-browser-surfaces.md` | CSS only, and still correct — but decision 4 turns `viz-dark` from a body class into a per-assembly scope at P5, so doing this before P5 means doing it twice. Cheaper after. The v3 dark ticket's dependency claims apply to the server half, which is different work — see §4.2 |
 | **Chart interior dark palette** | `Chart card dark values - ticket.md` item 3 | New, unowned, and the most valuable thing in that ticket. `GDefaults` has no dark branch; nothing to reconcile against, so it is design work |
 | Affordance sweep | Widget spec §08 step 1 | Live-view only, no export risk |
 | Selection list interior | Widget spec §08 step 2 | The one widget the initiative has not touched |
@@ -375,12 +480,12 @@ Nothing below is blocked.
 | Chart type scale | Handoff 4a | Gated only by measuring whether 9pt renders as 9px — one build. Its chrome tier is already fully shipped |
 | Drill and DC tips · zoom naming · dead menu icons | Handoff step 5 | The "~50 dead icons" count has never been verified |
 
-## Unblocked by `55c3bad1a`
+## Unblocked by `380705bc1`
 
 This section read "after the density gating commits" until 2026-08-13. It has.
 
 **Rollout slices 4 and 5** — the container and the calendar. `ANCHORED_ASSEMBLY_TYPES`
-(`mini-toolbar.service.ts:41-53`, re-checked at `1c0ace705`) carries six types; the container is
+(`mini-toolbar.service.ts:41-53`, re-checked at `ef42a6c65`) carries six types; the container is
 deliberately excluded as its own slice, and the calendar is expected to take the table treatment
 unmodified.
 
@@ -410,37 +515,67 @@ being stripped the moment the constant changes.
 
 ## Done
 
-Hashes re-resolved 2026-08-13 after the rebase; each is an ancestor of `HEAD`. The pre-rebase hash is
-kept alongside because the rest of this tree still cites it.
+Hashes re-resolved 2026-08-14 after the second rebase; each was checked with
+`git merge-base --is-ancestor <hash> HEAD`. The third-revision column is kept only to help anyone reading an
+older copy of this file recognise what moved — **none of those hashes is reachable from `HEAD` any more.**
 
-| Item | Commit | Cited before the rebase |
+| Item | Commit | Cited at the third revision |
 |---|---|---|
-| Phase 9B dark mode — every server-rendered surface, chart included | `8f138595a` | `3e7e52626` |
-| Inline-SVG chart rendering coupled to the modern gate | `6e803a702` | `aed8e6b22` |
-| Data-mark-anchored tooltip tail | `c4cfa342b` | `7e4a7c809` |
-| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `8b6b006ae` | `43a934add` |
-| Selection vocabulary — chart-owned surfaces and the annotation border | `d627ec403` | `052fe61f1` |
-| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `6da9c024f` | `67c486d67` |
-| Right-click reaches max mode on tables | `0db62036f` | `b1eb8df8e` |
-| Rollout slice 2 — table, crosstab, calc table | `931bdb02b` | `a4cd1e362` |
-| Max-mode mini-toolbar positioning fix | `f3a299cd0` | `1091bd178` |
-| Rollout slice 3 — selection list and tree, kebab-only at any width | `5ed02f6ed` | `a038a30b5` |
-| Strip suppression where the lane cannot hold it — L, density-approximated | `55c3bad1a` | postdates the rebase |
-| `userTitleHeight` — N, the flag and its per-type default | `07c91926e` | postdates the rebase |
-| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `307a6ee09` | postdates the rebase |
+| Phase 9B dark mode — every server-rendered surface, chart included | `fc15df1da` | `8f138595a` |
+| Inline-SVG chart rendering coupled to the modern gate | `1124bf6f7` | `6e803a702` |
+| Data-mark-anchored tooltip tail | `4104c80a2` | `c4cfa342b` |
+| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `f4ddb2ea2` | `8b6b006ae` |
+| Selection vocabulary — chart-owned surfaces and the annotation border | `a7ec8796d` | `d627ec403` |
+| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `ef690e83e` | `6da9c024f` |
+| Right-click reaches max mode on tables | `de765242d` | `0db62036f` |
+| Rollout slice 2 — table, crosstab, calc table | `1e74918af` | `931bdb02b` |
+| Max-mode mini-toolbar positioning fix | `f6c87eda4` | `f3a299cd0` |
+| Rollout slice 3 — selection list and tree, kebab-only at any width | `5a0d3e254` | `5ed02f6ed` |
+| Strip suppression where the lane cannot hold it — L, density-approximated | `380705bc1` | `55c3bad1a` |
+| `userTitleHeight` — N, the flag and its per-type default | `1d26dbefb` | `07c91926e` |
+| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `d4d0d5d48` | `307a6ee09` |
+| **M-P1 — the seed mark's field, persistence and creation stamps** | `8f75872a6` | postdates the third revision |
+| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | *pending commit* | postdates the third revision |
 
-The v3 design set and the seeded-value decisions were committed in `2310cea37`, the strip and lane
-decisions in `1c0ace705`, the `userTitleHeight` plan and strip-and-lane decision 5 in `8357e05d8`, and the
-three earlier docs commits — `2b08a0492`, `a479ba921`, `ae511b8b7` — carry the design sets, the open-item
-decisions and this roadmap.
+**M-P2's hash is not yet resolvable.** The work is complete, reviewed and manually verified, but sits
+uncommitted in the working tree — replace *pending commit* above once it lands, and note that it is expected
+to arrive as **two** commits: the phase itself, plus a two-line `AbstractVSAssembly` null-guard that belongs
+to P1's subject (a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw from the P1 stamp
+and was the sole cause of ten suite errors at P2's baseline).
+
+The docs commits, also re-resolved: the v3 design set and the seeded-value decisions in `d4ef55100`, the
+strip and lane decisions in `ef42a6c65`, the `userTitleHeight` plan and strip-and-lane decision 5 in
+`e47bd207a`, the title-lane answers in `b7bf79157`, what the flag changed for the mark in `74c8638a6`, and
+the seed mark's forward-half design plus its P1 plan in `e670744c1`. `91a7babce`, `d1042fd2f` and `e7ca3c69b`
+carry the roadmap, the open-item decisions and the design sets.
 
 ## Still undecided
 
-- **The four L' decisions** — which types the row covers and what the calendar's 36px default does,
-  whether the use-the-default affordance ships with the row, how the flag reaches the live assembly, and
-  the affordance's shape. Listed in full under "Decide before writing the L' plan" above. These are the
-  live ones: nothing else blocks L'.
-- ~~**Dense: hover overlay, or no chrome at all?**~~ Answered 2026-08-12 and now shipped in `55c3bad1a`:
+- ~~**The four sub-gates.**~~ **Answered 2026-08-14 and shipped in P2: all four are deleted**, and
+  `VizContext` keeps its three fields. They were rollout scaffolding — undocumented, absent from EM,
+  referenced nowhere outside the six classes that read them, default-on, and one with no test. Deleting them
+  also makes "marked but unseeded" unreachable, which several later-phase claims already assumed. Recorded at
+  [the design](../2026-08-14-seed-mark-forward-half-design.md) §2, with the mechanics, the tests that went
+  with them, and why `graph.svg.inline` is **not** in scope. No behaviour change: all four defaulted on and
+  the branch has never shipped. **One residual worth a two-minute check before release:** if any internal or
+  demo instance has one of the four keys set to `"false"` in a `sree.properties`, that instance changes
+  appearance on upgrade. The argument that this is impossible rests on `viz-updates` never having shipped,
+  which cannot be verified from the repo.
+- ~~**`CSSProcessor.applyCSS`'s context.**~~ **Answered in P2: no route, structurally.** Every hop back from
+  it stays inside the legacy report / `ReportSheet` / `ChartElementDef` model, which never carries a
+  `VSAssembly`, and `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules.
+  It is report-path only, so P4 most likely wants `VizContext.LEGACY` rather than a threaded context. P2
+  passes `ofGate()`, which is behaviour-identical today.
+- **How the three composer dialog models reach an assembly** — new, surfaced by P2. `ChartLinePaneModel`,
+  `AxisPropertyDialogModel` and `LegendFormatDialogModel` have no route, but `ChartPropertyDialogService` and
+  `RegionPropertyDialogService` hold a `ChartVSAssemblyInfo` one or two hops up without forwarding it. Thread
+  it down, or accept that a dialog preview shows org-gate chrome rather than the assembly's own. Settle it
+  while planning P4.
+- **Whether `VizContext` gains an explicit `viewsheet` field** — also surfaced by P2, which encodes that axis
+  as identity against `LEGACY`. See the seed-mark section.
+- ~~**The four L' decisions**~~ — answered 2026-08-13; see the L' section. What blocks L' now is P4, not a
+  decision.
+- ~~**Dense: hover overlay, or no chrome at all?**~~ Answered 2026-08-12 and now shipped in `380705bc1`:
   no chrome at all. [Decisions](./chart-card-open-item-decisions.md) §4. What remains open from it is
   dense-plus-touch, below.
 - **Whether dense-plus-touch is meant to have no affordance**, and now title-hidden-plus-touch with it —
@@ -449,7 +584,7 @@ decisions and this roadmap.
 - **How the seed mark handles defaults added after it ships.** See the seed-mark section.
 - ~~**How the title height row reaches assemblies.**~~ Answered 2026-08-13 and the mechanism now shipped:
   the widget spec's 20/26/30, applied in the per-type read path the way `rowHeight()` is, conditioned on
-  `userTitleHeight` (`07c91926e`/`307a6ee09`).
+  `userTitleHeight` (`1d26dbefb`/`d4d0d5d48`).
   [Strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decisions 1 and 3. What is left
   open there is the clearance value at compact and the 44px touch target against a 26px lane.
 - **Does the nav bar render for maps only, or any zoomable chart?**
@@ -473,9 +608,12 @@ decisions and this roadmap.
   document governs the title lane, the strip's size and containment, and what suppresses it. **Overrides
   `Chart Card Spec v3.dc.html` §04's lane model and §03's title-hidden overlay**
 - [2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md) — **how M is
-  built**: the mark's field and stamp sites, `VizContext` and the ~90 re-keyed call sites, the per-assembly
+  built**: the mark's field and stamp sites, `VizContext` and the re-keyed call sites, the per-assembly
   browser scope, Modernize and its composer bar, in six phases. Authority on mechanism; the decisions file
-  stays the authority on behaviour
+  stays the authority on behaviour. **Two of its statements were overtaken by what P2 actually built** — it
+  says the context is each method's *first* parameter (landed trailing) and describes the
+  `initDefaultFormat(boolean vs)` surface as five types (it is nine). Its §2 "interim term" paragraph, by
+  contrast, was authoritative and beat the P2 plan, which had dropped the `gate &&` term
 - [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) — the seed mark,
   the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
   below**, which still lists version-blindness as the open question

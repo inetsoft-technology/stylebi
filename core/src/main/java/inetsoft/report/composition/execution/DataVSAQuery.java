@@ -130,11 +130,13 @@ public abstract class DataVSAQuery extends VSAQuery {
                // overlay the modern structure palette onto the cloned Default Style so it acts as a
                // default the user cell/column/row format still overrides; non-default styles untouched.
                // sname is the canonical (non-localized) style name, so the constant match is locale-safe
+               VizContext ctx = VizContext.ofGate();
+
                if(style instanceof XTableStyle &&
                   TableDataVSAssemblyInfo.DEFAULT_STYLE.equals(sname) &&
-                  VSTableStructureDefaults.isModern())
+                  ctx.modern)
                {
-                  applyModernTableStructure((XTableStyle) style);
+                  applyModernTableStructure((XTableStyle) style, ctx);
                }
 
                style.setTable(data);
@@ -235,9 +237,9 @@ public abstract class DataVSAQuery extends VSAQuery {
     * and trailer keys affect only crosstabs (plain tables have no header/trailer bands); body borders
     * fall through for the regions not set explicitly. Every value is a default the user format beats.
     */
-   static void applyModernTableStructure(XTableStyle style) {
-      Color gridline = VSTableStructureDefaults.gridlineColor();
-      Color separator = VSTableStructureDefaults.headerSeparator();
+   static void applyModernTableStructure(XTableStyle style, VizContext ctx) {
+      Color gridline = VSTableStructureDefaults.gridlineColor(ctx);
+      Color separator = VSTableStructureDefaults.headerSeparator(ctx);
       style.put("body.rcolor", gridline);
       style.put("body.ccolor", gridline);
       style.put("header-row.rcolor", separator); // header→body horizontal rule, stronger for hierarchy
@@ -247,14 +249,14 @@ public abstract class DataVSAQuery extends VSAQuery {
       style.put("bottom-border.color", gridline);
       style.put("left-border.color", gridline);
       style.put("right-border.color", gridline);
-      style.put("header-row.background", VSTableStructureDefaults.headerBackground());
-      style.put("header-row.foreground", VSTableStructureDefaults.headerForeground());
-      style.put("header-col.background", VSTableStructureDefaults.headerBackground());
-      style.put("header-col.foreground", VSTableStructureDefaults.headerForeground());
-      style.put("trailer-row.background", VSTableStructureDefaults.totalBackground());
-      style.put("trailer-col.background", VSTableStructureDefaults.totalBackground());
+      style.put("header-row.background", VSTableStructureDefaults.headerBackground(ctx));
+      style.put("header-row.foreground", VSTableStructureDefaults.headerForeground(ctx));
+      style.put("header-col.background", VSTableStructureDefaults.headerBackground(ctx));
+      style.put("header-col.foreground", VSTableStructureDefaults.headerForeground(ctx));
+      style.put("trailer-row.background", VSTableStructureDefaults.totalBackground(ctx));
+      style.put("trailer-col.background", VSTableStructureDefaults.totalBackground(ctx));
       // lift band text off the dark total/subtotal fills (null in light = keep default dark-on-light)
-      Color bandForeground = VSTableStructureDefaults.bandForeground();
+      Color bandForeground = VSTableStructureDefaults.bandForeground(ctx);
 
       if(bandForeground != null) {
          style.put("trailer-row.foreground", bandForeground);
@@ -263,8 +265,8 @@ public abstract class DataVSAQuery extends VSAQuery {
 
       // dark mode also darkens the data-cell interior so light body text is legible; all null in
       // light/legacy, leaving the shipped body text (#404040), transparent body, and #F5F5F5 zebra.
-      Color bodyForeground = VSTableStructureDefaults.bodyForeground();
-      Color bodyBackground = VSTableStructureDefaults.bodyBackground();
+      Color bodyForeground = VSTableStructureDefaults.bodyForeground(ctx);
+      Color bodyBackground = VSTableStructureDefaults.bodyBackground(ctx);
 
       if(bodyForeground != null) {
          style.put("body.foreground", bodyForeground);
@@ -274,8 +276,8 @@ public abstract class DataVSAQuery extends VSAQuery {
          style.put("body.background", bodyBackground);
       }
 
-      applyDarkZebra(style, VSTableStructureDefaults.zebraBackground());
-      applyModernGroupSubtotals(style, bandForeground);
+      applyDarkZebra(style, VSTableStructureDefaults.zebraBackground(ctx));
+      applyModernGroupSubtotals(style, bandForeground, ctx);
    }
 
    /**
@@ -305,8 +307,8 @@ public abstract class DataVSAQuery extends VSAQuery {
     * the header count), so plain tables are unaffected. Grand totals stay distinct: XTableStyle resolves
     * the trailer band before per-cell specs, so trailer-row/col.background (grand total) still wins.
     */
-   static void applyModernGroupSubtotals(XTableStyle style, Color foreground) {
-      Color subtotal = VSTableStructureDefaults.subtotalBackground();
+   static void applyModernGroupSubtotals(XTableStyle style, Color foreground, VizContext ctx) {
+      Color subtotal = VSTableStructureDefaults.subtotalBackground(ctx);
       int pos = 0;
 
       for(int level = 0; level < 10; level++) {

@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSOutputChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,8 +64,9 @@ public class VSSlider extends VSFloatable {
          cg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                              RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
+         VizContext ctx = VizContext.ofGate();
          VSCompositeFormat format =
-            VSObjectChromeDefaults.applyDarkForeground(info.getFormat());
+            VSObjectChromeDefaults.applyDarkForeground(info.getFormat(), ctx);
          format = format == null ? new VSCompositeFormat() : format;
 
          if(format.getFont() == null) {
@@ -117,12 +119,12 @@ public class VSSlider extends VSFloatable {
          int trackEndX   = Math.min(getContentWidth(), startX + sliderLine_W + TRACK_OVERHANG);
          int fullTrackW  = trackEndX - trackStartX;
 
-         cg.setColor(VSOutputChromeDefaults.sliderInactiveTrack());
+         cg.setColor(VSOutputChromeDefaults.sliderInactiveTrack(ctx));
          cg.fillRoundRect(trackStartX, trackY, fullTrackW, TRACK_HEIGHT, trackArc, trackArc);
 
          int activeW = curX - trackStartX;
          if(activeW > 0) {
-            cg.setColor(VSOutputChromeDefaults.sliderActiveTrack());
+            cg.setColor(VSOutputChromeDefaults.sliderActiveTrack(ctx));
             cg.fillRoundRect(trackStartX, trackY, activeW, TRACK_HEIGHT, trackArc, trackArc);
          }
 
@@ -147,7 +149,7 @@ public class VSSlider extends VSFloatable {
             int tickCount = (int) Math.ceil((max - min) / inc);
 
             // Draw 4 dp dot tick marks centred on the track centre line
-            cg.setColor(VSOutputChromeDefaults.sliderTick());
+            cg.setColor(VSOutputChromeDefaults.sliderTick(ctx));
 
             for(int i = 0; i <= tickCount; i++) {
                if(showMin && i == 0 || tickJump == 0 ||
@@ -260,7 +262,7 @@ public class VSSlider extends VSFloatable {
          int handleX = curX - HANDLE_WIDTH / 2;
          int handleY = sliderLine_Y - HANDLE_HEIGHT / 2;
          handleX = Math.max(0, Math.min(handleX, getContentWidth() - HANDLE_WIDTH));
-         cg.setColor(VSOutputChromeDefaults.sliderHandle());
+         cg.setColor(VSOutputChromeDefaults.sliderHandle(ctx));
          cg.fillRoundRect(handleX, handleY, HANDLE_WIDTH, HANDLE_HEIGHT,
                           HANDLE_WIDTH, HANDLE_WIDTH);
 

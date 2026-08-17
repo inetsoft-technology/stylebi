@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSFormat;
@@ -26,7 +25,7 @@ import java.awt.Color;
 
 /**
  * Supplies the modern KPI/control-chrome defaults for server-rendered output assemblies, gated by the
- * org modern-visualization setting plus the shared object-chrome toggle.
+ * org modern-visualization setting.
  *
  * Two surfaces so far:
  *  - Slider painter (VSSlider) chrome — track / handle / tick colors. Pure server-render constants with
@@ -38,60 +37,47 @@ import java.awt.Color;
  *    neither the user (USER tier) nor a format.css class (CSS tier) has set the value, so a user format
  *    and a customer format.css class both still win; a HighlightGroup emphasis, applied above on a
  *    higher tier, also still wins. Weight/size are intentionally not changed. Mirrors VSTitleChromeDefaults.
- *
- * Shares the viewsheet.modernObjectChrome gate with VSTitleChromeDefaults so one admin toggle covers all
- * object chrome; mirrors its gate shape.
  */
 public final class VSOutputChromeDefaults {
    private VSOutputChromeDefaults() {
    }
 
-   /**
-    * Whether modern object chrome is active: the modern-visualization gate plus the shared object-chrome
-    * toggle, which defaults on when modern is enabled. Matches VSTitleChromeDefaults' gate.
-    */
-   public static boolean isModern() {
-      // default on when the modern gate is on; only an explicit "false" opts out
-      return VSDensityDefaults.isModern() &&
-         !"false".equals(SreeEnv.getProperty("viewsheet.modernObjectChrome", false, true));
-   }
-
    // ── Slider painter chrome ──────────────────────────────────────────────────
 
    /** Slider inactive-track color — legacy mid-light gray, modern warm gridline neutral, dark neutral when dark mode is on. */
-   public static Color sliderInactiveTrack() {
-      return VSDensityDefaults.isDark() ? SLIDER_INACTIVE_DARK
-         : isModern() ? SLIDER_INACTIVE_MODERN : SLIDER_INACTIVE_LEGACY;
+   public static Color sliderInactiveTrack(VizContext ctx) {
+      return ctx.dark ? SLIDER_INACTIVE_DARK
+         : ctx.modern ? SLIDER_INACTIVE_MODERN : SLIDER_INACTIVE_LEGACY;
    }
 
    /** Slider active (filled) track color — legacy mid gray, modern warm structural neutral, dark neutral when dark mode is on. */
-   public static Color sliderActiveTrack() {
-      return VSDensityDefaults.isDark() ? SLIDER_ACTIVE_DARK
-         : isModern() ? SLIDER_ACTIVE_MODERN : SLIDER_ACTIVE_LEGACY;
+   public static Color sliderActiveTrack(VizContext ctx) {
+      return ctx.dark ? SLIDER_ACTIVE_DARK
+         : ctx.modern ? SLIDER_ACTIVE_MODERN : SLIDER_ACTIVE_LEGACY;
    }
 
    /** Slider handle color — legacy mid gray, modern strong warm neutral, dark neutral when dark mode is on. */
-   public static Color sliderHandle() {
-      return VSDensityDefaults.isDark() ? SLIDER_HANDLE_DARK
-         : isModern() ? SLIDER_HANDLE_MODERN : SLIDER_HANDLE_LEGACY;
+   public static Color sliderHandle(VizContext ctx) {
+      return ctx.dark ? SLIDER_HANDLE_DARK
+         : ctx.modern ? SLIDER_HANDLE_MODERN : SLIDER_HANDLE_LEGACY;
    }
 
    /** Slider tick-dot color — legacy ~38% black, modern strong warm neutral, dark neutral when dark mode is on. */
-   public static Color sliderTick() {
-      return VSDensityDefaults.isDark() ? SLIDER_TICK_DARK
-         : isModern() ? SLIDER_TICK_MODERN : SLIDER_TICK_LEGACY;
+   public static Color sliderTick(VizContext ctx) {
+      return ctx.dark ? SLIDER_TICK_DARK
+         : ctx.modern ? SLIDER_TICK_MODERN : SLIDER_TICK_LEGACY;
    }
 
    // ── KPI text/output value chrome ───────────────────────────────────────────
 
    /** Modern primary-value foreground — the strong warm neutral (equals the chart title color), dark neutral when dark mode is on. */
-   public static Color valueForeground() {
-      return VSDensityDefaults.isDark() ? VALUE_FG_DARK : VALUE_FG;
+   public static Color valueForeground(VizContext ctx) {
+      return ctx.dark ? VALUE_FG_DARK : VALUE_FG;
    }
 
    /** Modern KPI/output border — the shared structural neutral (equals the title/table border), dark neutral when dark mode is on. */
-   public static Color valueBorderColor() {
-      return VSDensityDefaults.isDark() ? VALUE_BORDER_DARK : VALUE_BORDER;
+   public static Color valueBorderColor(VizContext ctx) {
+      return ctx.dark ? VALUE_BORDER_DARK : VALUE_BORDER;
    }
 
    /**
@@ -100,8 +86,8 @@ public final class VSOutputChromeDefaults {
     * size are intentionally not changed. A user (USER tier) or format.css (CSS tier) foreground/border
     * still wins; the source format is never mutated or serialized. Mirrors VSTitleChromeDefaults.
     */
-   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat fmt) {
-      if(!isModern() || fmt == null) {
+   public static VSCompositeFormat applyModernDefaults(VSCompositeFormat fmt, VizContext ctx) {
+      if(!ctx.modern || fmt == null) {
          return fmt;
       }
 
@@ -113,7 +99,7 @@ public final class VSOutputChromeDefaults {
       }
 
       VSCompositeFormat clone = fmt.clone();
-      applyTo(clone.getDefaultFormat(), fg, border);
+      applyTo(clone.getDefaultFormat(), fg, border, ctx);
       return clone;
    }
 
@@ -122,16 +108,16 @@ public final class VSOutputChromeDefaults {
     * DEFAULT tier directly. No-op when the gate is off or the value is already user / format.css
     * customized; never touches a persisted format.
     */
-   public static void applyModernDefaultsInPlace(VSCompositeFormat fmt) {
-      if(!isModern() || fmt == null) {
+   public static void applyModernDefaultsInPlace(VSCompositeFormat fmt, VizContext ctx) {
+      if(!ctx.modern || fmt == null) {
          return;
       }
 
-      applyTo(fmt.getDefaultFormat(), !isForegroundCustomized(fmt), !isBorderCustomized(fmt));
+      applyTo(fmt.getDefaultFormat(), !isForegroundCustomized(fmt), !isBorderCustomized(fmt), ctx);
    }
 
-   private static void applyTo(VSFormat def, boolean fg, boolean border) {
-      boolean dark = VSDensityDefaults.isDark();
+   private static void applyTo(VSFormat def, boolean fg, boolean border, VizContext ctx) {
+      boolean dark = ctx.dark;
       Color fgColor = dark ? VALUE_FG_DARK : VALUE_FG;
       Color borderColor = dark ? VALUE_BORDER_DARK : VALUE_BORDER;
 
