@@ -324,4 +324,28 @@ describe("hyperlink dialog componnet unit case", () => {
       fixture.detectChanges();
       expect(fixture.debugElement.query(By.css(".btn-primary")).nativeElement.disabled).toBeTruthy();
    });
+
+   // Write coordination: OK carries the revision the dialog was read at so a concurrent write
+   // is detected; Apply must not, since the dialog's held model is never refreshed after a
+   // commit and echoing the revision back would make Apply conflict with its own prior Apply.
+   it("sends revision on commit but not on apply", () => {
+      trapService.checkTrap.mockImplementation(
+         (trapInfo: any, onNoTrap: () => void) => onNoTrap());
+
+      let model = createHyperlinkModel();
+      model.revision = 7;
+      hyperlinkDialog = <HyperlinkDialog>fixture.componentInstance;
+      hyperlinkDialog.model = model;
+      fixture.detectChanges();
+
+      let committed: HyperlinkDialogModel;
+      hyperlinkDialog.onCommit.subscribe((m: HyperlinkDialogModel) => committed = m);
+      hyperlinkDialog.ok();
+      expect(committed.revision).toBe(7);
+
+      let applied: any;
+      hyperlinkDialog.onApply.subscribe((p: any) => applied = p);
+      hyperlinkDialog.apply(false);
+      expect(applied.result.revision).toBeUndefined();
+   });
 });

@@ -2923,7 +2923,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private boolean preview; // preview flag
    private boolean needRefresh = false; // force refresh
    private int mode; // viewsheet mode
-   private transient int writeRevision; // bumped on every dialog-owning commit; see getWriteRevision
+   // Bumped by VSObjectPropertyService, VSConditionDialogService, ViewsheetPropertyDialogService,
+   // VSBindingService, and the wiz agent write seams (ViewsheetSessionService.mutate,
+   // ScriptEditService) -- not literally every dialog-owning commit; a dialog service that
+   // routes through a different path does not bump it. See getWriteRevision.
+   private transient int writeRevision;
    private transient Integer baseWriteRevisionAtOpen; // binding-editor clones only; see accessor
    private ViewsheetSandbox box; // query sandbox
    private AssetRepository rep; // asset repository
