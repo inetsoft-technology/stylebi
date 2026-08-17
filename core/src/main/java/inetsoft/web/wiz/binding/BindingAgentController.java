@@ -119,6 +119,7 @@ public class BindingAgentController {
    public record ChartTypeRequest(String assembly, Integer type, Boolean multi,
                                   Boolean stackMeasures, Boolean separate) {}
    public record SwapRequest(String assembly) {}
+   public record SeparateStatusRequest(String assembly, Boolean separate) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/shelf")
    public void setChartShelf(@PathVariable String sessionToken,
@@ -176,6 +177,28 @@ public class BindingAgentController {
    {
       requireEnabled();
       chartService.swapAxes(sessionToken, user, request.assembly(), linkUri);
+   }
+
+   /**
+    * Toggles separated/merged graphs without requiring a chart-type change. {@code set_chart_type}'s
+    * own {@code separate} parameter only takes effect when {@code multi} also flips in the same
+    * call — see {@code ChartBindingService.setSeparateStatus}.
+    */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/separate-status")
+   public void setChartSeparateStatus(@PathVariable String sessionToken,
+                                      @RequestBody SeparateStatusRequest request,
+                                      @RequestParam(required = false, defaultValue = "") String linkUri,
+                                      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(request.separate() == null) {
+         throw new IllegalArgumentException("set_chart_separate_status requires 'separate'.");
+      }
+
+      chartService.setSeparateStatus(sessionToken, user, request.assembly(), request.separate(),
+                                     linkUri);
    }
 
    public record AestheticFieldRequest(String assembly, String channel, FieldRef field) {}

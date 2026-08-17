@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ChangeChartRefService;
 import inetsoft.web.binding.controller.ChangeChartTypeService;
+import inetsoft.web.binding.controller.ChangeSeparateStatusService;
 import inetsoft.web.binding.controller.SwapXYBindingService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
@@ -55,13 +56,15 @@ public class ChartBindingService {
                               VSBindingService binding,
                               ChangeChartRefService refService,
                               ChangeChartTypeService typeService,
-                              SwapXYBindingService swapService)
+                              SwapXYBindingService swapService,
+                              ChangeSeparateStatusService separateStatusService)
    {
       this.sessions = sessions;
       this.binding = binding;
       this.refService = refService;
       this.typeService = typeService;
       this.swapService = swapService;
+      this.separateStatusService = separateStatusService;
    }
 
    public void setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
@@ -120,6 +123,27 @@ public class ChartBindingService {
       });
    }
 
+   /**
+    * Toggles separated/merged graphs independently of a chart type change.
+    *
+    * <p>{@code setChartType}'s own {@code separate} parameter is a silent no-op unless {@code multi}
+    * also flips in the same call — {@code ChangeChartTypeService.handleMulti} only reaches
+    * {@code ChangeSeparateStatusService} when {@code omulti != nmulti}. This method calls that
+    * endpoint directly, the way the Composer's own separate-status toggle does, with {@code multi}
+    * read from the chart's current state so the caller does not have to know or restate it.</p>
+    */
+   public void setSeparateStatus(String sessionToken, Principal user, String assemblyName,
+                                 boolean separate, String linkUri) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         boolean multi = chart.getVSChartInfo().isMultiStyles();
+
+         ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent(assemblyName, multi, separate);
+         separateStatusService.changeSeparateStatus(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
    public void swapAxes(String sessionToken, Principal user, String assemblyName, String linkUri)
       throws Exception
    {
@@ -154,4 +178,5 @@ public class ChartBindingService {
    private final ChangeChartRefService refService;
    private final ChangeChartTypeService typeService;
    private final SwapXYBindingService swapService;
+   private final ChangeSeparateStatusService separateStatusService;
 }
