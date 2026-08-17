@@ -17,5 +17,20 @@
  */
 package inetsoft.web.wiz.script.model;
 
-/** One entry in {@code list_script_targets}. */
-public record ScriptTargetInfo(String target, boolean hasScript, boolean enabled) {}
+/**
+ * One scriptable location, as {@code list_script_targets} reports it.
+ *
+ * @param id         opaque and stable; copy it back verbatim rather than composing an identifier
+ * @param kind       the wire vocabulary, e.g. {@code assemblyOnClick}
+ * @param assembly   the owning assembly, or {@code null} for viewsheet-level kinds
+ * @param label      human-readable; for display and logs only, never an identifier
+ * @param runsWhen   when StyleBI executes this script, in plain words
+ * @param enableScope the flag {@code enabled} reflects. onInit and onLoad share ONE viewsheet
+ *                    flag, and an assembly's main and onClick scripts share ONE assembly flag --
+ *                    so disabling "the onClick" also disables that assembly's main script
+ * @param hostSheet  {@code viewsheet} or {@code worksheet}
+ * @param target     the v1 delimited string, retained so an older plugin still reads this array
+ */
+public record ScriptTargetInfo(String id, String kind, String assembly, String label,
+                               String runsWhen, boolean hasScript, boolean enabled,
+                               String enableScope, String hostSheet, String target) {}

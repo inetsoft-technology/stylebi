@@ -51,8 +51,10 @@ public class ScriptReadService {
 
       ViewsheetInfo vsInfo = vs.getViewsheetInfo();
       boolean vsScriptEnabled = vsInfo.isScriptEnabled();
-      targets.add(new ScriptTargetInfo("vs-init", !isBlank(vsInfo.getOnInit()), vsScriptEnabled));
-      targets.add(new ScriptTargetInfo("vs-load", !isBlank(vsInfo.getOnLoad()), vsScriptEnabled));
+      targets.add(describe(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null,
+                           !isBlank(vsInfo.getOnInit()), vsScriptEnabled));
+      targets.add(describe(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null,
+                           !isBlank(vsInfo.getOnLoad()), vsScriptEnabled));
 
       for(Assembly a : vs.getAssemblies()) {
          if(!(a instanceof VSAssembly vsAssembly)) {
@@ -60,17 +62,69 @@ public class ScriptReadService {
          }
 
          VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
-         targets.add(new ScriptTargetInfo(
-            "assembly:" + a.getName(), !isBlank(info.getScript()), info.isScriptEnabled()));
+         targets.add(describe(ScriptTarget.Kind.ASSEMBLY_MAIN, a.getName(),
+                              !isBlank(info.getScript()), info.isScriptEnabled()));
 
          if(supportsOnClick(info)) {
-            targets.add(new ScriptTargetInfo(
-               "assembly:" + a.getName() + ":onClick", !isBlank(getOnClick(info)),
-               info.isScriptEnabled()));
+            targets.add(describe(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, a.getName(),
+                                 !isBlank(getOnClick(info)), info.isScriptEnabled()));
          }
       }
 
       return targets;
+   }
+
+   /**
+    * Projects one target. Enumeration decides WHICH targets exist; this decides how each is
+    * described, and the two are kept apart so the taxonomy can grow without touching traversal.
+    */
+   private static ScriptTargetInfo describe(ScriptTarget.Kind kind, String assembly,
+                                            boolean hasScript, boolean enabled)
+   {
+      ScriptTarget target;
+
+      try {
+         target = ScriptTarget.of(kind, assembly);
+      }
+      catch(PairingException ex) {
+         // Unreachable: every kind passed here is Tier 1 with the assembly name its kind requires.
+         throw new IllegalStateException("cannot describe " + kind + " for " + assembly, ex);
+      }
+
+      return new ScriptTargetInfo(
+         target.id(), kind.wireName(), assembly, label(kind, assembly), runsWhen(kind),
+         hasScript, enabled, enableScope(kind, assembly), "viewsheet", target.toString());
+   }
+
+   private static String label(ScriptTarget.Kind kind, String assembly) {
+      return switch(kind) {
+         case VIEWSHEET_ON_INIT -> "Viewsheet onInit";
+         case VIEWSHEET_ON_LOAD -> "Viewsheet onLoad";
+         case ASSEMBLY_MAIN -> assembly + " script";
+         case ASSEMBLY_ON_CLICK -> assembly + " onClick";
+         default -> kind.wireName();
+      };
+   }
+
+   private static String runsWhen(ScriptTarget.Kind kind) {
+      return switch(kind) {
+         case VIEWSHEET_ON_INIT -> "once, at viewsheet initialization";
+         case VIEWSHEET_ON_LOAD -> "on every refresh";
+         case ASSEMBLY_MAIN -> "each time the assembly renders";
+         case ASSEMBLY_ON_CLICK -> "on user click";
+         default -> "unknown";
+      };
+   }
+
+   /**
+    * Which enable flag {@code enabled} reflects — the footgun made legible. onInit and onLoad
+    * share the viewsheet flag; an assembly's main and onClick scripts share that assembly's flag.
+    */
+   private static String enableScope(ScriptTarget.Kind kind, String assembly) {
+      return switch(kind) {
+         case VIEWSHEET_ON_INIT, VIEWSHEET_ON_LOAD -> "viewsheet";
+         default -> "assembly:" + assembly;
+      };
    }
 
    /** Reads the current text + enabled-state for {@code target}. */
