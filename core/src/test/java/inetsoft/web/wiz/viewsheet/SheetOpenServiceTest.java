@@ -63,6 +63,16 @@ class SheetOpenServiceTest {
     */
    private SheetAgentBroadcastService broadcast;
 
+   /** Populated by {@code serviceWithBase} so tests can assert which principal opened the runtime. */
+   private WorksheetService worksheetService;
+
+   /**
+    * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
+    * Deliberately a different object from {@link #principal()}, the agent: the two are the same
+    * logical user but different sessions, and the ownership check compares sessions.
+    */
+   private static final Principal BROWSER_PRINCIPAL = () -> OWNER;
+
    /**
     * Necessarily equal to {@link #OWNER}: {@code SheetSessionService.resolve} refuses a session
     * whose {@code ownerIdentity} differs from the agent's identity, so a session where these two
@@ -205,6 +215,27 @@ class SheetOpenServiceTest {
                    "must be delivered to the paired browser's socket session");
    }
 
+   /**
+    * Who owns the new runtime. The browser must, not the agent.
+    *
+    * <p>{@code WorksheetEngine.getSheet} rejects a principal that does not match the runtime's
+    * owner unless it carries {@code pairedAgent} or {@code supportLogin}. The agent carries
+    * {@code pairedAgent}; the user's browser carries neither. Opening the runtime as the agent
+    * therefore makes the <em>browser</em> the outsider, and its attach dies on "Invalid user
+    * found" — two principals for the same admin differing only by session id.
+    *
+    * <p>A paired viewsheet already has this the right way round: the browser opened it and the
+    * agent reaches it through the flag. Mirroring that keeps one rule for both sheet types.
+    */
+   @Test
+   void opensTheRuntimeAsTheViewsheetsOwnerSoTheBrowserCanAttach() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      verify(worksheetService).openWorksheet(any(AssetEntry.class), same(BROWSER_PRINCIPAL));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    /** The four-guard helper. Defaults the viewsheet session's socketSessionId to {@code "sock-1"}. */
@@ -236,6 +267,7 @@ class SheetOpenServiceTest {
 
          RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
          when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.getUser()).thenReturn(BROWSER_PRINCIPAL);
 
          JoinSession vsSession = new JoinSession(
             "tok-vs", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
@@ -256,7 +288,7 @@ class SheetOpenServiceTest {
          // the point of keeping the two values distinct.
          when(sheetSessions.findOpen(OWNER, SheetType.WORKSHEET)).thenReturn(held);
 
-         WorksheetService worksheetService = mock(WorksheetService.class);
+         worksheetService = mock(WorksheetService.class);
          when(worksheetService.openWorksheet(any(AssetEntry.class), any(Principal.class)))
             .thenReturn("ws-runtime-1");
 
