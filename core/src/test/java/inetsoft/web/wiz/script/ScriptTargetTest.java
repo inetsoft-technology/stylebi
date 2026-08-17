@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -179,21 +180,21 @@ class ScriptTargetTest {
       Viewsheet vs = mock(Viewsheet.class);
       String id = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1").id();
 
-      ScriptTarget byId = ScriptTarget.resolve(vs, id, "viewsheetOnInit", null, "vs-load");
+      ScriptTarget byId = ScriptTarget.resolve(vs, id, "viewsheetOnInit", null, null, "vs-load");
       assertEquals("Chart1", byId.assemblyName(), "id must win over every other dialect");
 
-      ScriptTarget byKind = ScriptTarget.resolve(vs, null, "assemblyOnClick", "Text1", "vs-load");
+      ScriptTarget byKind = ScriptTarget.resolve(vs, null, "assemblyOnClick", "Text1", null, "vs-load");
       assertEquals(ScriptTarget.Location.ASSEMBLY_ONCLICK, byKind.location());
       assertEquals("Text1", byKind.assemblyName());
 
-      ScriptTarget byLegacy = ScriptTarget.resolve(vs, null, null, null, "vs-load");
+      ScriptTarget byLegacy = ScriptTarget.resolve(vs, null, null, null, null, "vs-load");
       assertEquals(ScriptTarget.Location.VS_LOAD, byLegacy.location());
    }
 
    @Test
    void resolveNamesEveryAcceptedDialectWhenNoneIsGiven() {
       PairingException ex = assertThrows(
-         PairingException.class, () -> ScriptTarget.resolve(null, null, null, null, null));
+         PairingException.class, () -> ScriptTarget.resolve(null, null, null, null, null, null));
 
       assertTrue(ex.getMessage().contains("id"), ex.getMessage());
       assertTrue(ex.getMessage().contains("kind"), ex.getMessage());
@@ -205,9 +206,71 @@ class ScriptTargetTest {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly("Foo:onClick")).thenReturn(mock(TextVSAssembly.class));
 
-      ScriptTarget t = ScriptTarget.resolve(vs, null, null, null, "assembly:Foo:onClick");
+      ScriptTarget t = ScriptTarget.resolve(vs, null, null, null, null, "assembly:Foo:onClick");
 
       assertEquals(ScriptTarget.Location.ASSEMBLY, t.location());
       assertEquals("Foo:onClick", t.assemblyName());
+   }
+
+   @Test
+   void calcFieldIsAServableKindWithItsOwnLocation() throws PairingException {
+      assertEquals(ScriptTarget.Location.CALC_FIELD,
+                   ScriptTarget.Kind.CALC_FIELD.location());
+      assertEquals("calcField", ScriptTarget.Kind.CALC_FIELD.wireName());
+      assertEquals(ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.fromWire("calcField"));
+   }
+
+   @Test
+   void aCalcFieldCarriesATableAndAFieldName() throws PairingException {
+      ScriptTarget t = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+
+      assertEquals("Query1", t.assemblyName(), "assembly carries the TABLE name for this kind");
+      assertEquals("Margin", t.name());
+   }
+
+   @Test
+   void aCalcFieldWithoutAFieldNameIsRefused() {
+      PairingException ex = assertThrows(
+         PairingException.class,
+         () -> ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", null));
+      assertTrue(ex.getMessage().contains("name"),
+                 "the refusal must name the missing field: " + ex.getMessage());
+   }
+
+   @Test
+   void aCalcFieldWithoutATableIsRefused() {
+      assertThrows(PairingException.class,
+                   () -> ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, null, "Margin"));
+   }
+
+   @Test
+   void everyOtherKindStillReportsANullName() throws PairingException {
+      assertNull(ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null).name());
+      assertNull(ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1").name());
+   }
+
+   @Test
+   void aCalcFieldIdRoundTripsAllThreeComponents() throws PairingException {
+      ScriptTarget t = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+      ScriptTarget back = ScriptTarget.fromId(t.id());
+
+      assertEquals(ScriptTarget.Kind.CALC_FIELD, back.kind());
+      assertEquals("Query1", back.assemblyName());
+      assertEquals("Margin", back.name());
+   }
+
+   /**
+    * The delimiter hazard, one component further on. The id encodes kind|assembly|name, so a table
+    * or field name containing '|' must still round-trip — the same class of bug the ':'-delimited
+    * grammar had, and the reason ids are decoded by position rather than by splitting on every
+    * separator.
+    */
+   @Test
+   void aCalcFieldIdSurvivesPipesInEitherName() throws PairingException {
+      ScriptTarget t = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Od|d", "Ma|rgin");
+      ScriptTarget back = ScriptTarget.fromId(t.id());
+
+      assertEquals("Od|d", back.assemblyName());
+      assertEquals("Ma|rgin", back.name());
    }
 }

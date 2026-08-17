@@ -35,10 +35,16 @@ public final class ScriptGrammar {
     * The kinds this server can serve — those with an internal location behind them. Reserved
     * kinds are deliberately absent: advertising one and then refusing it is the silent capability
     * lie this contract exists to prevent.
+    *
+    * <p>{@link ScriptTarget.Kind#CALC_FIELD} is excluded for the same reason even though it now
+    * carries a real {@link ScriptTarget.Location}: that location is Tier 2's addressing
+    * foundation only (which kind, which table+field, one opaque id) — {@link ScriptReadService},
+    * {@code ScriptEditService}, and {@code ScriptContextService} cannot yet read or write one.
+    * Remove this exclusion once those services are wired to {@code CALC_FIELD}.
     */
    public static List<String> supportedKinds() {
       return Arrays.stream(ScriptTarget.Kind.values())
-         .filter(k -> k.location() != null)
+         .filter(k -> k.location() != null && k != ScriptTarget.Kind.CALC_FIELD)
          .map(ScriptTarget.Kind::wireName)
          .toList();
    }
