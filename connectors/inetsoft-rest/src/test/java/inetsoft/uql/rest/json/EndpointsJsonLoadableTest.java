@@ -18,6 +18,8 @@
 package inetsoft.uql.rest.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.web.wiz.model.WizEndpointCatalog;
+import inetsoft.web.wiz.model.WizEndpointCatalogEntry;
 import org.junit.jupiter.api.Test;
 
 import java.io.*;
@@ -93,6 +95,52 @@ class EndpointsJsonLoadableTest {
       assertTrue(failures.isEmpty(),
                  "endpoints.json failed to parse for " + failures.size() + " connector(s):\n  "
                     + String.join("\n  ", failures));
+   }
+
+   /**
+    * The same 65 files must ALSO parse through the wiz catalog DTO, which has the opposite
+    * requirement to the loader above: it binds a subset of the properties and must therefore
+    * IGNORE the rest. Fifteen connectors declare extras of their own (pageType, post, bodyTemplate,
+    * pageLimit, pagePath, pageRequiredParameter, paginationPath, freePageLimit, url); a strict
+    * mapper here would take those connectors' catalogs to zero while the loader stayed green.
+    */
+   @Test
+   void everyConnectorEndpointsFileParsesAsCatalog() throws Exception {
+      List<Path> roots = findDatasourceRoots();
+      List<Path> files = findEndpointFiles(roots);
+
+      assertFalse(files.isEmpty(),
+                  "found no endpoints.json under " + DATASOURCE_PACKAGE + " (searched " + roots + ")");
+
+      ObjectMapper mapper = new ObjectMapper();
+      List<String> failures = new ArrayList<>();
+
+      for(Path file : files) {
+         String connector = file.getParent().getFileName().toString();
+
+         try(InputStream input = Files.newInputStream(file)) {
+            WizEndpointCatalog catalog = mapper.readValue(input, WizEndpointCatalog.class);
+
+            if(catalog.endpoints() == null || catalog.endpoints().isEmpty()) {
+               failures.add(connector + ": parsed but declares no endpoints");
+               continue;
+            }
+
+            for(WizEndpointCatalogEntry entry : catalog.endpoints()) {
+               if(entry.name() == null || entry.name().isBlank()) {
+                  failures.add(connector + ": an entry has no name");
+                  break;
+               }
+            }
+         }
+         catch(Exception e) {
+            failures.add(connector + ": " + e.getMessage());
+         }
+      }
+
+      assertTrue(failures.isEmpty(),
+                 "endpoints.json failed to parse as a catalog for " + failures.size()
+                    + " connector(s):\n  " + String.join("\n  ", failures));
    }
 
    /**
