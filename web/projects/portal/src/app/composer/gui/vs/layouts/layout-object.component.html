@@ -349,12 +349,12 @@
 <ng-template #imagePropertyDialog let-close="close" let-dismiss="dismiss">
   <image-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
     [model]="imagePropertyModel" [layoutObject]="true"
-  [runtimeId]="runtimeId"></image-property-dialog>
+  [runtimeId]="runtimeId" [socketConnection]="layout?.socketConnection"></image-property-dialog>
 </ng-template>
 <ng-template #textPropertyDialog let-close="close" let-dismiss="dismiss">
   <text-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
     [model]="textPropertyModel" [layoutObject]="true"
-  [runtimeId]="runtimeId"></text-property-dialog>
+  [runtimeId]="runtimeId" [socketConnection]="layout?.socketConnection"></text-property-dialog>
 </ng-template>
 <ng-template #tableLayoutPropertyDialog let-close="close" let-dismiss="dismiss">
   <table-layout-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
