@@ -297,6 +297,34 @@ class WizDatabaseControllerSecurityTest {
          .addDatasourceFolder(any(), any(), any(), anyBoolean());
    }
 
+   /**
+    * The case {@code userScope} exists for: a caller with no WRITE on the root folder, only the
+    * standalone {@code CREATE_DATA_SOURCE} grant, must come out of {@code addDatasourceFolder} owning
+    * the folder they just created — otherwise they would have no permission entry on it and no root
+    * WRITE to inherit from, and would be locked out of their own new folder immediately.
+    */
+   @Test
+   void createFolder_grantsCreatorOwnershipWhenOnlyCreateDataSourcePermissionApplies() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("/"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(false);
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.CREATE_DATA_SOURCE), eq("*"),
+         eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.checkFolderDuplicate("NewFolder"))
+         .thenReturn(new CheckDuplicateResponse(false));
+
+      WizFolderSaveResult result = fixture.controller.createFolder(
+         new WizFolderCreateRequest(null, "NewFolder"), fixture.principal);
+
+      assertTrue(result.ok());
+      verify(fixture.dataSourceBrowserService)
+         .addDatasourceFolder(eq("NewFolder"), any(), eq(fixture.principal), eq(true));
+   }
+
    @Test
    void createFolder_deniesWithoutWriteOnTheParentOrRootCreatePermission() throws Exception {
       Fixture fixture = new Fixture();
@@ -320,6 +348,31 @@ class WizDatabaseControllerSecurityTest {
    void createFolder_rejectsANameThatIsNotASinglePathSegment() {
       Fixture fixture = new Fixture();
       WizFolderCreateRequest request = new WizFolderCreateRequest("Examples", "Sales/2026");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> fixture.controller.createFolder(request, fixture.principal));
+      assertEquals(400, ex.getStatusCode().value());
+      verifyNoInteractions(fixture.dataSourceBrowserService);
+   }
+
+   // "." and ".." are each a single path segment by the slash check alone, but neither names a real
+   // folder — letting either through would concatenate into a path whose parent-directory semantics
+   // nothing downstream (lastSegment, the breadcrumb builder) is prepared to handle.
+   @Test
+   void createFolder_rejectsDotAsAName() {
+      Fixture fixture = new Fixture();
+      WizFolderCreateRequest request = new WizFolderCreateRequest("Examples", ".");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> fixture.controller.createFolder(request, fixture.principal));
+      assertEquals(400, ex.getStatusCode().value());
+      verifyNoInteractions(fixture.dataSourceBrowserService);
+   }
+
+   @Test
+   void createFolder_rejectsDotDotAsAName() {
+      Fixture fixture = new Fixture();
+      WizFolderCreateRequest request = new WizFolderCreateRequest("Examples", "..");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> fixture.controller.createFolder(request, fixture.principal));
