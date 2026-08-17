@@ -110,15 +110,23 @@ public class ViewsheetAgentController {
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
                               String sheetType, EditorContext editorContext) {}
 
-   /** Enumerates every scriptable target on the joined viewsheet, with the grammar it speaks. */
+   /**
+    * Enumerates every scriptable target on the joined viewsheet, with the grammar it speaks.
+    *
+    * <p>Not excluded from pane scoping just because it takes no single {@code target} to check —
+    * a pane-scoped session's listing is narrowed to its own grant (see
+    * {@link ScriptReadService#list(RuntimeViewsheet, JoinSession)}), so {@code list_script_targets}
+    * cannot be used to discover locations the session could not act on anyway.
+    */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/targets")
    public ScriptTargetsResponse targets(@PathVariable String sessionToken, Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
+      JoinSession session = resolveSession(sessionToken, user);
       return new ScriptTargetsResponse(ScriptGrammar.VERSION, ScriptGrammar.supportedKinds(),
-                                       readService.list(rvs));
+                                       readService.list(rvs, session));
    }
 
    /** Reads the current text + enabled-state of {@code target}. */
@@ -382,6 +390,18 @@ public class ViewsheetAgentController {
    private void requirePaneScope(String sessionToken, Principal user, ScriptTarget target)
       throws PairingException
    {
+      JoinSession session = resolveSession(sessionToken, user);
+      boolean strict = SreeEnv.getBooleanProperty(PaneScopeService.STRICT_FLAG);
+      new PaneScopeService(strict).check(session, target);
+   }
+
+   /**
+    * Resolves the joined session itself, not just its runtime — for callers that need
+    * {@link JoinSession#editorContext()}: {@link #requirePaneScope} and {@link #targets}.
+    */
+   private JoinSession resolveSession(String sessionToken, Principal user)
+      throws PairingException
+   {
       JoinSession session = sessionService.resolve(sessionToken, agentKey(user));
 
       if(session == null) {
@@ -389,8 +409,7 @@ public class ViewsheetAgentController {
             PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
-      boolean strict = SreeEnv.getBooleanProperty(PaneScopeService.STRICT_FLAG);
-      new PaneScopeService(strict).check(session, target);
+      return session;
    }
 
    /** Resolves a target against the joined viewsheet, so the exact-name fix applies everywhere. */

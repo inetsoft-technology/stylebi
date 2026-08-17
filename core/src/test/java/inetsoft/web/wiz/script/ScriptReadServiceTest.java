@@ -24,6 +24,9 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.web.wiz.pairing.EditorContext;
+import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.SheetType;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
 import org.junit.jupiter.api.Test;
@@ -301,5 +304,60 @@ class ScriptReadServiceTest {
       assertTrue(others.stream().allMatch(t -> t.sql() == null), "sql must be absent: " + others);
       assertTrue(others.stream().allMatch(t -> t.baseOnDetail() == null),
                  "baseOnDetail must be absent: " + others);
+   }
+
+   // -----------------------------------------------------------------------------------------
+   // Task 7 — list_script_targets must not roam for a pane-scoped session.
+   // -----------------------------------------------------------------------------------------
+
+   private static JoinSession paneSession(EditorContext ctx) {
+      return new JoinSession("TOK", "Viewsheet/foo", "alice~;~host-org", SheetType.VIEWSHEET, 0L,
+         Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, null, null, ctx);
+   }
+
+   /**
+    * {@code runtime()} carries onInit, onLoad, Chart1's main script (no onClick — charts can't
+    * have one), and Text1's main + onClick scripts: five targets in the unscoped list. A session
+    * paired to Chart1's own script must see exactly that one, not the other four.
+    */
+   @Test
+   void listDoesNotRoamForAPaneScopedSession() {
+      RuntimeViewsheet rvs = runtime();
+      List<ScriptTargetInfo> all = service.list(rvs);
+      assertTrue(all.size() > 1, "fixture must have more than one target to discriminate: " + all);
+
+      JoinSession pane = paneSession(new EditorContext("assemblyMain", "Chart1", null, null));
+      List<ScriptTargetInfo> scoped = service.list(rvs, pane);
+
+      assertEquals(1, scoped.size(), scoped.toString());
+      assertEquals("assemblyMain", scoped.get(0).kind());
+      assertEquals("Chart1", scoped.get(0).assembly());
+   }
+
+   /**
+    * The dialog-sibling ruling, visible through the listing: a session paired to Text1's
+    * {@code assemblyMain} also lists Text1's {@code assemblyOnClick} (same dialog, same
+    * assembly) — but nothing belonging to any other assembly or to the viewsheet itself.
+    */
+   @Test
+   void listIncludesTheDialogSiblingScriptKind() {
+      RuntimeViewsheet rvs = runtime();
+      JoinSession pane = paneSession(new EditorContext("assemblyMain", "Text1", null, null));
+      List<ScriptTargetInfo> scoped = service.list(rvs, pane);
+
+      assertEquals(2, scoped.size(), scoped.toString());
+      assertTrue(scoped.stream().allMatch(t -> "Text1".equals(t.assembly())), scoped.toString());
+      assertTrue(scoped.stream().anyMatch(t -> "assemblyMain".equals(t.kind())), scoped.toString());
+      assertTrue(scoped.stream().anyMatch(t -> "assemblyOnClick".equals(t.kind())),
+                 scoped.toString());
+   }
+
+   /** A whole-sheet ("Connect to Claude" toolbar) session keeps today's enumerate-everything. */
+   @Test
+   void listReturnsEverythingForAWholeSheetSession() {
+      RuntimeViewsheet rvs = runtime();
+      JoinSession wholeSheet = paneSession(null);
+
+      assertEquals(service.list(rvs).size(), service.list(rvs, wholeSheet).size());
    }
 }
