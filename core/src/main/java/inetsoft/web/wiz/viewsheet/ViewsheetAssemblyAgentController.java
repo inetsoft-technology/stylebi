@@ -476,7 +476,7 @@ public class ViewsheetAssemblyAgentController {
                                   List<ConditionClause> conditions, Boolean applyRow,
                                   Boolean replace) {
       AssemblyHighlightService.Region region() {
-         return new AssemblyHighlightService.Region(row, col, colName, false, false);
+         return highlightRegion(row, col, colName);
       }
 
       AssemblyHighlightService.Highlight highlight() {
@@ -504,8 +504,24 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return highlightService.list(sessionToken, user, assembly,
-                                   new AssemblyHighlightService.Region(row, col, colName, false,
-                                                                       false));
+                                   highlightRegion(row, col, colName));
+   }
+
+   /**
+    * A {@code null} Region means "the caller named no location", which
+    * {@link AssemblyHighlightService#list}/{@code set}/{@code delete} read as "fall forward to
+    * the first data cell if the default region has nothing to highlight". Building a
+    * {@code Region} unconditionally — as this used to — collapses that signal before it arrives:
+    * the record's own compact constructor normalizes a null row/col to 0, so every call produced
+    * a non-null {@code Region(0, 0, ...)} and the fall-forward became dead code. Omitting
+    * {@code row}/{@code col} then always addressed cell (0,0) — a table's header — and was
+    * refused for exposing no highlightable fields.
+    */
+   private static AssemblyHighlightService.Region highlightRegion(Integer row, Integer col,
+                                                                   String colName)
+   {
+      return row == null && col == null ? null
+         : new AssemblyHighlightService.Region(row, col, colName, false, false);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights")
