@@ -619,6 +619,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          // needn't reset view
       }
 
+      if(!Tool.equals(vizMark, info.vizMark)) {
+         vizMark = info.vizMark;
+         // needn't reset view: provenance, copied so a type change cannot modernize legacy content
+      }
+
       if(isPrimary() != info.isPrimary()) {
          setPrimary(info.isPrimary());
          // needn't reset view
@@ -868,6 +873,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       writer.print(" zIndex=\"" + zIndex + "\"");
       writer.print(" scriptEnabled=\"" + scriptEnabled + "\"");
+
+      if(vizMark != null) {
+         writer.print(" vizMark=\"" + vizMark.value() + "\"");
+      }
    }
 
    /**
@@ -912,6 +921,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       zIndex = idxStr == null ? 0 : Integer.parseInt(idxStr);
       String prop = Tool.getAttribute(elem, "scriptEnabled");
       scriptEnabled = !"false".equals(prop);
+
+      // assigned unconditionally: an absent attribute means unmarked, and the load path constructs
+      // before it parses, so a conditional read would let a constructor stamp survive a legacy file
+      vizMark = VizMark.parse(Tool.getAttribute(elem, "vizMark"));
    }
 
    /**
@@ -1071,6 +1084,22 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     */
    public String toString() {
       return super.toString() + "[" + getAbsoluteName() + "]";
+   }
+
+   /**
+    * The provenance mark recording the gate in force when this assembly was created. Null means
+    * unmarked - legacy or unclaimed content, which no automatic behavior ever touches.
+    */
+   public VizMark getVizMark() {
+      return vizMark;
+   }
+
+   /**
+    * Set the provenance mark. Only creation and a copy from another info may set this; it records
+    * when an assembly was made and is never a user-editable property.
+    */
+   public void setVizMark(VizMark vizMark) {
+      this.vizMark = vizMark;
    }
 
    /**
@@ -1585,6 +1614,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    private ObjectOpenHashSet<String> actionNames = new ObjectOpenHashSet<>(0);
    private boolean controlByScript = false; // visible is control by script
    private Insets padding = new Insets(0, 0, 0, 0);
+   private VizMark vizMark;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSAssemblyInfo.class);
 }

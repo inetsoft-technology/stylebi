@@ -224,6 +224,10 @@ public class ComposerVSSelectionListService {
       DataRef ref = list.getDataRef();
       SelectionListVSAssemblyInfo linfo = list.getSelectionListInfo();
       TimeSliderVSAssembly slider = new TimeSliderVSAssembly(viewsheet, assembly.getName());
+
+      // a type conversion keeps the original object's provenance, not the host's
+      slider.getVSAssemblyInfo().setVizMark(assembly.getVSAssemblyInfo().getVizMark());
+
       TimeSliderVSAssemblyInfo info = slider.getTimeSliderInfo();
       TimeInfo tinfo = createTimeInfo(ref);
       slider.setTitleValue(list.getTitleValue());

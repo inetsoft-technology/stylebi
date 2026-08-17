@@ -4206,6 +4206,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       ScriptIterator.setProcessing(false);
+      // the constructor stamps from the gate; clear it here so a file with no assemblyInfo node
+      // cannot inherit the stamp, which would claim content nobody opted in
+      info.setVizMark(null);
       Element anode = Tool.getChildNodeByTagName(elem, "assemblyInfo");
 
       if(anode != null) {
