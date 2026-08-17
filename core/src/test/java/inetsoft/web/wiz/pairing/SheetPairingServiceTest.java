@@ -17,10 +17,18 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for SheetPairingService.
@@ -33,6 +41,16 @@ import static org.junit.jupiter.api.Assertions.*;
  * [Expired: peek]  peek returns null for expired grants
  * [Expired: consume] consume returns null for expired grants
  * [Code: format]   code uses only allowed alphabet characters
+ * [EditorContext: none]      mint with a null editorContext works exactly as a toolbar mint
+ * [EditorContext: found]     mint accepts an editorContext naming an assembly the runtime has
+ * [EditorContext: missing]   mint refuses an editorContext naming an assembly the runtime
+ *                            does not have, at mint time
+ * [EditorContext: kind]      mint refuses an editorContext with a blank kind
+ * [EditorContext: calc ok]   mint accepts a calcField editorContext whose table+name exist
+ *                            (table aliased from 'assembly', matching the real browser wiring)
+ * [EditorContext: calc miss] mint refuses a calcField editorContext naming a field the
+ *                            runtime does not have
+ * [EditorContext: worksheet] the same assembly check applies to worksheet runtimes
  */
 @Tag("core")
 class SheetPairingServiceTest {
@@ -43,18 +61,31 @@ class SheetPairingServiceTest {
       return new SheetPairingService(() -> now);
    }
 
+   /** A service whose VIEWSHEET runtime lookup resolves "vs-1" to the given RuntimeViewsheet. */
+   private SheetPairingService serviceWithViewsheetRuntime(RuntimeViewsheet rvs) {
+      return new SheetPairingService(() -> FIXED_NOW, runtimeId -> null,
+                                     runtimeId -> "vs-1".equals(runtimeId) ? rvs : null);
+   }
+
+   /** A service whose WORKSHEET runtime lookup resolves "ws-1" to the given RuntimeWorksheet. */
+   private SheetPairingService serviceWithWorksheetRuntime(RuntimeWorksheet rws) {
+      return new SheetPairingService(() -> FIXED_NOW,
+                                     runtimeId -> "ws-1".equals(runtimeId) ? rws : null,
+                                     runtimeId -> null);
+   }
+
    @Test
-   void mintReturnsEightCharCode() {
+   void mintReturnsEightCharCode() throws PairingException {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-1", "alice~;~org", "sock-1", null, SheetType.WORKSHEET);
+      String code = svc.mint("rt-1", "alice~;~org", "sock-1", null, SheetType.WORKSHEET, null);
       assertNotNull(code);
       assertEquals(8, code.length());
    }
 
    @Test
-   void mintedCodeUsesAllowedAlphabet() {
+   void mintedCodeUsesAllowedAlphabet() throws PairingException {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-1", "alice~;~org", "sock-1", null, SheetType.WORKSHEET);
+      String code = svc.mint("rt-1", "alice~;~org", "sock-1", null, SheetType.WORKSHEET, null);
       for (char c : code.toCharArray()) {
          assertTrue(SheetPairingService.ALPHABET.indexOf(c) >= 0,
                     "Unexpected char: " + c);
@@ -62,9 +93,9 @@ class SheetPairingServiceTest {
    }
 
    @Test
-   void peekReturnsGrantForValidCode() {
+   void peekReturnsGrantForValidCode() throws PairingException {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-2", "bob~;~org", "sock-2", null, SheetType.VIEWSHEET);
+      String code = svc.mint("rt-2", "bob~;~org", "sock-2", null, SheetType.VIEWSHEET, null);
       PairingGrant grant = svc.peek(code);
       assertNotNull(grant);
       assertEquals("rt-2", grant.runtimeId());
@@ -73,17 +104,17 @@ class SheetPairingServiceTest {
    }
 
    @Test
-   void peekDoesNotConsumeGrant() {
+   void peekDoesNotConsumeGrant() throws PairingException {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-3", "carol~;~org", "sock-3", null, SheetType.WORKSHEET);
+      String code = svc.mint("rt-3", "carol~;~org", "sock-3", null, SheetType.WORKSHEET, null);
       svc.peek(code);
       assertNotNull(svc.peek(code), "peek should be non-destructive");
    }
 
    @Test
-   void consumeRemovesGrant() {
+   void consumeRemovesGrant() throws PairingException {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-4", "dave~;~org", "sock-4", null, SheetType.WORKSHEET);
+      String code = svc.mint("rt-4", "dave~;~org", "sock-4", null, SheetType.WORKSHEET, null);
       PairingGrant first = svc.consume(code);
       assertNotNull(first);
       assertNull(svc.consume(code), "second consume must return null (single-use)");
@@ -96,10 +127,10 @@ class SheetPairingServiceTest {
    }
 
    @Test
-   void peekReturnsNullForExpiredGrant() {
+   void peekReturnsNullForExpiredGrant() throws PairingException {
       long mintTime = FIXED_NOW;
       SheetPairingService svc = serviceAt(mintTime);
-      String code = svc.mint("rt-5", "eve~;~org", "sock-5", null, SheetType.WORKSHEET);
+      String code = svc.mint("rt-5", "eve~;~org", "sock-5", null, SheetType.WORKSHEET, null);
       // advance clock beyond TTL
       SheetPairingService svcLater = new SheetPairingService(
          () -> mintTime + SheetPairingService.TTL_MILLIS + 1, svc);
@@ -107,12 +138,108 @@ class SheetPairingServiceTest {
    }
 
    @Test
-   void consumeReturnsNullForExpiredGrant() {
+   void consumeReturnsNullForExpiredGrant() throws PairingException {
       long mintTime = FIXED_NOW;
       SheetPairingService svc = serviceAt(mintTime);
-      String code = svc.mint("rt-6", "frank~;~org", "sock-6", null, SheetType.WORKSHEET);
+      String code = svc.mint("rt-6", "frank~;~org", "sock-6", null, SheetType.WORKSHEET, null);
       SheetPairingService svcLater = new SheetPairingService(
          () -> mintTime + SheetPairingService.TTL_MILLIS + 1, svc);
       assertNull(svcLater.consume(code));
+   }
+
+   // ------------------------------------------------------------------ editorContext validation
+
+   @Test
+   void mintsWithoutAnEditorContextForAToolbarCode() throws PairingException {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, null);
+      assertNull(svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAnEditorContextNamingAnAssemblyTheRuntimeDoesNotHave() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("NoSuchChart")).thenReturn(null);
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      EditorContext ctx = new EditorContext("assemblyMain", "NoSuchChart", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertTrue(ex.getMessage().contains("NoSuchChart"),
+                 "message must name what was asked for: " + ex.getMessage());
+   }
+
+   @Test
+   void mintsWhenTheEditorContextNamesAnAssemblyTheRuntimeHas() throws PairingException {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(mock(VSAssembly.class));
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAnEditorContextWithABlankKind() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("  ", null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+   }
+
+   @Test
+   void refusesACalcFieldEditorContextNamingAFieldTheRuntimeDoesNotHave() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getCalcField("Query1", "NoSuchField")).thenReturn(null);
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      // The current browser wiring sends the owning table in 'assembly', not 'table'.
+      EditorContext ctx = new EditorContext("calcField", "Query1", "NoSuchField", null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertTrue(ex.getMessage().contains("NoSuchField"),
+                 "message must name what was asked for: " + ex.getMessage());
+   }
+
+   @Test
+   void mintsACalcFieldEditorContextWhoseFieldExists_tableAliasedFromAssembly()
+      throws PairingException
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getCalcField("Query1", "Margin"))
+         .thenReturn(mock(CalculateRef.class));
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      EditorContext ctx = new EditorContext("calcField", "Query1", "Margin", null);
+
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAnEditorContextNamingATableTheWorksheetRuntimeDoesNotHave() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("NoSuchTable")).thenReturn(null);
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetExpression", "NoSuchTable", "Calc1", null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+      assertTrue(ex.getMessage().contains("NoSuchTable"),
+                 "message must name what was asked for: " + ex.getMessage());
    }
 }

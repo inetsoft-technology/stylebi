@@ -17,10 +17,15 @@
  */
 package inetsoft.web.wiz.pairing;
 
-/** A single-use authorization binding an agent pairing code to an open sheet runtime. */
+/**
+ * A single-use authorization binding an agent pairing code to an open sheet runtime.
+ *
+ * @param editorContext the script/formula location this session is scoped to, or {@code null}
+ *                      for a whole-sheet ("Connect to Claude" toolbar) grant
+ */
 public record PairingGrant(String code, String runtimeId, String ownerIdentity,
                            String socketSessionId, String socketUserName,
                            long createdAt, long ttlMillis,
-                           SheetType sheetType) {
+                           SheetType sheetType, EditorContext editorContext) {
    public boolean isExpired(long now) { return now - createdAt > ttlMillis; }
 }

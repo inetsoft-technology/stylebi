@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.annotation.SendToUser;
@@ -32,6 +33,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Secure mint endpoint for Wiz Sheet-Agent pairing.
@@ -62,8 +65,13 @@ public class SheetPairingController {
       public static MintResponse err(String msg)  { return new MintResponse(null, msg); }
    }
 
-   /** Payload for the STOMP mint. */
-   public record MintRequest(String runtimeId, SheetType sheetType) {}
+   /**
+    * Payload for the STOMP mint.
+    *
+    * @param editorContext the script/formula location this session should be scoped to, or
+    *                      {@code null} for a whole-sheet ("Connect to Claude" toolbar) mint
+    */
+   public record MintRequest(String runtimeId, SheetType sheetType, EditorContext editorContext) {}
 
    /** Returns whether the sheet-agent pairing feature is enabled. */
    @GetMapping("/api/wiz/pairing/feature")
@@ -85,6 +93,7 @@ public class SheetPairingController {
                             @RequestParam String socketSessionId,
                             @RequestParam SheetType sheetType,
                             Principal owner)
+      throws PairingException
    {
       if(!restMintEnabled) {
          throw new ResponseStatusException(HttpStatus.NOT_FOUND);
@@ -93,8 +102,10 @@ public class SheetPairingController {
       requireFeature();
       LOG.warn("REST mint used (socketSessionId not server-verified) — user={}, runtimeId={}",
                owner != null ? owner.getName() : "null", runtimeId);
+      // REST mint is test-only/back-compat and carries no editorContext of its own; the STOMP
+      // path below is the production entry point that actually forwards one.
       return MintResponse.ok(pairing.mint(runtimeId, ownerKey(owner), socketSessionId,
-                                          destinationUserName(owner), sheetType));
+                                          destinationUserName(owner), sheetType, null));
    }
 
    /**
@@ -116,7 +127,8 @@ public class SheetPairingController {
       try {
          String sessionId = accessor.getSessionId();
          return MintResponse.ok(pairing.mint(req.runtimeId(), ownerKey(owner), sessionId,
-                                             destinationUserName(owner), req.sheetType()));
+                                             destinationUserName(owner), req.sheetType(),
+                                             req.editorContext()));
       }
       catch(Exception e) {
          LOG.error("STOMP mint failed (runtimeId={}, sheetType={})",
@@ -124,6 +136,22 @@ public class SheetPairingController {
                    req != null ? req.sheetType() : "null", e);
          return MintResponse.err(e.getMessage() != null ? e.getMessage() : "Failed to generate pairing code");
       }
+   }
+
+   @ExceptionHandler(PairingException.class)
+   public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
+      HttpStatus status = switch(e.getKind()) {
+         case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
+         case USER_MISMATCH,
+              FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+         case RATE_LIMITED     -> HttpStatus.TOO_MANY_REQUESTS;
+         case INTERNAL         -> HttpStatus.INTERNAL_SERVER_ERROR;
+         default               -> HttpStatus.BAD_REQUEST;
+      };
+      Map<String, String> body = new LinkedHashMap<>();
+      body.put("error", e.getMessage());
+      body.put("errorCode", e.getKind().name());
+      return ResponseEntity.status(status).body(body);
    }
 
    private void requireFeature() {

@@ -32,7 +32,7 @@ import static org.mockito.Mockito.*;
 class SheetPairingControllerTest {
 
    @Test
-   void restMintBindsOpenRuntimeToOwnerAndSocketSession() {
+   void restMintBindsOpenRuntimeToOwnerAndSocketSession() throws PairingException {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
@@ -86,7 +86,7 @@ class SheetPairingControllerTest {
       accessor.setSessionId("derived-stomp-9");
 
       SheetPairingController.MintRequest req =
-         new SheetPairingController.MintRequest("Worksheet/foo-7", SheetType.WORKSHEET);
+         new SheetPairingController.MintRequest("Worksheet/foo-7", SheetType.WORKSHEET, null);
       String code = c.mintViaSocket(req, owner, accessor).code();
 
       assertEquals("derived-stomp-9", pairing.peek(code).socketSessionId());
@@ -103,7 +103,7 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-x");
 
       SheetPairingController.MintResponse resp =
-         c.mintViaSocket(new SheetPairingController.MintRequest("WS/1", SheetType.WORKSHEET),
+         c.mintViaSocket(new SheetPairingController.MintRequest("WS/1", SheetType.WORKSHEET, null),
                          owner, accessor);
       assertNull(resp.code(), "code should be null when feature is off");
       assertNotNull(resp.error(), "error should be non-null when feature is off");
