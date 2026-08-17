@@ -295,6 +295,7 @@ public class ChartPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(chartAssemblyInfo.getScript() == null ?
                                               "" : chartAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -468,7 +469,7 @@ public class ChartPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       if(viewsheet.getOriginalID() != null) {
          VSChartInfo cinfo = assemblyInfo.getVSChartInfo();
