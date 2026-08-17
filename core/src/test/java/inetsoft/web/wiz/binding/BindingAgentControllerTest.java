@@ -54,6 +54,34 @@ class BindingAgentControllerTest {
                       .join(new BindingAgentController.JoinRequest("ABCD2345"), principal()));
    }
 
+   /**
+    * The join response must carry the session's editorContext through -- otherwise a dropped
+    * context doesn't surface as an error, it reads as an ordinary whole-sheet session,
+    * indistinguishable from a legitimate toolbar mint, on the exact route an agent reads.
+    */
+   @Test
+   void joinReturnsTheSessionsEditorContext() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession session = new JoinSession("TOK-1", "Viewsheet/vs-1", "alice~;~host-org",
+         SheetType.VIEWSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED,
+         null, null, ctx);
+
+      SheetJoinService joinService = mock(SheetJoinService.class);
+      Principal agent = principal();
+      when(joinService.join(eq("ABCD2345"), eq(agent))).thenReturn(session);
+
+      BindingAgentController controller = controllerWith(feature, joinService,
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class));
+
+      BindingAgentController.JoinResponse resp =
+         controller.join(new BindingAgentController.JoinRequest("ABCD2345"), agent);
+
+      assertEquals(ctx, resp.editorContext());
+   }
+
    @Test
    void fieldsListsTheDiscoveredTablesForTheSessionRuntime() throws Exception {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
@@ -72,7 +100,15 @@ class BindingAgentControllerTest {
                                                         ViewsheetSessionService sessions,
                                                         BindableFieldsService fields)
    {
-      return new BindingAgentController(feature, mock(SheetJoinService.class),
+      return controllerWith(feature, mock(SheetJoinService.class), sessions, fields);
+   }
+
+   private static BindingAgentController controllerWith(SheetAgentFeature feature,
+                                                        SheetJoinService joinService,
+                                                        ViewsheetSessionService sessions,
+                                                        BindableFieldsService fields)
+   {
+      return new BindingAgentController(feature, joinService,
                                         mock(SheetSessionService.class), sessions, fields,
                                         mock(BindingReadService.class),
                                         mock(ChartBindingService.class),

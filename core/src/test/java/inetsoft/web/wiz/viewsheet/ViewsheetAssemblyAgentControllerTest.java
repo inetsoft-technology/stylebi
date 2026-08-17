@@ -47,6 +47,33 @@ class ViewsheetAssemblyAgentControllerTest {
          controller.join(new ViewsheetAssemblyAgentController.JoinRequest("ABCD2345"), principal()));
    }
 
+   /**
+    * The join response must carry the session's editorContext through -- otherwise a dropped
+    * context doesn't surface as an error, it reads as an ordinary whole-sheet session,
+    * indistinguishable from a legitimate toolbar mint, on the exact route an agent reads.
+    */
+   @Test
+   void joinReturnsTheSessionsEditorContext() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      EditorContext ctx = new EditorContext("viewsheetOnLoad", null, null, null);
+      JoinSession session = new JoinSession("tok-1", "Viewsheet/vs-1", "alice",
+         SheetType.VIEWSHEET, 0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+         "alice", ctx);
+
+      SheetJoinService joinService = mock(SheetJoinService.class);
+      Principal agent = principal();
+      when(joinService.join(eq("ABCD2345"), eq(agent))).thenReturn(session);
+
+      ViewsheetAssemblyAgentController controller = controllerWithJoinService(feature, joinService);
+
+      ViewsheetAssemblyAgentController.JoinResponse resp =
+         controller.join(new ViewsheetAssemblyAgentController.JoinRequest("ABCD2345"), agent);
+
+      assertEquals(ctx, resp.editorContext());
+   }
+
    @Test
    void modelReturnsTheReadServiceResult() throws Exception {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
@@ -188,6 +215,29 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("worksheet", response.sheetType());
    }
 
+   /**
+    * {@code openBaseWorksheet} is the second {@code JoinResponse} construction site in this
+    * file (the first is {@link #join}) -- easy to miss because the file's other
+    * {@code openBaseWorksheet} test above stubs a {@code null} editorContext, which a
+    * hardcoded {@code null} in the controller would satisfy just as well. Stubbing a non-null
+    * context here means only a real echo of {@code session.editorContext()} can pass.
+    */
+   @Test
+   void openBaseWorksheetReturnsTheSessionsEditorContext() throws Exception {
+      SheetOpenService openService = mock(SheetOpenService.class);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      when(openService.openBaseWorksheet(eq("tok-vs"), any()))
+         .thenReturn(new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
+                                     0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+                                     "alice", ctx));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      var response = controller.openBaseWorksheet("tok-vs", principal());
+
+      assertEquals(ctx, response.editorContext());
+   }
+
    /** Feature enabled, only {@code openService} wired -- for the open_base_worksheet test. */
    private static ViewsheetAssemblyAgentController controllerWith(SheetOpenService openService) {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
@@ -218,6 +268,30 @@ class ViewsheetAssemblyAgentControllerTest {
                                                           ViewsheetReadService reader)
    {
       return controllerWith(feature, sessions, reader, mock(SheetSessionService.class));
+   }
+
+   /** Feature as given, only {@code joinService} wired -- for the successful-join test. */
+   private static ViewsheetAssemblyAgentController controllerWithJoinService(
+      SheetAgentFeature feature, SheetJoinService joinService)
+   {
+      return new ViewsheetAssemblyAgentController(feature, joinService,
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,

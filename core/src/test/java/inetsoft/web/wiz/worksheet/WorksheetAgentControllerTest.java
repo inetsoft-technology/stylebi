@@ -164,6 +164,31 @@ class WorksheetAgentControllerTest {
       assertEquals("alice~;~host-org", resp.ownerIdentity());
    }
 
+   /**
+    * The join response must carry the session's editorContext through -- otherwise a dropped
+    * context doesn't surface as an error, it reads as an ordinary whole-sheet session,
+    * indistinguishable from a legitimate toolbar mint, on the exact route an agent reads.
+    */
+   @Test
+   void joinReturnsTheSessionsEditorContext() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditorContext ctx = new EditorContext("worksheetExpression", "T", "Calc1", null);
+      JoinSession s = new JoinSession("TOK-EC", "Worksheet/ws-1", "alice~;~host-org",
+         SheetType.WORKSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED,
+         null, null, ctx);
+
+      SheetJoinService joinSvc = mock(SheetJoinService.class);
+      when(joinSvc.join(eq("CODE"), eq(agent))).thenReturn(s);
+
+      WorksheetAgentController ctrl = controller(featureOn(), joinSvc,
+         mock(SheetSessionService.class), mock(WorksheetReadService.class),
+         mock(WorksheetEditService.class), mock(WorksheetService.class));
+
+      WorksheetAgentController.JoinResponse resp = ctrl.join(new WorksheetAgentController.JoinRequest("CODE"), agent);
+
+      assertEquals(ctx, resp.editorContext());
+   }
+
    @Test
    void joinRejectsFlagOff() {
       WorksheetAgentController ctrl = controller(featureOff(),
