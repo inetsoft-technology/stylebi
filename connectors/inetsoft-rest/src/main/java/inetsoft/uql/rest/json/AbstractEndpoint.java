@@ -31,6 +31,25 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
       this.name = name;
    }
 
+   /**
+    * A human-readable account of what this endpoint returns and when to reach for it.
+    *
+    * <p>Optional, and absent from most {@code endpoints.json} files. It exists for callers that
+    * have to CHOOSE an endpoint rather than invoke one already chosen — a name alone carries very
+    * little: "Charges" does not say whether it holds payments, disputes or payouts, and several
+    * connectors have a dozen names that read alike.</p>
+    *
+    * <p>Deliberately not used at query time. Nothing about executing a request depends on it, so a
+    * missing or stale description can never change what a query does.</p>
+    */
+   public String getDescription() {
+      return description;
+   }
+
+   public void setDescription(String description) {
+      this.description = description;
+   }
+
    @Override
    public String getSuffix() {
       return suffix;
@@ -57,6 +76,11 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
       this.lookups = lookups;
    }
 
+   /**
+    * {@code description} is deliberately excluded here and from {@link #hashCode()}: rewording an
+    * endpoint does not make it a different endpoint, and folding it in would make identity depend
+    * on prose that is expected to be revised.
+    */
    @Override
    public boolean equals(Object o) {
       if(this == o) return true;
@@ -74,6 +98,7 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
    }
 
    private String name;
+   private String description;
    private String suffix;
    private boolean paged;
    private List<JsonLookupEndpoint> lookups = Collections.emptyList();

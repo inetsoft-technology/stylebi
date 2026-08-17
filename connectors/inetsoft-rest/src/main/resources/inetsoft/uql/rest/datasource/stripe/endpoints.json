@@ -2,31 +2,41 @@
   "endpoints": [
     {
       "name": "Balance",
+      "description": "The current account balance as a single record, not a list. Shows available and pending amounts per currency. Answers \"how much do I have right now\"; historical movement of money lives in Balance Transactions instead.",
       "paged": false,
       "suffix": "/v1/balance"
     },
     {
       "name": "Balance Transaction",
+      "description": "A single balance transaction by its id. Same fields as Balance Transactions; use it when the id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/balance_transactions/{Balance Transactions ID}"
     },
     {
       "name": "Balance Transactions",
+      "description": "Every movement of money through the Stripe balance -- charges, refunds, payouts, fees and adjustments alike. Carries gross amount, fee and net separately, currency and exchange_rate, the date funds become available_on, and a reporting_category and type naming what caused the movement. The right table for net revenue and fee analysis, because it is the only one where fees are broken out from gross.",
       "paged": true,
       "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&Created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}"
     },
     {
       "name": "Charge",
+      "description": "A single charge by its id. Same fields as Charges; use it when the charge id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/charges/{Charge ID}"
     },
     {
       "name": "Charges",
+      "description": "Payment attempts against a card or other payment method, one row each. Carries amount, amount_captured and amount_refunded, currency, whether it was captured, refunded or disputed, the failure_code and failure_message when declined, and links to the customer and payment method. The usual table for revenue, transaction volume, and decline or dispute rates.",
       "paged": true,
       "suffix": "/v1/charges?created={Created?:Unix timestamp}&payment_intent={Payment Intent ID?}&transfer_group={Transfer Group?}",
       "lookups": [
         {
-          "endpoints": ["Disputes", "Refunds", "Application Fees", "Early Fraud Warnings"],
+          "endpoints": [
+            "Disputes",
+            "Refunds",
+            "Application Fees",
+            "Early Fraud Warnings"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Charge ID"
@@ -35,11 +45,13 @@
     },
     {
       "name": "Customer",
+      "description": "A single customer by its id. Same fields as Customers; use it when the customer id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/customers/{Customer ID}"
     },
     {
       "name": "Customers",
+      "description": "The customer records, one row each. Carries name, email, address, account balance, currency, whether the customer is delinquent, any active discount, and invoice settings. Use for customer counts, signup dates, and for joining payments back to who made them.",
       "paged": true,
       "suffix": "/v1/customers?email={Email?}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -61,56 +73,67 @@
     },
     {
       "name": "Dispute",
+      "description": "A single dispute by its id. Same fields as Disputes; use it when the dispute id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/disputes/{Dispute ID}"
     },
     {
       "name": "Disputes",
+      "description": "Chargebacks raised by cardholders, one row each. Carries amount, currency, the reason given, status, the evidence submitted and its deadline, and links to the disputed charge and payment_intent. Use for dispute rate and dispute outcomes.",
       "paged": true,
       "suffix": "/v1/disputes?charge={Charge ID?}&payment_intent={Payment Intent ID?}&created={Created?:Unix timestamp}"
     },
     {
       "name": "Event",
+      "description": "A single event by its id. Same fields as Events; use it when the event id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/events/{Event ID}"
     },
     {
       "name": "Events",
+      "description": "The audit trail of everything that happened in the account: objects created or updated, payments succeeding or failing, and so on. Each row names the event type, when it occurred, and carries the affected object. Use for activity timelines and for auditing what changed, not as a substitute for querying the objects themselves.",
       "paged": true,
       "suffix": "/v1/events?created={Created?:Unix timestamp}&delivery_success={Delivery Success?:true|false}&type={Event Type?}"
     },
     {
       "name": "File",
+      "description": "A single file by its id. Same fields as Files; use it when the file id is already known.",
       "paged": false,
       "suffix": "/v1/files/{File ID}"
     },
     {
       "name": "Files",
+      "description": "Files uploaded to Stripe -- dispute evidence, identity documents, exported reports. Carries filename, size, type, purpose naming why it was uploaded, and expires_at. Use for auditing what has been uploaded, not for the business data inside the files.",
       "paged": true,
       "suffix": "/v1/files?purpose={Purpose?}&created={Created?:Unix timestamp}"
     },
     {
       "name": "File Link",
+      "description": "A single file link by its id. Same fields as File Links; use it when the link id is already known.",
       "paged": false,
       "suffix": "/v1/file_links/{File Link ID}"
     },
     {
       "name": "File Links",
+      "description": "Shareable public URLs pointing at uploaded files. Carries the target file, its url, whether it has expired, and expires_at. Use for finding which files were shared and whether those links are still live.",
       "paged": true,
       "suffix": "/v1/file_links?created={Created?:Unix timestamp}&expired={Expired?:true|false}&file={File ID?}"
     },
     {
       "name": "Mandate",
+      "description": "The customer's recorded authorization to be charged by a given payment method, for direct debit and similar schemes. Carries status, type, single_use or multi_use, and the acceptance record. Reached by id from a payment; there is no list endpoint.",
       "paged": false,
       "suffix": "/v1/mandates/{Mandate ID}"
     },
     {
       "name": "Payment Intent",
+      "description": "A single payment intent by its id. Same fields as Payment Intents; use it when the id is already known rather than to scan or aggregate.",
       "paged": false,
       "suffix": "/v1/payment_intents/{Payment Intent ID}?client_secret={Client Secret}"
     },
     {
       "name": "Payment Intents",
+      "description": "The full lifecycle of collecting a payment, including attempts that never became a charge. Carries amount, amount_received and amount_capturable, status, capture_method, cancellation_reason and last_payment_error, plus links to customer and payment method. Prefer this over Charges when the question involves abandoned or failed attempts, since a charge only comes into existence once an attempt succeeds.",
       "paged": true,
       "suffix": "/v1/payment_intents?customer={Customer ID?}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -124,11 +147,13 @@
     },
     {
       "name": "Setup Intent",
+      "description": "A single setup intent by its id. Same fields as Setup Intents; use it when the id is already known.",
       "paged": false,
       "suffix": "/v1/setup_intents/{Setup Intent ID}?client_secret={Client Secret}"
     },
     {
       "name": "Setup Intents",
+      "description": "Attempts to save a payment method for later use without charging it -- card-on-file setup, mandate collection. Carries status, usage, cancellation_reason, last_setup_error, and links to customer and payment method. Use for onboarding and saved-card success rates; actual payments are in Payment Intents.",
       "paged": true,
       "suffix": "/v1/setup_intents?customer={Customer ID?}&payment_method={Payment Method?}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -142,101 +167,121 @@
     },
     {
       "name": "Payout",
+      "description": "A single payout by its id. Same fields as Payouts; use it when the payout id is already known.",
       "paged": false,
       "suffix": "/v1/payouts/{Payout ID}"
     },
     {
       "name": "Payouts",
+      "description": "Transfers of your Stripe balance to your own bank account. Carries amount, currency, arrival_date, whether the payout was automatic, its method and status, and failure_code and failure_message when it did not land. Use for settlement timing and failed payouts -- customer-facing revenue is in Charges, not here.",
       "paged": true,
       "suffix": "/v1/payouts?status={Status?:pending|paid|failed|canceled}&arrival_date={Arrival Date?:Unix timestamp}&created={Created?:Unix timestamp}&destination={Destination?}"
     },
     {
       "name": "Product",
+      "description": "A single product by its id. Same fields as Products; use it when the product id is already known.",
       "paged": false,
       "suffix": "/v1/products/{Product ID}"
     },
     {
       "name": "Products",
+      "description": "The goods or services being sold, one row each. Carries name, description, whether it is active, images, its default_price, and shipping attributes. Use for catalogue questions and to give revenue a product dimension; the amounts themselves live in Prices, Invoices and Charges.",
       "paged": true,
       "suffix": "/v1/products?active={Active?:true|false}&created={Created?:Unix timestamp}&ids={IDs?:id1,id2,...}&shippable={Shippable?:true|false}&type={Product Type?}&url={Product URL?}"
     },
     {
       "name": "Refund",
+      "description": "A single refund by its id. Same fields as Refunds; use it when the refund id is already known.",
       "paged": false,
       "suffix": "/v1/refunds/{Refund ID}"
     },
     {
       "name": "Refunds",
+      "description": "Money returned to customers, one row per refund. Carries amount, currency, the reason given, status, and failure_reason when the refund itself failed, plus links back to the charge and payment_intent it reverses. Use for refund totals, refund rate, and refund reasons.",
       "paged": true,
       "suffix": "/v1/refunds?charge={Charge ID?}&payment_intent={Payment Intent ID?}&created={Created?:Unix timestamp}"
     },
     {
       "name": "Token",
+      "description": "A one-time token representing card or bank details, by its id. Carries the type, the card or bank_account it stands for, and whether it has been used. Created by client-side integrations and consumed immediately -- rarely useful for analysis.",
       "paged": false,
       "suffix": "/v1/tokens/{Token ID}"
     },
     {
       "name": "Payment Method",
+      "description": "A single payment method by its id. Same fields as Payment Methods; use it when the id is already known.",
       "paged": false,
       "suffix": "/v1/payment_methods/{Payment Method ID}"
     },
     {
       "name": "Payment Methods",
+      "description": "Payment instruments attached to customers -- cards, bank debits, wallets. Carries the method type and its per-type details, billing_details, and the owning customer. Filtered by type and customer. Use for payment-mix questions; individual attempts are in Charges and Payment Intents.",
       "paged": true,
       "suffix": "/v1/payment_methods?customer={Customer ID}&type={Payment Method Type:card|ideal|sepa_debit}"
     },
     {
       "name": "Bank Account",
+      "description": "A single saved bank account by its id. Requires the customer id as well. Same fields as Bank Accounts.",
       "paged": false,
       "suffix": "v1/customers/{Customer ID}/sources/{Bank Account ID}"
     },
     {
       "name": "Bank Accounts",
+      "description": "Bank accounts saved against one customer as a payment source. Requires a customer id; the object=bank_account filter is already applied by this endpoint. Legacy sources API -- newer integrations keep bank debits in Payment Methods instead.",
       "paged": true,
       "suffix": "v1/customers/{Customer ID}/sources/?object=bank_account"
     },
     {
       "name": "Card",
+      "description": "A single saved card by its id. Requires the customer id as well. Same fields as Cards.",
       "paged": false,
       "suffix": "/v1/customers/{Customer ID}/sources/{Card ID}"
     },
     {
       "name": "Cards",
+      "description": "Cards saved against one customer as a payment source. Requires a customer id; the object=card filter is already applied by this endpoint. Legacy sources API -- newer integrations keep cards in Payment Methods instead.",
       "paged": true,
       "suffix": "v1/customers/{Customer ID}/sources/?object=card"
     },
     {
       "name": "Source",
+      "description": "A payment source by its id, from the legacy sources API. Carries the source type and its details, status, and owning customer. Superseded by Payment Methods for new integrations.",
       "paged": false,
       "suffix": "/v1/sources/{Source ID}?client_secret={Client Secret?}"
     },
     {
       "name": "Session",
+      "description": "A Stripe Checkout session by its id: one attempt by a customer to pay through Stripe's hosted page. Carries amount_total and amount_subtotal, currency, payment_status and status, the line items, and links to customer and payment intent. Use for hosted-checkout conversion questions.",
       "paged": false,
       "suffix": "/v1/checkout/sessions/{Session ID}"
     },
     {
       "name": "Coupon",
+      "description": "A single coupon by its id. Same fields as Coupons; use it when the coupon id is already known.",
       "paged": false,
       "suffix": "/v1/coupons/{Coupon ID}"
     },
     {
       "name": "Coupons",
+      "description": "Discounts that can be applied to invoices and subscriptions. Carries amount_off or percent_off, duration and duration_in_months, max_redemptions and times_redeemed, and whether the coupon is still valid. Use for discount programme analysis and redemption rates.",
       "paged": true,
       "suffix": "/v1/coupons?created={Created?:Unix timestamp}"
     },
     {
       "name": "Credit Note",
+      "description": "A single credit note by its id. Same fields as Credit Notes; use it when the id is already known.",
       "paged": false,
       "suffix": "/v1/credit_notes/{Credit Note ID}"
     },
     {
       "name": "Credit Note Line Items",
+      "description": "The individual lines of one credit note, each carrying its own amount, quantity, description, tax and discount amounts. Requires a credit note id; use it to break a credit down by what was credited.",
       "paged": true,
       "suffix": "/v1/credit_notes/{Credit Note ID}/lines"
     },
     {
       "name": "Credit Notes",
+      "description": "Documents that reduce an already-issued invoice, for a refund or a write-off. Carries amount, currency, the reason, status, and links to the invoice and customer. Use for credited or written-off revenue -- this is the adjustment side of billing, which Invoices alone does not show.",
       "paged": true,
       "suffix": "/v1/credit_notes?invoice={Invoice ID}&customer={Customer ID?}",
       "lookups": [
@@ -250,31 +295,37 @@
     },
     {
       "name": "Customer Balance Transaction",
+      "description": "A single customer balance transaction by its id. Requires the customer id as well. Same fields as Customer Balance Transactions.",
       "paged": false,
       "suffix": "/v1/customers/{Customer ID}/balance_transactions/{Customer Balance Transaction ID}"
     },
     {
       "name": "Customer Balance Transactions",
+      "description": "Movements of one customer's account credit -- the balance Stripe applies to their future invoices. Carries amount, ending_balance, currency, type, and links to the invoice or credit note that caused it. Requires a customer id. Not to be confused with Balance Transactions, which is your own account's money.",
       "paged": true,
       "suffix": "/v1/customers/{Customer ID}/balance_transactions"
     },
     {
       "name": "Tax ID",
+      "description": "A single customer tax ID by its id. Requires the customer id as well. Same fields as Tax IDs.",
       "paged": false,
       "suffix": "/v1/customers/{Customer ID}/tax_ids/{Tax ID}"
     },
     {
       "name": "Tax IDs",
+      "description": "Tax registration numbers recorded against one customer, such as a VAT or GST number. Carries the type, value, country and verification status. Requires a customer id. Use for tax compliance and B2B customer questions.",
       "paged": true,
       "suffix": "/v1/customers/{Customer ID}/tax_ids"
     },
     {
       "name": "Invoice",
+      "description": "A single invoice by its id. Same fields as Invoices; use it when the invoice id is already known.",
       "paged": false,
       "suffix": "/v1/invoices/{Invoice ID}"
     },
     {
       "name": "Invoice Line Items",
+      "description": "The individual lines of one invoice, each with amount, currency, quantity, the period it covers, its price and any discounts. Requires an invoice id. Use it when the question is about what an invoice was made of rather than its total.",
       "paged": true,
       "suffix": "/v1/invoices/{Invoice ID}/lines"
     },
@@ -290,6 +341,7 @@
     },
     {
       "name": "Invoices",
+      "description": "Billing documents, one row each. Carries amount_due, amount_paid and amount_remaining, currency, status and billing_reason, collection_method, the period covered, and links to customer and subscription. Use for billed versus collected revenue, overdue balances, and invoice-level breakdowns.",
       "paged": true,
       "suffix": "/v1/invoices?customer={Customer ID?}&status={Status?:draft|open|paid|uncollectible|void}&subscription={Subscription?}&collection_method={Collection Method?:charge_automatically|send_invoice}&created={Created?:Unix timestamp}&due_date={Due Date?:Unix timestamp}",
       "lookups": [
@@ -303,36 +355,43 @@
     },
     {
       "name": "Invoice Item",
+      "description": "A single invoice item by its id. Same fields as Invoice Items; use it when the id is already known.",
       "paged": false,
       "suffix": "/v1/invoiceitems/{Invoice Item ID}"
     },
     {
       "name": "Invoice Items",
+      "description": "Charges staged onto a customer's next invoice before it is issued -- one-off fees, prorations, adjustments. Carries amount, currency, description, the customer and the invoice it will land on. Use for pending charges not yet billed; issued totals are in Invoices.",
       "paged": true,
       "suffix": "/v1/invoiceitems?created={Created?:Unix timestamp}&invoice={Invoice ID?}&pending={Pending?:true|false}"
     },
     {
       "name": "Plan",
+      "description": "A single plan by its id. Same fields as Plans; use it when the plan id is already known.",
       "paged": false,
       "suffix": "/v1/plans/{Plan ID}"
     },
     {
       "name": "Plans",
+      "description": "The older recurring pricing model: amount, currency, billing interval and interval_count, billing_scheme, and whether the plan is active. Superseded by Prices for new integrations, but still populated for accounts that predate it. Check both when analysing subscription pricing.",
       "paged": true,
       "suffix": "/v1/plans?active={Active?:true|false}&product={Product ID?}&created={Created?:Unix timestamp}"
     },
     {
       "name": "Account",
+      "description": "One connected account by its id, in a Stripe Connect platform. Carries the business profile, country, default_currency, what it is allowed to do (capabilities, charges_enabled, payouts_enabled) and any outstanding verification requirements. Use for platform and marketplace questions.",
       "paged": false,
       "suffix": "/v1/accounts/{Account ID}"
     },
     {
       "name": "Subscription",
+      "description": "A single subscription by its id. Same fields as Subscriptions; use it when the subscription id is already known.",
       "paged": false,
       "suffix": "/v1/subscriptions/{Subscription ID}"
     },
     {
       "name": "Subscriptions",
+      "description": "Recurring billing agreements, one row each. Carries status, the current billing period, created and canceled_at, cancel_at_period_end, collection_method, currency, and links to the customer and the prices being billed. Use for MRR, churn, active subscriber counts, and cancellation analysis.",
       "paged": true,
       "suffix": "/v1/subscriptions?customer={Customer ID?}&plan={Plan ID?}&status={Status?:incomplete|trialing|...}&collection_method={Collection Method?}&created={Created?:Unix timestamp}&current_period_end={Current Period End?:Unix timestamp}&current_period_start={Current Period Start?:Unix timestamp}",
       "lookups": [
@@ -346,11 +405,13 @@
     },
     {
       "name": "Subscription Item",
+      "description": "A single subscription item by its id. Same fields as Subscription Items; use it when the id is already known.",
       "paged": false,
       "suffix": "/v1/subscription_items/{Subscription Item ID}"
     },
     {
       "name": "Subscription Items",
+      "description": "The individual priced components of subscriptions -- a subscription billing three products has three items. Carries quantity, the price being billed, the current period, and the parent subscription. Use it when per-product subscription revenue is needed rather than per-subscription totals.",
       "paged": true,
       "suffix": "/v1/subscription_items?subscription={Subscription ID}",
       "lookups": [
@@ -364,21 +425,25 @@
     },
     {
       "name": "Schedule",
+      "description": "A single subscription schedule by its id. Same fields as Schedules; use it when the id is already known.",
       "paged": false,
       "suffix": "/v1/subscription_schedules/{Subscription Schedule ID}"
     },
     {
       "name": "Schedules",
+      "description": "Planned future changes to subscriptions -- phased pricing, scheduled upgrades, planned cancellation. Carries the phases, current_phase, end_behavior, and status. Use for what is going to happen to billing; what is billing now is in Subscriptions.",
       "paged": true,
       "suffix": "/v1/subscription_schedules?customer={Customer ID?}&canceled_at={Canceled At?:Unix timestamp}&completed_at={Completed At?:Unix timestamp}&created={Created?:Unix timestamp}&released_at={Released At?}&scheduled={Scheduled?:true|false}"
     },
     {
       "name": "Tax Rate",
+      "description": "A single tax rate by its id. Same fields as Tax Rates.",
       "paged": false,
       "suffix": "/v1/tax_rates/{Tax Rate ID}"
     },
     {
       "name": "Tax Rates",
+      "description": "The tax rates available to apply to invoices and subscriptions. Carries display_name, percentage, jurisdiction, country, whether it is inclusive, and whether it is still active. Use for tax breakdowns and for finding which rates are in use.",
       "paged": true,
       "suffix": "/v1/tax_rates?active={Active?:true|false}&created={Created?:Unix timestamp}&inclusive={Inclusive?:true|false}"
     },
@@ -389,11 +454,17 @@
     },
     {
       "name": "Connected Accounts",
+      "description": "Every account connected to this Stripe Connect platform, one row each. Carries business profile, country, default_currency, capabilities, charges_enabled and payouts_enabled, and outstanding requirements. Use for seller or partner counts, onboarding completion, and which accounts are blocked from charging or being paid out.",
       "paged": true,
       "suffix": "/v1/accounts?created={Created?:Unix timestamp}",
       "lookups": [
         {
-          "endpoints": ["Account Capabilities", "Account Bank Accounts", "Account Cards", "People"],
+          "endpoints": [
+            "Account Capabilities",
+            "Account Bank Accounts",
+            "Account Cards",
+            "People"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Account ID"
@@ -402,11 +473,13 @@
     },
     {
       "name": "Application Fee",
+      "description": "A single application fee by its id. Same fields as Application Fees.",
       "paged": false,
       "suffix": "/v1/application_fees/{Application Fee ID}"
     },
     {
       "name": "Application Fees",
+      "description": "Fees your platform collected from connected accounts' charges. Carries amount, amount_refunded, currency, and links to the charge and the account it was taken from. Use for platform revenue -- this is what the platform earned, as distinct from what the connected account earned.",
       "paged": true,
       "suffix": "/v1/application_fees?charge={Charge ID?}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -420,81 +493,97 @@
     },
     {
       "name": "Application Fee Refund",
+      "description": "A single application fee refund by its id. Requires the fee id as well. Same fields as Application Fee Refunds.",
       "paged": false,
       "suffix": "/v1/application_fees/{Application Fee ID}/refunds/{Refund ID}"
     },
     {
       "name": "Application Fee Refunds",
+      "description": "Refunds of application fees back to connected accounts. Carries amount, currency and the fee being reversed. Requires an application fee id.",
       "paged": true,
       "suffix": "/v1/application_fees/{Application Fee ID}/refunds"
     },
     {
       "name": "Account Capability",
+      "description": "A single capability of one connected account. Requires the account id as well. Same fields as Account Capabilities.",
       "paged": false,
       "suffix": "/v1/accounts/{Account ID}/capabilities/{Capability ID}"
     },
     {
       "name": "Account Capabilities",
+      "description": "What one connected account is permitted to do -- card payments, transfers, and so on -- one row per capability. Carries status and the requirements still outstanding. Requires an account id. Use for onboarding blockers.",
       "paged": false,
       "suffix": "/v1/accounts/{Account ID}/capabilities"
     },
     {
       "name": "Country",
+      "description": "The Stripe capabilities of every supported country, one row each. Despite the singular name this is the LIST endpoint. Carries default_currency, supported payment methods and currencies, and the verification fields required there. Use for what Stripe supports where, not for your own transactions.",
       "paged": true,
       "suffix": "/v1/country_specs"
     },
     {
       "name": "Countries",
+      "description": "The Stripe capabilities of ONE country, by its country code. Despite the plural name this takes a single id -- the naming is the reverse of what it looks like. Same fields as Country.",
       "paged": false,
       "suffix": "/v1/country_specs/{Country ID}"
     },
     {
       "name": "Account Bank Account",
+      "description": "A single external account of one connected account, by its id. Requires the account id as well. Carries the bank name, last4, currency, country and whether it is the default for that currency.",
       "paged": false,
       "suffix": "/v1/accounts/{Account ID}/external_accounts/{Bank Account ID}"
     },
     {
       "name": "Account Bank Accounts",
+      "description": "The external accounts of one connected account -- where its payouts are sent. Requires an account id. Note this returns every external account, bank accounts and cards alike; despite the name it applies no filter, and Account Cards calls exactly the same URL.",
       "paged": true,
       "suffix": "/v1/accounts/{Account ID}/external_accounts"
     },
     {
       "name": "Account Card",
+      "description": "A single external account of one connected account, by its id. Requires the account id as well. Carries last4, brand, currency, country and whether it is the default for that currency.",
       "paged": false,
       "suffix": "/v1/accounts/{Account ID}/external_accounts/{Card ID}"
     },
     {
       "name": "Account Cards",
+      "description": "The external accounts of one connected account. Requires an account id. Note this returns every external account, cards and bank accounts alike; despite the name it applies no filter, and Account Bank Accounts calls exactly the same URL.",
       "paged": true,
       "suffix": "/v1/accounts/{Account ID}/external_accounts"
     },
     {
       "name": "Person",
+      "description": "A single person on one connected account, by its id. Requires the account id as well. Same fields as People.",
       "paged": false,
       "suffix": "/v1/accounts/{Account ID}/persons/{Person ID}"
     },
     {
       "name": "People",
+      "description": "The individuals associated with one connected account -- owners, directors, representatives -- as required for identity verification. Carries names, dob, address, relationship to the business, and verification status. Requires an account id.",
       "paged": true,
       "suffix": "/v1/accounts/{Account ID}/persons?relationship={Relationship?}"
     },
     {
       "name": "Top-Up",
+      "description": "A single top-up by its id. Same fields as Top-Ups.",
       "paged": false,
       "suffix": "/v1/topups/{Top-up ID}"
     },
     {
       "name": "Top-Ups",
+      "description": "Money you added to your own Stripe balance from an external bank account, typically to fund payouts. Carries amount, currency, status, expected_availability_date, and failure_code when it did not clear. Not customer revenue.",
       "paged": true,
       "suffix": "/v1/topups?amount={Amount?}&created={Created?:Unix timestamp}"
     },
     {
       "name": "Transfer",
+      "description": "A single transfer by its id. Same fields as Transfers.",
       "paged": false,
       "suffix": "/v1/transfers/{Transfer ID}"
     },
     {
       "name": "Transfers",
+      "description": "Money moved from your Stripe balance to a connected account. Carries amount, amount_reversed, currency, the destination account, and the charge it originated from. Use for what was paid out to sellers or partners; payouts to your own bank are in Payouts.",
       "paged": true,
       "suffix": "/v1/transfers?destination={Destination?}created={Created?:Unix timestamp}&transfer_group={Transfer Group}",
       "lookups": [
@@ -508,41 +597,49 @@
     },
     {
       "name": "Reversal",
+      "description": "A single transfer reversal by its id. Requires the transfer id as well. Same fields as Reversals.",
       "paged": false,
       "suffix": "/v1/transfers/{Transfer ID}/reversals/{Reversal ID}"
     },
     {
       "name": "Reversals",
+      "description": "Transfers that were pulled back from a connected account. Carries amount, currency and the transfer being reversed. Requires a transfer id.",
       "paged": true,
       "suffix": "/v1/transfers/{Transfer ID}/reversals"
     },
     {
       "name": "Early Fraud Warning",
+      "description": "A single early fraud warning by its id. Same fields as Early Fraud Warnings.",
       "paged": false,
       "suffix": "/v1/radar/early_fraud_warnings/{Early Fraud Warning ID}"
     },
     {
       "name": "Early Fraud Warnings",
+      "description": "Notices from the card networks that a charge is likely fraudulent, usually arriving before a dispute does. Carries fraud_type, whether it is actionable, and links to the charge and payment intent. Use as a leading indicator of disputes.",
       "paged": true,
       "suffix": "/v1/radar/early_fraud_warnings?charge={Charge ID}"
     },
     {
       "name": "Review",
+      "description": "A single fraud review by its id. Same fields as Open Reviews.",
       "paged": false,
       "suffix": "/v1/reviews/{Review ID}"
     },
     {
       "name": "Open Reviews",
+      "description": "Payments held for manual fraud review. Carries the reason it was opened, whether it is still open, closed_reason once decided, ip_address and its location, and links to the charge and payment intent. Named for open reviews but the underlying list returns closed ones too -- filter on the open field.",
       "paged": true,
       "suffix": "/v1/reviews?created={Created?:Unix timestamp}"
     },
     {
       "name": "Value List",
+      "description": "A single Radar value list by its id. Same fields as Value Lists.",
       "paged": false,
       "suffix": "/v1/radar/value_lists/{Value List ID}"
     },
     {
       "name": "Value Lists",
+      "description": "Named lists used by Stripe Radar fraud rules -- blocked cards, allowed countries, and so on. Carries the list name, alias, and the type of item it holds. Use for auditing what the fraud rules are matching against.",
       "paged": true,
       "suffix": "/v1/radar/value_lists?alias={Alias?}&contains={Contains?:value1,value2,...}&created={Created?:Unix timestamp}",
       "lookups": [
@@ -556,31 +653,37 @@
     },
     {
       "name": "Value List Item",
+      "description": "A single Radar value list item by its id. Same fields as Value List Items.",
       "paged": false,
       "suffix": "/v1/radar/value_list_items/{Value List Item ID}"
     },
     {
       "name": "Value List Items",
+      "description": "The entries inside Radar value lists. Carries the value, who created it, and which list it belongs to. Filtered by value list.",
       "paged": true,
       "suffix": "/v1/radar/value_list_items?value_list={Value List ID}&value={Value?}&created={Created?:Unix timestamp}"
     },
     {
       "name": "Location",
+      "description": "A single Terminal location by its id. Same fields as Locations.",
       "paged": false,
       "suffix": "/v1/terminal/locations/{Location ID}"
     },
     {
       "name": "Locations",
+      "description": "Physical places where Stripe Terminal card readers are deployed. Carries display_name and address. Use to give in-person payments a location dimension.",
       "paged": true,
       "suffix": "/v1/terminal/locations"
     },
     {
       "name": "Reader",
+      "description": "A single Terminal reader by its id. Same fields as Readers.",
       "paged": false,
       "suffix": "v1/terminal/readers/{Reader ID}"
     },
     {
       "name": "Readers",
+      "description": "Stripe Terminal card readers. Carries label, device_type, serial_number, status, ip_address, last_seen_at and the location it belongs to. Use for fleet health and for tying in-person payments to a device.",
       "paged": true,
       "suffix": "/v1/terminal/readers?device_type={Device Type?:bbpos_chipper2x|verifone_P400}&location={Location ID?}&status={Status?:offline|online}"
     },
@@ -624,41 +727,49 @@
     },
     {
       "name": "Scheduled Query Run",
+      "description": "A single scheduled query run by its id. Same fields as Scheduled Query Runs.",
       "paged": false,
       "suffix": "/v1/sigma/scheduled_query_runs/{Scheduled Query Run ID}"
     },
     {
       "name": "Scheduled Query Runs",
+      "description": "Executions of saved Sigma SQL queries. Carries the sql that ran, status, data_load_time, error when it failed, and a link to the result file. Use for auditing scheduled analytics jobs.",
       "paged": true,
       "suffix": "/v1/sigma/scheduled_query_runs"
     },
     {
       "name": "Report Run",
+      "description": "A single report run by its id. Same fields as Report Runs.",
       "paged": false,
       "suffix": "/v1/reporting/report_runs/{Report Run ID}"
     },
     {
       "name": "Report Runs",
+      "description": "Executions of Stripe's prebuilt financial reports. Carries the report_type, the parameters it ran with, status, succeeded_at, and a link to the resulting file. Use for auditing which reports were produced; the report contents are in the linked file, not here.",
       "paged": true,
       "suffix": "/v1/reporting/report_runs?created={Created?:Unix timestamp}"
     },
     {
       "name": "Report Type",
+      "description": "A single report type by its id. Same fields as Report Types.",
       "paged": false,
       "suffix": "/v1/reporting/report_types/{Report Type ID}"
     },
     {
       "name": "Report Types",
+      "description": "The prebuilt financial reports Stripe offers, one row each. Carries the report name, its default_columns, and the date range of data available. Use to discover what can be reported on before running one.",
       "paged": false,
       "suffix": "/v1/reporting/report_types"
     },
     {
       "name": "Webhook Endpoint",
+      "description": "A single webhook endpoint by its id. Same fields as Webhook Endpoints.",
       "paged": false,
       "suffix": "/v1/webhook_endpoints/{Webhook Endpoint ID}"
     },
     {
       "name": "Webhook Endpoints",
+      "description": "The URLs Stripe sends event notifications to. Carries the url, which enabled_events it subscribes to, status, and api_version. Use for auditing integration wiring; the events themselves are in Events.",
       "paged": true,
       "suffix": "/v1/webhook_endpoints"
     }
