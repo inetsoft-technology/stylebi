@@ -216,6 +216,8 @@ export class TaskActionPane implements OnInit {
    private changeViewsheet(sheet: string): void {
       this.clearHighlightConditions(sheet);
       (<GeneralActionModel>this.action).sheet = sheet;
+      this.form?.controls["dashboard"]?.setValue(sheet);
+      this.form?.controls["dashboard"]?.markAsDirty();
       this.dirtyFormByTs = true;
 
       if(!sheet) {
@@ -227,6 +229,10 @@ export class TaskActionPane implements OnInit {
       this.getHighlights();
       this.getParameters();
       this.getTableDataAssemblies();
+   }
+
+   clearViewsheet(): void {
+      this.changeViewsheet(null);
    }
 
    private getPrintLayout(sheet: string = null) {

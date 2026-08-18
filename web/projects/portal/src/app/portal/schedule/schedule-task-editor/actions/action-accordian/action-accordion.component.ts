@@ -1015,6 +1015,20 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
          this.form.addControl("deliveryMessage", new UntypedFormControl(this.deliveryMessage));
       }
 
+      this.formSubscriptions.add(this.form.get("secretId").valueChanges.subscribe(value =>
+         this.action.secretId = value));
+      this.formSubscriptions.add(this.form.get("password").valueChanges.subscribe(value =>
+         this.action.password = value));
+      this.formSubscriptions.add(this.form.get("confirmPassword").valueChanges.subscribe(value =>
+         this.confirmPassword = value));
+      this.formSubscriptions.add(this.form.get("attachmentName").valueChanges.subscribe(value =>
+         this.action.attachmentName = value));
+
+      if(this.isIE) {
+         this.formSubscriptions.add(this.form.get("deliveryMessage").valueChanges.subscribe(value =>
+            this.updateDeliverMessage(value)));
+      }
+
       if(this.action.notificationEnabled) {
          this.updateNotificationStatus(true);
       }
@@ -1041,6 +1055,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       }
 
       if(this.model.emailDeliveryEnabled) {
+         this.formSubscriptions.add(this.form.get("from").valueChanges.subscribe(value =>
+            this.updateFromEmails(value)));
          this.formSubscriptions.add(this.form.get("cc").valueChanges.subscribe(value =>
             this.action.ccAddress = value));
          this.formSubscriptions.add(this.form.get("bcc").valueChanges.subscribe(value =>
