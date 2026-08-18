@@ -205,7 +205,23 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       return this.calcType == "aggregate";
    }
 
+   /**
+    * Whether to offer the Connect Agent button at all.
+    *
+    * Also requires that the location this dialog would mint is ADDRESSABLE -- see
+    * `isAddressable`. Suppressing beats minting a code that cannot be joined usefully, which is
+    * the precedent `script-edit-pane` already sets, and it is the browser half of the whole-branch
+    * review's finding 3: the server now refuses such a mint, and a button whose only outcome is a
+    * server error is worse than no button.
+    */
    get canPair(): boolean {
+      return this.hasPairingTransport &&
+         FormulaEditorDialog.isAddressable(this.deriveEditorContext());
+   }
+
+   /** A runtime and a socket to mint against. Necessary for pairing, not sufficient -- see
+    *  `canPair`, which also requires the location to be addressable. */
+   private get hasPairingTransport(): boolean {
       return !!this.runtimeId && !!this.socketConnection;
    }
 
@@ -215,10 +231,17 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     *  condition (isVSContext) binds to the assembly's main script context;
     *  a worksheet-hosted condition binds to the worksheet condition itself. */
    get editorContext(): EditorContext | null {
-      if(!this.canPair) {
-         return null;
-      }
+      // Gated on the transport, NOT on canPair: this getter answers "which location is this
+      // dialog editing", which is still a fact when the location happens not to be addressable.
+      // canPair answers the separate question of whether a code minted for it could be joined,
+      // and it is canPair that the template's @if uses -- so an unaddressable location never
+      // reaches this binding in practice.
+      return this.hasPairingTransport ? this.deriveEditorContext() : null;
+   }
 
+   /** The derivation itself, without `canPair`'s own guard -- `canPair` calls this, so the two
+    *  cannot be mutually recursive. */
+   private deriveEditorContext(): EditorContext {
       // contextTable, when the caller supplied it, over assemblyName -- see contextTable's
       // doc comment for why they're not the same field.
       const assembly = this.contextTable ?? this.assemblyName;
@@ -233,6 +256,25 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
       return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
                assembly, name: this.formulaName };
+   }
+
+   /**
+    * Kinds addressed by (table, field) rather than by assembly alone. A grant of one of these
+    * carrying no `name` matches NO target -- the server compares the grant's null name against
+    * every target's real one -- so pairing appears to succeed and then refuses every edit.
+    *
+    * The reachable case is "new expression column"/"new calculated field": the formula editor
+    * opens with an empty `formulaName`, because the user has not named the thing yet.
+    */
+   private static readonly COLUMN_ADDRESSED_KINDS =
+      ["calcField", "worksheetExpression", "worksheetCondition"];
+
+   private static isAddressable(context: EditorContext): boolean {
+      if(FormulaEditorDialog.COLUMN_ADDRESSED_KINDS.indexOf(context.kind) < 0) {
+         return true;
+      }
+
+      return !!context.assembly && !!context.name;
    }
 
    @Input()

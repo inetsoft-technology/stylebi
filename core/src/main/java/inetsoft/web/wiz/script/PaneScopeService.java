@@ -99,6 +99,42 @@ public class PaneScopeService {
    }
 
    /**
+    * Refuses a pane-scoped session on a surface that is NOT one of the script surfaces.
+    *
+    * <p>The mirror image of {@link #check}. {@code check} answers "may this session act on THIS
+    * script location"; this answers "is this session allowed here at all". A pane token
+    * (non-null {@link JoinSession#editorContext()}) is a write handle for one expression, so it
+    * is valid only where a {@code ScriptTarget} names what it is acting on -- the script
+    * controllers. Every other agent surface (the worksheet edit-op dispatcher, the viewsheet
+    * assembly endpoints, the ~25 binding mutations) resolves the SAME session token and has no
+    * target to check, so without this the narrow grant is simply a whole-sheet write handle with
+    * an unused field on it. That contradicts the spec's binding Consequence #4: a pane-scoped
+    * session "may write the expression its editor owns ... but never becomes a general sheet
+    * write path".
+    *
+    * <p>Fires on resolution, before any mutation runs, so a refused call cannot leave a partial
+    * edit behind. Names the location the session IS bound to and the one action that fixes it --
+    * re-pairing from the sheet toolbar -- because an agent that hits this has a correct session
+    * for the wrong job, not a broken one.
+    *
+    * <p>A {@code null} session is NOT refused here: it means the token did not resolve at all,
+    * and the caller's own resolution reports that (expired / not this user) with a message that
+    * says what to do about it. Answering "you are pane-scoped" to an expired token would be
+    * false.
+    */
+   public static void requireWholeSheetSession(JoinSession session) throws PairingException {
+      if(session == null || session.editorContext() == null) {
+         return;
+      }
+
+      throw new PairingException(
+         "This session is scoped to one script location (" +
+         grantDescription(session.editorContext()) + "), not to the whole sheet, so it may not " +
+         "be used for whole-sheet work. Re-pair from the sheet toolbar ('Connect to Claude') " +
+         "and use that session for anything outside this one script location.");
+   }
+
+   /**
     * Whether {@code target} is inside the location {@code grant} names — its own location, or
     * that location's <b>dialog sibling</b>.
     *

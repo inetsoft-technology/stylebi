@@ -126,7 +126,7 @@ public class WorksheetScriptController {
    /**
     * Overwrites the expression/condition text at {@code target}, through {@link
     * WorksheetScriptService#write} -- the ONLY mutating call this endpoint makes; the actual
-    * write always lands via {@link WorksheetAgentController#edit}.
+    * write always lands via {@link WorksheetAgentController#editOp}.
     *
     * <p>{@code type}/{@code sql}/{@code newName}, when present, are forwarded as {@code extras}
     * so {@link WorksheetScriptService#write} refuses them loudly (redirecting to worksheet-chat)

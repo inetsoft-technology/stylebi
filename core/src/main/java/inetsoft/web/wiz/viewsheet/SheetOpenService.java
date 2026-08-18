@@ -72,7 +72,29 @@ public class SheetOpenService {
     *                                  problem and, where there is one, the next tool to call.
     */
    public JoinSession openBaseWorksheet(String sessionToken, Principal user) throws Exception {
-      JoinSession vsSession = viewsheetSessions.requireSession(sessionToken, user);
+      JoinSession vsSession =
+         viewsheetSessions.requireSessionAllowingPaneScope(sessionToken, user);
+
+      // Whole-branch review finding 1 (CRITICAL). This guard must come FIRST -- before the
+      // runtime is touched, before the worksheet is opened, before any grant is minted.
+      //
+      // A pane-scoped session is a write handle for ONE script location. Opening a second sheet
+      // from it used to mint a whole-sheet worksheet session (editorContext = null), which
+      // LAUNDERED the narrow grant into an unscoped one: strictly more authority than the code
+      // the user minted, on a runtime the pane's grant never named, and one that socketClosed
+      // will not even reap because reaping keys on the editorContext this new session no longer
+      // has. The reasoning for the null was right about the VALUE -- an editorContext naming a
+      // viewsheet location is meaningless on a worksheet runtime -- and blind to the
+      // CONSEQUENCE, which is what authority the new session then carries. The answer is that it
+      // must not be created at all.
+      if(vsSession.editorContext() != null) {
+         throw new IllegalArgumentException(
+            "This session is scoped to one script location, not to the whole viewsheet, so it " +
+            "cannot open the base worksheet: doing so would turn a single-expression grant into " +
+            "a whole-sheet write handle. Ask the user to re-pair from the sheet toolbar " +
+            "('Connect to Claude') and call open_base_worksheet from that session.");
+      }
+
       RuntimeViewsheet rvs = viewsheetSessions.resolve(sessionToken, user);
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       AssetEntry baseEntry = vs == null ? null : vs.getBaseEntry();

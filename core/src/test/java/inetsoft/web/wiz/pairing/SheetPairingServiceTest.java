@@ -20,12 +20,17 @@ package inetsoft.web.wiz.pairing;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.BoundTableAssembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.security.Principal;
@@ -65,7 +70,15 @@ import static org.mockito.Mockito.when;
  *                            whether or not the named assembly exists -- the failure must never
  *                            become an oracle for what exists on someone else's open sheet
  */
-@Tag("core")
+/*
+ * @WizAgentTestSupport (which itself carries @Tag("core")) replaces a bare @Tag: the
+ * worksheet-column validation added by whole-branch review finding 3 is asserted against a REAL
+ * ColumnSelection holding a REAL ExpressionRef, and ExpressionRef's static initializer reaches
+ * SreeEnv. Mocking those two instead would have made the test assert only that its own stubs
+ * agree with each other -- ColumnRef.getName()/ExpressionRef.getName() are the exact lookups the
+ * validation performs.
+ */
+@WizAgentTestSupport
 class SheetPairingServiceTest {
 
    private final long FIXED_NOW = 1_000_000L;
@@ -256,18 +269,135 @@ class SheetPairingServiceTest {
                  "message must name what was asked for: " + ex.getMessage());
    }
 
+   /**
+    * FIXTURE STRENGTHENED, not weakened, by whole-branch review finding 3. This test previously
+    * stubbed only {@code ws.getAssembly("Query1")} to a bare {@link Assembly} and asserted the
+    * mint succeeded -- which is exactly the false success the fix removes: a
+    * {@code worksheetExpression} grant is addressed by (table, FIELD), so an assembly that exists
+    * proves nothing about the column the grant names. The intent of the test is unchanged
+    * ("mints when the runtime has what the context names"); what the runtime must now actually
+    * have is the column.
+    */
    @Test
    void mintsWhenTheEditorContextNamesATableTheWorksheetRuntimeHas() throws PairingException {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       Worksheet ws = mock(Worksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
-      when(ws.getAssembly("Query1")).thenReturn(mock(Assembly.class));
+      when(ws.getAssembly("Query1")).thenReturn(tableWithExpressionColumn("Calc1"));
       SheetPairingService svc = serviceWithWorksheetRuntime(rws);
       EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Calc1", null);
 
       String code = svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx);
 
       assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Whole-branch review finding 3 -- a mint that can match nothing must not succeed
+   // ---------------------------------------------------------------------------
+
+   /**
+    * The reachable case: "new expression column" opens the formula editor with no
+    * {@code formulaName}, so the mint carries no {@code name}. Before this, the mint SUCCEEDED
+    * and {@code status} reported a healthy pane-scoped session -- and then
+    * {@code PaneScopeService.matchesGrant} compared the grant's null name against every target's
+    * real one and refused all of them with {@code 'Query1.null'}.
+    */
+   @Test
+   void refusesAWorksheetExpressionContextThatCarriesNoName() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithExpressionColumn("Calc1"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("'name'"), ex.getMessage());
+   }
+
+   /** Same rule for the other worksheet kind -- both are addressed by (table, field). */
+   @Test
+   void refusesAWorksheetConditionContextThatCarriesNoName() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithColumn("Amount"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetCondition", "Query1", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("'name'"), ex.getMessage());
+   }
+
+   /**
+    * The name must be VERIFIED, not merely present -- mirroring the calcField branch, which has
+    * always checked the field exists rather than that a field name was supplied.
+    */
+   @Test
+   void refusesAWorksheetExpressionContextNamingAColumnTheTableDoesNotHave() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithExpressionColumn("Calc1"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "NoSuchColumn", null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("NoSuchColumn"),
+                 "message must name what was asked for: " + ex.getMessage());
+   }
+
+   /**
+    * A condition is checked against ANY column, not expression columns only: adding a condition
+    * to a field that has none yet is legitimate, so requiring an ExpressionRef here would refuse
+    * the ordinary case.
+    */
+   @Test
+   void mintsAWorksheetConditionContextWhoseColumnExists() throws PairingException {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(tableWithColumn("Amount"));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetCondition", "Query1", "Amount", null);
+
+      String code = svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   /**
+    * A REAL {@link TableAssembly} holding exactly one EXPRESSION column named {@code name}.
+    *
+    * <p>Real domain objects, not mocks, for two reasons: {@code TableAssembly.getColumnSelection}
+    * is final and cannot be stubbed at all, and {@code ColumnRef.getName()}/
+    * {@code ExpressionRef.getName()} are the exact lookups the validation performs -- stubbing
+    * them would prove only that the test's own stubs agree with each other.
+    */
+   private static TableAssembly tableWithExpressionColumn(String name) {
+      ExpressionRef er = new ExpressionRef();
+      er.setName(name);
+
+      BoundTableAssembly t = new BoundTableAssembly(new Worksheet(), "Query1");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(er));
+      t.setColumnSelection(cs, false);
+      return t;
+   }
+
+   /** A REAL {@link TableAssembly} holding exactly one ordinary column named {@code name}. */
+   private static TableAssembly tableWithColumn(String name) {
+      return TestWorksheets.nonEmbeddedTableWithColumns(new Worksheet(), "Query1", name);
    }
 
    @Test

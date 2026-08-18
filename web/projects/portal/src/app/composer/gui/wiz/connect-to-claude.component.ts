@@ -45,6 +45,22 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
    copied = false;
 
    private mintSubscription: Subscription | null = null;
+   /**
+    * The `editorContext` that was actually SENT with the mint that produced `code` -- captured
+    * when the code comes back, and what `detach()` sends.
+    *
+    * Whole-branch review finding 2: `detach()` used to send `this.editorContext`, the CURRENT
+    * value, and the server matches a session by record equality on that field. Several hosts
+    * derive `editorContext` from mutable state -- `viewsheet-script-pane` follows the
+    * onInit/onLoad radio, `formula-editor-dialog` includes the editable `formulaName` -- so a
+    * user who pairs on Init, clicks Load to compare, then cancels detached `viewsheetOnLoad`,
+    * matched nothing, and left the `viewsheetOnInit` session live for its full TTL with the
+    * editor gone. `socketClosed` does not help: the composer socket is still up.
+    *
+    * Null until a code has been minted; `detach()` then falls back to the current value, which is
+    * correct because with no minted code there is no session of ours to end.
+    */
+   private mintedEditorContext: EditorContext | null = null;
 
    constructor(private zone: NgZone) {}
 
@@ -54,6 +70,7 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
          this.error = null;
          this.loading = false;
          this.copied = false;
+         this.mintedEditorContext = null;
          if(this.mintSubscription) {
             this.mintSubscription.unsubscribe();
             this.mintSubscription = null;
@@ -67,6 +84,11 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
       this.error = null;
       this.copied = false;
 
+      // Read ONCE, here, and carry this exact value through to the response handler: the getters
+      // that supply it are live, so re-reading it later (in detach, or even in this same
+      // subscribe callback) can yield a context the server never saw. See mintedEditorContext.
+      const requestedContext = this.editorContext;
+
       this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          const sub = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
             sub.unsubscribe();
@@ -79,6 +101,7 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
 
                   if(body.code) {
                      this.code = body.code;
+                     this.mintedEditorContext = requestedContext ?? null;
                   }
                   else {
                      this.error = body.error ?? "Failed to generate pairing code";
@@ -93,8 +116,8 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
 
          const payload: any = { runtimeId: this.runtimeId, sheetType: this.sheetType };
 
-         if(this.editorContext) {
-            payload.editorContext = this.editorContext;
+         if(requestedContext) {
+            payload.editorContext = requestedContext;
          }
 
          conn.send("/events/wiz/pairing/mint", {}, JSON.stringify(payload));
@@ -124,13 +147,18 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
     * reach this endpoint -- its session is TTL-only by design, so this is a no-op there.
     */
    detach(): void {
-      if(!this.editorContext || !this.socketConnection) {
+      // The context the session was MINTED with, not whatever the host's live getter says now --
+      // see mintedEditorContext. Falls back to the current value only when nothing was ever
+      // minted from this component.
+      const context = this.mintedEditorContext ?? this.editorContext;
+
+      if(!context || !this.socketConnection) {
          return;
       }
 
       this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/detach", {},
-                   JSON.stringify({ editorContext: this.editorContext }));
+                   JSON.stringify({ editorContext: context }));
       });
    }
 

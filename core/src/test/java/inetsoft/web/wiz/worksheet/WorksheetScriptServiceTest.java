@@ -97,7 +97,7 @@ class WorksheetScriptServiceTest {
       service.write(session, agent, target, "field['price'] - field['cost']");
 
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
-      verify(worksheetController).edit(eq("TOK"), captor.capture(), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       EditRequest req = captor.getValue();
       assertEquals("edit_expression", req.op());
       assertEquals("Query1", req.table());
@@ -122,7 +122,7 @@ class WorksheetScriptServiceTest {
       service.write(session, agent, target, "price - cost");
 
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
-      verify(worksheetController).edit(eq("TOK"), captor.capture(), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       assertTrue(captor.getValue().sql(), "a SQL expression column must stay SQL through a text-only edit");
    }
 
@@ -166,7 +166,7 @@ class WorksheetScriptServiceTest {
       service.write(session, agent, target, "> 0");
 
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
-      verify(worksheetController).edit(eq("TOK"), captor.capture(), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       EditRequest req = captor.getValue();
       assertEquals("edit_condition", req.op());
       assertEquals("Query1", req.table());
@@ -184,7 +184,7 @@ class WorksheetScriptServiceTest {
       service.write(session, agent, target, "BETWEEN 1 AND 10");
 
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
-      verify(worksheetController).edit(eq("TOK"), captor.capture(), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       assertEquals("BETWEEN", captor.getValue().operation());
       assertEquals(List.of("1", "10"), captor.getValue().values());
    }
@@ -198,7 +198,7 @@ class WorksheetScriptServiceTest {
       service.write(session, agent, target, "ONE_OF East, West, North");
 
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
-      verify(worksheetController).edit(eq("TOK"), captor.capture(), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       assertEquals("ONE_OF", captor.getValue().operation());
       assertEquals(List.of("East", "West", "North"), captor.getValue().values());
    }
@@ -212,7 +212,7 @@ class WorksheetScriptServiceTest {
       service.write(session, agent, target, "NULL");
 
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
-      verify(worksheetController).edit(eq("TOK"), captor.capture(), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       assertEquals("NULL", captor.getValue().operation());
       assertEquals(List.of(), captor.getValue().values());
    }
@@ -244,7 +244,7 @@ class WorksheetScriptServiceTest {
 
       service.write(session, agent, target, "> 0");
 
-      verify(worksheetController).edit(eq("TOK"), any(EditRequest.class), eq(agent));
+      verify(worksheetController).editOp(eq("TOK"), any(EditRequest.class), eq(agent));
       verifyNoMoreInteractions(worksheetController);
       verifyNoInteractions(editService);
    }

@@ -39,24 +39,61 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class PaneScopeServiceTest {
 
+   /**
+    * The kinds this suite asserts MUST require a pane session. Hoisted out of the test body so
+    * {@link #everyKindIsClassifiedByExactlyOneGuard()} can prove the two lists between them cover
+    * {@code Kind.values()} — see that test for why an inline {@code List.of} was not enough.
+    */
+   private static final List<ScriptTarget.Kind> EXPRESSION_LEVEL_KINDS =
+      List.of(ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.WORKSHEET_EXPRESSION,
+              ScriptTarget.Kind.WORKSHEET_CONDITION);
+
+   /** The kinds this suite asserts must NOT require one. See {@link #EXPRESSION_LEVEL_KINDS}. */
+   private static final List<ScriptTarget.Kind> SHEET_LEVEL_KINDS =
+      List.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, ScriptTarget.Kind.VIEWSHEET_ON_LOAD,
+              ScriptTarget.Kind.ASSEMBLY_MAIN, ScriptTarget.Kind.ASSEMBLY_ON_CLICK);
+
    @Test
    void expressionLevelKindsRequireAPaneSession() {
-      for(ScriptTarget.Kind k : List.of(ScriptTarget.Kind.CALC_FIELD,
-                                        ScriptTarget.Kind.WORKSHEET_EXPRESSION,
-                                        ScriptTarget.Kind.WORKSHEET_CONDITION))
-      {
+      for(ScriptTarget.Kind k : EXPRESSION_LEVEL_KINDS) {
          assertTrue(k.requiresPaneSession(), k.wireName());
       }
    }
 
    @Test
    void theFourViewsheetLevelKindsDoNot() {
-      for(ScriptTarget.Kind k : List.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT,
-                                        ScriptTarget.Kind.VIEWSHEET_ON_LOAD,
-                                        ScriptTarget.Kind.ASSEMBLY_MAIN,
-                                        ScriptTarget.Kind.ASSEMBLY_ON_CLICK))
-      {
+      for(ScriptTarget.Kind k : SHEET_LEVEL_KINDS) {
          assertFalse(k.requiresPaneSession(), k.wireName());
+      }
+   }
+
+   /**
+    * Whole-branch review finding 4: both guards above detect a CHANGE to a kind they already name
+    * and are blind to an ADDITION. Adding the next kind the spec names ({@code highlight},
+    * {@code cell}, {@code dynamicValue}) with a real {@link ScriptTarget.Location} and forgetting
+    * to classify it left {@code requiresPaneSession()} silently returning {@code false} with the
+    * whole suite green — a security-relevant rule inverted by an omission.
+    *
+    * <p>This closes the half the compiler cannot see. {@code Kind.isExpressionLevel} is now an
+    * exhaustive {@code switch} over {@link ScriptTarget.Location} with no {@code default}, so a
+    * NEW LOCATION fails the BUILD; a new {@code Kind} mapped onto an EXISTING location compiles
+    * fine, and is what this test refuses. Together: every {@code Kind} constant must appear in
+    * exactly one of the two lists above, so a new kind cannot reach {@code main} unclassified.
+    */
+   @Test
+   void everyKindIsClassifiedByExactlyOneGuard() {
+      for(ScriptTarget.Kind k : ScriptTarget.Kind.values()) {
+         boolean expressionLevel = EXPRESSION_LEVEL_KINDS.contains(k);
+         boolean sheetLevel = SHEET_LEVEL_KINDS.contains(k);
+
+         assertTrue(expressionLevel || sheetLevel,
+            "New kind '" + k.wireName() + "' is not classified by either guard in this class. " +
+            "Decide whether it has an identity at whole-sheet level and add it to " +
+            "EXPRESSION_LEVEL_KINDS or SHEET_LEVEL_KINDS -- leaving it out means " +
+            "requiresPaneSession() is unasserted for it.");
+         assertFalse(expressionLevel && sheetLevel,
+            "Kind '" + k.wireName() + "' is in BOTH guard lists, which asserts two opposite " +
+            "things about requiresPaneSession().");
       }
    }
 
@@ -315,4 +352,41 @@ class PaneScopeServiceTest {
       assertThrows(PairingException.class,
          () -> new PaneScopeService(false).check(pane, conditionTarget));
    }
+
+   // -----------------------------------------------------------------------------------------
+   // Whole-branch review finding 1 -- requireWholeSheetSession, the mirror image of check()
+   // -----------------------------------------------------------------------------------------
+
+   /**
+    * A pane token is a write handle for ONE expression. On a surface with no
+    * {@link ScriptTarget} to check it against, there is nothing to narrow it with, so it is
+    * refused outright -- otherwise it is simply a whole-sheet handle carrying an unread field.
+    */
+   @Test
+   void requireWholeSheetSessionRefusesAPaneScopedSessionAndNamesWhereItIsBound() {
+      JoinSession pane = sessionScopedTo(new EditorContext("calcField", "Query1", "Margin", null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> PaneScopeService.requireWholeSheetSession(pane));
+
+      assertTrue(ex.getMessage().contains("Query1.Margin"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Connect to Claude"), ex.getMessage());
+   }
+
+   /** Whole-sheet toolbar pairing must be completely unaffected -- it is in use today. */
+   @Test
+   void requireWholeSheetSessionAcceptsAToolbarSession() {
+      assertDoesNotThrow(() -> PaneScopeService.requireWholeSheetSession(wholeSheetSession()));
+   }
+
+   /**
+    * A null session means the token did not resolve at all. Answering "you are pane-scoped"
+    * would be false, and would send the caller to re-pair from the toolbar when the real problem
+    * is an expired or foreign token -- so the caller's own resolution gets to report it.
+    */
+   @Test
+   void requireWholeSheetSessionSaysNothingAboutAnUnresolvedToken() {
+      assertDoesNotThrow(() -> PaneScopeService.requireWholeSheetSession(null));
+   }
+
 }

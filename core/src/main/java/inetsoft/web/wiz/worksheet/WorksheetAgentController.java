@@ -50,6 +50,7 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,6 +152,7 @@ public class WorksheetAgentController {
       throws PairingException
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       return readService.read(rws);
    }
@@ -168,6 +170,28 @@ public class WorksheetAgentController {
    public void edit(@PathVariable String sessionToken,
                     @RequestBody EditRequest req,
                     Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      editOp(sessionToken, req, user);
+   }
+
+   /**
+    * The op dispatcher itself, WITHOUT the whole-sheet session gate {@link #edit} applies.
+    *
+    * <p>Exists for exactly one in-process caller: {@link WorksheetScriptService}, the front door
+    * for {@code worksheetExpression}/{@code worksheetCondition}. That path is legitimately
+    * pane-scoped and has ALREADY run {@code PaneScopeService.check} against the specific
+    * {@link inetsoft.web.wiz.script.ScriptTarget} it is writing, which is the narrow check the
+    * grant actually authorizes; routing it through {@link #edit} would refuse it on the broad
+    * check instead, and reimplementing the write to avoid that would be a second writer -- the
+    * one thing that service exists not to be.
+    *
+    * <p>Not a hole: it is not mapped to any URL, so nothing outside this JVM can reach it, and
+    * its one caller is scoped tighter than {@link #edit} is, not looser.
+    */
+   public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
       requireEnabled();
@@ -484,6 +508,7 @@ public class WorksheetAgentController {
       throws PairingException
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       return previewService.preview(rws, table, Math.min(limit, 200));
    }
@@ -520,6 +545,7 @@ public class WorksheetAgentController {
                     Principal user) throws PairingException
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       WorksheetEditService.ResolvedSession resolved =
          editService.resolveWithSession(sessionToken, user);
       RuntimeWorksheet rws = resolved.rws();
@@ -578,6 +604,7 @@ public class WorksheetAgentController {
                                       Principal user) throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
 
       if(body.csv() == null || body.csv().isBlank()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "csv is required");
@@ -636,6 +663,7 @@ public class WorksheetAgentController {
                                         Principal user) throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
 
       LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}",
                 file != null ? sanitizeForLog(file.getOriginalFilename()) : null,
@@ -946,6 +974,33 @@ public class WorksheetAgentController {
       }
    }
 
+   /**
+    * Refuses a pane-scoped session on this whole-sheet surface (whole-branch review finding 1).
+    *
+    * <p>Every endpoint here except {@code join} and {@code detach} calls this immediately after
+    * {@link #requireEnabled()} and BEFORE any resolution or mutation. {@code join} cannot -- it is
+    * where a session is created, pane-scoped or not; {@code detach} must not -- ending a
+    * pane-scoped session is precisely what it is for.
+    *
+    * <p>Resolution here is a deliberate duplicate of the one the endpoint then does through
+    * {@code WorksheetEditService}: that service is shared with {@link WorksheetScriptController},
+    * the worksheet's SCRIPT surface, where a pane-scoped session is legitimate. Putting the
+    * refusal in the shared service would refuse the one surface that is supposed to accept it,
+    * so it lives at the surface that is not. The refusal itself is the single shared
+    * {@link PaneScopeService#requireWholeSheetSession}, so its wording and rule cannot drift from
+    * the viewsheet side's.
+    *
+    * <p>A token that does not resolve is passed through untouched, so the endpoint's own
+    * resolution reports "invalid or expired" rather than this reporting a scope problem the
+    * caller does not have.
+    */
+   private void requireWholeSheetSession(String sessionToken, Principal user)
+      throws PairingException
+   {
+      PaneScopeService.requireWholeSheetSession(
+         sessionService.resolve(sessionToken, agentKey(user)));
+   }
+
    /** Derives the agent identity key used by SheetSessionService. */
    private static String agentKey(Principal agent) {
       if(agent instanceof XPrincipal p) {
@@ -1160,6 +1215,7 @@ public class WorksheetAgentController {
       throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
          boolean undone = rws.undo(null);
          return Map.of("undone", undone, "checkpoint", rws.getCurrent(),
@@ -1179,6 +1235,7 @@ public class WorksheetAgentController {
       throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
          boolean redone = rws.redo(null);
          return Map.of("redone", redone, "checkpoint", rws.getCurrent(),
@@ -1759,6 +1816,7 @@ public class WorksheetAgentController {
       throws PairingException
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       Worksheet ws = rws.getWorksheet();
       Assembly a = ws.getAssembly(table);
@@ -1794,6 +1852,7 @@ public class WorksheetAgentController {
                              Principal user) throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
       editService.applyOnRuntime(sessionToken, user, rws -> {
          WorksheetInfo winfo = rws.getWorksheet().getWorksheetInfo();
 
@@ -1825,6 +1884,7 @@ public class WorksheetAgentController {
                            Principal user) throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
 
       if(body.name() == null || body.name().isBlank()) {
          throw new PairingException("Variable name is required.");
@@ -1877,6 +1937,7 @@ public class WorksheetAgentController {
                                        Principal user) throws Exception
    {
       requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
 
       if(body.datasource() == null || body.datasource().isBlank()) {
          throw new PairingException("datasource is required.");

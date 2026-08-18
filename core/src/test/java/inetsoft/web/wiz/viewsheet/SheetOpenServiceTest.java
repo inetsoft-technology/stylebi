@@ -66,6 +66,9 @@ class SheetOpenServiceTest {
    /** Populated by {@code serviceWithBase} so tests can assert which principal opened the runtime. */
    private WorksheetService worksheetService;
 
+   /** Populated by {@code serviceWithBase} so a refusal test can assert NO session was minted. */
+   private SheetSessionService sheetSessions;
+
    /**
     * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
     * Deliberately a different object from {@link #principal()}, the agent: the two are the same
@@ -261,6 +264,21 @@ class SheetOpenServiceTest {
                                              String socketSessionId,
                                              SheetAgentBroadcastService broadcastService)
    {
+      return serviceWithBase(base, hasPermission, heldWorksheetRuntimeId, socketSessionId,
+                             broadcastService, null);
+   }
+
+   /**
+    * @param editorContext the viewsheet session's own scope -- {@code null} for the ordinary
+    *                      whole-sheet (toolbar) session every other test here uses, non-null for
+    *                      the pane-scoped session {@code openBaseWorksheet} must refuse.
+    */
+   private SheetOpenService serviceWithBase(AssetEntry base, boolean hasPermission,
+                                             String heldWorksheetRuntimeId,
+                                             String socketSessionId,
+                                             SheetAgentBroadcastService broadcastService,
+                                             inetsoft.web.wiz.pairing.EditorContext editorContext)
+   {
       try {
          Viewsheet vs = mock(Viewsheet.class);
          when(vs.getBaseEntry()).thenReturn(base);
@@ -272,14 +290,19 @@ class SheetOpenServiceTest {
          JoinSession vsSession = new JoinSession(
             "tok-vs", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
             SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-            socketSessionId, SOCKET_USER, null);
+            socketSessionId, SOCKET_USER, editorContext);
 
          ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
-         when(viewsheetSessions.requireSession(anyString(), any(Principal.class)))
+         // Deliberately stubs ONLY the pane-scope-allowing resolution. openBaseWorksheet must use
+         // it (so it can SEE a pane-scoped session in order to refuse it by name); if it went back
+         // to requireSession, this mock returns null and every test here fails on an NPE rather
+         // than silently losing the refusal.
+         when(viewsheetSessions.requireSessionAllowingPaneScope(anyString(), any(Principal.class)))
             .thenReturn(vsSession);
          when(viewsheetSessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
 
          SheetSessionService sheetSessions = mock(SheetSessionService.class);
+         this.sheetSessions = sheetSessions;
          JoinSession held = heldWorksheetRuntimeId == null ? null : new JoinSession(
             "tok-ws-held", heldWorksheetRuntimeId, OWNER, SheetType.WORKSHEET, 0L,
             SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, "sock-1", SOCKET_USER,
@@ -330,4 +353,51 @@ class SheetOpenServiceTest {
    private static Principal principal() {
       return () -> PRINCIPAL_NAME;
    }
+
+   /**
+    * Whole-branch review finding 1 (CRITICAL), the worst traced path.
+    *
+    * <p>Pairing from Chart1's Script tab and calling {@code open_base_worksheet} used to mint a
+    * NEW whole-sheet worksheet session with {@code editorContext = null} -- laundering a
+    * single-expression grant into an unscoped write handle on a different runtime, one that
+    * {@code socketClosed} would never reap precisely because it no longer carried an
+    * {@code editorContext}. The code even carried a comment explaining the null, correct about
+    * the VALUE (a viewsheet location is meaningless on a worksheet) and blind to the CONSEQUENCE
+    * (what authority the new session then has).
+    *
+    * <p>The three {@code never()} assertions are the substance: refusing with a message while
+    * still opening the runtime, or still minting the session, would leave the hole open.
+    */
+   @Test
+   void refusesAPaneScopedSessionRatherThanMintingAWholeSheetOne() throws Exception {
+      SheetOpenService service = serviceWithBase(
+         worksheetEntry(), true, null, "sock-1", null,
+         new inetsoft.web.wiz.pairing.EditorContext("assemblyMain", "Chart1", null, null));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> service.openBaseWorksheet("tok-vs", principal()));
+
+      assertTrue(thrown.getMessage().contains("scoped to one script location"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("open_base_worksheet"), thrown.getMessage());
+
+      verify(worksheetService, never()).openWorksheet(any(AssetEntry.class), any(Principal.class));
+      verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
+                                          any(), any(), any());
+      verify(broadcast, never()).sendToComposer(anyString(), any());
+   }
+
+   /**
+    * The regression that would be worse than the bug: a whole-sheet toolbar session must still
+    * open its base worksheet exactly as before. Pinned by asserting the guard did not fire on
+    * the {@code null} editorContext the other tests here already use throughout.
+    */
+   @Test
+   void aWholeSheetSessionStillOpensItsBaseWorksheet() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      assertEquals(SheetType.WORKSHEET,
+                   service.openBaseWorksheet("tok-vs", principal()).sheetType());
+   }
+
 }

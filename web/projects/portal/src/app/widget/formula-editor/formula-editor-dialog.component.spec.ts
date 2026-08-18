@@ -160,3 +160,76 @@ describe("FormulaEditorDialog — canPair", () => {
       expect(comp.canPair).toBe(true);
    });
 });
+
+/*
+ * Whole-branch review finding 3, browser half. The server now refuses a mint for a
+ * column-addressed kind carrying no `name` -- because such a grant matches NO target, so pairing
+ * used to report success and then refuse every edit with 'Query1.null'. A button whose only
+ * possible outcome is a server error is worse than no button, and `script-edit-pane` already sets
+ * the precedent of suppressing rather than minting a code that cannot be joined.
+ */
+describe("FormulaEditorDialog — canPair suppresses an unaddressable location", () => {
+   /* The reachable case: "new expression column" opens this dialog with no formulaName, because
+    * the user has not named the thing yet. */
+   it("offers no connect button for a worksheet expression with no formula name", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.assemblyName = "Table1";
+      comp.formulaName = null;
+
+      expect(comp.canPair).toBe(false);
+   });
+
+   it("offers no connect button for a new calculated field with no name yet", () => {
+      const comp = pairedDialog();
+      comp.isCalc = true;
+      comp.assemblyName = "Query1";
+      comp.formulaName = "";
+
+      expect(comp.canPair).toBe(false);
+   });
+
+   /* A column-addressed kind needs BOTH halves of (table, field): the server checks the column
+    * against that table's own column selection. */
+   it("offers no connect button for a calculated field with no owning table", () => {
+      const comp = pairedDialog();
+      comp.isCalc = true;
+      comp.formulaName = "Margin";
+
+      expect(comp.canPair).toBe(false);
+   });
+
+   /* The condition branch derives worksheetCondition and supplies no `name` at all, so it can
+    * never be addressed -- pinned here so the suppression is a stated property, not an accident
+    * of that branch's shape. */
+   it("offers no connect button for a worksheet-hosted condition, which carries no column name",
+      () => {
+         const comp = pairedDialog();
+         comp.isVSContext = false;
+         comp.isCondition = true;
+         comp.assemblyName = "Table1";
+         comp.formulaName = "Amount";
+
+         expect(comp.canPair).toBe(false);
+      });
+
+   /* The other half: kinds addressed by assembly alone are unaffected, and a fully addressed
+    * column location is still offered. Without these, "suppress everything" would also pass. */
+   it("still offers a connect button for an assembly-addressed location", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = true;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+
+      expect(comp.canPair).toBe(true);
+   });
+
+   it("still offers a connect button for a fully addressed calculated field", () => {
+      const comp = pairedDialog();
+      comp.isCalc = true;
+      comp.assemblyName = "Query1";
+      comp.formulaName = "Margin";
+
+      expect(comp.canPair).toBe(true);
+   });
+});

@@ -109,15 +109,35 @@ public final class ScriptTarget {
        * worksheet expression/condition column have no name or identity at the whole-sheet level
        * regardless of whether a service can dispatch on their location.
        *
-       * <p>Instead this is membership in {@link #EXPRESSION_LEVEL_LOCATIONS}, an explicit set
-       * that a new expression-level {@code Location} must be added to on purpose. Still derived
-       * from {@code kind} in one place (not a hand-maintained parallel list of {@code Kind}
-       * constants) -- the derivation just keys on the property that actually matters
-       * ("does this kind address something with sheet-level identity"), not on whether a service
-       * happens to be wired up yet.
+       * <p>Instead this is an explicit classification of the {@link Location}, in
+       * {@link #isExpressionLevel}, which a new expression-level {@code Location} must be added
+       * to on purpose. Still derived from {@code kind} in one place (not a hand-maintained
+       * parallel list of {@code Kind} constants) -- the derivation just keys on the property that
+       * actually matters ("does this kind address something with sheet-level identity"), not on
+       * whether a service happens to be wired up yet.
        */
       public boolean requiresPaneSession() {
-         return location == null || EXPRESSION_LEVEL_LOCATIONS.contains(location);
+         return location == null || isExpressionLevel(location);
+      }
+
+      /**
+       * Whether {@code location} addresses something with no name or identity outside its own
+       * expression editor.
+       *
+       * <p>Deliberately an exhaustive {@code switch} <b>with no {@code default}</b>: adding a
+       * {@link Location} for a kind the spec already names (highlight / cell / dynamicValue) and
+       * forgetting to classify it is then a COMPILE error, not a silent {@code false} that flips
+       * that kind out of pane-scope enforcement with the whole suite still green. That silent-flip
+       * shape is exactly what the previous {@code EnumSet} membership test permitted -- a set
+       * literal has no way to notice a constant nobody put in it. The companion
+       * {@code PaneScopeServiceTest#everyKindIsClassifiedByExactlyOneGuard} covers the other half
+       * (a new {@link Kind} mapped onto an EXISTING location, which the compiler cannot see).
+       */
+      private static boolean isExpressionLevel(Location location) {
+         return switch(location) {
+            case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> true;
+            case VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK -> false;
+         };
       }
 
       public static Kind fromWire(String wire) throws PairingException {
@@ -146,21 +166,6 @@ public final class ScriptTarget {
       public static List<String> wireNames() {
          return Arrays.stream(values()).map(Kind::wireName).toList();
       }
-
-      /**
-       * Every {@link Location} that addresses something with no name or identity outside its own
-       * expression editor. {@link #requiresPaneSession()} is {@code true} for a kind whose
-       * location is in this set, OR whose location is {@code null} (not servable at all yet).
-       *
-       * <p>A kind whose {@code Location} needs the same treatment must be added here explicitly —
-       * see {@link #requiresPaneSession()}'s javadoc for why this must not instead be derived from
-       * {@code location() == null}. G2 Task 8 gave {@code WORKSHEET_EXPRESSION}/
-       * {@code WORKSHEET_CONDITION} real locations; both are added here for exactly that reason —
-       * see {@code PaneScopeServiceTest#expressionLevelKindsRequireAPaneSession}, which exists
-       * specifically to fail loudly if a future edit forgets this.
-       */
-      private static final Set<Location> EXPRESSION_LEVEL_LOCATIONS = EnumSet.of(
-         Location.CALC_FIELD, Location.WORKSHEET_EXPRESSION, Location.WORKSHEET_CONDITION);
 
       private final String wireName;
       private final Location location;

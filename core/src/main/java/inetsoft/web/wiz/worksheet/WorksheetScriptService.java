@@ -57,7 +57,8 @@ import java.util.Set;
  * {@code edit_expression}/{@code edit_condition} ops.
  *
  * <p><b>A front door, not a second writer.</b> The actual mutation always goes through
- * {@link WorksheetAgentController#edit}, exactly as every other worksheet edit does, so undo/redo
+ * {@link WorksheetAgentController#editOp}, the same op dispatcher {@link
+ * WorksheetAgentController#edit} runs, exactly as every other worksheet edit does, so undo/redo
  * and the refresh broadcast stay coherent with the rest of the worksheet. This class only:
  * <ol>
  *   <li>enforces {@link PaneScopeService} so a whole-sheet ("Connect to Claude" toolbar) session
@@ -124,7 +125,10 @@ public class WorksheetScriptService {
          ? expressionEditRequest(session, agent, target, text)
          : conditionEditRequest(target, text);
 
-      worksheetController.edit(session.sessionToken(), req, agent);
+      // editOp, not edit: edit() is the whole-sheet HTTP surface and now refuses a pane-scoped
+      // session outright (whole-branch review finding 1). This call is already narrowed by
+      // requirePaneScope above, against the exact target being written -- see editOp's javadoc.
+      worksheetController.editOp(session.sessionToken(), req, agent);
    }
 
    // ---------------------------------------------------------------------------
@@ -376,7 +380,7 @@ public class WorksheetScriptService {
    /**
     * A worksheetExpression/worksheetCondition target only makes sense against a worksheet
     * runtime -- their table+field addressing has no viewsheet meaning. Guards against a session
-    * minted for the wrong sheet type ever reaching {@link WorksheetAgentController#edit}.
+    * minted for the wrong sheet type ever reaching {@link WorksheetAgentController#editOp}.
     */
    private static void requireWorksheetSession(JoinSession session) throws PairingException {
       if(session == null || session.sheetType() != SheetType.WORKSHEET) {

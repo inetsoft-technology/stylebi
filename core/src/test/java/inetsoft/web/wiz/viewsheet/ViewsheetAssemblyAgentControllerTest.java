@@ -475,4 +475,82 @@ class ViewsheetAssemblyAgentControllerTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   // ---------------------------------------------------------------------------
+   // Whole-branch review finding 1 (CRITICAL) -- a pane-scoped code is not a
+   // whole-sheet write handle
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Every endpoint on this controller resolves its session through
+    * {@link ViewsheetSessionService#requireSession}, and none of them takes a
+    * {@code ScriptTarget} to check a pane grant against. Before this guard, a code minted from
+    * one chart's Script tab reached all of them -- the edit dispatcher, the condition and
+    * highlight writers, the converts -- with the grant's {@code editorContext} simply unread.
+    *
+    * <p>Driven through a REAL {@link ViewsheetSessionService} over a REAL
+    * {@link SheetSessionService} holding a genuinely pane-scoped session: mocking the session
+    * service (as every other test in this class does) would assert nothing here, because the
+    * refusal lives inside it.
+    */
+   @Test
+   void aPaneScopedSessionIsRefusedOnThisWholeSheetSurface() {
+      SheetSessionService store = new SheetSessionService();
+      JoinSession pane = store.open("Viewsheet/vs-1", "admin", SheetType.VIEWSHEET, "sock-1",
+                                    "admin",
+                                    new EditorContext("calcField", "Query1", "Margin", null));
+
+      ViewsheetReadService reader = mock(ViewsheetReadService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(featureOn(), realSessions(store), reader);
+
+      PairingException thrown = assertThrows(PairingException.class,
+         () -> controller.model(pane.sessionToken(), principal()));
+
+      assertTrue(thrown.getMessage().contains("scoped to one script location"),
+                 thrown.getMessage());
+      // Names WHERE it is bound, so the agent can tell this from an expired session.
+      assertTrue(thrown.getMessage().contains("Query1.Margin"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Connect to Claude"), thrown.getMessage());
+      verifyNoInteractions(reader);
+   }
+
+   /**
+    * The regression that would be worse than the bug. Whole-sheet toolbar pairing is in use by
+    * other agents today; a session with no {@code editorContext} must pass straight through.
+    */
+   @Test
+   void aWholeSheetToolbarSessionStillReachesTheSameEndpoint() throws Exception {
+      SheetSessionService store = new SheetSessionService();
+      JoinSession toolbar = store.open("Viewsheet/vs-1", "admin", SheetType.VIEWSHEET, "sock-1",
+                                       "admin", null);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/vs-1"),
+                                            any(Principal.class))).thenReturn(rvs);
+
+      ViewsheetSessionService sessions = new ViewsheetSessionService(
+         store, runtimeAccess, mock(SheetAgentBroadcastService.class));
+      ViewsheetReadService reader = mock(ViewsheetReadService.class);
+      ViewsheetModel expected = new ViewsheetModel("vs1", List.of());
+      when(reader.read(rvs)).thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions, reader);
+
+      assertSame(expected, controller.model(toolbar.sessionToken(), principal()));
+   }
+
+   private static SheetAgentFeature featureOn() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      return feature;
+   }
+
+   /** A real {@link ViewsheetSessionService} over {@code store}; runtime access is never reached. */
+   private static ViewsheetSessionService realSessions(SheetSessionService store) {
+      return new ViewsheetSessionService(store, mock(SheetRuntimeAccess.class),
+                                         mock(SheetAgentBroadcastService.class));
+   }
+
 }

@@ -19,6 +19,12 @@ package inetsoft.web.wiz.pairing;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.*;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -201,6 +207,11 @@ public class SheetPairingService {
          return;
       }
 
+      if(WORKSHEET_COLUMN_KINDS.contains(ctx.kind())) {
+         validateWorksheetColumnContext(rs, ctx);
+         return;
+      }
+
       String assembly = ctx.assembly();
 
       if(isBlank(assembly)) {
@@ -217,6 +228,96 @@ public class SheetPairingService {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "Assembly not found: " + assembly);
       }
+   }
+
+   /**
+    * The two worksheet kinds addressed by (table, field) rather than by assembly alone --
+    * exactly like {@code calcField}, and validated the same way (whole-branch review finding 3).
+    *
+    * <p>Before this, both fell through to the generic "does the assembly exist" branch, which
+    * neither requires nor verifies {@code name}. "New expression column" opens the formula editor
+    * with no {@code formulaName}, so the mint carried no name; the mint SUCCEEDED, {@code status}
+    * reported a healthy pane-scoped session, and then {@code PaneScopeService.matchesGrant}
+    * compared the grant's null name against every target's non-blank one and refused all of them
+    * with {@code 'Query1.null'}. A false success at mint is the exact failure mode moving this
+    * validation to mint time existed to prevent -- the user is still looking at the editor here
+    * and can be told; an agent hitting it later cannot get back to them.
+    */
+   private static final List<String> WORKSHEET_COLUMN_KINDS =
+      List.of("worksheetExpression", "worksheetCondition");
+
+   /**
+    * Verifies a {@code worksheetExpression}/{@code worksheetCondition} context names a column
+    * that actually exists, mirroring the {@code calcField} branch against the
+    * {@link TableAssembly}'s own column selection.
+    *
+    * <p>{@code worksheetExpression} is checked against EXPRESSION columns specifically, matching
+    * on the same {@code ExpressionRef} name/attribute pair {@code WorksheetScriptService} reads
+    * and writes through, so a grant cannot be minted for a location that service would then
+    * refuse. {@code worksheetCondition} is checked against any column, since adding a condition
+    * to a field that has none yet is legitimate.
+    */
+   private static void validateWorksheetColumnContext(RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      // Same `table`-or-`assembly` alias the calcField branch accepts, and for the same reason:
+      // the browser sends the table name in `assembly`, mirroring ScriptTarget.assemblyName().
+      String table = !isBlank(ctx.table()) ? ctx.table() : ctx.assembly();
+      String name = ctx.name();
+
+      if(isBlank(table) || isBlank(name)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind '" + ctx.kind() + "' requires 'table' (or 'assembly') and " +
+            "'name' -- a grant with no column name matches no target, so pairing here would " +
+            "report success and then refuse every edit.");
+      }
+
+      Assembly a = rs instanceof RuntimeWorksheet rws && rws.getWorksheet() != null
+         ? rws.getWorksheet().getAssembly(table) : null;
+
+      if(!(a instanceof TableAssembly t)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Table not found: " + table);
+      }
+
+      boolean found = "worksheetExpression".equals(ctx.kind())
+         ? hasExpressionColumn(t, name) : hasColumn(t, name);
+
+      if(!found) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            ("worksheetExpression".equals(ctx.kind())
+               ? "Expression column not found: " : "Column not found: ") + table + "." + name);
+      }
+   }
+
+   /** Matches on the same {@code ExpressionRef} name/attribute pair the read/write side uses. */
+   private static boolean hasExpressionColumn(TableAssembly t, String name) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr &&
+            cr.getDataRef() instanceof ExpressionRef er &&
+            (name.equals(er.getName()) || name.equals(er.getAttribute())))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean hasColumn(TableAssembly t, String name) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(name.equals(ref.getName()) || name.equals(ref.getAttribute())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static boolean isBlank(String s) {
