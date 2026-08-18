@@ -71,8 +71,15 @@ public class ComposerRangeSliderService {
 
       final VSAssembly container = assembly.getContainer();
 
-      if(!(assembly instanceof SelectionListVSAssembly) &&
-         !(assembly instanceof TimeSliderVSAssembly) &&
+      // The container is mandatory, because the body below dereferences it unconditionally, and
+      // createSelectionListVSAssembly's only caller (below) unconditionally casts to
+      // TimeSliderVSAssembly -- this converts a time slider TO a selection list, not the other
+      // way around, so a SelectionListVSAssembly must be refused here rather than accepted
+      // alongside it. Accepting either type (as this once did, mirroring
+      // ComposerVSSelectionListService's own guard for its own single type) let a
+      // SelectionListVSAssembly with a valid container reach the cast below and throw
+      // ClassCastException.
+      if(!(assembly instanceof TimeSliderVSAssembly) ||
          !(container instanceof CurrentSelectionVSAssembly))
       {
          return null;
