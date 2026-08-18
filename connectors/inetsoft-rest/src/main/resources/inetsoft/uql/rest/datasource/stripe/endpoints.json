@@ -332,12 +332,14 @@
     {
       "name": "Upcoming Invoice",
       "paged": false,
-      "suffix": "/v1/invoices/upcoming?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}"
+      "suffix": "/v1/invoices/upcoming?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}",
+      "description": "A preview of the invoice a subscription will next generate, before it exists. REMOVED AS A READ: Stripe replaced this with an invoice preview that is a POST, so a read-only connector cannot reach it at all. The forward view of subscription revenue is therefore unavailable here; Subscriptions carries the current period end and the items being billed, which is the closest substitute."
     },
     {
       "name": "Upcoming Invoice Line Items",
       "paged": true,
-      "suffix": "/v1/invoices/upcoming/lines?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}"
+      "suffix": "/v1/invoices/upcoming/lines?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}",
+      "description": "The line items of that preview. Removed for the same reason."
     },
     {
       "name": "Invoices",
@@ -450,7 +452,26 @@
     {
       "name": "Subscription Item Period Summaries",
       "paged": true,
-      "suffix": "/v1/subscription_items/{Subscription Item ID}/usage_record_summaries"
+      "suffix": "/v1/subscription_items/{Subscription Item ID}/usage_record_summaries",
+      "description": "Aggregated metered usage per billing period for one subscription item. REMOVED: Stripe replaced usage records with the Billing Meters model, and the equivalent is now Billing Meter Event Summaries -- which is in this connector, and which groups by customer and time window rather than by subscription item."
+    },
+    {
+      "name": "Billing Meters",
+      "paged": true,
+      "suffix": "/v1/billing/meters?status={Status?:active|inactive}&limit={Limit?}",
+      "description": "The billing meters defined on the account -- the named usage events a metered price is billed against, each with its event name, the aggregation applied (sum or count), its status, and how events map to a customer. The replacement for the retired usage records model. A meter is the definition; what was actually consumed is in its event summaries."
+    },
+    {
+      "name": "Billing Meter",
+      "paged": false,
+      "suffix": "/v1/billing/meters/{Meter ID}",
+      "description": "One billing meter by id, with its aggregation and event mapping."
+    },
+    {
+      "name": "Billing Meter Event Summaries",
+      "paged": true,
+      "suffix": "/v1/billing/meters/{Meter ID}/event_summaries?customer={Customer ID}&start_time={Start Time:unix timestamp}&end_time={End Time:unix timestamp}&value_grouping_window={Grouping Window?:hour|day}&limit={Limit?}",
+      "description": "Aggregated usage for ONE CUSTOMER against one meter over a time range, optionally bucketed by hour or day. Requires the meter id, a customer, and both a start and end time -- none of them optional, so this cannot be swept across an account in a single call: usage analysis costs one request per customer per meter. The value is what will be billed, so it is the bridge between what a customer did and what they are charged."
     },
     {
       "name": "Connected Accounts",
@@ -535,9 +556,9 @@
     },
     {
       "name": "Account Bank Accounts",
-      "description": "The external accounts of one connected account -- where its payouts are sent. Requires an account id. Note this returns every external account, bank accounts and cards alike; despite the name it applies no filter, and Account Cards calls exactly the same URL.",
+      "description": "The bank accounts attached to one connected account for payouts, with the bank name, last four digits, currency, country and status. Requires an account id. NOTE THE FILTER: external_accounts holds bank accounts and debit cards together, and object=bank_account is what separates them -- without it the endpoint returns both kinds mixed, which is how the same list can appear under two names.",
       "paged": true,
-      "suffix": "/v1/accounts/{Account ID}/external_accounts"
+      "suffix": "/v1/accounts/{Account ID}/external_accounts?object=bank_account"
     },
     {
       "name": "Account Card",
@@ -547,9 +568,9 @@
     },
     {
       "name": "Account Cards",
-      "description": "The external accounts of one connected account. Requires an account id. Note this returns every external account, cards and bank accounts alike; despite the name it applies no filter, and Account Bank Accounts calls exactly the same URL.",
+      "description": "The debit cards attached to one connected account for payouts, with brand, last four digits, expiry and country. Requires an account id. The object=card filter is what distinguishes this from Account Bank Accounts; the underlying endpoint is the same and returns both kinds unfiltered.",
       "paged": true,
-      "suffix": "/v1/accounts/{Account ID}/external_accounts"
+      "suffix": "/v1/accounts/{Account ID}/external_accounts?object=card"
     },
     {
       "name": "Person",
@@ -690,7 +711,8 @@
     {
       "name": "Order",
       "paged": false,
-      "suffix": "/v1/orders/{Order ID}"
+      "suffix": "/v1/orders/{Order ID}",
+      "description": "One legacy order by id. Removed along with Orders."
     },
     {
       "name": "Orders",
@@ -703,27 +725,32 @@
           "key": "id",
           "parameterName": "Order ID"
         }
-      ]
+      ],
+      "description": "The legacy Orders API. REMOVED: Stripe retired the v1 Orders and SKUs model and this path is absent from the current API description -- expect it to fail rather than return an empty list. What replaced it depends on how the account sells: Checkout Sessions and Payment Links for the purchase itself, and Products with Prices for the catalogue. Products is already in this connector; the order records themselves are not reachable."
     },
     {
       "name": "Order Return",
       "paged": false,
-      "suffix": "/v1/order_returns/{Order Return ID}"
+      "suffix": "/v1/order_returns/{Order Return ID}",
+      "description": "One legacy order return by id. Removed along with Order Returns."
     },
     {
       "name": "Order Returns",
       "paged": true,
-      "suffix": "/v1/order_returns?order={Order ID}&created={Created?:Unix timestamp}"
+      "suffix": "/v1/order_returns?order={Order ID}&created={Created?:Unix timestamp}",
+      "description": "Returns against legacy orders. REMOVED with the Orders API. Refunds against a payment are a different resource and remain available through the Refunds endpoints."
     },
     {
       "name": "SKU",
       "paged": false,
-      "suffix": "/v1/skus/{SKU ID}"
+      "suffix": "/v1/skus/{SKU ID}",
+      "description": "One legacy SKU by id. Removed along with SKUs."
     },
     {
       "name": "SKUs",
       "paged": true,
-      "suffix": "/v1/skus?active={Active?:true|false}&product={Product ID?}&ids={SKU IDs?}&in_stock={In Stock?:true|false}"
+      "suffix": "/v1/skus?active={Active?:true|false}&product={Product ID?}&ids={SKU IDs?}&in_stock={In Stock?:true|false}",
+      "description": "The stock keeping units of the legacy Orders API, carrying inventory and price per product variant. REMOVED. Products and Prices replace them, though note the modern model has no inventory tracking at all -- Stripe stopped holding stock levels when SKUs went, so that data is not merely at a different path, it is gone."
     },
     {
       "name": "Scheduled Query Run",
