@@ -54,7 +54,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    /** Emits the data-color of the hovered area/line series (null on clear) so the parent can
     *  mirror the dim across sibling tiles of a split chart. Only emitted in cross-tile mode. */
    @Output() seriesDimChange = new EventEmitter<string | null>();
-   /** Emits the data-id of the hovered relation/tree node (null on clear). The parent resolves
+   /** Emits the panel-qualified key (see relationKey) of the hovered relation/tree node (null on
+    *  clear). The parent resolves
     *  neighbours from the merged cross-tile graph and drives every tile, since a node's neighbours
     *  may be rendered in sibling tiles this tile's connectivity maps can't see. Cross-tile only. */
    @Output() relationHover = new EventEmitter<string | null>();
@@ -100,9 +101,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private retryHandle: ReturnType<typeof setTimeout> | null = null;
    /** Timer handle for adding .ready class to the SVG after animation completes. */
    private readyHandle: ReturnType<typeof setTimeout> | null = null;
-   /** Maps mxCell id → node Element for relation/tree charts. */
+   /** Maps panel-qualified node key → node Element for relation/tree charts (see relationKey). */
    private relationNodeIdMap = new Map<string, Element>();
-   /** Edge connectivity for relation/tree charts: each entry holds the element plus its source/target mxCell IDs. */
+   /** Edge connectivity for relation/tree charts: each entry holds the element plus its
+    *  panel-qualified source/target node keys (see relationKey). */
    private relationEdges: Array<{el: Element, sourceId: string, targetId: string}> = [];
    /** Elements activated as neighbors of the current relation node (cleared on deactivation). */
    private activeRelationNeighbors: Element[] = [];
@@ -420,7 +422,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
             // neighbours from the merged graph and drive every tile via setExternalRelationHighlight.
             // (Relation hover is always single-key, so returning here is safe.)
             if(this.isRelationChart && this.crossTile) {
-               this.emitRelationHover(el.getAttribute("data-id"));
+               this.emitRelationHover(ChartInlineSvgDirective.relationKey(el, "data-id"));
                return;
             }
             el.classList.add("inetsoft-active");
@@ -509,12 +511,25 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.activeTreemapDescendants = [];
    }
 
+   /**
+    * Panel-qualified relation node key — a JSON-encoded [panel, id] pair, so no panel/id value can
+    * be confused with another pair through separator ambiguity. A relation/tree chart builds one
+    * mxGraph per facet panel, so the stamped mxCell ids (data-id on nodes, data-source/data-target
+    * on edges) repeat across panels — matching on the id alone lights up the sibling panel's edges
+    * too (#75878). data-panel is only stamped on faceted charts; the empty prefix on a single-panel
+    * chart keeps the key equivalent to the bare id. Returns null when the id attribute is absent.
+    */
+   private static relationKey(el: Element, idAttr: string): string | null {
+      const id = el.getAttribute(idAttr);
+      return id ? JSON.stringify([el.getAttribute("data-panel") ?? "", id]) : null;
+   }
+
    // Activates neighbor nodes, their connecting edges, and neighbor labels.
    // The hovered node's own label is activated separately by activateKeys() via labelGroupMap,
    // and cleared by deactivateCurrent(). Neighbor labels pushed into activeRelationNeighbors
    // are cleared by the activeRelationNeighbors loop in deactivateCurrent().
    private activateRelationNeighbors(nodeEl: Element): void {
-      const nodeId = nodeEl.getAttribute("data-id");
+      const nodeId = ChartInlineSvgDirective.relationKey(nodeEl, "data-id");
       if(!nodeId) return;
       this.activeRelationNeighbors = [];
 
@@ -790,14 +805,15 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.element.nativeElement.querySelectorAll(".inetsoft-relation") as NodeListOf<Element>);
       this.isRelationChart = relationNodes.length > 0;
       for(const n of relationNodes) {
-         const nodeId = n.getAttribute("data-id");
-         if(nodeId) this.relationNodeIdMap.set(nodeId, n);
+         const nodeKey = ChartInlineSvgDirective.relationKey(n, "data-id");
+         if(nodeKey) this.relationNodeIdMap.set(nodeKey, n);
       }
       const relationEdgeEls = Array.from(
          this.element.nativeElement.querySelectorAll(".inetsoft-relation-edge") as NodeListOf<Element>);
       for(const e of relationEdgeEls) {
-         const src = e.getAttribute("data-source");
-         const tgt = e.getAttribute("data-target");
+         // An edge never spans panels, so both endpoints take the edge's own panel key.
+         const src = ChartInlineSvgDirective.relationKey(e, "data-source");
+         const tgt = ChartInlineSvgDirective.relationKey(e, "data-target");
          if(src && tgt) this.relationEdges.push({el: e, sourceId: src, targetId: tgt});
       }
 
@@ -1374,16 +1390,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
    }
 
-   /** This tile's relation edges as source/target id pairs, for the parent to merge into the
-    *  cross-tile connectivity graph. */
+   /** This tile's relation edges as source/target key pairs (panel-qualified, see relationKey),
+    *  for the parent to merge into the cross-tile connectivity graph. */
    getRelationEdges(): { source: string, target: string }[] {
       return this.relationEdges.map(e => ({ source: e.sourceId, target: e.targetId }));
    }
 
    /**
     * Highlight this tile's share of a relation hover, driven by the parent so neighbours render
-    * correctly across a split chart's SVGs. Nodes whose data-id is in activeIds (the hovered node
-    * plus its neighbours) and edges incident to hoveredId get inetsoft-active; their labels too.
+    * correctly across a split chart's SVGs. Nodes whose panel-qualified key is in activeIds (the
+    * hovered node plus its neighbours) and edges incident to hoveredId get inetsoft-active; their
+    * labels too.
     * A tile with at least one active element relies on the server :has() rule to dim the rest; a
     * tile with none gets inetsoft-dim-all so it dims fully. Pass null to clear.
     */
@@ -1405,7 +1422,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       const activeRowCols = new Set<string>();
 
       for(const node of nodes) {
-         const id = node.getAttribute("data-id");
+         const id = ChartInlineSvgDirective.relationKey(node, "data-id");
          if(id != null && activeIds.has(id)) {
             node.classList.add("inetsoft-active");
             anyActive = true;
@@ -1418,7 +1435,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       for(const edge of edges) {
-         const s = edge.getAttribute("data-source"), t = edge.getAttribute("data-target");
+         const s = ChartInlineSvgDirective.relationKey(edge, "data-source");
+         const t = ChartInlineSvgDirective.relationKey(edge, "data-target");
          if(hoveredId != null && (s === hoveredId || t === hoveredId)) {
             edge.classList.add("inetsoft-active");
             anyActive = true;

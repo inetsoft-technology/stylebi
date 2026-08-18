@@ -596,6 +596,29 @@ public final class GTool {
    }
 
    /**
+    * Get a key identifying the facet panel a coordinate belongs to, built from the facet
+    * dimension values assigned to it by the enclosing facet (e.g. {@code {Region=USA East}}).
+    *
+    * <p>Each facet panel gets its own coordinate instance, so this key differs between panels
+    * and is identical for every visual object drawn in one panel.  Returns {@code null} for a
+    * non-faceted chart (no parent values), so callers can omit the key entirely in that case.
+    */
+   public static String getFacetPanelId(Coordinate coord) {
+      if(coord == null) {
+         return null;
+      }
+
+      Map<String, Object> xvals = coord.getParentValues(true);
+      Map<String, Object> yvals = coord.getParentValues(false);
+
+      if(xvals.isEmpty() && yvals.isEmpty()) {
+         return null;
+      }
+
+      return xvals + "/" + yvals;
+   }
+
+   /**
     * Get the topmost VGraph.
     */
    public static VGraph getTopVGraph(Coordinate coord) {

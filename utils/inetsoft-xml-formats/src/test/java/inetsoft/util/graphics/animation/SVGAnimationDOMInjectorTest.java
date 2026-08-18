@@ -2162,6 +2162,24 @@ class SVGAnimationDOMInjectorTest {
       return addAnnotGroup(doc, SVGSupport.ANNOTATION_RELATION_EDGE, attrs, 0, 0, 20, 2);
    }
 
+   /** Adds a relation node annotation group belonging to a named facet panel. */
+   private static Element relNode(Document doc, String id, double y, String panel) {
+      Map<String, String> attrs = new LinkedHashMap<>();
+      attrs.put(SVGSupport.ATTR_NODE_ID, id);
+      attrs.put(SVGSupport.ATTR_PANEL, panel);
+      attrs.put(SVGSupport.ATTR_Y, String.valueOf(y));
+      return addAnnotGroup(doc, SVGSupport.ANNOTATION_RELATION, attrs, 0, y, 20, 16);
+   }
+
+   /** Adds a relation edge annotation group inside a named facet panel. */
+   private static Element relEdge(Document doc, String source, String target, String panel) {
+      Map<String, String> attrs = new LinkedHashMap<>();
+      attrs.put(SVGSupport.ATTR_SOURCE, source);
+      attrs.put(SVGSupport.ATTR_TARGET, target);
+      attrs.put(SVGSupport.ATTR_PANEL, panel);
+      return addAnnotGroup(doc, SVGSupport.ANNOTATION_RELATION_EDGE, attrs, 0, 0, 20, 2);
+   }
+
    /**
     * A linear tree (root → child → grandchild, one node per depth) staggers strictly root-first:
     * delay grows by exactly {@link AnimationConstants#RELATION_LEVEL_STEP} per depth level.
@@ -2226,6 +2244,44 @@ class SVGAnimationDOMInjectorTest {
                  "real root stays depth 0 (delay < one step) despite the null-parent sentinel edge");
       assertEquals(step, parseDelay(firstChildStyle(child)), 0.001,
                    "child of the real root is depth 1");
+   }
+
+   /**
+    * Regression for Redmine #75878: a faceted relation chart builds one mxGraph per panel, so every
+    * panel stamps the same node ids.  Keyed on the bare id, the delay map kept only the last panel's
+    * entry per id, so EVERY panel's edges faded with the last panel's node — an edge arriving after
+    * the node it connects.  (Depth itself survived a symmetric facet, since all copies of an id read
+    * back the one merged depth; it breaks only when a shared id sits at different depths in
+    * different panels.)  Panel-qualifying the keys gives each panel its own topology and its own
+    * edge timing, while the shared per-depth counters keep the panels one intra-level spread apart
+    * — the "ripple" across the facet — rather than lengthening the total entrance.
+    */
+   @Test
+   void relationFacetPanelsCascadeIndependently() throws Exception {
+      Document doc = newDocument();
+      Element eastRoot = relNode(doc, "R_id", 100, "{Region=East}/{}");
+      Element eastChild = relNode(doc, "A_id", 200, "{Region=East}/{}");
+      Element westRoot = relNode(doc, "R_id", 100, "{Region=West}/{}");
+      Element westChild = relNode(doc, "A_id", 200, "{Region=West}/{}");
+      Element eastEdge = relEdge(doc, "R_id", "A_id", "{Region=East}/{}");
+      Element westEdge = relEdge(doc, "R_id", "A_id", "{Region=West}/{}");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      double step = AnimationConstants.RELATION_LEVEL_STEP;
+      // Two nodes share each depth (one per panel), so the intra-level spread is index/2 of a step.
+      assertEquals(0.0, parseDelay(firstChildStyle(eastRoot)), 0.001, "east root → depth 0, first");
+      assertEquals(step / 2, parseDelay(firstChildStyle(westRoot)), 0.001,
+                   "west root → depth 0, one intra-level spread behind east (ripple)");
+      assertEquals(step, parseDelay(firstChildStyle(eastChild)), 0.001,
+                   "east child is depth 1 in its OWN panel");
+      assertEquals(step * 1.5, parseDelay(firstChildStyle(westChild)), 0.001, "west child → depth 1");
+
+      // Each edge fades with its own panel's target node, not with whichever panel was stamped last.
+      assertEquals(parseDelay(firstChildStyle(eastChild)), parseDelay(firstChildStyle(eastEdge)),
+                   0.001, "east edge follows east's target node");
+      assertEquals(parseDelay(firstChildStyle(westChild)), parseDelay(firstChildStyle(westEdge)),
+                   0.001, "west edge follows west's target node");
    }
 
    /**

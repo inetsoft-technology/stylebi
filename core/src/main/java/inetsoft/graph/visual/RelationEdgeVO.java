@@ -50,6 +50,9 @@ public class RelationEdgeVO extends ElementVO {
       setZIndex(GDefaults.VO_Z_INDEX - 1); // edges below nodes
       RelationEdgeGeometry obj = (RelationEdgeGeometry) gobj;
       this.edges = obj.getEdges();
+      // mxCell ids are only unique within a facet panel (each panel builds its own mxGraph),
+      // so the panel key is stamped alongside the source/target ids. Null when not faceted.
+      this.panelId = GTool.getFacetPanelId(coord);
    }
 
    /**
@@ -69,6 +72,10 @@ public class RelationEdgeVO extends ElementVO {
          if(cell != null && cell.getSource() != null && cell.getTarget() != null) {
             edgeAttrs.put(SVGSupport.ATTR_SOURCE, cell.getSource().getId());
             edgeAttrs.put(SVGSupport.ATTR_TARGET, cell.getTarget().getId());
+         }
+
+         if(panelId != null) {
+            edgeAttrs.put(SVGSupport.ATTR_PANEL, panelId);
          }
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION_EDGE, edgeAttrs);
       }
@@ -313,6 +320,7 @@ public class RelationEdgeVO extends ElementVO {
    }
 
    private List<Shape> edges = new ArrayList<>();
+   private final String panelId;
    private static final Color DEFAULT_LINE_COLOR = new Color(0xafafad);
 
 }

@@ -2205,15 +2205,17 @@ public class SVGAnimationDOMInjector {
       // the graph structure (orientation-independent) rather than screen geometry.
       List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
 
-      // Map node id → node index so both the depth computation and the edge/label passes can
-      // resolve a node from its stamped data-node-id.
+      // Map node key → node index so both the depth computation and the edge/label passes can
+      // resolve a node from its stamped data-id.  The key is panel-qualified: a faceted chart
+      // builds one mxGraph per panel, so the same id repeats in every panel and an id-only map
+      // would keep just the last panel's copy — merging the panels into one topology.
       Map<String, Integer> nodeIndexById = new HashMap<>();
 
       for(int i = 0; i < nodes.size(); i++) {
-         String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
+         String key = relationNodeKey(nodes.get(i), SVGSupport.ATTR_NODE_ID);
 
-         if(!id.isEmpty()) {
-            nodeIndexById.put(id, i);
+         if(key != null) {
+            nodeIndexById.put(key, i);
          }
       }
 
@@ -2291,26 +2293,27 @@ public class SVGAnimationDOMInjector {
             AnimationConstants.RELATION_FADE_DURATION, AnimationConstants.EASING, delayOf[i]));
       }
 
-      // Build node-ID → delay map so edges/labels inherit their node's exact delay and fade in
+      // Build node-key → delay map so edges/labels inherit their node's exact delay and fade in
       // together with it (not merely at the same depth band).
       Map<String, Double> delayByNodeId = new HashMap<>();
 
       for(int i = 0; i < nodes.size(); i++) {
-         String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
+         String key = relationNodeKey(nodes.get(i), SVGSupport.ATTR_NODE_ID);
 
-         if(!id.isEmpty()) {
-            delayByNodeId.put(id, delayOf[i]);
+         if(key != null) {
+            delayByNodeId.put(key, delayOf[i]);
          }
       }
 
       // Edge animation: each edge fades in with its target (child) node so the edge and
       // its destination appear together. Falls back to the source node's delay, then 0.
+      // An edge never spans panels, so both endpoints resolve against the edge's own panel.
       for(Element edgeG : edgeGroups) {
-         String targetId = edgeG.getAttribute("data-" + SVGSupport.ATTR_TARGET);
-         String sourceId = edgeG.getAttribute("data-" + SVGSupport.ATTR_SOURCE);
-         Double delay = delayByNodeId.get(targetId);
+         String targetId = relationNodeKey(edgeG, SVGSupport.ATTR_TARGET);
+         String sourceId = relationNodeKey(edgeG, SVGSupport.ATTR_SOURCE);
+         Double delay = targetId == null ? null : delayByNodeId.get(targetId);
 
-         if(delay == null) {
+         if(delay == null && sourceId != null) {
             delay = delayByNodeId.get(sourceId);
          }
 
@@ -2384,6 +2387,31 @@ public class SVGAnimationDOMInjector {
    }
 
    /**
+    * Build a panel-qualified key for a relation node reference, mirroring what the client-side
+    * hover handler does ({@code ChartInlineSvgDirective.relationKey}).  The two encodings are
+    * independent — the keys never cross between the animation and hover pipelines.
+    *
+    * <p>A relation/tree chart builds one mxGraph per facet panel, so the stamped mxCell ids
+    * ({@code data-id} on nodes, {@code data-source}/{@code data-target} on edges) repeat in every
+    * panel.  Pairing the id with {@link SVGSupport#ATTR_PANEL} keeps each panel's topology — and
+    * therefore its entrance cascade — independent.  {@code data-panel} is only stamped on faceted
+    * charts; elsewhere the panel half is empty and the key is equivalent to the bare id.
+    *
+    * @param el       the node or edge annotation group
+    * @param idAttr   the id attribute to read, without the {@code data-} prefix
+    * @return the key, or {@code null} when the id attribute is absent or empty
+    */
+   private static String relationNodeKey(Element el, String idAttr) {
+      String id = el.getAttribute("data-" + idAttr);
+
+      if(id.isEmpty()) {
+         return null;
+      }
+
+      return el.getAttribute("data-" + SVGSupport.ATTR_PANEL) + "\0" + id;
+   }
+
+   /**
     * Compute each relation node's tree depth (0 = root) from the edge source→target topology.
     *
     * <p>Depth comes from the graph structure, not screen geometry, so root-first ordering is
@@ -2412,10 +2440,11 @@ public class SVGAnimationDOMInjector {
       Set<String> hasIncoming = new HashSet<>();
 
       for(Element edgeG : edgeGroups) {
-         String source = edgeG.getAttribute("data-" + SVGSupport.ATTR_SOURCE);
-         String target = edgeG.getAttribute("data-" + SVGSupport.ATTR_TARGET);
+         String rawSource = edgeG.getAttribute("data-" + SVGSupport.ATTR_SOURCE);
+         String source = relationNodeKey(edgeG, SVGSupport.ATTR_SOURCE);
+         String target = relationNodeKey(edgeG, SVGSupport.ATTR_TARGET);
 
-         if(source.isEmpty() || target.isEmpty()) {
+         if(source == null || target == null) {
             continue;
          }
 
@@ -2424,7 +2453,9 @@ public class SVGAnimationDOMInjector {
          // An edge from that sentinel — or from any source dropped upstream (e.g. maxNodes
          // truncation) and thus unknown here — must NOT mark its target as having a real incoming
          // edge, so the actual root is detected as depth 0 rather than a child of the sentinel.
-         if("null".equals(source) || !nodeIndexById.containsKey(source)) {
+         // The sentinel test reads the raw id, not the panel-qualified key, which never equals
+         // "null" on a faceted chart.
+         if("null".equals(rawSource) || !nodeIndexById.containsKey(source)) {
             continue;
          }
 
@@ -2474,8 +2505,8 @@ public class SVGAnimationDOMInjector {
       int[] levelOf = new int[nodes.size()];
 
       for(int i = 0; i < nodes.size(); i++) {
-         String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
-         Integer d = id.isEmpty() ? null : depthById.get(id);
+         String key = relationNodeKey(nodes.get(i), SVGSupport.ATTR_NODE_ID);
+         Integer d = key == null ? null : depthById.get(key);
          // Nodes never reached by BFS — an isolated all-cyclic component while the rest of the
          // graph has a real root — intentionally default to depth 0 and fade in with the roots.
          // This is an accepted trade-off: the whole-graph cyclic case is already handled by the
