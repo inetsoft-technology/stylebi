@@ -28,16 +28,25 @@ import java.util.Map;
  * @param notCatalogued types that resolved to a query class shipping no {@code endpoints.json}.
  *                      Not an error: it is the normal state of a DOCUMENT_REQUIRED data source, and
  *                      the portal must ask the user for documentation rather than report a fault.
- * @param unavailable   types whose query class could not be resolved at all, usually a connector
- *                      plugin that did not load, plus types whose catalogue exists but failed to
- *                      parse. Kept apart from {@code notCatalogued} for the same reason
+ * @param unavailable   types that are registered but whose query class could not be loaded, usually
+ *                      a connector plugin that did not load, plus types whose catalogue exists but
+ *                      failed to parse. Kept apart from {@code notCatalogued} for the same reason
  *                      {@link WizDatasourceEntry} keeps UNKNOWN apart from UNSUPPORTED: a
  *                      classification failure must never be read as a classification result. This
- *                      one is an environment problem and goes away when the plugin is installed.
+ *                      one is an environment problem and goes away when the plugin is installed, so
+ *                      the portal may retry it later.
+ * @param unknownType   types that are not registered in this build at all, i.e. {@code
+ *                      Config.getQueryClass} has no entry for them. Unlike {@code unavailable},
+ *                      this is permanent - no plugin install or retry will ever change the answer -
+ *                      because the type string itself does not exist, whether from a client typo
+ *                      (such as a mistyped connector id) or a version mismatch between the caller
+ *                      and this server. The portal must not retry these; it is either its own bug
+ *                      or the caller is talking to an older/newer server than it expects.
  */
 public record WizEndpointCatalogResponse(
    Map<String, WizEndpointCatalog> catalogs,
    List<String> notCatalogued,
-   List<String> unavailable)
+   List<String> unavailable,
+   List<String> unknownType)
 {
 }

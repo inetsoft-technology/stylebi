@@ -388,6 +388,10 @@ class WizDatabaseControllerSecurityTest {
     * not name a type at all, and {@code Config.getQueryClass} does not reject it. Left unfiltered it
     * would surface as a literal, uninterpretable entry in the response instead of being dropped
     * before the lookup ever runs.
+    *
+    * <p>{@code uqlConfig.getQueryClass} is unstubbed here, so it answers null for {@code
+    * MySQLDatabaseType.TYPE} exactly as it would for a type this build's registry has never heard
+    * of - which is why the survivor lands in {@code unknownType}, not {@code unavailable}.</p>
     */
    @Test
    void endpointCatalog_dropsNullAndBlankTypesFromTheResponse() {
@@ -397,8 +401,59 @@ class WizDatabaseControllerSecurityTest {
 
       WizEndpointCatalogResponse response = fixture.controller.getEndpointCatalog(request);
 
-      assertEquals(List.of(MySQLDatabaseType.TYPE), response.unavailable(),
+      assertEquals(List.of(MySQLDatabaseType.TYPE), response.unknownType(),
                    "a null or blank type must never surface as a literal entry in the response");
+      assertTrue(response.unavailable().isEmpty());
+      assertTrue(response.notCatalogued().isEmpty());
+      assertTrue(response.catalogs().isEmpty());
+   }
+
+   /**
+    * The permanent case: a type string with no entry at all in {@code Config}'s registry, e.g. a
+    * client typo or a type introduced in a newer build than this server's. {@code getQueryClass}
+    * answers null before any class loading is attempted, so this must never reach {@code
+    * unavailable} - a bucket the portal retries - because retrying changes nothing here.
+    */
+   @Test
+   void endpointCatalog_reportsAnUnregisteredTypeAsUnknownTypeNotUnavailable() {
+      Fixture fixture = new Fixture();
+      when(fixture.uqlConfig.getQueryClass("Rest.Strip")).thenReturn(null);
+
+      WizEndpointCatalogRequest request = new WizEndpointCatalogRequest();
+      request.setTypes(List.of("Rest.Strip"));
+
+      WizEndpointCatalogResponse response = fixture.controller.getEndpointCatalog(request);
+
+      assertEquals(List.of("Rest.Strip"), response.unknownType(),
+                   "an unregistered type is permanent and must not be reported as unavailable");
+      assertTrue(response.unavailable().isEmpty());
+      assertTrue(response.notCatalogued().isEmpty());
+      assertTrue(response.catalogs().isEmpty());
+   }
+
+   /**
+    * The environment-problem case: the type IS registered - {@code getQueryClass} returns a class
+    * name - but loading that class fails, which is what happens when the connector's plugin jar is
+    * not installed. This must land in {@code unavailable}, not {@code unknownType}, since it is
+    * exactly the case that resolves itself once the plugin is installed.
+    */
+   @Test
+   void endpointCatalog_reportsARegisteredTypeWithALoadFailureAsUnavailableNotUnknownType()
+      throws Exception
+   {
+      Fixture fixture = new Fixture();
+      when(fixture.uqlConfig.getQueryClass("Rest.Salesforce")).thenReturn("plugin.SalesforceQuery");
+      when(fixture.uqlConfig.getClass("Rest.Salesforce", "plugin.SalesforceQuery"))
+         .thenThrow(new ClassNotFoundException("plugin.SalesforceQuery"));
+
+      WizEndpointCatalogRequest request = new WizEndpointCatalogRequest();
+      request.setTypes(List.of("Rest.Salesforce"));
+
+      WizEndpointCatalogResponse response = fixture.controller.getEndpointCatalog(request);
+
+      assertEquals(List.of("Rest.Salesforce"), response.unavailable(),
+                   "a registered type whose plugin failed to load must be reported as unavailable");
+      assertTrue(response.unknownType().isEmpty());
       assertTrue(response.notCatalogued().isEmpty());
       assertTrue(response.catalogs().isEmpty());
    }

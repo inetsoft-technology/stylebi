@@ -252,10 +252,33 @@ public class WizDatabaseController {
     * <p>POST rather than GET because the type list is unbounded, matching {@code
     * /datasources/search} and {@code /datasources/statuses} in this same controller.</p>
     *
-    * <p>No permission gate: a catalogue is a property of the CONNECTOR, identical for every
-    * customer and carrying nothing about any one of them. There is no instance, no path and no
-    * stored data to authorize against. The listing endpoints, which do expose what an organization
-    * has configured, remain gated as before.</p>
+    * <p>No permission gate, but that reasoning only covers half the response. {@code catalogs} is a
+    * property of the CONNECTOR — identical for every customer, compiled into the connector jar,
+    * carrying nothing about any one of them. There is no instance, no path and no stored data to
+    * authorize against, so no permission applies. {@code notCatalogued}, {@code unavailable} and
+    * {@code unknownType} are not that: they report which connector plugins THIS deployment has
+    * installed and how its type registry is configured, which is instance-specific information a
+    * customer-neutral catalogue is not. Do not extend the "no instance to authorize against"
+    * reasoning to those three fields — it does not hold for them.</p>
+    *
+    * <p>The actual boundary protecting this endpoint today is authentication, not permission: the
+    * whole {@code /api/wiz/**} prefix sits behind {@code WizServiceAuthenticationFilter}'s bearer
+    * token check, so the exposure is "any authenticated wiz caller can enumerate this server's
+    * installed connector plugins by POSTing every known {@code Rest.*} type", not "anyone on the
+    * network can". Whether that residual exposure warrants its own permission is a separate policy
+    * decision, not made here — this handler does not even take a {@code Principal} yet.</p>
+    *
+    * <p>{@code unavailable} and {@code unknownType} answer two different questions and must not be
+    * merged. Both start from {@code Config.getQueryClass(type)}, a plain map lookup that either
+    * returns a class name or {@code null} — {@code null} means the type is not registered in this
+    * build at all, permanently, regardless of which plugins get installed, so that case is {@code
+    * unknownType} and is never retried. A returned class name is then resolved with {@code
+    * Config.getClass}, which does the actual class loading and throws when the type is registered
+    * but its connector plugin is not installed; that failure is an environment problem that goes
+    * away once the plugin is installed, so it is {@code unavailable}. Collapsing the two would send
+    * a client that mistyped a type, or that is talking to a server on a different version, into an
+    * endless retry loop against a type that will never resolve, and would point operators at a
+    * plugin that does not exist.</p>
     *
     * @param request the types to look up. An absent or empty list yields an empty answer rather
     *                than an error — asking about nothing is not a fault.
@@ -265,6 +288,7 @@ public class WizDatabaseController {
       Map<String, WizEndpointCatalog> catalogs = new LinkedHashMap<>();
       List<String> notCatalogued = new ArrayList<>();
       List<String> unavailable = new ArrayList<>();
+      List<String> unknownType = new ArrayList<>();
       List<String> types = request.getTypes() == null ? List.of() : request.getTypes();
       Set<String> distinctTypes = new LinkedHashSet<>();
 
@@ -279,15 +303,36 @@ public class WizDatabaseController {
       }
 
       for(String type : distinctTypes) {
+         String className;
+
+         try {
+            // A plain map lookup (dxmap.get(type)) that cannot fail for a well-formed registry;
+            // caught defensively so a lookup failure is treated the same as the type being absent,
+            // rather than being misread as a plugin-load failure below.
+            className = uqlConfig.getQueryClass(type);
+         }
+         catch(Throwable ex) {
+            LOG.debug("Failed to resolve the query class name for type {}: {}", type, ex.getMessage());
+            className = null;
+         }
+
+         if(className == null) {
+            // Nothing in the type registry for this string at all. This is permanent - a client
+            // typo or a version mismatch, never something a plugin install fixes - so it must not
+            // be reported as "unavailable", which the portal retries.
+            unknownType.add(type);
+            continue;
+         }
+
          Class<?> queryClass;
 
          try {
-            String className = uqlConfig.getQueryClass(type);
-            queryClass = className == null ? null : uqlConfig.getClass(type, className);
+            queryClass = uqlConfig.getClass(type, className);
          }
          catch(Throwable ex) {
-            // A connector whose plugin is absent cannot be read. That is an environment problem,
-            // not a verdict about the connector, so it must not land in notCatalogued.
+            // The type is registered, so this is the connector's plugin failing to load - an
+            // environment problem, not a verdict about the connector, and not a verdict that the
+            // type does not exist. It must not land in notCatalogued or unknownType.
             LOG.debug("Failed to load the query class for type {}: {}", type, ex.getMessage());
             queryClass = null;
          }
@@ -315,7 +360,7 @@ public class WizDatabaseController {
          }
       }
 
-      return new WizEndpointCatalogResponse(catalogs, notCatalogued, unavailable);
+      return new WizEndpointCatalogResponse(catalogs, notCatalogued, unavailable, unknownType);
    }
 
    /**
