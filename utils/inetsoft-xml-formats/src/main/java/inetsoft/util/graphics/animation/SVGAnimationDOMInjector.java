@@ -3465,8 +3465,20 @@ public class SVGAnimationDOMInjector {
          // Candlestick dimming.
          "svg.ready:has(.inetsoft-candle.inetsoft-active) .inetsoft-candle:not(.inetsoft-active)" +
          "{opacity:" + dim + "!important}" +
-         // Box-plot dimming.
-         "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
+         // Box-plot dimming. A box plot draws two kinds of annotation group over one BoxDataSet:
+         // the box/whisker glyph (.inetsoft-box) and the outlier markers (.inetsoft-point), so each
+         // must dim the other's non-active elements — a same-class-only rule left the outliers at
+         // full opacity while their boxes faded. The hovered box's OWN outliers (and an outlier's
+         // own box) are kept undimmed by ChartInlineSvgDirective, which activates them via the
+         // shared data-group key. Correlating by class alone is safe: .inetsoft-point is generic
+         // (every PointVO gets it), but Box Plot is a merged graph type (GraphTypes.isMergedGraphType),
+         // so GraphTypes.supportsMultiStyles() excludes it and ChangeChartTypeProcessor.process()
+         // forces setMultiStyles(false) whenever it is selected — even per-measure. A box and a plain
+         // (non-outlier) point therefore never appear in the same graph, and a point-only chart has
+         // no .inetsoft-box to dim.
+         "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-point:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
          "{opacity:" + dim + "!important}" +
          // Treemap + label dimming.
          "svg.ready:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap:not(.inetsoft-active)," +

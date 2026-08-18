@@ -277,6 +277,73 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("activateBoxGroup (box plot box + its outlier markers)", () => {
+      // Two box groups, each a .inetsoft-box glyph plus outlier .inetsoft-point markers drawn over
+      // it. Box and outliers are separate BoxDataSet rows (distinct data-row) tied together only by
+      // the server-stamped data-group key.
+      const html = `
+         <svg>
+            <g class="inetsoft-box" data-row="0" data-col="0" data-group="AK"></g>
+            <g class="inetsoft-point" data-row="1" data-col="0" data-group="AK"></g>
+            <g class="inetsoft-point" data-row="2" data-col="0" data-group="AK"></g>
+            <g class="inetsoft-box" data-row="3" data-col="0" data-group="NY"></g>
+            <g class="inetsoft-point" data-row="4" data-col="0" data-group="NY"></g>
+         </svg>`;
+
+      function isActive(host: HTMLElement, sel: string): boolean {
+         return host.querySelector(sel)!.classList.contains("inetsoft-active");
+      }
+
+      it("activates the hovered box's own outlier points so they are not dimmed", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         dir.highlightElement(0, 0);
+         expect(isActive(host, "[data-row='0']")).toBe(true);
+         expect(isActive(host, "[data-row='1']")).toBe(true);
+         expect(isActive(host, "[data-row='2']")).toBe(true);
+         // The other group stays dimmable.
+         expect(isActive(host, "[data-row='3']")).toBe(false);
+         expect(isActive(host, "[data-row='4']")).toBe(false);
+      });
+
+      it("activates the owning box when an outlier point is hovered", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         dir.highlightElement(4, 0);
+         expect(isActive(host, "[data-row='4']")).toBe(true);
+         expect(isActive(host, "[data-row='3']")).toBe(true);
+         expect(isActive(host, "[data-row='0']")).toBe(false);
+      });
+
+      it("clears the group's active classes when the hover ends", () => {
+         vi.useFakeTimers();
+
+         try {
+            const { dir, host } = makeDirective(html);
+            (dir as any).afterSvgInjected();
+            dir.highlightElement(0, 0);
+            dir.highlightElements([]);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(host.querySelectorAll(".inetsoft-active").length).toBe(0);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("is a no-op for annotation groups carrying no data-group", () => {
+         const { dir, host } = makeDirective(`
+            <svg>
+               <g class="inetsoft-point" data-row="0" data-col="0"></g>
+               <g class="inetsoft-point" data-row="1" data-col="0"></g>
+            </svg>`);
+         (dir as any).afterSvgInjected();
+         dir.highlightElement(0, 0);
+         expect(isActive(host, "[data-row='0']")).toBe(true);
+         expect(isActive(host, "[data-row='1']")).toBe(false);
+      });
+   });
+
    describe("milestone point label activation (gantt)", () => {
       // <svg> sets svgRootEl; two milestone markers + labels keyed by data-row/col.
       const html = `

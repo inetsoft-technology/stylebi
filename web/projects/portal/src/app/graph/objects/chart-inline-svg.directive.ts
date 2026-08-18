@@ -113,6 +113,12 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private treemapGroups: Element[] = [];
    /** Treemap descendant nodes + labels activated for the current hover (cleared on deactivation). */
    private activeTreemapDescendants: Element[] = [];
+   /** Box-plot annotation groups (boxes and outlier markers) that carry a data-group key, indexed by
+    *  that key. A box and the outlier points drawn over it share the key, so hovering either can
+    *  keep the whole group undimmed. Empty for every chart type other than a box plot. */
+   private boxGroupMap = new Map<string, Element[]>();
+   /** Box-plot group members activated alongside the hovered box/outlier (cleared on deactivation). */
+   private activeBoxGroupMembers: Element[] = [];
    /** Ordered list of hover series; one entry per (panel, series) pair. fillGroup is null on a pure
     *  line chart (no area fills); points is empty on an area chart, whose markers are not part of
     *  the cursor-band hover. */
@@ -432,6 +438,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
             else if(el.classList.contains("inetsoft-treemap")) {
                this.activateTreemapDescendants(el);
             }
+            else {
+               // Called for every remaining hovered VO (bar, candle, point, box, ...); it self-guards
+               // on the data-group attribute, which is only stamped for box plots.
+               this.activateBoxGroup(el);
+            }
          }
 
          const glyphs = this.labelGroupMap.get(key);
@@ -509,6 +520,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
          n.classList.remove("inetsoft-active");
       }
       this.activeTreemapDescendants = [];
+
+      for(const n of this.activeBoxGroupMembers) {
+         n.classList.remove("inetsoft-active");
+      }
+      this.activeBoxGroupMembers = [];
    }
 
    /**
@@ -606,6 +622,27 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
    }
 
+   // Keep a hovered box plot's box/whisker glyph and its outlier markers undimmed together. They are
+   // separate annotation groups (.inetsoft-box / .inetsoft-point) over one BoxDataSet with different
+   // data-rows, so activateKeys only marks the one under the cursor and the server dim rules — which
+   // now correlate the two classes — would fade the hovered box's own outliers. Members are matched
+   // by the shared data-group key stamped server-side for box plots only, so this is a no-op for
+   // every other chart type. Cleared by deactivateCurrent() via the activeBoxGroupMembers array.
+   private activateBoxGroup(el: Element): void {
+      const group = el.getAttribute("data-group");
+      if(!group) return; // not a box-plot box or outlier
+
+      const members = this.boxGroupMap.get(group);
+      if(!members) return;
+
+      for(const member of members) {
+         if(member === el) continue; // already activated by activateKeys
+
+         member.classList.add("inetsoft-active");
+         this.activeBoxGroupMembers.push(member);
+      }
+   }
+
    /**
     * Schedule adding the {@code .ready} class to the SVG root element shortly after load.
     * The {@code .ready} class gates hover CSS rules for A1 chart types (point, candle, box,
@@ -688,6 +725,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.activeRelationNeighbors = [];
       this.treemapGroups = [];
       this.activeTreemapDescendants = [];
+      this.boxGroupMap.clear();
+      this.activeBoxGroupMembers = [];
       this._activeKeys = [];
       this.svgRootEl = this.element.nativeElement.querySelector("svg");
 
@@ -822,6 +861,21 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // groups that the server :has() dim rule would otherwise dim along with unrelated nodes).
       this.treemapGroups = Array.from(
          this.element.nativeElement.querySelectorAll(".inetsoft-treemap") as NodeListOf<Element>);
+
+      // Index box-plot groups by their shared data-group key so activateBoxGroup can keep a hovered
+      // box and its outlier markers undimmed together. data-group is stamped only on box-plot boxes
+      // and outlier points, so this map stays empty for every other chart type.
+      const boxGroupEls = Array.from(this.element.nativeElement
+         .querySelectorAll(".inetsoft-box[data-group],.inetsoft-point[data-group]") as NodeListOf<Element>);
+
+      for(const el of boxGroupEls) {
+         const group = el.getAttribute("data-group");
+         if(!group) continue;
+
+         const arr = this.boxGroupMap.get(group);
+         if(arr) arr.push(el);
+         else this.boxGroupMap.set(group, [el]);
+      }
 
       // Build label map from server-annotated label elements for all chart types that have
       // external text groups matched to data elements (bar, point/gantt-milestone, treemap/sunburst/icicle, mekko).

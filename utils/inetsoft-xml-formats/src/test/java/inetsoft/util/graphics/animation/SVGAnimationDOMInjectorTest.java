@@ -248,6 +248,16 @@ class SVGAnimationDOMInjectorTest {
          css.contains(".inetsoft-box.inetsoft-active") &&
          css.contains(".inetsoft-box:not(.inetsoft-active)"),
          "hover CSS must contain box :has() dim rule");
+      // A box plot's outlier markers are .inetsoft-point groups, so an active box must dim them
+      // too (and an active outlier must dim the boxes) or they stay at full opacity.
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-box.inetsoft-active) " +
+                         ".inetsoft-point:not(.inetsoft-active)"),
+         "hover CSS must dim outlier points when a box is active");
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) " +
+                         ".inetsoft-box:not(.inetsoft-active)"),
+         "hover CSS must dim boxes when an outlier point is active");
       // HOVER_DIM_OPACITY = 0.20 formatted as "%.2f" produces "0.20"
       String expectedOpacity = "opacity:" +
          String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY) +
