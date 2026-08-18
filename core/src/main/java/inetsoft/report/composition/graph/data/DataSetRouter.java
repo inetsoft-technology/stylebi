@@ -23,6 +23,7 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.util.Tool;
 
 import java.util.*;
 
@@ -58,15 +59,17 @@ public class DataSetRouter extends AbstractRouter {
          }
       }
 
-      // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) must navigate
-      // previous/next in natural calendar order regardless of any value-based sort/ranking
-      // comparator (e.g. a Top-N "Sort By Value" ranking) applied for display purposes —
-      // "previous hour" has no meaning in rank-value order. Only fall back to the dataset's
-      // own comparator for fields where no natural calendar order applies.
-      comp = getPartDateGroupComparator(data, field);
+      // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) navigate
+      // previous/next in natural calendar order when the field has no display sort, or when
+      // its display sort is value-based (e.g. a Top-N "Sort By Value" ranking) — "previous
+      // hour" has no meaning in rank-value order. An explicit label sort (ascending,
+      // descending, or specific order) is honored instead, so that calc navigation stays
+      // aligned with the order the values are actually plotted in.
+      XDimensionRef partDateDim = getPartDateDimension(data, field);
+      comp = data.getComparator(field);
 
-      if(comp == null) {
-         comp = data.getComparator(field);
+      if(partDateDim != null && (comp == null || isSortByValue(partDateDim))) {
+         comp = PART_DATE_ORDER;
       }
 
       if(comp != null) {
@@ -78,15 +81,10 @@ public class DataSetRouter extends AbstractRouter {
    }
 
    /**
-    * Natural-order comparator for part-date-group dimensions (HourOfDay, DayOfWeek,
-    * MonthOfYear, Quarter, etc.), used in preference to any value-based sort/ranking
-    * comparator configured on the field (e.g. a Top-N "Sort By Value" ranking). Values for
-    * these dimensions are always emitted as Integer, so numeric order is the natural calendar
-    * order, and previous/next navigation only makes sense in that order. Scoped to
-    * previous/next calc navigation only (this router) — does not affect axis/legend
-    * ordering, which is controlled separately by CategoricalScale.
+    * Get the dimension backing the field if it is a part-date-group dimension (HourOfDay,
+    * DayOfWeek, MonthOfYear, Quarter, etc.), or null if the field is not one.
     */
-   private static Comparator getPartDateGroupComparator(DataSet data, String field) {
+   private static XDimensionRef getPartDateDimension(DataSet data, String field) {
       DataSet root = data instanceof DataSetFilter
          ? ((DataSetFilter) data).getRootDataSet() : data;
 
@@ -101,13 +99,43 @@ public class DataSetRouter extends AbstractRouter {
       }
 
       XDimensionRef dim = (XDimensionRef) ref;
+      return (dim.getDateLevel() & XConstants.PART_DATE_GROUP) != 0 ? dim : null;
+   }
 
-      if((dim.getDateLevel() & XConstants.PART_DATE_GROUP) == 0) {
-         return null;
+   /**
+    * Check if the dimension is sorted by an aggregate value (as set by a Top-N/Bottom-N
+    * "Sort By Value" ranking) rather than by its own labels.
+    */
+   private static boolean isSortByValue(XDimensionRef dim) {
+      int order = dim.getOrder();
+      return order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC;
+   }
+
+   /**
+    * Natural calendar order for part-date-group dimension values. Values are normally
+    * emitted as Integer, so numeric order is calendar order. Nulls sort first to match the
+    * position the null group occupies on an ascending axis, and any non-numeric label (e.g.
+    * the "Others" group produced by a Top-N ranking) sorts after all numeric values rather
+    * than failing the comparison.
+    */
+   private static final Comparator PART_DATE_ORDER = (a, b) -> {
+      if(a == null || b == null) {
+         return a == b ? 0 : (a == null ? -1 : 1);
       }
 
-      return Comparator.nullsLast(Comparator.comparingInt(val -> ((Number) val).intValue()));
-   }
+      boolean anum = a instanceof Number;
+      boolean bnum = b instanceof Number;
+
+      if(anum && bnum) {
+         return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+      }
+
+      if(anum != bnum) {
+         return anum ? -1 : 1;
+      }
+
+      return Tool.compare(a, b);
+   };
 
    @Override
    public Object[] getValues() {

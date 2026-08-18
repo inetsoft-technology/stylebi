@@ -41,6 +41,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -412,6 +413,7 @@ public class ValueOfColumnTest {
       when(hourRef.getDateLevel()).thenReturn(XConstants.HOUR_OF_DAY_DATE_GROUP);
       // Simulates a Top-N ranking's "Sort By Value" comparator: orders by id desc
       // (11, 5, 2) rather than by natural hour order (2, 5, 11).
+      when(hourRef.getOrder()).thenReturn(XConstants.SORT_VALUE_DESC);
       when(hourRef.createComparator(org.mockito.ArgumentMatchers.any()))
          .thenReturn((a, b) -> Integer.compare((Integer) b, (Integer) a));
 
@@ -424,6 +426,95 @@ public class ValueOfColumnTest {
       // Row 1 = hour 2, the earliest hour → no previous → INVALID.
       result = valueOfColumn.calculate(vsDataSet, 1, false, false);
       assertEquals(CalcColumn.INVALID, result);
+   }
+
+   /**
+    * Regression test for Bug #75743: PREVIOUS navigation on a part-date-group dimension that
+    * carries a plain label sort (Sort Ascending) must follow that sort — including the
+    * position of the null group — instead of an internally-imposed numeric/nulls-last order.
+    *
+    * With "As time series" off there is no ScaleRouter, so navigation falls back to
+    * DataSetRouter. Ascending order puts the null group first (matching both the physical
+    * row order and the axis), so the smallest non-null second (1) has the null group as its
+    * previous value (id=28) rather than no previous value at all.
+    */
+   @Test
+   void testPreviousOnPartDateGroupFollowsLabelSortWithNullGroup() {
+      final String dim = "SecondOfMinute(order_datetime)";
+      valueOfColumn = new ValueOfColumn("id", "NthSmallest(id, 1)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim(dim);
+      valueOfColumn.setInnerDim(dim);
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { dim, "id" },
+         { null, 28 },
+         { 1, 13 },
+         { 10, 8 },
+         { 11, 20 }
+      });
+
+      VSDimensionRef secRef = mock(VSDimensionRef.class);
+      when(secRef.getFullName()).thenReturn(dim);
+      when(secRef.getDateLevel()).thenReturn(XConstants.SECOND_OF_MINUTE_DATE_GROUP);
+      when(secRef.getOrder()).thenReturn(XConstants.SORT_ASC);
+      when(secRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn(Comparator.nullsFirst(
+            Comparator.comparingInt(v -> ((Number) v).intValue())));
+
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ secRef });
+
+      // Row 1 = second 1. Previous in ascending order is the null group (id=28).
+      Object result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(28, result);
+
+      // Row 2 = second 10. Previous is second 1 (id=13).
+      result = valueOfColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(13, result);
+
+      // Row 0 = the null group, first in ascending order → no previous → INVALID.
+      result = valueOfColumn.calculate(vsDataSet, 0, true, false);
+      assertEquals(CalcColumn.INVALID, result);
+   }
+
+   /**
+    * Regression test for Bug #75743: the natural calendar order applied to an unsorted
+    * part-date-group dimension must tolerate non-numeric group labels. A Top-N ranking with
+    * "group others" emits the "Others" string into an otherwise Integer part-date column,
+    * which previously threw ClassCastException while building the router.
+    */
+   @Test
+   void testPreviousOnPartDateGroupWithOthersLabel() {
+      final String dim = "HourOfDay(order_time)";
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim(dim);
+      valueOfColumn.setInnerDim(dim);
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { dim, "id" },
+         { 5, 10 },
+         { 2, 20 },
+         { "Others", 30 }
+      });
+
+      VSDimensionRef hourRef = mock(VSDimensionRef.class);
+      when(hourRef.getFullName()).thenReturn(dim);
+      when(hourRef.getDateLevel()).thenReturn(XConstants.HOUR_OF_DAY_DATE_GROUP);
+
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ hourRef });
+
+      // Numeric hours keep calendar order (2, 5) with "Others" sorted after them.
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(20, result);
+
+      // Hour 2 is the earliest → no previous → INVALID.
+      result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+
+      // "Others" sorts last, so its previous is hour 5 (id=10).
+      result = valueOfColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10, result);
    }
 
    /**
