@@ -25,8 +25,10 @@ import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -142,6 +144,60 @@ public class ChangeColumnTest {
       Object result = changeColumn.calculate(mockContext, pairN);
 
       assertEquals(-13.0, result);
+   }
+
+   /**
+    * Regression test: change-from-previous on the all-data (__all__) column of a brushed
+    * chart must produce the change, not the raw aggregate.
+    *
+    * The __all__ columns exist only on the BrushDataSet. When the previous-value lookup
+    * unwrapped the filter chain past it (done for PART_DATE_GROUP inner dims so cross-facet
+    * rows can be reached), the lookup returned null for every row; a null previous value is
+    * treated as 0, so the change collapsed to the raw value and the all-data area of a
+    * brushed chart grew to span the full measure range.
+    */
+   @Test
+   void testChangePreviousOnBrushAllDataColumnReturnsChangeNotRawValue() {
+      DefaultTableLens atb = new DefaultTableLens(new Object[][]{
+         { "MonthOfYear(Date)", "id" },
+         { 1, 10 },
+         { 2, 20 },
+         { 3, 40 }
+      });
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "MonthOfYear(Date)", "id" },
+         { 1, 5 },
+         { 2, 7 },
+         { 3, 9 }
+      });
+
+      VSDimensionRef monthVsRef = mock(VSDimensionRef.class);
+      when(monthVsRef.getFullName()).thenReturn("MonthOfYear(Date)");
+      VSDimensionRef monthVsRef2 = mock(VSDimensionRef.class);
+      when(monthVsRef2.getFullName()).thenReturn("MonthOfYear(Date)");
+
+      // rows 0-2 are the brushed rows (id), rows 3-5 the all-data rows (__all__id)
+      BrushDataSet brushDataSet = new BrushDataSet(
+         new VSDataSet(atb, new VSDataRef[] { monthVsRef }),
+         new VSDataSet(tb, new VSDataRef[] { monthVsRef2 }));
+
+      changeColumn = new ChangeColumn(BrushDataSet.ALL_HEADER_PREFIX + "id",
+                                      BrushDataSet.ALL_HEADER_PREFIX + "sum(id)");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      changeColumn.setDim("MonthOfYear(Date)");
+      changeColumn.setInnerDim("MonthOfYear(Date)");
+
+      XDimensionRef monthDimRef = mock(XDimensionRef.class);
+      when(monthDimRef.getFullName()).thenReturn("MonthOfYear(Date)");
+      when(monthDimRef.getDateLevel()).thenReturn(XConstants.MONTH_OF_YEAR_DATE_GROUP);
+      changeColumn.setDimensions(List.of(monthDimRef));
+
+      // row 4 = all-data month 2: 20 - 10 = 10 (regression returned the raw 20)
+      assertEquals(10.0, changeColumn.calculate(brushDataSet, 4, false, false));
+
+      // row 5 = all-data month 3: 40 - 20 = 20 (regression returned the raw 40)
+      assertEquals(20.0, changeColumn.calculate(brushDataSet, 5, false, false));
    }
 
    private VSDataSet createVSDataSet(DefaultTableLens tableLens, String name) {
