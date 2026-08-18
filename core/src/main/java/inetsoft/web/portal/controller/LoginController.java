@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.model.LocaleModel;
 import inetsoft.web.portal.model.LoginBannerModel;
@@ -90,9 +91,7 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
-                              !"default".equals(customThemesManager.getSelectedTheme());
-      model.addObject("customTheme", isCustomTheme);
+      model.addObject("customTheme", isCustomTheme(request));
 
       if(welcomePage != null) {
          LoginBannerModel loginBanner = new LoginBannerModel();
@@ -180,6 +179,39 @@ public class LoginController {
       String recordedOrgName = recordedOrgID == null ? null : securityEngine.getSecurityProvider().getOrgNameFromID(recordedOrgID);
 
       return recordedOrgName == null  || Tool.equals(recordedOrgName, Organization.getDefaultOrganizationName());
+   }
+
+   /**
+    * Checks whether a custom theme applies to the organization this login page is being served
+    * for, which controls whether theme-variables.css is linked. The request is unauthenticated, so
+    * without pinning the organization named by the request the flag would be resolved against the
+    * default organization instead.
+    *
+    * Resolves the <i>organization</i> under the same conditions GlobalStyleController applies when
+    * it serves the style sheet, so both agree on whose theme is being asked for. They can still
+    * pick different themes within that organization: this only consults the selected-theme pointer
+    * chain (see the Bug #53246 note at the call site), while GlobalStyleController prefers
+    * Organization.theme when it names an existing theme. That predates this method and is why
+    * GlobalStyleController falls back to the "default" theme for an unknown id.
+    */
+   private boolean isCustomTheme(HttpServletRequest request) {
+      String orgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) : null;
+      boolean pinned = orgID != null && ThreadContext.getContextPrincipal() == null &&
+         OrganizationContextHolder.getCurrentOrgId() == null;
+
+      if(pinned) {
+         OrganizationContextHolder.setCurrentOrgId(orgID);
+      }
+
+      try {
+         String theme = customThemesManager.getSelectedTheme();
+         return !Tool.isEmptyString(theme) && !"default".equals(theme);
+      }
+      finally {
+         if(pinned) {
+            OrganizationContextHolder.clear();
+         }
+      }
    }
 
    private String getRecordedOrgId(HttpServletRequest request) {

@@ -59,6 +59,7 @@ import {
    FULL_SCREEN_SERVICE_MOCK,
    ASSET_LOADING_SERVICE_MOCK,
    HEARTBEAT_WORKER_SERVICE_MOCK,
+   ASSEMBLY_ACTION_FACTORY_MOCK,
    fullScreenChangeSubject,
    resetMocks,
    renderComponent,
@@ -648,6 +649,91 @@ describe("ViewerAppComponent — processRemoveVSObjectCommand()", () => {
 
       expect(states).toHaveLength(1);
       expect(states[0]).toEqual({ name: "Chart1", loading: false });
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 8b — processAddVSObjectCommand: selectedActions resync [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("ViewerAppComponent — processAddVSObjectCommand() selectedActions resync", () => {
+   function makeObj(name: string, objectType: string = "VSChart"): VSObjectModel {
+      return {
+         absoluteName: name,
+         objectType,
+         visible: true,
+         objectFormat: { top: 0, left: 0, width: 100, height: 100 } as any,
+      } as unknown as VSObjectModel;
+   }
+
+   async function setup() {
+      const { comp } = await renderComponent();
+      // processAddVSObjectCommand touches these collaborators; the shared fixtures only
+      // stub the members needed by other groups.
+      (comp as any).dataTipService.registerDataTip = vi.fn();
+      (comp as any).dataTipService.registerDataTipVisible = vi.fn();
+      (comp as any).dataTipService.clearDataTipChild = vi.fn();
+      (comp as any).popComponentService.registerPopComponent = vi.fn();
+      (comp as any).popComponentService.registerPopComponentVisible = vi.fn();
+      (comp as any).calculateAllAssemblyBounds = vi.fn();
+      ASSEMBLY_ACTION_FACTORY_MOCK.createActions.mockImplementation((model: any) => ({
+         getModel: () => model,
+         menuActions: [],
+         toolbarActions: [],
+      }));
+      return comp;
+   }
+
+   // 🔁 Regression-sensitive: processAddVSObjectCommand rebuilds the WHOLE
+   // vsObjectActions array, so the actions instance for the selected assembly is
+   // replaced even when the command targets a different assembly. The assembly
+   // component re-subscribes to the new instance via its [actions] input; if
+   // selectedActions still points at the old instance, the mobile toolbar buttons
+   // emit onAssemblyActionEvent to nobody and appear dead.
+   // Repro: mobile → select a selection value (refreshes the filtered chart) →
+   // tap Sort in the mobile toolbar → nothing happens.
+   it("should re-point selectedActions when a DIFFERENT assembly is refreshed", async () => {
+      const comp = await setup();
+      const selection = makeObj("SelectionList1", "VSSelectionList");
+      const chart = makeObj("Chart1");
+      comp.vsObjects = [selection, chart];
+      const staleActions: any = { getModel: () => selection, menuActions: [], toolbarActions: [] };
+      comp.vsObjectActions = [staleActions, { getModel: () => chart } as any];
+      comp.selectedActions = staleActions;
+
+      comp.processAddVSObjectCommand({ name: "Chart1", model: makeObj("Chart1") } as any);
+
+      expect(comp.selectedActions).not.toBe(staleActions);
+      expect(comp.selectedActions).toBe(comp.vsObjectActions[0]);
+      expect(comp.selectedActions.getModel().absoluteName).toBe("SelectionList1");
+   });
+
+   it("should re-point selectedActions when the SELECTED assembly is refreshed", async () => {
+      const comp = await setup();
+      const selection = makeObj("SelectionList1", "VSSelectionList");
+      comp.vsObjects = [selection];
+      const staleActions: any = { getModel: () => selection, menuActions: [], toolbarActions: [] };
+      comp.vsObjectActions = [staleActions];
+      comp.selectedActions = staleActions;
+
+      comp.processAddVSObjectCommand({
+         name: "SelectionList1",
+         model: makeObj("SelectionList1", "VSSelectionList"),
+      } as any);
+
+      expect(comp.selectedActions).toBe(comp.vsObjectActions[0]);
+      expect(comp.selectedActions).not.toBe(staleActions);
+   });
+
+   it("should leave selectedActions null when nothing is selected", async () => {
+      const comp = await setup();
+      comp.vsObjects = [makeObj("Chart1")];
+      comp.vsObjectActions = [{ getModel: () => makeObj("Chart1") } as any];
+      comp.selectedActions = null;
+
+      comp.processAddVSObjectCommand({ name: "Chart1", model: makeObj("Chart1") } as any);
+
+      expect(comp.selectedActions).toBeNull();
    });
 });
 

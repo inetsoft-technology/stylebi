@@ -53,7 +53,7 @@ public class DebugMonitoringController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/summary",
+         resource = "monitoring/summary/debug",
          actions = ResourceAction.ACCESS
       )
    )
@@ -99,7 +99,7 @@ public class DebugMonitoringController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/summary",
+         resource = "monitoring/summary/debug",
          actions = ResourceAction.ACCESS
       )
    )

@@ -323,6 +323,65 @@ public class ValueOfColumnTest {
    }
 
    /**
+    * Regression test: PREVIOUS on an all-data (__all__) column of a brushed chart must find
+    * the value on the BrushDataSet, which is the only dataset in the chain that owns the
+    * __all__ columns.
+    *
+    * When the inner dimension is a PART_DATE_GROUP (e.g. MonthOfYear), the sub-dataset lookup
+    * unwraps the filter chain so cross-facet rows can be reached. Unwrapping all the way to
+    * the root skips past the BrushDataSet, where __all__ columns are created, so the lookup
+    * returns null for every row. ChangeColumn then treats the missing previous value as 0 and
+    * plots the raw aggregate instead of the change — the all-data area of a brushed chart
+    * suddenly spans the full measure range.
+    */
+   @Test
+   void testPreviousOnBrushAllDataColumnFindsValueOnBrushDataSet() {
+      // all data (not brushed)
+      DefaultTableLens atb = new DefaultTableLens(new Object[][]{
+         { "MonthOfYear(Date)", "id" },
+         { 1, 10 },
+         { 2, 20 },
+         { 3, 40 }
+      });
+      // brushed subset — same months, smaller values
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "MonthOfYear(Date)", "id" },
+         { 1, 5 },
+         { 2, 7 },
+         { 3, 9 }
+      });
+
+      VSDimensionRef monthVsRef = mock(VSDimensionRef.class);
+      when(monthVsRef.getFullName()).thenReturn("MonthOfYear(Date)");
+      VSDimensionRef monthVsRef2 = mock(VSDimensionRef.class);
+      when(monthVsRef2.getFullName()).thenReturn("MonthOfYear(Date)");
+      VSDataSet adata = new VSDataSet(atb, new VSDataRef[] { monthVsRef });
+      VSDataSet data = new VSDataSet(tb, new VSDataRef[] { monthVsRef2 });
+
+      // rows 0-2 are the brushed rows (id), rows 3-5 the all-data rows (__all__id)
+      BrushDataSet brushDataSet = new BrushDataSet(adata, data);
+
+      valueOfColumn = new ValueOfColumn(BrushDataSet.ALL_HEADER_PREFIX + "id",
+                                        BrushDataSet.ALL_HEADER_PREFIX + "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("MonthOfYear(Date)");
+      valueOfColumn.setInnerDim("MonthOfYear(Date)");
+
+      // MonthOfYear is a PART_DATE_GROUP dim, which triggers the root-dataset unwrap
+      XDimensionRef monthDimRef = mock(XDimensionRef.class);
+      when(monthDimRef.getFullName()).thenReturn("MonthOfYear(Date)");
+      when(monthDimRef.getDateLevel()).thenReturn(XConstants.MONTH_OF_YEAR_DATE_GROUP);
+      valueOfColumn.setDimensions(List.of(monthDimRef));
+
+      // Row 4 = all-data month 2. Previous month is 1, whose all-data value is 10.
+      // Regression: unwrapping past the BrushDataSet loses __all__id and returns null.
+      assertEquals(10, valueOfColumn.calculate(brushDataSet, 4, false, false));
+
+      // Row 3 = all-data month 1, the first month → no previous.
+      assertEquals(CalcColumn.INVALID, valueOfColumn.calculate(brushDataSet, 3, true, false));
+   }
+
+   /**
     * Regression test for Bug #75664 (ranking follow-up): PREVIOUS navigation on a
     * part-date-group dimension (e.g. HourOfDay) must use natural calendar order even when
     * the dimension has an explicit value-based sort comparator — as set by a Top-N/Bottom-N

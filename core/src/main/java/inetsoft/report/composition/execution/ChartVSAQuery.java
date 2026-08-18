@@ -1564,6 +1564,57 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                mergeDimRanking((VSDimensionRef) targetField, cols, ainfo, rconds,
                                 rankingFields, usedGroups);
             }
+
+            // VSDimensionRef-backed node color/size fields are excluded from
+            // getAestheticRefs() (bug #75253) and so never appear in cinfo.getRTFields()
+            // either, which means a RankingCondition set on the Node Color/Node Size well
+            // would never be merged into the query. Merge it here. Only source and target
+            // are actual groups in a relation chart query (the node dimension is added as a
+            // MAX aggregate), so a ranking is only meaningful when the node dimension is the
+            // same field as source or target - ranking on an ungrouped column can't be
+            // evaluated. rankingFields dedup keeps a ranking already merged from
+            // source/target from being applied twice.
+            String sourceName = sourceField instanceof VSDimensionRef ?
+               ((VSDimensionRef) sourceField).getFullName() : null;
+            String targetName = targetField instanceof VSDimensionRef ?
+               ((VSDimensionRef) targetField).getFullName() : null;
+            List<AestheticRef> nodeRankRefs = new ArrayList<>();
+
+            if(cinfo instanceof RelationVSChartInfo) {
+               nodeRankRefs.add(((RelationVSChartInfo) cinfo).getNodeColorField());
+               nodeRankRefs.add(((RelationVSChartInfo) cinfo).getNodeSizeField());
+            }
+
+            for(AestheticRef nodeARef : nodeRankRefs) {
+               if(nodeARef == null) {
+                  continue;
+               }
+
+               DataRef nodeRef = nodeARef.getRTDataRef() != null ?
+                  nodeARef.getRTDataRef() : nodeARef.getDataRef();
+
+               if(!(nodeRef instanceof VSDimensionRef)) {
+                  continue;
+               }
+
+               VSDimensionRef nodeDim = (VSDimensionRef) nodeRef;
+               String nodeName = nodeDim.getFullName();
+               boolean isSource = nodeName != null && nodeName.equals(sourceName);
+               boolean isTarget = nodeName != null && nodeName.equals(targetName);
+
+               if(!isSource && !isTarget) {
+                  continue;
+               }
+
+               boolean merged = mergeDimRanking(nodeDim, cols, ainfo, rconds,
+                                                 rankingFields, usedGroups);
+
+               // ranking on the outer (source) grouping while target is also bound isn't
+               // innermost, so it needs the same per-group post-processing as above.
+               if(merged && isSource && targetField instanceof VSDimensionRef) {
+                  mgrcond = false;
+               }
+            }
          }
       }
 
