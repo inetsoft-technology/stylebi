@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -44,6 +45,7 @@ import inetsoft.web.wiz.service.EndpointCatalogReader;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -99,6 +101,8 @@ class WizDatabaseControllerSecurityTest {
                 "/api/wiz/datasources/search",
                 "/api/wiz/datasources/statuses",
                 "/api/wiz/datasources/endpoint-catalog",
+                "/api/wiz/datasources/endpoint-catalog/types",
+                "/api/wiz/datasources/endpoint-catalog/admin",
                 "/api/wiz/databases/meta",
                 "/api/wiz/databases/template",
                 "/api/wiz/databases/definition",
@@ -456,6 +460,99 @@ class WizDatabaseControllerSecurityTest {
       assertTrue(response.unknownType().isEmpty());
       assertTrue(response.notCatalogued().isEmpty());
       assertTrue(response.catalogs().isEmpty());
+   }
+
+   /**
+    * The catalogue administration page has to offer a choice before anything has been ingested, so
+    * the type list has to come from the registry rather than from what has already been ingested.
+    * {@code getTabularDataSourceTypes} is the enumeration; a non-tabular type could not ship an
+    * {@code endpoints.json} at all and must not appear.
+    */
+   @Test
+   void endpointCatalogTypes_countsDescribedEndpointsSeparatelyFromTheTotal() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.uqlConfig.getTabularDataSourceTypes()).thenReturn(List.of("Rest.Stripe"));
+      when(fixture.uqlConfig.getQueryClass("Rest.Stripe")).thenReturn("plugin.StripeQuery");
+      doReturn(String.class).when(fixture.uqlConfig).getClass("Rest.Stripe", "plugin.StripeQuery");
+      when(fixture.endpointCatalogReader.read(String.class)).thenReturn(new WizEndpointCatalog(
+         List.of(new WizEndpointCatalogEntry("Charges", "Payment attempts.", "/v1/charges",
+                                             Boolean.TRUE, List.of()),
+                 new WizEndpointCatalogEntry("SKUs", null, "/v1/skus", null, List.of()),
+                 // Whitespace is not a description: nothing can be retrieved by it, so counting it
+                 // as described would promise the ingest more than it can index.
+                 new WizEndpointCatalogEntry("Plans", "   ", "/v1/plans", null, List.of()))));
+
+      List<WizEndpointCatalogType> types = fixture.controller.getEndpointCatalogTypes();
+
+      assertEquals(1, types.size());
+      assertEquals("Rest.Stripe", types.get(0).type());
+      assertEquals(WizEndpointCatalogType.CATALOGUED, types.get(0).status());
+      assertEquals(3, types.get(0).endpointCount());
+      assertEquals(1, types.get(0).describedCount(),
+                   "only a non-blank description makes an endpoint retrievable");
+   }
+
+   /**
+    * A connector whose plugin is not installed is an environment problem, and the page may retry it.
+    * Reporting it as NOT_CATALOGUED would tell the administrator the connector has nothing to
+    * ingest, which is a verdict this build is in no position to give.
+    */
+   @Test
+   void endpointCatalogTypes_reportsAnUnloadableConnectorAsUnavailableNotNotCatalogued()
+      throws Exception
+   {
+      Fixture fixture = new Fixture();
+      when(fixture.uqlConfig.getTabularDataSourceTypes()).thenReturn(List.of("Rest.Salesforce"));
+      when(fixture.uqlConfig.getQueryClass("Rest.Salesforce")).thenReturn("plugin.SalesforceQuery");
+      when(fixture.uqlConfig.getClass("Rest.Salesforce", "plugin.SalesforceQuery"))
+         .thenThrow(new ClassNotFoundException("plugin.SalesforceQuery"));
+
+      List<WizEndpointCatalogType> types = fixture.controller.getEndpointCatalogTypes();
+
+      assertEquals(WizEndpointCatalogType.UNAVAILABLE, types.get(0).status());
+      assertEquals(0, types.get(0).endpointCount());
+      verifyNoInteractions(fixture.endpointCatalogReader);
+   }
+
+   /**
+    * A connector that loads but ships no catalogue is the normal state of one needing user-supplied
+    * documentation, and must stay distinguishable from the failure above.
+    */
+   @Test
+   void endpointCatalogTypes_reportsAConnectorWithoutACatalogueAsNotCatalogued() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.uqlConfig.getTabularDataSourceTypes()).thenReturn(List.of("Rest.Custom"));
+      when(fixture.uqlConfig.getQueryClass("Rest.Custom")).thenReturn("plugin.CustomQuery");
+      doReturn(String.class).when(fixture.uqlConfig).getClass("Rest.Custom", "plugin.CustomQuery");
+      when(fixture.endpointCatalogReader.read(String.class)).thenReturn(null);
+
+      List<WizEndpointCatalogType> types = fixture.controller.getEndpointCatalogTypes();
+
+      assertEquals(WizEndpointCatalogType.NOT_CATALOGUED, types.get(0).status());
+   }
+
+   /**
+    * The verdict must come from {@code OrganizationManager}, not from anything the caller can
+    * assert about itself. The system administrator role is named by the configured security
+    * provider and is reachable by inheritance, so a client matching a role name against its own
+    * token claim would be wrong on any deployment that renamed it.
+    */
+   @Test
+   void endpointCatalogAdmin_reportsTheSiteAdminVerdictFromOrganizationManager() {
+      Fixture fixture = new Fixture();
+      OrganizationManager manager = mock(OrganizationManager.class);
+
+      try(MockedStatic<OrganizationManager> statics = mockStatic(OrganizationManager.class)) {
+         statics.when(OrganizationManager::getInstance).thenReturn(manager);
+         when(manager.isSiteAdmin(fixture.principal)).thenReturn(true);
+
+         assertTrue(fixture.controller.getEndpointCatalogAdmin(fixture.principal).siteAdmin());
+
+         when(manager.isSiteAdmin(fixture.principal)).thenReturn(false);
+
+         assertFalse(fixture.controller.getEndpointCatalogAdmin(fixture.principal).siteAdmin(),
+                     "a caller without the system administrator role must not be told it has it");
+      }
    }
 
    /**
