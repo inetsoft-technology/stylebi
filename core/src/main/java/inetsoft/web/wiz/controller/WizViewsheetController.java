@@ -23,8 +23,10 @@ import inetsoft.web.wiz.service.UnsatisfiableBindingException;
 import inetsoft.web.wiz.service.WizAutoBindingService;
 import inetsoft.web.wiz.service.WizGeoService;
 import inetsoft.web.wiz.service.WizVsService;
+import inetsoft.util.InvalidUserException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
@@ -118,7 +120,7 @@ public class WizViewsheetController {
    }
 
    /**
-    * Read-only: returns an existing assembly's rendered data (headers + rows + binding).
+    * Returns an existing assembly's rendered data (headers + rows + binding).
     *
     * <p>For answering a question about a chart built EARLIER in a conversation. The caller holds no
     * copy of that chart's rows; it addresses the chart the way the browser embed does — runtime id
@@ -126,9 +128,16 @@ public class WizViewsheetController {
     * chart's data range (see {@link AssemblyDataRequest}), so the answer and the chart on screen
     * cannot disagree.
     *
+    * <p><b>Read-only in intent, not in effect.</b> Serving this re-executes the assembly's view and
+    * drops its cached render (see {@code WizVsService#executeAndExtract}), and the underlying
+    * sandbox call cancels every in-flight query on that runtime — not only this assembly's. It is
+    * therefore not free to call, and calling it while the browser is rendering the same viewsheet can
+    * cancel an unrelated chart's render.
+    *
     * <p>An assembly whose runtime has been reaped comes back as an empty result rather than an
     * error: the chart is equally unavailable to the user at that point, so "no data to answer from"
-    * is the accurate outcome, not a failure to retry.
+    * is the accurate outcome, not a failure to retry. Same for an assembly that is no longer in the
+    * runtime.
     */
    @PostMapping(value = "/viewsheet/assembly-data", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<?> assemblyData(@Valid @RequestBody AssemblyDataRequest request,
@@ -187,6 +196,21 @@ public class WizViewsheetController {
       }
       catch(IllegalArgumentException e) {
          return ResponseEntity.badRequest().body(Map.of("error", nullToEmpty(e.getMessage())));
+      }
+      // Denials, not faults. WizControllerErrorHandler already maps both of these to 403 for the wiz
+      // package — but an @ControllerAdvice only sees what LEAVES the controller method, and the
+      // catch-all below swallows everything first. So every permission denial on this controller was
+      // answered as a content-free 500 while the advice built to prevent exactly that sat unused; the
+      // same trap the ResponseStatusException case below documents.
+      //
+      // Neither message is echoed. SecurityException carries a catalog string that is safe but
+      // uninformative to the caller, and InvalidUserException's message ("common.invalidUser") names
+      // the user who OWNS the runtime — telling a caller who probed someone else's runtime id whose it
+      // is would answer a question they should not get to ask.
+      catch(inetsoft.sree.security.SecurityException | InvalidUserException e) {
+         LOG.warn("Unauthorized wiz request ({}): {}", action, e.getMessage());
+         return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(Map.of("error", "Forbidden"));
       }
       // Honour the status the thrower chose. ResponseStatusException is a plain RuntimeException, so
       // without this it fell through to the generic handler below and every deliberate 4xx was returned

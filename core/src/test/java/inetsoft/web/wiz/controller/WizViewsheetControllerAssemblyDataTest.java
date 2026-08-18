@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.util.InvalidUserException;
 import inetsoft.web.wiz.model.AssemblyDataRequest;
 import inetsoft.web.wiz.model.CreateViewsheetResult;
 import inetsoft.web.wiz.service.WizAutoBindingService;
@@ -45,6 +46,12 @@ import static org.mockito.Mockito.*;
  * from that chart's own rows. The caller holds only what the front end renders with — the runtime id
  * and the assembly name — so those are the only inputs, and deliberately the only ones: accepting a
  * row cap or a filter here would let a caller quietly fetch data the user's chart does not show.
+ *
+ * <p><b>Scope.</b> These stub {@link WizVsService}, so they pin what the controller does with a result
+ * or an exception — request mapping, and the status each failure becomes. What the service actually
+ * produces (an expired runtime, a missing assembly, the permission gate) belongs to
+ * {@code WizVsServiceFetchAssemblyDataTest}, and must be tested there: a stubbed service can only
+ * confirm the stub.
  */
 @Tag("core")
 class WizViewsheetControllerAssemblyDataTest {
@@ -88,18 +95,53 @@ class WizViewsheetControllerAssemblyDataTest {
    }
 
    @Test
-   void returnsAnEmptyResultWhenTheAssemblyIsGone() throws Exception {
-      // A reaped runtime or a deleted assembly: fetchAssemblyData already answers with an empty
-      // result rather than throwing, and the caller reads "no rows" as "cannot answer from this
-      // chart" — which is the honest outcome, not an error to retry.
+   void passesAnEmptyResultThroughAsA200() throws Exception {
+      // Named for what it can actually establish. It stubs the service, so it says nothing about WHEN
+      // an empty result is produced — that belongs to WizVsServiceFetchAssemblyDataTest. The version
+      // of this test that claimed it ("returnsAnEmptyResultWhenTheAssemblyIsGone") asserted Mockito
+      // rather than StyleBI, which is how an expired runtime went on throwing while the docs said the
+      // opposite: a test named after the claim could never disprove the claim.
       WizVsService svc = mock(WizVsService.class);
       when(svc.fetchAssemblyData(any(), any(), any())).thenReturn(new CreateViewsheetResult());
 
       ResponseEntity<?> resp =
          controller(svc).assemblyData(request("rt-dead", "Chart1"), mock(Principal.class));
 
+      // 200 with no rows, not an error status: "nothing to answer from" is itself an answer.
       assertEquals(HttpStatus.OK, resp.getStatusCode());
       assertNull(((CreateViewsheetResult) resp.getBody()).getRows());
+   }
+
+   @Test
+   void mapsAPermissionDenialTo403() throws Exception {
+      // WizControllerErrorHandler maps SecurityException to 403 for this whole package — but an
+      // @ControllerAdvice only sees what LEAVES the controller method, and run()'s catch-all took it
+      // first. So every permission denial on this controller was answered as a content-free 500 by
+      // the very controller the advice exists to cover.
+      WizVsService svc = mock(WizVsService.class);
+      when(svc.fetchAssemblyData(any(), any(), any()))
+         .thenThrow(new inetsoft.sree.security.SecurityException("denied"));
+
+      ResponseEntity<?> resp =
+         controller(svc).assemblyData(request("rt-1", "Chart1"), mock(Principal.class));
+
+      assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
+   }
+
+   @Test
+   void mapsAnotherUsersRuntimeTo403WithoutNamingItsOwner() throws Exception {
+      // getSheet throws this when the runtime id belongs to someone else. Its message is the
+      // "common.invalidUser" catalog string, which names the OWNING user — echoing that back would
+      // answer, for anyone probing runtime ids, a question they should not get to ask.
+      WizVsService svc = mock(WizVsService.class);
+      when(svc.fetchAssemblyData(any(), any(), any()))
+         .thenThrow(new InvalidUserException("user 'alice' is not 'bob'", mock(Principal.class)));
+
+      ResponseEntity<?> resp =
+         controller(svc).assemblyData(request("rt-someone-else", "Chart1"), mock(Principal.class));
+
+      assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
+      assertEquals(Map.of("error", "Forbidden"), resp.getBody());
    }
 
    @Test
