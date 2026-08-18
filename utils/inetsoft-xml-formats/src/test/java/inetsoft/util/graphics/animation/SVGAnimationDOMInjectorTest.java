@@ -1294,6 +1294,62 @@ class SVGAnimationDOMInjectorTest {
                  "both kept their original d (A=" + newA + ", B=" + newB + ")");
    }
 
+   /**
+    * The ANIMATION_LINE hint is not limited to a pure area chart: VGraphPair.hasLineVO is true for
+    * an AreaVO as well as a LineVO, so an area measure bound beside an independent line measure with
+    * no bar ("area + trend line") lands here too.  Every line was then ranked through the area
+    * colour rank, which the independent line's colour is absent from — it fell back to 0 and drew on
+    * the first area's timeline instead of taking a slot of its own.
+    */
+   @Test
+   void areaChartIndependentLineMeasureGetsItsOwnStaggerSlot() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addLineAreaPair(doc, svg, "10,20,30", "0", "M0 100 L50 60 L100 80 L100 100 L0 100 Z",
+                      "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      addLineAreaPair(doc, svg, "40,50,60", "1", "M0 60 L50 30 L100 50 L100 100 L0 100 Z",
+                      "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      double areaADelay = animationDelayOf(
+         firstDescendantPathOf(borderLineOf(svg, "10,20,30")).getAttribute("style"));
+      double lineDelay = animationDelayOf(
+         firstDescendantPathOf(borderLineOf(svg, "200,10,10")).getAttribute("style"));
+
+      // Two areas plus the line measure — three slots, so the line ranks last at the full window.
+      assertEquals(2.0, lineDelay, 0.001,
+                   "an independent line measure must stagger after both area series");
+      assertNotEquals(areaADelay, lineDelay,
+                      "an independent line measure must not share the first area's delay");
+   }
+
+   /**
+    * Band reshaping pairs annotAreas[i] with annotLines[i] positionally, so the ANIMATION_LINE call
+    * site needs the areas' own border lines alone — exactly like the multi-style branch.  An
+    * interleaved independent line measure shifted the pairing and the colour-equality guard then
+    * silently skipped the reshaping, leaving stacked fills overlapping.
+    */
+   @Test
+   void areaChartStackedFillsAreStillReshapedWhenALineMeasureIsBound() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      String fillA = "M0 100 L50 60 L100 80 L100 100 L0 100 Z";
+      String fillB = "M0 60 L50 30 L100 50 L100 100 L0 100 Z";
+      Element areaA = addLineAreaPair(doc, svg, "10,20,30", "0", fillA, "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      Element areaB = addLineAreaPair(doc, svg, "40,50,60", "1", fillB, "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      String newA = firstDescendantPathOf(areaA).getAttribute("d");
+      String newB = firstDescendantPathOf(areaB).getAttribute("d");
+      assertTrue(!fillA.equals(newA) || !fillB.equals(newB),
+                 "one of two overlapping area fills must be rewritten into a band polygon, but " +
+                 "both kept their original d (A=" + newA + ", B=" + newB + ")");
+   }
+
    /** A plain bar chart references no line/area keyframes, so none may be emitted. */
    @Test
    void plainBarChartGetsNoLineOrWipeKeyframes() throws Exception {

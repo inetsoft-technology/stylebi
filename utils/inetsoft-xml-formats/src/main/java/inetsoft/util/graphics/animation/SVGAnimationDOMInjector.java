@@ -196,17 +196,12 @@ public class SVGAnimationDOMInjector {
          if(!annotAreas.isEmpty()) {
             Map<String, Integer> areaColorRank = buildAreaColorRank(annotAreas);
 
-            // Only the area measures' own border lines, still in DOM order.  An independent line
-            // measure (bar + area + line binds three) also lands in comboLines, and
-            // injectAreaFillAnimation pairs annotAreas[i] with annotLines[i] positionally —
-            // an interleaved line group shifts that pairing, which silently leaves stacked
-            // fills un-reshaped into bands.
-            List<Element> areaBorderLines = comboLines.stream()
-               .filter(g -> areaColorRank.containsKey(g.getAttribute("data-" + SVGSupport.ATTR_COLOR)))
-               .toList();
+            // An independent line measure (bar + area + line binds three) also lands in comboLines,
+            // so drop it: injectAreaFillAnimation needs the areas' own border lines alone.
+            List<Element> borderLines = areaBorderLines(comboLines, areaColorRank);
 
-            injectAreaFillAnimation(annotAreas, areaBorderLines, doc,
-                                    alignAreaRankToLines(areaColorRank, areaBorderLines,
+            injectAreaFillAnimation(annotAreas, borderLines, doc,
+                                    alignAreaRankToLines(areaColorRank, borderLines,
                                                          comboSeriesRank),
                                     Math.max(comboSeriesRank.size(), areaColorRank.size()));
          }
@@ -1347,8 +1342,25 @@ public class SVGAnimationDOMInjector {
 
       int numLineSeries = lineSeriesRank.size();
       int numAreaSeries = areaColorRank.size();
-      int numSeries     = Math.max(numLineSeries, numAreaSeries);
       boolean isAreaChart = !annotAreas.isEmpty();
+
+      // The hint reaches here whenever the graph has a LineVO or an AreaVO and no bar, so an area
+      // measure can arrive beside an independent line measure ("area + trend line", no bars).  Rank
+      // the areas first, then give each remaining line colour a slot of its own after them: matching
+      // every line through areaColorRank alone would collapse an independent line to the default 0
+      // and draw it on top of the first area's timeline.  Area colours keep the ranks
+      // buildAreaColorRank gave them, so a pure area or pure line chart is unaffected.
+      Map<String, Integer> areaChartLineRank = new LinkedHashMap<>(areaColorRank);
+
+      if(isAreaChart) {
+         for(Element g : annotLines) {
+            areaChartLineRank.putIfAbsent(g.getAttribute("data-" + SVGSupport.ATTR_COLOR),
+                                          areaChartLineRank.size());
+         }
+      }
+
+      int numSeries = isAreaChart ? areaChartLineRank.size()
+                                  : Math.max(numLineSeries, numAreaSeries);
       // Dots and value labels appear after all series have finished their line animation.
       double dotDelay = AnimationConstants.staggerDelay(numSeries - 1, numSeries)
                         + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
@@ -1377,7 +1389,7 @@ public class SVGAnimationDOMInjector {
 
          if(isAreaChart) {
             String color = g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-            seriesIdx = areaColorRank.getOrDefault(color, 0);
+            seriesIdx = areaChartLineRank.getOrDefault(color, 0);
          }
          else {
             seriesIdx = lineSeriesRank.getOrDefault(seriesKey(g), 0);
@@ -1414,8 +1426,12 @@ public class SVGAnimationDOMInjector {
          applyLineDrawAnimation(g, path, delay);
       }
 
-      // Area fill groups — wipe left-to-right, then reshape stacked fills into bands.
-      injectAreaFillAnimation(annotAreas, annotLines, doc, areaColorRank, numSeries);
+      // Area fill groups — wipe left-to-right, then reshape stacked fills into bands.  Only the
+      // areas' own border lines: injectAreaFillAnimation pairs them with annotAreas positionally,
+      // and an independent line measure interleaved in DOM order would shift that pairing and
+      // silently skip the band reshaping (same reason the multi-style branch filters).
+      injectAreaFillAnimation(annotAreas, areaBorderLines(annotLines, areaColorRank), doc,
+                              areaColorRank, numSeries);
 
       // Inject ghost fills in reverse so earlier (lower-indexed) series render behind later ones.
       for(int gi = ghostFills.size() - 1; gi >= 0; gi--) {
@@ -1501,6 +1517,22 @@ public class SVGAnimationDOMInjector {
    }
 
    /**
+    * The area measures' own border lines, in DOM order — the line groups whose {@code data-color}
+    * belongs to an area series, with any independent line measure's groups dropped.
+    *
+    * <p>{@link #injectAreaFillAnimation} pairs {@code annotAreas[i]} with {@code annotLines[i]}
+    * positionally, so an unrelated line group interleaved in DOM order shifts the pairing and makes
+    * the band reshaping fall through its colour-equality guard.
+    */
+   private static List<Element> areaBorderLines(List<Element> annotLines,
+                                                Map<String, Integer> areaColorRank)
+   {
+      return annotLines.stream()
+         .filter(g -> areaColorRank.containsKey(g.getAttribute("data-" + SVGSupport.ATTR_COLOR)))
+         .toList();
+   }
+
+   /**
     * Re-point an area color rank at the stagger ranks its border lines actually got, so a fill and
     * its own border line animate at the same moment.
     *
@@ -1556,7 +1588,8 @@ public class SVGAnimationDOMInjector {
     *
     * <p>{@code annotLines} must hold only the areas' border lines, in DOM order: {@code annotAreas}
     * and {@code annotLines} are paired by position (see below), so any unrelated line group mixed in
-    * would shift the pairing and skip band reshaping.
+    * would shift the pairing and skip band reshaping.  Both call sites narrow the list through
+    * {@link #areaBorderLines} to satisfy this.
     *
     * <p>The caller must have emitted the {@code inetsoft-line-wipe} keyframes.
     *
