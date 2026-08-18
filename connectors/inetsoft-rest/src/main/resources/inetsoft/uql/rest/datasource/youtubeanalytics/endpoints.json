@@ -1,9 +1,10 @@
 {
-    "endpoints": [
-        {
-            "name": "Reports Query",
-            "pageType": 1,
-            "suffix": "/v2/reports?startDate={Start Date:YYYY-MM-DD}&endDate={End Date:YYYY-MM-DD}&ids={ID :channel==CHANNEL ID Or contentOwner==OWNER NAME}&metrics={Metrics:views,likes,dislikes}&currency={Currency?:estimatedRevenue | estimatedAdRevenue | ...}&dimensions={Dimensions?:video,ageGroup,gender}&filters={Filters?:country==IT}&includeHistoricalChannelData={Include Historical Channel Data?:true | false}"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Reports Query",
+      "pageType": 1,
+      "suffix": "/v2/reports?startDate={Start Date:YYYY-MM-DD}&endDate={End Date:YYYY-MM-DD}&ids={ID :channel==CHANNEL ID Or contentOwner==OWNER NAME}&metrics={Metrics:views,likes,dislikes}&currency={Currency?:estimatedRevenue | estimatedAdRevenue | ...}&dimensions={Dimensions?:video,ageGroup,gender}&filters={Filters?:country==IT}&includeHistoricalChannelData={Include Historical Channel Data?:true | false}",
+      "description": "The entire YouTube Analytics API in one endpoint: a report is DEFINED BY ITS PARAMETERS rather than chosen from a list. metrics names what is measured (views, estimatedMinutesWatched, averageViewDuration, subscribersGained, likes, estimatedRevenue and the rest), dimensions names how it is cut (day, video, country, insightTrafficSourceType, ageGroup), and filters narrows it. So this single row in the connector stands for hundreds of possible reports, and the question decides the request. THREE THINGS CONSTRAIN IT. The ids parameter must name the owner -- channel==MINE for a channel, or a content owner id -- and reports differ by which is used. NOT EVERY METRIC WORKS WITH EVERY DIMENSION: YouTube publishes a fixed set of valid combinations, and an invalid pair returns an error rather than an empty result. And revenue and ad-performance metrics require the account to be in the Partner Programme and the caller to hold monetary scopes, so their absence is a permissions fact rather than zero earnings. Data also settles over a few days, so recent figures move after the fact."
+    }
+  ]
 }

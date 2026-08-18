@@ -1,54 +1,64 @@
 {
-    "endpoints": [
-        {
-            "name": "Field",
-            "paged": false,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/fields/{Field ID}"
-        },
-        {
-            "name": "Fields",
-            "paged": true,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/fields?filter={Filter}"
-        },
-        {
-            "name": "Index",
-            "paged": false,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/indexes/{Index ID}"
-        },
-        {
-            "name": "Indexes",
-            "paged": true,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/indexes?filter={Filter?}"
-        },
-        {
-            "name": "Document",
-            "paged": false,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/documents/{Document Path}?mask={Document Mask?}&transaction={Transaction?}&readTime={Read Time?:YYYY-MM-DDThh:mm:ssZ}"
-        },
-        {
-            "name": "Documents",
-            "paged": true,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/documents/{Document Path?}/{Collection ID}?orderBy={Order By?}&mask={Document Mask?}&showMissing={Show Missing?:true|false}&transaction={Transaction?}&readTime={Read Time?:YYYY-MM-DDThh:mm:ssZ}"
-        },
-        {
-            "name": "Operation",
-            "paged": false,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/operations/{Operation}"
-        },
-        {
-            "name": "Operations",
-            "paged": true,
-            "suffix": "/v1/projects/#projectId#/databases/{Database ID}/operations?filter={Filter?}"
-        },
-        {
-            "name": "Location",
-            "paged": false,
-            "suffix": "/v1/projects/#projectId#/locations/{Location}"
-        },
-        {
-            "name": "Locations",
-            "paged": true,
-            "suffix": "/v1/projects/#projectId#/locations?filter={Filter?}"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Field",
+      "paged": false,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/fields/{Field ID}",
+      "description": "One field configuration by name."
+    },
+    {
+      "name": "Fields",
+      "paged": true,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/fields?filter={Filter}",
+      "description": "The field configurations of one collection group -- which fields have single-field indexing overridden, and any TTL policy. Requires the database and collection group. Configuration rather than data, but it explains why a query on a particular field is refused."
+    },
+    {
+      "name": "Index",
+      "paged": false,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/indexes/{Index ID}",
+      "description": "One composite index by id, with its state. The state matters: an index still building does not yet serve queries."
+    },
+    {
+      "name": "Indexes",
+      "paged": true,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/collectionGroups/{Collection ID}/indexes?filter={Filter?}",
+      "description": "The composite indexes defined on one collection group, with the fields and orderings each covers. Requires the database and collection group. FIRESTORE REFUSES ANY QUERY IT HAS NO INDEX FOR, so this is the definitive statement of which queries are possible against a collection -- and the first place to look when a query fails rather than returns nothing."
+    },
+    {
+      "name": "Document",
+      "paged": false,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/documents/{Document Path}?mask={Document Mask?}&transaction={Transaction?}&readTime={Read Time?:YYYY-MM-DDThh:mm:ssZ}",
+      "description": "One document by its full path. Requires the database id and document path. The mask parameter limits which fields come back, which is worth using on documents holding large maps or arrays."
+    },
+    {
+      "name": "Documents",
+      "paged": true,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/documents/{Document Path?}/{Collection ID}?orderBy={Order By?}&mask={Document Mask?}&showMissing={Show Missing?:true|false}&transaction={Transaction?}&readTime={Read Time?:YYYY-MM-DDThh:mm:ssZ}",
+      "description": "The documents in one Firestore collection. Requires the database id and the collection path. Firestore is schemaless, so DOCUMENTS IN THE SAME COLLECTION NEED NOT SHARE FIELDS, and each value comes back wrapped in a type tag -- stringValue, integerValue, timestampValue, mapValue, arrayValue -- rather than as a bare value, so every field needs unwrapping before use. Note also that subcollections are NOT returned with their parent: a document's nested collections are separate paths and must be walked deliberately."
+    },
+    {
+      "name": "Operation",
+      "paged": false,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/operations/{Operation}",
+      "description": "One long-running operation by name, with its state and result."
+    },
+    {
+      "name": "Operations",
+      "paged": true,
+      "suffix": "/v1/projects/#projectId#/databases/{Database ID}/operations?filter={Filter?}",
+      "description": "The long-running administrative operations on one database -- imports, exports, index builds -- with their progress and outcome. Requires the database id. Operational; an export is how a full Firestore extract is actually obtained, since the document endpoints page rather than dump."
+    },
+    {
+      "name": "Location",
+      "paged": false,
+      "suffix": "/v1/projects/#projectId#/locations/{Location}",
+      "description": "One location by name."
+    },
+    {
+      "name": "Locations",
+      "paged": true,
+      "suffix": "/v1/projects/#projectId#/locations?filter={Filter?}",
+      "description": "The regions a Firestore database can be created in for this project. Reference data; relevant to data-residency questions."
+    }
+  ]
 }

@@ -7,28 +7,33 @@
       "lookups": [
         {
           "endpoints": [
-            "Calendar", "Events"
+            "Calendar",
+            "Events"
           ],
           "jsonPath": "$.items[*]",
           "key": "items.id",
           "parameterName": "Calendar ID"
         }
-      ]
+      ],
+      "description": "The calendars in the authenticated user's list, each with its id, summary, time zone, colour, the ACCESS ROLE the user holds on it, and whether it is selected or primary. The starting point: every event query needs a calendar id, and the access role is what decides whether event details or only free-busy blocks come back."
     },
     {
       "name": "Calendar List",
       "paged": false,
-      "suffix": "/v3/users/me/calendarList/{Calendar ID}"
+      "suffix": "/v3/users/me/calendarList/{Calendar ID}",
+      "description": "One calendar list entry by id, with the user's own settings for it -- colour, notifications, default reminders."
     },
     {
       "name": "Calendar",
       "paged": false,
-      "suffix": "/v3/calendars/{Calendar ID}"
+      "suffix": "/v3/calendars/{Calendar ID}",
+      "description": "One calendar's own properties: summary, description, location and time zone. Distinct from the list entry, which holds the USER's settings for that calendar; this holds the calendar's, and the time zone here is what recurrence rules are evaluated against."
     },
     {
       "name": "Colors",
       "paged": false,
-      "suffix": "/v3/colors"
+      "suffix": "/v3/colors",
+      "description": "The colour palette calendars and events can use, as id-to-hex pairs. A small decoder: events carry a colorId and nothing else, so the actual colour is only readable through this."
     },
     {
       "name": "Events",
@@ -37,33 +42,38 @@
       "lookups": [
         {
           "endpoints": [
-             "Recurring Event Instances"
+            "Recurring Event Instances"
           ],
           "jsonPath": "$.items[*]",
           "key": "items.id",
           "parameterName": "Event ID"
         }
-      ]
+      ],
+      "description": "The events of one calendar. Requires a calendar id. Carries summary, description, location, start and end, attendees with their response status, organizer, creator, status, recurrence rules, and created and updated times. THE START AND END ARE POLYMORPHIC: a timed event carries dateTime with a time zone, an all-day event carries date instead, and code that reads only one of them silently drops the other kind. RECURRING EVENTS RETURN AS A SINGLE ROW carrying a recurrence rule, not as one row per occurrence -- pass singleEvents=true to expand them, or a weekly meeting counts once. Note also that cancelled occurrences appear as rows with status cancelled rather than disappearing."
     },
     {
       "name": "Event",
       "paged": false,
-      "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}?maxAttendees={Max Attendees?}&timeZone={Time Zone?}"
+      "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}?maxAttendees={Max Attendees?}&timeZone={Time Zone?}",
+      "description": "One event by id. Requires the calendar id. Same polymorphic start and end."
     },
     {
       "name": "Recurring Event Instances",
       "paged": true,
-      "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}/instances?maxAttendees={Max Attendees?}&originalStart={Original Start Time?}&showDeleted={Show Deleted?:True|False}&timeMax={Before Time?:yyyy-MM-ddTHH:mm:ssZ}&timeMin={After Time?:yyyy-MM-ddTHH:mm:ssZ}&timeZone={Time Zone?}"
+      "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}/instances?maxAttendees={Max Attendees?}&originalStart={Original Start Time?}&showDeleted={Show Deleted?:True|False}&timeMax={Before Time?:yyyy-MM-ddTHH:mm:ssZ}&timeMin={After Time?:yyyy-MM-ddTHH:mm:ssZ}&timeZone={Time Zone?}",
+      "description": "The individual occurrences of one recurring event, expanded. Requires the calendar id and the recurring event id. The explicit way to turn a rule into dated rows, including any occurrence that was moved or cancelled -- which the rule alone cannot express."
     },
     {
       "name": "Settings",
       "paged": true,
-      "suffix": "/v3/users/me/settings"
+      "suffix": "/v3/users/me/settings",
+      "description": "The authenticated user's calendar settings -- default time zone, week start, working-hours and locale preferences. Relevant because the user's time zone is what the interface renders events in, which need not match the calendar's own."
     },
     {
       "name": "Setting",
       "paged": false,
-      "suffix": "/v3/users/me/settings/{Setting ID}"
+      "suffix": "/v3/users/me/settings/{Setting ID}",
+      "description": "One setting by id."
     }
   ]
 }

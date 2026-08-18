@@ -3,47 +3,56 @@
     {
       "name": "Clients",
       "paged": true,
-      "suffix": "/v1/workspaces/{Workspace Id}/clients?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+      "suffix": "/v1/workspaces/{Workspace Id}/clients?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
+      "description": "The clients in one workspace, with name and archived state. Requires a workspace id. The top of the billing hierarchy: projects belong to clients, so this is the axis client-profitability questions group by."
     },
     {
       "name": "Projects",
       "paged": true,
-      "suffix": "/v1/workspaces/{Workspace Id}/projects?archived={Archived?:true|false}&name={Name?}&billable={Billable?:true|false}&clients={Clients?}&contains-client={Contains Client?:true|false}&client-status={Client Status?:ACTIVE|ARCHIVED}&users={Users?}&contains-users={Contains Users?:true|false}&is-template={Is Template?:true|false}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+      "suffix": "/v1/workspaces/{Workspace Id}/projects?archived={Archived?:true|false}&name={Name?}&billable={Billable?:true|false}&clients={Clients?}&contains-client={Contains Client?:true|false}&client-status={Client Status?:ACTIVE|ARCHIVED}&users={Users?}&contains-users={Contains Users?:true|false}&is-template={Is Template?:true|false}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
+      "description": "The projects in one workspace, with name, the client, colour, billable flag, hourly rate, estimate, and archived state. Requires a workspace id. The HOURLY RATE here is what turns recorded time into money -- a time entry carries duration and nothing else, so revenue is always a join. Archived projects are excluded by default, which quietly drops finished work from any historical total."
     },
     {
       "name": "Project",
       "paged": false,
-      "suffix": "/v1/workspaces/{Workspace Id}/{Project Id}"
+      "suffix": "/v1/workspaces/{Workspace Id}/{Project Id}",
+      "description": "One project by id. Requires the workspace id."
     },
     {
       "name": "Tags",
       "paged": true,
-      "suffix": "/v1/workspaces/{Workspace Id}/tags?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+      "suffix": "/v1/workspaces/{Workspace Id}/tags?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
+      "description": "The tags in one workspace. Requires a workspace id. Tags are the free-form cross-cutting label on time entries -- billable category, activity type, whatever the team chose -- and often the only dimension beyond project and task."
     },
     {
       "name": "Tasks",
       "paged": true,
-      "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks?is-active={Is Active?:true|false}&name={Name?}"
+      "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks?is-active={Is Active?:true|false}&name={Name?}",
+      "description": "The tasks within one project, with name, status, estimate and assignees. Requires the workspace and project ids. The level below project that time is booked against."
     },
     {
       "name": "Task",
       "paged": false,
-      "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks/{Task Id}"
+      "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks/{Task Id}",
+      "description": "One task by id. Requires the workspace and project ids."
     },
     {
       "name": "Time Entries",
       "paged": true,
-      "suffix": "/v1/workspaces/{Workspace Id}/user/{User Id}/time-entries?description={Description?}&start={Start?:yyyy-MM-ddTHH:mm:ss}&end={End?:yyyy-MM-ddTHH:mm:ss}&project={Project?}&task={Task?}&tags={Tags?}&project-required={Project Required?:true|false}&task-required={Task Required?:true|false}&consider-duration-format={Consider Duration Format?:true|false}&hydrated={Hydrated?:true|false}&in-project={In Progress?:true|false}"
+      "suffix": "/v1/workspaces/{Workspace Id}/user/{User Id}/time-entries?description={Description?}&start={Start?:yyyy-MM-ddTHH:mm:ss}&end={End?:yyyy-MM-ddTHH:mm:ss}&project={Project?}&task={Task?}&tags={Tags?}&project-required={Project Required?:true|false}&task-required={Task Required?:true|false}&consider-duration-format={Consider Duration Format?:true|false}&hydrated={Hydrated?:true|false}&in-project={In Progress?:true|false}",
+      "description": "The time entries of ONE USER. Requires the workspace and user ids. Carries the description, the project and task, tags, the billable flag, and a timeInterval holding start, end and duration. TWO THINGS. It is per user, so a workspace-wide extract is a loop over the member list. And DURATION IS AN ISO 8601 PERIOD STRING like PT1H30M, not a number -- it must be parsed before it can be summed, and a running entry has no end and no duration at all."
     },
     {
       "name": "Time Entry",
       "paged": false,
-      "suffix": "/v1/workspaces/{Workspace Id}/time-entries/{Time Entry Id}"
+      "suffix": "/v1/workspaces/{Workspace Id}/time-entries/{Time Entry Id}",
+      "description": "One time entry by id. Requires the workspace id. Same ISO duration format."
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/v1/user"
+      "suffix": "/v1/user",
+      "description": "The account the credentials belong to. One record, always the caller -- and the id needed by the time entry endpoints, which are addressed per user."
     },
     {
       "name": "Users",
@@ -56,12 +65,14 @@
           "key": "id",
           "parameterName": "User Id"
         }
-      ]
+      ],
+      "description": "The members of one workspace, with name, email, status and their memberships. Requires a workspace id. Status separates active members from those deactivated, who still own their historical entries."
     },
     {
       "name": "Groups",
       "paged": true,
-      "suffix": "/v1/workspaces/{Workspace Id}/user-groups?name={Name?}&projectId={Project Id?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+      "suffix": "/v1/workspaces/{Workspace Id}/user-groups?name={Name?}&projectId={Project Id?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
+      "description": "The user groups in one workspace. Requires a workspace id. Groups are how permissions and project access are granted in bulk."
     },
     {
       "name": "Workspaces",
@@ -81,7 +92,8 @@
           "key": "id",
           "parameterName": "Workspace Id"
         }
-      ]
+      ],
+      "description": "The workspaces the authenticated user belongs to, with name, and the settings that govern time tracking -- rounding, whether time can be entered for other users, and the default billable state. Every other endpoint needs a workspace id, so this is the first request. The ROUNDING SETTING is worth reading: where it is on, recorded durations are adjusted before they reach reports, so raw time entries and report totals legitimately disagree."
     },
     {
       "name": "Summary Report",
@@ -89,8 +101,8 @@
       "post": true,
       "suffix": "/v1/workspaces/{Workspace Id}/reports/summary",
       "url": "https://reports.api.clockify.me",
-      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"summaryFilter\": {\n \"groups\": [\n \"USER\",\n \"PROJECT\",\n \"TIMEENTRY\"\n ]\n }\n }\n"
-
+      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"summaryFilter\": {\n \"groups\": [\n \"USER\",\n \"PROJECT\",\n \"TIMEENTRY\"\n ]\n }\n }\n",
+      "description": "Totals grouped by up to three levels -- project, client, user, tag, date -- for a date range. Sent as a POST with the grouping and filters in the body, against Clockify's separate reports host. THE RIGHT ENDPOINT FOR ANY AGGREGATE: it applies the workspace's rounding and rates, which summing raw time entries does not, so its totals are the ones that match what the business bills."
     },
     {
       "name": "Detailed Report",
@@ -98,7 +110,8 @@
       "post": true,
       "suffix": "/v1/workspaces/{Workspace Id}/reports/detailed",
       "url": "https://reports.api.clockify.me",
-      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\"\n}\n"
+      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\"\n}\n",
+      "description": "Every individual time entry matching the filters, with its project, task, user, tags and amount, for a date range. POST, same reports host. The row-level companion to the summary, and the practical way to extract a workspace's entries in one request rather than looping per user."
     },
     {
       "name": "Weekly Report",
@@ -106,7 +119,8 @@
       "post": true,
       "suffix": "/v1/workspaces/{Workspace Id}/reports/weekly",
       "url": "https://reports.api.clockify.me",
-      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"weeklyFilter\": {\n \"group\": \"USER\",\n \"subgroup\": \"TIME\"\n }\n }\n"
+      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"weeklyFilter\": {\n \"group\": \"USER\",\n \"subgroup\": \"TIME\"\n }\n }\n",
+      "description": "Time totals laid out by day of week for a range, per user or per project. POST, same reports host. Built for timesheet review rather than analysis."
     }
   ]
 }

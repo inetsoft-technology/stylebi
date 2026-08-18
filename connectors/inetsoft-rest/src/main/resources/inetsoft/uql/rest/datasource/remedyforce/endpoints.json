@@ -1,64 +1,76 @@
 {
-    "endpoints": [
-        {
-            "name": "Version",
-            "paged": false,
-            "suffix": "/1.0/ServiceUtil/Version"
-        },
-        {
-            "name": "User Detail",
-            "paged": false,
-            "suffix": "/1.0/ServiceUtil/UserDetail"
-        },
-        {
-            "name": "Categories",
-            "paged": false,
-            "suffix": "/1.0/Category"
-        },
-        {
-            "name": "Queues",
-            "paged": false,
-            "suffix": "/1.0/Queue/{Object Name}"
-        },
-        {
-            "name": "Queue",
-            "paged": false,
-            "suffix": "/1.0/Queue/{Record ID}"
-        },
-        {
-            "name": "Knowledge Articles",
-            "paged": false,
-            "suffix": "/1.0/KnowledgeArticle"
-        },
-        {
-            "name": "Knowledge Article",
-            "paged": false,
-            "suffix": "/1.0/KnowledgeArticle/{Article ID}"
-        },
-        {
-            "name": "Service Requests",
-            "paged": false,
-            "suffix": "/1.0/ServiceRequest?query={Query?}&date={Date?:Unix Timestamp}&batchSize={Batch Size?}"
-        },
-        {
-            "name": "Service Request",
-            "paged": false,
-            "suffix": "/1.0/ServiceRequest/{Request ID}"
-        },
-        {
-            "name": "Pending Approval Request",
-            "paged": false,
-            "suffix": "/1.0/Approval"
-        },
-        {
-            "name": "CMDB Parent and Child Class Attributes",
-            "paged": false,
-            "suffix": "/1.0/cmdb/getClassAttributes/{Class Name}/all"
-        },
-        {
-            "name": "CMDB Class Attributes",
-            "paged": false,
-            "suffix": "/1.0/cmdb/getClassAttributes/{Class Name}/specific"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Version",
+      "paged": false,
+      "suffix": "/1.0/ServiceUtil/Version",
+      "description": "The Remedyforce API version installed. One record; available fields and behaviour vary by release."
+    },
+    {
+      "name": "User Detail",
+      "paged": false,
+      "suffix": "/1.0/ServiceUtil/UserDetail",
+      "description": "The account the credentials belong to, with its Salesforce user record and permissions. Worth reading first, since Salesforce sharing rules filter nearly everything here and two users legitimately see different rows."
+    },
+    {
+      "name": "Categories",
+      "paged": false,
+      "suffix": "/1.0/Category",
+      "description": "The service request categories configured, which classify incoming requests. The dimension request volume is broken down by, and account-specific rather than standard."
+    },
+    {
+      "name": "Queues",
+      "paged": false,
+      "suffix": "/1.0/Queue/{Object Name}",
+      "description": "The queues defined for a named object, each with its name and id. Requires an object name. Queues are how work is routed to teams in Salesforce, so this is the assignment dimension."
+    },
+    {
+      "name": "Queue",
+      "paged": false,
+      "suffix": "/1.0/Queue/{Record ID}",
+      "description": "One queue by record id."
+    },
+    {
+      "name": "Knowledge Articles",
+      "paged": false,
+      "suffix": "/1.0/KnowledgeArticle",
+      "description": "The knowledge base articles, with title, summary and status. The self-service content alongside the ticket data."
+    },
+    {
+      "name": "Knowledge Article",
+      "paged": false,
+      "suffix": "/1.0/KnowledgeArticle/{Article ID}",
+      "description": "One knowledge article by id, with its body."
+    },
+    {
+      "name": "Service Requests",
+      "paged": false,
+      "suffix": "/1.0/ServiceRequest?query={Query?}&date={Date?:Unix Timestamp}&batchSize={Batch Size?}",
+      "description": "The service requests raised, with their fields as configured on the Salesforce object behind them. Takes an optional query, a date for incremental retrieval, and a batch size. THE MAIN DATA TABLE. Remedyforce runs on Salesforce, so the available fields are whatever the org's administrator configured -- nothing about the schema is fixed, and the query parameter takes Salesforce-style criteria. The date parameter is the incremental hook: it returns what changed after a timestamp, which is how a downstream copy is kept current."
+    },
+    {
+      "name": "Service Request",
+      "paged": false,
+      "suffix": "/1.0/ServiceRequest/{Request ID}",
+      "description": "One service request by id, with its full field set."
+    },
+    {
+      "name": "Pending Approval Request",
+      "paged": false,
+      "suffix": "/1.0/Approval",
+      "description": "The approval requests awaiting action. Approval steps sit outside the request record itself, so a request stalled awaiting sign-off shows here and not in its own status."
+    },
+    {
+      "name": "CMDB Parent and Child Class Attributes",
+      "paged": false,
+      "suffix": "/1.0/cmdb/getClassAttributes/{Class Name}/all",
+      "description": "The attributes of one class INCLUDING those inherited from its parent classes. Requires a class name. CMDB classes form an inheritance hierarchy, so the specific-only list is usually short and misleading; this is the complete set an instance of the class actually carries."
+    },
+    {
+      "name": "CMDB Class Attributes",
+      "paged": false,
+      "suffix": "/1.0/cmdb/getClassAttributes/{Class Name}/specific",
+      "description": "The attributes defined on ONE configuration item class, without inherited ones. Requires a class name. The CMDB is where infrastructure and assets are modelled, and its classes are account-specific -- so this is the schema lookup that makes CMDB data readable."
+    }
+  ]
 }

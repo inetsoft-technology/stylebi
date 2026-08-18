@@ -3,12 +3,14 @@
     {
       "name": "Client",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/clients/{Client ID}"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/clients/{Client ID}",
+      "description": "One client by id. Requires the workspace id."
     },
     {
-      "name" : "Clients",
-      "paged" : false,
-      "suffix" : "/api/v9/workspaces/{Workspace ID}/clients"
+      "name": "Clients",
+      "paged": false,
+      "suffix": "/api/v9/workspaces/{Workspace ID}/clients",
+      "description": "The clients in one workspace. Requires a workspace id. The billing entity projects belong to. NOTE this is the same endpoint as Workspace Clients under a second name -- the two are identical and either will do."
     },
     {
       "name": "Workspace Projects",
@@ -24,47 +26,56 @@
           "key": "id",
           "parameterName": "Workspace ID"
         }
-      ]
+      ],
+      "description": "The projects in one workspace, with name, client, active state, billable flag, the hourly rate, colour, and estimated hours. Requires a workspace id. The rate is what turns tracked time into money. Filter with active, which defaults to returning only live projects and so omits completed work from historical totals."
     },
     {
       "name": "Workspace Project",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}",
+      "description": "One project by id. Requires the workspace id."
     },
     {
       "name": "Workspace Project Users",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/project_users"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/project_users",
+      "description": "Who is assigned to which project, with each assignment's own hourly rate. Requires a workspace id. THE PER-PERSON RATE OVERRIDES THE PROJECT RATE, so billing a project at its headline rate overstates or understates it wherever these exist."
     },
     {
       "name": "Workspace Project Tasks",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/",
+      "description": "The tasks within one project, with name, estimated seconds and active state. Requires the workspace and project ids."
     },
     {
       "name": "Workspace Task",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/{Task ID}"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/{Task ID}",
+      "description": "One task by id. Requires the workspace and project ids."
     },
     {
       "name": "Time Entry",
       "paged": false,
-      "suffix": "/api/v9/me/time_entries/{Time Entry ID}"
+      "suffix": "/api/v9/me/time_entries/{Time Entry ID}",
+      "description": "One time entry by id. Same negative-duration convention for a running entry."
     },
     {
       "name": "Current Time Entry",
       "paged": false,
-      "suffix": "/api/v9/me/time_entries/current"
+      "suffix": "/api/v9/me/time_entries/current",
+      "description": "The entry the caller is running right now, or nothing if the clock is stopped. A live check rather than data."
     },
     {
       "name": "Time Entries",
       "paged": false,
-      "suffix": "/api/v9/me/time_entries?start_date={Start Date?:yyyy-MM-ddTHH:mm:ssZ}&end_date={End Date?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/api/v9/me/time_entries?start_date={Start Date?:yyyy-MM-ddTHH:mm:ssZ}&end_date={End Date?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The time entries of the AUTHENTICATED USER, filtered by a date range. Carries description, project, task, tags, billable flag, start and stop, and DURATION IN SECONDS. Two things: it is the caller's own entries only, so a workspace-wide extract is not possible through this endpoint; and a RUNNING ENTRY HAS A NEGATIVE DURATION -- Toggl encodes the start time as a negative number until the entry stops, so summing without filtering those out corrupts the total."
     },
     {
       "name": "Current User",
       "paged": false,
-      "suffix": "/api/v9/me?with_related_data={With Related Data?:true|false}"
+      "suffix": "/api/v9/me?with_related_data={With Related Data?:true|false}",
+      "description": "The account the credentials belong to. One record. Pass with_related_data to have workspaces, clients, projects and tags returned alongside, which saves several requests when bootstrapping."
     },
     {
       "name": "Workspaces",
@@ -85,42 +96,50 @@
           "key": "id",
           "parameterName": "Workspace ID"
         }
-      ]
+      ],
+      "description": "The workspaces the authenticated user belongs to, with name, the default hourly rate and currency, and the rounding settings. Every other endpoint needs a workspace id. As with any time tracker, ROUNDING MEANS RAW ENTRY DURATIONS AND REPORTED TOTALS CAN LEGITIMATELY DIFFER."
     },
     {
       "name": "Workspace",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}"
+      "suffix": "/api/v9/workspaces/{Workspace ID}",
+      "description": "One workspace by id, with its settings."
     },
     {
       "name": "All Users",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/users"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/users",
+      "description": "The users in one workspace, as user records with name and email. Requires a workspace id."
     },
     {
-      "name" : "Workspace Clients",
-      "paged" : false,
-      "suffix" : "/api/v9/workspaces/{Workspace ID}/clients"
+      "name": "Workspace Clients",
+      "paged": false,
+      "suffix": "/api/v9/workspaces/{Workspace ID}/clients",
+      "description": "The clients in one workspace. Identical to Clients; the connector carries the same endpoint under both names."
     },
     {
       "name": "Workspace Project Groups",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/groups"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/groups",
+      "description": "The group-level project assignments in one workspace. Requires a workspace id."
     },
     {
       "name": "Workspace Tasks",
       "paged": true,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/tasks?active={Active?:true|false|both}"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/tasks?active={Active?:true|false|both}",
+      "description": "Every task across the workspace rather than per project. Requires a workspace id. The efficient way to inventory tasks without walking projects."
     },
     {
       "name": "Workspace Tags",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/tags"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/tags",
+      "description": "The tags in one workspace. Requires a workspace id. The free-form dimension on time entries beyond project and task."
     },
     {
       "name": "Workspace Users",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/workspace_users"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/workspace_users",
+      "description": "The workspace MEMBERSHIP records rather than the users themselves -- carrying each person's role, whether they are active, and their labour cost. Requires a workspace id. The cost field is here and not on the user, so any cost-of-time calculation joins through this table."
     }
   ]
 }

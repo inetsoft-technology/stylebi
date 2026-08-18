@@ -3,7 +3,8 @@
     {
       "paged": "false",
       "name": "Index",
-      "suffix": "/indexes/{Index Name}?api-version=2019-05-06"
+      "suffix": "/indexes/{Index Name}?api-version=2019-05-06",
+      "description": "One index by name, with its full field definitions, analyzers, scoring profiles and suggesters."
     },
     {
       "paged": "false",
@@ -21,32 +22,38 @@
           "key": "name",
           "parameterName": "Index Name"
         }
-      ]
+      ],
+      "description": "The search indexes defined on the service, each with its fields, their types, and which are searchable, filterable, sortable, facetable and retrievable. The schema of a search service; every document query needs an index name, so this is the first request. THE PER-FIELD FLAGS ARE WHAT DECIDE WHAT IS POSSIBLE: a field that is not filterable cannot be filtered on, and the query fails rather than returning nothing."
     },
     {
       "paged": "false",
       "name": "Index Statistics",
-      "suffix": "/indexes/{Index Name}/stats?api-version=2019-05-06"
+      "suffix": "/indexes/{Index Name}/stats?api-version=2019-05-06",
+      "description": "The document count and storage size of one index. Requires an index name. The cheap way to size an index without counting documents."
     },
     {
       "paged": "true",
       "name": "Document Search",
-      "suffix": "/indexes/{Index Name}/docs?api-version=2019-05-06&search={Search Text?}"
+      "suffix": "/indexes/{Index Name}/docs?api-version=2019-05-06&search={Search Text?}",
+      "description": "Searches one index. Requires an index name; takes the search text plus optional filter, select, orderby, facet, top and skip. The main data endpoint. NOTE THE PAGING LIMIT: skip is capped at 100,000, so an index cannot be exhaustively paged this way -- large extracts need a filter that partitions the data. Facets are the cheap way to get counts by field without retrieving documents at all."
     },
     {
       "paged": "false",
       "name": "Document",
-      "suffix": "/indexes/{Index Name}/docs/{Document Key}?api-version=2019-05-06"
+      "suffix": "/indexes/{Index Name}/docs/{Document Key}?api-version=2019-05-06",
+      "description": "One document by its key. Requires the index name and document key."
     },
     {
       "paged": "false",
       "name": "Document Count",
-      "suffix": "/indexes/{Index Name}/docs/$count?api-version=2019-05-06"
+      "suffix": "/indexes/{Index Name}/docs/$count?api-version=2019-05-06",
+      "description": "The number of documents in one index. Requires an index name. A single number."
     },
     {
       "paged": "false",
       "name": "Data Source",
-      "suffix": "/datasources/{Data Source Name}?api-version=2019-05-06"
+      "suffix": "/datasources/{Data Source Name}?api-version=2019-05-06",
+      "description": "One data source by name, with its connection details and change-detection policy."
     },
     {
       "paged": "false",
@@ -59,17 +66,20 @@
           "key": "name",
           "parameterName": "Data Source Name"
         }
-      ]
+      ],
+      "description": "The external stores indexers pull from -- Azure SQL, Cosmos DB, Blob Storage -- with their type and container. Configuration, and the answer to where an index's contents originate."
     },
     {
       "paged": "false",
       "name": "Indexer",
-      "suffix": "/indexers/{Indexer Name}?api-version=2019-05-06"
+      "suffix": "/indexers/{Indexer Name}?api-version=2019-05-06",
+      "description": "One indexer by name, with its full configuration."
     },
     {
       "paged": "false",
       "name": "Indexer Status",
-      "suffix": "/indexers/{Indexer Name}/status?api-version=2019-05-06"
+      "suffix": "/indexers/{Indexer Name}/status?api-version=2019-05-06",
+      "description": "The execution history of one indexer: the last run and several before it, each with start and end times, the counts of items processed and FAILED, and any error messages. Requires an indexer name. THE ONLY PLACE A PARTIALLY FAILED INDEX IS VISIBLE -- an index missing documents looks identical to a source that never had them, and the failure counts here are what distinguish the two."
     },
     {
       "paged": "false",
@@ -85,17 +95,20 @@
           "key": "name",
           "parameterName": "Indexer Name"
         }
-      ]
+      ],
+      "description": "The jobs that pull from a data source into an index, with their schedule, field mappings and the skillset applied. Configuration; their outcomes are in Indexer Status."
     },
     {
       "paged": "false",
       "name": "Service Statistics",
-      "suffix": "/servicestats?api-version=2019-05-06"
+      "suffix": "/servicestats?api-version=2019-05-06",
+      "description": "The service's usage against its limits -- how many indexes, indexers, data sources, storage and synonym maps are used out of the quota. One record. The place to look when creating something fails."
     },
     {
       "paged": "false",
       "name": "Skillset",
-      "suffix": "/skillsets/{Skillset Name}?api-version=2019-05-06"
+      "suffix": "/skillsets/{Skillset Name}?api-version=2019-05-06",
+      "description": "One skillset by name, with its skills and their input and output mappings."
     },
     {
       "paged": "false",
@@ -108,12 +121,14 @@
           "key": "name",
           "parameterName": "Skillset Name"
         }
-      ]
+      ],
+      "description": "The AI enrichment pipelines applied during indexing -- OCR, entity recognition, key phrase extraction and custom skills. Configuration, and the explanation for fields in an index that exist in no source system."
     },
     {
       "paged": "false",
       "name": "Synonym Map",
-      "suffix": "/synonymmaps/{Synonym Map Name}?api-version=2019-05-06"
+      "suffix": "/synonymmaps/{Synonym Map Name}?api-version=2019-05-06",
+      "description": "One synonym map by name, with its rules."
     },
     {
       "paged": "false",
@@ -126,7 +141,8 @@
           "key": "name",
           "parameterName": "Synonym Map Name"
         }
-      ]
+      ],
+      "description": "The synonym rules applied at query time. Configuration, but it materially changes results: a search for one term can match documents containing another, which is otherwise inexplicable from the index contents."
     }
   ]
 }

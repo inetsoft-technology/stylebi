@@ -3,142 +3,170 @@
     {
       "name": "Feedback Objects",
       "suffix": "/feedback-objects",
-      "paged": "true"
+      "paged": "true",
+      "description": "The things being rated -- agents, teams or whatever the account configured. Nicereply's abstraction for the subject of a rating, and the dimension per-agent scores are grouped by."
     },
     {
       "name": "Feedback Object",
       "suffix": "/feedback-objects/{Feedback Object ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One feedback object by id."
     },
     {
       "name": "Feedback Object Responses",
       "suffix": "/feedback-objects/{Feedback Object ID}/responses?created_after={Created After?}&created_before={Created Before?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The responses about one feedback object, filterable by date. Requires the object id. The per-agent or per-team score history."
     },
     {
       "name": "Feedback Object Groups",
       "suffix": "/feedback-object-groups",
-      "paged": "true"
+      "paged": "true",
+      "description": "Groupings of feedback objects -- teams of agents, typically. The level above individual subjects."
     },
     {
       "name": "Feedback Object Group",
       "suffix": "/feedback-object-groups/{Feedback Object Group ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One group by id."
     },
     {
       "name": "Feedback Object Group Responses",
       "suffix": "/feedback-object-groups/{Feedback Object Group ID}/responses?created_after={Created After?}&created_before={Created Before?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The responses about one group, filterable by date. Requires the group id. Team-level satisfaction without summing individuals."
     },
     {
       "name": "Customers",
       "suffix": "/customers",
-      "paged": "true"
+      "paged": "true",
+      "description": "The end customers who gave feedback, with their identifying details. The respondent side of a response."
     },
     {
       "name": "Customer",
       "suffix": "/customers/{Customer ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One customer by id."
     },
     {
       "name": "Integrations",
       "suffix": "/integrations",
-      "paged": "true"
+      "paged": "true",
+      "description": "The help desk integrations feeding Nicereply -- Zendesk, Freshdesk and the like -- with their status. The source of the tickets responses are attached to, and the explanation for which conversations get surveyed at all."
     },
     {
       "name": "Integration",
       "suffix": "/integrations/{Integration ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One integration by id."
     },
     {
       "name": "Questions",
       "suffix": "/questions",
-      "paged": "true"
+      "paged": "true",
+      "description": "The questions defined across surveys, with their text and type. The wording matters for interpretation, since satisfaction scores are sensitive to how the question is asked."
     },
     {
       "name": "Question",
       "suffix": "/questions/{Question ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One question by id."
     },
     {
       "name": "Rating Values Settings",
       "suffix": "/rating-values",
-      "paged": "false"
+      "paged": "false",
+      "description": "The rating scales configured -- what the possible values are and what each means. THE DECODER for the rating column: a 5 on a CSAT scale and a 5 on a ten-point NPS are entirely different results, and nothing in the response row distinguishes them."
     },
     {
       "name": "Surveys",
       "suffix": "/surveys",
-      "paged": "true"
+      "paged": "true",
+      "description": "The surveys defined, each with its type (CSAT, CES or NPS), name and status. A survey's TYPE decides how its responses should be aggregated -- NPS is a promoter-minus-detractor calculation, not an average -- so mixing surveys in one average is wrong regardless of scale."
     },
     {
       "name": "Survey",
       "suffix": "/surveys/{Survey ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One survey by id, with its type and questions."
     },
     {
       "name": "Survey Distribution Settings",
       "suffix": "/surveys/{Survey ID}/distribution",
-      "paged": "false"
+      "paged": "false",
+      "description": "How one survey is sent -- the channel, timing and trigger. Requires a survey id. Explains response rates: a survey sent on every ticket and one sent on a sample produce very different volumes for the same underlying satisfaction."
     },
     {
       "name": "Survey Responses",
       "suffix": "/surveys/{Survey ID}/responses?created_after={Created After?}&created_before={Created Before?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The responses to one survey, filterable by date. Requires a survey id. The per-survey slice, and the safe unit to aggregate within."
     },
     {
       "name": "Responses",
       "suffix": "/responses",
-      "paged": "true"
+      "paged": "true",
+      "description": "Every customer satisfaction response collected, one row each -- the central table. Carries the rating, any comment, the customer, the agent it was about, the survey it came from, and when it was submitted. Filterable by date. NOTE THE RATING SCALE IS NOT UNIVERSAL: Nicereply supports CSAT, CES and NPS, and their scales differ, so a rating value only means something once its survey's scale is known -- Rating Values Settings is what states it."
     },
     {
       "name": "Response",
       "suffix": "/responses/{Response ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One response by id, with its rating and comment."
     },
     {
       "name": "Response Ticket Link",
       "suffix": "/responses/{Response ID}/ticket-link",
-      "paged": "false"
+      "paged": "false",
+      "description": "The help desk ticket one response relates to. Requires a response id. THE BRIDGE between satisfaction data and the support system -- without it a low score cannot be traced to the conversation that caused it."
     },
     {
       "name": "Response Issue Status",
       "suffix": "/responses/{Response ID}/issue-status",
-      "paged": "false"
+      "paged": "false",
+      "description": "Whether one response has been flagged for follow-up and its current state. Requires a response id. The record of whether a bad rating was actually acted on, which the response itself does not carry."
     },
     {
       "name": "Tags",
       "suffix": "/tags",
-      "paged": "true"
+      "paged": "true",
+      "description": "The tags applied to responses. The free-form categorisation of feedback -- usually where the reason behind a score is recorded, since the numeric rating carries none."
     },
     {
       "name": "Tag",
       "suffix": "/tags/{Tag ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One tag by id."
     },
     {
       "name": "Unsubscribes",
       "suffix": "/unsubscribes",
-      "paged": "true"
+      "paged": "true",
+      "description": "The customers who opted out of receiving surveys. They are excluded from future sends, so a falling response count may reflect this list growing rather than any change in satisfaction."
     },
     {
       "name": "Unsubscribe",
       "suffix": "/unsubscribes/{Unsubscribe ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One unsubscribe record by id."
     },
     {
       "name": "Users",
       "suffix": "/users",
-      "paged": "true"
+      "paged": "true",
+      "description": "The agents and administrators in the account. Joined to responses through the feedback object, not directly."
     },
     {
       "name": "User",
       "suffix": "/users/{User ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One user by id."
     },
     {
       "name": "Tokens",
       "suffix": "/me/tokens",
-      "paged": "true"
+      "paged": "true",
+      "description": "The API tokens issued for the calling account. Security inventory."
     }
   ]
 }

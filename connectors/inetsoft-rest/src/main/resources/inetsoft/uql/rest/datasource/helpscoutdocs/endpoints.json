@@ -20,7 +20,8 @@
           "key": "id",
           "parameterName": "Article ID"
         }
-      ]
+      ],
+      "description": "The articles in one collection. Requires a collection id. Carries the name, status, the public url, view and popularity counts, and the created and updated times. Filter by status, which defaults to all -- so drafts are included alongside published articles unless excluded."
     },
     {
       "name": "Category Articles",
@@ -42,12 +43,14 @@
           "key": "id",
           "parameterName": "Article ID"
         }
-      ]
+      ],
+      "description": "The articles in one category. Requires a category id. The narrower slice."
     },
     {
       "name": "Article Search",
       "paged": true,
-      "suffix": "/v1/search/articles?query={Query}&collectionId={Collection ID?}&siteId={Site ID?}&status={Status?:all|published|notpublished}&visibility={Visibility?:all|public|private}"
+      "suffix": "/v1/search/articles?query={Query}&collectionId={Collection ID?}&siteId={Site ID?}&status={Status?:all|published|notpublished}&visibility={Visibility?:all|public|private}",
+      "description": "Articles matching a search term, optionally within one collection or site. Full-text across titles and bodies."
     },
     {
       "name": "Related Articles",
@@ -69,22 +72,26 @@
           "key": "id",
           "parameterName": "Article ID"
         }
-      ]
+      ],
+      "description": "The articles Help Scout considers related to one article. Requires an article id. Derived rather than authored, so it reflects text similarity rather than any editorial decision."
     },
     {
       "name": "Revisions",
       "paged": true,
-      "suffix": "/v1/articles/{Article ID}/revisions"
+      "suffix": "/v1/articles/{Article ID}/revisions",
+      "description": "The edit history of one article, each revision with its author and timestamp. Requires an article id. The article carries only its current text, so this is the only record of when documentation changed and who changed it."
     },
     {
       "name": "Article",
       "paged": false,
-      "suffix": "/v1/articles/{Article ID or Number}?draft={Draft: false|true}"
+      "suffix": "/v1/articles/{Article ID or Number}?draft={Draft: false|true}",
+      "description": "One article by id or number, with its full text. The draft parameter returns the unpublished version where one exists, which is how a pending rewrite is seen."
     },
     {
       "name": "Revision",
       "paged": false,
-      "suffix": "/v1/revisions/{Revision ID}"
+      "suffix": "/v1/revisions/{Revision ID}",
+      "description": "One revision by id, with the article text as it stood then."
     },
     {
       "name": "Categories",
@@ -97,12 +104,14 @@
           "key": "id",
           "parameterName": "Category ID"
         }
-      ]
+      ],
+      "description": "The categories within one collection, the level between collection and article. Requires a collection id."
     },
     {
       "name": "Category",
       "paged": false,
-      "suffix": "/v1/categories/{Category ID or Number}"
+      "suffix": "/v1/categories/{Category ID or Number}",
+      "description": "One category by id or number."
     },
     {
       "name": "Collections",
@@ -118,37 +127,44 @@
           "key": "id",
           "parameterName": "Collection ID"
         }
-      ]
+      ],
+      "description": "The top level of a knowledge base -- the groupings articles are filed under -- with name, description, visibility and article count. Requires nothing, or filter by site. VISIBILITY MATTERS: a private collection is invisible to customers, so counting all articles overstates what the public can actually reach."
     },
     {
       "name": "Collection",
       "paged": false,
-      "suffix": "/v1/collections/{Collection ID or Number}"
+      "suffix": "/v1/collections/{Collection ID or Number}",
+      "description": "One collection by id or number."
     },
     {
       "name": "Redirects",
       "paged": true,
-      "suffix": "/v1/redirects/site/{Site ID}"
+      "suffix": "/v1/redirects/site/{Site ID}",
+      "description": "The URL redirects configured for one site. Requires a site id. Where an article was moved or renamed, this is what keeps the old link working -- and the record of what used to live at a given address."
     },
     {
       "name": "Redirect",
       "paged": false,
-      "suffix": "/v1/redirects/{Redirect ID}"
+      "suffix": "/v1/redirects/{Redirect ID}",
+      "description": "One redirect by id."
     },
     {
       "name": "Redirect Search",
       "paged": false,
-      "suffix": "v1/redirects?url={URL}&siteId={Site ID}"
+      "suffix": "v1/redirects?url={URL}&siteId={Site ID}",
+      "description": "Finds the redirect matching a given URL. Requires the URL and site id. Answers where a specific old link now points."
     },
     {
       "name": "Sites",
       "paged": true,
-      "suffix": "/v1/sites"
+      "suffix": "/v1/sites",
+      "description": "The Docs sites on the account, each with its subdomain, title and status. A site is a knowledge base; everything else here belongs to one, so this is the first request on a multi-site account."
     },
     {
       "name": "Site",
       "paged": false,
-      "suffix": "/v1/sites/{Site ID}"
+      "suffix": "/v1/sites/{Site ID}",
+      "description": "One site by id."
     }
   ]
 }

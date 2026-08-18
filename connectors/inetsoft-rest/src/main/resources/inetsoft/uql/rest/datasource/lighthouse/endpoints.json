@@ -3,12 +3,14 @@
     {
       "name": "Changesets",
       "paged": false,
-      "suffix": "/projects/{Project ID}/changesets.json"
+      "suffix": "/projects/{Project ID}/changesets.json",
+      "description": "The source-control commits linked to one project, with the revision, author, message and the tickets each references. Requires a project id. The bridge between issues and code, where a repository is connected."
     },
     {
       "name": "Changeset",
       "paged": false,
-      "suffix": "/projects/{Project ID}/changesets/{Revision Name}.json"
+      "suffix": "/projects/{Project ID}/changesets/{Revision Name}.json",
+      "description": "One changeset by revision. Requires the project id."
     },
     {
       "name": "Projects",
@@ -28,82 +30,98 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "The projects in the account, each with name, description, open and closed ticket counts, and its default assignee and milestone. The container everything else belongs to; every other endpoint needs a project id."
     },
     {
       "name": "Project",
       "paged": false,
-      "suffix": "/projects/{Project ID}.json"
+      "suffix": "/projects/{Project ID}.json",
+      "description": "One project by id, with its counts and settings."
     },
     {
       "name": "Initial Project State",
       "paged": false,
-      "suffix": "/projects/new.json"
+      "suffix": "/projects/new.json",
+      "description": "A blank project template returned for building a creation form. Form scaffolding, not data."
     },
     {
       "name": "Tickets",
       "paged": true,
-      "suffix": "/projects/{Project ID}/tickets.json"
+      "suffix": "/projects/{Project ID}/tickets.json",
+      "description": "The issues in one project, with title, state, the assigned user, the milestone, tags, and the created and updated times. Requires a project id. The central table. Note STATE IS FREE TEXT rather than a fixed enum in Lighthouse -- projects define their own state names -- so state values are account-specific and cannot be assumed to be open and closed."
     },
     {
       "name": "Ticket",
       "paged": false,
-      "suffix": "/projects/{Project ID}/tickets/{Ticket Number}.json"
+      "suffix": "/projects/{Project ID}/tickets/{Ticket Number}.json",
+      "description": "One ticket by number, with its full body and comment history. Requires the project id. Note the ticket NUMBER is the per-project one shown in the interface, not a global id."
     },
     {
       "name": "Ticket Bins",
       "paged": false,
-      "suffix": "/projects/{Project ID}/bins.json"
+      "suffix": "/projects/{Project ID}/bins.json",
+      "description": "The saved ticket queries of one project -- Lighthouse's name for saved filters -- each with its query and current ticket count. Requires a project id. The counts are pre-computed, so a bin answers 'how many are in this state' without paging tickets, and the query text records how the team defines that state."
     },
     {
       "name": "Ticket Bin",
       "paged": false,
-      "suffix": "/projects/{Project ID}/bins/{Bin ID}.json"
+      "suffix": "/projects/{Project ID}/bins/{Bin ID}.json",
+      "description": "One ticket bin by id, with its query."
     },
     {
       "name": "Milestones",
       "paged": false,
-      "suffix": "/projects/{Project ID}/milestones.json"
+      "suffix": "/projects/{Project ID}/milestones.json",
+      "description": "The milestones of one project, with title, due date, and the counts of open and closed tickets. Requires a project id. The counts make release-readiness answerable without walking the tickets."
     },
     {
       "name": "Milestone",
       "paged": false,
-      "suffix": "/projects/{Project ID}/milestones/{Milestone ID}.json"
+      "suffix": "/projects/{Project ID}/milestones/{Milestone ID}.json",
+      "description": "One milestone by id."
     },
     {
       "name": "Messages",
       "paged": false,
-      "suffix": "/projects/{Project ID}/messages.json"
+      "suffix": "/projects/{Project ID}/messages.json",
+      "description": "The discussion threads of one project, separate from tickets. Requires a project id. Where design and planning conversation lives when it is not attached to an issue."
     },
     {
       "name": "Message",
       "paged": false,
-      "suffix": "/projects/{Project ID}/messages/{Message ID}.json"
+      "suffix": "/projects/{Project ID}/messages/{Message ID}.json",
+      "description": "One message by id, with its replies."
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/users/{User ID}.json"
+      "suffix": "/users/{User ID}.json",
+      "description": "One user by id, with name and job description."
     },
     {
       "name": "Current User",
       "paged": false,
-      "suffix": "/profile.json"
+      "suffix": "/profile.json",
+      "description": "The account the credentials belong to, with its memberships. One record, always the caller."
     },
     {
       "name": "Memberships",
       "paged": false,
-      "suffix": "/users/{User ID}/memberships.json"
+      "suffix": "/users/{User ID}/memberships.json",
+      "description": "The projects one user belongs to, with their role. Requires a user id."
     },
     {
       "name": "Project Memberships",
       "paged": false,
-      "suffix": "/projects/{Project ID}/memberships.json"
+      "suffix": "/projects/{Project ID}/memberships.json",
+      "description": "The users on one project, with their roles. Requires a project id. The access list."
     },
     {
       "name": "Token",
       "paged": false,
-      "suffix": "/tokens/{Token}.json"
+      "suffix": "/tokens/{Token}.json",
+      "description": "The details of one API token, including which user and project it is scoped to. Requires the token. Security metadata rather than project data."
     }
   ]
 }

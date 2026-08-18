@@ -1,49 +1,58 @@
 {
-    "endpoints": [
-        {
-            "name": "Application",
-            "paged": false,
-            "suffix": "/describe.json"
-        },
-        {
-            "name": "User",
-            "paged": false,
-            "suffix": "/user.json"
-        },
-        {
-            "name": "Table",
-            "paged": false,
-            "suffix": "/{Table Name}/describe.json"
-        },
-        {
-            "name": "Select Table",
-            "paged": true,
-            "suffix": "/{Table Name}/select.json?column={Columns?,:column1,column2,...}&filter={Filter?}"
-        },
-        {
-            "name": "Select View",
-            "paged": true,
-            "suffix": "/{Table Name}/{View Name}/select.json?filter={Filter?}"
-        },
-        {
-            "name": "Retrieve Records",
-            "paged": false,
-            "suffix": "/{Table Name}/retrieve.json?column={Columns?,:column1,column2,...}&key={Key Column Values?,:1,2,3...}&id={Row IDs,:1,2,3...}"
-        },
-        {
-            "name": "Updated Records",
-            "paged": false,
-            "suffix": "/{Table Name}/updated.json?from={From Date?:YYYY-MM-DDTHH:MM:SS+00:00}&to={To Date?:YYYY-MM-DDTHH:MM:SS+00:00}"
-        },
-        {
-            "name": "Deleted Records",
-            "paged": false,
-            "suffix": "/{Table Name}/deleted.json?from={From Date?:YYYY-MM-DDTHH:MM:SS+00:00}&to={To Date?:YYYY-MM-DDTHH:MM:SS+00:00}"
-        },
-        {
-            "name": "Attachments",
-            "paged": false,
-            "suffix": "/{Table Name}/{Column Name}/attachments.json?key={Key Column Value?}&id={Row ID*?}&revisions={Number of Revisions?}"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Application",
+      "paged": false,
+      "suffix": "/describe.json",
+      "description": "The database's schema: every table with its columns, types and relationships. THE FIRST REQUEST FOR ANY TEAMDESK QUESTION -- this is a user-built low-code database, so nothing about its structure is knowable in advance, and table and column names are whatever the account's designer chose. Nothing else here can be used without it."
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/user.json",
+      "description": "The account the credentials belong to, with their role and permissions. Worth reading first, since TeamDesk applies row-level and column-level permissions and two users running the same query legitimately get different rows."
+    },
+    {
+      "name": "Table",
+      "paged": false,
+      "suffix": "/{Table Name}/describe.json",
+      "description": "One table's schema: its columns with types, whether each is required, and the views defined on it. Requires the table name. The per-table detail behind the application schema."
+    },
+    {
+      "name": "Select Table",
+      "paged": true,
+      "suffix": "/{Table Name}/select.json?column={Columns?,:column1,column2,...}&filter={Filter?}",
+      "description": "The rows of one table, with an optional column list and filter. Requires the table name. The main data endpoint. Filters use TeamDesk's own expression language and are evaluated server-side; asking for specific columns matters, since a wide user-built table can be very wide indeed."
+    },
+    {
+      "name": "Select View",
+      "paged": true,
+      "suffix": "/{Table Name}/{View Name}/select.json?filter={Filter?}",
+      "description": "The rows a saved VIEW returns. Requires the table and view names. A view already carries the filtering, sorting and column selection the account's users agreed on, so it is usually a better starting point than the raw table -- and its definition is readable from the table schema."
+    },
+    {
+      "name": "Retrieve Records",
+      "paged": false,
+      "suffix": "/{Table Name}/retrieve.json?column={Columns?,:column1,column2,...}&key={Key Column Values?,:1,2,3...}&id={Row IDs,:1,2,3...}",
+      "description": "Specific rows fetched by their key column values. Requires the table name and the key values. The efficient way to hydrate known records rather than filtering for them."
+    },
+    {
+      "name": "Updated Records",
+      "paged": false,
+      "suffix": "/{Table Name}/updated.json?from={From Date?:YYYY-MM-DDTHH:MM:SS+00:00}&to={To Date?:YYYY-MM-DDTHH:MM:SS+00:00}",
+      "description": "The rows changed within a time range. Requires the table name; takes from and to timestamps. The incremental-sync endpoint -- it exists so a downstream copy can be refreshed without re-reading the table."
+    },
+    {
+      "name": "Deleted Records",
+      "paged": false,
+      "suffix": "/{Table Name}/deleted.json?from={From Date?:YYYY-MM-DDTHH:MM:SS+00:00}&to={To Date?:YYYY-MM-DDTHH:MM:SS+00:00}",
+      "description": "The rows deleted within a time range. Requires the table name. The companion to Updated Records: without it a synchronised copy never learns that rows have gone, since deletions leave no trace in the table itself."
+    },
+    {
+      "name": "Attachments",
+      "paged": false,
+      "suffix": "/{Table Name}/{Column Name}/attachments.json?key={Key Column Value?}&id={Row ID*?}&revisions={Number of Revisions?}",
+      "description": "The files held in one attachment column. Requires the table and column names. Metadata and content by row key; revisions are addressable where the column keeps history."
+    }
+  ]
 }

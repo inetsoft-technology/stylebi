@@ -1,157 +1,178 @@
 {
-    "endpoints": [
+  "endpoints": [
+    {
+      "name": "Notifications",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/notifications?source={Notification Type:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification }&ownerId={Owner ID?}&recordId={Record ID?:reportId|lensId}",
+      "description": "The report and dashboard subscription notifications for the running user, with their source and state. Scoped to the caller."
+    },
+    {
+      "name": "Notification",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/notifications/{Notification ID}",
+      "description": "One notification by id."
+    },
+    {
+      "name": "Notification Limits",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/notifications/limits?source={Source:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification}&recordId={Record ID?:reportId|lensId}",
+      "description": "How many report or dashboard notifications the user has configured against the allowed maximum. Explains why a new subscription cannot be created."
+    },
+    {
+      "name": "Dashboards",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/dashboards",
+      "lookups": [
         {
-            "name": "Notifications",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/notifications?source={Notification Type:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification }&ownerId={Owner ID?}&recordId={Record ID?:reportId|lensId}"
-        },
-        {
-            "name": "Notification",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/notifications/{Notification ID}"
-        },
-        {
-            "name": "Notification Limits",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/notifications/limits?source={Source:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification}&recordId={Record ID?:reportId|lensId}"
-        },
-        {
-            "name": "Dashboards",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/dashboards",
-          "lookups": [
-            {
-              "endpoints": [
-                "Dashboard",
-                "Dashboard Metadata",
-                "Dashboard Status"
-              ],
-              "jsonPath": "$.[*]",
-              "key": "id",
-              "parameterName": "Dashboard ID"
-            }
-          ]
-        },
-        {
-            "name": "Dashboard",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}"
-        },
-        {
-            "name": "Dashboard Metadata",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/describe?loadComponentProperties={Load Component Properties?:true|false}"
-        },
-        {
-            "name": "Dashboard Status",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/status?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}"
-        },
-        {
-            "name": "Filter Operators",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/filteroperators?forDashboards={For Dashboards?:true|false}"
-        },
-        {
-            "name": "Folders",
-            "paged": true,
-            "suffix": "/v43.0/folders/",
-          "lookups": [
-            {
-              "endpoints": [
-                "Folder",
-                "Folder Shares",
-                "Folder Children"
-              ],
-              "jsonPath": "$.folders[*]",
-              "key": "id",
-              "parameterName": "Folder ID"
-            }
-          ]
-        },
-        {
-            "name": "Folder",
-            "paged": false,
-            "suffix": "/v43.0/folders/{Folder ID}"
-        },
-        {
-            "name": "Folder Shares",
-            "paged": false,
-            "suffix": "/v41.0/folders/{Folder ID}/shares"
-        },
-        {
-            "name": "Folder Share",
-            "paged": false,
-            "suffix": "/v41.0/folders/{Folder ID}/shares/{Share ID}"
-        },
-        {
-            "name": "Folder Share Recipients",
-            "paged": false,
-            "suffix": "/v41.0/folders/{Folder ID}/share-recipients?shareType={shareType:user|group|role}&searchTerm={Search Term?}"
-        },
-        {
-            "name": "Folder Children",
-            "paged": true,
-            "suffix": "/v43.0/folders/{Folder ID}/children",
-          "lookups": [
-            {
-              "endpoints": [
-                "Folder",
-                "Folder Shares",
-                "Folder Children"
-              ],
-              "jsonPath": "$.folders[*]",
-              "key": "id",
-              "parameterName": "Folder ID"
-            }
-          ]
-        },
-        {
-            "name": "Reports",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/reports",
-          "lookups": [
-            {
-              "endpoints": [
-                "Report Metadata",
-                "Execute Report",
-                "Report Instances"
-              ],
-              "jsonPath": "$.[*]",
-              "key": "id",
-              "parameterName": "Report ID"
-            }
-          ]
-        },
-        {
-            "name": "Report Metadata",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/reports/{Report ID}/describe"
-        },
-        {
-            "name": "Execute Report",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/reports/{Report ID}"
-        },
-        {
-            "name": "Report Instances",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances"
-        },
-        {
-            "name": "Report Instance",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances/{Instance ID}"
-        },
-        {
-            "name": "Report Types",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/report-types"
-        },
-        {
-            "name": "Report Type",
-            "paged": false,
-            "suffix": "/@apiVersion@/analytics/reportTypes/type"
+          "endpoints": [
+            "Dashboard",
+            "Dashboard Metadata",
+            "Dashboard Status"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Dashboard ID"
         }
-    ]
+      ],
+      "description": "The dashboards the running user can see, with id, name and folder. Dashboards hold components backed by reports, so the list is a fair guide to what the organisation actually watches."
+    },
+    {
+      "name": "Dashboard",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}",
+      "description": "One dashboard's current data: each component with its values as of the last refresh. Requires a dashboard id. IMPORTANT -- DASHBOARD DATA IS AS OF ITS LAST REFRESH, not as of now, and the refresh time is in Dashboard Status. A stale dashboard returns stale numbers with no indication in the values themselves."
+    },
+    {
+      "name": "Dashboard Metadata",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/describe?loadComponentProperties={Load Component Properties?:true|false}",
+      "description": "The definition of one dashboard: its components, the report behind each, and their groupings and filters. Requires a dashboard id. The map from a dashboard component back to the report that feeds it."
+    },
+    {
+      "name": "Dashboard Status",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/status?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}",
+      "description": "When one dashboard was last refreshed and by whom, and whether a refresh is running. Requires a dashboard id. The companion that makes the dashboard's numbers interpretable."
+    },
+    {
+      "name": "Filter Operators",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/filteroperators?forDashboards={For Dashboards?:true|false}",
+      "description": "The filter operators available for report and dashboard filters, by field type. Reference data for reading or building a filter."
+    },
+    {
+      "name": "Folders",
+      "paged": true,
+      "suffix": "/v43.0/folders/",
+      "lookups": [
+        {
+          "endpoints": [
+            "Folder",
+            "Folder Shares",
+            "Folder Children"
+          ],
+          "jsonPath": "$.folders[*]",
+          "key": "id",
+          "parameterName": "Folder ID"
+        }
+      ],
+      "description": "The report and dashboard folders, with their names and types. Folders are how Salesforce scopes visibility, so this is the structure that decides who sees which reports."
+    },
+    {
+      "name": "Folder",
+      "paged": false,
+      "suffix": "/v43.0/folders/{Folder ID}",
+      "description": "One folder by id."
+    },
+    {
+      "name": "Folder Shares",
+      "paged": false,
+      "suffix": "/v41.0/folders/{Folder ID}/shares",
+      "description": "Who a folder is shared with and at what access level. Requires a folder id. The access list behind report visibility -- and the reason two users legitimately see different report catalogues."
+    },
+    {
+      "name": "Folder Share",
+      "paged": false,
+      "suffix": "/v41.0/folders/{Folder ID}/shares/{Share ID}",
+      "description": "One folder share by id."
+    },
+    {
+      "name": "Folder Share Recipients",
+      "paged": false,
+      "suffix": "/v41.0/folders/{Folder ID}/share-recipients?shareType={shareType:user|group|role}&searchTerm={Search Term?}",
+      "description": "The users, groups or roles a folder could be shared with, filtered by share type. A picker source rather than a record of existing access."
+    },
+    {
+      "name": "Folder Children",
+      "paged": true,
+      "suffix": "/v43.0/folders/{Folder ID}/children",
+      "lookups": [
+        {
+          "endpoints": [
+            "Folder",
+            "Folder Shares",
+            "Folder Children"
+          ],
+          "jsonPath": "$.folders[*]",
+          "key": "id",
+          "parameterName": "Folder ID"
+        }
+      ],
+      "description": "The reports and dashboards inside one folder. Requires a folder id."
+    },
+    {
+      "name": "Reports",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/reports",
+      "lookups": [
+        {
+          "endpoints": [
+            "Report Metadata",
+            "Execute Report",
+            "Report Instances"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Report ID"
+        }
+      ],
+      "description": "The reports the running user can see in Salesforce, with id, name, folder, format and the last time each was run. The catalogue: Salesforce reports are built in the interface, so this is the list of analyses the business has already defined, and their names carry the organisation's own vocabulary."
+    },
+    {
+      "name": "Report Metadata",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/reports/{Report ID}/describe",
+      "description": "The definition of one report: its columns, groupings, filters, report type and scope. Requires a report id. Needed to interpret a run, since the factMap keys are meaningless without knowing the groupings -- and the filters here are where the business's definition of the report's subject is written."
+    },
+    {
+      "name": "Execute Report",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/reports/{Report ID}",
+      "description": "RUNS one report and returns its results. Requires a report id. NOTE THE SHAPE -- this is not a row set. Salesforce returns a factMap keyed by grouping, with the aggregates and detail rows nested inside, plus separate metadata describing the columns; it must be flattened before use and the flattening depends on the report's own grouping. TWO LIMITS THAT SILENTLY TRUNCATE: a synchronous run returns at most 2,000 detail rows, and the response carries an allData flag saying whether it was cut short -- a total taken without checking that flag is simply wrong on any large report."
+    },
+    {
+      "name": "Report Instances",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances",
+      "description": "The asynchronous runs of one report, with their status and completion time. Requires a report id. Asynchronous execution is how reports beyond the synchronous row limit are run, so this is the route to a complete large report."
+    },
+    {
+      "name": "Report Instance",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances/{Instance ID}",
+      "description": "The results of one asynchronous run. Requires the report id and instance id. Same factMap shape, without the 2,000-row synchronous cap."
+    },
+    {
+      "name": "Report Types",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/report-types",
+      "description": "The report types available -- the object combinations a new report can be built on. Reference data describing what could be reported on, rather than anything reported."
+    },
+    {
+      "name": "Report Type",
+      "paged": false,
+      "suffix": "/@apiVersion@/analytics/reportTypes/type",
+      "description": "One report type, with its categories and available fields."
+    }
+  ]
 }
