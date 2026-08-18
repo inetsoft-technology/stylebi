@@ -48,10 +48,10 @@ public class EndpointCatalogReader {
     * @return the catalogue, or null when this connector ships none — the same test
     *         {@code WizDatabaseController.classifyQueryClass} uses to answer ENDPOINT_CATALOG.
     *
-    * @throws java.io.IOException when the resource exists but does not parse. A broken catalogue is
-    *                             reported, never silently rendered as an empty one.
+    * @throws IOException when the resource exists but does not parse. A broken catalogue is
+    *                     reported, never silently rendered as an empty one.
     */
-   public WizEndpointCatalog read(Class<?> queryClass) throws java.io.IOException {
+   public WizEndpointCatalog read(Class<?> queryClass) throws IOException {
       try(InputStream input = queryClass.getResourceAsStream(RESOURCE)) {
          if(input == null) {
             return null;
