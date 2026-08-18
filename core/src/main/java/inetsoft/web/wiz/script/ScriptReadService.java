@@ -259,7 +259,7 @@ public class ScriptReadService {
          // RuntimeViewsheet -- this method structurally cannot serve it. Named explicitly
          // (rather than left to the generic default below) so the message says where to go
          // instead of just "unsupported".
-         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
             "'" + target.kind().wireName() + "' is a worksheet-level target; it is not readable " +
             "through the viewsheet script API. Use worksheet-chat's read_worksheet_model or " +
             "get_binding instead.");

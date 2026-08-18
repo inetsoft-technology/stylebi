@@ -20,7 +20,8 @@
  * Names the script location a pane-scoped agent pairing session is bound to.
  * Sent as part of the mint request payload so the server can scope the
  * resulting session to a single script/formula location rather than the
- * whole sheet. The server does not yet consume this field (G2 Task 4).
+ * whole sheet. The server validates and consumes this field at mint time
+ * (see SheetPairingService.validateEditorContext).
  */
 export interface EditorContext {
    kind: string;

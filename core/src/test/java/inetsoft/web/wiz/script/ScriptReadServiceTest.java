@@ -155,8 +155,10 @@ class ScriptReadServiceTest {
       assertEquals(2, ScriptGrammar.VERSION);
       // G2 Task 8 gave worksheetExpression/worksheetCondition real Locations (served by
       // WorksheetScriptService), so they now belong in this list alongside calcField.
+      // worksheetConditionValue (stylebi#4654's second review, finding 1) is the same story.
       assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick",
-                           "calcField", "worksheetExpression", "worksheetCondition"),
+                           "calcField", "worksheetExpression", "worksheetCondition",
+                           "worksheetConditionValue"),
                    ScriptGrammar.supportedKinds());
    }
 

@@ -241,6 +241,9 @@ public class PaneScopeService {
             case WORKSHEET_CONDITION -> "worksheet condition on '" +
                (grant.table() != null ? grant.table() : grant.assembly()) + "." + grant.name() +
                "'";
+            case WORKSHEET_CONDITION_VALUE -> "worksheet condition value on '" +
+               (grant.table() != null ? grant.table() : grant.assembly()) + "." + grant.name() +
+               "'";
             case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK -> "the script of '" + grant.assembly() + "'";
             default -> "'" + grantedKind.wireName() + "'";
          };
@@ -259,6 +262,8 @@ public class PaneScopeService {
             "worksheet expression column '" + target.assemblyName() + "." + target.name() + "'";
          case WORKSHEET_CONDITION ->
             "worksheet condition on '" + target.assemblyName() + "." + target.name() + "'";
+         case WORKSHEET_CONDITION_VALUE ->
+            "worksheet condition value on '" + target.assemblyName() + "." + target.name() + "'";
          case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK ->
             "'" + target.kind().wireName() + "' on '" + target.assemblyName() + "'";
          default -> "'" + target.kind().wireName() + "'";
@@ -277,6 +282,8 @@ public class PaneScopeService {
             "level — open its expression editor and click Connect Agent.";
          case WORKSHEET_CONDITION -> "a worksheet condition has no name at sheet level — open " +
             "its condition editor and click Connect Agent.";
+         case WORKSHEET_CONDITION_VALUE -> "a worksheet condition's value has no name at sheet " +
+            "level — open its condition editor and click Connect Agent.";
          default -> "'" + kind.wireName() + "' has no identity at sheet level — open it in its " +
             "own editor and click Connect Agent.";
       };
@@ -300,7 +307,7 @@ public class PaneScopeService {
     */
    private static final Set<ScriptTarget.Kind> COLUMN_ADDRESSED_FAMILY = EnumSet.of(
       ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.WORKSHEET_EXPRESSION,
-      ScriptTarget.Kind.WORKSHEET_CONDITION);
+      ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
 
    private final boolean strict;
 }

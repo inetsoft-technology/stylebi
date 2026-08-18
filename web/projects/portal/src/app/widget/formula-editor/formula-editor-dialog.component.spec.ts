@@ -40,6 +40,7 @@
 import { createDialog } from "./formula-editor-dialog.component.test-helpers";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
 
 function pairedDialog(): FormulaEditorDialog {
    const { comp } = createDialog();
@@ -60,15 +61,58 @@ describe("FormulaEditorDialog — editorContext", () => {
          { kind: "calcField", assembly: "Query1", name: "Margin" });
    });
 
-   it("derives a worksheetCondition context for a worksheet-hosted condition", () => {
+   /*
+    * stylebi#4654's second review, finding 1: this dialog edits a condition's VALUE, never its
+    * operator, so a worksheet-hosted condition mints "worksheetConditionValue", not
+    * "worksheetCondition" (whole-condition replace) -- the latter would let an agent silently
+    * overwrite an operator the user never opened this box to change. Only reachable for a
+    * single-value operator; see the next two tests.
+    */
+   it("derives a worksheetConditionValue context for a single-value worksheet condition", () => {
       const comp = pairedDialog();
       comp.isVSContext = false;
       comp.isCondition = true;
       comp.assemblyName = "Table1";
       comp.formulaName = "Amount";
+      comp.conditionOperation = ConditionOperation.EQUAL_TO;
 
       expect(comp.editorContext).toEqual(
-         { kind: "worksheetCondition", assembly: "Table1", name: "Amount" });
+         { kind: "worksheetConditionValue", assembly: "Table1", name: "Amount" });
+   });
+
+   /*
+    * BETWEEN has two value slots, so there is no single "the value" this pane could mean --
+    * omitting `name` here (rather than minting a code with one) is what canPair's suppression
+    * below keys on.
+    */
+   it("omits the name for a worksheet condition using a multi-value operator", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = "Amount";
+      comp.conditionOperation = ConditionOperation.BETWEEN;
+
+      expect(comp.editorContext).toEqual(
+         { kind: "worksheetConditionValue", assembly: "Table1" });
+   });
+
+   /*
+    * BinaryConditionEditor/OneOfConditionEditor never bind an operation into the ConditionEditor
+    * instances they host (they know it structurally, from which component they are), so this
+    * dialog sees `conditionOperation` as undefined for BETWEEN/ONE_OF in practice -- must be
+    * treated the same as an explicitly multi-value operator, not as "unknown, so allow it".
+    */
+   it("omits the name for a worksheet condition with no known operation", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = "Amount";
+      comp.conditionOperation = undefined;
+
+      expect(comp.editorContext).toEqual(
+         { kind: "worksheetConditionValue", assembly: "Table1" });
    });
 
    it("derives an assemblyMain context for a viewsheet-hosted condition", () => {
@@ -203,25 +247,68 @@ describe("FormulaEditorDialog — canPair suppresses an unaddressable location",
 
    /* A worksheet-hosted condition is column-addressed (COLUMN_ADDRESSED_KINDS), so it needs a
     * column name just like calcField/worksheetExpression -- suppressed when the caller hasn't
-    * supplied one (e.g. no field selected yet), addressable once it has. */
+    * supplied one (e.g. no field selected yet), addressable once it has (for a single-value
+    * operator; see the multi-value/unknown-operator cases below). */
    it("offers no connect button for a worksheet-hosted condition with no column name", () => {
       const comp = pairedDialog();
       comp.isVSContext = false;
       comp.isCondition = true;
       comp.assemblyName = "Table1";
       comp.formulaName = null;
+      comp.conditionOperation = ConditionOperation.EQUAL_TO;
 
       expect(comp.canPair).toBe(false);
    });
 
-   it("offers a connect button for a worksheet-hosted condition on a real column", () => {
+   it("offers a connect button for a worksheet-hosted condition on a real column with a single-value operator", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = "Amount";
+      comp.conditionOperation = ConditionOperation.EQUAL_TO;
+
+      expect(comp.canPair).toBe(true);
+   });
+
+   /*
+    * stylebi#4654's second review, finding 1: BETWEEN has two value slots, ONE_OF a list -- this
+    * pane edits one text box, so neither has a single "the value" it could mean. Suppressing here
+    * beats minting a worksheetConditionValue code the server would then reject.
+    */
+   it("offers no connect button for a worksheet condition using a multi-value operator", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = "Amount";
+      comp.conditionOperation = ConditionOperation.BETWEEN;
+
+      expect(comp.canPair).toBe(false);
+   });
+
+   it("offers no connect button for a worksheet condition using the ONE_OF operator", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = "Region";
+      comp.conditionOperation = ConditionOperation.ONE_OF;
+
+      expect(comp.canPair).toBe(false);
+   });
+
+   /* BinaryConditionEditor/OneOfConditionEditor never bind an operation into the ConditionEditor
+    * instances they host, so this dialog sees conditionOperation as undefined for BETWEEN/ONE_OF
+    * in real usage -- must suppress, not default to allowing it. */
+   it("offers no connect button for a worksheet condition with no known operation", () => {
       const comp = pairedDialog();
       comp.isVSContext = false;
       comp.isCondition = true;
       comp.assemblyName = "Table1";
       comp.formulaName = "Amount";
 
-      expect(comp.canPair).toBe(true);
+      expect(comp.canPair).toBe(false);
    });
 
    /* The other half: kinds addressed by assembly alone are unaffected, and a fully addressed

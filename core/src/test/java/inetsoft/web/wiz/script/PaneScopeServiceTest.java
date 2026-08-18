@@ -46,7 +46,7 @@ class PaneScopeServiceTest {
     */
    private static final List<ScriptTarget.Kind> EXPRESSION_LEVEL_KINDS =
       List.of(ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.WORKSHEET_EXPRESSION,
-              ScriptTarget.Kind.WORKSHEET_CONDITION);
+              ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
 
    /** The kinds this suite asserts must NOT require one. See {@link #EXPRESSION_LEVEL_KINDS}. */
    private static final List<ScriptTarget.Kind> SHEET_LEVEL_KINDS =
@@ -351,6 +351,70 @@ class PaneScopeServiceTest {
 
       assertThrows(PairingException.class,
          () -> new PaneScopeService(false).check(pane, conditionTarget));
+   }
+
+   // -----------------------------------------------------------------------------------------
+   // worksheetConditionValue -- stylebi#4654's second review, finding 1. Addressed by (table,
+   // field) exactly like worksheetCondition, but deliberately NOT its dialog sibling: the two
+   // carry different authority over the same location (see ScriptTarget.Kind's javadoc).
+   // -----------------------------------------------------------------------------------------
+
+   @Test
+   void aPaneScopedWorksheetConditionValueSessionMaySatisfyItsOwnColumn() throws Exception {
+      EditorContext ctx = new EditorContext("worksheetConditionValue", "Query1", "Price", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertTrue(new PaneScopeService(false).check(pane, target));
+   }
+
+   @Test
+   void aPaneScopedSessionMayNotActOnADifferentWorksheetConditionValueColumnOnTheSameTable()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetConditionValue", "Query1", "Price", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget otherColumn =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Quantity");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, otherColumn));
+
+      assertTrue(ex.getMessage().contains("Quantity"), ex.getMessage());
+   }
+
+   /**
+    * The whole reason this is a separate {@code Kind} rather than reusing
+    * {@code worksheetCondition}: a grant for one must never authorize the other, even on the
+    * exact same column, because they carry different write authority over it (whole condition
+    * vs. one value).
+    */
+   @Test
+   void aWorksheetConditionGrantDoesNotMatchAWorksheetConditionValueTargetOnTheSameColumn()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetCondition", "Query1", "Price", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget valueTarget =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, valueTarget));
+   }
+
+   /** Same asymmetry, the other direction. */
+   @Test
+   void aWorksheetConditionValueGrantDoesNotMatchAWorksheetConditionTargetOnTheSameColumn()
+      throws Exception
+   {
+      EditorContext ctx = new EditorContext("worksheetConditionValue", "Query1", "Price", null);
+      JoinSession pane = sessionScopedTo(ctx);
+      ScriptTarget wholeConditionTarget =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "Price");
+
+      assertThrows(PairingException.class,
+         () -> new PaneScopeService(false).check(pane, wholeConditionTarget));
    }
 
    // -----------------------------------------------------------------------------------------

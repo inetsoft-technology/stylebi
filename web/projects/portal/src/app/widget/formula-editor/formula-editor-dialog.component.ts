@@ -32,6 +32,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { AggregateRef } from "../../common/data/aggregate-ref";
 import { AttributeRef } from "../../common/data/attribute-ref";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
 import { ExpressionType } from "../../common/data/condition/expression-type";
 import { DataRef } from "../../common/data/data-ref";
 import { FormulaType } from "../../common/data/formula-type";
@@ -146,6 +147,16 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() columnTreeEnabled: boolean = true;
    @Input() functionTreeEnabled: boolean = true;
    @Input() isCondition: boolean = false;
+   /** The condition's own comparison operator, for `editorContext` only -- this dialog
+    *  otherwise never needs to know it. Distinguishes `worksheetConditionValue` (single-value
+    *  operators, where this pane genuinely edits "the value") from every other operator, which
+    *  has no single value slot this pane could safely mean -- see
+    *  `ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE`'s javadoc. Negation/equal-inclusive
+    *  (`!=` vs `=`, `<=` vs `<`) don't change the value COUNT, so the raw `ConditionOperation`
+    *  enum is enough to classify this without needing the resolved symbol string the server
+    *  uses. Absent (e.g. a viewsheet condition, which addresses by assembly alone) simply means
+    *  the single-value check never applies. */
+   @Input() conditionOperation?: ConditionOperation;
 
    @Input() grayedOutFields: DataRef[];
    @Input() userAggNames: string[] = [];
@@ -252,13 +263,22 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
       if(this.isCondition) {
          // A viewsheet-hosted condition binds to the assembly's main script context, which is
-         // addressed by assembly alone -- `name` would be rejected there. A worksheet-hosted
-         // condition is column-addressed (see COLUMN_ADDRESSED_KINDS below) and needs its
-         // column name just like calcField/worksheetExpression do; formulaName already carries
-         // it here exactly as it does in the two branches around this one.
-         return this.isVSContext
-            ? { kind: "assemblyMain", assembly }
-            : { kind: "worksheetCondition", assembly, name: this.formulaName };
+         // addressed by assembly alone -- `name` would be rejected there.
+         if(this.isVSContext) {
+            return { kind: "assemblyMain", assembly };
+         }
+
+         // A worksheet-hosted condition: this dialog is ExpressionEditor's, which edits a
+         // condition's VALUE only, never its operator -- so it mints `worksheetConditionValue`,
+         // not `worksheetCondition` (whole-condition replace; see that Kind's javadoc for why
+         // the two are not interchangeable). Only a single-value operator has one value slot
+         // this pane could mean; every other operator (BETWEEN/ONE_OF/NOT_ONE_OF/NULL/NOT_NULL,
+         // or one this dialog was never told about) omits `name`, which `isAddressable` below
+         // already refuses -- suppressing Connect Agent rather than minting a code the server
+         // would reject.
+         return FormulaEditorDialog.SINGLE_VALUE_OPERATIONS.indexOf(this.conditionOperation) >= 0
+            ? { kind: "worksheetConditionValue", assembly, name: this.formulaName }
+            : { kind: "worksheetConditionValue", assembly };
       }
 
       return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
@@ -274,7 +294,18 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * opens with an empty `formulaName`, because the user has not named the thing yet.
     */
    private static readonly COLUMN_ADDRESSED_KINDS =
-      ["calcField", "worksheetExpression", "worksheetCondition"];
+      ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue"];
+
+   /**
+    * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may
+    * address. Mirrors `WorksheetScriptService.SINGLE_VALUE_OPERATORS` on the server (which
+    * enforces the same check independently, against the resolved symbol, at write time; this
+    * list only decides whether to offer Connect Agent at all, never the authority itself).
+    */
+   private static readonly SINGLE_VALUE_OPERATIONS = [
+      ConditionOperation.EQUAL_TO, ConditionOperation.LESS_THAN, ConditionOperation.GREATER_THAN,
+      ConditionOperation.STARTING_WITH, ConditionOperation.CONTAINS, ConditionOperation.LIKE
+   ];
 
    private static isAddressable(context: EditorContext): boolean {
       if(FormulaEditorDialog.COLUMN_ADDRESSED_KINDS.indexOf(context.kind) < 0) {

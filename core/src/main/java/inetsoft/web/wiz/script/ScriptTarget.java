@@ -37,7 +37,7 @@ import java.util.Set;
 public final class ScriptTarget {
    public enum Location {
       VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD,
-      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION
+      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE
    }
 
    /**
@@ -78,7 +78,31 @@ public final class ScriptTarget {
        * {@code WorksheetScriptService}, routed onto {@code WorksheetAgentController}'s existing
        * {@code edit_condition} op.
        */
-      WORKSHEET_CONDITION("worksheetCondition", Location.WORKSHEET_CONDITION);
+      WORKSHEET_CONDITION("worksheetCondition", Location.WORKSHEET_CONDITION),
+
+      /**
+       * A single-value worksheet condition's VALUE only — never its operator, and never a
+       * multi-value condition's other slots. Addressed the same way as
+       * {@link #WORKSHEET_CONDITION} (table, field); the two are deliberately NOT dialog
+       * siblings (see {@code PaneScopeService#matchesGrant}) because they carry different
+       * authority over the same location.
+       *
+       * <p>Exists because the one live UI caller of {@link #WORKSHEET_CONDITION} —
+       * {@code ExpressionEditor}, which edits a condition's expression-typed VALUE, never the
+       * condition as a whole — does not match what that kind's server-side write does
+       * ({@code WorksheetScriptService.conditionEditRequest} parses the pane's whole text as a
+       * NEW operator+values pair and replaces the entire condition). An agent paired from that
+       * dialog could silently overwrite an operator the user never opened it to change. This
+       * kind is narrower on purpose: {@code WorksheetScriptService} resolves the EXISTING
+       * condition, keeps its operator and every other value untouched, and refuses outright for
+       * an operator with more than one value slot (BETWEEN, ONE_OF/NOT_ONE_OF) or none
+       * (NULL/NOT_NULL) — those have no single "the value" this kind could mean. Reachable only
+       * from {@code FormulaEditorDialog}'s condition branch when the condition it is editing
+       * already uses a single-value operator; {@link #WORKSHEET_CONDITION} itself stays fully
+       * built and tested for whole-sheet sessions and direct worksheet-chat tool calls, which
+       * genuinely do mean "replace the whole condition".
+       */
+      WORKSHEET_CONDITION_VALUE("worksheetConditionValue", Location.WORKSHEET_CONDITION_VALUE);
 
       Kind(String wireName, Location location) {
          this.wireName = wireName;
@@ -135,7 +159,8 @@ public final class ScriptTarget {
        */
       private static boolean isExpressionLevel(Location location) {
          return switch(location) {
-            case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> true;
+            case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION,
+               WORKSHEET_CONDITION_VALUE -> true;
             case VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK -> false;
          };
       }
@@ -512,6 +537,9 @@ public final class ScriptTarget {
          // string only.
          case WORKSHEET_EXPRESSION -> "worksheetExpression:" + assemblyName + ":" + name;
          case WORKSHEET_CONDITION -> "worksheetCondition:" + assemblyName + ":" + name;
+         // Same reasoning as CALC_FIELD/WORKSHEET_EXPRESSION/WORKSHEET_CONDITION above: no
+         // legacy parseable form, display string only.
+         case WORKSHEET_CONDITION_VALUE -> "worksheetConditionValue:" + assemblyName + ":" + name;
       };
    }
 
@@ -521,7 +549,8 @@ public final class ScriptTarget {
     * {@code ||} chain that a future column-addressed kind could be added to incompletely.
     */
    private static final Set<Kind> COLUMN_ADDRESSED_KINDS =
-      EnumSet.of(Kind.CALC_FIELD, Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION);
+      EnumSet.of(Kind.CALC_FIELD, Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION,
+         Kind.WORKSHEET_CONDITION_VALUE);
 
    private final Kind kind;
    private final Location location;

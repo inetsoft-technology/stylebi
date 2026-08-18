@@ -28,6 +28,7 @@ import {
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable ,  Subscription } from "rxjs";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
 import { ExpressionType } from "../../common/data/condition/expression-type";
 import { ExpressionValue } from "../../common/data/condition/expression-value";
 import { TreeNodeModel } from "../tree/tree-node-model";
@@ -60,6 +61,12 @@ export class ExpressionEditor implements OnChanges, OnDestroy {
     *  like ConditionEditor's own field/table. */
    @Input() field: DataRef;
    @Input() table: string;
+   /** The condition's own comparison operator -- threaded through to FormulaEditorDialog's
+    *  editorContext exactly like `field`/`table` above, so it can tell a single-value operator
+    *  (where this pane genuinely edits "the value") from every other one, which has no single
+    *  value slot editing this box could safely mean. See
+    *  FormulaEditorDialog.conditionOperation's doc comment. */
+   @Input() operation: ConditionOperation;
    /** Runtime and socket to mint a pane-scoped pairing session against -- see
     *  FormulaEditorDialog.canPair. Absent (e.g. a viewsheet condition context that doesn't wire
     *  these through) simply means no Connect button, same as everywhere else this pattern is used. */

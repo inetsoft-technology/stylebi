@@ -46,6 +46,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -121,9 +122,14 @@ public class WorksheetScriptService {
       requirePaneScope(session, target);
       rejectExtras(extras);
 
-      EditRequest req = target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION
-         ? expressionEditRequest(session, agent, target, text)
-         : conditionEditRequest(target, text);
+      EditRequest req = switch(target.kind()) {
+         case WORKSHEET_EXPRESSION -> expressionEditRequest(session, agent, target, text);
+         case WORKSHEET_CONDITION -> conditionEditRequest(target, text);
+         case WORKSHEET_CONDITION_VALUE -> conditionValueEditRequest(session, agent, target, text);
+         // Unreachable: requireServedKind above already refused every other Kind.
+         default -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is not servable by WorksheetScriptService.");
+      };
 
       // editOp, not edit: edit() is the whole-sheet HTTP surface and now refuses a pane-scoped
       // session outright (whole-branch review finding 1). This call is already narrowed by
@@ -285,9 +291,14 @@ public class WorksheetScriptService {
          throw new PairingException("Table not found in worksheet: " + target.assemblyName());
       }
 
-      return target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION
-         ? readExpression(t, target)
-         : readCondition(t, target);
+      return switch(target.kind()) {
+         case WORKSHEET_EXPRESSION -> readExpression(t, target);
+         case WORKSHEET_CONDITION -> readCondition(t, target);
+         case WORKSHEET_CONDITION_VALUE -> readConditionValue(t, target);
+         // Unreachable: requireServedKind above already refused every other Kind.
+         default -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is not servable by WorksheetScriptService.");
+      };
    }
 
    private static ScriptInfo readExpression(TableAssembly t, ScriptTarget target)
@@ -312,27 +323,59 @@ public class WorksheetScriptService {
    }
 
    private static ScriptInfo readCondition(TableAssembly t, ScriptTarget target) {
+      Condition c = findCondition(t, target.name());
+
+      // No condition set on this field yet -- not an error; editCondition() can add one.
+      return c == null
+         ? new ScriptInfo(target.toString(), "", true)
+         : new ScriptInfo(target.toString(), formatCondition(c), true);
+   }
+
+   /**
+    * The read-side companion to {@link #conditionValueEditRequest}: the existing condition's
+    * VALUE alone, with no operator prefix -- e.g. {@code "0"}, never {@code "> 0"} -- matching
+    * what {@code ExpressionEditor} actually displays and edits. Refuses for the same operators
+    * {@link #conditionValueEditRequest} refuses, so a read never advertises a value slot the
+    * write side would then reject.
+    */
+   private static ScriptInfo readConditionValue(TableAssembly t, ScriptTarget target)
+      throws PairingException
+   {
+      Condition c = findCondition(t, target.name());
+
+      if(c == null) {
+         return new ScriptInfo(target.toString(), "", true);
+      }
+
+      requireSingleValueOperator(c, target);
+      Object v = c.getValueCount() > 0 ? c.getValue(0) : null;
+      String value = v == null ? "" : String.valueOf(v);
+      return new ScriptInfo(target.toString(), value, true);
+   }
+
+   /** The existing {@link Condition} on {@code field}, or {@code null} if none is set yet. */
+   private static Condition findCondition(TableAssembly t, String field) {
       ConditionListWrapper wrapper = t.getPreConditionList();
 
-      if(wrapper != null && !wrapper.isEmpty()) {
-         ConditionList cl = wrapper.getConditionList();
+      if(wrapper == null || wrapper.isEmpty()) {
+         return null;
+      }
 
-         for(int i = 0; i < cl.getSize(); i++) {
-            HierarchyItem hi = cl.getItem(i);
+      ConditionList cl = wrapper.getConditionList();
 
-            if(hi instanceof ConditionItem ci) {
-               DataRef attr = ci.getAttribute();
+      for(int i = 0; i < cl.getSize(); i++) {
+         HierarchyItem hi = cl.getItem(i);
 
-               if(target.name().equals(attr.getAttribute()) || target.name().equals(attr.getName())) {
-                  return new ScriptInfo(target.toString(),
-                     formatCondition((Condition) ci.getXCondition()), true);
-               }
+         if(hi instanceof ConditionItem ci) {
+            DataRef attr = ci.getAttribute();
+
+            if(field.equals(attr.getAttribute()) || field.equals(attr.getName())) {
+               return (Condition) ci.getXCondition();
             }
          }
       }
 
-      // No condition set on this field yet -- not an error; editCondition() can add one.
-      return new ScriptInfo(target.toString(), "", true);
+      return null;
    }
 
    /**
@@ -341,7 +384,6 @@ public class WorksheetScriptService {
     * {@code "ONE_OF a,b,c"}, or {@code "NULL"}, so a round-trip read/write sees the same grammar.
     */
    private static String formatCondition(Condition c) {
-      boolean negated = c.isNegated();
       List<String> values = new ArrayList<>();
 
       for(int i = 0; i < c.getValueCount(); i++) {
@@ -350,30 +392,52 @@ public class WorksheetScriptService {
       }
 
       String first = values.isEmpty() ? "" : values.get(0);
+      String symbol = operatorSymbol(c);
+
+      return switch(c.getOperation()) {
+         case XCondition.NULL -> symbol; // no value: "NULL"/"NOT_NULL" alone
+         case XCondition.BETWEEN -> symbol + " " + first + " AND " +
+            (values.size() > 1 ? values.get(1) : "");
+         case XCondition.ONE_OF -> symbol + " " + String.join(",", values);
+         default -> symbol + " " + first; // every single-value operator, incl. the EQUAL_TO fallback
+      };
+   }
+
+   /**
+    * The bare operator token {@link #CONDITION_OPERATORS} recognizes for {@code c}'s operation --
+    * negation and the equal-inclusive flag folded in exactly as {@code editCondition} itself
+    * interprets them (e.g. {@code LESS_THAN} + {@code isEqual()} -> {@code "<="}), with no value
+    * appended. Shared by {@link #formatCondition}, which appends the value(s) in its own
+    * operator-specific shape, and {@link #requireSingleValueOperator}/
+    * {@link #conditionValueEditRequest}, which only need to name or preserve the operator.
+    */
+   private static String operatorSymbol(Condition c) {
+      boolean negated = c.isNegated();
 
       return switch(c.getOperation()) {
          case XCondition.NULL -> negated ? "NOT_NULL" : "NULL";
-         case XCondition.BETWEEN ->
-            "BETWEEN " + first + " AND " + (values.size() > 1 ? values.get(1) : "");
-         case XCondition.ONE_OF -> (negated ? "NOT_ONE_OF " : "ONE_OF ") + String.join(",", values);
-         case XCondition.STARTING_WITH -> "STARTING_WITH " + first;
-         case XCondition.CONTAINS -> "CONTAINS " + first;
-         case XCondition.LIKE -> "LIKE " + first;
-         case XCondition.LESS_THAN -> (c.isEqual() ? "<= " : "< ") + first;
-         case XCondition.GREATER_THAN -> (c.isEqual() ? ">= " : "> ") + first;
-         default -> (negated ? "!= " : "= ") + first; // XCondition.EQUAL_TO and any other fallback
+         case XCondition.BETWEEN -> "BETWEEN";
+         case XCondition.ONE_OF -> negated ? "NOT_ONE_OF" : "ONE_OF";
+         case XCondition.STARTING_WITH -> "STARTING_WITH";
+         case XCondition.CONTAINS -> "CONTAINS";
+         case XCondition.LIKE -> "LIKE";
+         case XCondition.LESS_THAN -> c.isEqual() ? "<=" : "<";
+         case XCondition.GREATER_THAN -> c.isEqual() ? ">=" : ">";
+         default -> negated ? "!=" : "="; // XCondition.EQUAL_TO and any other fallback
       };
    }
+
+   private static final Set<ScriptTarget.Kind> SERVED_KINDS = EnumSet.of(
+      ScriptTarget.Kind.WORKSHEET_EXPRESSION, ScriptTarget.Kind.WORKSHEET_CONDITION,
+      ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
 
    private static void requireServedKind(ScriptTarget target) throws PairingException {
       ScriptTarget.Kind kind = target.kind();
 
-      if(kind != ScriptTarget.Kind.WORKSHEET_EXPRESSION &&
-         kind != ScriptTarget.Kind.WORKSHEET_CONDITION)
-      {
+      if(!SERVED_KINDS.contains(kind)) {
          throw new PairingException(
-            "WorksheetScriptService only serves worksheetExpression/worksheetCondition, not '" +
-            kind.wireName() + "'.");
+            "WorksheetScriptService only serves worksheetExpression/worksheetCondition/" +
+            "worksheetConditionValue, not '" + kind.wireName() + "'.");
       }
    }
 
@@ -385,8 +449,9 @@ public class WorksheetScriptService {
    private static void requireWorksheetSession(JoinSession session) throws PairingException {
       if(session == null || session.sheetType() != SheetType.WORKSHEET) {
          throw new PairingException(
-            "worksheetExpression/worksheetCondition require a session joined to a worksheet " +
-            "runtime, not " + (session == null ? "no session" : session.sheetType()) + ".");
+            "worksheetExpression/worksheetCondition/worksheetConditionValue require a session " +
+            "joined to a worksheet runtime, not " +
+            (session == null ? "no session" : session.sheetType()) + ".");
       }
    }
 
@@ -468,14 +533,7 @@ public class WorksheetScriptService {
    private Boolean currentSqlFlag(JoinSession session, Principal agent, String table, String name)
       throws PairingException
    {
-      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
-      Worksheet ws = rws == null ? null : rws.getWorksheet();
-      Assembly a = ws == null ? null : ws.getAssembly(table);
-
-      if(!(a instanceof TableAssembly t)) {
-         throw new PairingException("Table not found in worksheet: " + table);
-      }
-
+      TableAssembly t = resolveTable(session, agent, table);
       ColumnSelection cs = t.getColumnSelection(false);
 
       for(int i = 0; i < cs.getAttributeCount(); i++) {
@@ -489,6 +547,25 @@ public class WorksheetScriptService {
       }
 
       return null;
+   }
+
+   /**
+    * Resolves {@code table} against {@code session}'s runtime worksheet. Shared by every method
+    * here that needs to inspect EXISTING state before writing (or instead of writing) -- never
+    * caches, since each call reflects whatever the worksheet's undo history looks like right now.
+    */
+   private TableAssembly resolveTable(JoinSession session, Principal agent, String table)
+      throws PairingException
+   {
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+      Worksheet ws = rws == null ? null : rws.getWorksheet();
+      Assembly a = ws == null ? null : ws.getAssembly(table);
+
+      if(!(a instanceof TableAssembly t)) {
+         throw new PairingException("Table not found in worksheet: " + table);
+      }
+
+      return t;
    }
 
    // ---------------------------------------------------------------------------
@@ -536,6 +613,87 @@ public class WorksheetScriptService {
       "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL");
 
    private record ParsedCondition(String operation, List<String> values) {}
+
+   // ---------------------------------------------------------------------------
+   // worksheetConditionValue
+   // ---------------------------------------------------------------------------
+
+   /**
+    * The subset of {@link #CONDITION_OPERATORS} with exactly one value slot -- the only shape
+    * {@link ScriptTarget.Kind#WORKSHEET_CONDITION_VALUE} may write. {@code BETWEEN} (two slots),
+    * {@code ONE_OF}/{@code NOT_ONE_OF} (a list), and {@code NULL}/{@code NOT_NULL} (none) all have
+    * no single "the value" this kind could mean -- see that constant's javadoc.
+    */
+   private static final Set<String> SINGLE_VALUE_OPERATORS = Set.of(
+      "=", "!=", "<", "<=", ">", ">=", "STARTING_WITH", "CONTAINS", "LIKE");
+
+   /**
+    * Writes {@code text} as the sole value of the EXISTING condition on {@code target}, preserving
+    * its operator untouched -- the whole reason this kind exists instead of routing through
+    * {@link #conditionEditRequest}, which would treat {@code text} as a brand-new operator+values
+    * pair and replace the condition wholesale. See {@link ScriptTarget.Kind#WORKSHEET_CONDITION_VALUE}.
+    */
+   private EditRequest conditionValueEditRequest(JoinSession session, Principal agent,
+                                                 ScriptTarget target, String text)
+      throws PairingException
+   {
+      String table = target.assemblyName();
+      String field = target.name();
+      TableAssembly t = resolveTable(session, agent, table);
+      Condition current = findCondition(t, field);
+
+      if(current == null) {
+         throw new PairingException(
+            "No condition exists yet on '" + table + "." + field + "'. This pane-scoped " +
+            "session may only edit an EXISTING single-value condition's value; use " +
+            "worksheet-chat's edit_condition to create one first.");
+      }
+
+      requireSingleValueOperator(current, target);
+
+      return new EditRequest(
+         "edit_condition",         // op
+         table,                     // table
+         null,                      // column
+         null,                      // name
+         null,                      // type
+         null,                      // newName
+         field,                     // field -- the paired column; never caller-supplied
+         operatorSymbol(current),   // operation -- preserved from the EXISTING condition
+         List.of(text),             // values -- the only field this pane may change
+         null, null, null,          // direction, groups, aggregates
+         null, false,               // expression, sql
+         null, null, null, null, null,   // leftTable, leftKey, rightTable, rightKey, joinType
+         null, null, null, null,         // visible, tables, source, concatType
+         null, null, null, null, null,   // conditions, ranking, headerColumns, dateOption, boundaries
+         null, null, null, null,         // datasource, schema, catalog, logicalModel
+         null, null,                     // leftKeys, rightKeys
+         null, null, null, null,         // row, col, value, index
+         null, null, null, null,         // alias, description, maxRows, distinct
+         null, null, null, null,         // columnOrder, groupMappings, groupOthers, variableValues
+         null, null, null, null,         // x, y, label, defaultValue
+         null, null, null                // mode, insert, subtables
+      );
+   }
+
+   /**
+    * Refuses {@code c} when its operator has no single value slot -- see
+    * {@link #SINGLE_VALUE_OPERATORS}. Checked on both the read and write side, so a read never
+    * advertises a value the write side would then reject, and so a write refuses even if the
+    * operator changed to a multi-value one between mint time and this call.
+    */
+   private static void requireSingleValueOperator(Condition c, ScriptTarget target)
+      throws PairingException
+   {
+      String symbol = operatorSymbol(c);
+
+      if(!SINGLE_VALUE_OPERATORS.contains(symbol)) {
+         throw new PairingException(
+            "'" + target.assemblyName() + "." + target.name() + "' has a " + symbol + " " +
+            "condition, which has no single value this pane can edit. Use worksheet-chat's " +
+            "edit_condition for BETWEEN/ONE_OF/NOT_ONE_OF/NULL/NOT_NULL conditions.");
+      }
+   }
 
    /**
     * Parses a single free-text condition edit, e.g. {@code "> 0"}, {@code "BETWEEN 1 AND 10"},

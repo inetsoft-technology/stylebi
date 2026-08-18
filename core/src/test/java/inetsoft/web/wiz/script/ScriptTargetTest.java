@@ -133,6 +133,35 @@ class ScriptTargetTest {
       assertEquals("Price", t.name());
    }
 
+   /**
+    * The narrower sibling of {@code worksheetCondition} (finding 1 on stylebi#4654's second
+    * review): same (table, field) addressing, but never a dialog sibling of
+    * {@code worksheetCondition} -- see {@link ScriptTarget.Kind#WORKSHEET_CONDITION_VALUE}'s
+    * javadoc for why the two must not be interchangeable.
+    */
+   @Test
+   void worksheetConditionValueIsServableWithItsOwnLocation() throws PairingException {
+      assertEquals(ScriptTarget.Location.WORKSHEET_CONDITION_VALUE,
+                   ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE.location());
+      assertEquals("worksheetConditionValue", ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE.wireName());
+
+      ScriptTarget t =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+      assertEquals("Query1", t.assemblyName());
+      assertEquals("Price", t.name());
+   }
+
+   @Test
+   void aWorksheetConditionValueIdRoundTrips() throws PairingException {
+      ScriptTarget t =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+      ScriptTarget back = ScriptTarget.fromId(t.id());
+
+      assertEquals(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, back.kind());
+      assertEquals("Query1", back.assemblyName());
+      assertEquals("Price", back.name());
+   }
+
    @Test
    void wireNamesAreTheCamelCaseTaxonomy() throws PairingException {
       assertEquals("viewsheetOnInit", ScriptTarget.Kind.VIEWSHEET_ON_INIT.wireName());

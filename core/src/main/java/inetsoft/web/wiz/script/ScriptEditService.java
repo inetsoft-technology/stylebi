@@ -174,7 +174,7 @@ public class ScriptEditService {
          // all -- it is written via WorksheetScriptService, routed onto
          // WorksheetAgentController's edit_expression/edit_condition ops -- so this must fail
          // loud if ever misrouted here, not do nothing.
-         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
             "'" + target.kind().wireName() + "' is a worksheet-level target; it cannot be " +
             "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
             "edit_expression/edit_condition) instead.");
@@ -196,7 +196,7 @@ public class ScriptEditService {
          // Same silent-no-op hazard as write() above -- this is a switch STATEMENT with no
          // default. A worksheet expression/condition column has no enable flag either, and has
          // no RuntimeViewsheet representation regardless -- fail loud rather than doing nothing.
-         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
             "'" + target.kind().wireName() + "' is a worksheet-level target with no enable flag; " +
             "it cannot be toggled through the viewsheet script API.");
       }

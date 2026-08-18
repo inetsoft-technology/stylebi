@@ -131,7 +131,7 @@ public class ScriptExecuteService {
          // expression/condition column is read/written through WorksheetScriptService instead).
          // Handled explicitly anyway: this is a switch EXPRESSION, so the compiler -- not just
          // this method's runtime behavior -- must stay exhaustive over every Location.
-         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION -> throw new PairingException(
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
             "A worksheet expression/condition column is not a runnable viewsheet script. " +
             "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
       };

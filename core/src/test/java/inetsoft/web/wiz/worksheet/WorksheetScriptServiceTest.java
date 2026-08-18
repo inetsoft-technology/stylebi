@@ -250,6 +250,176 @@ class WorksheetScriptServiceTest {
    }
 
    // ---------------------------------------------------------------------------
+   // worksheetConditionValue -- stylebi#4654's second review, finding 1. Writes ONLY the value
+   // of an EXISTING single-value condition, preserving its operator -- unlike worksheetCondition,
+   // which treats the pane's text as a brand-new operator+values pair.
+   // ---------------------------------------------------------------------------
+
+   /** A worksheet with one table carrying a single-value condition on the given field. */
+   private void seedCondition(String table, String field, String operation, String... values)
+      throws PairingException
+   {
+      Worksheet ws = new Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, table, "price", "cost", field);
+      ws.addAssembly(t);
+      WorksheetMutationSupport.addFilter(t, field, operation, values);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editService.resolve("TOK", agent)).thenReturn(rws);
+   }
+
+   @Test
+   void writesTheValueAlonePreservingTheExistingOperator() throws Exception {
+      seedCondition("Query1", "Price", ">", "0");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      service.write(session, agent, target, "5");
+
+      ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
+      EditRequest req = captor.getValue();
+      assertEquals("edit_condition", req.op());
+      assertEquals("Query1", req.table());
+      assertEquals("Price", req.field());
+      assertEquals(">", req.operation(), "the operator must be preserved, never caller-supplied");
+      assertEquals(List.of("5"), req.values());
+   }
+
+   /**
+    * The load-bearing case: {@code isEqual()} folded into the operator symbol, exactly as
+    * {@code editCondition} itself interprets {@code LESS_THAN}/{@code GREATER_THAN} plus that
+    * flag -- a naive re-derivation that ignored it would silently turn a {@code <=} into a
+    * {@code <} the moment an agent edited the value next to it.
+    */
+   @Test
+   void preservesAnInclusiveComparisonOperator() throws Exception {
+      seedCondition("Query1", "Price", "<=", "100");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      service.write(session, agent, target, "50");
+
+      ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
+      assertEquals("<=", captor.getValue().operation());
+   }
+
+   @Test
+   void refusesWhenNoConditionExistsYet() throws Exception {
+      Worksheet ws = new Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Query1", "price", "cost", "Price");
+      ws.addAssembly(t);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editService.resolve("TOK", agent)).thenReturn(rws);
+
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, "5"));
+
+      assertTrue(ex.getMessage().contains("edit_condition"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   /**
+    * The whole reason this kind refuses rather than guesses: {@code BETWEEN} has two value
+    * slots, so there is no single "the value" a one-box pane could mean.
+    */
+   @Test
+   void refusesABetweenConditionWithARedirect() throws Exception {
+      seedCondition("Query1", "Price", "BETWEEN", "1", "10");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, "5"));
+
+      assertTrue(ex.getMessage().contains("BETWEEN"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("edit_condition"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void refusesAOneOfConditionWithARedirect() throws Exception {
+      seedCondition("Query1", "Region", "ONE_OF", "East", "West");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Region", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Region");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, "North"));
+
+      assertTrue(ex.getMessage().contains("ONE_OF"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void refusesANullConditionWithARedirect() throws Exception {
+      seedCondition("Query1", "Price", "NULL");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, "5"));
+
+      assertTrue(ex.getMessage().contains("NULL"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void readReturnsTheValueAloneWithNoOperatorPrefix() throws Exception {
+      seedCondition("Query1", "Price", ">", "0");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      ScriptInfo info = service.read(session, agent, target);
+
+      assertEquals("0", info.text(), "no 'operator ' prefix -- this pane edits the value alone");
+   }
+
+   @Test
+   void readOfAMultiValueConditionIsAlsoRefused() throws Exception {
+      seedCondition("Query1", "Price", "BETWEEN", "1", "10");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertThrows(PairingException.class, () -> service.read(session, agent, target));
+   }
+
+   @Test
+   void aWholeSheetSessionMayNotWriteAWorksheetConditionValue() throws Exception {
+      JoinSession session = wholeSheetSession();
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, "5"));
+
+      verifyNoInteractions(worksheetController);
+   }
+
+   // ---------------------------------------------------------------------------
    // Pane-scope enforcement -- the point of the exercise
    // ---------------------------------------------------------------------------
 
