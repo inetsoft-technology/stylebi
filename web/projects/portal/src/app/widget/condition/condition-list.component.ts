@@ -25,6 +25,7 @@ import { GuiTool } from "../../common/util/gui-tool";
 import { JunctionOperatorPipe } from "./junction-operator.pipe";
 import { ConditionPipe } from "./condition.pipe";
 import { ConditionDialog } from "./condition-dialog.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 
 @Component({
@@ -41,6 +42,9 @@ export class ConditionList {
    @Input() fields: DataRef[];
    @Input() subqueryTables: SubqueryTable[];
    @Input() conditionList: any[]; // even indexes contain conditions, odd contain junctions
+   @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() isVSContext = true;
    @Input() showOriginalName: boolean = false;
    @Output() conditionListChange: EventEmitter<any[]> = new EventEmitter<any[]>();

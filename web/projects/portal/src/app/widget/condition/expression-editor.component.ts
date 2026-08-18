@@ -34,6 +34,7 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { DataRef } from "../../common/data/data-ref";
 import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
 import { FormsModule } from "@angular/forms";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 
 @Component({
@@ -53,6 +54,17 @@ export class ExpressionEditor implements OnChanges, OnDestroy {
    @Input() vsId: string;
    @Input() showOriginalName: boolean = false;
    @Input() columns: DataRef[];
+   /** The condition's own field and owning table -- this editor only ever edits a condition's
+    *  EXPRESSION value, so the location it derives is always a worksheet condition when
+    *  isVSContext is false. Threaded through to FormulaEditorDialog's editorContext exactly
+    *  like ConditionEditor's own field/table. */
+   @Input() field: DataRef;
+   @Input() table: string;
+   /** Runtime and socket to mint a pane-scoped pairing session against -- see
+    *  FormulaEditorDialog.canPair. Absent (e.g. a viewsheet condition context that doesn't wire
+    *  these through) simply means no Connect button, same as everywhere else this pattern is used. */
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Output() valueChange = new EventEmitter<ExpressionValue>();
    @ViewChild("formulaEditorDialog") formulaEditorDialog: TemplateRef<any>;
    expressionType: ExpressionType;

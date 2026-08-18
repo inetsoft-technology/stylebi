@@ -251,7 +251,14 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       }
 
       if(this.isCondition) {
-         return { kind: this.isVSContext ? "assemblyMain" : "worksheetCondition", assembly };
+         // A viewsheet-hosted condition binds to the assembly's main script context, which is
+         // addressed by assembly alone -- `name` would be rejected there. A worksheet-hosted
+         // condition is column-addressed (see COLUMN_ADDRESSED_KINDS below) and needs its
+         // column name just like calcField/worksheetExpression do; formulaName already carries
+         // it here exactly as it does in the two branches around this one.
+         return this.isVSContext
+            ? { kind: "assemblyMain", assembly }
+            : { kind: "worksheetCondition", assembly, name: this.formulaName };
       }
 
       return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",

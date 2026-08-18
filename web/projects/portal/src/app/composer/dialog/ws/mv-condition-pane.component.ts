@@ -24,6 +24,7 @@ import { AppendConditionItemPaneProvider } from "./append-condition-item-pane-pr
 import { DeleteConditionItemPaneProvider } from "./delete-condition-item-pane-provider";
 import { ConditionList } from "../../../widget/condition/condition-list.component";
 import { FormsModule } from "@angular/forms";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 
 @Component({
     selector: "mv-condition-pane",
@@ -33,6 +34,7 @@ import { FormsModule } from "@angular/forms";
 export class MVConditionPane implements OnInit {
    @Input() subqueryTables: SubqueryTable[];
    @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() assemblyName: string;
    @Input() model: MVConditionPaneModel;
    @Input() expressionFields: DataRef[];

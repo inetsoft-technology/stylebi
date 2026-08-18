@@ -46,6 +46,7 @@ import { ConditionPipe } from "./condition.pipe";
 
 import { FormsModule } from "@angular/forms";
 import { ConditionItemPane } from "./condition-item-pane.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 @Component({
     selector: "condition-pane",
@@ -59,6 +60,8 @@ export class ConditionPane implements OnInit {
    @Input() subqueryTables: SubqueryTable[];
    @Input() fields: DataRef[];
    @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() vsId: string;
    @Input() provider: ConditionItemPaneProvider;
    @Input() onlyOr: boolean = false;

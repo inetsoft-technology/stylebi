@@ -65,8 +65,10 @@ describe("FormulaEditorDialog — editorContext", () => {
       comp.isVSContext = false;
       comp.isCondition = true;
       comp.assemblyName = "Table1";
+      comp.formulaName = "Amount";
 
-      expect(comp.editorContext.kind).toBe("worksheetCondition");
+      expect(comp.editorContext).toEqual(
+         { kind: "worksheetCondition", assembly: "Table1", name: "Amount" });
    });
 
    it("derives an assemblyMain context for a viewsheet-hosted condition", () => {
@@ -199,19 +201,28 @@ describe("FormulaEditorDialog — canPair suppresses an unaddressable location",
       expect(comp.canPair).toBe(false);
    });
 
-   /* The condition branch derives worksheetCondition and supplies no `name` at all, so it can
-    * never be addressed -- pinned here so the suppression is a stated property, not an accident
-    * of that branch's shape. */
-   it("offers no connect button for a worksheet-hosted condition, which carries no column name",
-      () => {
-         const comp = pairedDialog();
-         comp.isVSContext = false;
-         comp.isCondition = true;
-         comp.assemblyName = "Table1";
-         comp.formulaName = "Amount";
+   /* A worksheet-hosted condition is column-addressed (COLUMN_ADDRESSED_KINDS), so it needs a
+    * column name just like calcField/worksheetExpression -- suppressed when the caller hasn't
+    * supplied one (e.g. no field selected yet), addressable once it has. */
+   it("offers no connect button for a worksheet-hosted condition with no column name", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = null;
 
-         expect(comp.canPair).toBe(false);
-      });
+      expect(comp.canPair).toBe(false);
+   });
+
+   it("offers a connect button for a worksheet-hosted condition on a real column", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.formulaName = "Amount";
+
+      expect(comp.canPair).toBe(true);
+   });
 
    /* The other half: kinds addressed by assembly alone are unaffected, and a fully addressed
     * column location is still offered. Without these, "suppress everything" would also pass. */

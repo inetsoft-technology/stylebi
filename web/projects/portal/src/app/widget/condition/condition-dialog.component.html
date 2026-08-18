@@ -23,6 +23,7 @@
   @if (!simplePane) {
     <condition-pane [provider]="provider" [subqueryTables]="subqueryTables"
       [fields]="fields" [conditionList]="conditionListClone"
+      [table]="table" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
       [fillParent]="resizeable && !inSlide"
       [showOriginalName]="showOriginalName"
       (conditionChange)="conditionChanged($event)"
@@ -33,6 +34,7 @@
   @if (simplePane) {
     <simple-condition-pane [provider]="provider" [subqueryTables]="subqueryTables"
       [fields]="fields" [conditionList]="conditionListClone"
+      [table]="table" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
       [isVSContext]="isVSContext"
       (conditionListChange)="conditionListChanged($event)">
     </simple-condition-pane>
