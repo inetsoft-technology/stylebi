@@ -437,6 +437,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
                this.activateTreemapDescendants(el);
             }
             else {
+               // Called for every remaining hovered VO (bar, candle, point, box, ...); it self-guards
+               // on the data-group attribute, which is only stamped for box plots.
                this.activateBoxGroup(el);
             }
          }

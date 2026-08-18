@@ -3431,8 +3431,12 @@ public class SVGAnimationDOMInjector {
          // must dim the other's non-active elements — a same-class-only rule left the outliers at
          // full opacity while their boxes faded. The hovered box's OWN outliers (and an outlier's
          // own box) are kept undimmed by ChartInlineSvgDirective, which activates them via the
-         // shared data-group key. These selectors can only match in a document containing both
-         // classes, i.e. a box plot; a point-only chart has no .inetsoft-box to dim.
+         // shared data-group key. Correlating by class alone is safe: .inetsoft-point is generic
+         // (every PointVO gets it), but Box Plot is a merged graph type (GraphTypes.isMergedGraphType),
+         // so GraphTypes.supportsMultiStyles() excludes it and ChangeChartTypeProcessor.process()
+         // forces setMultiStyles(false) whenever it is selected — even per-measure. A box and a plain
+         // (non-outlier) point therefore never appear in the same graph, and a point-only chart has
+         // no .inetsoft-box to dim.
          "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)," +
          "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-point:not(.inetsoft-active)," +
          "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
