@@ -23,7 +23,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.security.Principal;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
@@ -42,6 +44,18 @@ public class SheetPairingService {
     * {@code WorksheetService}/{@code ViewsheetService} to satisfy the field.
     */
    private static final SheetDirectAccessor NOT_CONFIGURED = runtimeId -> null;
+
+   /**
+    * The wire vocabulary an {@link EditorContext#kind()} may carry, mirroring
+    * {@code ScriptTarget.Kind}'s wire names. Kept as an independent list here rather than
+    * importing {@code inetsoft.web.wiz.script.ScriptTarget} -- that class already imports
+    * {@code PairingException} from this package, and reaching back into it would make the two
+    * packages depend on each other in both directions. An unrecognized kind is refused here, at
+    * mint time, rather than left to surface later at {@code ScriptTarget.Kind.fromWire}.
+    */
+   private static final List<String> RECOGNIZED_KINDS = List.of(
+      "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
+      "worksheetExpression", "worksheetCondition");
 
    private final ConcurrentHashMap<String, PairingGrant> grants;
    private final SecureRandom random = new SecureRandom();
@@ -114,7 +128,7 @@ public class SheetPairingService {
       throws PairingException
    {
       if(editorContext != null) {
-         validateEditorContext(sheetType, runtimeId, editorContext);
+         validateEditorContext(sheetType, runtimeId, ownerIdentity, editorContext);
       }
 
       String code = newCode();
@@ -128,7 +142,8 @@ public class SheetPairingService {
     * Refuses an editorContext naming a location the runtime does not actually have. Named after
     * what was asked for, so the error is useful back in the editor that produced it.
     */
-   private void validateEditorContext(SheetType sheetType, String runtimeId, EditorContext ctx)
+   private void validateEditorContext(SheetType sheetType, String runtimeId, String ownerIdentity,
+                                      EditorContext ctx)
       throws PairingException
    {
       if(isBlank(ctx.kind())) {
@@ -136,9 +151,34 @@ public class SheetPairingService {
                                     "editorContext.kind is required");
       }
 
+      if(!RECOGNIZED_KINDS.contains(ctx.kind())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Unknown editorContext.kind: \"" + ctx.kind() + "\". Expected one of " +
+            String.join(", ", RECOGNIZED_KINDS) + ".");
+      }
+
       SheetDirectAccessor accessor =
          sheetType == SheetType.VIEWSHEET ? viewsheetAccessor : worksheetAccessor;
       RuntimeSheet rs = accessor.getSheetDirect(runtimeId);
+
+      // Ownership check FIRST, before anything below inspects the runtime's actual content.
+      // Without this, a caller could mint against a runtimeId they do not own and learn --
+      // from mint's own success/failure -- whether an assembly or calc field of a given name
+      // exists on someone else's open sheet. SheetJoinService's equivalent check (its step 3b)
+      // runs at JOIN time, which is too late here: mint would already have leaked it via its
+      // own success/failure. A null owner (runtime not resolvable on this node) is not treated
+      // as a mismatch, mirroring SheetJoinService's own null-owner tolerance.
+      if(rs != null) {
+         Principal runtimeOwner = rs.getUser();
+
+         if(runtimeOwner != null && !PairingUtil.sameLogicalUser(ownerIdentity, runtimeOwner)) {
+            // Deliberately the same message/kind a genuinely missing runtime would produce --
+            // never varies with what editorContext asked for, so it cannot become an oracle
+            // for what does or doesn't exist on someone else's open sheet.
+            throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+               "Runtime not found or expired: " + runtimeId);
+         }
+      }
 
       if("calcField".equals(ctx.kind())) {
          // Addressed by (table, name), not by assembly -- Viewsheet.getCalcField is keyed by

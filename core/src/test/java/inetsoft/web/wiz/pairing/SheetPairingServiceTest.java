@@ -19,12 +19,16 @@ package inetsoft.web.wiz.pairing;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -51,6 +55,15 @@ import static org.mockito.Mockito.when;
  * [EditorContext: calc miss] mint refuses a calcField editorContext naming a field the
  *                            runtime does not have
  * [EditorContext: worksheet] the same assembly check applies to worksheet runtimes
+ * [EditorContext: worksheet ok] mint accepts an editorContext naming a table the worksheet
+ *                            runtime has (positive path for the WORKSHEET arm)
+ * [EditorContext: unknown kind] mint refuses an editorContext with an unrecognized kind
+ * [EditorContext: table]     a calcField editorContext can name its table via 'table' directly,
+ *                            not only via the 'assembly' alias
+ * [EditorContext: precedence] an explicit 'table' wins over 'assembly' when both are given
+ * [EditorContext: IDOR]      mint against a runtimeId the caller does not own fails identically
+ *                            whether or not the named assembly exists -- the failure must never
+ *                            become an oracle for what exists on someone else's open sheet
  */
 @Tag("core")
 class SheetPairingServiceTest {
@@ -241,5 +254,101 @@ class SheetPairingServiceTest {
          () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
       assertTrue(ex.getMessage().contains("NoSuchTable"),
                  "message must name what was asked for: " + ex.getMessage());
+   }
+
+   @Test
+   void mintsWhenTheEditorContextNamesATableTheWorksheetRuntimeHas() throws PairingException {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("Query1")).thenReturn(mock(Assembly.class));
+      SheetPairingService svc = serviceWithWorksheetRuntime(rws);
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Calc1", null);
+
+      String code = svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAnEditorContextWithAnUnrecognizedKind() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("asssemblyMain", "Chart1", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("asssemblyMain"),
+                 "message must name the bad value: " + ex.getMessage());
+   }
+
+   @Test
+   void mintsACalcFieldEditorContextUsingTheTableFieldDirectly() throws PairingException {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getCalcField("Query1", "Margin")).thenReturn(mock(CalculateRef.class));
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      // 'assembly' is null here -- only the record's own 'table' field is set.
+      EditorContext ctx = new EditorContext("calcField", null, "Margin", "Query1");
+
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   /**
+    * Pins the precedence explicitly, with both fields set to DIFFERENT tables: only 'table' is
+    * stubbed to resolve the calc field. Inverted alias/fallback logic (checking 'assembly'
+    * first) would look up the un-stubbed decoy table, get null back from the mock, and fail --
+    * catching a regression that {@link #mintsACalcFieldEditorContextUsingTheTableFieldDirectly}
+    * and the alias-path tests (which never set both fields at once) cannot.
+    */
+   @Test
+   void explicitTableTakesPrecedenceOverTheAssemblyAlias() throws PairingException {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getCalcField("RealTable", "Margin")).thenReturn(mock(CalculateRef.class));
+      // "DecoyTable" deliberately left unstubbed -- getCalcField returns null for it.
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      EditorContext ctx = new EditorContext("calcField", "DecoyTable", "Margin", "RealTable");
+
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   /**
+    * The core IDOR/information-disclosure guard: minting against a runtime the caller does not
+    * own must fail identically regardless of whether the named assembly exists. A test that only
+    * checked "a foreign runtime is refused" would still pass if the failure differed (or if
+    * assembly existence were checked first) -- this pins that the two outcomes are
+    * indistinguishable, and that neither message leaks the assembly name.
+    */
+   @Test
+   void foreignRuntimeFailsIdenticallyRegardlessOfWhetherTheNamedAssemblyExists() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      Principal bob = TestPrincipals.user("bob", "host-org");
+      when(rvs.getUser()).thenReturn(bob);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("RealChart")).thenReturn(mock(VSAssembly.class));
+      when(vs.getAssembly("FakeChart")).thenReturn(null);
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+
+      String aliceKey = new IdentityID("alice", "host-org").convertToKey();
+      EditorContext namesARealAssembly = new EditorContext("assemblyMain", "RealChart", null, null);
+      EditorContext namesAFakeAssembly = new EditorContext("assemblyMain", "FakeChart", null, null);
+
+      PairingException exReal = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", aliceKey, "sock-1", "alice", SheetType.VIEWSHEET, namesARealAssembly));
+      PairingException exFake = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", aliceKey, "sock-1", "alice", SheetType.VIEWSHEET, namesAFakeAssembly));
+
+      assertEquals(exReal.getKind(), exFake.getKind());
+      assertEquals(exReal.getMessage(), exFake.getMessage());
+      assertFalse(exReal.getMessage().contains("RealChart"));
+      assertFalse(exReal.getMessage().contains("FakeChart"));
    }
 }
