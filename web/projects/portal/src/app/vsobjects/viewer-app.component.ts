@@ -2337,12 +2337,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                return actions;
             });
 
-            if(this.selectedActions &&
-               this.selectedActions.getModel().absoluteName == command.name)
-            {
-               this.selectedActions = this.vsObjectActions[i];
-               this.addMobileActionSubsciption();
-            }
+            // vsObjectActions is rebuilt in full above, so *every* actions instance is
+            // replaced -- including the one for the currently selected assembly, even when
+            // this command targets a different assembly (e.g. a chart refreshed as a result
+            // of applying a selection). The assembly component re-subscribes to the new
+            // instance through its [actions] input, so a selectedActions still pointing at
+            // the old instance would emit action events that nobody listens to, and the
+            // mobile toolbar buttons would do nothing. Re-point it by name, not by
+            // command.name.
+            this.resyncSelectedActions();
          }
          else if(this.vsObjects[i].objectType != "VSViewsheet"){
             // sheetMaxMode is global so should apply it to all
@@ -2409,15 +2412,32 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
             this.calculateAllAssemblyBounds();
 
-            if(this.selectedActions &&
-               this.selectedActions.getModel().absoluteName == this.vsObjects[i].absoluteName)
-            {
-               this.selectedActions = this.vsObjectActions[i];
-               this.addMobileActionSubsciption();
-            }
+            this.resyncSelectedActions();
 
             break;
          }
+      }
+   }
+
+   /**
+    * Re-point selectedActions (the source of the mobile toolbar buttons) at the current
+    * actions instance for the selected assembly. Must be called whenever vsObjectActions
+    * entries are replaced, otherwise selectedActions keeps an orphaned instance whose
+    * onAssemblyActionEvent no longer has any subscriber.
+    */
+   private resyncSelectedActions(): void {
+      if(!this.selectedActions) {
+         return;
+      }
+
+      const name = this.selectedActions.getModel()?.absoluteName;
+      const index = this.vsObjects.findIndex(obj => obj?.absoluteName == name);
+
+      if(index >= 0 && this.vsObjectActions[index] &&
+         this.selectedActions != this.vsObjectActions[index])
+      {
+         this.selectedActions = this.vsObjectActions[index];
+         this.addMobileActionSubsciption();
       }
    }
 
@@ -2796,6 +2816,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             }
          }
       }
+
+      this.resyncSelectedActions();
    }
 
    private processExpiredSheetCommand(command: ExpiredSheetCommand) {
