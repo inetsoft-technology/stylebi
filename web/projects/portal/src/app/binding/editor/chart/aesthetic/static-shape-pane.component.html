@@ -36,7 +36,7 @@
     </i>
 
     <div class="shape-pane">
-      @for (i of currentViewIndices; track i) {
+      @for (i of currentViewIndices; track $index) {
         @if (shapes[i]) {
           <shape-item class="m-1" [shapeStr]="shapes[i]" (click)="selectShape(shapes[i])"
             [class.bd-gray]="shapes[i] == shapeStr">
