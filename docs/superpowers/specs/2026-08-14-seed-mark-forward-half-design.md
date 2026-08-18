@@ -137,11 +137,13 @@ constructors: an assembly's mark is set in `AbstractVSAssembly`'s two-arg constr
 `ViewsheetVSAssemblyInfo`'s, each before any caller can reach `initDefaultFormat()`.
 
 Once that holds, `setDefaultFormat` never consults the gate at all: all four persisted seeds —
-`objectBorderColor` (`VSAssemblyInfo.java:1191-1192` → `:1222`), the card radius (`:1195-1196` → `:1223`),
-`cardBackgroundCss` (`ChartVSAssemblyInfo.java:89`, `TableDataVSAssemblyInfo.java:1578`) and
-`pageBackgroundCss` (`ViewsheetVSAssemblyInfo.java:238`) — plus `barCornerRadius`/`smoothLines`
-(`ChartVSAssemblyInfo.java:94-100`) go through one context. That is what lets creation and Modernize share a
-single code path in §4.
+`objectBorderColor` (`VSAssemblyInfo.java:1192-1193` → `:1223`), the card radius (`:1196-1197` → `:1224`),
+`cardBackgroundCss` (`ChartVSAssemblyInfo.java:90`, `TableDataVSAssemblyInfo.java:1578-1579`) and
+`pageBackgroundCss` (`ViewsheetVSAssemblyInfo.java:241-242`) — plus the four `PlotDescriptor` seeds
+(`ChartVSAssemblyInfo.java:95-100`) go through one context. That is what lets creation and Modernize share a
+single code path in §4. Line numbers refreshed 2026-08-18 against `119bfdaac`; §4's second correction turns
+this enumeration into the definition of what the hook carries, and notes that the last of the five cannot be
+reached through a `VSCompositeFormat` at all.
 
 ### The sheet stamps itself in its constructor
 
@@ -347,23 +349,104 @@ nothing. But decision 4 turns the toolbar's *gate* test into a *mark* test, so s
 
 ### Decision 11's virtual method
 
-`setDefaultFormat` keeps building and installing the composite. The default-tier computation moves to
-`protected void applyModernDefaults(VSCompositeFormat fmt, VizContext ctx)`, which both creation and
-Modernize call, and which the three existing subclass overrides extend —
-`ChartVSAssemblyInfo:86`, `TableDataVSAssemblyInfo:1575`, `ViewsheetVSAssemblyInfo:235`, each of which today
-calls `super` and then adds its own seeds.
+`setDefaultFormat` keeps building and installing the composite. The modern tier moves to a virtual hook that
+both creation and Modernize call.
 
-**The contract is the part to get right: it mutates the format it is given and never installs a new
-composite.** `setDefaultFormat` does `new VSCompositeFormat()` (`:1185`) → `setFormat(format)` (`:1236`) →
-`fmtInfo.setFormat(OBJECTPATH, fmt)`, leaving the new composite's USER tier empty. Harmless at creation;
-destroys an existing dashboard's formatting on recompute. This is why "just call `setDefaultFormat` again" is
-not the implementation of Modernize.
+**Five corrections, 2026-08-18.** What follows replaces what this subsection said before. They were found by
+reading the code the extraction lands in, at `119bfdaac`. The shape survives — one virtual method both paths
+call — but its name, its signature, its contents and its contract all move. Line numbers below are current at
+`119bfdaac`; the pre-P2 ones this subsection carried were one to two lines off.
+
+**1 · The name must change: `applyModernDefaults` is taken.** Three classes already ship a *static,
+read-time, non-mutating* method of that exact name and near-identical signature —
+`VSTitleChromeDefaults:66,90`, `VSOutputChromeDefaults:89,111` and `VSCalendarChromeDefaults:45`, most with an
+`…InPlace` variant — which resolve modern chrome onto a clone at model or export time and persist nothing. A
+virtual, creation-time, *persisting* method sharing that name reads as one of that family and will be
+maintained as one. **Settled 2026-08-18: `seedChromeDefaults(VizContext ctx)`** — accurate rather than
+aspirational, because the hook carries the legacy branch of each ternary too (correction 3). Open item 6.
+
+**2 · The signature is `protected void seedChromeDefaults(VizContext ctx)`, mutating `this`** — not
+`(VSCompositeFormat fmt, VizContext ctx)`. The seeds are not all format-tier, so a composite-only parameter
+cannot carry them. §1's ordering constraint already enumerates them, and the last row below is unreachable
+through a `VSCompositeFormat` at all:
+
+| Seed | Where | Tier |
+|---|---|---|
+| `objectBorderColor(ctx)` → all four border colours | computed `VSAssemblyInfo:1192-1193`, applied `:1223` | object format |
+| card radius, gated by `isCornerSeedTarget()` | computed `:1196-1197`, applied `:1224` | object format |
+| `cardBackgroundCss(ctx)` | `ChartVSAssemblyInfo:90`, `TableDataVSAssemblyInfo:1578-1579` | object format |
+| `pageBackgroundCss(ctx)` | `ViewsheetVSAssemblyInfo:241-242` | object format |
+| `barCornerRadius 0.3`, `modernCornerSeed`, `smoothLines`, `modernSmoothSeed` | `ChartVSAssemblyInfo:95-100` | **`PlotDescriptor`** |
+
+The last row is the reason. Those four values are gate-conditional, they persist, and a freshly created gate-on
+chart carries them — so a Modernize that cannot reach them produces a *marked* chart that is not a *modern*
+chart, and P3's verification claim below fails on its own terms.
+
+**3 · Only the gate-dependent values travel; the unconditional defaults stay in `setDefaultFormat`.** This
+subsection previously moved "the default-tier computation", and P3 below said "move the three subclass
+overrides' seeds into it". Each override mixes both kinds: `ChartVSAssemblyInfo` also sets
+`setPadding(10,10,10,10)` at `:87` before `super` and `LegendsDescriptor.setRoundCorners(true)` at `:93` after
+it, both unconditional; `TableDataVSAssemblyInfo:1585` also sets `setTableStyleValue(DEFAULT_STYLE)`; the base
+also sets the object font (`:1225`) and the title background, alignment and font (`:1241-1243`). Those are
+creation defaults, not modern ones, and a Modernize that re-ran them would reset an author's padding, table
+style and fonts — the same destruction the contract guards against, one tier below the composite it names.
+The five rows above are the whole of what moves.
+
+Keep the `ctx.modern ? modern : legacy` ternaries inside the hook rather than lifting only the modern branch.
+Creation then calls the hook with the assembly's own context and gets today's behaviour on both sides of the
+gate, Modernize calls it with a marked context, and `setDefaultFormat` is left with no gate-dependent
+expression at all — which is exactly what §1 says the ordering constraint buys. One consequence for P4: the
+four creation-path `VizContext.ofGate()` calls (`VSAssemblyInfo:1191`, `ChartVSAssemblyInfo:89`,
+`TableDataVSAssemblyInfo:1579`, `ViewsheetVSAssemblyInfo:240`) collapse into one at the hook's call site, so
+P3 hands P4 a smaller surface than it would otherwise have. At creation the two factories agree — the stamp
+precedes the seed, so `of(this)` and `ofGate()` resolve identically — which is why this is safe to do before
+the flip rather than as part of it.
+
+**4 · Three overrides carry modern seeds, and one of them is on a different overload.**
+`ViewsheetVSAssemblyInfo:238` overrides the **one-argument** `setDefaultFormat(boolean)`, not the
+three-argument form this subsection cited; `ChartVSAssemblyInfo:86` and `TableDataVSAssemblyInfo:1575`
+override the three-argument form. The chain is 1-arg → 2-arg → 3-arg, so a single hook call in the
+three-argument body reaches every creation path, and the sheet's override is left empty and deleted. For
+scale, the hierarchy holds four overrides of the three-argument form (`ChartVSAssemblyInfo:86`,
+`GaugeVSAssemblyInfo:234`, `TableDataVSAssemblyInfo:1575`, `TabVSAssemblyInfo:56`) and thirteen of the
+one-argument form; only the three named touch a `VizContext`. `SelectionBaseVSAssemblyInfo:139`'s context read
+is `getEffectiveCellHeight()`, a P4 read path rather than a seed — selections take their modern corner and
+border from the base.
+
+**Call the hook as the last statement of the three-argument body, after `setCSSDefaults()`.** Every subclass
+seed today runs after `super.setDefaultFormat(…)` returns, which is after `setCSSDefaults()`, so an earlier
+call site silently reorders them. `setCSSDefaults()` is also the second reason Modernize must call the hook and
+never `setDefaultFormat`: it resizes the assembly from the stylesheet (`:1438-1448`) and can stamp
+`setUserTitleHeight(true)` from a stylesheet title height (`:1471-1476`), and Modernize may do neither.
+
+**5 · The contract is per path: mutate the composite already installed at each path the hook touches, and
+never `fmtInfo.setFormat(path, new VSCompositeFormat())`.** The previous wording named OBJECTPATH alone —
+`setDefaultFormat` does `new VSCompositeFormat()` (`:1185`) → `setFormat(format)` (`:1237`) →
+`fmtInfo.setFormat(OBJECTPATH, fmt)`, leaving the new composite's USER tier empty: harmless at creation,
+destructive on recompute. That is right, and incomplete. The same body installs a fresh `tformat` at TITLEPATH
+for every `TitledVSAssemblyInfo` (`:1240-1251`); `ChartVSAssemblyInfo:103-107` installs a fresh TITLEPATH
+composite of its own; `SelectionBaseVSAssemblyInfo:873-925` installs fresh composites at DETAIL (`:886`),
+TITLE (`:901`) and fifteen measure paths (`:910`, `:918`, `:925`). Each of those drops an author's USER tier at
+the path it touches, so stating the rule for OBJECTPATH only leaves the same defect reachable at every other
+path the seeds write — TITLEPATH, DETAIL and fifteen measure paths, seventeen in all.
+
+**Settled 2026-08-18: the hook does write at TITLEPATH.** The one gate-dependent title value is the border
+colour, applied from `bcolors` at `:1210`, and the hook mutates the composite already installed at that path —
+never installs one — so a Modernized assembly's title border matches a freshly created one and P3's
+verification claim holds as written. DETAIL and the fifteen measure paths carry no gate-dependent value, so the
+hook does not touch them; they are named above because the contract has to forbid re-installing them, not
+because the hook writes there. Open item 7.
 
 Two things travel with the extraction:
 
-- **The `format.css` TableStyle branch** (`:1211-1217`) comes along, so Modernize picks up the customer's
+- **The `format.css` TableStyle branch** (`:1212-1218`) comes along, so Modernize picks up the customer's
   current table style rather than dropping it. Its real scope is narrow — tables only, and only when
-  `border` is true.
+  `border` is true. **It needs no `border` parameter on the hook:** the branch also tests
+  `this instanceof TableDataVSAssemblyInfo`, and every subtype of that class creates with `border` true
+  (`TableVSAssemblyInfo:75`, `CrosstabVSAssemblyInfo:61`, `CalcTableVSAssemblyInfo:66`,
+  `CrossBaseVSAssemblyInfo:57`, and `EmbeddedTableVSAssemblyInfo`, which inherits `TableVSAssemblyInfo`'s), so
+  inside the hook `table` implies `border`. The object border colour and radius are applied in the
+  `if(setFormat)` block (`:1223-1224`) and never depended on `border` at all.
 - **The title-border ordering oddity is preserved deliberately.** The title border colour is set at `:1209`,
   *before* the stylesheet override at `:1211-1217`, so a table's stylesheet colour reaches the object border
   and never the title border. This predates all of this work. A refactor is exactly when someone notices and
@@ -379,7 +462,7 @@ holding the constants and shared computation.
 
 Per-dashboard, composer-only, gate-on only, write permission required, applying modern defaults wholesale to
 **unmarked** assemblies and stamping them, as one `@Undoable` composer step (decision 5). Because it routes
-through `applyModernDefaults`, it is close to: *for each unmarked assembly — stamp it, then run the
+through the §4 hook, it is close to: *for each unmarked assembly — stamp it, then run the
 computation.*
 
 **Author-provenance flags are not touched.** `userTitleHeight`, `userDataRowHeight`, `userHeaderRowHeight`
@@ -460,15 +543,22 @@ about risk, which is why the 115 edits belong in a commit of their own.
 
 ### P3 — the enumeration point and Modernize
 
-Extract `applyModernDefaults(fmt, ctx)`; move the three subclass overrides' seeds into it; route creation
-through it; build the action, the bar and the menu entry. Reads are still `ofGate()`, so nobody's rendering
-changes unless they press the button.
+Extract the hook per §4, whose five 2026-08-18 corrections govern its name, its `this`-mutating signature,
+the five gate-dependent seeds it carries, the overload it is called from and its per-path contract; move those
+seeds out of the three overrides that hold them; route creation through it; build the action, the bar and the
+menu entry. Reads are still `ofGate()`, so nobody's rendering changes unless they press the button.
 
-*Verification:* the claim is sharp enough to assert directly — **Modernize on a legacy assembly produces the
-same persisted values as a freshly created assembly of the same type**, checked by comparing the two infos in
-a test, per type, in light and dark. Plus: idempotence; the bar's four visibility conditions; dismissal
-surviving a tab switch and not surviving a reopen; one undo step restoring the unmarked state and the bar
-with it; a mixed dashboard stamping only its unmarked assemblies (decision 3).
+*Verification:* the claim is sharp enough to assert directly, once stated against the right baseline —
+**an assembly created with the gate off and then Modernized holds the same persisted values as one created with
+the gate on**, checked by comparing the two infos in a test, per type, in light and dark. Corrected 2026-08-18:
+the baseline is a *gate-off-created* assembly, not an arbitrary legacy one. Under §4's third correction the
+hook writes only the gate-dependent values, so a real legacy assembly whose author changed its padding, table
+style or fonts differs from a fresh one at those values *correctly*, and comparing against it would fail on
+differences that are right. Three assertions the old signature could not have made: the four `PlotDescriptor`
+seeds are in the compared set, so is the TITLEPATH border colour, and a user-tier title font set before
+Modernize survives it (§4's fifth correction). Plus: idempotence; the bar's four visibility conditions; dismissal surviving a tab switch and not
+surviving a reopen; one undo step restoring the unmarked state and the bar with it; a mixed dashboard stamping
+only its unmarked assemblies (decision 3).
 
 P3 comes before the flip rather than after because it is what makes the flip testable: without Modernize
 there is no marked cohort to compare against, and every scenario needs a hand-built assembly.
@@ -534,15 +624,28 @@ design, fixed by the sweep. See §2.
 
 Small enough to answer in the plan rather than before it.
 
-1. **`CSSProcessor.applyCSS`'s context.** Threaded from its callers, or `ofGate()` with a comment.
+1. ~~**`CSSProcessor.applyCSS`'s context.**~~ Closed by what P2 found, recorded 2026-08-18: there is no route
+   to thread, structurally rather than merely today — every hop back stays inside the legacy
+   report / `ReportSheet` / `ChartElementDef` model, which never carries a `VSAssembly`, and
+   `applyCSS(ReportSheet)` has no callers in `core/src` or the enterprise modules. So P4 passes
+   `VizContext.LEGACY` at `CSSProcessor:303` and at its own `ofGate()` site, not a threaded context.
 2. ~~**The composer's new-viewsheet funnel.**~~ Closed: stamping in `ViewsheetVSAssemblyInfo`'s constructor
    covers every construction path, so no funnel needs locating.
 3. ~~**The three legacy `initDefaultFormat()` call sites.**~~ Closed: only one is a constructor, and the
    per-assembly constructor stamp covers the other creation path without a special case. See §1.
 4. **Where the Modernize bar sits in the composer chrome**, and whether an existing banner mechanism already
    exists to host it.
-5. **The `VizContext` name.** It carries the mark plus density, not just the mark; if a better name appears
-   while writing, take it — this is the cheapest moment.
+5. ~~**The `VizContext` name.**~~ Closed: it shipped as `VizContext` in P2 (`119bfdaac`), carrying
+   `modern`/`dark`/`density`. No better name appeared while the plan was written.
+6. ~~**The hook's name.**~~ Raised and answered 2026-08-18: **`seedChromeDefaults(VizContext ctx)`**.
+   `applyModernDefaults` was unavailable (§4's first correction), and `seedModernDefaults` was rejected as
+   slightly wrong about gate-off creation, where the hook seeds the legacy branch of each ternary.
+7. ~~**Whether the hook writes anything at TITLEPATH.**~~ Raised and answered 2026-08-18: **yes — the title
+   border colour from `bcolors` (`VSAssemblyInfo:1210`), by mutating the installed composite in place.** The
+   alternative, keeping the hook to OBJECTPATH plus the `PlotDescriptor`, would have left a Modernized
+   assembly's title border legacy while a fresh one took the modern colour, and would have needed an explicit
+   exemption in P3's verification claim. The accepted cost is that the hook touches a second path, so the
+   per-path contract has to hold there too.
 
 ---
 
