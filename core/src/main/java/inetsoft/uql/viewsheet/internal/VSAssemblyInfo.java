@@ -1189,17 +1189,6 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       VSFormat titlefmt = tformat.getDefaultFormat();
 
       Insets borders = null;
-      VizContext ctx = VizContext.ofGate();
-      Color defBorderColor = ctx.modern
-         ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
-      BorderColors bcolors = new BorderColors(defBorderColor, defBorderColor,
-                                              defBorderColor, defBorderColor);
-      int borderRadius = ctx.modern && isCornerSeedTarget()
-         ? VSObjectChromeDefaults.cardCornerRadius() : 0;
-      boolean table = this instanceof TableDataVSAssemblyInfo;
-      CSSDictionary cssDictionary = CSSDictionary.getDictionary();
-      CSSStyle style = cssDictionary.getStyle(new CSSParameter("TableStyle", null, null,
-                                                               new CSSAttr("region", "Table")));
 
       if(border) {
          borders = new Insets(StyleConstants.THIN_LINE,
@@ -1208,21 +1197,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
                               StyleConstants.THIN_LINE);
 
          titlefmt.setBordersValue(borders);
-         titlefmt.setBorderColorsValue(bcolors);
-
-         if(style != null && style.isBorderColorDefined() && table) {
-            bcolors = style.getBorderColors();
-         }
-
-         if(style != null && style.isBorderRadiusDefined() && table) {
-            borderRadius = style.getBorderRadius();
-         }
       }
 
       if(setFormat) {
          objfmt.setBordersValue(borders);
-         objfmt.setBorderColorsValue(bcolors);
-         objfmt.setRoundCornerValue(borderRadius);
          objfmt.setFontValue(getDefaultFont(Font.PLAIN, 11));
 
          if(fill) {
@@ -1252,6 +1230,61 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       setCSSDefaults();
+      // last, so subclass seeds that run after super() see a fully built format, and so the
+      // stylesheet resize in setCSSDefaults() is never re-run by Modernize
+      seedChromeDefaults(VizContext.ofGate());
+   }
+
+   /**
+    * Seed the chrome values whose default depends on the modern-visualization context: the object
+    * border colour and card radius here, the card or page background and the chart plot values in
+    * the overrides. Called once at creation and again by Modernize on an assembly that already
+    * exists, so it must mutate the composites already installed and never install one - installing
+    * a fresh composite leaves the new one's USER tier empty and drops an author's formatting.
+    *
+    * Only gate-dependent values belong here. Unconditional creation defaults stay in
+    * setDefaultFormat, or Modernize would reset an author's padding, table style and fonts.
+    */
+   protected void seedChromeDefaults(VizContext ctx) {
+      if(bypassesBaseChrome()) {
+         return;
+      }
+
+      Color defBorderColor = ctx.modern
+         ? VSObjectChromeDefaults.objectBorderColor(ctx) : DEFAULT_BORDER_COLOR;
+      BorderColors bcolors = new BorderColors(defBorderColor, defBorderColor,
+                                              defBorderColor, defBorderColor);
+      int borderRadius = ctx.modern && isCornerSeedTarget()
+         ? VSObjectChromeDefaults.cardCornerRadius() : 0;
+      VSCompositeFormat titleFormat = fmtInfo.getFormat(TITLEPATH);
+
+      // the title border takes the pre-stylesheet colour: a table's stylesheet colour reaches the
+      // object border and never the title border. Predates this work - preserved deliberately.
+      if(!installsOwnTitleFormat() && titleFormat != null
+         && titleFormat.getDefaultFormat().getBordersValue() != null)
+      {
+         titleFormat.getDefaultFormat().setBorderColorsValue(bcolors);
+      }
+
+      if(this instanceof TableDataVSAssemblyInfo) {
+         CSSStyle style = CSSDictionary.getDictionary().getStyle(
+            new CSSParameter("TableStyle", null, null, new CSSAttr("region", "Table")));
+
+         if(style != null && style.isBorderColorDefined()) {
+            bcolors = style.getBorderColors();
+         }
+
+         if(style != null && style.isBorderRadiusDefined()) {
+            borderRadius = style.getBorderRadius();
+         }
+      }
+
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat != null) {
+         objFormat.getDefaultFormat().setBorderColorsValue(bcolors);
+         objFormat.getDefaultFormat().setRoundCornerValue(borderRadius);
+      }
    }
 
    /**
@@ -1266,6 +1299,48 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          || this instanceof SelectionListVSAssemblyInfo
          || this instanceof SelectionTreeVSAssemblyInfo
          || this instanceof CurrentSelectionVSAssemblyInfo;
+   }
+
+   /**
+    * Whether this type installs its own object format without routing through the base, in which
+    * case the base chrome seeds never applied to it at creation and must not be applied to it later.
+    * Seven of these override setDefaultFormat without calling super and hardcode DEFAULT_BORDER_COLOR.
+    * Calendar takes a different route to the same consequence: its initDefaultFormat() never calls
+    * setDefaultFormat at all, so the hook never ran for it at creation either. TabVSAssemblyInfo takes
+    * a third route: it does call super, but then overwrites the object border colour and round corner
+    * with its own values, so the hook's writes are always clobbered at creation and must not be applied
+    * later either. An explicit negative list, for the same reason isCornerSeedTarget() is an explicit
+    * positive one.
+    *
+    * The real invariant this predicate (together with installsOwnTitleFormat()) protects: does this
+    * type write, after super, any value the hook also writes? Find the candidate set with
+    * grep -rn "setRoundCornerValue\|setBorderColorsValue" core/src/main/java/inetsoft/uql/viewsheet/internal/
+    * and check each hit's type against both predicates below.
+    */
+   private boolean bypassesBaseChrome() {
+      return this instanceof CheckBoxVSAssemblyInfo
+         || this instanceof ComboBoxVSAssemblyInfo
+         || this instanceof RadioButtonVSAssemblyInfo
+         || this instanceof SpinnerVSAssemblyInfo
+         || this instanceof SubmitVSAssemblyInfo
+         || this instanceof TextInputVSAssemblyInfo
+         || this instanceof TextVSAssemblyInfo
+         || this instanceof CalendarVSAssemblyInfo
+         || this instanceof TabVSAssemblyInfo;
+   }
+
+   /**
+    * Whether this type installs its own TITLEPATH composite after the base installed one, discarding
+    * the base's title chrome, or otherwise overwrites the base's title border in place after super.
+    * The hook must not colour a title border it does not own: at creation the base's colour is either
+    * thrown away or overwritten for these types, so writing it later would make a modernized assembly
+    * differ from a freshly created one. TimeSliderVSAssemblyInfo overwrites the base's existing
+    * TITLEPATH composite in place, forcing a hardcoded bottom-only 0xc0c0c0 border.
+    */
+   private boolean installsOwnTitleFormat() {
+      return this instanceof ChartVSAssemblyInfo
+         || this instanceof SelectionBaseVSAssemblyInfo
+         || this instanceof TimeSliderVSAssemblyInfo;
    }
 
    /**
