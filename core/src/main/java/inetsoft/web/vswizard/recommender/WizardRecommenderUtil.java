@@ -918,6 +918,14 @@ public final class WizardRecommenderUtil {
     * by exactly the null count. A null field must match NO branch, so it is excluded from the
     * distribution — mirroring the convention {@link NumericRangeRef} already uses correctly for the
     * unrelated classic composer "Numeric Range" calc field feature.
+    *
+    * <p>The middle buckets ({@code field >= X && field < Y}) need the same guard, not just the first
+    * and last: {@code null} coerces to {@code 0}, so for any bucket whose range straddles zero
+    * ({@code X <= 0 < Y}) — reachable whenever {@code min} can be negative, e.g. a profit/loss or
+    * temperature-delta field, not just non-negative fields like {@code estimated_hours} — a null value
+    * satisfies {@code 0 >= X && 0 < Y} and lands in that bucket silently, the identical defect just
+    * relocated rather than fixed. So every branch is guarded unconditionally, with no "only the edges
+    * need it" special-casing.
     */
    static RangeExpression buildRangeExpression(double min, double inc, int n, String field) {
       StringBuilder builder = new StringBuilder();
@@ -941,8 +949,9 @@ public final class WizardRecommenderUtil {
          }
          else {
             String range = Tool.toString(min) + " - " + Tool.toString(min + inc);
-            builder.append("else if(field['" + field + "'] >= " + Tool.toString(min) +
-                              " && field['" + field + "'] < " + Tool.toString(min + inc) + ") {\n");
+            builder.append("else if(field['" + field + "'] != null && field['" + field + "'] >= " +
+                              Tool.toString(min) + " && field['" + field + "'] < " +
+                              Tool.toString(min + inc) + ") {\n");
             builder.append("  '" + range + "'\n");
             builder.append("}\n");
             ranges.add(range);
