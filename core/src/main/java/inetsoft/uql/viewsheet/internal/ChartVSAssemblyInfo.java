@@ -86,11 +86,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void setDefaultFormat(boolean border, boolean setFormat, boolean fill) {
       setPadding(new Insets(10, 10, 10, 10));
       super.setDefaultFormat(border, setFormat, fill);
-      VizContext ctx = VizContext.ofGate();
-      getFormat().getDefaultFormat().setBackgroundValue(VSObjectChromeDefaults.cardBackgroundCss(ctx));
       // Enable round corners by default for newly created charts.
       // Existing charts loaded from XML default to false for backward compatibility.
       getChartDescriptor().getLegendsDescriptor().setRoundCorners(true);
+
+      VSCompositeFormat tFormat = new VSCompositeFormat();
+      tFormat.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.TITLE);
+      tFormat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
+      tFormat.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
+      getFormatInfo().setFormat(TITLEPATH, tFormat);
+   }
+
+   @Override
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
+      getFormat().getDefaultFormat().setBackgroundValue(
+         VSObjectChromeDefaults.cardBackgroundCss(ctx));
 
       if(ctx.modern) {
          PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
@@ -99,12 +110,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setSmoothLines(true);
          plotDesc.setModernSmoothSeed(true);
       }
-
-      VSCompositeFormat tFormat = new VSCompositeFormat();
-      tFormat.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.TITLE);
-      tFormat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
-      tFormat.getDefaultFormat().setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
-      getFormatInfo().setFormat(TITLEPATH, tFormat);
    }
 
    @Override

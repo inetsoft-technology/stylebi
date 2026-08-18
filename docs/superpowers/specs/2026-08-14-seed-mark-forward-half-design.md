@@ -458,6 +458,62 @@ subclasses, so a static helper would need either an `instanceof` switch (a secon
 the helper and then adds its own values — which is the drift being prevented. The static helper still exists,
 holding the constants and shared computation.
 
+**Built 2026-08-18.** The hook shipped with exactly the name, signature and call site corrections 1, 2 and 4
+specify: `protected void seedChromeDefaults(VizContext ctx)` on `VSAssemblyInfo`, called as the last statement
+of the three-argument `setDefaultFormat` body (`VSAssemblyInfo.java:1234`), with overrides on
+`ChartVSAssemblyInfo`, `TableDataVSAssemblyInfo` and `ViewsheetVSAssemblyInfo`. `ViewsheetVSAssemblyInfo`'s
+one-argument `setDefaultFormat(boolean)` is deleted; nothing outside the class called it. `grep -rn
+"VizContext.ofGate()"` across the four seed-site classes now returns exactly one hit — the call inside
+`setDefaultFormat` — confirming correction 3's prediction that the four creation-path reads collapse into one.
+That single site is what P4 flips to `of(this)`; P3 hands it a smaller surface than the original design
+estimated.
+
+**Built 2026-08-18, and three more ways a type opts out of the base chrome than the corrections above found —
+all now expressed as two predicates the hook itself consults, rather than as a caller-side filter.**
+Re-reading every override while extracting the hook surfaced a defect class the corrections had not covered:
+types that never reach the base body at all, and types that discard what it writes.
+
+Seven types override `setDefaultFormat` without calling `super`, building their own object format and
+hardcoding `DEFAULT_BORDER_COLOR` rather than asking `VSObjectChromeDefaults`: `CheckBoxVSAssemblyInfo`,
+`ComboBoxVSAssemblyInfo`, `RadioButtonVSAssemblyInfo`, `SpinnerVSAssemblyInfo`, `SubmitVSAssemblyInfo`,
+`TextInputVSAssemblyInfo` and `TextVSAssemblyInfo`. `TextVSAssemblyInfo.java:73-92` is the clearest: its own
+`setDefaultFormat(boolean border)` builds a fresh `VSCompositeFormat`, sets the border colours from
+`DEFAULT_BORDER_COLOR` directly (`:84-87`) when `border` is true, and calls `setFormat`/`setCSSDefaults()`
+without ever reaching `VSAssemblyInfo`'s body — `seedChromeDefaults` never runs for it at creation, gate on or
+off. None of the seven has a subclass anywhere in `core`, `enterprise` or `connectors`, so the list is exact
+rather than approximate. `CalendarVSAssemblyInfo` bypasses differently: its `initDefaultFormat` (`:88-92`)
+calls `setFormatInfo`, `setCSSDefaults()` and sets a hardcoded title height directly, never calling
+`setDefaultFormat` at all — the same reason `isCornerSeedTarget()` already excludes it. Left unguarded,
+Modernize would give a modernized checkbox or text assembly a border colour no freshly created one of the same
+type has ever taken, breaking the "same persisted values as a fresh assembly" claim P3 exists to hold.
+
+`ChartVSAssemblyInfo` and `SelectionBaseVSAssemblyInfo` bypass a narrower slice the same way, at the title path
+alone. Both replace the whole TITLEPATH composite after `super.setDefaultFormat` returns: `ChartVSAssemblyInfo:
+93-97` installs a fresh composite with its own font and alignment, and `SelectionBaseVSAssemblyInfo:872-901`
+installs fresh composites at DETAIL (`:886`), TITLE (`:889-901`) and fifteen measure paths, with the title one
+carrying a bottom-only border and a hardcoded `new Color(0xc0c0c0)` (`:897-899`) rather than the base's border
+colour. A title-border write the hook makes lands on a composite either constructor discards immediately
+afterward at creation, so writing it there is inert — but the identical write reaches a *live* composite under
+Modernize, where nothing runs afterward to discard it. Left unguarded, a modernized selection list's title
+border would turn from `0xc0c0c0` to the modern border colour while a freshly created one keeps `0xc0c0c0` —
+the same class of defect as the seven above, one path narrower.
+
+Both findings are expressed as private predicates on `VSAssemblyInfo`: `bypassesBaseChrome()` (`:1311-1320`),
+checked first in `seedChromeDefaults` and returning before any base seed runs, and `installsOwnTitleFormat()`
+(`:1328-1331`), checked only around the title-border write at `:1262`. Both deliberately mirror
+`isCornerSeedTarget()`'s existing shape (`:1289-1301`) — an explicit `instanceof` list with an explanatory
+comment — over a shared-ancestor override, because no ancestor isolates the affected types without also
+catching a sibling that must keep seeding normally: `ListInputVSAssemblyInfo` covers three of the seven
+cleanly (`ComboBoxVSAssemblyInfo`, `CheckBoxVSAssemblyInfo` and `RadioButtonVSAssemblyInfo` are its only
+subclasses), but `ClickableOutputVSAssemblyInfo` — the shared parent of `SubmitVSAssemblyInfo` and
+`TextVSAssemblyInfo` — also parents `ImageVSAssemblyInfo`, which does not override `setDefaultFormat` and must
+keep taking the normal seed; and `NumericRangeVSAssemblyInfo` — `SpinnerVSAssemblyInfo`'s parent — also parents
+`SliderVSAssemblyInfo`, which likewise does not override and must keep seeding normally. Both predicates live
+on `VSAssemblyInfo` and are consulted by `seedChromeDefaults` itself, not by `VizModernizeUtil`'s caller,
+because the caller could not consult a private predicate without either exposing it past the package or
+duplicating the type list in a second file — the exact drift `isCornerSeedTarget()`'s own comment already
+warns against.
+
 ### Modernize
 
 Per-dashboard, composer-only, gate-on only, write permission required, applying modern defaults wholesale to
@@ -471,6 +527,44 @@ addendum is explicit that they survive the mark; "wholesale" invites the opposit
 here too.
 
 **Idempotent by construction** — it only touches unmarked assemblies, so a second run is a no-op.
+
+**Built 2026-08-18: `Viewsheet.getAssemblies(true)` is not the enumeration this needed.** Its private
+recursive collector (`Viewsheet.java:3239-3265`) adds a child to the flat list only `if(!(assembly instanceof
+Viewsheet))`; when the child *is* an embedded viewsheet it recurses into that child's own children and never
+adds the container itself. So the recursive call this subsection's "for each unmarked assembly" line implies
+would silently skip every embedded-viewsheet container on the sheet. That matters rather than being academic:
+a container's own `ViewsheetVSAssemblyInfo` carries the same page-background seed override as any other sheet
+(§4), so a container created under an open gate is already modern, and a modernized dashboard that never
+reached its own containers would differ from a freshly created one — the exact defect this phase exists to
+close. The non-recursive `getAssemblies(false)` does return direct-child containers, because its filter
+(`Viewsheet.java:3198-3220`) tests only wizard-temp and warning-text names, never the assembly's type.
+`VizModernizeUtil.unmarked` (`VizModernizeUtil.java:97-101`) therefore enumerates in two passes: the recursive
+call for ordinary assemblies, plus a second, non-recursive call collecting only the `Viewsheet`-typed direct
+children. A container reached this way is stamped and seeded like any other assembly of this sheet — it *is*
+this sheet's content, stored in this sheet's own XML — while its own children stay excluded by the
+`isEmbedded()` test in the first pass, because they belong to the embedded asset, not this one.
+
+**A trap for P4 and P5: `isEmbedded()` means two different things depending on the info type.**
+`VSAssemblyInfo.isEmbedded()` answers "is my containing viewsheet itself embedded in something else" — the
+ordinary meaning, and the one the first enumeration pass above relies on to exclude an embedded sheet's own
+children. `ViewsheetVSAssemblyInfo.isEmbedded()` (`:64`) overrides it to `vs != null` instead — "do I have a
+parent viewsheet," i.e. "am I a container" — which is true for exactly the containers the second pass exists
+to reach, and false only for the top-level sheet. The two meanings coincide for every other info type and
+diverge only here, so a read path that calls `isEmbedded()` on a `ViewsheetVSAssemblyInfo` expecting the base's
+meaning gets the opposite answer. Nothing in P3 depends on both meanings at once, but P4 and P5's read paths
+will consult this method, and neither should be the first place this is discovered.
+
+**A trap of long standing, not new, but worth restating where Modernize meets it: a new assembly inherits its
+host's *stored* mark, absence included — never the gate.** `AbstractVSAssembly`'s two-argument constructor
+(`:135-136`) reads the host's `getVizMark()` and copies it, `null` included; it does not call
+`VizMark.fromGate()`. So on a legacy dashboard, an author who adds a new assembly today gets an unmarked
+assembly even with the gate wide open — the sheet is unmarked, so its children inherit unmarked — and the
+dashboard stays wholly legacy until someone presses Modernize. Once Modernize stamps the sheet, later additions
+inherit the modern mark for free, the same mechanism working in the other direction. This is coherent with
+decision 3's per-assembly provenance and with the bar's visibility flag (adding to an unmodernized sheet keeps
+`hasUnmarked` true, so the bar stays offered), but it means an author's newly drawn assembly can look legacy
+on a dashboard the author believes they are actively editing under the gate — worth stating plainly rather
+than leaving P4 and P5 to rediscover it.
 
 ### The affordance — a bar, dismissable per composer session
 
@@ -563,6 +657,63 @@ only its unmarked assemblies (decision 3).
 P3 comes before the flip rather than after because it is what makes the flip testable: without Modernize
 there is no marked cohort to compare against, and every scenario needs a hand-built assembly.
 
+**Built 2026-08-18, on `viz-updates`, uncommitted.** Every file this phase touches — the hook and its three
+overrides, `VizModernizeUtil`, the composer endpoint and service, the `modernizable` flag, the bar and its
+menu entry — sits in the working tree rather than in history. A commit-approval gate denied `git add` for
+every one of this phase's tasks, including this document's own corrections above; the human partner commits
+those directly. So this section names no commit range, because none of the phase's implementation exists in
+history yet — only on disk. The unit-level half of the verification above held exactly as stated: a
+gate-off-created assembly Modernized under the gate matches a gate-on-created one of the same type, per type,
+in light and dark, including the four `PlotDescriptor` seeds, the TITLEPATH border colour, and a user-tier
+title font surviving the pass. Two seeding gaps the corrections above had not found were closed during the
+build rather than left for later — the seven-type-plus-Calendar bypass and the Chart/SelectionBase title
+exclusion, both recorded earlier in this section — because leaving either open would have made this phase's
+own headline claim false for exactly the types it missed.
+
+**The eleven manual checks the plan calls for are outstanding. Nobody has run them, and nothing in this
+document should be read as though they had.** They need a built and running server, a browser, and a legacy
+dashboard, none of which this pass had. Numbered as the plan states them, plus a twelfth this build adds.
+
+**Check 1 was attempted on 2026-08-18 and its original wording was wrong, in a way worth recording
+because it makes a correct build look broken.** It read as though a gate-on legacy dashboard should look
+like a gate-off one. It should not, and will not until P4. P3 changes no render-time read — no
+`VS*Defaults` resolver, no chart pipeline, no export path, no table lens, and 35 files still call
+`VizContext.ofGate()` on read paths — so the gate continues to decide appearance for every assembly
+whatever its mark. A gate-off/gate-on comparison duly showed differences in title colour, the table
+header and total-row bands, axis and gridline colour, and card border warmth, every one of them inherited
+from 6A, phase 7, 9C and the table structure palette rather than from this phase. P4 is where an unmarked
+dashboard starts rendering legacy. The corrected check 1 below fixes the baseline.
+
+The same interim state has a second visible consequence, left in place deliberately: the bar's message
+speaks to provenance rather than appearance, so in the P3-only state it offers to modernize a dashboard
+that already looks modern. The copy becomes accurate at P4, so it was not reworded.
+
+1. **Gate on throughout, and the baseline is this branch before P3 rather than the gate-off look.** A
+   legacy dashboard renders exactly as it did with the gate on before this phase, and the bar is the only
+   new thing on screen. Best run as an A/B: stash the P3 files, screenshot, restore, screenshot, compare.
+   Use the same data state for both shots, since an active brush or date-comparison selection changes the
+   marks.
+2. Dismiss it. It stays gone across a tab switch away and back; the canvas's Modernize Dashboard menu entry
+   is still there.
+3. Close the dashboard and reopen it: the bar is back.
+4. Press Modernize. Cards take the modern border, radius and background; charts take rounded bars and smooth
+   lines. The bar disappears without a refresh of its own.
+5. Ctrl+Z: everything reverts and the bar returns, as one undo step, not several.
+6. Modernize again, then run it a second time: nothing changes on the second run.
+7. Set a title height by hand on one assembly, then Modernize: that height survives. Same for a table style
+   and a hand-picked cell font.
+8. Save, close, reopen: the modernized state persisted, and the bar does not return.
+9. Create a new dashboard: no bar, because new content is marked at creation.
+10. Turn the gate off and reopen the legacy dashboard: no bar, and the canvas menu has no Modernize entry.
+11. Open composer preview and the viewer on a legacy dashboard: no bar in either.
+12. **Added here, per the accepted cost above.** Press Modernize on a dashboard where it finds nothing to do
+    — gate on, already fully marked, or the second press in check 6 — then Ctrl+Z. Confirm what actually
+    happens to the undo stack: an empty checkpoint is the accepted cost, but nobody has watched one land.
+
+Until these run, P3's claim rests on the unit-level comparison alone. That comparison is real, and it is what
+the tests above assert — but it cannot see a live composer session, a live undo stack, or a bar rendered in an
+actual browser, which is exactly what checks 1–3, 5 and 9–12 exist to catch.
+
 ### P4 — flip the server reads to the mark
 
 `ofGate()` → `of(info)` across the eight classes, plus the `gate &&` interim term. **This is the behaviour
@@ -618,6 +769,28 @@ design, fixed by the sweep. See §2.
 **The gate-off state is only partly reverted until the sweep lands.** Read-time chrome reverts via the
 `gate &&` term; the persisted seeds do not. This is the status quo, not a regression.
 
+**A press that finds nothing left to modernize still takes an undo checkpoint.** `@Undoable` is implemented as
+`@AfterReturning("@annotation(Undoable) && within(inetsoft.web..*)")` (`EventAspect.java:103-122`), which fires
+on any normal method return and calls `makeUndoable` unconditionally — the service has no way to suppress it,
+and every other composer action in this tree carries the same annotation the same way, so carving out an
+exception for one action would be a new pattern rather than a fix. Accepted rather than engineered around.
+Mitigated on the client by clearing `vs.modernizable` the instant the event is sent
+(`viewsheet-pane.component.ts:1708-1713`), which closes the likeliest route — a double press before the
+refresh lands — by hiding the bar and the menu entry before a second click can reach the endpoint. What
+remains is a client whose flag is stale for another reason, such as an admin closing the gate between the
+flag being sent and the button being pressed; that user spends one empty undo entry and loses nothing.
+
+**If Modernize throws partway through its loop, some assemblies are stamped, no undo checkpoint is taken, and
+no refresh is sent.** The exception propagates out before `@Undoable`'s `@AfterReturning` advice ever runs, so
+the composer's model is left believing the dashboard is exactly as it was, until the user does something that
+triggers a fresh `setViewsheetInfo`, at which point the flag and the bar both catch up to what actually
+happened. Accepted rather than patched, because the alternative is worse on both sides: a per-assembly
+`try`/`catch` inside `VizModernizeUtil.modernize` would swallow the real error rather than surface it through
+`@HandleAssetExceptions` (`ModernizeViewsheetController.java:46`), and there is no rollback facility for format
+mutations to roll back to. It is safe to accept because Modernize is idempotent and unmarked-only by
+construction (§4): the assemblies it already stamped keep their marks and their seeded chrome, a second press
+picks up exactly the remainder, and nothing is lost or duplicated by trying again.
+
 ---
 
 ## Open items to settle while writing the plans
@@ -633,8 +806,16 @@ Small enough to answer in the plan rather than before it.
    covers every construction path, so no funnel needs locating.
 3. ~~**The three legacy `initDefaultFormat()` call sites.**~~ Closed: only one is a constructor, and the
    per-assembly constructor stamp covers the other creation path without a special case. See §1.
-4. **Where the Modernize bar sits in the composer chrome**, and whether an existing banner mechanism already
-   exists to host it.
+4. ~~**Where the Modernize bar sits in the composer chrome**, and whether an existing banner mechanism already
+   exists to host it.~~ Closed 2026-08-18: no existing mechanism does. The composer's only notice surface
+   is `<notifications>` (`composer-main.component.html:305`), a five-second toast (`[timeout]="5000"`) with no
+   action slot and nothing that survives past its own timer — unusable for an offer the user must be able to
+   accept or decline on their own schedule. The bar ships as a new standalone component
+   (`modernize-bar.component.ts`), positioned absolutely over the canvas rather than inserted as a row above
+   it, because `.vs-pane-container` — the element the ruler origin and the canvas's own scroll geometry are
+   both measured from (`viewsheet-pane.component.scss:18-33`) — already fills its parent at `position:
+   absolute` with `width`/`height: 100%`. A sibling row above it would shrink the canvas and move the ruler
+   origin; an absolutely positioned overlay disturbs neither.
 5. ~~**The `VizContext` name.**~~ Closed: it shipped as `VizContext` in P2 (`119bfdaac`), carrying
    `modern`/`dark`/`density`. No better name appeared while the plan was written.
 6. ~~**The hook's name.**~~ Raised and answered 2026-08-18: **`seedChromeDefaults(VizContext ctx)`**.

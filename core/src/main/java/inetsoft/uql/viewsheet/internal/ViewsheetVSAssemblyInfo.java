@@ -235,9 +235,8 @@ public class ViewsheetVSAssemblyInfo extends VSAssemblyInfo {
    }
 
    @Override
-   protected void setDefaultFormat(boolean border) {
-      super.setDefaultFormat(border);
-      VizContext ctx = VizContext.ofGate();
+   protected void seedChromeDefaults(VizContext ctx) {
+      super.seedChromeDefaults(ctx);
       getFormat().getDefaultFormat().setBackgroundValue(
          ctx.modern ? VSObjectChromeDefaults.pageBackgroundCss(ctx) : "#f5f5f5");
    }
