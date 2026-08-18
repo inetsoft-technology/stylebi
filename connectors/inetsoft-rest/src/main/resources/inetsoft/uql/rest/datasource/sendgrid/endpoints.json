@@ -6,73 +6,89 @@
       "suffix": "/v3/marketing/contacts",
       "lookups": [
         {
-          "endpoints": ["Contact Export Status"],
+          "endpoints": [
+            "Contact Export Status"
+          ],
           "jsonPath": "$.result[*]",
           "key": "id",
           "parameterName": "Contact Export Job ID"
         },
         {
-          "endpoints": ["Contact Import Status"],
+          "endpoints": [
+            "Contact Import Status"
+          ],
           "jsonPath": "$.result[*]",
           "key": "id",
           "parameterName": "Contact Import Job ID"
         }
-      ]
+      ],
+      "description": "READ THE LIMIT FIRST: this returns AT MOST 50 CONTACTS -- the most recently added or updated, sorted by email address -- together with the true total count. It is a sample, not the contact list, and SendGrid has DEPRECATED PAGINATION on it, so there is no way to page through the rest. Any question about the whole audience must go through Contact Exports instead. The 50 rows carry email, first_name, last_name, the address fields, the lists the contact belongs to, custom_fields, created_at and updated_at. Custom field values arrive keyed by field id, which Field Definitions decodes."
     },
     {
       "name": "Contact Count",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/contacts/count"
+      "suffix": "/v3/marketing/contacts/count",
+      "description": "The total number of contacts stored on the account. A single number, and the honest denominator whenever the sample list is being used -- it is the count the sample cannot give."
     },
     {
       "name": "Contact Export Status",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/marketing/contacts/exports/{Contact Export Job ID}"
+      "suffix": "/v3/marketing/contacts/exports/{Contact Export Job ID}",
+      "description": "The status of one export job by id: whether it is pending, ready or failed, how many contacts it covers, and the download URLs when done. Requires the export job id."
     },
     {
       "name": "Contact",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/contacts/{Contact ID}"
+      "suffix": "/v3/marketing/contacts/{Contact ID}",
+      "description": "One contact by id, with every field including all custom fields. Requires a contact id. The full record, unlike the sample list."
     },
     {
       "name": "Field Definitions",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/marketing/field_definitions"
+      "suffix": "/v3/marketing/field_definitions",
+      "description": "Every field a contact can carry: the custom fields defined on the account and the reserved fields SendGrid provides, each with its id, name and type. THE KEY TO CONTACT DATA -- contacts return custom field values keyed by field id, so without this table a column of ids means nothing. Read it before interpreting anything in a contact's custom_fields."
     },
     {
       "name": "Recent Access Attempts",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/access_settings/activity?limit={Limit?}"
+      "suffix": "/v3/access_settings/activity?limit={Limit?}",
+      "description": "Recent attempts to access the account, successful and failed, with IP, location, whether it was allowed, and the timestamp. A security audit log rather than sending data."
     },
     {
       "name": "Whitelisted IP Addresses",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/access_settings/whitelist"
+      "suffix": "/v3/access_settings/whitelist",
+      "description": "The IP addresses allowed to call this account's API. When this list is non-empty, calls from anywhere else are refused outright -- worth checking first when a working integration suddenly cannot authenticate."
     },
     {
       "name": "Whitelisted IP Address",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/access_settings/whitelist/{Rule ID}"
+      "suffix": "/v3/access_settings/whitelist/{Rule ID}",
+      "description": "One allowed IP entry by id."
     },
     {
       "name": "Alerts",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/alerts"
+      "suffix": "/v3/alerts",
+      "description": "The alerts configured on the account -- usage thresholds and delivery statistics -- with the type, the address notified and the frequency. Configuration of notifications, not a record of any alert having fired."
     },
     {
       "name": "Alert",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/alerts/{Alert ID}"
+      "suffix": "/v3/alerts/{Alert ID}",
+      "description": "One alert by id."
     },
     {
       "name": "API Keys",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/api_keys?limit={Limit?}"
+      "suffix": "/v3/api_keys?limit={Limit?}",
+      "description": "The API keys on the account, with name and key id -- never the key itself. The scopes each holds decide what it can do, which is the usual reason an endpoint returns a permission error rather than data."
     },
     {
       "name": "API Key",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/api_keys/{API Key ID}"
+      "suffix": "/v3/api_keys/{API Key ID}",
+      "description": "One API key by id, with its full scope list."
     },
     {
       "name": "Suppression Groups",
@@ -85,37 +101,44 @@
           "key": "id",
           "parameterName": "Group ID"
         }
-      ]
+      ],
+      "description": "The unsubscribe groups defined on the account -- named categories such as newsletters or product updates that recipients can opt out of individually. Carries the name, description and the count of unsubscribes in each. Group unsubscribes are how a recipient can leave one stream without leaving all of them, so these are the difference between losing a subscriber and losing a topic."
     },
     {
       "name": "Suppression Group",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/asm/groups/{Group ID}"
+      "suffix": "/v3/asm/groups/{Group ID}",
+      "description": "A single suppression group by id."
     },
     {
       "name": "Group Suppressions",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/asm/groups/{Group ID}/suppressions"
+      "suffix": "/v3/asm/groups/{Group ID}/suppressions",
+      "description": "The addresses that have unsubscribed from one group. Requires a group id. The per-topic opt-out list."
     },
     {
       "name": "Suppressions",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/asm/suppressions"
+      "suffix": "/v3/asm/suppressions",
+      "description": "Every group suppression on the account, across all groups. The account-wide view of who opted out of what."
     },
     {
       "name": "Suppresion for Email",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/asm/suppressions/{Email}"
+      "suffix": "/v3/asm/suppressions/{Email}",
+      "description": "The groups one address has unsubscribed from. Requires the email address. Answers what a specific recipient will and will not still receive."
     },
     {
       "name": "Global Suppression",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/asm/suppressions/global/{Email}"
+      "suffix": "/v3/asm/suppressions/global/{Email}",
+      "description": "Whether one address is globally suppressed. Requires the email address. Returns the address if suppressed and an empty result if not, so this doubles as a membership check."
     },
     {
       "name": "Browser Email Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/browsers/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&browsers={Browsers?,}"
+      "suffix": "/v3/browsers/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&browsers={Browsers?,}",
+      "description": "Opens and clicks broken down by browser. NOTE THE RETENTION: the advanced statistics endpoints hold only SEVEN DAYS of email activity, so nothing older can be asked of them at all -- unlike Global Email Statistics, which covers a full date range. Returns 500 items per request by default. Also inherits the open-tracking distortions, which fall unevenly across browsers."
     },
     {
       "name": "Campaigns",
@@ -128,52 +151,62 @@
           "key": "id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "LEGACY. The sends of the original Marketing Campaigns, newest first, with title, subject, status, the lists and segments targeted, and the categories attached. Superseded by Single Sends, which is where current marketing activity lives. An empty result here usually means the account moved to the new Marketing Campaigns rather than that nothing was ever sent -- check Single Sends before concluding there is no campaign history."
     },
     {
       "name": "Campaign",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/campaigns/{Campaign ID}"
+      "suffix": "/v3/campaigns/{Campaign ID}",
+      "description": "One legacy campaign by id, with its content and targeting."
     },
     {
       "name": "Campaign Schedule Time",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/campaigns/{Campaign ID}/schedules"
+      "suffix": "/v3/campaigns/{Campaign ID}/schedules",
+      "description": "When one legacy campaign is scheduled to send. Requires a campaign id. Returns the scheduled time only, not whether it has been sent."
     },
     {
       "name": "Categories",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/categories?category={Category?}"
+      "suffix": "/v3/categories?category={Category?}",
+      "description": "The categories in use on the account, paginated. Categories are free-text tags attached at send time, defined nowhere and validated by nothing, so near-duplicates are normal and this list is worth reading as a vocabulary check before filtering statistics by category."
     },
     {
       "name": "Category Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/categories/stats?categories={Categories}&start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/categories/stats?categories={Categories}&start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "The same email statistics broken down by category, over a date range. Categories are the tag put on a send, so this is how per-campaign, per-template or per-purpose performance is measured -- the account-wide table cannot separate them. Without query parameters it returns sums for categories in groups of ten, so name the categories wanted rather than relying on the default. Same funnel and open-tracking caveats as Global Email Statistics."
     },
     {
       "name": "Category Email Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/categories/stats/sums?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
+      "suffix": "/v3/categories/stats/sums?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}",
+      "description": "The total of each metric per category over a date range, with no time breakdown -- one row per category rather than one per category per day. Cheaper than Category Statistics when the trend does not matter, only the totals."
     },
     {
       "name": "Client Type Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/clients/{Client Type:phone|tablet|webmail|desktop}/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/clients/{Client Type:phone|tablet|webmail|desktop}/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "Opens and clicks broken down by mail client for one named client type. Seven-day retention."
     },
     {
       "name": "Email Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/clients/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/clients/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "Opens and clicks broken down across all mail clients. Seven-day retention. Despite the plain name this is the CLIENT breakdown, not the account totals -- Global Email Statistics is the account-wide table."
     },
     {
       "name": "Custom Fields",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/custom_fields"
+      "suffix": "/v3/contactdb/custom_fields",
+      "description": "LEGACY. The custom fields defined on contactdb recipients, with id, name and type. The key to custom values on legacy recipients, the way Field Definitions is for current contacts."
     },
     {
       "name": "Custom Field",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/custom_fields/{Custom Field ID}"
+      "suffix": "/v3/contactdb/custom_fields/{Custom Field ID}",
+      "description": "LEGACY. One contactdb custom field by id."
     },
     {
       "name": "Contact Lists",
@@ -186,57 +219,68 @@
           "key": "id",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "LEGACY. The lists of the original Marketing Campaigns, with name and recipient_count. Superseded by Marketing Lists. The names are almost identical and the data is entirely separate, which is the single easiest mistake to make with this connector."
     },
     {
       "name": "Contact List",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/lists/{List ID}"
+      "suffix": "/v3/contactdb/lists/{List ID}",
+      "description": "LEGACY. One contactdb list by id."
     },
     {
       "name": "List Recipients",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/lists/{List ID}/recipients?list_id={List ID}&page={Page Index?}&page_size={Page Size?}"
+      "suffix": "/v3/contactdb/lists/{List ID}/recipients?list_id={List ID}&page={Page Index?}&page_size={Page Size?}",
+      "description": "LEGACY. The recipients on one contactdb list. Requires a list id."
     },
     {
       "name": "Recipients",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/recipients?page={Page Index?}&page_size={Page Size?}"
+      "suffix": "/v3/contactdb/recipients?page={Page Index?}&page_size={Page Size?}",
+      "description": "LEGACY. The contacts of the original Marketing Campaigns, held in what SendGrid called the contactdb. Superseded by Contacts in the current Marketing Campaigns, and the two stores are SEPARATE -- a contact in one is not in the other, so an empty result here says nothing about the account's real audience. Note also that deletions can make a page come back empty while later pages still hold rows, so an empty page is not the end of the data."
     },
     {
       "name": "Billable Recipient Count",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/recipients/billable_count"
+      "suffix": "/v3/contactdb/recipients/billable_count",
+      "description": "LEGACY. The number of contactdb recipients the account is billed for. Note this is charged on the HIGHEST count reached during the period, not the count at the end -- so it can exceed the current recipient count, and the two disagreeing is expected rather than an error."
     },
     {
       "name": "Recipient Count",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/recipients/count"
+      "suffix": "/v3/contactdb/recipients/count",
+      "description": "LEGACY. The total number of contactdb recipients. A single number."
     },
     {
       "name": "Recipient",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/recipients/{Recipient ID}"
+      "suffix": "/v3/contactdb/recipients/{Recipient ID}",
+      "description": "LEGACY. One contactdb recipient by id, with their reserved and custom fields."
     },
     {
       "name": "Recipient Lists",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/recipients/{Recipient ID}/lists"
+      "suffix": "/v3/contactdb/recipients/{Recipient ID}/lists",
+      "description": "LEGACY. The contactdb lists one recipient belongs to. Requires a recipient id. A recipient can be on many."
     },
     {
       "name": "Recipient Search",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/recipients/search"
+      "suffix": "/v3/contactdb/recipients/search",
+      "description": "LEGACY. Searches contactdb recipients by field value, including custom fields. The legacy store's only query route."
     },
     {
       "name": "Reserved Fields",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/reserved_fields"
+      "suffix": "/v3/contactdb/reserved_fields",
+      "description": "LEGACY. The field names contactdb reserves for itself and will not allow as custom field names. Reference data; useful mainly for understanding why a field could not be created."
     },
     {
       "name": "Segments",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/segments"
+      "suffix": "/v3/contactdb/segments",
+      "description": "LEGACY. The query-defined segments of the original Marketing Campaigns. Superseded by Marketing Segments, and again entirely separate data despite the near-identical name."
     },
     {
       "name": "Segment",
@@ -249,62 +293,74 @@
           "key": "id",
           "parameterName": "Segment ID"
         }
-      ]
+      ],
+      "description": "LEGACY. One contactdb segment by id, with its conditions."
     },
     {
       "name": "Segment Recipients",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/segments/{Segment ID}/recipients?page={Page Index?}&page_size={Page Size?}"
+      "suffix": "/v3/contactdb/segments/{Segment ID}/recipients?page={Page Index?}&page_size={Page Size?}",
+      "description": "LEGACY. The recipients matching one contactdb segment. Requires a segment id."
     },
     {
       "name": "Recipient Upload Status",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/contactdb/status"
+      "suffix": "/v3/contactdb/status",
+      "description": "LEGACY. The status of a contactdb recipient upload."
     },
     {
       "name": "Designs",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/designs?summary={Summary?:true|false}"
+      "suffix": "/v3/designs?summary={Summary?:true|false}",
+      "description": "The email designs stored in the account's Design Library, with name, subject, thumbnail and timestamps. Reusable content for marketing sends -- the design itself, not any record of it being sent."
     },
     {
       "name": "Design",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/designs/{Design ID}"
+      "suffix": "/v3/designs/{Design ID}",
+      "description": "One design by id, including its HTML and plain text content. Requires a design id."
     },
     {
       "name": "Pre-built Designs",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/designs/pre-builts?summary={Summary?:true|false}"
+      "suffix": "/v3/designs/pre-builts?summary={Summary?:true|false}",
+      "description": "The stock designs Twilio SendGrid ships. Reference content, identical on every account, and distinct from the account's own designs in Designs."
     },
     {
       "name": "Pre-built Design",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/designs/pre-builts/{Design ID}"
+      "suffix": "/v3/designs/pre-builts/{Design ID}",
+      "description": "One pre-built design by id, with its content."
     },
     {
       "name": "Device Type Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/devices/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/devices/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "Opens and clicks broken down by device type -- desktop, mobile, tablet, webmail. Same seven-day retention limit and the same open-tracking caveat, which matters here more than elsewhere: privacy proxies report as one device class and skew the mix."
     },
     {
       "name": "Geographic Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/geo/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&country={Country?:US|CA}"
+      "suffix": "/v3/geo/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&country={Country?:US|CA}",
+      "description": "Opens and clicks by country and state or province. Seven-day retention. Location is inferred from the opening IP address, so privacy proxies and corporate VPNs place recipients somewhere other than where they are."
     },
     {
       "name": "IP Addresses",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips?ip={IP?}&exclude_whitelabels={Exclude Whitelabels?}&subuser={Subuser?}&sort_by_direction={Sory Direction?}"
+      "suffix": "/v3/ips?ip={IP?}&exclude_whitelabels={Exclude Whitelabels?}&subuser={Subuser?}&sort_by_direction={Sory Direction?}",
+      "description": "The dedicated IP addresses on the account, with the IP, the pools it belongs to, which subusers may use it, whether warmup is running, and the date it was assigned. Sender reputation attaches to the IP, so this is the dimension deliverability problems are usually traced to."
     },
     {
       "name": "Assigned IP Addresses",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips/assigned"
+      "suffix": "/v3/ips/assigned",
+      "description": "Only the IPs currently assigned to the account. A subset of IP Addresses."
     },
     {
       "name": "IP Address Pool",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips/{IP}"
+      "suffix": "/v3/ips/{IP}",
+      "description": "The pools one IP belongs to. Requires an IP address."
     },
     {
       "name": "IP Address Pools",
@@ -317,132 +373,158 @@
           "key": "name",
           "parameterName": "Pool Name"
         }
-      ]
+      ],
+      "description": "The IP pools defined on the account. A pool groups IPs so different kinds of mail can be sent from different addresses -- keeping marketing traffic off the IPs that carry transactional mail is the usual reason, and it is why one account's reputation can be good and bad at the same time."
     },
     {
       "name": "Pool IP Addresses",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips/pools/{Pool Name}"
+      "suffix": "/v3/ips/pools/{Pool Name}",
+      "description": "The IPs in one pool. Requires a pool name."
     },
     {
       "name": "Remaining IP Address Count",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips/remaining"
+      "suffix": "/v3/ips/remaining",
+      "description": "How many more dedicated IPs the account may add under its plan, and when the period resets. Billing information."
     },
     {
       "name": "Warmup IP Addresses",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips/warmup"
+      "suffix": "/v3/ips/warmup",
+      "description": "The IPs currently being warmed up, with the date warmup started. A new IP has no reputation and must build one by sending gradually increasing volume, so an IP listed here will show worse delivery rates by design -- statistics covering a warmup period should not be read as a regression."
     },
     {
       "name": "IP Address Warmup Status",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/ips/warmup/{IP}"
+      "suffix": "/v3/ips/warmup/{IP}",
+      "description": "Whether one IP is in warmup and when it started. Requires an IP address."
     },
     {
       "name": "Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings"
+      "suffix": "/v3/mail_settings",
+      "description": "All account-level mail settings and whether each is enabled. The index; the individual settings have their own endpoints."
     },
     {
       "name": "Address Whitelist Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/address_whitelist"
+      "suffix": "/v3/mail_settings/address_whitelist",
+      "description": "Addresses and domains exempt from suppression -- mail to these is sent even if the address is on a bounce or unsubscribe list. This is the usual explanation for mail reaching an address that every suppression table says should be blocked."
     },
     {
       "name": "BCC Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/bcc"
+      "suffix": "/v3/mail_settings/bcc",
+      "description": "Automatic blind copying of outgoing mail. REMOVED: absent from Twilio SendGrid's current API description."
     },
     {
       "name": "Bounce Purge Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/bounce_purge"
+      "suffix": "/v3/mail_settings/bounce_purge",
+      "description": "Whether bounces are automatically purged after a number of days, and after how many. IMPORTANT for any bounce analysis: with purging on, the Bounces table is a rolling window rather than a full history, and older bounces are simply gone."
     },
     {
       "name": "Footer Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/footer"
+      "suffix": "/v3/mail_settings/footer",
+      "description": "The footer automatically appended to outgoing mail, in HTML and plain text."
     },
     {
       "name": "Forward Bounce Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/forward_bounce"
+      "suffix": "/v3/mail_settings/forward_bounce",
+      "description": "Whether bounces are forwarded to an address, and which."
     },
     {
       "name": "Forward Spam Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/forward_spam"
+      "suffix": "/v3/mail_settings/forward_spam",
+      "description": "Whether spam reports are forwarded to an address, and which."
     },
     {
       "name": "Plain Content Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/plain_content"
+      "suffix": "/v3/mail_settings/plain_content",
+      "description": "Automatic conversion of HTML mail to plain text. REMOVED: absent from the current API description."
     },
     {
       "name": "Spam Check Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/spam_check"
+      "suffix": "/v3/mail_settings/spam_check",
+      "description": "Outbound spam filtering thresholds. REMOVED: absent from the current API description."
     },
     {
       "name": "Legacy Template Mail Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mail_settings/template"
+      "suffix": "/v3/mail_settings/template",
+      "description": "The legacy template wrapped around outgoing mail. Superseded by Transactional Templates; expect it to be off."
     },
     {
       "name": "Mailbox Provider Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/mailbox_providers/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&mailbox_providers={Mailbox Providers?,}"
+      "suffix": "/v3/mailbox_providers/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&mailbox_providers={Mailbox Providers?,}",
+      "description": "Statistics broken down by the recipient's mailbox provider -- Gmail, Outlook, Yahoo and the rest. Seven-day retention. The most diagnostically useful of the advanced breakdowns: deliverability problems are usually specific to one provider, and this is the only table that shows it."
     },
     {
       "name": "Contact Exports",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/marketing/contacts/exports"
+      "suffix": "/v3/marketing/contacts/exports",
+      "description": "The contact export jobs currently running or recently finished, each with its type, status and, when complete, the download URLs. THE ONLY ROUTE TO THE FULL CONTACT LIST, since the contacts endpoint caps at 50 and no longer pages. The pattern is: start an export, poll this or Contact Export Status until it completes, then fetch the files it points at. The files expire, so the URLs are not permanent."
     },
     {
       "name": "Contact Import Status",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/contacts/imports/{Contact Import Job ID}"
+      "suffix": "/v3/marketing/contacts/imports/{Contact Import Job ID}",
+      "description": "The status of one contact import job by id: how many rows were created, updated and errored, with a link to the error file. Requires the job id. Import counts are the practical audit of a data load -- the errored count is where silently dropped rows show up."
     },
     {
       "name": "Messages",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/messages?query={Query String}&limit={Limit?:>0,<1000}"
+      "suffix": "/v3/messages?query={Query String}&limit={Limit?:>0,<1000}",
+      "description": "Individual messages sent, searchable with SendGrid's own query syntax -- for example query=to_email%3D%22x%40y.com%22, URL encoded. Carries the recipient, subject, status, opens and clicks count, and the last event time. THIS IS THE ONLY PER-MESSAGE TABLE; everything else here is aggregate. Two conditions decide whether it works at all: it requires the Email Activity add-on, without which it returns an error rather than an empty list, and retention is THREE DAYS on the standard add-on, thirty with the extended one. It cannot answer questions about last month. Regional EU subusers generate no data for it."
     },
     {
       "name": "Message",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/messages/{Message ID}"
+      "suffix": "/v3/messages/{Message ID}",
+      "description": "The full event history of one message by id -- every processed, delivered, open, click, bounce and drop event with its timestamp. Requires a message id. The same add-on and retention conditions apply. This is where 'what happened to this particular email' is answered."
     },
     {
       "name": "Partner Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/partner_settings"
+      "suffix": "/v3/partner_settings",
+      "description": "Settings for partner integrations enabled on the account."
     },
     {
       "name": "Scopes",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/scopes"
+      "suffix": "/v3/scopes",
+      "description": "Every permission scope SendGrid defines. Reference data -- the vocabulary that API key and teammate permissions are written in, and what to check a failing call against."
     },
     {
       "name": "Access Requests",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/scopes/requests"
+      "suffix": "/v3/scopes/requests",
+      "description": "Requests from teammates for additional access. REMOVED: absent from Twilio SendGrid's current API description and has no replacement here."
     },
     {
       "name": "Sender Identities",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/senders"
+      "suffix": "/v3/senders",
+      "description": "The verified From addresses the account may send marketing mail as, with the address, reply-to, physical address and verification status. An unverified sender cannot send -- so this table is the usual explanation for a campaign that will not go out."
     },
     {
       "name": "Sender Identity",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/senders/{Sender ID}"
+      "suffix": "/v3/senders/{Sender ID}",
+      "description": "One sender identity by id, with its verification state."
     },
     {
       "name": "Global Email Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "Account-wide email statistics over a date range, aggregated by day, week or month -- the central table for sending performance. Each row carries requests, processed, delivered, deferred, bounces, bounce_drops, blocks, opens and unique_opens, clicks and unique_clicks, spam_reports and spam_report_drops, unsubscribes and unsubscribe_drops, and invalid_emails. THREE things must be read correctly. The metrics form a funnel, not a set of alternatives: requests is what was submitted, processed what SendGrid accepted, delivered what the receiving server accepted -- delivery rate is delivered over requests, not over processed. The _drops metrics are mail NEVER SENT because the address was already suppressed; adding bounce_drops to bounces double-counts, since a drop is the opposite of an attempt. And OPEN COUNTS ARE NOT TRUSTWORTHY as a measure of human attention: they require open tracking to be on and the recipient to load images, which undercounts, while Apple Mail Privacy Protection pre-loads images and inflates them. Clicks are the sounder engagement signal."
     },
     {
       "name": "Subusers",
@@ -455,242 +537,290 @@
           "key": "username",
           "parameterName": "Subuser Name"
         }
-      ]
+      ],
+      "description": "The subuser accounts under this account, with username, email, whether each is disabled, and their IPs. Subusers are how an account is divided per customer, brand or environment -- each has its own sending, statistics and reputation. On a multi-tenant account nearly every question needs to name a subuser or it silently answers for the parent only."
     },
     {
       "name": "Subuser Reputations",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/subusers/reputations?usernames={UserNames?}"
+      "suffix": "/v3/subusers/reputations?usernames={UserNames?}",
+      "description": "The sender reputation score of each subuser, as a percentage. The fastest signal of which tenant is damaging deliverability for the rest, and it exists nowhere else."
     },
     {
       "name": "Subuser Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/subusers/stats?subusers={Subusers}&start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/subusers/stats?subusers={Subusers}&start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "Email statistics for named subusers over a date range. Up to ten subusers per request, one additional parameter each. Same metrics as Global Email Statistics, split by tenant."
     },
     {
       "name": "Monthly Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/subusers/stats/monthly?date={Date:YYYY-MM-DD}&subuser={Subuser?}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
+      "suffix": "/v3/subusers/stats/monthly?date={Date:YYYY-MM-DD}&subuser={Subuser?}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}",
+      "description": "Monthly email statistics for ALL subusers over a date range. The account-wide monthly roll-up per tenant, and the practical basis for per-customer billing or reporting."
     },
     {
       "name": "Total Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/subusers/stats/sums?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
+      "suffix": "/v3/subusers/stats/sums?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}",
+      "description": "The total of each metric summed across all subusers over a date range. Totals only, with no per-subuser or per-day split."
     },
     {
       "name": "Subuser Monitor Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/subusers/{Subuser Name}/monitor"
+      "suffix": "/v3/subusers/{Subuser Name}/monitor",
+      "description": "Monitor settings for one subuser -- an address that receives a sample of their outgoing mail. REMOVED: absent from Twilio SendGrid's current API description; expect it to fail rather than return an empty result."
     },
     {
       "name": "Subuser Monthly Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/subusers/{Subuser Name}/stats/monthly?date={Date:YYYY-MM-DD}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
+      "suffix": "/v3/subusers/{Subuser Name}/stats/monthly?date={Date:YYYY-MM-DD}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}",
+      "description": "Monthly statistics for one named subuser. Requires the subuser name."
     },
     {
       "name": "Blocks",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/blocks?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/suppression/blocks?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "Email addresses SendGrid refused to send to because the receiving server rejected the connection or content -- reputation, content filtering or a temporary block, with the reason and status code. Distinct from bounces: a block is the receiving side refusing the transaction rather than rejecting a specific address, and it usually points at the sender's reputation rather than at a bad address."
     },
     {
       "name": "Block",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/blocks/{Email}"
+      "suffix": "/v3/suppression/blocks/{Email}",
+      "description": "The block record for one email address."
     },
     {
       "name": "Bounces",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/bounces?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/suppression/bounces?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "Email addresses that were rejected by the receiving server, paginated, with the address, the reason text, the SMTP status code and when it happened. The status code is what separates a HARD bounce (a 5.x.x code -- the address does not exist, permanent) from a SOFT one (4.x.x -- mailbox full or server busy, temporary). Treating all bounces alike overstates list decay, since soft bounces often deliver on a later send. Filter by start_time and end_time."
     },
     {
       "name": "Bounce",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/bounces/{Email}"
+      "suffix": "/v3/suppression/bounces/{Email}",
+      "description": "The bounce record for one email address, if any. Returns nothing for an address that has not bounced, which is the normal case."
     },
     {
       "name": "Invalid Emails",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/invalid_emails?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/suppression/invalid_emails?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "Addresses rejected as malformed or non-existent before sending -- a syntax error or a domain that does not resolve. Distinct from bounces, which are rejections by a real server. A cluster here usually indicates a data-entry or import problem rather than a deliverability one."
     },
     {
       "name": "Invalid Email",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/invalid_emails/{Email}"
+      "suffix": "/v3/suppression/invalid_emails/{Email}",
+      "description": "The invalid-email record for one address."
     },
     {
       "name": "Spam Reports",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/spam_reports?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/suppression/spam_reports?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "Recipients who marked mail as spam, with the address, the IP it was sent from, and when. The most damaging deliverability signal there is -- a rising rate here precedes blocks and bounces at the major providers, so it is the leading indicator rather than a lagging one. Addresses here are suppressed automatically."
     },
     {
       "name": "Spam Report",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/spam_reports/{Email}"
+      "suffix": "/v3/suppression/spam_reports/{Email}",
+      "description": "The spam report for one email address."
     },
     {
       "name": "Global Suppressions",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/suppression/unsubscribes?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/suppression/unsubscribes?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "Every address globally suppressed on the account, paginated -- mail is never sent to these, from any list or campaign. This is why a send can report fewer requests than the list size, and the _drops metrics in the statistics tables count exactly these."
     },
     {
       "name": "Teammates",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/teammates"
+      "suffix": "/v3/teammates",
+      "description": "The people with access to the account, with username, email, whether each is an admin, and their scopes. Together with API Keys this is the full picture of who and what can act on the account."
     },
     {
       "name": "Pending Teammates",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/teammates/pending"
+      "suffix": "/v3/teammates/pending",
+      "description": "Teammate invitations not yet accepted, with the email invited, when it expires, and the scopes offered. Outstanding access grants, which no other table shows."
     },
     {
       "name": "Teammate",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/teammates/{User Name}"
+      "suffix": "/v3/teammates/{User Name}",
+      "description": "One teammate by username, with their permission scopes."
     },
     {
       "name": "Transactional Templates",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/templates?generations={Generations?:legacy|dynamic|legacy,dynamic}"
+      "suffix": "/v3/templates?generations={Generations?:legacy|dynamic|legacy,dynamic}",
+      "description": "The dynamic templates used for transactional mail, each with its name, generation, and its versions. A send references a template by id, so this is the table that turns a template id in a message record into something readable."
     },
     {
       "name": "Transactional Template",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/templates/{Template ID}"
+      "suffix": "/v3/templates/{Template ID}",
+      "description": "One template by id, with all of its versions."
     },
     {
       "name": "Transactional Template Version",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/templates/{Template ID}/versions/{Version ID}"
+      "suffix": "/v3/templates/{Template ID}/versions/{Version ID}",
+      "description": "One version of one template, with its subject and HTML and plain text content. Requires the template and version ids. Templates are versioned and only one version is ACTIVE at a time -- so the content a past send actually used is the version active then, not necessarily the one active now."
     },
     {
       "name": "Tracking Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/tracking_settings"
+      "suffix": "/v3/tracking_settings",
+      "description": "Which tracking features are switched on for the account. Read this BEFORE trusting any engagement figure: open and click counts exist in the statistics tables only where the corresponding tracking is enabled here, and a zero can mean 'nothing happened' or 'nothing was measured'. Nothing in the statistics response distinguishes the two."
     },
     {
       "name": "Click Track Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/tracking_settings/click"
+      "suffix": "/v3/tracking_settings/click",
+      "description": "Whether click tracking is enabled. With it off, clicks are not counted -- and with it on, links are rewritten to pass through a tracking domain, which is what Branded Links exists to make presentable."
     },
     {
       "name": "Google Analytics Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/tracking_settings/google_analytics"
+      "suffix": "/v3/tracking_settings/google_analytics",
+      "description": "The UTM parameters automatically appended to links. Explains where campaign attribution in Google Analytics comes from, and why link URLs differ from those authored."
     },
     {
       "name": "Open Tracking Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/tracking_settings/open"
+      "suffix": "/v3/tracking_settings/open",
+      "description": "Whether open tracking is enabled. Opens are counted by a tracking pixel, so with this off the opens columns are structurally zero rather than genuinely zero."
     },
     {
       "name": "Subscription Tracking Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/tracking_settings/subscription"
+      "suffix": "/v3/tracking_settings/subscription",
+      "description": "Whether an unsubscribe link is appended automatically, and the text used. Affects the unsubscribes metric: without it, recipients have no one-click route out and are more likely to press the spam button instead, which moves the count into Spam Reports."
     },
     {
       "name": "Account Information",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/account"
+      "suffix": "/v3/user/account",
+      "description": "The account type and reputation. Reputation is a single score summarising sending health, and a fall in it usually precedes the rise in blocks and bounces rather than following it."
     },
     {
       "name": "Credit balance",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/credits"
+      "suffix": "/v3/user/credits",
+      "description": "The account's remaining email credits, the total allowed, and when the allowance next resets. The direct answer to whether sends are about to be refused for running out of allowance."
     },
     {
       "name": "Email Address",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/email"
+      "suffix": "/v3/user/email",
+      "description": "The email address on the account. One value."
     },
     {
       "name": "User Profile",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/profile"
+      "suffix": "/v3/user/profile",
+      "description": "The account holder's profile: name, company, address and phone. Contact details, not sending data."
     },
     {
       "name": "Scheduled Sends",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/scheduled_sends"
+      "suffix": "/v3/user/scheduled_sends",
+      "description": "Sends scheduled but not yet delivered, by batch id, with their status -- pending, paused or cancelled. The queue of what is still to go out, and the only place a paused or cancelled send is visible."
     },
     {
       "name": "Scheduled Send",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/scheduled_sends/{Batch ID}"
+      "suffix": "/v3/user/scheduled_sends/{Batch ID}",
+      "description": "The status of one scheduled send by batch id."
     },
     {
       "name": "Enforced TLS Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/settings/enforced_tls"
+      "suffix": "/v3/user/settings/enforced_tls",
+      "description": "Whether TLS is required for delivery and whether a valid certificate is demanded. With enforcement on, mail to a server that cannot negotiate TLS is DROPPED rather than delivered -- which shows up as unexplained non-delivery unless this setting is known."
     },
     {
       "name": "Username",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/username"
+      "suffix": "/v3/user/username",
+      "description": "The account username. One value."
     },
     {
       "name": "Event Webhook Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/webhooks/event/settings"
+      "suffix": "/v3/user/webhooks/event/settings/all",
+      "description": "The event webhooks configured on the account, each with its target URL, which events it subscribes to, and whether it is enabled. Event webhooks are how message-level events are delivered in real time -- and where message-level history longer than the Email Activity retention window has to come from, since it must be stored outside SendGrid. Checking this is the way to find out whether such a store exists."
     },
     {
       "name": "Parse Webhook Settings",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/webhooks/parse/settings"
+      "suffix": "/v3/user/webhooks/parse/settings",
+      "description": "The Inbound Parse configurations: which hostnames accept incoming mail and where their parsed contents are POSTed."
     },
     {
       "name": "Parse Webhook Setting",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/webhooks/parse/settings/{Host Name}"
+      "suffix": "/v3/user/webhooks/parse/settings/{Host Name}",
+      "description": "One Inbound Parse configuration by hostname."
     },
     {
       "name": "Inbound Webhook Statistics",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/user/webhooks/parse/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
+      "suffix": "/v3/user/webhooks/parse/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}",
+      "description": "Usage statistics for the Inbound Parse webhook -- how many incoming emails SendGrid parsed and forwarded, by date. Only meaningful where inbound parsing is configured; it reports volume, not the message contents."
     },
     {
       "name": "Authenticated Domains",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/domains?exclude_subusers={Exclude Subusers?}&username={User Name?}&domain={Domain?}"
+      "suffix": "/v3/whitelabel/domains?exclude_subusers={Exclude Subusers?}&username={User Name?}&domain={Domain?}",
+      "description": "The domains authenticated for sending -- SendGrid's SPF and DKIM setup, formerly called domain whitelabel. Each carries the domain, subdomain, the DNS records required, whether it is the default, and a VALID flag saying whether DNS actually resolves as required. That flag is the single most important deliverability fact on the account: mail from an invalid domain is far more likely to be filtered, and nothing in the statistics tables explains why until this one is checked."
     },
     {
       "name": "Default Domain",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/domains/default"
+      "suffix": "/v3/whitelabel/domains/default",
+      "description": "The domain used to authenticate mail when a send does not specify one. One record."
     },
     {
       "name": "Authenticated Domain",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/domains/{Domain ID}"
+      "suffix": "/v3/whitelabel/domains/{Domain ID}",
+      "description": "One authenticated domain by id, with its full DNS record set and validation state."
     },
     {
       "name": "User Domains",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/domains/subuser?username={Subuser Username}"
+      "suffix": "/v3/whitelabel/domains/subuser?username={Subuser Username}",
+      "description": "Which authenticated domain each subuser sends under. The per-tenant view of sending identity on a multi-subuser account."
     },
     {
       "name": "Reverse DNS Records",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/ips?ip={DNS Record ID?}"
+      "suffix": "/v3/whitelabel/ips?ip={DNS Record ID?}",
+      "description": "The reverse DNS (PTR) records set on the account's dedicated IPs, with the IP, the hostname it resolves to, and whether it is valid. Receiving servers check that a sending IP resolves back to a matching name; a missing or invalid record here is a direct cause of rejections that appear in Blocks with no other explanation."
     },
     {
       "name": "Branded Links",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/links?limit={Limit?}"
+      "suffix": "/v3/whitelabel/links?limit={Limit?}",
+      "description": "The custom domains used for click-tracked links, with the domain, its DNS records, whether it is the default, and its valid flag. Without link branding, tracked links point at a SendGrid domain, which recipients and filters both treat with more suspicion."
     },
     {
       "name": "Default Branded Link",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/links/default?domain={Domain?}"
+      "suffix": "/v3/whitelabel/links/default?domain={Domain?}",
+      "description": "The branded link domain used when a send does not specify one."
     },
     {
       "name": "Branded Link",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/links/{Link ID}"
+      "suffix": "/v3/whitelabel/links/{Link ID}",
+      "description": "One branded link by id, with its DNS records and validation state."
     },
     {
       "name": "Subuser Branded Links",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/whitelabel/links/subuser?username={User Name}"
+      "suffix": "/v3/whitelabel/links/subuser?username={User Name}",
+      "description": "Which branded link domain each subuser uses."
     },
     {
       "name": "Marketing Lists",
@@ -703,37 +833,44 @@
           "key": "id",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The contact lists on the account, each with its name, id and contact_count. Lists are static memberships a contact is put on explicitly, as opposed to segments, which are defined by a query. This is the current Marketing Campaigns list table -- not to be confused with Contact Lists, which is the legacy one."
     },
     {
       "name": "Marketing List",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/lists/{List ID}?contact_sample={Contact Sample?}"
+      "suffix": "/v3/marketing/lists/{List ID}?contact_sample={Contact Sample?}",
+      "description": "One list by id. Requires a list id. Pass contact_sample=true and it also returns up to 50 of its contacts -- a sample, subject to the same cap as the contacts endpoint."
     },
     {
       "name": "Marketing List Contact Count",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/lists/{List ID}/contacts/count"
+      "suffix": "/v3/marketing/lists/{List ID}/contacts/count",
+      "description": "How many contacts are on one list. Requires a list id. A single number, and cheaper than any attempt to count members."
     },
     {
       "name": "Marketing Segments",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/segments?parent_list_ids={Parent List IDs?}&no_parent_list_id={No Parent List ID?:false|true}"
+      "suffix": "/v3/marketing/segments?parent_list_ids={Parent List IDs?}&no_parent_list_id={No Parent List ID?:false|true}",
+      "description": "The segments on the account -- audiences defined by a QUERY over contact fields and engagement, rather than by explicit membership. Each carries its name, the query, the parent lists it draws from, and a contacts count with the time it was last refreshed. That refresh time matters: a segment's count is as of its last evaluation, not as of now."
     },
     {
       "name": "Marketing Segment",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/segments/{Segment ID}?query_json={Query JSON?:false|true}"
+      "suffix": "/v3/marketing/segments/{Segment ID}?query_json={Query JSON?:false|true}",
+      "description": "One segment by id, with its full query definition and current count. Requires a segment id. The query is the segment's actual meaning -- the name rarely states the criteria."
     },
     {
       "name": "Single Sends",
       "pageType": "JSON_PATH",
-      "suffix": "/v3/marketing/singlesends"
+      "suffix": "/v3/marketing/singlesends",
+      "description": "The marketing sends of the current Marketing Campaigns, one row each, with name, status (draft, scheduled, triggered), the send time, and the lists or segments targeted. This is the modern replacement for Campaigns; both exist in this connector and they are separate systems with separate data, so the same send never appears in both."
     },
     {
       "name": "Single Send",
       "pageType": "LINK_HEADER",
-      "suffix": "/v3/marketing/singlesends/{Send ID}"
+      "suffix": "/v3/marketing/singlesends/{Send ID}",
+      "description": "One Single Send by id, with its full configuration and its performance statistics. Requires a Single Send id. The per-send metrics live here rather than in the list."
     }
   ]
 }

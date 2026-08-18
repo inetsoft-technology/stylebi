@@ -1,23 +1,26 @@
 {
   "endpoints": [
     {
-      "paged": "true", 
-      "name": "Activity Sets", 
-      "suffix": "/v3.0/ActivitySets?brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Activity Sets",
+      "suffix": "/v3.0/ActivitySets?brief={Brief?:true|false}&count_total=true",
+      "description": "The templates that create a standard batch of tasks and events at once -- Insightly's repeatable process definitions. What a team considers its standard procedure."
+    },
     {
-      "paged": "false", 
-      "name": "Activity Set", 
-      "suffix": "/v3.0/ActivitySets/{Activity Set ID}"
-    }, 
+      "paged": "false",
+      "name": "Activity Set",
+      "suffix": "/v3.0/ActivitySets/{Activity Set ID}",
+      "description": "One activity set by id, with its tasks and events."
+    },
     {
-      "paged": "true", 
-      "name": "Comment File Attachments", 
-      "suffix": "/v3.0/Comment/{Comment ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Comment File Attachments",
+      "suffix": "/v3.0/Comment/{Comment ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one comment. Requires a comment id."
+    },
     {
-      "paged": "true", 
-      "name": "Contacts", 
+      "paged": "true",
+      "name": "Contacts",
       "suffix": "/v3.0/Contacts?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -33,15 +36,17 @@
           "key": "CONTACT_ID",
           "parameterName": "Contact ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The people in the CRM, with name, contact details, the organisation, owner, tags, dates and custom fields. THE PATTERN OF THIS CONNECTOR, which repeats for every major object: a plain listing, a Search variant taking field criteria, a SearchByTag variant, and a family of child endpoints for that record's emails, events, notes, tasks, links, files and follow state. Once one object is understood the rest follow the same shape."
+    },
     {
-      "paged": "false", 
-      "name": "Contact", 
-      "suffix": "/v3.0/Contacts/{Contact ID}"
-    }, 
+      "paged": "false",
+      "name": "Contact",
+      "suffix": "/v3.0/Contacts/{Contact ID}",
+      "description": "One contact by id."
+    },
     {
-      "paged": "true", 
+      "paged": "true",
       "name": "Contact Emails",
       "suffix": "/v3.0/Contacts/{Contact ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
@@ -56,11 +61,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The emails linked to one contact. Requires a contact id."
+    },
     {
-      "paged": "true", 
-      "name": "Contact Events", 
+      "paged": "true",
+      "name": "Contact Events",
       "suffix": "/v3.0/Contacts/{Contact ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -69,26 +75,30 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The calendar events involving one contact. Requires a contact id."
+    },
     {
-      "paged": "true", 
-      "name": "Contact File Attachments", 
-      "suffix": "/v3.0//Contacts/{Contact ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Contact File Attachments",
+      "suffix": "/v3.0/Contacts/{Contact ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one contact. Requires a contact id."
+    },
     {
-      "paged": "false", 
-      "name": "Contact Follow State", 
-      "suffix": "/v3.0/Contacts/{Contact ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Contact Follow State",
+      "suffix": "/v3.0/Contacts/{Contact ID}/Follow",
+      "description": "Whether the calling user follows one contact. Scoped to the caller."
+    },
     {
-      "paged": "false", 
-      "name": "Contact Links", 
-      "suffix": "/v3.0/Contacts/{Contact ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Contact Links",
+      "suffix": "/v3.0/Contacts/{Contact ID}/Links",
+      "description": "The other records one contact is linked to -- organisations, opportunities, projects. Requires a contact id. LINKS ARE HOW INSIGHTLY MODELS RELATIONSHIPS: a contact carries one organisation id, but everything else it relates to is expressed here, so the object graph is only traversable through the link endpoints."
+    },
     {
-      "paged": "true", 
-      "name": "Contact Notes", 
+      "paged": "true",
+      "name": "Contact Notes",
       "suffix": "/v3.0/Contacts/{Contact ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -102,11 +112,12 @@
           "key": "NOTE_ID",
           "parameterName": "Note ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The notes on one contact. Requires a contact id."
+    },
     {
-      "paged": "true", 
-      "name": "Contact Tasks", 
+      "paged": "true",
+      "name": "Contact Tasks",
       "suffix": "/v3.0/Contacts/{Contact ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -120,11 +131,12 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The tasks relating to one contact. Requires a contact id."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Contacts", 
+      "paged": "true",
+      "name": "Filtered Contacts",
       "suffix": "/v3.0/Contacts/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -140,11 +152,12 @@
           "key": "CONTACT_ID",
           "parameterName": "Contact ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Contacts matching field criteria. The filtered route where the plain listing only pages."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Contacts by Tag", 
+      "paged": "true",
+      "name": "Filtered Contacts by Tag",
       "suffix": "/v3.0/Contacts/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -160,31 +173,36 @@
           "key": "CONTACT_ID",
           "parameterName": "Contact ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Contacts carrying a given tag. Tags are Insightly's cross-cutting segmentation, so this is often the fastest way to a business-meaningful subset."
+    },
     {
-      "paged": "false", 
-      "name": "Countries", 
-      "suffix": "/v3.0/Countries"
-    }, 
+      "paged": "false",
+      "name": "Countries",
+      "suffix": "/v3.0/Countries",
+      "description": "The country list Insightly recognises. Reference data."
+    },
     {
-      "paged": "false", 
-      "name": "Currencies", 
-      "suffix": "/v3.0/Currencies"
-    }, 
+      "paged": "false",
+      "name": "Currencies",
+      "suffix": "/v3.0/Currencies",
+      "description": "The currencies configured, with their codes. Opportunity values are held in their own currency, so a total spanning them needs conversion Insightly does not perform here."
+    },
     {
-      "paged": "false", 
-      "name": "Custom Fields", 
-      "suffix": "/v3.0/CustomFields/{Object Name}"
-    }, 
+      "paged": "false",
+      "name": "Custom Fields",
+      "suffix": "/v3.0/CustomFields/{Object Name}",
+      "description": "The custom fields defined on one object. Requires the object name. THE DECODER for custom values, which arrive keyed by field id on every standard object as well as custom ones."
+    },
     {
-      "paged": "false", 
-      "name": "Custom Field", 
-      "suffix": "/v3.0/CustomFields/{Object Name}/Search?fieldName={Field Name}"
-    }, 
+      "paged": "false",
+      "name": "Custom Field",
+      "suffix": "/v3.0/CustomFields/{Object Name}/Search?fieldName={Field Name}",
+      "description": "One custom field definition, searched within an object."
+    },
     {
-      "paged": "false", 
-      "name": "Custom Objects", 
+      "paged": "false",
+      "name": "Custom Objects",
       "suffix": "/v3.0/CustomObjects",
       "lookups": [
         {
@@ -196,31 +214,36 @@
           "key": "OBJECT_NAME",
           "parameterName": "Object Name"
         }
-      ]
-    }, 
+      ],
+      "description": "The custom objects defined on the account. INSIGHTLY LETS AN ACCOUNT DEFINE ITS OWN RECORD TYPES, so this is the first request whenever a question involves anything beyond the standard objects -- what exists is entirely account-specific."
+    },
     {
-      "paged": "false", 
-      "name": "Custom Object", 
-      "suffix": "/v3.0/CustomObjects/{Custom Object Name}"
-    }, 
+      "paged": "false",
+      "name": "Custom Object",
+      "suffix": "/v3.0/CustomObjects/{Custom Object Name}",
+      "description": "One custom object's definition by name, with its fields."
+    },
     {
-      "paged": "true", 
-      "name": "Custom Object Records", 
-      "suffix": "/v3.0/{Object Name}?brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Custom Object Records",
+      "suffix": "/v3.0/{Object Name}?brief={Brief?:true|false}&count_total=true",
+      "description": "The records of one custom object. Requires the object name. The data behind a user-defined record type."
+    },
     {
-      "paged": "false", 
-      "name": "Custom Object Record", 
-      "suffix": "/v3.0/{Object Name}/{Record ID}"
-    }, 
+      "paged": "false",
+      "name": "Custom Object Record",
+      "suffix": "/v3.0/{Object Name}/{Record ID}",
+      "description": "One custom object record by id."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Custom Object Records", 
-      "suffix": "/v3.0/{Object Name}/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Filtered Custom Object Records",
+      "suffix": "/v3.0/{Object Name}/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "description": "Custom object records matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Emails", 
+      "paged": "true",
+      "name": "Emails",
       "suffix": "/v3.0/Emails?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -234,36 +257,42 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The emails captured into the CRM, with subject, body, sender, recipients and date. Where correspondence is filed against records."
+    },
     {
-      "paged": "false", 
-      "name": "Email", 
-      "suffix": "/v3.0/Emails/{Email ID}"
-    }, 
+      "paged": "false",
+      "name": "Email",
+      "suffix": "/v3.0/Emails/{Email ID}",
+      "description": "One email by id."
+    },
     {
-      "paged": "true", 
-      "name": "Email Comments", 
-      "suffix": "/v3.0/Emails/{Email ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Email Comments",
+      "suffix": "/v3.0/Emails/{Email ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The comments on one email."
+    },
     {
-      "paged": "true", 
-      "name": "Email File Attachments", 
-      "suffix": "/v3.0/Emails/{Email ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Email File Attachments",
+      "suffix": "/v3.0/Emails/{Email ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one email."
+    },
     {
-      "paged": "false", 
-      "name": "Email Follow State", 
-      "suffix": "/v3.0/Emails/{Email ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Email Follow State",
+      "suffix": "/v3.0/Emails/{Email ID}/Follow",
+      "description": "Whether the caller follows one email."
+    },
     {
-      "paged": "false", 
-      "name": "Email Links", 
-      "suffix": "/v3.0/Emails/{Email ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Email Links",
+      "suffix": "/v3.0/Emails/{Email ID}/Links",
+      "description": "The records one email is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Emails", 
+      "paged": "true",
+      "name": "Filtered Emails",
       "suffix": "/v3.0/Emails/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -277,11 +306,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Emails matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Emails by Tag", 
+      "paged": "true",
+      "name": "Filtered Emails by Tag",
       "suffix": "/v3.0/Emails/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -295,11 +325,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Emails carrying a given tag."
+    },
     {
-      "paged": "true", 
-      "name": "Events", 
+      "paged": "true",
+      "name": "Events",
       "suffix": "/v3.0/Events?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -308,21 +339,24 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The calendar events -- meetings and appointments -- with title, times, location and attendees. The activity record beside tasks."
+    },
     {
-      "paged": "false", 
+      "paged": "false",
       "name": "Event",
-      "suffix": "/v3.0/Events/{Event ID}"
-    }, 
+      "suffix": "/v3.0/Events/{Event ID}",
+      "description": "One event by id."
+    },
     {
-      "paged": "false", 
-      "name": "Event Links", 
-      "suffix": "/v3.0/Events/{Event ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Event Links",
+      "suffix": "/v3.0/Events/{Event ID}/Links",
+      "description": "The records one event is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Events", 
+      "paged": "true",
+      "name": "Filtered Events",
       "suffix": "/v3.0/Events/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -331,26 +365,30 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Events matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "File Categories", 
-      "suffix": "/v3.0/FileCategories?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "File Categories",
+      "suffix": "/v3.0/FileCategories?count_total=true",
+      "description": "The categories file attachments are classified under."
+    },
     {
-      "paged": "false", 
-      "name": "File Category", 
-      "suffix": "/v3.0/FileCategories/{File Category ID}"
-    }, 
+      "paged": "false",
+      "name": "File Category",
+      "suffix": "/v3.0/FileCategories/{File Category ID}",
+      "description": "One file category by id."
+    },
     {
-      "paged": "true", 
-      "name": "Followed Records", 
-      "suffix": "/v3.0/Follows?record_type={Record Type?}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Followed Records",
+      "suffix": "/v3.0/Follows?record_type={Record Type?}&count_total=true",
+      "description": "The records the calling user follows, across types. Scoped to the caller."
+    },
     {
-      "paged": "true", 
-      "name": "Leads", 
+      "paged": "true",
+      "name": "Leads",
       "suffix": "/v3.0/Leads?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -368,16 +406,18 @@
           "key": "LEAD_ID",
           "parameterName": "Lead ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The unqualified prospects, with name, company, contact details, status, source, owner and custom fields. IN INSIGHTLY A LEAD IS CONVERTED into a contact, organisation and opportunity, and the lead record survives -- so leads and contacts hold different stages of the same people and counting both double-counts anyone converted."
+    },
     {
-      "paged": "false", 
-      "name": "Lead", 
-      "suffix": "/v3.0/Leads/{Lead ID}"
-    }, 
+      "paged": "false",
+      "name": "Lead",
+      "suffix": "/v3.0/Leads/{Lead ID}",
+      "description": "One lead by id."
+    },
     {
-      "paged": "true", 
-      "name": "Lead Emails", 
+      "paged": "true",
+      "name": "Lead Emails",
       "suffix": "/v3.0/Leads/{Lead ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -391,11 +431,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The emails linked to one lead."
+    },
     {
-      "paged": "true", 
-      "name": "Lead Events", 
+      "paged": "true",
+      "name": "Lead Events",
       "suffix": "/v3.0/Leads/{Lead ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -404,31 +445,36 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The calendar events involving one lead."
+    },
     {
-      "paged": "true", 
-      "name": "Lead File Attachments", 
-      "suffix": "/v3.0/Leads/{Lead ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Lead File Attachments",
+      "suffix": "/v3.0/Leads/{Lead ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one lead."
+    },
     {
-      "paged": "false", 
-      "name": "Lead Follow State", 
-      "suffix": "/v3.0/Leads/{Lead ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Lead Follow State",
+      "suffix": "/v3.0/Leads/{Lead ID}/Follow",
+      "description": "Whether the caller follows one lead."
+    },
     {
-      "paged": "false", 
-      "name": "Lead Email Address", 
-      "suffix": "/v3.0/Leads/{Lead ID}/LinkEmailAddress"
-    }, 
+      "paged": "false",
+      "name": "Lead Email Address",
+      "suffix": "/v3.0/Leads/{Lead ID}/LinkEmailAddress",
+      "description": "The dedicated email address that files mail against one lead. Requires a lead id. How correspondence is captured without forwarding by hand."
+    },
     {
-      "paged": "false", 
-      "name": "Lead Links", 
-      "suffix": "/v3.0/Leads/{Lead ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Lead Links",
+      "suffix": "/v3.0/Leads/{Lead ID}/Links",
+      "description": "The records one lead is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Lead Notes", 
+      "paged": "true",
+      "name": "Lead Notes",
       "suffix": "/v3.0/Leads/{Lead ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -442,11 +488,12 @@
           "key": "NOTE_ID",
           "parameterName": "Note ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The notes on one lead."
+    },
     {
-      "paged": "true", 
-      "name": "Lead Tasks", 
+      "paged": "true",
+      "name": "Lead Tasks",
       "suffix": "/v3.0/Leads/{Lead ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -460,11 +507,12 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The tasks relating to one lead."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Leads", 
+      "paged": "true",
+      "name": "Filtered Leads",
       "suffix": "/v3.0/Leads/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -482,11 +530,12 @@
           "key": "LEAD_ID",
           "parameterName": "Lead ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Leads matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Leads by Tag", 
+      "paged": "true",
+      "name": "Filtered Leads by Tag",
       "suffix": "/v3.0/Leads/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -504,36 +553,42 @@
           "key": "LEAD_ID",
           "parameterName": "Lead ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Leads carrying a given tag."
+    },
     {
-      "paged": "true", 
-      "name": "Lead Sources", 
-      "suffix": "/v3.0/LeadSources?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Lead Sources",
+      "suffix": "/v3.0/LeadSources?count_total=true",
+      "description": "The lead source values configured. The attribution dimension, and account-specific."
+    },
     {
-      "paged": "true", 
-      "name": "Lead Statuses", 
-      "suffix": "/v3.0/LeadStatuses?include_converted={Include Converted?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Lead Statuses",
+      "suffix": "/v3.0/LeadStatuses?include_converted={Include Converted?:true|false}&count_total=true",
+      "description": "The lead status values configured. The stages before conversion, and the decoder for a lead's status id."
+    },
     {
-      "paged": "true", 
-      "name": "Milestones", 
-      "suffix": "/v3.0/Milestone?brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Milestones",
+      "suffix": "/v3.0/Milestone?brief={Brief?:true|false}&count_total=true",
+      "description": "The milestones across all projects. The account-wide delivery schedule."
+    },
     {
-      "paged": "false", 
-      "name": "Milestone", 
-      "suffix": "/v3.0/Milestone/{Milestone ID}"
-    }, 
+      "paged": "false",
+      "name": "Milestone",
+      "suffix": "/v3.0/Milestone/{Milestone ID}",
+      "description": "One milestone by id."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Milestones", 
-      "suffix": "/v3.0/Milestone/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Filtered Milestones",
+      "suffix": "/v3.0/Milestone/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "description": "Milestones matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Notes", 
+      "paged": "true",
+      "name": "Notes",
       "suffix": "/v3.0/Notes?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -547,36 +602,42 @@
           "key": "NOTE_ID",
           "parameterName": "Note ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The free-text notes across records. The qualitative record, and where the reasoning behind an outcome is usually written."
+    },
     {
-      "paged": "false", 
-      "name": "Note", 
-      "suffix": "/v3.0/Notes/{Note ID}"
-    }, 
+      "paged": "false",
+      "name": "Note",
+      "suffix": "/v3.0/Notes/{Note ID}",
+      "description": "One note by id."
+    },
     {
-      "paged": "true", 
-      "name": "Note Comments", 
-      "suffix": "/v3.0/Notes/{Note ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Note Comments",
+      "suffix": "/v3.0/Notes/{Note ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The comments on one note."
+    },
     {
-      "paged": "true", 
-      "name": "Note File Attachments", 
-      "suffix": "/v3.0/Notes/{Note ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Note File Attachments",
+      "suffix": "/v3.0/Notes/{Note ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one note."
+    },
     {
-      "paged": "false", 
-      "name": "Note Follow State", 
-      "suffix": "/v3.0/Notes/{Note ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Note Follow State",
+      "suffix": "/v3.0/Notes/{Note ID}/Follow",
+      "description": "Whether the caller follows one note."
+    },
     {
-      "paged": "false", 
-      "name": "Note Links", 
-      "suffix": "/v3.0/Notes/{Note ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Note Links",
+      "suffix": "/v3.0/Notes/{Note ID}/Links",
+      "description": "The records one note is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Notes", 
+      "paged": "true",
+      "name": "Filtered Notes",
       "suffix": "/v3.0/Notes/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -590,16 +651,18 @@
           "key": "NOTE_ID",
           "parameterName": "Note ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Notes matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunities", 
-      "suffix": "/v3.0/Opportunities?brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Opportunities",
+      "suffix": "/v3.0/Opportunities?brief={Brief?:true|false}&count_total=true",
+      "description": "The revenue opportunities, with name, value and currency, the pipeline and stage, probability, forecast and actual close dates, state, and the organisation and contacts involved. The pipeline table. STATE separates Open from Won, Lost, Suspended and Abandoned, so a win rate has a specific denominator and an unfiltered value total is not a forecast."
+    },
     {
-      "paged": "false", 
-      "name": "Opportunity", 
+      "paged": "false",
+      "name": "Opportunity",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}",
       "lookups": [
         {
@@ -618,11 +681,12 @@
           "key": "OPPORTUNITY_ID",
           "parameterName": "Opportunity ID"
         }
-      ]
-    }, 
+      ],
+      "description": "One opportunity by id."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunity Emails", 
+      "paged": "true",
+      "name": "Opportunity Emails",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -636,11 +700,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
+      ],
+      "description": "The emails linked to one opportunity."
     },
     {
-      "paged": "true", 
-      "name": "Opportunity Events", 
+      "paged": "true",
+      "name": "Opportunity Events",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -649,31 +714,36 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The calendar events involving one opportunity."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunity File Attachments", 
-      "suffix": "/v3.0/Opportunities/{Opportunity ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Opportunity File Attachments",
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "description": "The files attached to one opportunity."
+    },
     {
-      "paged": "false", 
-      "name": "Opportunity Follow State", 
-      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Opportunity Follow State",
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Follow",
+      "description": "Whether the caller follows one opportunity."
+    },
     {
-      "paged": "false", 
-      "name": "Opportunity Email Address", 
-      "suffix": "/v3.0/Opportunities/{Opportunity ID}/LinkEmailAddress"
-    }, 
+      "paged": "false",
+      "name": "Opportunity Email Address",
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/LinkEmailAddress",
+      "description": "The dedicated email address that files mail against one opportunity."
+    },
     {
-      "paged": "false", 
-      "name": "Opportunity Links", 
-      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Opportunity Links",
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Links",
+      "description": "The records one opportunity is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunity Notes", 
+      "paged": "true",
+      "name": "Opportunity Notes",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -687,16 +757,18 @@
           "key": "NOTE_ID",
           "parameterName": "Note ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The notes on one opportunity."
+    },
     {
-      "paged": "false", 
-      "name": "Opportunity State History", 
-      "suffix": "/v3.0/Opportunities/{Opportunity ID}/StateHistory"
-    }, 
+      "paged": "false",
+      "name": "Opportunity State History",
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/StateHistory",
+      "description": "THE STAGE AND STATE HISTORY of one opportunity, with the dates of each change. Requires an opportunity id. The opportunity carries its current stage only, so time-in-stage, stage skipping and the date a deal actually closed are answerable here and nowhere else."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunity Tasks", 
+      "paged": "true",
+      "name": "Opportunity Tasks",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -710,11 +782,12 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The tasks relating to one opportunity."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Opportunities", 
+      "paged": "true",
+      "name": "Filtered Opportunities",
       "suffix": "/v3.0/Opportunities/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -733,11 +806,12 @@
           "key": "OPPORTUNITY_ID",
           "parameterName": "Opportunity ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Opportunities matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Opportunities by Tag", 
+      "paged": "true",
+      "name": "Filtered Opportunities by Tag",
       "suffix": "/v3.0/Opportunities/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -756,26 +830,30 @@
           "key": "OPPORTUNITY_ID",
           "parameterName": "Opportunity ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Opportunities carrying a given tag."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunity Categories", 
-      "suffix": "/v3.0/OpportunityCategories?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Opportunity Categories",
+      "suffix": "/v3.0/OpportunityCategories?count_total=true",
+      "description": "The categories opportunities are classified under. An extra dimension beyond pipeline and stage."
+    },
     {
-      "paged": "false", 
-      "name": "Opportunity Category", 
-      "suffix": "/v3.0/OpportunityCategories/{Opportunity Category ID}"
-    }, 
+      "paged": "false",
+      "name": "Opportunity Category",
+      "suffix": "/v3.0/OpportunityCategories/{Opportunity Category ID}",
+      "description": "One opportunity category by id."
+    },
     {
-      "paged": "true", 
-      "name": "Opportunity State Reasons", 
-      "suffix": "/v3.0/OpportunityStateReasons?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Opportunity State Reasons",
+      "suffix": "/v3.0/OpportunityStateReasons?count_total=true",
+      "description": "The reasons configured for an opportunity reaching each state -- why it was won, lost or abandoned. The structured explanation behind a state, which the state alone does not give."
+    },
     {
-      "paged": "true", 
-      "name": "Organizations", 
+      "paged": "true",
+      "name": "Organizations",
       "suffix": "/v3.0/Organisations?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -792,16 +870,18 @@
           "key": "ORGANISATION_ID",
           "parameterName": "Organization ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The companies in the CRM, with name, address, phone, website, owner, tags and custom fields. NOTE THE SPELLING: the API path is Organisations with an s, while the connector names the endpoints Organizations -- the same records either way."
+    },
     {
-      "paged": "false", 
-      "name": "Organization", 
-      "suffix": "/v3.0/Organisations/{Organization ID}"
-    }, 
+      "paged": "false",
+      "name": "Organization",
+      "suffix": "/v3.0/Organisations/{Organization ID}",
+      "description": "One organisation by id."
+    },
     {
-      "paged": "true", 
-      "name": "Organization Emails", 
+      "paged": "true",
+      "name": "Organization Emails",
       "suffix": "/v3.0/Organisations/{Organization ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -815,11 +895,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The emails linked to one organisation. Requires an organisation id."
+    },
     {
-      "paged": "true", 
-      "name": "Organization Events", 
+      "paged": "true",
+      "name": "Organization Events",
       "suffix": "/v3.0/Organisations/{Organization ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -828,31 +909,36 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The calendar events involving one organisation."
+    },
     {
-      "paged": "true", 
-      "name": "Organization File Attachments", 
-      "suffix": "/v3.0/Organisations/{Organization ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Organization File Attachments",
+      "suffix": "/v3.0/Organisations/{Organization ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one organisation."
+    },
     {
-      "paged": "false", 
-      "name": "Organization Follow State", 
-      "suffix": "/v3.0/Organisations/{Organization ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Organization Follow State",
+      "suffix": "/v3.0/Organisations/{Organization ID}/Follow",
+      "description": "Whether the caller follows one organisation."
+    },
     {
-      "paged": "false", 
-      "name": "Organization Links", 
-      "suffix": "/v3.0/Organisations/{Organization ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Organization Links",
+      "suffix": "/v3.0/Organisations/{Organization ID}/Links",
+      "description": "The records one organisation is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Organization Notes", 
-      "suffix": "/v3.0/Organisations/{Organization ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Organization Notes",
+      "suffix": "/v3.0/Organisations/{Organization ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "description": "The notes on one organisation."
+    },
     {
-      "paged": "true", 
-      "name": "Organization Tasks", 
+      "paged": "true",
+      "name": "Organization Tasks",
       "suffix": "/v3.0/Organisations/{Organization ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -866,11 +952,12 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The tasks relating to one organisation."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Organizations", 
+      "paged": "true",
+      "name": "Filtered Organizations",
       "suffix": "/v3.0/Organisations/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -887,11 +974,12 @@
           "key": "ORGANISATION_ID",
           "parameterName": "Organization ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Organisations matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Organizations by Tag", 
+      "paged": "true",
+      "name": "Filtered Organizations by Tag",
       "suffix": "/v3.0/Organisations/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -908,46 +996,54 @@
           "key": "ORGANISATION_ID",
           "parameterName": "Organization ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Organisations carrying a given tag."
+    },
     {
-      "paged": "false", 
-      "name": "User Permissions", 
-      "suffix": "/v3.0/Permissions"
-    }, 
+      "paged": "false",
+      "name": "User Permissions",
+      "suffix": "/v3.0/Permissions",
+      "description": "The permissions the calling user holds. The direct explanation for a record that cannot be seen."
+    },
     {
-      "paged": "true", 
-      "name": "Pipelines", 
-      "suffix": "/v3.0/Pipelines?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Pipelines",
+      "suffix": "/v3.0/Pipelines?count_total=true",
+      "description": "The pipelines defined, with the record type each applies to -- opportunities or projects. Insightly pipelines cover both, so a pipeline question has to say which."
+    },
     {
-      "paged": "false", 
-      "name": "Pipeline", 
-      "suffix": "/v3.0/Pipelines/{Pipeline ID}"
-    }, 
+      "paged": "false",
+      "name": "Pipeline",
+      "suffix": "/v3.0/Pipelines/{Pipeline ID}",
+      "description": "One pipeline by id."
+    },
     {
-      "paged": "true", 
-      "name": "Pipeline Stages", 
-      "suffix": "/v3.0/PipelineStages?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Pipeline Stages",
+      "suffix": "/v3.0/PipelineStages?count_total=true",
+      "description": "The stages within pipelines, with their order and the pipeline each belongs to. The dimension a funnel breakdown joins to."
+    },
     {
-      "paged": "false", 
-      "name": "Pipeline Stage", 
-      "suffix": "/v3.0/PipelineStages/{Pipeline Stage ID}"
-    }, 
+      "paged": "false",
+      "name": "Pipeline Stage",
+      "suffix": "/v3.0/PipelineStages/{Pipeline Stage ID}",
+      "description": "One pipeline stage by id."
+    },
     {
-      "paged": "true", 
-      "name": "Project Categories", 
-      "suffix": "/v3.0/ProjectCategories?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Project Categories",
+      "suffix": "/v3.0/ProjectCategories?count_total=true",
+      "description": "The categories projects are classified under."
+    },
     {
-      "paged": "false", 
-      "name": "Project Category", 
-      "suffix": "/v3.0/ProjectCategories/{Project Category ID}"
-    }, 
+      "paged": "false",
+      "name": "Project Category",
+      "suffix": "/v3.0/ProjectCategories/{Project Category ID}",
+      "description": "One project category by id."
+    },
     {
-      "paged": "true", 
-      "name": "Projects", 
+      "paged": "true",
+      "name": "Projects",
       "suffix": "/v3.0/Projects?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -966,16 +1062,18 @@
           "key": "PROJECT_ID",
           "parameterName": "Project ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The delivery projects, with name, status, the pipeline and stage, dates, the responsible user and the organisation. THE POST-SALE SIDE: an opportunity becomes a project, so delivery tracking lives here while the sale lives in opportunities, and the two are separate records."
+    },
     {
-      "paged": "false", 
-      "name": "Project", 
-      "suffix": "/v3.0/Projects/{Project ID}"
-    }, 
+      "paged": "false",
+      "name": "Project",
+      "suffix": "/v3.0/Projects/{Project ID}",
+      "description": "One project by id."
+    },
     {
-      "paged": "true", 
-      "name": "Project Emails", 
+      "paged": "true",
+      "name": "Project Emails",
       "suffix": "/v3.0/Projects/{Project ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -989,11 +1087,12 @@
           "key": "EMAIL_ID",
           "parameterName": "Email ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The emails linked to one project."
+    },
     {
-      "paged": "true", 
-      "name": "Project Events", 
+      "paged": "true",
+      "name": "Project Events",
       "suffix": "/v3.0/Projects/{Project ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -1002,41 +1101,48 @@
           "key": "EVENT_ID",
           "parameterName": "Event ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The calendar events involving one project."
+    },
     {
-      "paged": "true", 
-      "name": "Project File Attachments", 
-      "suffix": "/v3.0/Projects/{Project ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Project File Attachments",
+      "suffix": "/v3.0/Projects/{Project ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "The files attached to one project."
+    },
     {
-      "paged": "false", 
-      "name": "Project Follow State", 
-      "suffix": "/v3.0/Projects/{Project ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Project Follow State",
+      "suffix": "/v3.0/Projects/{Project ID}/Follow",
+      "description": "Whether the caller follows one project."
+    },
     {
-      "paged": "false", 
-      "name": "Project Email Address", 
-      "suffix": "/v3.0/Projects/{Project ID}/LinkEmailAddress"
-    }, 
+      "paged": "false",
+      "name": "Project Email Address",
+      "suffix": "/v3.0/Projects/{Project ID}/LinkEmailAddress",
+      "description": "The dedicated email address that files mail against one project."
+    },
     {
-      "paged": "false", 
-      "name": "Project Links", 
-      "suffix": "/v3.0/Projects/{Project ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Project Links",
+      "suffix": "/v3.0/Projects/{Project ID}/Links",
+      "description": "The records one project is linked to."
+    },
     {
-      "paged": "false", 
-      "name": "Project Milestones", 
-      "suffix": "/v3.0/Projects/{Project ID}/Milestones"
-    }, 
+      "paged": "false",
+      "name": "Project Milestones",
+      "suffix": "/v3.0/Projects/{Project ID}/Milestones",
+      "description": "The milestones of one project. Requires a project id. The delivery schedule within a project."
+    },
     {
-      "paged": "true", 
-      "name": "Project Notes", 
-      "suffix": "/v3.0/Projects/{Project ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Project Notes",
+      "suffix": "/v3.0/Projects/{Project ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "description": "The notes on one project."
+    },
     {
-      "paged": "true", 
-      "name": "Project Tasks", 
+      "paged": "true",
+      "name": "Project Tasks",
       "suffix": "/v3.0/Projects/{Project ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -1050,11 +1156,12 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The tasks relating to one project."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Projects", 
+      "paged": "true",
+      "name": "Filtered Projects",
       "suffix": "/v3.0/Projects/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -1073,11 +1180,12 @@
           "key": "PROJECT_ID",
           "parameterName": "Project ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Projects matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Projects by Tag", 
+      "paged": "true",
+      "name": "Filtered Projects by Tag",
       "suffix": "/v3.0/Projects/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -1096,31 +1204,36 @@
           "key": "PROJECT_ID",
           "parameterName": "Project ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Projects carrying a given tag."
+    },
     {
-      "paged": "true", 
-      "name": "Relationships", 
-      "suffix": "/v3.0/Relationships?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Relationships",
+      "suffix": "/v3.0/Relationships?count_total=true",
+      "description": "The relationship types defined between records -- reports to, works with, supplier of. The vocabulary the Links endpoints use, and the decoder for what a link actually means."
+    },
     {
-      "paged": "true", 
-      "name": "Record Type Tags", 
-      "suffix": "/v3.0/Tags?record_type={Record Type?}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Record Type Tags",
+      "suffix": "/v3.0/Tags?record_type={Record Type?}&count_total=true",
+      "description": "The tags in use, by record type. The segmentation vocabulary, and the input to every SearchByTag endpoint."
+    },
     {
-      "paged": "true", 
-      "name": "Task Categories", 
-      "suffix": "/v3.0/TaskCategories?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Task Categories",
+      "suffix": "/v3.0/TaskCategories?count_total=true",
+      "description": "The categories tasks are classified under. The dimension that turns task volume into activity mix."
+    },
     {
-      "paged": "false", 
-      "name": "Task Category", 
-      "suffix": "/v3.0/TaskCategories/{Task Category ID}"
-    }, 
+      "paged": "false",
+      "name": "Task Category",
+      "suffix": "/v3.0/TaskCategories/{Task Category ID}",
+      "description": "One task category by id."
+    },
     {
-      "paged": "true", 
-      "name": "Tasks", 
+      "paged": "true",
+      "name": "Tasks",
       "suffix": "/v3.0/Tasks?brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -1133,31 +1246,36 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The to-dos, with title, due date, completion, priority, the responsible user and the record each relates to. The forward-looking work."
+    },
     {
-      "paged": "false", 
-      "name": "Task", 
-      "suffix": "/v3.0/Tasks/{Task ID}"
-    }, 
+      "paged": "false",
+      "name": "Task",
+      "suffix": "/v3.0/Tasks/{Task ID}",
+      "description": "One task by id."
+    },
     {
-      "paged": "true", 
-      "name": "Task Comments", 
-      "suffix": "/v3.0/Tasks/{Task ID}/Comments?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Task Comments",
+      "suffix": "/v3.0/Tasks/{Task ID}/Comments?count_total=true",
+      "description": "The comments on one task. Requires a task id."
+    },
     {
-      "paged": "false", 
-      "name": "Task Follow State", 
-      "suffix": "/v3.0/Tasks/{Task ID}/Follow"
-    }, 
+      "paged": "false",
+      "name": "Task Follow State",
+      "suffix": "/v3.0/Tasks/{Task ID}/Follow",
+      "description": "Whether the caller follows one task."
+    },
     {
-      "paged": "false", 
-      "name": "Task Links", 
-      "suffix": "/v3.0/Tasks/{Task ID}/Links"
-    }, 
+      "paged": "false",
+      "name": "Task Links",
+      "suffix": "/v3.0/Tasks/{Task ID}/Links",
+      "description": "The records one task is linked to."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Tasks", 
+      "paged": "true",
+      "name": "Filtered Tasks",
       "suffix": "/v3.0/Tasks/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
       "lookups": [
         {
@@ -1170,47 +1288,56 @@
           "key": "TASK_ID",
           "parameterName": "Task ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Tasks matching field criteria."
+    },
     {
-      "paged": "true", 
-      "name": "Team Members", 
-      "suffix": "/v3.0/TeamMembers?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Team Members",
+      "suffix": "/v3.0/TeamMembers?count_total=true",
+      "description": "The user-to-team memberships across the account."
+    },
     {
-      "paged": "false", 
-      "name": "Team Member", 
-      "suffix": "/v3.0/TeamMembers/{Team Member ID}"
-    }, 
+      "paged": "false",
+      "name": "Team Member",
+      "suffix": "/v3.0/TeamMembers/{Team Member ID}",
+      "description": "One team membership by id."
+    },
     {
-      "paged": "true", 
-      "name": "Teams", 
-      "suffix": "/v3.0/Teams?brief={Brief?:true|false}&count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Teams",
+      "suffix": "/v3.0/Teams?brief={Brief?:true|false}&count_total=true",
+      "description": "The teams users belong to. The grouping above individuals for reporting."
+    },
     {
-      "paged": "false", 
-      "name": "Team", 
-      "suffix": "/v3.0/Teams/{Team ID}"
-    }, 
+      "paged": "false",
+      "name": "Team",
+      "suffix": "/v3.0/Teams/{Team ID}",
+      "description": "One team by id."
+    },
     {
-      "paged": "true", 
-      "name": "Users", 
-      "suffix": "/v3.0/Users?count_total=true"
-    }, 
+      "paged": "true",
+      "name": "Users",
+      "suffix": "/v3.0/Users?count_total=true",
+      "description": "The users of the account, with name, email, whether active and administrative, and their timezone. Every record carries an owner and a responsible user, so this is the dimension per-person performance joins to."
+    },
     {
-      "paged": "false", 
-      "name": "User", 
-      "suffix": "/v3.0/Users/{User ID}"
-    }, 
+      "paged": "false",
+      "name": "User",
+      "suffix": "/v3.0/Users/{User ID}",
+      "description": "One user by id."
+    },
     {
-      "paged": "false", 
-      "name": "Current User", 
-      "suffix": "/v3.0/Users/Me"
-    }, 
+      "paged": "false",
+      "name": "Current User",
+      "suffix": "/v3.0/Users/Me",
+      "description": "The account the credentials belong to. One record, always the caller."
+    },
     {
-      "paged": "true", 
-      "name": "Filtered Users", 
-      "suffix": "/v3.0/Users/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+      "paged": "true",
+      "name": "Filtered Users",
+      "suffix": "/v3.0/Users/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
+      "description": "Users matching field criteria."
     }
   ]
 }

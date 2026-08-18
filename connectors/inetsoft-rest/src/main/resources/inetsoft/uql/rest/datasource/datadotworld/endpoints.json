@@ -1,164 +1,196 @@
 {
-    "endpoints": [
-        {
-            "name": "Projects",
-            "paged": false,
-            "suffix": "/v0/projects/{Project Owner}"
-        },
-        {
-            "name": "Project Information",
-            "paged": false,
-            "suffix": "/v0/projects/{Project Owner}/{Project ID}"
-        },
-        {
-            "name": "Project Information of a Version",
-            "paged": false,
-            "suffix": "/v0/projects/{Project Owner}/{Project ID}/v/{Version ID}"
-        },
-        {
-            "name": "Project Insights",
-            "paged": false,
-            "suffix": "/v0/insights/{Project Owner}/{Project ID}"
-        },
-        {
-            "name": "Project Insight",
-            "paged": false,
-            "suffix": "/v0/insights/{Project Owner}/{Project ID}/{ID}"
-        },
-        {
-            "name": "Project Insight of a Version",
-            "paged": false,
-            "suffix": "/v0/insights/{Project Owner}/{Project ID}/{ID}/v/{Version ID}"
-        },
-        {
-            "name": "Dataset Queries",
-            "paged": false,
-            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/queries"
-        },
-        {
-            "name": "Project Queries",
-            "paged": false,
-            "suffix": "/v0/projects/{Project Owner}/{Project ID}/queries"
-        },
-        {
-            "name": "Query Information",
-            "paged": false,
-            "suffix": "/v0/queries/{Query ID}"
-        },
-        {
-            "name": "Execute Query",
-            "paged": false,
-            "suffix": "/v0/queries/{Query ID}/results?includeTableSchema={Include Table Schema?:true|false}"
-        },
-        {
-            "name": "Query Information Of a Version",
-            "paged": false,
-            "suffix": "/v0/queries/{Query ID}/v/{Version ID}"
-        },
-        {
-            "name": "Execute SPARQL query",
-            "paged": false,
-            "suffix": "/v0/sparql/{Dataset Owner}/{ID}?query={SQL/SPARQL Query}"
-        },
-        {
-            "name": "Execute SQL query",
-            "paged": false,
-            "suffix": "/v0/sql/{Dataset or Project Owner}/{Dataset ID}?includeTableSchema={Include Table Schema?:true|false}&query={SQL/SPARQL Query}"
-        },
-        {
-            "name": "Datasets",
-            "paged": false,
-            "suffix": "/v0/datasets/{Dataset Owner}"
-        },
-        {
-            "name": "Dataset Info",
-            "paged": false,
-            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}"
-        },
-        {
-            "name": "Dataset Information of a Version",
-            "paged": false,
-            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/v/{Version ID}"
-        },
-        {
-            "name": "Download Dataset",
-            "paged": false,
-            "suffix": "/v0/download/{Dataset Owner}/{Dataset ID}"
-        },
-        {
-            "name": "Sync Files",
-            "paged": false,
-            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/sync"
-        },
-        {
-            "name": "Download File",
-            "paged": false,
-            "suffix": "/v0/file_download/{Dataset Owner}/{Dataset ID}/{File Name}"
-        },
-        {
-            "name": "Stream Schema",
-            "paged": false,
-            "suffix": "/v0/streams/{Dataset or Project Owner}/{Dataset ID}/{Stream ID}/schema"
-        },
-        {
-            "name": "User Profile",
-            "paged": false,
-            "suffix": "/v0/user"
-        },
-        {
-            "name": "User Contributing Datasets",
-            "paged": false,
-            "suffix": "/v0/user/datasets/contributing"
-        },
-        {
-            "name": "User Liked Datasets",
-            "paged": false,
-            "suffix": "/v0/user/datasets/liked"
-        },
-        {
-            "name": "User Own Datasets",
-            "paged": false,
-            "suffix": "/v0/user/datasets/own"
-        },
-        {
-            "name": "User Contributing Projects",
-            "paged": false,
-            "suffix": "/v0/user/projects/contributing"
-        },
-        {
-            "name": "User Liked Projects",
-            "paged": false,
-            "suffix": "/v0/user/projects/liked"
-        },
-        {
-            "name": "User Own Projects",
-            "paged": false,
-            "suffix": "/v0/user/projects/own"
-        },
-        {
-            "name": "Account User Profile",
-            "paged": false,
-            "suffix": "/v0/users/{Account}"
-        },
-        {
-            "name": "Webhook Subscriptions",
-            "paged": false,
-            "suffix": "/v0/user/webhooks"
-        },
-        {
-            "name": "Dataset Webhook Subscription",
-            "paged": false,
-            "suffix": "/v0/user/webhooks/datasets/{Dataset or Project Owner}/{Dataset ID}"
-        },
-        {
-            "name": "Project Webhook Subscription",
-            "paged": false,
-            "suffix": "/v0/user/webhooks/projects/{Project Owner}/{Project ID}"
-        },
-        {
-            "name": "Account Webhook Subscription",
-            "paged": false,
-            "suffix": "/v0/user/webhooks/users/{Account}"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Projects",
+      "paged": false,
+      "suffix": "/v0/projects/{Project Owner}",
+      "description": "The projects owned by one account. Requires an owner. A project links several datasets together with analysis; the datasets remain separate resources."
+    },
+    {
+      "name": "Project Information",
+      "paged": false,
+      "suffix": "/v0/projects/{Project Owner}/{Project ID}",
+      "description": "One project by owner and id, with the datasets it links and its files."
+    },
+    {
+      "name": "Project Information of a Version",
+      "paged": false,
+      "suffix": "/v0/projects/{Project Owner}/{Project ID}/v/{Version ID}",
+      "description": "One project at a named version. Same pinning purpose as the dataset version endpoint."
+    },
+    {
+      "name": "Project Insights",
+      "paged": false,
+      "suffix": "/v0/insights/{Project Owner}/{Project ID}",
+      "description": "The insights published in one project -- saved charts, notes and findings. Requires the owner and project id. The analytical output, as opposed to the data it was drawn from."
+    },
+    {
+      "name": "Project Insight",
+      "paged": false,
+      "suffix": "/v0/insights/{Project Owner}/{Project ID}/{ID}",
+      "description": "One insight by id, with its content and the query behind it."
+    },
+    {
+      "name": "Project Insight of a Version",
+      "paged": false,
+      "suffix": "/v0/insights/{Project Owner}/{Project ID}/{ID}/v/{Version ID}",
+      "description": "One insight at a named version."
+    },
+    {
+      "name": "Dataset Queries",
+      "paged": false,
+      "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/queries",
+      "description": "The saved queries defined on one dataset. Requires the owner and dataset id. Saved queries carry the questions the community has already found worth asking, and their SQL is the fastest statement of how the data is meant to be joined."
+    },
+    {
+      "name": "Project Queries",
+      "paged": false,
+      "suffix": "/v0/projects/{Project Owner}/{Project ID}/queries",
+      "description": "The saved queries defined on one project."
+    },
+    {
+      "name": "Query Information",
+      "paged": false,
+      "suffix": "/v0/queries/{Query ID}",
+      "description": "One saved query by id, with its SQL or SPARQL text and its parameters."
+    },
+    {
+      "name": "Execute Query",
+      "paged": false,
+      "suffix": "/v0/queries/{Query ID}/results?includeTableSchema={Include Table Schema?:true|false}",
+      "description": "RUNS one saved query and returns its results. Requires the query id. Pass includeTableSchema to get column types alongside the rows, which is otherwise absent and has to be guessed."
+    },
+    {
+      "name": "Query Information Of a Version",
+      "paged": false,
+      "suffix": "/v0/queries/{Query ID}/v/{Version ID}",
+      "description": "One saved query at a named version."
+    },
+    {
+      "name": "Execute SPARQL query",
+      "paged": false,
+      "suffix": "/v0/sparql/{Dataset Owner}/{ID}?query={SQL/SPARQL Query}",
+      "description": "Runs a SPARQL query against a dataset's linked-data representation. Requires the owner and id. The graph counterpart to the SQL endpoint, for datasets modelled as RDF."
+    },
+    {
+      "name": "Execute SQL query",
+      "paged": false,
+      "suffix": "/v0/sql/{Dataset or Project Owner}/{Dataset ID}?includeTableSchema={Include Table Schema?:true|false}&query={SQL/SPARQL Query}",
+      "description": "Runs an arbitrary SQL statement against a dataset or project. Requires the owner and dataset id and the query text. THE MOST DIRECT DATA PATH IN THIS CONNECTOR: data.world exposes uploaded files as queryable tables, so this reaches the contents rather than the metadata everything else returns."
+    },
+    {
+      "name": "Datasets",
+      "paged": false,
+      "suffix": "/v0/datasets/{Dataset Owner}",
+      "description": "The datasets owned by one account. Requires an owner. Carries title, description, visibility, licence, tags, and the files and summary of each. NOTE THE PATH MODEL: everything in data.world is addressed by OWNER AND SLUG rather than by an opaque id, so both are needed for every request and the owner is not optional anywhere."
+    },
+    {
+      "name": "Dataset Info",
+      "paged": false,
+      "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}",
+      "description": "One dataset by owner and id, with its files, tags, licence and description."
+    },
+    {
+      "name": "Dataset Information of a Version",
+      "paged": false,
+      "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/v/{Version ID}",
+      "description": "One dataset as it stood at a named version. Requires the version id. Datasets are versioned, so this is how an analysis is pinned to the data it actually ran against -- which the current view cannot give once the data has moved on."
+    },
+    {
+      "name": "Download Dataset",
+      "paged": false,
+      "suffix": "/v0/download/{Dataset Owner}/{Dataset ID}",
+      "description": "The whole dataset as a downloadable archive. Requires the owner and id. Returns a file rather than rows, which makes it the route to a bulk extract that the query endpoints cannot provide."
+    },
+    {
+      "name": "Sync Files",
+      "paged": false,
+      "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/sync",
+      "description": "The synchronisation state of a dataset's linked files -- those pulled from an external URL rather than uploaded. Requires the owner and dataset id. Explains stale data: a linked file that has stopped syncing keeps serving its last successful fetch with nothing in the dataset to say so."
+    },
+    {
+      "name": "Download File",
+      "paged": false,
+      "suffix": "/v0/file_download/{Dataset Owner}/{Dataset ID}/{File Name}",
+      "description": "One named file from a dataset. Requires the owner, dataset id and file name."
+    },
+    {
+      "name": "Stream Schema",
+      "paged": false,
+      "suffix": "/v0/streams/{Dataset or Project Owner}/{Dataset ID}/{Stream ID}/schema",
+      "description": "The inferred schema of one data stream within a dataset. Requires the owner, dataset id and stream id. Streams are appended to rather than replaced, so their schema is inferred from what has arrived."
+    },
+    {
+      "name": "User Profile",
+      "paged": false,
+      "suffix": "/v0/user",
+      "description": "The account the credentials belong to, with its display name and avatar. One record, always the caller."
+    },
+    {
+      "name": "User Contributing Datasets",
+      "paged": false,
+      "suffix": "/v0/user/datasets/contributing",
+      "description": "The datasets the calling user contributes to but does not own."
+    },
+    {
+      "name": "User Liked Datasets",
+      "paged": false,
+      "suffix": "/v0/user/datasets/liked",
+      "description": "The datasets the calling user has bookmarked."
+    },
+    {
+      "name": "User Own Datasets",
+      "paged": false,
+      "suffix": "/v0/user/datasets/own",
+      "description": "The datasets the calling user owns."
+    },
+    {
+      "name": "User Contributing Projects",
+      "paged": false,
+      "suffix": "/v0/user/projects/contributing",
+      "description": "The projects the calling user contributes to."
+    },
+    {
+      "name": "User Liked Projects",
+      "paged": false,
+      "suffix": "/v0/user/projects/liked",
+      "description": "The projects the calling user has bookmarked."
+    },
+    {
+      "name": "User Own Projects",
+      "paged": false,
+      "suffix": "/v0/user/projects/own",
+      "description": "The projects the calling user owns."
+    },
+    {
+      "name": "Account User Profile",
+      "paged": false,
+      "suffix": "/v0/users/{Account}",
+      "description": "One account's public profile by name. The lookup for an owner named in a dataset or project path."
+    },
+    {
+      "name": "Webhook Subscriptions",
+      "paged": false,
+      "suffix": "/v0/user/webhooks",
+      "description": "Every event subscription the calling user holds, across datasets, projects and accounts. Integration inventory."
+    },
+    {
+      "name": "Dataset Webhook Subscription",
+      "paged": false,
+      "suffix": "/v0/user/webhooks/datasets/{Dataset or Project Owner}/{Dataset ID}",
+      "description": "The caller's subscription to one dataset's events. Requires the owner and dataset id."
+    },
+    {
+      "name": "Project Webhook Subscription",
+      "paged": false,
+      "suffix": "/v0/user/webhooks/projects/{Project Owner}/{Project ID}",
+      "description": "The caller's subscription to one project's events."
+    },
+    {
+      "name": "Account Webhook Subscription",
+      "paged": false,
+      "suffix": "/v0/user/webhooks/users/{Account}",
+      "description": "The caller's subscription to one account's events."
+    }
+  ]
 }

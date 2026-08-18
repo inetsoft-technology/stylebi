@@ -3,52 +3,62 @@
     {
       "name": "Account Profile",
       "paged": false,
-      "suffix": "/v1/account/profile"
+      "suffix": "/v1/account/profile",
+      "description": "The Keap account's own details -- company name, address, currency and time zone. One record."
     },
     {
       "name": "Commissions",
       "paged": true,
-      "suffix": "/v1/affiliates/commissions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&affiliateId={Affiliate ID?}"
+      "suffix": "/v1/affiliates/commissions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&affiliateId={Affiliate ID?}",
+      "description": "Affiliate commissions earned, filterable by date. Requires the affiliate programme to be in use. What partners are owed, which appears nowhere in the order table."
     },
     {
       "name": "Affiliate Model",
       "paged": false,
-      "suffix": "/v1/affiliates/model"
+      "suffix": "/v1/affiliates/model",
+      "description": "The schema of the affiliate object."
     },
     {
       "name": "Appointments",
       "paged": true,
-      "suffix": "/v1/appointments?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}"
+      "suffix": "/v1/appointments?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}",
+      "description": "Calendar appointments, filterable by date range. Carries the contact, times, location and remind time."
     },
     {
       "name": "Appointment",
       "paged": false,
-      "suffix": "/v1/appointments/{Appointment ID}"
+      "suffix": "/v1/appointments/{Appointment ID}",
+      "description": "One appointment by id."
     },
     {
       "name": "Appointment Model",
       "paged": false,
-      "suffix": "/v1/appointments/model"
+      "suffix": "/v1/appointments/model",
+      "description": "The schema of the appointment object."
     },
     {
       "name": "Campaigns",
       "paged": true,
-      "suffix": "/v1/campaigns?search_text={Search Text?}"
+      "suffix": "/v1/campaigns?search_text={Search Text?}",
+      "description": "The marketing campaigns -- Keap's automation sequences -- filterable by search text. Carries the name, the goals and sequences within, and the counts of contacts active in each. WHERE AUTOMATION LIVES: contacts move through these based on tags and behaviour, and the active counts are the closest thing to a funnel state for the business."
     },
     {
       "name": "Campaign",
       "paged": false,
-      "suffix": "/v1/campaigns/{Campaign ID}?optional_properties={Optional Properties?: value1,value2,...}"
+      "suffix": "/v1/campaigns/{Campaign ID}?optional_properties={Optional Properties?: value1,value2,...}",
+      "description": "One campaign by id, with its sequences and goals."
     },
     {
       "name": "Companies",
       "paged": true,
-      "suffix": "/v1/companies?company_name={Company Name?}&optional_properties={Optional Properties?: value1,value2,...}"
+      "suffix": "/v1/companies?company_name={Company Name?}&optional_properties={Optional Properties?: value1,value2,...}",
+      "description": "The companies contacts belong to, filterable by name. The organisation dimension."
     },
     {
       "name": "Company Model",
       "paged": false,
-      "suffix": "/v1/companies/model"
+      "suffix": "/v1/companies/model",
+      "description": "The schema of the company object, including custom fields."
     },
     {
       "name": "Contacts",
@@ -65,32 +75,38 @@
           "key": "id",
           "parameterName": "Contact ID"
         }
-      ]
+      ],
+      "description": "The contacts in the account, filterable by email, given name and family name. Carries names, email addresses and phone numbers as ARRAYS of labelled entries rather than single values, addresses, the owner, the source, tags, and custom fields. The central table of a Keap account. Note optional_properties: several useful fields -- custom fields among them -- are omitted unless named there, so their absence is often an unmade request rather than empty data."
     },
     {
       "name": "Credit Cards",
       "paged": false,
-      "suffix": "/v1/contacts/{Contact ID}/creditCards"
+      "suffix": "/v1/contacts/{Contact ID}/creditCards",
+      "description": "The payment cards stored on one contact. Requires a contact id. Metadata only; card numbers are not returned."
     },
     {
       "name": "Contact Emails",
       "paged": true,
-      "suffix": "/v1/contacts/{Contact ID}/emails?email={Email?}"
+      "suffix": "/v1/contacts/{Contact ID}/emails?email={Email?}",
+      "description": "The email addresses on one contact. Requires a contact id."
     },
     {
       "name": "Applied Tags",
       "paged": true,
-      "suffix": "/v1/contacts/{Contact ID}/tags"
+      "suffix": "/v1/contacts/{Contact ID}/tags",
+      "description": "The tags applied to one contact. Requires a contact id. Tags in Keap are the primary segmentation mechanism -- automation is driven by them -- so a contact's tags say more about where they sit in the business than any status field."
     },
     {
       "name": "Contact",
       "paged": false,
-      "suffix": "/v1/contacts/{ID}?optional_properties={Optional Properties?: value1,value2,...}"
+      "suffix": "/v1/contacts/{ID}?optional_properties={Optional Properties?: value1,value2,...}",
+      "description": "One contact by id, with the same optional_properties behaviour."
     },
     {
       "name": "Contact Model",
       "paged": false,
-      "suffix": "/v1/contacts/model"
+      "suffix": "/v1/contacts/model",
+      "description": "The schema of the contact object -- every field including custom ones, with its type and options. THE DECODER, and Keap gives every major object one of these model endpoints, which is the pattern to reach for whenever a custom field appears."
     },
     {
       "name": "Orders",
@@ -103,157 +119,188 @@
           "key": "id",
           "parameterName": "Order ID"
         }
-      ]
+      ],
+      "description": "The orders placed, filterable by date range, contact and product. Carries the contact, order items, total, status and the date. The commerce side of Keap, distinct from opportunities: an opportunity is a forecast, an order is money owed."
     },
     {
       "name": "Order",
       "paged": false,
-      "suffix": "/v1/orders/{Order ID}"
+      "suffix": "/v1/orders/{Order ID}",
+      "description": "One order by id, with its line items."
     },
     {
       "name": "Order Transactions",
       "paged": true,
-      "suffix": "/v1/orders/{Order ID}/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID}"
+      "suffix": "/v1/orders/{Order ID}/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID}",
+      "description": "The payments applied against one order. Requires an order id. The order carries a total; this says when and whether money actually arrived."
     },
     {
       "name": "Custom Order Model",
       "paged": false,
-      "suffix": "/v1/orders/model"
+      "suffix": "/v1/orders/model",
+      "description": "The schema of the order object, including custom fields."
     },
     {
       "name": "Subscriptions",
       "paged": true,
-      "suffix": "/v1/subscriptions?contact_id={Contact ID?}"
+      "suffix": "/v1/subscriptions?contact_id={Contact ID?}",
+      "description": "The recurring billing subscriptions, optionally for one contact. Carries the product, billing cycle, amount and status. Recurring revenue, which the order table records only as individual charges."
     },
     {
       "name": "Subscription Model",
       "paged": false,
-      "suffix": "/v1/subscriptions/model"
+      "suffix": "/v1/subscriptions/model",
+      "description": "The schema of the subscription object."
     },
     {
       "name": "Transactions",
       "paged": true,
-      "suffix": "/v1/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}"
+      "suffix": "/v1/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}",
+      "description": "All payment transactions across the account, filterable by date and contact. The account-wide cash view, as opposed to the per-order one."
     },
     {
       "name": "Transaction",
       "paged": false,
-      "suffix": "/v1/transactions/{Transaction ID}"
+      "suffix": "/v1/transactions/{Transaction ID}",
+      "description": "One transaction by id."
     },
     {
       "name": "Emails",
       "paged": true,
-      "suffix": "/v1/emails?contact_id={Contact ID?}&email={Email?}&since_sent_date={Since Sent Date?:yyyy-MM-ddTHH:mm:ssZ}&until_sent_date={Until Sent Date?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/v1/emails?contact_id={Contact ID?}&email={Email?}&since_sent_date={Since Sent Date?:yyyy-MM-ddTHH:mm:ssZ}&until_sent_date={Until Sent Date?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The emails sent to contacts, filterable by contact, address and sent date. The record of what was actually delivered, as opposed to the campaign that intended it."
     },
     {
       "name": "Email",
       "paged": false,
-      "suffix": "/v1/emails/{ID}"
+      "suffix": "/v1/emails/{ID}",
+      "description": "One email by id, with its content and headers."
     },
     {
       "name": "Files",
       "paged": true,
-      "suffix": "/v1/files?viewable={Viewable?:PUBLIC | PRIVATE | BOTH}&permission={Permission?:USER | COMPANY | BOTH}&type={Type?:Application | Image | Fax | ... }&name={Name?}&contact_id={Contact ID}"
+      "suffix": "/v1/files?viewable={Viewable?:PUBLIC | PRIVATE | BOTH}&permission={Permission?:USER | COMPANY | BOTH}&type={Type?:Application | Image | Fax | ... }&name={Name?}&contact_id={Contact ID}",
+      "description": "The files stored, filterable by visibility and permission. Metadata; contents are a separate fetch."
     },
     {
       "name": "File",
       "paged": false,
-      "suffix": "/v1/files/{FileId}?optional_properties={Optional Properties?: value1,value2,...}"
+      "suffix": "/v1/files/{FileId}?optional_properties={Optional Properties?: value1,value2,...}",
+      "description": "One file by id."
     },
     {
       "name": "Countries",
       "paged": false,
-      "suffix": "/v1/locales/countries"
+      "suffix": "/v1/locales/countries",
+      "description": "The country list Keap accepts. Reference data."
     },
     {
       "name": "Country's Provinces",
       "paged": false,
-      "suffix": "/v1/locales/countries/{Country Code}/provinces"
+      "suffix": "/v1/locales/countries/{Country Code}/provinces",
+      "description": "The provinces or states of one country. Requires the country code."
     },
     {
       "name": "Merchants",
       "paged": false,
-      "suffix": "/v1/merchants"
+      "suffix": "/v1/merchants",
+      "description": "The payment gateways configured. Which processor a transaction went through, and the explanation for a payment method that is unavailable."
     },
     {
       "name": "Notes",
       "paged": true,
-      "suffix": "/v1/notes?user_id={User ID?}&contact_id={Contact ID?}"
+      "suffix": "/v1/notes?user_id={User ID?}&contact_id={Contact ID?}",
+      "description": "Notes recorded against contacts, filterable by user and contact. The qualitative record."
     },
     {
       "name": "Note",
       "paged": false,
-      "suffix": "/v1/notes/{Note ID}"
+      "suffix": "/v1/notes/{Note ID}",
+      "description": "One note by id."
     },
     {
       "name": "Note Model",
       "paged": false,
-      "suffix": "/v1/notes/model"
+      "suffix": "/v1/notes/model",
+      "description": "The schema of the note object."
     },
     {
       "name": "Opportunities",
       "paged": true,
-      "suffix": "/v1/opportunities?user_id={User ID?}&stage_id={Stage ID?}&search_term={Search Term?}"
+      "suffix": "/v1/opportunities?user_id={User ID?}&stage_id={Stage ID?}&search_term={Search Term?}",
+      "description": "The sales opportunities, filterable by owner, stage and search term. Carries the contact, the stage, estimated close date, value and probability. The pipeline table."
     },
     {
       "name": "Opportunity",
       "paged": false,
-      "suffix": "/v1/opportunities/{Opportunity ID}?optional_properties={Optional Properties?: value1,value2,...}"
+      "suffix": "/v1/opportunities/{Opportunity ID}?optional_properties={Optional Properties?: value1,value2,...}",
+      "description": "One opportunity by id."
     },
     {
       "name": "Opportunity Model",
       "paged": false,
-      "suffix": "/v1/opportunities/model"
+      "suffix": "/v1/opportunities/model",
+      "description": "The schema of the opportunity object."
     },
     {
       "name": "Opportunity Stage Pipelines",
       "paged": false,
-      "suffix": "/v1/opportunity/stage_pipeline"
+      "suffix": "/v1/opportunity/stage_pipeline",
+      "description": "The pipelines and their stages, in order. The dimension a funnel breakdown joins to, and the decoder for the stage id on an opportunity."
     },
     {
       "name": "Products",
       "paged": true,
-      "suffix": "/v1/products?active={Active?:true | false}"
+      "suffix": "/v1/products?active={Active?:true | false}",
+      "description": "The product catalogue, filterable by active state, with price, SKU and description."
     },
     {
       "name": "Product",
       "paged": false,
-      "suffix": "/v1/products/{Product ID}"
+      "suffix": "/v1/products/{Product ID}",
+      "description": "One product by id."
     },
     {
       "name": "Product Subscription",
       "paged": false,
-      "suffix": "/v1/products/{Product ID}/subscriptions/{Subscription ID}"
+      "suffix": "/v1/products/{Product ID}/subscriptions/{Subscription ID}",
+      "description": "One subscription plan on one product. Requires both ids. The recurring offer attached to a product."
     },
     {
       "name": "Synced Products",
       "paged": true,
-      "suffix": "/v1/products/sync?sync_token={Sync Token}"
+      "suffix": "/v1/products/sync?sync_token={Sync Token}",
+      "description": "Products changed since a sync token was issued. Requires the token. The incremental-sync route for the catalogue, which the plain listing cannot provide."
     },
     {
       "name": "Hook Event Types",
       "paged": false,
-      "suffix": "/v1/hooks/event_keys"
+      "suffix": "/v1/hooks/event_keys",
+      "description": "The event types a webhook can subscribe to. Reference data."
     },
     {
       "name": "Hook Subscriptions",
       "paged": false,
-      "suffix": "/v1/hooks"
+      "suffix": "/v1/hooks",
+      "description": "The webhooks registered by the calling application, with the events each subscribes to. Note it lists this application's hooks, not every hook on the account."
     },
     {
       "name": "Hook Subscription",
       "paged": false,
-      "suffix": "/v1/hooks/{Key}"
+      "suffix": "/v1/hooks/{Key}",
+      "description": "One webhook by key."
     },
     {
       "name": "Application Status",
       "paged": false,
-      "suffix": "/v1/setting/application/enabled"
+      "suffix": "/v1/setting/application/enabled",
+      "description": "Whether the Keap application is enabled. A health check."
     },
     {
       "name": "Contact Types",
       "paged": false,
-      "suffix": "/v1/setting/contact/optionTypes"
+      "suffix": "/v1/setting/contact/optionTypes",
+      "description": "The contact option types configured. Reference data for the contact model."
     },
     {
       "name": "Tags",
@@ -261,57 +308,70 @@
       "suffix": "/v1/tags?category={Category?}&name={Name?}",
       "lookups": [
         {
-          "endpoints": ["Tagged Companies", "Tagged Contacts"],
+          "endpoints": [
+            "Tagged Companies",
+            "Tagged Contacts"
+          ],
           "jsonPath": "$.tags[*]",
           "key": "id",
           "parameterName": "Tag ID"
         }
-      ]
+      ],
+      "description": "The tags defined, filterable by category and name. Since automation runs on tags, this list is effectively the catalogue of states and segments the business tracks."
     },
     {
       "name": "Tag",
       "paged": false,
-      "suffix": "/v1/tags/{ID}"
+      "suffix": "/v1/tags/{ID}",
+      "description": "One tag by id."
     },
     {
       "name": "Tagged Companies",
       "paged": true,
-      "suffix": "/v1/tags/{Tag ID}/companies"
+      "suffix": "/v1/tags/{Tag ID}/companies",
+      "description": "The companies carrying one tag. Requires a tag id."
     },
     {
       "name": "Tagged Contacts",
       "paged": true,
-      "suffix": "/v1/tags/{Tag ID}/contacts"
+      "suffix": "/v1/tags/{Tag ID}/contacts",
+      "description": "The contacts carrying one tag. Requires a tag id. The membership behind a segment."
     },
     {
       "name": "Tasks",
       "paged": true,
-      "suffix": "/v1/tasks?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID?}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}"
+      "suffix": "/v1/tasks?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID?}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}",
+      "description": "The to-dos, filterable by contact, due date presence and completion. Carries the contact, due date, priority and owner."
     },
     {
       "name": "Task",
       "paged": false,
-      "suffix": "/v1/tasks/{Task ID}"
+      "suffix": "/v1/tasks/{Task ID}",
+      "description": "One task by id."
     },
     {
       "name": "Task Model",
       "paged": false,
-      "suffix": "/v1/tasks/model"
+      "suffix": "/v1/tasks/model",
+      "description": "The schema of the task object."
     },
     {
       "name": "Search Tasks",
       "paged": true,
-      "suffix": "/v1/tasks/search?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}"
+      "suffix": "/v1/tasks/search?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}",
+      "description": "Tasks matching search criteria. The filtered route where the plain listing's parameters are insufficient."
     },
     {
       "name": "User Info",
       "paged": false,
-      "suffix": "/v1/oauth/connect/userinfo"
+      "suffix": "/v1/oauth/connect/userinfo",
+      "description": "The account the credentials belong to. One record, always the caller."
     },
     {
       "name": "Users",
       "paged": true,
-      "suffix": "/v1/users?include_inactive={Include Inactive?:true|false}&include_partners={Include Partners?:true | false}"
+      "suffix": "/v1/users?include_inactive={Include Inactive?:true|false}&include_partners={Include Partners?:true | false}",
+      "description": "The users of the account, optionally including inactive ones. Every record carries an owner, so this is the dimension per-person performance joins to."
     }
   ]
 }

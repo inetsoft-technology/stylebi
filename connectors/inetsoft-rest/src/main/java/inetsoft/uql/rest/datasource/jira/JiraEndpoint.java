@@ -18,6 +18,49 @@
 package inetsoft.uql.rest.datasource.jira;
 
 import inetsoft.uql.rest.json.AbstractEndpoint;
+import inetsoft.uql.rest.pagination.PaginationType;
+
+import java.util.Objects;
 
 public class JiraEndpoint extends AbstractEndpoint {
+   /**
+    * How this endpoint pages, when it does not page the way the rest of Jira does.
+    *
+    * <p>Nearly every Jira endpoint pages by {@code startAt} against a {@code total} the response
+    * carries. The enhanced issue search does not: it returns an opaque {@code nextPageToken} and no
+    * total at all. Null means the usual offset paging, so the property only has to be set on the
+    * exceptions.</p>
+    */
+   public PaginationType getPageType() {
+      return pageType;
+   }
+
+   public void setPageType(PaginationType pageType) {
+      this.pageType = pageType;
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if(this == o) {
+         return true;
+      }
+
+      if(o == null || getClass() != o.getClass()) {
+         return false;
+      }
+
+      if(!super.equals(o)) {
+         return false;
+      }
+
+      JiraEndpoint that = (JiraEndpoint) o;
+      return pageType == that.pageType;
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hash(super.hashCode(), pageType);
+   }
+
+   private PaginationType pageType;
 }

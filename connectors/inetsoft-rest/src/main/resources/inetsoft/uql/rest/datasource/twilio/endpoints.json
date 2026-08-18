@@ -1,9 +1,70 @@
 {
   "endpoints": [
     {
+      "name": "Calls",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls.json?To={To?}&From={From?}&Status={Status?:queued|ringing|in-progress|completed|busy|failed|no-answer}&StartTime={Start Date?:YYYY-MM-DD}&ParentCallSid={Parent Call ID?}",
+      "description": "Voice calls made and received, one row each -- the central table of a Twilio voice account. Carries the To and From numbers, direction (inbound, outbound-api, outbound-dial), status, start_time, end_time and duration in SECONDS, the price and price_unit, the answered_by result where answering-machine detection ran, and the parent call for child legs. TWO THINGS TO READ CAREFULLY. PRICE IS NEGATIVE and populated only once Twilio has rated the call, so it is null on a call still in progress and cost analysis run too soon simply finds nothing. And a single conversation is often SEVERAL ROWS: a call that is forwarded or conferenced creates child legs linked by parent_call_sid, so counting rows counts legs rather than conversations. Filter with To, From, Status or StartTime; Twilio also supports inequality forms of the date filters for ranges, which this endpoint does not expose."
+    },
+    {
+      "name": "Call",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls/{Call ID}.json",
+      "description": "One call by its SID, with the same fields plus the full timing detail. Use it when the call is already identified rather than to scan."
+    },
+    {
+      "name": "Messages",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Messages.json?To={To?}&From={From?}&DateSent={Date Sent?:YYYY-MM-DD}",
+      "description": "SMS, MMS and messaging-channel messages, one row each. Carries the To and From numbers, body, direction, status, date_sent, date_created and date_updated, num_segments, num_media, price, and error_code and error_message where delivery failed. THE STATUS COLUMN IS THE WHOLE STORY: queued, sending and sent mean Twilio accepted and forwarded the message, while only DELIVERED confirms the carrier accepted it, and failed and undelivered are the ones with an error_code worth grouping by. Counting sent messages as delivered overstates reach, often noticeably. NUM_SEGMENTS is what billing counts, not messages -- a long body is several segments and costs accordingly, so message count and cost do not move together."
+    },
+    {
+      "name": "Message",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Messages/{Message ID}.json",
+      "description": "One message by its SID, with its body and full delivery detail."
+    },
+    {
+      "name": "Recordings",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Recordings.json?CallSid={Call ID?}&ConferenceSid={Conference ID?}&DateCreated={Date Created?:YYYY-MM-DD}",
+      "description": "Every recording on the account, from calls and conferences alike, with duration in seconds, channels, source, the call it belongs to, price, and status. Filter by CallSid, ConferenceSid or creation date. Note recordings incur storage cost per month as well as a creation price, so the row count here is an ongoing charge rather than a one-off one -- and the media itself is a separate fetch, not part of this record."
+    },
+    {
+      "name": "Recording",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Recordings/{Recording ID}.json",
+      "description": "One recording by its SID, with its metadata. The audio is retrieved separately."
+    },
+    {
+      "name": "Call Recordings",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls/{Call ID}/Recordings.json?DateCreated={Date Created?:YYYY-MM-DD}",
+      "description": "The recordings made during one call, with duration, channels, source and price. Requires a call SID. A call can be recorded more than once, so this is a list rather than a single row."
+    },
+    {
+      "name": "Conferences",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Conferences.json?FriendlyName={Conference Name?}&Status={Status?:init|in-progress|completed}&DateCreated={Date Created?:YYYY-MM-DD}",
+      "description": "Conference calls, with the friendly name, status, region, and the dates created and updated. Requires filtering by name, status or date on a busy account. A conference is the container; who was on it and for how long is in the individual call legs that joined it, which is why conference duration cannot be read here."
+    },
+    {
+      "name": "Conference",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Conferences/{Conference ID}.json",
+      "description": "One conference by its SID."
+    },
+    {
+      "name": "Conference Recordings",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Conferences/{Conference ID}/Recordings.json?DateCreated={Date Created?:YYYY-MM-DD}",
+      "description": "The recordings made of one conference. Requires a conference SID."
+    },
+    {
       "name": "Account",
       "paged": false,
-      "suffix": "/2010-04-01/Accounts/{Account ID}.json"
+      "suffix": "/2010-04-01/Accounts/{Account ID}.json",
+      "description": "One account or subaccount by its SID."
     },
     {
       "name": "Accounts",
@@ -11,77 +72,97 @@
       "suffix": "/2010-04-01/Accounts.json?FriendlyName={Account Name?}&Status={Status?:closed|suspended|active}",
       "lookups": [
         {
-          "endpoints": ["Addresses", "Applications", "Keys", "Usage Records", "Usage Triggers"],
+          "endpoints": [
+            "Addresses",
+            "Applications",
+            "Keys",
+            "Usage Records",
+            "Usage Triggers"
+          ],
           "jsonPath": "$.accounts.[*]",
           "key": "sid",
           "parameterName": "Account ID"
         }
-      ]
+      ],
+      "description": "The account and its subaccounts, with the friendly name, status (active, suspended or closed), type, and the auth token. SUBACCOUNTS ARE HOW MOST PLATFORMS SEPARATE THEIR CUSTOMERS, and every other endpoint here takes an Account ID -- so on a multi-tenant account this list is the first request, and a figure taken against the parent account alone excludes all of the subaccount activity."
     },
     {
       "name": "Address",
       "paged": false,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Addresses/{Address ID}.json"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Addresses/{Address ID}.json",
+      "description": "One address by its SID."
     },
     {
       "name": "Addresses",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Addresses.json?CustomerName={Customer Name?}&FriendlyName={Address Name?}&IsoCountry={ISO Country Code?}"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Addresses.json?CustomerName={Customer Name?}&FriendlyName={Address Name?}&IsoCountry={ISO Country Code?}",
+      "description": "The registered street addresses held for regulatory compliance, with the customer name, the address, the ISO country, and whether it has been validated. Many countries require a verified local address before a phone number can be bought or kept, so this is the table that explains why a number cannot be provisioned in a given country."
     },
     {
       "name": "Application",
       "paged": false,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Applications/{Application ID}.json"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Applications/{Application ID}.json",
+      "description": "One application by its SID."
     },
     {
       "name": "Applications",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Applications.json?FriendlyName={Application Name?}"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Applications.json?FriendlyName={Application Name?}",
+      "description": "The TwiML applications configured, each bundling the voice and messaging webhook URLs a phone number can point at. Configuration: it is where a number's behaviour is defined, so it explains what happens on an inbound call without any call record being involved."
     },
     {
       "name": "Key",
       "paged": false,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Keys/{Key ID}.json"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Keys/{Key ID}.json",
+      "description": "One API key by its SID."
     },
     {
       "name": "Keys",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Keys.json"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Keys.json",
+      "description": "The API keys issued for the account, with the friendly name and creation date. The secrets themselves are never returned. Security inventory -- and the way to find keys that were issued and forgotten."
     },
     {
       "name": "Usage Records",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Records.json?Category={Category?:calls|sms|...}&StartDate={Start Date?:YYYY-MM-DD}&EndDate={End Date?:YYYY-MM-DD}&IncludeSubaccounts={Include Subaccounts?:true|false}"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Records.json?Category={Category?:calls|sms|...}&StartDate={Start Date?:YYYY-MM-DD}&EndDate={End Date?:YYYY-MM-DD}&IncludeSubaccounts={Include Subaccounts?:true|false}",
+      "description": "Billed usage by category over a date range -- calls, sms, mms, recordings, phone numbers, and dozens more -- each with the count, the usage quantity, the price and the unit. THE COST TABLE: it answers what was spent and on what, without summing the price column across the calls and messages tables, and it covers categories those tables do not represent at all, such as phone number rental and storage. Set IncludeSubaccounts to reach a whole platform's spend rather than the parent account's own. Note the categories are Twilio's own and are finer than the product names, so a total for a product may span several."
     },
     {
       "name": "Usage Trigger",
       "paged": false,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers/{Trigger ID}.json"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers/{Trigger ID}.json",
+      "description": "One usage trigger by its SID."
     },
     {
       "name": "Usage Triggers",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}"
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}",
+      "description": "The alerts configured to fire when usage crosses a threshold, with the category watched, the trigger value, how it recurs, and whether it triggers on count, usage or price. Configuration -- it records what is being watched, not any usage figure."
     },
     {
       "name": "Alert",
       "paged": false,
-      "suffix": "v1/Alerts/{Alert ID}"
+      "suffix": "/v1/Alerts/{Alert ID}",
+      "description": "One alert by its SID, with the full request and response bodies Twilio captured. The detail behind a failure, and the only place the actual payload is visible."
     },
     {
       "name": "Alerts",
       "paged": true,
-      "suffix": "/v1/Alerts?LogLevel={Log Level?:error|warning|notice|debug}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&End Date={EndDate?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}"
+      "suffix": "/v1/Alerts?LogLevel={Log Level?:error|warning|notice|debug}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&EndDate={End Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}",
+      "description": "Errors and warnings raised by the account -- failed webhooks, malformed responses, delivery problems -- with the log level, the error code, the resource involved and when it happened. Served by Twilio's monitor host rather than the main API. THIS IS WHERE FAILURES ARE EXPLAINED: a message with an error_code says something went wrong, and the matching alert here says what. Filter by LogLevel and a date range. Alerts are retained for a limited period, so older failures are simply gone rather than absent."
     },
     {
       "name": "Event",
       "paged": false,
-      "suffix": "/v1/Events/{Event ID}"
+      "suffix": "/v1/Events/{Event ID}",
+      "description": "One audit event by its SID, with the before and after state of what changed."
     },
     {
       "name": "Events",
       "paged": true,
-      "suffix": "/v1/Events?ActorSid={Actor ID?}&EventType={Event Type?}&ResourceSid={Resource ID?}&SourceIpAddress={Source IP Address?}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&EndDate={End Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}"
+      "suffix": "/v1/Events?ActorSid={Actor ID?}&EventType={Event Type?}&ResourceSid={Resource ID?}&SourceIpAddress={Source IP Address?}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&EndDate={End Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}",
+      "description": "The account's audit log -- configuration changes, resource creation and deletion, and who made them -- with the actor, event type, resource, source IP and timestamp. Also served by the monitor host. Distinct from Alerts, which records things going wrong; this records things being changed. Filter by actor, event type, resource or date range."
     }
   ]
 }

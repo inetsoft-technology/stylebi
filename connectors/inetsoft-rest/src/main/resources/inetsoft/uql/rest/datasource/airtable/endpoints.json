@@ -1,14 +1,16 @@
 {
-    "endpoints": [
-        {
-            "name": "Records",
-            "paged": true,
-            "suffix": "/v0/{Base ID}/{Table Name}?fields={Fields?,:Name,Description,...}&filterByFormula={Filter by Formula?}&view={View Name?}&cellFormat={Cell Format?:string|json}&timeZone={Time Zone:America/Los_Angeles|America/New_York|...}&userLocale={User Locale:en|en-gb|es|...}"
-        },
-        {
-            "name": "Record",
-            "paged": false,
-            "suffix": "/v0/{Base ID}/{Table Name}/{Record ID}"
-        }
-    ]
+  "endpoints": [
+    {
+      "name": "Records",
+      "paged": true,
+      "suffix": "/v0/{Base ID}/{Table Name}?fields={Fields?,:Name,Description,...}&filterByFormula={Filter by Formula?}&view={View Name?}&cellFormat={Cell Format?:string|json}&timeZone={Time Zone:America/Los_Angeles|America/New_York|...}&userLocale={User Locale:en|en-gb|es|...}",
+      "description": "The rows of one Airtable table. Requires the base id and the table name -- both of which are per-account, so nothing here is portable between bases. Each row returns an id, a createdTime, and a fields object. THE FIELDS OBJECT IS KEYED BY THE COLUMN'S DISPLAY NAME as the user typed it, spaces and capitals included, which means renaming a column in the Airtable interface silently breaks every query written against it. EMPTY FIELDS ARE OMITTED ENTIRELY rather than returned as null, so rows have different shapes and a missing key means 'blank', not 'no such column'. filterByFormula takes Airtable's own formula language and is evaluated server-side; view restricts to what a saved view shows, which is usually the quickest way to inherit filtering and ordering the team already agreed on."
+    },
+    {
+      "name": "Record",
+      "paged": false,
+      "suffix": "/v0/{Base ID}/{Table Name}/{Record ID}",
+      "description": "One row by record id. Requires the base id and table name. Same field-name keying and the same omission of empty fields."
+    }
+  ]
 }

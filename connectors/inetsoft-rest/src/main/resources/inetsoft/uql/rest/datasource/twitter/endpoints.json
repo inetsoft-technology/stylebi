@@ -3,237 +3,284 @@
     {
       "name": "Tweets by IDs",
       "paged": false,
-      "suffix": "/2/tweets?ids={Tweet IDs}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/tweets?ids={Tweet IDs}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Posts fetched by a list of ids, up to 100 per request. The efficient way to hydrate ids already in hand -- from an export, a stream, or a compliance job -- rather than searching for them again. Ids that have been deleted or made private come back in an errors section rather than as rows, so a short result is not a failure."
     },
     {
       "name": "Tweet by ID",
       "paged": false,
-      "suffix": "/2/tweets/{Tweet ID}?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/tweets/{Tweet ID}?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "One post by id. Same field rules: ask for what is needed in tweet.fields, or only id and text arrive."
     },
     {
       "name": "Tweets Liking Users",
       "paged": true,
-      "suffix": "/2/tweets/{Tweet ID}/liking_users?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/tweets/{Tweet ID}/liking_users?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The accounts that liked one post. Requires a post id. Note the post's public_metrics already carries the like COUNT; this is who, and it is paginated and capped well below the totals a viral post reaches."
     },
     {
       "name": "Tweet Retweeted By",
       "paged": true,
-      "suffix": "/2/tweets/{Tweet ID}/retweeted_by?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/tweets/{Tweet ID}/retweeted_by?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The accounts that reposted one post. Requires a post id. Same relationship to the retweet_count metric: the count is on the post, the identities are here, and the list is truncated for large numbers."
     },
     {
       "name": "Tweet Counts All",
       "paged": true,
-      "suffix": "/2/tweets/counts/all?query={Query}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&granularity={Granularity?:minute|hour|day}&since_id={Since ID?}&until_id={Until ID?}"
+      "suffix": "/2/tweets/counts/all?query={Query}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&granularity={Granularity?:minute|hour|day}&since_id={Since ID?}&until_id={Until ID?}",
+      "description": "The same volume counts over the full archive. Requires the higher access tiers, like full-archive search."
     },
     {
       "name": "Tweet Counts Recent",
       "paged": false,
-      "suffix": "/2/tweets/counts/recent?query={Query}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}"
+      "suffix": "/2/tweets/counts/recent?query={Query}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}",
+      "description": "How many posts match a query per day, hour or minute over the last seven days, WITHOUT returning the posts themselves. Far cheaper than searching and paging when only volume matters, and it does not consume the post-retrieval quota the search endpoints draw on -- which, given how tightly that quota is capped, often makes this the only practical way to measure volume at all."
     },
     {
       "name": "Search All Tweets",
       "paged": true,
-      "suffix": "/2/tweets/search/all?query={Query}&max_results=500&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}&sort_order={Sort Order?:recency|relevancy}"
+      "suffix": "/2/tweets/search/all?query={Query}&max_results=500&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}&sort_order={Sort Order?:recency|relevancy}",
+      "description": "The same search over the FULL ARCHIVE, back to the first post in 2006. Requires one of X's highest access tiers -- on lower tiers it returns an authorisation error rather than an empty result, which is a subscription fact and not an absence of matching posts. The same tweet.fields and expansions rules apply."
     },
     {
       "name": "Search Recent Tweets",
       "paged": true,
-      "suffix": "/2/tweets/search/recent?query={Query}&max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}&sort_order={Sort Order?:recency|relevancy}"
+      "suffix": "/2/tweets/search/recent?query={Query}&max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}&sort_order={Sort Order?:recency|relevancy}",
+      "description": "Searches posts from the LAST SEVEN DAYS matching a query built in X's search syntax -- keywords, from: and to:, hashtags, language, and operators for excluding retweets or requiring media. The workhorse for any listening or campaign-measurement question, bounded hard at seven days: anything older is not merely absent, it is unreachable through this endpoint at all. TWO THINGS APPLY TO EVERY POST ENDPOINT HERE. A post comes back with ONLY id and text by default -- created_at, author_id, public_metrics, lang and conversation_id are absent unless named in tweet.fields, and their absence looks like empty data rather than an unmade request. And expansions is what inlines the author, the referenced post or the attached media; without it those are ids pointing at nothing in the response."
     },
     {
       "name": "Connect to Stream",
       "paged": false,
-      "suffix": "/2/tweets/search/stream?backfill_minutes={Backfill Minutes?}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/tweets/search/stream?backfill_minutes={Backfill Minutes?}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "A PERSISTENT CONNECTION delivering posts in real time as they match the active rule set. NOT a request that returns a result set -- it opens and stays open, emitting posts indefinitely, so it does not behave like the other endpoints here and cannot be treated as a table. It is also the only way to capture posts as they happen; the search endpoints are the way to look backwards."
     },
     {
       "name": "Stream Rules",
       "paged": true,
-      "suffix": "/2/tweets/search/stream/rules?ids={Rule IDs?}"
+      "suffix": "/2/tweets/search/stream/rules?ids={Rule IDs?}",
+      "description": "The rules currently filtering the stream, each with its query and tag. The stream returns nothing until rules exist, so an apparently silent stream is usually an empty rule set rather than an absence of matching posts."
     },
     {
       "name": "Users Liked Tweets",
       "paged": true,
-      "suffix": "/2/users/{User ID}/liked_tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/liked_tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The posts one account has liked. Requires a user id, and generally that account's own authorisation."
     },
     {
       "name": "User Mentions",
       "paged": true,
-      "suffix": "/2/users/{User ID}/mentions?max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/mentions?max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Posts mentioning one account, most recent first. Requires a user id. The inbound half of an account's activity, and the usual basis for measuring how much a brand is talked to as opposed to talked about. Same 3,200-post ceiling."
     },
     {
       "name": "User Reverse Chronological Timeline",
       "paged": true,
-      "suffix": "/2/users/{User ID}/timelines/reverse_chronological?start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/timelines/reverse_chronological?start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The home timeline of one account -- what that user sees from accounts they follow. Requires a user id and that user's own authorisation. It describes a feed, not the user's own posts, and cannot be read for anyone but the authenticated account."
     },
     {
       "name": "Tweets by User ID",
       "paged": true,
-      "suffix": "/2/users/{User ID}/tweets?max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&exclude={Exclude?:retweets|replies}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/tweets?max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&exclude={Exclude?:retweets|replies}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The posts of one account, most recent first. Requires a user id. CAPPED AT ROUGHLY THE LAST 3,200 POSTS however far back the account goes, so a prolific account's earlier history is not reachable here -- full-archive search is. Includes retweets and replies unless excluded, which changes the count substantially for a conversational account."
     },
     {
       "name": "Reposts of Current User",
       "paged": true,
-      "suffix": "/2/users/reposts_of_me?max_results=100&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/reposts_of_me?max_results=100&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Posts that repost the authenticated account's own content. Always the caller's, and only the caller's."
     },
     {
       "name": "User by ID",
       "paged": false,
-      "suffix": "/2/users/{User ID}?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "One account by id, subject to the same user.fields rule."
     },
     {
       "name": "Users by IDs",
       "paged": false,
-      "suffix": "/2/users?{User IDs}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users?{User IDs}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Accounts fetched by a list of ids, up to 100 per request. Like posts, A USER RETURNS ONLY id, name AND username by default -- created_at, description, location, verified, protected and public_metrics (followers_count, following_count, tweet_count, listed_count) all require user.fields. Follower counts, the most commonly wanted column here, are among the absent ones."
     },
     {
       "name": "Blocked Users",
       "paged": true,
-      "suffix": "/2/users/{User ID}/blocking?max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/blocking?max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The accounts one user has blocked. Requires that user's own authorisation; it cannot be read for anyone else."
     },
     {
       "name": "Muted Users",
       "paged": true,
-      "suffix": "/2/users/{User ID}/muting?max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/muting?max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The accounts one user has muted. Same restriction to the authenticated account."
     },
     {
       "name": "Users by Usernames",
       "paged": false,
-      "suffix": "/2/users/by?usernames={Usernames}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/by?usernames={Usernames}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Accounts fetched by handle, up to 100 per request. The bridge from a handle someone quoted to the id every other endpoint needs."
     },
     {
       "name": "User by Username",
       "paged": false,
-      "suffix": "/2/users/by/username/{Username}?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/by/username/{Username}?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "One account by handle."
     },
     {
       "name": "Current User Information",
       "paged": false,
-      "suffix": "/2/users/me?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/me?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The account the credentials belong to. One record, always the caller -- and the one endpoint available at every access tier, which makes it the practical way to confirm a token works before anything else is attempted."
     },
     {
       "name": "Users by Query",
       "paged": true,
-      "suffix": "/2/users/search?query={Query}&max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/search?query={Query}&max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Accounts matching a search term across handle, name and bio. The discovery route when neither id nor exact handle is known."
     },
     {
       "name": "Spaces by IDs",
       "paged": false,
-      "suffix": "/2/spaces?ids={Space IDs}&expansions={Expansions?}&space.fields={Space Fields}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/spaces?ids={Space IDs}&expansions={Expansions?}&space.fields={Space Fields}&topic.fields={Topic Fields?}&user.fields={User Fields?}",
+      "description": "Live audio Spaces by id, up to 100 per request. Carries the state (live, scheduled or ended), title, host, participant and speaker counts, and the scheduled and actual start times. Note that ENDED SPACES BECOME UNAVAILABLE after a period, so historical analysis of Spaces is not possible beyond a short window."
     },
     {
       "name": "Space by ID",
       "paged": false,
-      "suffix": "/2/spaces/{Space ID}?expansions={Expansions?}&space.fields={Space Fields}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/spaces/{Space ID}?expansions={Expansions?}&space.fields={Space Fields}&topic.fields={Topic Fields?}&user.fields={User Fields?}",
+      "description": "One Space by id."
     },
     {
       "name": "Space Buyers",
       "paged": true,
-      "suffix": "/2/spaces/{Space ID}/buyers?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/spaces/{Space ID}/buyers?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The accounts that purchased tickets to one ticketed Space. Requires a Space id and the host's authorisation."
     },
     {
       "name": "Space Tweets",
       "paged": false,
-      "suffix": "/2/spaces/{Space ID}/tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/spaces/{Space ID}/tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The posts shared inside one Space. Requires a Space id."
     },
     {
       "name": "Spaces By Creator IDs",
       "paged": false,
-      "suffix": "/2/spaces/by/creator_ids?user_ids={User IDs}&expansions={Expansions?}&space.fields={Space Fields?}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/spaces/by/creator_ids?user_ids={User IDs}&expansions={Expansions?}&space.fields={Space Fields?}&topic.fields={Topic Fields?}&user.fields={User Fields?}",
+      "description": "The Spaces created by given accounts. The per-host view."
     },
     {
       "name": "Spaces By Query",
       "paged": false,
-      "suffix": "/2/spaces/search?query={Query}&state={State?:all|live|scheduled}&expansions={Expansions?}&space.fields={Space Fields?}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/spaces/search?query={Query}&state={State?:all|live|scheduled}&expansions={Expansions?}&space.fields={Space Fields?}&topic.fields={Topic Fields?}&user.fields={User Fields?}",
+      "description": "Spaces matching a search term in their title, filtered by state. Live and scheduled Spaces only."
     },
     {
       "name": "Direct Messages By Conversation ID",
       "paged": true,
-      "suffix": "/2/dm_conversations/{Direct Message Conversation ID}/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/dm_conversations/{Direct Message Conversation ID}/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The message events of one conversation. Requires a conversation id and the participant's authorisation."
     },
     {
       "name": "Direct Messages By Participant ID",
       "paged": true,
-      "suffix": "/2/dm_conversations/with/{Participant ID}/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/dm_conversations/with/{Participant ID}/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The one-to-one conversation with a given account. Requires a participant id. The convenient form when the other party is known but the conversation id is not."
     },
     {
       "name": "Direct Messages In Past 30 Days",
       "paged": true,
-      "suffix": "/2/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "Direct message events across all the authenticated account's conversations, LIMITED TO THE LAST 30 DAYS. Requires that account's authorisation and elevated access. The window is fixed, so a longer history of messages does not exist through this API at all."
     },
     {
       "name": "Direct Messages By Event ID",
       "paged": false,
-      "suffix": "/2/dm_events/{Event ID}"
+      "suffix": "/2/dm_events/{Event ID}",
+      "description": "One direct message event by id."
     },
     {
       "name": "List by List ID",
       "paged": false,
-      "suffix": "/2/lists/{List ID}?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/lists/{List ID}?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}",
+      "description": "One list by id, with name, description, member and follower counts, and whether it is private. Lists are curated sets of accounts, and the only user-defined grouping X offers."
     },
     {
       "name": "User Owned Lists",
       "paged": true,
-      "suffix": "/2/users/{User ID}/owned_lists?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/owned_lists?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}",
+      "description": "The lists one account created. Requires a user id."
     },
     {
       "name": "Tweets by List ID",
       "paged": true,
-      "suffix": "/2/lists/{List ID}/tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/lists/{List ID}/tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The posts from the accounts in one list, as a timeline. Requires a list id. A pre-curated feed -- useful when a team has already defined the accounts worth watching, since it saves reconstructing that set from a search query."
     },
     {
       "name": "User List Memberships",
       "paged": true,
-      "suffix": "/2/users/{User ID}/list_memberships?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/list_memberships?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}",
+      "description": "The lists one account has been added to by others. Requires a user id. An external signal of how an account is categorised, which its own profile does not carry."
     },
     {
       "name": "List Members",
       "paged": true,
-      "suffix": "/2/lists/{List ID}/members?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/lists/{List ID}/members?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The accounts in one list. Requires a list id. The membership behind a list, which the list record only counts."
     },
     {
       "name": "User Pinned Lists",
       "paged": false,
-      "suffix": "/2/users/{User ID}/pinned_lists?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/pinned_lists?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}",
+      "description": "The lists one account has pinned. Requires that account's authorisation."
     },
     {
       "name": "User Bookmarks",
       "paged": true,
-      "suffix": "/2/users/{User ID}/bookmarks?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users/{User ID}/bookmarks?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}",
+      "description": "The posts the authenticated account has bookmarked. Private to that account and unreachable for anyone else, so this is a personal collection rather than a public signal."
     },
     {
       "name": "Recent Compliance Jobs",
       "paged": false,
-      "suffix": "/2/compliance/jobs?type={Type:users|tweets}&status={Status?:created|in_progress|failed|complete}"
+      "suffix": "/2/compliance/jobs?type={Type:users|tweets}&status={Status?:created|in_progress|failed|complete}",
+      "description": "The batch compliance jobs recently submitted, with their type, status, and the URLs to upload ids to and download results from. Compliance jobs are how a stored copy of X data is kept lawful: a batch of post or user ids goes in, and what comes back says which have since been deleted, suspended or made private. Anyone retaining posts is required to run these, and it is the only bulk way to learn that content has been withdrawn."
     },
     {
       "name": "Compliance Job by Job ID",
       "paged": false,
-      "suffix": "/2/compliance/jobs/{Job ID}"
+      "suffix": "/2/compliance/jobs/{Job ID}",
+      "description": "The status of one compliance job, with its download URL once complete."
     },
     {
       "name": "Project Tweet Usage",
       "paged": false,
-      "suffix": "/2/usage/tweets?days={Days?}&usage.fields={Usage Fields?}"
+      "suffix": "/2/usage/tweets?days={Days?}&usage.fields={Usage Fields?}",
+      "description": "How many posts the project has retrieved against its monthly cap, with a daily breakdown. X's access tiers cap post retrieval tightly and requests are simply refused once the cap is reached, so this is the endpoint that explains a working integration suddenly returning nothing -- and the one to check before planning a large extract."
     },
     {
       "name": "Trends by WOEID",
       "paged": false,
-      "suffix": "/2/trends/by/woeid/{WOEID}"
+      "suffix": "/2/trends/by/woeid/{WOEID}",
+      "description": "The trending topics for one location, identified by a Where On Earth ID. Carries each trend's name and, where available, its post volume. A point-in-time snapshot with NO HISTORY behind it -- trends cannot be asked for retrospectively, so a trend series has to be built by sampling this repeatedly."
     },
     {
       "name": "User Personalized Trends",
       "paged": false,
-      "suffix": "/2/users/personalized_trends"
+      "suffix": "/2/users/personalized_trends",
+      "description": "Trends tailored to the authenticated account. Personal rather than regional, and likewise a snapshot with no history."
     },
     {
       "name": "Community by ID",
       "paged": false,
-      "suffix": "/2/communities/{Community ID}?community.fields={Community Fields?}"
+      "suffix": "/2/communities/{Community ID}?community.fields={Community Fields?}",
+      "description": "One Community by id, with its name, description, access setting and member count."
     },
     {
       "name": "Communities by Query",
       "paged": false,
-      "suffix": "/2/communities/search?query={query}&community.fields={Community Fields?}"
+      "suffix": "/2/communities/search?query={query}&community.fields={Community Fields?}",
+      "description": "Communities matching a search term. Discovery for a feature with no listing endpoint of its own."
     }
   ]
 }

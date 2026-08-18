@@ -3,77 +3,92 @@
     {
       "name": "Account Email Addresses",
       "paged": false,
-      "suffix": "/v3/account/emails?confirm_status={Confirm Status?:CONFIRMED|UNCONFIRMED}&role_code={Role Code?:CONTACT|BILLING|JOURNALING|REPLY_TO|OTHER}&email_address={Email Address?}"
+      "suffix": "/v3/account/emails?confirm_status={Confirm Status?:CONFIRMED|UNCONFIRMED}&role_code={Role Code?:CONTACT|BILLING|JOURNALING|REPLY_TO|OTHER}&email_address={Email Address?}",
+      "description": "The from addresses registered for the account, with their confirmation status. AN UNCONFIRMED ADDRESS CANNOT SEND, so this is the usual explanation for a campaign that will not go out."
     },
     {
       "name": "Account Details",
       "paged": false,
-      "suffix": "/v3/account/summary?extra_fields={Extra Fields?:value1,value2,...}"
+      "suffix": "/v3/account/summary?extra_fields={Extra Fields?:value1,value2,...}",
+      "description": "The account's name, contact details and settings. One record."
     },
     {
       "name": "Account Physical Address",
       "paged": false,
-      "suffix": "/v3/account/summary/physical_address"
+      "suffix": "/v3/account/summary/physical_address",
+      "description": "The postal address included in every campaign footer, as required by anti-spam law. Configuration."
     },
     {
       "name": "User Privileges",
       "paged": false,
-      "suffix": "/v3/account/user/privileges"
+      "suffix": "/v3/account/user/privileges",
+      "description": "The permissions the calling account holds. The direct explanation for a permission error elsewhere."
     },
     {
       "name": "Activity Statuses",
       "paged": true,
-      "suffix": "/v3/activities?state={State?:processing|completed|cancelled|failed|timed_out}"
+      "suffix": "/v3/activities?state={State?:processing|completed|cancelled|failed|timed_out}",
+      "description": "The asynchronous bulk jobs on the account -- imports, exports, deletions -- with their state. Bulk operations report only that they were queued, so this is where their outcome is found."
     },
     {
       "name": "Activity Status",
       "paged": false,
-      "suffix": "/v3/activities/{Activity ID}"
+      "suffix": "/v3/activities/{Activity ID}",
+      "description": "One bulk job by id, with its progress and any errors. The error detail is where silently dropped import rows show up."
     },
     {
       "name": "Contacts",
       "paged": true,
-      "suffix": "/v3/contacts?status={Status?:value1,value2,...}&email={Search Email Address?}&lists={Contacts List?}&updated_after={Updated After?:yyyy-MM-dd}&include={Include?:custom_fields|list_memberships|phone_numbers|street_addresses}&include_count={Include Count?:true|false}"
+      "suffix": "/v3/contacts?status={Status?:value1,value2,...}&email={Search Email Address?}&lists={Contacts List?}&updated_after={Updated After?:yyyy-MM-dd}&include={Include?:custom_fields|list_memberships|phone_numbers|street_addresses}&include_count={Include Count?:true|false}",
+      "description": "The contacts in the account, with email, name, the lists they belong to, custom fields, the source they were created from, and their timestamps. Filterable by status and email. STATUS IS THE FILTER THAT MATTERS: unsubscribed and removed contacts remain in the table, so a subscriber count taken without it overstates the reachable audience."
     },
     {
       "name": "Contact",
       "paged": false,
-      "suffix": "/v3/contacts/{Contact ID}?include={Include?:value1,value2,...}"
+      "suffix": "/v3/contacts/{Contact ID}?include={Include?:value1,value2,...}",
+      "description": "One contact by id. The include parameter inlines list memberships, custom fields, notes and street addresses, which are otherwise absent."
     },
     {
       "name": "Contact Lists",
       "paged": true,
-      "suffix": "/v3/contact_lists?include_count={Include Count?:true|false}"
+      "suffix": "/v3/contact_lists?include_count={Include Count?:true|false}",
+      "description": "The mailing lists, each with name, description and, when include_count is passed, its membership count. The count is not returned by default, which is easy to miss when the list appears to have no size."
     },
     {
       "name": "Contact List",
       "paged": false,
-      "suffix": "/v3/contact_lists/{List ID}"
+      "suffix": "/v3/contact_lists/{List ID}",
+      "description": "One list by id."
     },
     {
       "name": "Contact Activity Details",
       "paged": true,
-      "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_details?tracking_activities_list={Tracking Activities List:em_sends|em_opens|em_clicks|em_bounces|em_optouts|em_forwards}"
+      "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_details?tracking_activities_list={Tracking Activities List:em_sends|em_opens|em_clicks|em_bounces|em_optouts|em_forwards}",
+      "description": "One contact's individual email events over a period, filterable by activity type. Requires a contact id. The row-level history behind the summary."
     },
     {
       "name": "Contact Action Summary",
       "paged": true,
-      "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_summary?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_summary?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "One contact's aggregate email behaviour over a period -- how many sends, opens, clicks, bounces and opt-outs. Requires a contact id and dates. The per-person engagement summary, already computed."
     },
     {
       "name": "Average Open and Click Rates",
       "paged": true,
-      "suffix": "/v3/reports/contact_reports/{Contact ID}/open_and_click_rates?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/v3/reports/contact_reports/{Contact ID}/open_and_click_rates?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "One contact's average open and click rates over a period. Requires a contact id and dates. A ready-made engagement score per person -- the usual basis for identifying a lapsing subscriber."
     },
     {
       "name": "Custom Fields",
       "paged": true,
-      "suffix": "/v3/contact_custom_fields"
+      "suffix": "/v3/contact_custom_fields",
+      "description": "The custom contact fields defined, with name and type. The decoder for custom values on a contact."
     },
     {
       "name": "Custom Field",
       "paged": false,
-      "suffix": "/v3/contact_custom_fields/{Custom Field ID}"
+      "suffix": "/v3/contact_custom_fields/{Custom Field ID}",
+      "description": "One custom field by id."
     },
     {
       "name": "Email Campaigns",
@@ -86,12 +101,14 @@
           "key": "campaign_id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "The email campaigns in the account, with name, current status and timestamps. NOTE THE TWO-LEVEL MODEL, which is the single most confusing thing about this API: a CAMPAIGN is the container, and a CAMPAIGN ACTIVITY is an actual send. Statistics attach to the ACTIVITY, not the campaign, so every reporting endpoint here takes a campaign activity id -- and a campaign resent or A/B tested has several."
     },
     {
       "name": "Email Campaign Activity",
       "paged": false,
-      "suffix": "/v3/emails/activities/{Campaign Activity ID}?include={Include?:physical_address_in_footer|permalink_url|html_content|document_properties}"
+      "suffix": "/v3/emails/activities/{Campaign Activity ID}?include={Include?:physical_address_in_footer|permalink_url|html_content|document_properties}",
+      "description": "One send of one campaign, with its subject, from address, preheader, the lists targeted and the physical address block. Requires an activity id. This is the level everything measurable hangs off."
     },
     {
       "name": "Email Campaign",
@@ -117,62 +134,74 @@
           "key": "campaign_activity_id",
           "parameterName": "Campaign Activity ID"
         }
-      ]
+      ],
+      "description": "One campaign by id, with its activities listed. The route from a campaign name to the activity ids the report endpoints need."
     },
     {
       "name": "Email Links",
       "paged": false,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/links"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/links",
+      "description": "The links in one activity with their click counts. Requires an activity id. Which content drew the response, as opposed to whether anything did."
     },
     {
       "name": "Email Bounces",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/bounces?bounce_code={Bounce Code?}"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/bounces?bounce_code={Bounce Code?}",
+      "description": "Bounce events for one activity, with the bounce code. Requires an activity id. The code separates a permanent failure from a temporary one, and treating them alike overstates list decay."
     },
     {
       "name": "Email Clicks",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/clicks?url_id={URL ID?}"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/clicks?url_id={URL ID?}",
+      "description": "Click events for one activity, optionally filtered to one link. Requires an activity id. Clicks are the sounder engagement signal, since open tracking depends on images loading."
     },
     {
       "name": "Email Did Not Opens",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/didnotopens"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/didnotopens",
+      "description": "The contacts who were sent one activity and did not open it. Requires an activity id. Available directly rather than as a subtraction, which is what makes re-engagement targeting straightforward."
     },
     {
       "name": "Email Forwards",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/forwards"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/forwards",
+      "description": "Forward events for one activity. Requires an activity id. Only forwards made through the email's own forward link are counted, so this understates real sharing."
     },
     {
       "name": "Email Opens",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/opens"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/opens",
+      "description": "Every open event for one activity, with the contact and timestamp. Requires an activity id. Note this is TOTAL opens including repeats -- Email Unique Opens is the per-person count, and the two answer different questions."
     },
     {
       "name": "Email Opt-outs",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/optouts"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/optouts",
+      "description": "Unsubscribe events attributable to one activity, with timestamps. Requires an activity id. The per-send cost of a campaign, as opposed to the account-wide unsubscribe list."
     },
     {
       "name": "Email Sends",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/sends"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/sends",
+      "description": "The contacts one activity was sent to, with timestamps. Requires an activity id. The denominator for every rate below it."
     },
     {
       "name": "Email Unique Opens",
       "paged": true,
-      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/unique_opens"
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/unique_opens",
+      "description": "The distinct contacts who opened one activity. Requires an activity id. The right numerator for an open rate."
     },
     {
       "name": "Email Campaign Activity Schedule",
       "paged": false,
-      "suffix": "/v3/emails/activities/{Campaign Activity ID}/schedules"
+      "suffix": "/v3/emails/activities/{Campaign Activity ID}/schedules",
+      "description": "When one activity is or was scheduled to send. Requires an activity id."
     },
     {
       "name": "Email Campaign Activity Send History",
       "paged": false,
-      "suffix": "/v3/emails/activities/{Campaign Activity ID}/send_history"
+      "suffix": "/v3/emails/activities/{Campaign Activity ID}/send_history",
+      "description": "The send attempts for one activity, with their outcomes. Requires an activity id. Where a resend or a failed send is recorded, which the activity itself does not show."
     }
   ]
 }

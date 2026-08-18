@@ -8,7 +8,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Everything 42matters knows about ONE Android app, by package name: title, developer, category, description, price, install-count band, rating and rating count, current version, release and update dates, permissions, and the SDKs it embeds. The core enrichment endpoint. NOTE THIS IS MARKET INTELLIGENCE, NOT ANALYTICS -- it describes any app in the Play Store as the store presents it, so figures such as installs are the coarse bands Google publishes rather than exact counts, and none of it is your own app's data."
     },
     {
       "name": "Android Reviews",
@@ -18,7 +19,8 @@
       "pageLimit": 100,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "User reviews of one Android app, filterable by rating, date and language. Requires a package name. The qualitative side: ratings give a number, these give the reasons, and they are the only text explaining a score movement."
     },
     {
       "name": "Android Review Analysis",
@@ -28,7 +30,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The topics 42matters extracted from one app's reviews, with sentiment. Requires a package name. Derived rather than reported: it saves reading thousands of reviews to learn what people complain about, at the cost of being a model's interpretation."
     },
     {
       "name": "Android Country Availability",
@@ -38,7 +41,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Which countries one Android app is published in, and its price in each. Requires a package name. Market coverage, and the explanation for an app that appears missing in one region."
     },
     {
       "name": "Android IAB Category for Apps",
@@ -48,7 +52,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The IAB advertising category of one Android app. Requires a package name. The advertising industry's taxonomy rather than the store's own, which is what ad platforms actually target on."
     },
     {
       "name": "Android App-Ads txt for Apps",
@@ -58,7 +63,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The app-ads.txt entries declared for one Android app -- the authorised sellers of its advertising inventory. Requires a package name. Ad-fraud verification: inventory sold by anyone not listed here is unauthorised."
     },
     {
       "name": "Android Changelog History",
@@ -68,7 +74,8 @@
       "pageLimit": 100,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The release notes of one Android app over time, with version numbers and dates. Requires a package name. THE RELEASE CADENCE OF A COMPETITOR, which no other table gives -- how often they ship and what they say they changed."
     },
     {
       "name": "Android App Matching",
@@ -78,7 +85,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Resolves partial or fuzzy identifiers to a specific Play Store app. Requires a package name or search terms. The disambiguation step before enrichment, when the identifier in hand is not exact."
     },
     {
       "name": "Android Search",
@@ -88,7 +96,8 @@
       "pageLimit": 50,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Apps matching a search phrase in the Play Store, optionally including descriptions. Discovery when the package name is unknown."
     },
     {
       "name": "Android Advanced Query",
@@ -98,7 +107,8 @@
       "pageLimit": 50,
       "freePageLimit": 50,
       "post": true,
-      "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/android/apps/advanced-query-api\"\n    }\n  }\n}\n"
+      "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/android/apps/advanced-query-api\"\n    }\n  }\n}\n",
+      "description": "Play Store apps matching a structured query across many attributes at once -- category, rating, install band, price, SDKs, release date. The systematic way to build a market segment, where the plain search only matches text."
     },
     {
       "name": "Android Integrated SDKs",
@@ -108,7 +118,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The third-party SDKs detected inside one Android app -- analytics, advertising, crash reporting, payments. Requires a package name. TECHNOLOGY INTELLIGENCE: it says what a competitor built with, and is the basis of any question about which vendors an app ecosystem uses."
     },
     {
       "name": "Android Search by SDKs",
@@ -118,7 +129,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Apps that embed given SDKs. The reverse of the SDK lookup -- use it to size a vendor's install base or to build a prospect list of apps using a competing tool."
     },
     {
       "name": "Android Search by Web Domain",
@@ -128,7 +140,8 @@
       "pageLimit": 50,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Apps associated with a web domain. The link from a company's website to the apps it publishes, which the store listings do not make searchable."
     },
     {
       "name": "Android Search by Permissions",
@@ -138,7 +151,8 @@
       "pageLimit": 50,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Apps requesting given Android permissions. Privacy and capability analysis -- and Android-only, since iOS exposes no equivalent."
     },
     {
       "name": "Android Google Play Top Charts",
@@ -148,7 +162,8 @@
       "pageLimit": 100,
       "freePageLimit": 25,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The current Play Store rankings for a named chart, category and country. A snapshot of who is winning a category right now."
     },
     {
       "name": "Android Google Play App Rank History",
@@ -158,7 +173,8 @@
       "pageLimit": 100,
       "freePageLimit": 100,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "How one app's Play Store rank moved over time, by chart and country. Requires a package name and dates. Rankings are a snapshot everywhere else here; this is the only historical series."
     },
     {
       "name": "iOS Lookup",
@@ -168,7 +184,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same for one iOS app, by App Store id or bundle id. Same distinction: this is what the App Store publishes about an app, not private analytics. Note Apple publishes no install counts at all, so the fields available differ from Android's."
     },
     {
       "name": "iOS Reviews",
@@ -178,7 +195,8 @@
       "pageLimit": 100,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "User reviews of one iOS app, filterable by rating and date. Requires an app id. NOTE APPLE'S REVIEWS ARE PER STOREFRONT -- a review left in one country is not returned for another -- so a complete picture needs the country dimension considered."
     },
     {
       "name": "iOS Review Analysis",
@@ -188,7 +206,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same topic and sentiment extraction for an iOS app."
     },
     {
       "name": "iOS Country Availability",
@@ -198,7 +217,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same storefront availability for an iOS app."
     },
     {
       "name": "iOS IAB Category for Apps",
@@ -208,7 +228,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The IAB advertising category of one iOS app."
     },
     {
       "name": "iOS App-Ads.txt for Apps",
@@ -218,7 +239,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same authorised-seller declarations for an iOS app."
     },
     {
       "name": "iOS Changelog History",
@@ -228,7 +250,8 @@
       "pageLimit": 100,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same version history for an iOS app."
     },
     {
       "name": "iOS App Matching",
@@ -238,7 +261,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same resolution for the App Store, by id or bundle id."
     },
     {
       "name": "iOS Search",
@@ -248,7 +272,8 @@
       "pageLimit": 50,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "Apps matching a search phrase in the App Store."
     },
     {
       "name": "iOS Advanced Query",
@@ -258,7 +283,8 @@
       "pageLimit": 50,
       "freePageLimit": 50,
       "post": true,
-      "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/ios/apps/advanced-query-api\"\n    }\n  }\n}\n"
+      "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/ios/apps/advanced-query-api\"\n    }\n  }\n}\n",
+      "description": "The same structured query against the App Store."
     },
     {
       "name": "iOS Integrated SDKs",
@@ -268,7 +294,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same SDK detection for an iOS app."
     },
     {
       "name": "iOS Search by SDKs",
@@ -278,7 +305,8 @@
       "pageLimit": 50,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same reverse SDK search for iOS."
     },
     {
       "name": "iOS Search by Web Domain",
@@ -288,7 +316,8 @@
       "pageLimit": 50,
       "freePageLimit": 5,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same domain search for iOS."
     },
     {
       "name": "iOS App Store Top Charts",
@@ -298,7 +327,8 @@
       "pageLimit": 100,
       "freePageLimit": 25,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The current App Store rankings for a named chart, category and country."
     },
     {
       "name": "iOS App Store Rank History",
@@ -308,7 +338,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same rank history for an iOS app."
     },
     {
       "name": "Tencent Lookup",
@@ -318,7 +349,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same lookup against the Tencent MyApp store, by package name. China's Android market is served by local stores rather than Google Play, so an app's Chinese presence is only visible through this and the Huawei endpoint."
     },
     {
       "name": "Tencent MyApp Top Charts",
@@ -328,7 +360,8 @@
       "pageLimit": 100,
       "freePageLimit": 25,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The current Tencent MyApp rankings by category."
     },
     {
       "name": "Amazon Appstore Lookup",
@@ -338,7 +371,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same lookup against the Amazon Appstore, by ASIN."
     },
     {
       "name": "Huawei AppGallery Lookup",
@@ -348,7 +382,8 @@
       "pageLimit": 0,
       "freePageLimit": 0,
       "post": false,
-      "bodyTemplate": null
+      "bodyTemplate": null,
+      "description": "The same lookup against Huawei AppGallery, by app id."
     }
   ]
 }

@@ -95,52 +95,62 @@
           "key": "ClientID",
           "parameterName": "Client ID"
         }
-      ]
+      ],
+      "description": "The client accounts under this Campaign Monitor login. AGENCIES ARE THE POINT OF THIS STRUCTURE: nearly every other endpoint takes a client id, and an account with several clients holds several entirely separate sets of lists, campaigns and subscribers. The first request in any question here."
     },
     {
       "name": "Billing details",
       "suffix": "/v3.2/billingdetails.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The account's billing state -- credits held and the plan in force. One record."
     },
     {
       "name": "Countries",
       "suffix": "/v3.2/countries.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The country list Campaign Monitor accepts. Reference data."
     },
     {
       "name": "Timezones",
       "suffix": "/v3.2/timezones.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The timezone list Campaign Monitor accepts. Reference data, and relevant because a client's timezone determines how their timestamps read."
     },
     {
       "name": "Current date",
       "suffix": "/v3.2/systemdate.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "Campaign Monitor's own system date and time. Useful for anchoring a relative date range to the service's clock rather than the caller's."
     },
     {
       "name": "Administrators",
       "suffix": "/v3.2/admins.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The administrators on the account, with name, email and status."
     },
     {
       "name": "Administrator details",
       "suffix": "/v3.2/admins.json?email={Email?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One administrator by email address."
     },
     {
       "name": "Primary contact",
       "suffix": "/v3.2/primarycontact.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The main contact for the whole account."
     },
     {
       "name": "Campaign summary",
       "suffix": "/v3.2/campaigns/{Campaign ID}/summary.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The headline statistics of one campaign -- recipients, total and unique opens, clicks, unsubscribes, bounces, spam complaints and the web version views. Requires a campaign id. THE RIGHT ENDPOINT FOR A RATE: the detail endpoints below return one row per event and paging them to count is far more expensive than reading these totals."
     },
     {
       "name": "Campaign email client usage",
       "suffix": "/v3.2/campaigns/{Campaign ID}/emailclientusage.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The email clients recipients opened one campaign in, with counts and percentages. Requires a campaign id. What a template has to render in -- and inferred from opens, so it describes the opening audience rather than the whole."
     },
     {
       "name": "Campaign lists and segments",
@@ -219,42 +229,50 @@
           "key": "SegmentID",
           "parameterName": "Segment ID"
         }
-      ]
+      ],
+      "description": "Which lists and segments one campaign was sent to. Requires a campaign id. The targeting record, which the campaign itself does not state."
     },
     {
       "name": "Campaign recipients",
       "suffix": "/v3.2/campaigns/{Campaign ID}/recipients.json",
-      "paged": "true"
+      "paged": "true",
+      "description": "Everyone one campaign was sent to, with their email and list. Requires a campaign id. The denominator, and the way to see which lists a campaign actually reached."
     },
     {
       "name": "Campaign bounces",
       "suffix": "/v3.2/campaigns/{Campaign ID}/bounces.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Bounce events, with the subscriber and the bounce type. Requires a campaign id. Hard and soft bounces mean different things and are distinguished here; treating them alike overstates list decay."
     },
     {
       "name": "Campaign opens",
       "suffix": "/v3.2/campaigns/{Campaign ID}/opens.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Every open event for one campaign, with the subscriber, timestamp, IP and geolocation. Requires a campaign id. TOTAL opens including repeats -- the summary carries the unique figure. Carries the usual caveat that opens depend on images loading."
     },
     {
       "name": "Campaign clicks",
       "suffix": "/v3.2/campaigns/{Campaign ID}/clicks.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Every click event, with the subscriber, the URL clicked, timestamp and geolocation. Requires a campaign id. The sounder engagement signal, and the URL column is what says which content drew the response."
     },
     {
       "name": "Campaign unsubscribes",
       "suffix": "/v3.2/campaigns/{Campaign ID}/unsubscribes.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Unsubscribe events attributable to one campaign, with timestamps. Requires a campaign id. The per-send cost of a campaign."
     },
     {
       "name": "Campaign spam complaints",
       "suffix": "/v3.2/campaigns/{Campaign ID}/spam.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Spam complaints from one campaign. Requires a campaign id. Small numbers matter -- a handful is enough to affect deliverability for everything sent afterwards."
     },
     {
       "name": "Client's details",
       "suffix": "/v3.2/clients/{Client ID}.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "One client's settings -- company, timezone, country, and their billing and permission configuration. Requires a client id. THE TIMEZONE MATTERS: campaign and subscriber timestamps are returned in the client's own timezone, so figures from two clients are not on the same clock."
     },
     {
       "name": "Sent campaigns",
@@ -315,7 +333,8 @@
           "key": "CampaignID",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "The campaigns one client has actually sent, with name, subject, sent date, the number of recipients, and the web version url. Requires a client id. The starting point for reporting: only sent campaigns have statistics, and the campaign id here is what every report endpoint below takes."
     },
     {
       "name": "Scheduled campaigns",
@@ -376,7 +395,8 @@
           "key": "CampaignID",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "Campaigns queued to send, with their scheduled date. Requires a client id. Forward-looking; no statistics exist yet."
     },
     {
       "name": "Draft campaigns",
@@ -437,11 +457,12 @@
           "key": "CampaignID",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "Campaigns not yet scheduled. Requires a client id. Counting all three campaign endpoints together counts work that was never sent."
     },
     {
       "name": "Subscriber lists",
-      "suffix": "/v3.2/clients/{Client ID}/campaigns.json",
+      "suffix": "/v3.2/clients/{Client ID}/lists.json",
       "paged": "false",
       "lookups": [
         {
@@ -504,7 +525,8 @@
           "key": "ListID",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The subscriber lists belonging to one client. Requires a client id. The audience container; subscribers belong to a list rather than to the client, so the same person on two lists is two subscriber records."
     },
     {
       "name": "Lists for an email address",
@@ -571,7 +593,8 @@
           "key": "ListID",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "Which of a client's lists one email address appears on, and in what state. Requires the client id and email. The answer to why someone did or did not receive a send."
     },
     {
       "name": "Segments",
@@ -590,32 +613,38 @@
           "key": "SegmentID",
           "parameterName": "Segment ID"
         }
-      ]
+      ],
+      "description": "All segments across one client's lists. Requires a client id."
     },
     {
       "name": "Suppression list",
       "suffix": "/v3.2/clients/{Client ID}/suppressionlist.json",
-      "paged": "true"
+      "paged": "true",
+      "description": "Addresses suppressed across one client -- never mailed regardless of list. Requires a client id. The explanation for a send reaching fewer people than the list size."
     },
     {
       "name": "Templates",
       "suffix": "/v3.2/clients/{Client ID}/templates.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The email templates belonging to one client. Requires a client id."
     },
     {
       "name": "People",
       "suffix": "/v3.2/clients/{Client ID}/people.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The users belonging to one client, with their access level. Requires a client id. Client-level access, as opposed to account-level administrators."
     },
     {
       "name": "Person details",
       "suffix": "/v3.2/clients/{Client ID}/people.json?email={Email?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One client user by email address. Requires the client id."
     },
     {
       "name": "Client's primary contact",
       "suffix": "/v3.2/clients/{Client ID}/primarycontact.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The main contact for one client."
     },
     {
       "name": "Journeys",
@@ -628,7 +657,8 @@
           "key": "JourneyID",
           "parameterName": "Journey ID"
         }
-      ]
+      ],
+      "description": "The automated journeys defined for one client. Requires a client id. Journeys send over time in response to behaviour, so their sends are separate from campaigns entirely -- an email volume figure taken from campaigns alone omits everything automation sent."
     },
     {
       "name": "Journey summary",
@@ -665,112 +695,134 @@
           "key": "EmailID",
           "parameterName": "Email ID"
         }
-      ]
+      ],
+      "description": "One journey's structure and its aggregate performance. Requires a journey id. The email ids here are what the journey report endpoints take."
     },
     {
       "name": "Journey email recipients",
       "suffix": "/v3.2/journeys/email/{Email ID}/recipients.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Who one journey email was sent to. Requires the email id."
     },
     {
       "name": "Journey email opens",
       "suffix": "/v3.2/journeys/email/{Email ID}/opens.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Open events for one journey email. Requires the email id."
     },
     {
       "name": "Journey email clicks",
       "suffix": "/v3.2/journeys/email/{Email ID}/clicks.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Click events for one journey email. Requires the email id."
     },
     {
       "name": "Journey email bounces",
       "suffix": "/v3.2/journeys/email/{Email ID}/bounces.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Bounce events for one journey email. Requires the email id."
     },
     {
       "name": "Journey email unsubscribes",
       "suffix": "/v3.2/journeys/email/{Email ID}/unsubscribes.json?date={Date?:YYYY-MM-DD HH:MM}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Unsubscribe events attributable to one journey email. Requires the email id."
     },
     {
       "name": "List details",
       "suffix": "/v3.2/lists/{List ID}.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "One list's settings -- name, confirmation requirements and the unsubscribe behaviour. Requires a list id. THE UNSUBSCRIBE SETTING MATTERS: a list set to unsubscribe from all client lists behaves very differently from one that unsubscribes only from itself, which explains audience losses that no single campaign accounts for."
     },
     {
       "name": "List stats",
       "suffix": "/v3.2/lists/{List ID}/stats.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The counts of one list -- active, unconfirmed, bounced, unsubscribed and deleted subscribers, with the new-subscriber and unsubscribe totals for the period. Requires a list id. A ready-made summary; the five state endpoints below are the row-level detail."
     },
     {
       "name": "List custom fields",
       "suffix": "/v3.2/lists/{List ID}/customfields.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The custom fields defined on one list, with their names and types. Requires a list id. The decoder for custom values on subscribers, and note fields are PER LIST -- the same attribute on two lists is two definitions."
     },
     {
       "name": "List segments",
       "suffix": "/v3.2/lists/{List ID}/segments.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The segments defined on one list, with their rules. Requires a list id."
     },
     {
       "name": "Active subscribers",
       "suffix": "/v3.2/lists/{List ID}/active.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The subscribers on one list who can be mailed, optionally added since a date. Requires a list id. THE ONLY MAILABLE STATE -- the four endpoints below hold the rest, and a subscriber count taken from the list without regard to state overstates reach."
     },
     {
       "name": "Unconfirmed subscribers",
       "suffix": "/v3.2/lists/{List ID}/unconfirmed.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Subscribers who signed up but never confirmed, on a confirmed-opt-in list. They are not mailable and are not opt-outs either -- they are a signup funnel leak, and counting them as lost subscribers misattributes the cause."
     },
     {
       "name": "Unsubscribed subscribers",
       "suffix": "/v3.2/lists/{List ID}/unsubscribed.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Subscribers who opted out, with the date. The deliberate departures."
     },
     {
       "name": "Bounced subscribers",
       "suffix": "/v3.2/lists/{List ID}/bounced.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Subscribers removed for bouncing. Address decay rather than a decision, which is why it should be separated from unsubscribes when explaining audience shrinkage."
     },
     {
       "name": "Deleted subscribers",
       "suffix": "/v3.2/lists/{List ID}/deleted.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Subscribers removed from the list by an administrator."
     },
     {
       "name": "List webhooks",
       "suffix": "/v3.2/lists/{List ID}/webhooks.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "The webhooks configured on one list. Requires a list id. Integration configuration."
     },
     {
       "name": "Testing a webhook",
       "suffix": "/v3.2/lists/{List ID}/webhooks/{Webhook ID}/test.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "Fires a test payload at one webhook and reports the result. Requires the list and webhook ids. A diagnostic action rather than data."
     },
     {
       "name": "Segment's details",
       "suffix": "/v3.2/segments/{Segment ID}.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "One segment's rules and its current subscriber count. Requires a segment id. The rules state the client's own definition of the audience, which the name rarely conveys."
     },
     {
       "name": "Segment's active subsribers",
       "suffix": "/v3.2/segments/{Segment ID}/active.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The mailable subscribers currently matching one segment. Requires a segment id. Evaluated at request time, so it can differ from the count the segment reports."
     },
     {
       "name": "Subscriber's details",
       "suffix": "/v3.2/subscribers/{List ID}.json?email={Email}&includetrackingpreference={Include Tracking Preference?:true|false}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One subscriber on one list, by email, optionally with their tracking history. Requires the list id and email."
     },
     {
       "name": "Subscriber's history",
       "suffix": "/v3.2/subscribers/{List ID}/history.json?email={Email}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Every action one subscriber took across campaigns -- opens, clicks, unsubscribes -- with timestamps. Requires the list id and email. THE PER-PERSON ENGAGEMENT RECORD, which no campaign report gives, and the basis for identifying a lapsing subscriber."
     },
     {
       "name": "Template",
       "suffix": "/v3.2/templates/{Template ID}.json",
-      "paged": "false"
+      "paged": "false",
+      "description": "One template by id, with its content and screenshot."
     },
     {
       "name": "Smart email listing",
@@ -783,22 +835,26 @@
           "key": "ID",
           "parameterName": "Smart Email ID"
         }
-      ]
+      ],
+      "description": "The transactional smart emails defined, by status. Transactional sends are a separate product from campaigns and journeys, with their own statistics -- a complete picture of email volume needs all three."
     },
     {
       "name": "Smart email details",
       "suffix": "/v3.2/transactional/smartEmail/{Smart Email ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One smart email by id, with its content and settings."
     },
     {
       "name": "Classic email group listing",
       "suffix": "/v3.2/transactional/classicEmail/groups?clientID={Client ID?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The classic transactional email groups for one client."
     },
     {
       "name": "Statistics",
       "suffix": "/v3.2/transactional/statistics?clientID={Client ID?}&smartEmailID={Smart Email ID?}&group={Group?}&from={From?:YYYY-MM-DD}&to={To?:YYYY-MM-DD}&timezone={Timezone?:utc|client}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Transactional email statistics -- sent, delivered, bounced, opened and clicked -- over a period, optionally for one smart email. The aggregate view of transactional sending."
     },
     {
       "name": "Message timeline",
@@ -811,12 +867,14 @@
           "key": "MessageID",
           "parameterName": "Message ID"
         }
-      ]
+      ],
+      "description": "Individual transactional messages with their status, filterable by status and count. The per-message record, as opposed to the aggregate."
     },
     {
       "name": "Message details",
       "suffix": "/v3.2/transactional/messages/{Message ID}?statistics={Statistics?:false|true}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One transactional message by id, optionally with its statistics. Where a specific message's delivery is traced."
     }
   ]
 }

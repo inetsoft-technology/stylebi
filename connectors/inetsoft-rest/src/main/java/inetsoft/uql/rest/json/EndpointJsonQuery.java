@@ -983,13 +983,17 @@ public abstract class EndpointJsonQuery<T extends EndpointJsonQuery.Endpoint>
       }
 
       /**
-       * Package-private rather than private so a test can parse every connector's endpoints.json
-       * through the SAME mapper the loader uses. A test that rebuilt an equivalent mapper would stop
-       * reflecting reality the moment this one is configured differently — and what it guards is
-       * precisely a configuration effect: the mapper rejects unknown properties, and
-       * {@link #load(Class)} turns that rejection into an empty endpoint map.
+       * Exposed rather than private so a test can parse a connector's endpoints.json through the
+       * SAME mapper the loader uses. A test that rebuilt an equivalent mapper would stop reflecting
+       * reality the moment this one is configured differently — and what it guards is precisely a
+       * configuration effect: the mapper rejects unknown properties, and {@link #load(Class)} turns
+       * that rejection into an empty endpoint map.
+       *
+       * <p>Public rather than package-private because per-connector tests need it too, and they
+       * live beside their connector. {@link #load(Class)} is the production entry point and reads
+       * SreeEnv, which a unit test has no reason to stand up a Spring context for.</p>
        */
-      static ObjectMapper createObjectMapper() {
+      public static ObjectMapper createObjectMapper() {
          final ObjectMapper mapper = new ObjectMapper();
          final SimpleModule module = new SimpleModule();
          module.setDeserializerModifier(new JsonLookupEndpointsModifier());

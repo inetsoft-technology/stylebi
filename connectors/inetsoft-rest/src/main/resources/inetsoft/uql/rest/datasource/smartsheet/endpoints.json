@@ -3,7 +3,8 @@
     {
       "paged": "false",
       "name": "Attachment",
-      "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}",
+      "description": "One attachment by id."
     },
     {
       "paged": "true",
@@ -16,132 +17,158 @@
           "key": "id",
           "parameterName": "Attachment ID"
         }
-      ]
+      ],
+      "description": "The files attached to one sheet. Requires a sheet id. Metadata; the binary is a separate fetch."
     },
     {
       "paged": "true",
       "name": "Discussion Attachments",
-      "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}/attachments"
+      "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}/attachments",
+      "description": "The files attached to one discussion. Requires the sheet and discussion ids."
     },
     {
       "paged": "true",
       "name": "Row Attachments",
-      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/attachments"
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/attachments",
+      "description": "The files attached to one row. Requires the sheet and row ids."
     },
     {
       "paged": "true",
       "name": "Versions",
-      "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}/versions"
+      "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}/versions",
+      "description": "The version history of one attachment. Requires the sheet and attachment ids."
     },
     {
       "paged": "false",
       "name": "Automation Rule",
-      "suffix": "/2.0/sheets/{Sheet ID}/automationrules/{Automation Rule ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/automationrules/{Automation Rule ID}",
+      "description": "One automation rule by id."
     },
     {
       "paged": "true",
       "name": "Automation Rules",
-      "suffix": "/2.0/sheets/{Sheet ID}/automationrules"
+      "suffix": "/2.0/sheets/{Sheet ID}/automationrules",
+      "description": "The automation rules on one sheet -- alerts, reminders, approval requests and update requests, with their conditions and recipients. Requires a sheet id. Automation changes cells without a person doing it, so this explains edits with no obvious author."
     },
     {
       "paged": "true",
       "name": "Cell History",
-      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/columns/{Column ID}/history?include={Include?:columnType,objectValue}&level={Level?}"
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/columns/{Column ID}/history?include={Include?:columnType,objectValue}&level={Level?}",
+      "description": "Every past value of ONE CELL, with who changed it and when. Requires the sheet, row and column ids. The only audit trail Smartsheet offers at cell level -- a sheet holds current values only, so when a date slipped or a status changed is answerable here and nowhere else, at the cost of one request per cell."
     },
     {
       "paged": "false",
       "name": "Column",
-      "suffix": "/2.0/sheets/{Sheet ID}/columns/{Column ID}?level={Level?}"
+      "suffix": "/2.0/sheets/{Sheet ID}/columns/{Column ID}?level={Level?}",
+      "description": "One column by id. Requires the sheet id."
     },
     {
       "paged": "true",
       "name": "Columns",
-      "suffix": "/2.0/sheets/{Sheet ID}/columns?level={Level?}"
+      "suffix": "/2.0/sheets/{Sheet ID}/columns?level={Level?}",
+      "description": "The column definitions of one sheet, with title, type, index, whether it is the primary column, and for picklists the allowed options. Requires a sheet id. THE SCHEMA: every cell references a columnId, so this is the decoder without which sheet data is a set of numbers against opaque ids."
     },
     {
       "paged": "false",
       "name": "Comment",
-      "suffix": "/2.0/sheets/{Sheet ID}/comments/{Comment ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/comments/{Comment ID}",
+      "description": "One comment by id. Requires the sheet id."
     },
     {
       "paged": "false",
       "name": "Contact",
-      "suffix": "/2.0/contacts/{Contact ID}?include={Include?:profileImage}"
+      "suffix": "/2.0/contacts/{Contact ID}?include={Include?:profileImage}",
+      "description": "One contact by id."
     },
     {
       "paged": "true",
       "name": "Contacts",
-      "suffix": "/2.0/contacts"
+      "suffix": "/2.0/contacts",
+      "description": "The contacts available to the caller for assignment and sharing. Smartsheet contact-type cells reference these, so it is the decoder for a contact column."
     },
     {
       "paged": "false",
       "name": "Cross-sheet Reference",
-      "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences/{Cross Sheet Reference ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences/{Cross Sheet Reference ID}",
+      "description": "One cross-sheet reference by id."
     },
     {
       "paged": "true",
       "name": "Cross-sheet References",
-      "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences"
+      "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences",
+      "description": "The references one sheet makes to ranges in other sheets. Requires a sheet id. THE DEPENDENCY GRAPH: a formula pulling from another sheet is invisible in the cell values, so this is what reveals that a number is driven by a sheet somewhere else."
     },
     {
       "paged": "true",
       "name": "Discussions",
-      "suffix": "/2.0/sheets/{Sheet ID}/discussions?include={Include?:attachments,comments}"
+      "suffix": "/2.0/sheets/{Sheet ID}/discussions?include={Include?:attachments,comments}",
+      "description": "The comment threads on one sheet. Requires a sheet id. Where the reasoning behind a change is recorded, which the cells do not carry."
     },
     {
       "paged": "false",
       "name": "Discussion",
-      "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}",
+      "description": "One discussion by id, with its comments."
     },
     {
       "paged": "true",
       "name": "Row Discussions",
-      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/discussions?include={Include?:attachments,comments}"
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/discussions?include={Include?:attachments,comments}",
+      "description": "The comment threads attached to one row. Requires the sheet and row ids."
     },
     {
       "paged": "true",
       "name": "Favorites",
-      "suffix": "/2.0/favorites"
+      "suffix": "/2.0/favorites",
+      "description": "The items the caller has starred. Scoped to the caller."
     },
     {
       "paged": "false",
       "name": "Folder",
-      "suffix": "/2.0/folders/{Folder ID}?include={Include?:ownerInfo,sheetVersion,source}"
+      "suffix": "/2.0/folders/{Folder ID}?include={Include?:ownerInfo,sheetVersion,source}",
+      "description": "One folder by id, with its sheets, reports, dashboards and subfolders."
     },
     {
       "paged": "true",
       "name": "Sheet Folders",
-      "suffix": "/2.0/home/folders"
+      "suffix": "/2.0/home/folders",
+      "description": "The folders in the caller's home area."
     },
     {
       "paged": "true",
       "name": "Subfolders",
-      "suffix": "/2.0/folders/{Folder ID}/folders"
+      "suffix": "/2.0/folders/{Folder ID}/folders",
+      "description": "The folders inside one folder. Requires a folder id. Folders nest, so a full tree means walking this repeatedly."
     },
     {
       "paged": "true",
       "name": "Workspace Folders",
-      "suffix": "/2.0/workspaces/{Workspace ID}/folders"
+      "suffix": "/2.0/workspaces/{Workspace ID}/folders",
+      "description": "The folders inside one workspace. Requires a workspace id."
     },
     {
       "paged": "false",
       "name": "Group",
-      "suffix": "/2.0/groups/{Group ID}"
+      "suffix": "/2.0/groups/{Group ID}",
+      "description": "One group by id, with its members."
     },
     {
       "paged": "true",
       "name": "Organization Groups",
-      "suffix": "/2.0/groups"
+      "suffix": "/2.0/groups",
+      "description": "The groups in the organisation, used to share items in bulk."
     },
     {
       "paged": "false",
       "name": "Contents",
-      "suffix": "/2.0/home?include={Include?:source}&exclude={Exclude?:permalinks}"
+      "suffix": "/2.0/home?include={Include?:source}&exclude={Exclude?:permalinks}",
+      "description": "Everything in the caller's home -- sheets, folders, reports, dashboards, workspaces and templates in one response. The fastest inventory of what a user can reach, and the alternative to walking folders one at a time."
     },
     {
       "paged": "true",
       "name": "Report",
-      "suffix": "/2.0/reports/{Report ID}?include={Include?:attachments,discussions...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails}&level={Level?}"
+      "suffix": "/2.0/reports/{Report ID}?include={Include?:attachments,discussions...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails}&level={Level?}",
+      "description": "One report by id, with its rows. Requires a report id. Returns data drawn from several sheets, so rows carry a sheet reference the source sheets do not need."
     },
     {
       "paged": "true",
@@ -157,67 +184,80 @@
           "key": "id",
           "parameterName": "Report ID"
         }
-      ]
+      ],
+      "description": "The reports defined, with name and timestamps. A Smartsheet report is a saved query across sheets, so it is the closest thing to a cross-sheet view -- and its definition states which sheets the organisation considers related."
     },
     {
       "paged": "false",
       "name": "Report Publish Status",
-      "suffix": "/2.0/reports/{Report ID}/publish"
+      "suffix": "/2.0/reports/{Report ID}/publish",
+      "description": "Whether one report is published to the web. Requires a report id."
     },
     {
       "paged": "false",
       "name": "Row",
-      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}?include={Include?:attachments,columnType...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails...}&level={Level?}"
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}?include={Include?:attachments,columnType...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails...}&level={Level?}",
+      "description": "One row by id, with its cells. Requires the sheet id. Includes optional attachments, discussions and column formulas."
     },
     {
       "paged": "false",
       "name": "Search Everything",
-      "suffix": "/2.0/search?query={Query}&include={Include?:favorite,parentObjectFavorite}&location={Location?}&modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}&scopes={Scopes?:attachments,cellData...}"
+      "suffix": "/2.0/search?query={Query}&include={Include?:favorite,parentObjectFavorite}&location={Location?}&modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}&scopes={Scopes?:attachments,cellData...}",
+      "description": "Searches across every object the caller can access -- sheet names, cell contents, discussions, attachments. The route to finding a value when the sheet holding it is unknown, which the per-sheet endpoints cannot answer."
     },
     {
       "paged": "false",
       "name": "Search Sheet",
-      "suffix": "/2.0/search/sheets/{Sheet ID}?query={Query}"
+      "suffix": "/2.0/search/sheets/{Sheet ID}?query={Query}",
+      "description": "Searches within one sheet. Requires the sheet id and a query."
     },
     {
       "paged": "false",
       "name": "Server Info",
-      "suffix": "/2.0/serverinfo"
+      "suffix": "/2.0/serverinfo",
+      "description": "The Smartsheet server's supported locales, formats and feature set. Notably it lists the FORMAT TABLES -- the numeric codes cells use for fonts, colours and number formats -- which are otherwise uninterpretable."
     },
     {
       "paged": "false",
       "name": "Report Share",
-      "suffix": "/2.0/reports/{Report ID}/shares/{Share ID}"
+      "suffix": "/2.0/reports/{Report ID}/shares/{Share ID}",
+      "description": "One report share by id."
     },
     {
       "paged": "true",
       "name": "Report Shares",
-      "suffix": "/2.0/reports/{Report ID}/shares?include={Include?:workspaceShares}"
+      "suffix": "/2.0/reports/{Report ID}/shares?include={Include?:workspaceShares}",
+      "description": "Who one report is shared with and at what access level. Requires a report id."
     },
     {
       "paged": "false",
       "name": "Sheet Share",
-      "suffix": "/2.0/sheets/{Sheet ID}/shares/{Share ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/shares/{Share ID}",
+      "description": "One sheet share by id."
     },
     {
       "paged": "true",
       "name": "Sheet Shares",
-      "suffix": "/2.0/sheets/{Sheet ID}/shares?include={Include?:workspaceShares}"
+      "suffix": "/2.0/sheets/{Sheet ID}/shares?include={Include?:workspaceShares}",
+      "description": "Who one sheet is shared with and at what access level. Requires a sheet id. The access list, and the reason two users see different sheets."
     },
     {
       "paged": "false",
       "name": "Sheet Version",
-      "suffix": "/2.0/sheets/{Sheet ID}/version"
+      "suffix": "/2.0/sheets/{Sheet ID}/version",
+      "description": "The current version number of one sheet. Requires a sheet id. A cheap change check: the version increments on every edit, so polling this is far cheaper than refetching the sheet to see whether anything moved."
     },
     {
       "paged": "true",
       "name": "Sheet",
-      "suffix": "/2.0/sheets/{Sheet ID}?include={Include?:attachments,crossSheetReferences...}&exclude={Exclude?:filteredOutRows,linkInFromCellDetails...}&columnIds={Column IDs?:value1,value2...}&filterId={Filter ID?}&ifVersionAfter={If Version After?:version}&level={Level?}&rowIds={Row IDs?:value1,value2...}&rowNumbers={Row Numbers?:value1,value2...}&rowsModifiedSince={Rows Modified Since?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/2.0/sheets/{Sheet ID}?include={Include?:attachments,crossSheetReferences...}&exclude={Exclude?:filteredOutRows,linkInFromCellDetails...}&columnIds={Column IDs?:value1,value2...}&filterId={Filter ID?}&ifVersionAfter={If Version After?:version}&level={Level?}&rowIds={Row IDs?:value1,value2...}&rowNumbers={Row Numbers?:value1,value2...}&rowsModifiedSince={Rows Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "One sheet by id, WITH its rows and cells. Requires a sheet id. The main data endpoint. Cells reference their column by columnId rather than by name, so a row is unreadable without the column list -- and a cell carries both a raw value and a displayValue, which differ for dates, contacts and formulas."
     },
     {
       "paged": "true",
       "name": "Organization Sheets",
-      "suffix": "/2.0/users/sheets?modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/2.0/users/sheets?modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "Every sheet in the organisation, not just those the caller can access. Administrator only. The inventory view, and the way to find sheets nobody is watching."
     },
     {
       "paged": "true",
@@ -243,27 +283,32 @@
           "key": "id",
           "parameterName": "Sheet ID"
         }
-      ]
+      ],
+      "description": "The sheets the user can access, with name, permalink, createdAt and modifiedAt. THE STARTING POINT, and the shape of Smartsheet is worth stating once: a sheet is a user-built grid, so its COLUMNS ARE DEFINED PER SHEET and nothing about the data is knowable in advance -- Columns is the schema and must be read before any row makes sense. The listing carries no cell data at all."
     },
     {
       "paged": "false",
       "name": "Sheet Publish Status",
-      "suffix": "/2.0/sheets/{Sheet ID}/publish"
+      "suffix": "/2.0/sheets/{Sheet ID}/publish",
+      "description": "Whether one sheet is published to the web, and in what form. Requires a sheet id. A published sheet is readable without credentials, which makes this a security-review endpoint as much as a configuration one."
     },
     {
       "paged": "false",
       "name": "Sheet Summary",
-      "suffix": "/2.0/sheets/{Sheet ID}/summ?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}"
+      "suffix": "/2.0/sheets/{Sheet ID}/summary?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}",
+      "description": "The summary fields of one sheet -- the named values that sit beside the grid rather than in it. Requires a sheet id. Where a sheet records totals, owners and status that are properties of the whole sheet rather than of any row."
     },
     {
       "paged": "true",
       "name": "Summary Fields",
-      "suffix": "/2.0/sheets/{Sheet ID}/summary/fields?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}"
+      "suffix": "/2.0/sheets/{Sheet ID}/summary/fields?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}",
+      "description": "The individual summary fields with their values and formats. Requires a sheet id. The row-shaped view of the same data."
     },
     {
       "paged": "false",
       "name": "Sight",
-      "suffix": "/2.0/sights/{Sight ID}?include={Include?:source}&level={Level?}&objectValue={Object Value?}"
+      "suffix": "/2.0/sights/{Sight ID}?include={Include?:source}&level={Level?}&objectValue={Object Value?}",
+      "description": "One dashboard by id, with its widgets and their sources. The map from a dashboard tile back to the sheet feeding it."
     },
     {
       "paged": "true",
@@ -276,67 +321,80 @@
           "key": "id",
           "parameterName": "Sight ID"
         }
-      ]
+      ],
+      "description": "The dashboards defined, with name and timestamps. Sights are Smartsheet's dashboards, assembled from widgets over sheets and reports."
     },
     {
       "paged": "false",
       "name": "Sight Publish Status",
-      "suffix": "/2.0/sights/{Sight ID}/publish"
+      "suffix": "/2.0/sights/{Sight ID}/publish",
+      "description": "Whether one dashboard is published to the web. Requires a sight id."
     },
     {
       "paged": "true",
       "name": "Public Templates",
-      "suffix": "/2.0/templates/public"
+      "suffix": "/2.0/templates/public",
+      "description": "The templates Smartsheet publishes. Reference content, identical on every account."
     },
     {
       "paged": "true",
       "name": "User-created Templates",
-      "suffix": "/2.0/templates"
+      "suffix": "/2.0/templates",
+      "description": "The templates the account has created."
     },
     {
       "paged": "false",
       "name": "Update Request",
-      "suffix": "/2.0/sheets/{Sheet ID}/updaterequests/{Update Request ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/updaterequests/{Update Request ID}",
+      "description": "One update request by id."
     },
     {
       "paged": "true",
       "name": "Update Requests",
-      "suffix": "/2.0/sheets/{Sheet ID}/updaterequests"
+      "suffix": "/2.0/sheets/{Sheet ID}/updaterequests",
+      "description": "The pending requests asking someone to fill in rows. Requires a sheet id. Outstanding data collection, which no cell value reveals."
     },
     {
       "paged": "false",
       "name": "Sent Update Request",
-      "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests/{Sent Update Request ID}"
+      "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests/{Sent Update Request ID}",
+      "description": "One sent update request by id."
     },
     {
       "paged": "true",
       "name": "Sent Update Requests",
-      "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests"
+      "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests",
+      "description": "Update requests already sent, with their status. Requires a sheet id. The record of who was asked and whether they responded."
     },
     {
       "paged": "false",
       "name": "Current User",
-      "suffix": "/2.0/users/me?include={Include?:groups}"
+      "suffix": "/2.0/users/me?include={Include?:groups}",
+      "description": "The account the credentials belong to, optionally with its groups. One record, and the explanation for which sheets the rest of this connector can see."
     },
     {
       "paged": "false",
       "name": "User",
-      "suffix": "/2.0/users/{User ID}"
+      "suffix": "/2.0/users/{User ID}",
+      "description": "One user by id."
     },
     {
       "paged": "true",
       "name": "Users",
-      "suffix": "/2.0/users?email={Email?}&include={Include?:lastLogin}"
+      "suffix": "/2.0/users?email={Email?}&include={Include?:lastLogin}",
+      "description": "The users in the account, with email, name, admin and licensed flags, and their status. Filterable by email; lastLogin is available only when explicitly included. THE LICENSED FLAG IS THE ONE THAT MATTERS COMMERCIALLY -- Smartsheet bills on licensed users, and unlicensed collaborators are free, so a headcount and a bill do not correspond."
     },
     {
       "paged": "false",
       "name": "Workspace",
-      "suffix": "/2.0/workspaces/{Workspace ID}?loadAll={Load All?:true|false}&include={Include?:ownerInfo,source,sheetVersion}"
+      "suffix": "/2.0/workspaces/{Workspace ID}?loadAll={Load All?:true|false}&include={Include?:ownerInfo,source,sheetVersion}",
+      "description": "One workspace by id, optionally loading its whole contents. Requires a workspace id."
     },
     {
       "paged": "true",
       "name": "Workspaces",
-      "suffix": "/2.0/workspaces"
+      "suffix": "/2.0/workspaces",
+      "description": "The workspaces, each grouping sheets, reports, dashboards and templates with shared permissions. The organisational container above folders."
     }
   ]
 }

@@ -11,12 +11,14 @@
           "key": "location_id",
           "parameterName": "Location ID"
         }
-      ]
+      ],
+      "description": "Card, cash and external payments taken, one row each -- the central table of a Square account. Carries the amount, tip, total and app fee, the processing fee, the status, source_type, location_id, order_id, customer_id, created_at and updated_at, the receipt number and url, and card details including brand and last four digits. THREE THINGS DECIDE WHETHER A TOTAL IS RIGHT. MONEY IS IN THE SMALLEST CURRENCY UNIT: an amount of 1000 with currency USD is ten dollars, not a thousand, and every money field in this connector works that way. STATUS matters: APPROVED is authorised but not captured, only COMPLETED is settled money, and CANCELED and FAILED are rows that never became revenue. And processing_fee is frequently ABSENT until Square settles, so net revenue computed the same day is not the net revenue computed a week later. Filter by location_id and a time range; both are required in practice on a multi-location account."
     },
     {
       "name": "Payment",
       "paged": false,
-      "suffix": "/v2/payments/{Payment ID}"
+      "suffix": "/v2/payments/{Payment ID}",
+      "description": "One payment by id, with the full detail including the itemised processing fees."
     },
     {
       "name": "Refunds",
@@ -35,17 +37,20 @@
           "key": "payment_id",
           "parameterName": "Payment ID"
         }
-      ]
+      ],
+      "description": "Refunds issued, with the amount, the payment refunded, the status, the location, the reason and created_at. Refunds are NOT negative payments and do not appear in the payments table, so net revenue is payments minus this table -- taking payments alone overstates it. Status matters here too: only COMPLETED refunds have actually moved money."
     },
     {
       "name": "Refund",
       "paged": false,
-      "suffix": "/v2/refunds/{Refund ID}"
+      "suffix": "/v2/refunds/{Refund ID}",
+      "description": "One refund by id."
     },
     {
       "name": "Catalog Info",
       "paged": false,
-      "suffix": "/v2/catalog/info"
+      "suffix": "/v2/catalog/info",
+      "description": "The limits of the catalogue API -- batch sizes and supported types. Reference data about the API itself, not about the catalogue."
     },
     {
       "name": "List Catalog",
@@ -64,22 +69,26 @@
           "key": "id",
           "parameterName": "Catalog Object ID"
         }
-      ]
+      ],
+      "description": "The catalogue -- but note its shape before using it. Square stores everything sellable as a CATALOG OBJECT with a type discriminator, so this ONE endpoint returns items, item variations, categories, taxes, discounts, modifiers, modifier lists and images, all in one list, and the types parameter is what narrows it. THE PRICE IS NOT ON THE ITEM: an ITEM holds the name and description while its ITEM_VARIATION children hold the price, sku and stock behaviour, so a catalogue with prices requires both types and a join between them."
     },
     {
       "name": "Catalog Object",
       "paged": false,
-      "suffix": "/v2/catalog/object/{Object ID}?include_related_objects={Include Related Objects?:true|false}"
+      "suffix": "/v2/catalog/object/{Object ID}?include_related_objects={Include Related Objects?:true|false}",
+      "description": "One catalogue object by id, optionally with the related objects it depends on. Requires the object id. Use the related-objects option to pull an item's variations and category in a single call rather than resolving them separately."
     },
     {
       "name": "Inventory Adjustment",
       "paged": false,
-      "suffix": "/v2/inventory/adjustment/{Adjustment ID}"
+      "suffix": "/v2/inventory/adjustment/{Adjustment ID}",
+      "description": "One inventory adjustment by id, with the from and to states, quantity, and the employee and reference behind it. The from-and-to states are what give an adjustment its meaning: IN_STOCK to SOLD is a sale, IN_STOCK to WASTE is a loss."
     },
     {
       "name": "Inventory Physical Count",
       "paged": false,
-      "suffix": "/v2/inventory/physical-count/{Physical Count ID}"
+      "suffix": "/v2/inventory/physical-count/{Physical Count ID}",
+      "description": "One physical stock count by id, with the counted quantity, location, employee and time. A recount overrides the running total rather than adjusting it, which is why a count can make stock jump with no corresponding sale."
     },
     {
       "name": "Inventory Count",
@@ -92,22 +101,26 @@
           "key": "location_id",
           "parameterName": "Location ID"
         }
-      ]
+      ],
+      "description": "The current stock of one catalogue object, per location, with the state and the calculated_at timestamp. Requires a catalogue object id. STOCK IS TRACKED PER VARIATION AND PER LOCATION, so a single item across several locations is several rows, and a total needs them summed. The state separates IN_STOCK from SOLD, WASTE, RETURNED_BY_CUSTOMER and the rest -- only IN_STOCK is sellable inventory."
     },
     {
       "name": "Inventory Changes",
       "paged": true,
-      "suffix": "/v2/inventory/{Catalog Object ID}/changes?location_ids={Location IDs?}"
+      "suffix": "/v2/inventory/{Catalog Object ID}/changes?location_ids={Location IDs?}",
+      "description": "Every movement of one catalogue object's stock: adjustments, physical counts and transfers, each with its type, quantity, location and timestamp. Requires a catalogue object id. The current count is a running total; this is how it got there, and the only way to distinguish sales from shrinkage, transfers or recounts."
     },
     {
       "name": "Customers",
       "paged": true,
-      "suffix": "/v2/customers"
+      "suffix": "/v2/customers",
+      "description": "The customer records held by the merchant, with name, email, phone, address, company, birthday, the reference id linking to an external system, creation and update times, and the creation source. Carries no purchase history: the link to spending is customer_id on Payments, and a customer created at the point of sale may have no name at all, so a customer count is not a count of identified people."
     },
     {
       "name": "Customer",
       "paged": false,
-      "suffix": "/v2/customers/{Customer ID}"
+      "suffix": "/v2/customers/{Customer ID}",
+      "description": "One customer by id."
     },
     {
       "name": "Merchants",
@@ -120,12 +133,14 @@
           "key": "main_location_id",
           "parameterName": "Location ID"
         }
-      ]
+      ],
+      "description": "The merchant accounts the credentials can reach, with the business name, country, language and currency. A merchant owns locations, so this sits one level above them; most accounts have exactly one."
     },
     {
       "name": "Merchant",
       "paged": false,
-      "suffix": "/v2/merchants/{Merchant ID}"
+      "suffix": "/v2/merchants/{Merchant ID}",
+      "description": "One merchant by id."
     },
     {
       "name": "Locations",
@@ -138,67 +153,80 @@
           "key": "merchant_id",
           "parameterName": "Merchant ID"
         }
-      ]
+      ],
+      "description": "The merchant's locations, with name, address, timezone, currency, business hours, status and capabilities. NEARLY EVERYTHING ELSE IN THIS CONNECTOR IS SCOPED BY LOCATION -- payments, inventory, cash drawers and labour all take a location_id, and several require it -- so this is the first request on any multi-location account and the dimension all comparisons group by. The currency is per location, which matters for any total spanning countries."
     },
     {
       "name": "Location",
       "paged": false,
-      "suffix": "/v2/locations/{Location ID}"
+      "suffix": "/v2/locations/{Location ID}",
+      "description": "One location by id, with its full settings."
     },
     {
       "name": "Team Member",
       "paged": false,
-      "suffix": "/v2/team-members/{Team Member ID}"
+      "suffix": "/v2/team-members/{Team Member ID}",
+      "description": "One team member by id, with name, email, phone, status and the locations they are assigned to. NOTE THE GAP: Square exposes no way to LIST team members through a plain read -- its search is a POST endpoint this connector cannot reach -- so members can only be fetched one at a time by an id obtained elsewhere, such as from a shift or a payment."
     },
     {
       "name": "Team Member Wage Setting",
       "paged": false,
-      "suffix": "/v2/team-members/{Team Member ID}/wage-setting"
+      "suffix": "/v2/team-members/{Team Member ID}/wage-setting",
+      "description": "One team member's wage configuration, with the job assignments and the hourly rate for each. Requires a team member id. The rate is what turns recorded hours into labour cost; the shift records carry hours only."
     },
     {
       "name": "Break Types",
       "paged": true,
-      "suffix": "/v2/labor/break-types?location_id={Location ID?}"
+      "suffix": "/v2/labor/break-types?location_id={Location ID?}",
+      "description": "The break types configured per location, each with a name, expected duration and whether it is paid. Requires a location id. The paid flag is what decides whether a break is deducted from paid hours, so labour cost cannot be computed correctly without it."
     },
     {
       "name": "Break Type",
       "paged": false,
-      "suffix": "/v2/labor/break-types/{Break Type ID}"
+      "suffix": "/v2/labor/break-types/{Break Type ID}",
+      "description": "One break type by id."
     },
     {
       "name": "Team Member Wages",
       "paged": true,
-      "suffix": "/v2/labor/team-member-wages?team_member_id={Team Member ID?}"
+      "suffix": "/v2/labor/team-member-wages?team_member_id={Team Member ID?}",
+      "description": "The wage records across team members, each pairing a member with a job title and hourly rate. The account-wide view of pay rates, and the practical lookup table for costing labour."
     },
     {
       "name": "Team Member Wage",
       "paged": false,
-      "suffix": "/v2/labor/team-member-wages/{Team Member Wage ID}"
+      "suffix": "/v2/labor/team-member-wages/{Team Member Wage ID}",
+      "description": "One team member wage record by id."
     },
     {
       "name": "Shift",
       "paged": false,
-      "suffix": "/v2/labor/shifts/{Shift ID}"
+      "suffix": "/v2/labor/shifts/{Shift ID}",
+      "description": "One recorded work shift by id, with the team member, location, start and end times, the declared cash tips, the wage applied, and any breaks taken. THE SAME GAP AS TEAM MEMBERS: shift search is a POST endpoint, so shifts cannot be listed here and must be fetched individually by id. That makes labour-cost analysis impractical through this connector unless the ids are already known."
     },
     {
       "name": "Workweek Configurations",
       "paged": true,
-      "suffix": "/v2/labor/workweek-configs"
+      "suffix": "/v2/labor/workweek-configs",
+      "description": "How the workweek is defined -- which day it starts and the cut-off time. One record per merchant. Overtime and weekly hour totals are computed against this boundary, so a week measured from any other start date will not agree with Square's own figures."
     },
     {
       "name": "Cash Drawer Shifts",
       "paged": true,
-      "suffix": "/v2/cash-drawers/shifts?location_id={Location ID}&begin_time={Begin Time:yyyy-MM-ddTHH:mm:ssZ}&end_time={End Time:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/v2/cash-drawers/shifts?location_id={Location ID}&begin_time={Begin Time:yyyy-MM-ddTHH:mm:ssZ}&end_time={End Time:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "Cash drawer sessions at one location over a time range, each with the opening and closing amounts, expected versus actual cash, and the DIFFERENCE. Requires a location id and a date range. That difference is the till discrepancy -- over or short at close -- which no payment table records and which is the point of this group."
     },
     {
       "name": "Cash Drawer Shift",
       "paged": false,
-      "suffix": "/v2/cash-drawers/shifts/{Shift ID}?location_id={Location ID}"
+      "suffix": "/v2/cash-drawers/shifts/{Shift ID}?location_id={Location ID}",
+      "description": "One cash drawer session by id, with its opening, closing and expected amounts."
     },
     {
       "name": "Cash Drawer Shift Events",
       "paged": true,
-      "suffix": "/v2/cash-drawers/shifts/{Shift ID}?/events?location_id={Location ID}"
+      "suffix": "/v2/cash-drawers/shifts/{Shift ID}/events?location_id={Location ID}",
+      "description": "The individual cash movements within one session -- each payment, refund, paid-in and paid-out -- with amount, type and time. Requires the shift id and location id. Where a discrepancy is traced to a specific event rather than merely observed at close."
     },
     {
       "name": "Bank Accounts",
@@ -211,12 +239,14 @@
           "key": "location_id",
           "parameterName": "Location ID"
         }
-      ]
+      ],
+      "description": "The bank accounts linked for settlement, with the last four digits, bank name, holder name, currency, status and the location each belongs to. Where the money ends up; settlement amounts themselves are not in this connector."
     },
     {
       "name": "Bank Account",
       "paged": false,
-      "suffix": "/v2/bank-accounts/{Bank Account ID}"
+      "suffix": "/v2/bank-accounts/{Bank Account ID}",
+      "description": "One linked bank account by id."
     }
   ]
 }

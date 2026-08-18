@@ -3,17 +3,19 @@
     {
       "name": "Profile",
       "paged": true,
-      "suffix": "/v3/profile.json"
+      "suffix": "/v3/profile.json",
+      "description": "The account the credentials belong to, with its settings. One record, always the caller."
     },
     {
       "name": "Searches",
       "paged": true,
-      "suffix": "/v3/searches.json"
+      "suffix": "/v3/searches.json",
+      "description": "The SAVED SEARCHES defined on the account, each with its criteria and the record type it applies to. Most listing endpoints here accept a search_id, so these are reusable, organisation-approved definitions -- and reading their criteria is usually the fastest way to learn what a business term means here."
     },
     {
       "name": "Notes",
       "paged": true,
-      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&\nsearch_id={Search ID?}&conditions[activity_modified][from_date={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
+      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&search_id={Search ID?}&conditions[activity_modified][from_date={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
       "lookups": [
         {
           "endpoint": "Comments",
@@ -21,57 +23,68 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The notes recorded against deals, people and companies, filterable by any of them. The qualitative record beside the structured one, and where the reasoning behind a deal's outcome is usually written."
     },
     {
       "name": "Note",
       "paged": false,
-      "suffix": "/v3/notes/{Note ID}.json"
+      "suffix": "/v3/notes/{Note ID}.json",
+      "description": "One note by id."
     },
     {
       "name": "Account Notifications",
       "paged": true,
-      "suffix": "/v3/account_notifications.json?conditions[user_id]={User ID?}"
+      "suffix": "/v3/account_notifications.json?conditions[user_id]={User ID?}",
+      "description": "The notifications raised for users, filterable by user. The alert record rather than any CRM data."
     },
     {
       "name": "Account Notification",
       "paged": false,
-      "suffix": "/v3/account_notifications/{Account ID}.json"
+      "suffix": "/v3/account_notifications/{Account ID}.json",
+      "description": "One notification by id."
     },
     {
       "name": "Calendar Events",
       "paged": true,
-      "suffix": "/v3/calendar_entries.json?search_id={Search ID?}&conditions[named]={Calendar Entry Name?}"
+      "suffix": "/v3/calendar_entries.json?search_id={Search ID?}&conditions[named]={Calendar Entry Name?}",
+      "description": "The scheduled meetings, calls and tasks, filterable by conditions or a saved search. Carries the type, times, attendees and the records each relates to. The activity table."
     },
     {
       "name": "Calendar Event",
       "paged": false,
-      "suffix": "/v3/calendar_entries/{Entry ID}.json"
+      "suffix": "/v3/calendar_entries/{Entry ID}.json",
+      "description": "One calendar event by id."
     },
     {
       "name": "Comments",
       "paged": true,
-      "suffix": "/v3/notes/{Note ID}/comments.json"
+      "suffix": "/v3/notes/{Note ID}/comments.json",
+      "description": "The comments on one note. Requires a note id. Notes carry discussion, so this is the thread beneath one."
     },
     {
       "name": "Comment",
       "paged": false,
-      "suffix": "/v3/notes/{Note ID}/comments/{Comment ID}.json"
+      "suffix": "/v3/notes/{Note ID}/comments/{Comment ID}.json",
+      "description": "One comment by id. Requires the note id."
     },
     {
       "name": "Company Comments",
       "paged": true,
-      "suffix": "/v3/companies/{Association ID}/notes/{Note ID}/comments.json"
+      "suffix": "/v3/companies/{Association ID}/notes/{Note ID}/comments.json",
+      "description": "The comments on one note attached to a company. Requires the company and note ids."
     },
     {
       "name": "Deal Comments",
       "paged": true,
-      "suffix": "/v3/deals/{Association ID}/notes/{Note ID}/comments.json"
+      "suffix": "/v3/deals/{Association ID}/notes/{Note ID}/comments.json",
+      "description": "The comments on one note attached to a deal. Requires the deal and note ids."
     },
     {
       "name": "People Comments",
       "paged": true,
-      "suffix": "/v3/people/{Association ID}/notes/{Note ID}/comments.json"
+      "suffix": "/v3/people/{Association ID}/notes/{Note ID}/comments.json",
+      "description": "The comments on one note attached to a contact. Requires the person and note ids."
     },
     {
       "name": "Company Notes",
@@ -84,7 +97,8 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The notes on one company. Requires a company id."
     },
     {
       "name": "Company People",
@@ -101,7 +115,8 @@
           "key": "id",
           "parameterName": "Person ID"
         }
-      ]
+      ],
+      "description": "The contacts at one company. Requires a company id."
     },
     {
       "name": "Company Deals",
@@ -118,12 +133,14 @@
           "key": "id",
           "parameterName": "Deal ID"
         }
-      ]
+      ],
+      "description": "The deals with one company. Requires a company id."
     },
     {
       "name": "Company Calendar Entries",
       "paged": true,
-      "suffix": "/v3/companies/{Company ID}/calendar_entries.json"
+      "suffix": "/v3/companies/{Company ID}/calendar_entries.json",
+      "description": "The calendar events involving one company. Requires a company id."
     },
     {
       "name": "Companies",
@@ -141,12 +158,14 @@
           "key": "id",
           "parameterName": "Company ID"
         }
-      ]
+      ],
+      "description": "The organisations contacts and deals belong to, with name, address, website, owner, tags and custom fields. The account-level dimension."
     },
     {
       "name": "Company",
       "paged": false,
-      "suffix": "/v3/companies/{Company ID}.json"
+      "suffix": "/v3/companies/{Company ID}.json",
+      "description": "One company by id."
     },
     {
       "name": "Deals",
@@ -163,12 +182,14 @@
           "key": "id",
           "parameterName": "Deal ID"
         }
-      ]
+      ],
+      "description": "The sales opportunities -- the central table. Carries the name, value, the company and primary contact, the stage, probability, expected close date, status, owner, source and custom fields. NOTE THE FILTERING MODEL, which is uniform across this connector: listings take conditions[field] parameters rather than a query language, and a search_id referencing a SAVED SEARCH. Those saved searches encode the segments the business already agreed on, which is usually faster than reconstructing a filter."
     },
     {
       "name": "Deal",
       "paged": false,
-      "suffix": "/v3/deals/{Deal ID}.json"
+      "suffix": "/v3/deals/{Deal ID}.json",
+      "description": "One deal by id."
     },
     {
       "name": "Deal Notes",
@@ -181,7 +202,8 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The notes on one deal. Requires a deal id."
     },
     {
       "name": "Deal People",
@@ -198,22 +220,26 @@
           "key": "id",
           "parameterName": "Person ID"
         }
-      ]
+      ],
+      "description": "The people associated with one deal. Requires a deal id. A deal names one primary contact; this is everyone involved."
     },
     {
       "name": "Deal Calendar Entries",
       "paged": true,
-      "suffix": "/v3/deals/{Deal ID}/calendar_entries.json"
+      "suffix": "/v3/deals/{Deal ID}/calendar_entries.json",
+      "description": "The calendar events linked to one deal. Requires a deal id. The meeting history behind an opportunity."
     },
     {
       "name": "Documents",
       "paged": true,
-      "suffix": "/v3/documents.json?conditions[document_name]={Document Name?}&conditions[document_type]={Document Type?}&conditions[document_owner]={Document Owner?}"
+      "suffix": "/v3/documents.json?conditions[document_name]={Document Name?}&conditions[document_type]={Document Type?}&conditions[document_owner]={Document Owner?}",
+      "description": "The files stored, filterable by name. Metadata rather than content."
     },
     {
       "name": "Document",
       "paged": false,
-      "suffix": "/v3/documents/{Document ID}.json"
+      "suffix": "/v3/documents/{Document ID}.json",
+      "description": "One document by id."
     },
     {
       "name": "Person Notes",
@@ -226,7 +252,8 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The notes on one contact. Requires a person id."
     },
     {
       "name": "Person Deals",
@@ -243,12 +270,14 @@
           "key": "id",
           "parameterName": "Deal ID"
         }
-      ]
+      ],
+      "description": "The deals one contact is involved in. Requires a person id."
     },
     {
       "name": "Person Calendar Entries",
       "paged": true,
-      "suffix": "/v3/people/{Person ID}/calendar_entries.json"
+      "suffix": "/v3/people/{Person ID}/calendar_entries.json",
+      "description": "The calendar events involving one contact. Requires a person id."
     },
     {
       "name": "People",
@@ -265,212 +294,254 @@
           "key": "id",
           "parameterName": "Person ID"
         }
-      ]
+      ],
+      "description": "The contacts, with name, contact details, the company, owner, lead source and status, tags and custom fields. Filterable by conditions or a saved search."
     },
     {
       "name": "Person",
       "paged": false,
-      "suffix": "/v3/people/{Person ID}.json"
+      "suffix": "/v3/people/{Person ID}.json",
+      "description": "One contact by id."
     },
     {
       "name": "Company Custom Groups",
       "paged": true,
-      "suffix": "/v3/admin/company_custom_field_groups.json?conditions[company_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/company_custom_field_groups.json?conditions[company_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The custom field groups defined for companies."
     },
     {
       "name": "Company Custom Group",
       "paged": false,
-      "suffix": "/v3/admin/company_custom_field_groups/{Group ID}.json"
+      "suffix": "/v3/admin/company_custom_field_groups/{Group ID}.json",
+      "description": "One company custom field group by id."
     },
     {
       "name": "Company Custom Labels",
       "paged": true,
-      "suffix": "/v3/admin/company_custom_field_labels.json?conditions[company_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/company_custom_field_labels.json?conditions[company_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The custom field definitions for companies. The decoder for custom values on a company."
     },
     {
       "name": "Company Custom Label",
       "paged": false,
-      "suffix": "/v3/admin/company_custom_field_labels/{Label ID}.json"
+      "suffix": "/v3/admin/company_custom_field_labels/{Label ID}.json",
+      "description": "One company custom field by id."
     },
     {
       "name": "Company Custom Label Entries",
       "paged": true,
-      "suffix": "/v3/admin/custom_field_label_dropdown_entries.json?conditions[custom_field_label_dropdown_entry_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[custom_field_label_dropdown_entry_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[custom_field_label_dropdown_entry_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/custom_field_label_dropdown_entries.json?conditions[custom_field_label_dropdown_entry_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The dropdown options of custom fields, with their stored values and display text. THE SECOND HALF OF THE DECODER: a dropdown custom field stores an option id, and only this resolves it to something readable."
     },
     {
       "name": "Company Custom Label Entry",
       "paged": false,
-      "suffix": "/v3/admin/custom_field_label_dropdown_entries/{Entry ID}.json"
+      "suffix": "/v3/admin/custom_field_label_dropdown_entries/{Entry ID}.json",
+      "description": "One custom field dropdown option by id."
     },
     {
       "name": "Deal Custom Groups",
       "paged": true,
-      "suffix": "/v3/admin/deal_custom_field_groups.json?conditions[deal_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_custom_field_groups.json?conditions[deal_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The custom field groups defined for deals. Fields are organised into groups, so this is the outer level of the custom-field schema."
     },
     {
       "name": "Deal Custom Group",
       "paged": false,
-      "suffix": "/v3/admin/deal_custom_field_groups/{Group ID}.json"
+      "suffix": "/v3/admin/deal_custom_field_groups/{Group ID}.json",
+      "description": "One deal custom field group by id."
     },
     {
       "name": "Deal Custom Labels",
       "paged": false,
-      "suffix": "/v3/admin/deal_custom_field_labels.json?conditions[deal_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_custom_field_labels.json?conditions[deal_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The custom field definitions for deals, with their labels and types. THE DECODER for custom values on a deal, which arrive keyed by label id."
     },
     {
       "name": "Deal Custom Label",
       "paged": false,
-      "suffix": "/v3/admin/deal_custom_field_labels/{Label ID}.json"
+      "suffix": "/v3/admin/deal_custom_field_labels/{Label ID}.json",
+      "description": "One deal custom field by id."
     },
     {
       "name": "Deal Loss Reasons",
       "paged": true,
-      "suffix": "/v3/admin/deal_loss_reasons.json?conditions[deal_loss_reason_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_loss_reason_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_loss_reason_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_loss_reasons.json?conditions[deal_loss_reason_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The reasons configured for losing a deal. The structured explanation for revenue not won, which the deal's status alone does not give."
     },
     {
       "name": "Deal Loss Reason",
       "paged": true,
-      "suffix": "/v3/admin/deal_loss_reasons/{Reason ID}.json"
+      "suffix": "/v3/admin/deal_loss_reasons/{Reason ID}.json",
+      "description": "One loss reason by id."
     },
     {
       "name": "Deal Stages",
       "paged": true,
-      "suffix": "/v3/admin/deal_stages.json?conditions[deal_stage_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_stage_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_stage_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_stages.json?conditions[deal_stage_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The pipeline stages, with name, position and probability. The dimension a funnel breakdown joins to, and the decoder for a deal's stage id."
     },
     {
       "name": "Deal Stage",
       "paged": false,
-      "suffix": "/v3/admin/deal_stages/{Stage ID}.json"
+      "suffix": "/v3/admin/deal_stages/{Stage ID}.json",
+      "description": "One deal stage by id."
     },
     {
       "name": "Documents Tags",
       "paged": true,
-      "suffix": "/v3/admin/document_tags.json?conditions[document_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[document_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[document_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/document_tags.json?conditions[document_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The tags applied to documents. The classification of stored files."
     },
     {
       "name": "Document Tag",
       "paged": false,
-      "suffix": "/v3/admin/document_tags/{Tag ID}.json"
+      "suffix": "/v3/admin/document_tags/{Tag ID}.json",
+      "description": "One document tag by id."
     },
     {
       "name": "Event Categories",
       "paged": true,
-      "suffix": "/v3/admin/event_categories.json?conditions[event_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[event_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[event_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/event_categories.json?conditions[event_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The categories calendar events are classified under. The decoder for an event's category, and the dimension that turns activity volume into activity type."
     },
     {
       "name": "Event Category",
       "paged": false,
-      "suffix": "/v3/admin/event_categories/{Event Category ID}.json"
+      "suffix": "/v3/admin/event_categories/{Event Category ID}.json",
+      "description": "One event category by id."
     },
     {
       "name": "Lead Sources",
       "paged": true,
-      "suffix": "/v3/admin/lead_sources.json?conditions[lead_source_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_source_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_source_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/lead_sources.json?conditions[lead_source_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The lead source values configured. The attribution dimension -- where deals and contacts came from -- and account-specific."
     },
     {
       "name": "Lead Source",
       "paged": false,
-      "suffix": "/v3/admin/lead_sources/{Source ID}.json"
+      "suffix": "/v3/admin/lead_sources/{Source ID}.json",
+      "description": "One lead source by id."
     },
     {
       "name": "Lead Statuses",
       "paged": true,
-      "suffix": "/v3/admin/lead_statuses.json?conditions[lead_status_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_status_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_status_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/lead_statuses.json?conditions[lead_status_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The lead status values configured. The decoder for a contact's status, and the stages before a deal exists."
     },
     {
       "name": "Lead Status",
       "paged": false,
-      "suffix": "/v3/admin/lead_statuses/{Status ID}.json"
+      "suffix": "/v3/admin/lead_statuses/{Status ID}.json",
+      "description": "One lead status by id."
     },
     {
       "name": "Note Categories",
       "paged": true,
-      "suffix": "/v3/admin/note_categories.json?conditions[note_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[note_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[note_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/note_categories.json?conditions[note_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The categories notes are filed under. The decoder for a note's category, and the closest thing to a structured classification of what activity a note represents."
     },
     {
       "name": "Note Category",
       "paged": false,
-      "suffix": "/v3/admin/note_categories/{Node Category ID}json"
+      "suffix": "/v3/admin/note_categories/{Note Category ID}.json",
+      "description": "One note category by id."
     },
     {
       "name": "Person Custom Groups",
       "paged": true,
-      "suffix": "/v3/admin/person_custom_field_groups.json?conditions[person_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/person_custom_field_groups.json?conditions[person_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The custom field groups defined for contacts."
     },
     {
       "name": "Person Custom Group",
       "paged": false,
-      "suffix": "/v3/admin/person_custom_field_groups/{Group ID}.json"
+      "suffix": "/v3/admin/person_custom_field_groups/{Group ID}.json",
+      "description": "One person custom field group by id."
     },
     {
       "name": "Person Custom Labels",
       "paged": true,
-      "suffix": "/v3/admin/person_custom_field_labels.json?conditions[person_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/person_custom_field_labels.json?conditions[person_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The custom field definitions for contacts. The decoder for custom values on a person."
     },
     {
       "name": "Person Custom Label",
       "paged": false,
-      "suffix": "/v3/admin/person_custom_field_labels/{Label ID}.json"
+      "suffix": "/v3/admin/person_custom_field_labels/{Label ID}.json",
+      "description": "One person custom field by id."
     },
     {
       "name": "Predefined Contact Tags",
       "paged": true,
-      "suffix": "/v3/admin/predefined_contacts_tags.json?conditions[predefined_contacts_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[predefined_contacts_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[predefined_contacts_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/predefined_contacts_tags.json?conditions[predefined_contacts_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
+      "description": "The tag vocabulary available for contacts. Where tags are predefined rather than free text, this is the complete set."
     },
     {
       "name": "Predefined Contact Tag",
       "paged": false,
-      "suffix": "/v3/admin/predefined_contacts_tags/{Tag ID}.json"
+      "suffix": "/v3/admin/predefined_contacts_tags/{Tag ID}.json",
+      "description": "One predefined contact tag by id."
     },
     {
       "name": "Teams",
       "paged": true,
-      "suffix": "/v3/admin/teams.json"
+      "suffix": "/v3/admin/teams.json",
+      "description": "The teams users belong to. The grouping above individuals for reporting."
     },
     {
       "name": "Team",
       "paged": false,
-      "suffix": "/v3/admin/teams/{Team ID}.json"
+      "suffix": "/v3/admin/teams/{Team ID}.json",
+      "description": "One team by id."
     },
     {
       "name": "Todo Templates",
       "paged": true,
-      "suffix": "/v3/admin/todo_templates.json"
+      "suffix": "/v3/admin/todo_templates.json",
+      "description": "The task list templates defined -- the standard sequences of work a deal or contact triggers. What a team considers its repeatable process."
     },
     {
       "name": "Todo Template",
       "paged": false,
-      "suffix": "/v3/admin/todo_templates/{Template ID}.json"
+      "suffix": "/v3/admin/todo_templates/{Template ID}.json",
+      "description": "One todo template by id."
     },
     {
       "name": "Todo Template Items",
       "paged": true,
-      "suffix": "/v3/admin/todo_template_items.json"
+      "suffix": "/v3/admin/todo_template_items.json",
+      "description": "The individual steps within todo templates. The detail of the process."
     },
     {
       "name": "Todo Template Item",
       "paged": true,
-      "suffix": "/v3/admin/todo_template_items/{Template Item ID}.json"
+      "suffix": "/v3/admin/todo_template_items/{Template Item ID}.json",
+      "description": "One todo template item by id."
     },
     {
       "name": "Users",
       "paged": true,
-      "suffix": "/v3/users.json?conditions[email]={Email Address?}&\nconditions[admin]={Admin?:true|false}&conditions[including_inactive]={Including Inactive?:true|false}&conditions[user_level]={User Level?}"
+      "suffix": "/v3/users.json?conditions[email]={Email Address?}&conditions[admin]={Admin?:true|false}&conditions[including_inactive]={Including Inactive?:true|false}&conditions[user_level]={User Level?}",
+      "description": "The users of the account, filterable by email, admin flag and user level. Every record carries an owner, so this is the dimension per-person performance joins to. Inactive users are excluded unless explicitly included, and they still own their historical records."
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/v3/users/{User ID}.json"
+      "suffix": "/v3/users/{User ID}.json",
+      "description": "One user by id."
     },
     {
       "name": "Revenue Types",
       "paged": true,
-      "suffix": "/v3/admin/revenue_types.json"
+      "suffix": "/v3/admin/revenue_types.json",
+      "description": "The revenue types deals can be classified as -- one-off, recurring, and whatever else the business defined. The dimension that separates kinds of revenue, which the deal value alone conflates."
     },
     {
       "name": "Revenue Type",
       "paged": false,
-      "suffix": "/v3/admin/revenue_types/{Revenue Type}.json"
+      "suffix": "/v3/admin/revenue_types/{Revenue Type}.json",
+      "description": "One revenue type by id."
     }
   ]
 }

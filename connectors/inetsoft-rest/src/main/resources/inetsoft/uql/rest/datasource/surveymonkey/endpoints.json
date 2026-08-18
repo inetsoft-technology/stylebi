@@ -3,17 +3,20 @@
     {
       "name": "Me",
       "paged": false,
-      "suffix": "/users/me"
+      "suffix": "/users/me",
+      "description": "The account the credentials belong to, with its plan and language. One record, and the plan matters because several endpoints here are plan-gated."
     },
     {
       "name": "User Workgroups",
       "paged": true,
-      "suffix": "/users/{User ID}/workgroups"
+      "suffix": "/users/{User ID}/workgroups",
+      "description": "The workgroups one user belongs to. Requires a user id."
     },
     {
       "name": "Shared",
       "paged": true,
-      "suffix": "/users/{User ID}/shared?resource_type={Resource Type?: survey}&resource_id={Resource ID?}&include={Include?}"
+      "suffix": "/users/{User ID}/shared?resource_type={Resource Type?: survey}&resource_id={Resource ID?}&include={Include?}",
+      "description": "The resources shared with one user, by resource type. Requires a user id. The access view, and the reason two users see different survey lists."
     },
     {
       "name": "Groups",
@@ -26,22 +29,26 @@
           "key": "id",
           "parameterName": "Group ID"
         }
-      ]
+      ],
+      "description": "The groups on the account -- SurveyMonkey's team container."
     },
     {
       "name": "Group",
       "paged": false,
-      "suffix": "/groups/{Group ID}"
+      "suffix": "/groups/{Group ID}",
+      "description": "One group by id."
     },
     {
       "name": "Group Members",
       "paged": true,
-      "suffix": "/groups/{Group ID}/members"
+      "suffix": "/groups/{Group ID}/members",
+      "description": "The members of one group. Requires a group id."
     },
     {
       "name": "Group Member",
       "paged": false,
-      "suffix": "/groups/{Group ID}/members/{Member ID}"
+      "suffix": "/groups/{Group ID}/members/{Member ID}",
+      "description": "One group member by id."
     },
     {
       "name": "Surveys",
@@ -49,78 +56,101 @@
       "suffix": "/surveys?include={Include?}&title={Title?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&folder_id={Folder ID?}",
       "lookups": [
         {
-          "endpoints": ["Survey Details", "Survey Pages", "Survey Languages", "Survey Collectors", "Survey Responses", "Bulk Survey Responses", "Survey Rollups", "Survey Trends"],
+          "endpoints": [
+            "Survey Details",
+            "Survey Pages",
+            "Survey Languages",
+            "Survey Collectors",
+            "Survey Responses",
+            "Bulk Survey Responses",
+            "Survey Rollups",
+            "Survey Trends"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Survey ID"
         }
-      ]
+      ],
+      "description": "The surveys on the account, with title, the counts of questions, pages and responses, and the created and modified dates. THE RESPONSE COUNT HERE IS THE CHEAPEST ANSWER to how many people replied; everything below it costs more. Filterable by title and modified date."
     },
     {
       "name": "Survey",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}"
+      "suffix": "/surveys/{Survey ID}",
+      "description": "One survey by id, with its top-level detail and counts."
     },
     {
       "name": "Survey Details",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/details"
+      "suffix": "/surveys/{Survey ID}/details",
+      "description": "One survey WITH its full structure inlined -- every page, question, answer choice and row, in one response. Requires a survey id. THE ENDPOINT THAT MAKES RESPONSES READABLE: a response returns answers as question ids and choice ids, so without this the data is a graph of opaque identifiers. It replaces walking pages and questions separately."
     },
     {
       "name": "Survey Categories",
       "paged": false,
-      "suffix": "/survey_categories?language={Language?}"
+      "suffix": "/survey_categories?language={Language?}",
+      "description": "The categories SurveyMonkey publishes for template browsing. Reference data."
     },
     {
       "name": "Survey Template",
       "paged": true,
-      "suffix": "/survey_templates?language={Language?}&category={Category?}"
+      "suffix": "/survey_templates?language={Language?}&category={Category?}",
+      "description": "The survey templates available, by category and language. Reference content rather than account data."
     },
     {
       "name": "All Languages",
       "paged": true,
-      "suffix": "/survey_languages"
+      "suffix": "/survey_languages",
+      "description": "The languages SurveyMonkey supports. Reference data."
     },
     {
       "name": "Survey Pages",
       "paged": true,
       "pageLimit": 100,
-      "suffix": "/surveys/{Survey ID}/pages"
+      "suffix": "/surveys/{Survey ID}/pages",
+      "description": "The pages of one survey. Requires a survey id. The structural level between survey and question."
     },
     {
       "name": "Survey Page",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}",
+      "description": "One page by id."
     },
     {
       "name": "Survey Questions",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions",
+      "description": "The questions on one page, with their family and subtype, headings, and answer choices. Requires the survey and page ids. THE QUESTION FAMILY DECIDES HOW ITS ANSWERS ARE SHAPED -- single choice, multiple choice, matrix, open ended and demographic all store answers differently, so a single parsing rule does not work across a survey."
     },
     {
       "name": "Survey Question",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}",
+      "description": "One question by id, with its choices."
     },
     {
       "name": "Questions",
       "paged": true,
-      "suffix": "/question_bank/questions?locale={Locale?}&search={Search}&custom={Custom?:true|false}"
+      "suffix": "/question_bank/questions?locale={Locale?}&search={Search}&custom={Custom?:true|false}",
+      "description": "The question bank -- SurveyMonkey's library of pre-written questions, searchable by locale. Reference content for building surveys, not account data."
     },
     {
       "name": "Survey Folders",
       "paged": true,
-      "suffix": "/survey_folders"
+      "suffix": "/survey_folders",
+      "description": "The folders surveys are organised into."
     },
     {
       "name": "Survey Languages",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/languages"
+      "suffix": "/surveys/{Survey ID}/languages",
+      "description": "The languages one survey is translated into. Requires a survey id."
     },
     {
       "name": "Survey Language",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/languages/{Language Code}?enabled={Enabled?:true|false}&translations={Translations}"
+      "suffix": "/surveys/{Survey ID}/languages/{Language Code}?enabled={Enabled?:true|false}&translations={Translations}",
+      "description": "One language version of a survey, and whether it is enabled."
     },
     {
       "name": "Contact Lists",
@@ -128,177 +158,214 @@
       "suffix": "/contact_lists",
       "lookups": [
         {
-          "endpoints": ["Contact List Contact", "Bulk Contact"],
+          "endpoints": [
+            "Contact List Contact",
+            "Bulk Contact"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Contact List ID"
         }
-      ]
+      ],
+      "description": "The contact lists used for email collectors. The audience container."
     },
     {
       "name": "Contact List",
       "paged": false,
-      "suffix": "/contact_lists/{Contact List ID}"
+      "suffix": "/contact_lists/{Contact List ID}",
+      "description": "One contact list by id."
     },
     {
       "name": "Contact List Contact",
       "paged": true,
-      "suffix": "/contact_lists/{Contact List ID}/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}"
+      "suffix": "/contact_lists/{Contact List ID}/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}",
+      "description": "The contacts on one list, filterable by status. Requires a list id."
     },
     {
       "name": "Bulk Contact",
       "paged": false,
-      "suffix": "/contact_lists/{Contact List ID}/contacts/bulk"
+      "suffix": "/contact_lists/{Contact List ID}/contacts/bulk",
+      "description": "The contacts on one list in bulk. Requires a list id. The extract route for a large list."
     },
     {
       "name": "Contacts",
       "paged": true,
-      "suffix": "/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}"
+      "suffix": "/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}",
+      "description": "All contacts on the account, filterable by status and search term. Status separates active from opted out and bounced -- and opted-out contacts cannot be invited, so a mailable audience count has to exclude them."
     },
     {
       "name": "Bulk Contacts",
       "paged": false,
-      "suffix": "/contacts/bulk"
+      "suffix": "/contacts/bulk",
+      "description": "All contacts in bulk. The account-wide extract route."
     },
     {
       "name": "Contact",
       "paged": false,
-      "suffix": "/contact/{Contact ID}"
+      "suffix": "/contact/{Contact ID}",
+      "description": "One contact by id."
     },
     {
       "name": "Contact Fields",
       "paged": true,
-      "suffix": "/contact_fields"
+      "suffix": "/contact_fields",
+      "description": "The custom fields defined on contacts. The decoder for custom values."
     },
     {
       "name": "Contact Field",
       "paged": false,
-      "suffix": "/contact_fields/{Contact Field ID}"
+      "suffix": "/contact_fields/{Contact Field ID}",
+      "description": "One contact field by id."
     },
     {
       "name": "Survey Collectors",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/collectors?name={Name?}&start_date={Start Date?}&end_date={End Date?}&include={Include?}"
+      "suffix": "/surveys/{Survey ID}/collectors?name={Name?}&start_date={Start Date?}&end_date={End Date?}&include={Include?}",
+      "description": "The collectors of one survey -- the channels it was distributed through, such as a web link, email invitation or embedded widget. Requires a survey id. THE COLLECTOR IS THE DIMENSION MOST RESPONSE ANALYSIS NEEDS: the same survey sent by email and posted as a link produces very different response profiles, and only the collector distinguishes them."
     },
     {
       "name": "Collector",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}"
+      "suffix": "/collectors/{Collector ID}",
+      "description": "One collector by id, with its type, status and response count."
     },
     {
       "name": "Collector Messages",
       "paged": true,
-      "suffix": "/collectors/{Collector ID}/messages"
+      "suffix": "/collectors/{Collector ID}/messages",
+      "description": "The email invitations and reminders sent through one collector. Requires a collector id. Where the send that produced a batch of responses is recorded."
     },
     {
       "name": "Collector Message",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}/messages/{Message ID}"
+      "suffix": "/collectors/{Collector ID}/messages/{Message ID}",
+      "description": "One message by id."
     },
     {
       "name": "Message Recipients",
       "paged": true,
-      "suffix": "/collectors/{Collector ID}/messages/{Message ID}/recipients?include={Include?}"
+      "suffix": "/collectors/{Collector ID}/messages/{Message ID}/recipients?include={Include?}",
+      "description": "Who one message was sent to. Requires the collector and message ids."
     },
     {
       "name": "Recipients",
       "paged": true,
-      "suffix": "/collectors/{Collector ID}/recipients?include={Include?}"
+      "suffix": "/collectors/{Collector ID}/recipients?include={Include?}",
+      "description": "Everyone invited through one collector, with their status -- sent, opened, responded, bounced, opted out. Requires a collector id. THE DENOMINATOR FOR A RESPONSE RATE, which the responses alone cannot give."
     },
     {
       "name": "Recipient",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}/recipients/{Recipient ID}?include={Include?}"
+      "suffix": "/collectors/{Collector ID}/recipients/{Recipient ID}?include={Include?}",
+      "description": "One recipient by id."
     },
     {
       "name": "Stats",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}/stats"
+      "suffix": "/collectors/{Collector ID}/stats",
+      "description": "The aggregate statistics of one collector -- sent, opened, clicked, responded, bounced, opted out. Requires a collector id. Response rate without paging recipients."
     },
     {
       "name": "Message Stats",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}/messages/{Message ID}/stats"
+      "suffix": "/collectors/{Collector ID}/messages/{Message ID}/stats",
+      "description": "The same statistics for one individual message. Requires the collector and message ids. Which send performed, as opposed to the collector overall."
     },
     {
       "name": "Survey Responses",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/responses"
+      "suffix": "/surveys/{Survey ID}/responses",
+      "description": "The responses to one survey, with the respondent, collector, status, and the dates started and modified -- but NOT the answers. Requires a survey id. The index; answers come from the details variants below."
     },
     {
       "name": "Collector Responses",
       "paged": true,
-      "suffix": "/collectors/{Collector ID}/responses?start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name}&last_name={Last Name}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+      "suffix": "/collectors/{Collector ID}/responses?start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name}&last_name={Last Name}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "description": "The responses gathered through one collector. Requires a collector id. The per-channel slice."
     },
     {
       "name": "Bulk Collector Responses",
       "paged": true,
-      "suffix": "/collectors/{Collector ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}"
+      "suffix": "/collectors/{Collector ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}",
+      "description": "Every response through one collector with answers, paged. The per-channel bulk extract."
     },
     {
       "name": "Bulk Survey Responses",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}"
+      "suffix": "/surveys/{Survey ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}",
+      "description": "Every response to one survey WITH answers, in one paged request. Requires a survey id. THE PRACTICAL EXTRACT ROUTE -- fetching details one response at a time is prohibitive on any real survey. The simple parameter returns answers as text rather than ids, which trades fidelity for readability."
     },
     {
       "name": "Survey Response",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/responses/{Response ID}"
+      "suffix": "/surveys/{Survey ID}/responses/{Response ID}",
+      "description": "One response by id, without its answers."
     },
     {
       "name": "Collector Response",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}/responses/{Response ID}?survey_id={Survey ID?}&collector_id={Collector ID?}&recipient_id={Recipient ID?}&total_time={Total Time?}&custom_value={Custom Value?}&edit_url={Edit URL?}&analyze_url={Analyze URL?}&ip_address={IP Address?}&custom_variables={Custom Variables?}&logic_path={Logic Path?}&metadata={Metadata?}&response_status={Response Status?}&page_path={Page Path?}&collection_mode={Collection Mode?}&date_created={Date Created?}&date_modified={Date Modified?}"
+      "suffix": "/collectors/{Collector ID}/responses/{Response ID}?survey_id={Survey ID?}&collector_id={Collector ID?}&recipient_id={Recipient ID?}&total_time={Total Time?}&custom_value={Custom Value?}&edit_url={Edit URL?}&analyze_url={Analyze URL?}&ip_address={IP Address?}&custom_variables={Custom Variables?}&logic_path={Logic Path?}&metadata={Metadata?}&response_status={Response Status?}&page_path={Page Path?}&collection_mode={Collection Mode?}&date_created={Date Created?}&date_modified={Date Modified?}",
+      "description": "One response by id within a collector."
     },
     {
       "name": "Survey Response Details",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/responses/{Response ID}/details"
+      "suffix": "/surveys/{Survey ID}/responses/{Response ID}/details",
+      "description": "One response WITH its answers, as question ids paired with choice ids or text. Requires the survey and response ids. Only interpretable alongside Survey Details, which supplies what those ids mean."
     },
     {
       "name": "Collector Response Details",
       "paged": false,
-      "suffix": "/collectors/{Collector ID}/responses/{Response ID}/details?page_ids={Page IDs?}&question_ids={Question IDs?}"
+      "suffix": "/collectors/{Collector ID}/responses/{Response ID}/details?page_ids={Page IDs?}&question_ids={Question IDs?}",
+      "description": "One collector response with its answers."
     },
     {
       "name": "Survey Rollups",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+      "suffix": "/surveys/{Survey ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "description": "Pre-computed aggregates for one survey -- per question, the counts and percentages for each answer choice. Requires a survey id. SURVEYMONKEY HAS ALREADY DONE THE TABULATION, so the usual cross-tab of a survey does not require reading a single response."
     },
     {
       "name": "Survey Page Rollups",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "description": "The same aggregates restricted to one page."
     },
     {
       "name": "Survey Question Rollups",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "description": "The aggregate for one question. Requires the survey, page and question ids."
     },
     {
       "name": "Survey Trends",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}"
+      "suffix": "/surveys/{Survey ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}",
+      "description": "How one survey's answers moved over time, bucketed by period. Requires a survey id. The rollups give a snapshot; this gives the series, which is what a tracking survey exists to produce."
     },
     {
       "name": "Survey Page Trends",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}",
+      "description": "The same trend restricted to one page."
     },
     {
       "name": "Survey Question Trends",
       "paged": true,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}",
+      "description": "The trend for one question over time."
     },
     {
       "name": "Webhooks",
       "paged": true,
-      "suffix": "/webhooks"
+      "suffix": "/webhooks",
+      "description": "The webhooks registered, with the events and objects each watches. Integration configuration; deliveries are not recorded."
     },
     {
       "name": "Webhook",
       "paged": false,
-      "suffix": "/webhooks/{Webhook ID}"
+      "suffix": "/webhooks/{Webhook ID}",
+      "description": "One webhook by id."
     },
     {
       "name": "Benchmark Bundles",
@@ -311,22 +378,26 @@
           "key": "id",
           "parameterName": "Benchmark Bundle ID"
         }
-      ]
+      ],
+      "description": "The benchmark question sets SurveyMonkey publishes, by country. Benchmarks let a result be compared against other organisations rather than only against itself -- which is the one comparison an account's own data can never supply."
     },
     {
       "name": "Benchmark Bundle Questions",
       "paged": false,
-      "suffix": "/benchmark_bundles/{Benchmark Bundle ID}"
+      "suffix": "/benchmark_bundles/{Benchmark Bundle ID}",
+      "description": "The questions in one benchmark bundle. Requires a bundle id."
     },
     {
       "name": "Benchmark Bundle Benchmarks",
       "paged": false,
-      "suffix": "/benchmark_bundles/{Bundle ID}/analyze?question_ids={Question IDs}&percentile_start={Percentile Start?}&percentile_end={Percentile End?}"
+      "suffix": "/benchmark_bundles/{Bundle ID}/analyze?question_ids={Question IDs}&percentile_start={Percentile Start?}&percentile_end={Percentile End?}",
+      "description": "The benchmark values for chosen questions in a bundle. Requires the bundle id and question ids. The external comparison figures."
     },
     {
       "name": "Survey Question Benchmark",
       "paged": false,
-      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/benchmark?percentile_start={Percentile Start?}&percentile_end={Percentile End?}"
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/benchmark?percentile_start={Percentile Start?}&percentile_end={Percentile End?}",
+      "description": "The benchmark comparison for one question in one survey. Requires the survey, page and question ids. Where an account's own result is placed against the benchmark."
     },
     {
       "name": "Workgroups",
@@ -334,52 +405,64 @@
       "suffix": "/workgroups",
       "lookups": [
         {
-          "endpoints": ["Workgroup Members", "Workgroup Shares"],
+          "endpoints": [
+            "Workgroup Members",
+            "Workgroup Shares"
+          ],
           "jsonPath": "$.data.[*]",
           "key": "id",
           "parameterName": "Workgroup ID"
         }
-      ]
+      ],
+      "description": "The workgroups on the account, a finer sharing unit than groups."
     },
     {
       "name": "Workgroup",
       "paged": false,
-      "suffix": "/workgroups/{Workgroup ID}"
+      "suffix": "/workgroups/{Workgroup ID}",
+      "description": "One workgroup by id."
     },
     {
       "name": "Workgroup Members",
       "paged": true,
-      "suffix": "/workgroups/{Workgroup ID}/members"
+      "suffix": "/workgroups/{Workgroup ID}/members",
+      "description": "The members of one workgroup. Requires a workgroup id."
     },
     {
       "name": "Workgroup Member",
       "paged": false,
-      "suffix": "/workgroups/{Workgroup ID}/members/{Member ID}"
+      "suffix": "/workgroups/{Workgroup ID}/members/{Member ID}",
+      "description": "One workgroup member by id."
     },
     {
       "name": "Workgroup Shares",
       "paged": true,
-      "suffix": "/workgroups/{Workgroup ID}/shares?include={Include?}"
+      "suffix": "/workgroups/{Workgroup ID}/shares?include={Include?}",
+      "description": "The resources shared with one workgroup. Requires a workgroup id."
     },
     {
       "name": "Workgroup Share",
       "paged": false,
-      "suffix": "/workgroups/{Workgroup ID}/shares"
+      "suffix": "/workgroups/{Workgroup ID}/shares/{Share ID}",
+      "description": "One workgroup share by id. Requires the workgroup id."
     },
     {
       "name": "Roles",
       "paged": true,
-      "suffix": "/roles"
+      "suffix": "/roles",
+      "description": "The roles available on the account, with the permissions each grants."
     },
     {
       "name": "Errors",
       "paged": true,
-      "suffix": "/errors"
+      "suffix": "/errors",
+      "description": "The API errors SurveyMonkey defines, with their codes and meanings. Reference data for interpreting a failure, not a log of failures that occurred."
     },
     {
       "name": "Error",
       "paged": false,
-      "suffix": "/errors/{Error ID}"
+      "suffix": "/errors/{Error ID}",
+      "description": "One error definition by id."
     }
   ]
 }

@@ -3,52 +3,62 @@
     {
       "name": "Application Roles",
       "paged": true,
-      "suffix": "/rest/api/2/applicationrole"
+      "suffix": "/rest/api/2/applicationrole",
+      "description": "The application roles on the instance -- Jira Software, Jira Service Management and so on -- each with its licensed seat count and how many are in use. The table for licence consumption and for whether there are seats left."
     },
     {
       "name": "Application Role",
       "paged": false,
-      "suffix": "/rest/api/2/applicationrole/{Role Key}"
+      "suffix": "/rest/api/2/applicationrole/{Role Key}",
+      "description": "A single application role by key, with its seat counts and default groups."
     },
     {
       "name": "Audit Records",
       "paged": true,
-      "suffix": "/rest/api/2/auditing/record?&filter={Filter?}&from={From?:yyyy-MM-ddTHH:mm:ssZ}&to={To?:yyyy-MM-ddTHH:mm:ssZ}"
+      "suffix": "/rest/api/2/auditing/record?&filter={Filter?}&from={From?:yyyy-MM-ddTHH:mm:ssZ}&to={To?:yyyy-MM-ddTHH:mm:ssZ}",
+      "description": "The administrative audit log: configuration changes, permission changes, user creation and deletion -- with the actor, the affected objects, a summary and a timestamp. Filter by date with from and to, or by free text. Distinct from Change Logs, which records changes to issues; this records changes to Jira itself. Retention depends on the licence tier, so older entries may simply not exist."
     },
     {
       "name": "System Avatars",
       "paged": true,
-      "suffix": "/rest/api/2/avatar/{Type:issuetype|project|user}/system"
+      "suffix": "/rest/api/2/avatar/{Type:issuetype|project|user}/system",
+      "description": "The stock avatars Jira ships for a given entity type. Presentation only."
     },
     {
       "name": "Avatars",
       "paged": true,
-      "suffix": "/rest/api/2/universal_avatar/type/{Type:project|issuetype}/owner/{Entity ID}"
+      "suffix": "/rest/api/2/universal_avatar/type/{Type:project|issuetype}/owner/{Entity ID}",
+      "description": "The avatars of one entity -- a project or issue type -- system and custom. Presentation only."
     },
     {
       "name": "Dashboards",
       "paged": true,
-      "suffix": "/rest/api/2/dashboard?filter={Filter?:favourite|my}"
+      "suffix": "/rest/api/2/dashboard?filter={Filter?:favourite|my}",
+      "description": "The dashboards visible to the caller, with name, owner and sharing. Dashboards hold the gadgets people actually watch, so the list is a fair guide to what an organisation considers worth measuring -- though the gadget DATA is not reachable through this API, only the dashboards themselves."
     },
     {
       "name": "Dashboard Search",
       "paged": true,
-      "suffix": "/rest/api/2/dashboard/search?dashboardName={Dashboard Name?}&accountId={Account Id?}&owner={Owner?}&groupname={Group Name?}&projectId={Project ID?}&expand={Expand?:description,owner...}"
+      "suffix": "/rest/api/2/dashboard/search?dashboardName={Dashboard Name?}&accountId={Account Id?}&owner={Owner?}&groupname={Group Name?}&projectId={Project ID?}&expand={Expand?:description,owner...}",
+      "description": "Dashboards matching given attributes, across owners. Broader than Dashboards, which is limited to what the caller can see by default."
     },
     {
       "name": "Dashboard Item Properties",
       "paged": true,
-      "suffix": "/rest/api/2/dashboard/{Dashboard ID}/items/{Item ID}/properties"
+      "suffix": "/rest/api/2/dashboard/{Dashboard ID}/items/{Item ID}/properties",
+      "description": "The property keys an app has stored against one gadget on a dashboard. Requires the dashboard and item ids. App storage."
     },
     {
       "name": "Dashboard Item Property",
       "paged": true,
-      "suffix": "/rest/api/2/dashboard/{Dashboard ID}/items/{Item ID}/properties/{Property Key}"
+      "suffix": "/rest/api/2/dashboard/{Dashboard ID}/items/{Item ID}/properties/{Property Key}",
+      "description": "The value of one dashboard gadget property."
     },
     {
       "name": "Dashboard",
       "paged": false,
-      "suffix": "/rest/api/2/dashboard/{Dashboard ID}"
+      "suffix": "/rest/api/2/dashboard/{Dashboard ID}",
+      "description": "A single dashboard by id."
     },
     {
       "name": "Favorite Filters",
@@ -64,7 +74,8 @@
           "key": "id",
           "parameterName": "Filter ID"
         }
-      ]
+      ],
+      "description": "The filters the caller has starred. The same records, narrowed to the ones actually in daily use -- usually the most meaningful few."
     },
     {
       "name": "Filters",
@@ -80,7 +91,8 @@
           "key": "id",
           "parameterName": "Filter ID"
         }
-      ]
+      ],
+      "description": "The saved filters owned by the caller, each with its JQL, name, owner and sharing. Filters are the queries a team has already agreed on -- 'our open bugs', 'this sprint's work' -- so the jql column is a set of ready-made, organisation-approved definitions that can be fed straight to JQL Query. Often the fastest route to the question someone means, rather than guessing at a query."
     },
     {
       "name": "Filter Search",
@@ -96,52 +108,62 @@
           "key": "id",
           "parameterName": "Filter ID"
         }
-      ]
+      ],
+      "description": "Filters matching given attributes, across owners rather than just the caller's own. The way to find the whole organisation's saved queries, which Filters and Favorite Filters cannot see beyond the caller."
     },
     {
       "name": "Filter",
       "paged": false,
-      "suffix": "/rest/api/2/filter/{Filter ID}?expand={Expand?:sharedUsers,subscriptions}"
+      "suffix": "/rest/api/2/filter/{Filter ID}?expand={Expand?:sharedUsers,subscriptions}",
+      "description": "A single filter by id, with its JQL, owner, sharing and subscriptions."
     },
     {
       "name": "Columns",
       "paged": true,
-      "suffix": "/rest/api/2/filter/{Filter ID}/columns"
+      "suffix": "/rest/api/2/filter/{Filter ID}/columns",
+      "description": "The columns one filter displays. Requires a filter id. Display configuration -- it does not affect what the filter's JQL returns."
     },
     {
       "name": "Filter Sharing",
       "paged": true,
-      "suffix": "/rest/api/2/filter/defaultShareScope"
+      "suffix": "/rest/api/2/filter/defaultShareScope",
+      "description": "The instance's default sharing scope for new filters. One setting."
     },
     {
       "name": "Share Permissions",
       "paged": true,
-      "suffix": "/rest/api/2/filter/{Filter ID}/permission"
+      "suffix": "/rest/api/2/filter/{Filter ID}/permission",
+      "description": "Who a filter is shared with -- users, groups, projects or everyone. Requires a filter id."
     },
     {
       "name": "Share Permission",
       "paged": false,
-      "suffix": "/rest/api/2/filter/{Filter ID}/permission/{Permission ID}"
+      "suffix": "/rest/api/2/filter/{Filter ID}/permission/{Permission ID}",
+      "description": "A single share permission of a filter. Requires the filter id and permission id."
     },
     {
       "name": "User and Group Search",
       "paged": true,
-      "suffix": "/rest/api/2/groupuserpicker?query={Query}&showAvatar={Show Avatar?:false|true}&fieldId={Field ID?}&projectId={Project ID?}&issueTypeId={Issue Type ID?}&avatarSize={Avatar Size?:xsmall|xsmall@2x|xsmall@3x|...}&caseInsensitive={Case Insensitive?:false|true}&excludeConnectAddons={Exclude Connect Addons?:false|true}"
+      "suffix": "/rest/api/2/groupuserpicker?query={Query}&showAvatar={Show Avatar?:false|true}&fieldId={Field ID?}&projectId={Project ID?}&issueTypeId={Issue Type ID?}&avatarSize={Avatar Size?:xsmall|xsmall@2x|xsmall@3x|...}&caseInsensitive={Case Insensitive?:false|true}&excludeConnectAddons={Exclude Connect Addons?:false|true}",
+      "description": "Users and groups matching a query term, returned as two lists formatted for a picker control with HTML highlighting. A UI helper, not a data source."
     },
     {
       "name": "Group Users",
       "paged": true,
-      "suffix": "/rest/api/2/group/member?groupname={Group Name}&includeInactiveUsers={Include Inactive Users?:false|true}"
+      "suffix": "/rest/api/2/group/member?groupname={Group Name}&includeInactiveUsers={Include Inactive Users?:false|true}",
+      "description": "The members of one group. Requires a group name or id. Together with Groups this resolves who holds what access, which no per-user table gives in one pass."
     },
     {
       "name": "Groups",
       "paged": true,
-      "suffix": "/rest/api/2/groups/picker?accountId={Account ID?}&query={Query?}&exclude={Exclude?}&userName={User Name?}"
+      "suffix": "/rest/api/2/groups/picker?accountId={Account ID?}&query={Query?}&exclude={Exclude?}&userName={User Name?}",
+      "description": "The groups on the instance, with name and group id. Groups are the unit permissions and notifications are assigned to. Their membership is in Group Users."
     },
     {
       "name": "Create Issue Metadata",
       "paged": true,
-      "suffix": "/rest/api/2/issue/createmeta?projectIds={Project Ids?}&projectKeys={Project Keys?}&issuetypeIds={Issue Type Ids?}&issuetypeNames={Issue Type Names?}&expand={Expand?}"
+      "suffix": "/rest/api/2/issue/createmeta?projectIds={Project Ids?}&projectKeys={Project Keys?}&issuetypeIds={Issue Type Ids?}&issuetypeNames={Issue Type Names?}&expand={Expand?}",
+      "description": "Which projects and issue types the caller may create, and optionally the fields each create screen shows. Configuration for building a create form; it describes what COULD be created, and holds no issues."
     },
     {
       "name": "Issue",
@@ -164,32 +186,38 @@
           "key": "id",
           "parameterName": "Issue ID or Key"
         }
-      ]
+      ],
+      "description": "A single issue by id or key. Carries the full fields object, and optionally its changelog. NOTE THE DIFFERENCE between the two identifiers: the key (PROJ-123) is what people quote, but it CHANGES when an issue is moved to another project, while the numeric id never does -- history keyed on issue key silently breaks after a move. Custom fields come back as customfield_NNNNN keys here too."
     },
     {
       "name": "Change Logs",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/changelog"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/changelog",
+      "description": "The complete change history of one issue, oldest first: every field that changed, its old and new value, who changed it and when. Requires an issue id or key. The issue itself carries only its CURRENT state, so this is the only source for how long it sat in each status, when it was reassigned, and when priority was raised. Cycle time, lead time and time-in-status all come from here and from nowhere else. The from/to values appear both as ids and as display strings, and the ids are the ones that survive a status being renamed."
     },
     {
       "name": "Edit Issue Metadata",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/editmeta?overrideScreenSecurity={Override Screen Security?:false|true}&overrideEditableFlag={Override Editable Flag?:false|true}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/editmeta?overrideScreenSecurity={Override Screen Security?:false|true}&overrideEditableFlag={Override Editable Flag?:false|true}",
+      "description": "The fields of one issue the caller may currently edit, with their allowed values. Requires an issue id or key. Permission-dependent form metadata, not issue data."
     },
     {
       "name": "Transitions",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/transitions?expand={Expand?}&transitionId={Transition ID?}&skipRemoteOnlyCondition={Skip Remote Only Condition?:false|true}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/transitions?expand={Expand?}&transitionId={Transition ID?}&skipRemoteOnlyCondition={Skip Remote Only Condition?:false|true}",
+      "description": "The transitions the calling user could perform on one issue right now, given its current status and their permissions. Requires an issue id or key. A record of what is POSSIBLE, not of what happened -- transitions already made are in Change Logs, and this list differs between users because it depends on permissions."
     },
     {
       "name": "Attachment Settings",
       "paged": true,
-      "suffix": "/rest/api/2/attachment/meta"
+      "suffix": "/rest/api/2/attachment/meta",
+      "description": "Whether attachments are enabled instance-wide and the size limit. Configuration."
     },
     {
       "name": "Attachment Metadata",
       "paged": true,
-      "suffix": "/rest/api/2/attachment/{Attachment ID}"
+      "suffix": "/rest/api/2/attachment/{Attachment ID}",
+      "description": "The metadata of one attachment by id: filename, size, mime type, author and created date. The file content is a separate request."
     },
     {
       "name": "Comments",
@@ -202,22 +230,26 @@
           "key": "id",
           "parameterName": "Comment ID"
         }
-      ]
+      ],
+      "description": "The comments on one issue, with body, author, created and updated, and visibility restrictions. Requires an issue id or key. Comments restricted to a role or group are omitted for callers who cannot see them, so a comment count can differ between tokens."
     },
     {
       "name": "Comment",
       "paged": false,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/comment/{Comment ID}?expand={Expand?}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/comment/{Comment ID}?expand={Expand?}",
+      "description": "A single comment by id. Requires the issue id or key as well."
     },
     {
       "name": "Comment Properties",
       "paged": true,
-      "suffix": "/rest/api/2/comment/{Comment ID}/properties"
+      "suffix": "/rest/api/2/comment/{Comment ID}/properties",
+      "description": "The property keys stored against one comment by apps. Requires the comment id. App storage, not user content."
     },
     {
       "name": "Comment Property",
       "paged": false,
-      "suffix": "/rest/api/2/comment/{Comment ID}/properties/{Property Key}"
+      "suffix": "/rest/api/2/comment/{Comment ID}/properties/{Property Key}",
+      "description": "The value of one comment property. Requires the comment id and key."
     },
     {
       "name": "Fields",
@@ -242,132 +274,179 @@
           "key": "id",
           "parameterName": "Field Key"
         }
-      ]
+      ],
+      "description": "Every field an issue can carry, system and custom alike. Each row gives the field id, its human name, whether it is custom, whether it is searchable, the schema describing its type, and clauseNames -- the names it can be referred to by in JQL. THIS IS THE KEY TO ISSUE DATA. Issues return custom fields as opaque keys like customfield_10014, with no name and no type attached; without this table a column called customfield_10014 cannot be identified as Story Points, and a JQL query cannot be written against it because clauseNames is where the writable name lives. Read this first whenever custom fields are in scope."
+    },
+    {
+      "name": "Field Contexts",
+      "paged": true,
+      "suffix": "/rest/api/2/field/{Field ID}/context?isAnyIssueType={Any Issue Type?:true|false}&isGlobalContext={Global Context?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Field Options",
+          "jsonPath": "$.values[*]",
+          "key": "id",
+          "parameterName": "Context ID"
+        }
+      ],
+      "description": "The contexts defined for one custom field. Requires a field id. A context scopes a field to particular projects and issue types, and each context has ITS OWN set of options -- which is why the same custom field can offer different values in different projects, and why decoding its values needs the context as well as the field."
     },
     {
       "name": "Field Options",
       "paged": true,
-      "suffix": "/rest/api/2/customField/{Schema Custom ID}/option"
+      "suffix": "/rest/api/2/field/{Field ID}/context/{Context ID}/option?onlyOptions={Only Options?:true|false}",
+      "description": "The permitted values of one custom field within one context: the option id, its display value, and whether it is disabled. Requires the field id and context id. THE KEY TO SELECT-LIST CUSTOM FIELD VALUES -- an issue stores the option id, and without this table a column of those ids says nothing. Pair with Field Contexts, which supplies the context id."
     },
     {
       "name": "Custom Field Option",
       "paged": false,
-      "suffix": "/rest/api/2/customFieldOption/{Field ID}"
+      "suffix": "/rest/api/2/customFieldOption/{Field ID}",
+      "description": "A single custom field option by its id. Requires the option id. Use it to resolve one value when the full option list is not needed."
     },
     {
       "name": "Issue Field Options",
       "paged": true,
-      "suffix": "/rest/api/2/field/{Field Key}/option"
+      "suffix": "/rest/api/2/field/{Field Key}/option",
+      "description": "The options of a select-list field CREATED BY A CONNECT APP. Requires the field key. IMPORTANT: this works only for app-defined fields -- it cannot read the options of a custom field created in Jira, which are in Field Options. The distinction is easy to miss because the two sound identical."
     },
     {
       "name": "Selectable Issue Field Options",
       "paged": true,
-      "suffix": "/rest/api/2/field/{Field Key}/option/suggestions/edit?projectId={Project ID?}"
+      "suffix": "/rest/api/2/field/{Field Key}/option/suggestions/edit?projectId={Project ID?}",
+      "description": "The options of an app-defined select-list field that the caller may choose. Requires the field key. App-defined fields only, same as Issue Field Options."
     },
     {
       "name": "Visible Issue Field Options",
       "paged": true,
-      "suffix": "/rest/api/2/field/{Field Key}/option/suggestions/search?projectId={Project ID?}"
+      "suffix": "/rest/api/2/field/{Field Key}/option/suggestions/search?projectId={Project ID?}",
+      "description": "The options of an app-defined select-list field that the caller may see, which can be wider than those they may select. Requires the field key. App-defined fields only."
     },
     {
       "name": "Issue Field Option",
       "paged": true,
-      "suffix": "/rest/api/2/field/{Field Key}/option/{Option ID}"
+      "suffix": "/rest/api/2/field/{Field Key}/option/{Option ID}",
+      "description": "A single option of an app-defined select-list field. Requires the field key and option id."
     },
     {
       "name": "Issue Link",
       "paged": false,
-      "suffix": "/rest/api/2/issueLink/{Link ID}"
+      "suffix": "/rest/api/2/issueLink/{Link ID}",
+      "description": "One link between two Jira issues, by link id: the two issues and the link type. Blocks, duplicates and relates-to chains are built from these."
     },
     {
       "name": "Issue Link Types",
       "paged": true,
-      "suffix": "/rest/api/2/issueLinkType"
+      "suffix": "/rest/api/2/issueLinkType",
+      "description": "The kinds of link an issue can have, each with its inward and outward description -- 'blocks' and 'is blocked by' are the two ends of one type. Small dimension table; the direction words are what make a dependency readable."
     },
     {
       "name": "Issue Link Type",
       "paged": false,
-      "suffix": "/rest/api/2/issueLinkType/{Issue Link Type ID}"
+      "suffix": "/rest/api/2/issueLinkType/{Issue Link Type ID}",
+      "description": "A single link type by id."
     },
     {
       "name": "Issue Navigator Default Columns",
       "paged": true,
-      "suffix": "/rest/api/2/settings/columns"
+      "suffix": "/rest/api/2/settings/columns",
+      "description": "The columns the issue list shows by default instance-wide. Display configuration."
     },
     {
       "name": "Notification Schemes",
       "paged": true,
-      "suffix": "/rest/api/2/notificationscheme?expand={Expand?:all,field,group...}"
+      "suffix": "/rest/api/2/notificationscheme?expand={Expand?:all,field,group...}",
+      "description": "The notification schemes on the instance: which events send mail, and to whom. Configuration."
     },
     {
       "name": "Notification Scheme",
       "paged": true,
-      "suffix": "/rest/api/2/notificationscheme/{Scheme ID}?expand={Expand?:all,field,group...}"
+      "suffix": "/rest/api/2/notificationscheme/{Scheme ID}?expand={Expand?:all,field,group...}",
+      "description": "A single notification scheme by id, with its event-to-recipient mapping."
     },
     {
       "name": "Priorities",
       "paged": true,
-      "suffix": "/rest/api/2/priority"
+      "suffix": "/rest/api/2/priority",
+      "description": "The priority levels defined on the instance, with name, description, colour and rank order. Joined through the priority field on issues. Note Atlassian marks this listing deprecated in favour of a paginated priority search, which this connector does not carry."
     },
     {
       "name": "Priority",
       "paged": false,
-      "suffix": "/rest/api/2/priority/{Priority ID}"
+      "suffix": "/rest/api/2/priority/{Priority ID}",
+      "description": "A single priority by id."
     },
     {
       "name": "Issue Properties",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/properties"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/properties",
+      "description": "The property keys stored against one issue by apps. Requires an issue id or key. This is app storage rather than issue data -- integrations often park their own state here, so it is worth checking when some field seems to exist in the UI but appears in no Jira table."
     },
     {
       "name": "Issue Property",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/properties/{Property Key}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/properties/{Property Key}",
+      "description": "The value of one issue property, by key."
     },
     {
       "name": "Remote Issue Links",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/remotelink?globalId={Global ID?}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/remotelink?globalId={Global ID?}",
+      "description": "Links from one issue to things outside Jira -- a Confluence page, a support ticket, an external system. Requires an issue id or key. Distinct from Issue Link, which connects two Jira issues."
     },
     {
       "name": "Remote Issue Link",
       "paged": false,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/remotelink/{Link ID}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/remotelink/{Link ID}",
+      "description": "A single remote link by its id. Requires the issue id or key."
     },
     {
       "name": "Resolutions",
       "paged": true,
-      "suffix": "/rest/api/2/resolution"
+      "suffix": "/rest/api/2/resolution",
+      "description": "The resolution values an issue can be closed with -- Done, Won't Do, Duplicate, Cannot Reproduce and any the instance has added. The key distinction for delivery measurement: an issue's resolution says whether it was actually completed or merely closed, which its status cannot. Small dimension table, joined through the resolution field on issues."
     },
     {
       "name": "Resolution",
       "paged": true,
-      "suffix": "/rest/api/2/resolution/{Resolution ID}"
+      "suffix": "/rest/api/2/resolution/{Resolution ID}",
+      "description": "A single resolution by id."
     },
     {
       "name": "Issue Picker Suggestions",
       "paged": true,
-      "suffix": "/rest/api/2/issue/picker?query={Query?}&currentJQL={CurrentJQL?}&currentProjectId={Current Project ID?}&showSubTasks={Show Subtasks?:false|true}&showSubTaskParent={Show Subtask Parent?:false|true}"
+      "suffix": "/rest/api/2/issue/picker?query={Query?}&currentJQL={CurrentJQL?}&currentProjectId={Current Project ID?}&showSubTasks={Show Subtasks?:false|true}&showSubTaskParent={Show Subtask Parent?:false|true}",
+      "description": "Issues matching a partial string, returned as two short lists -- recent history and current search. Built for type-ahead in the UI: truncated, ranked for display, and unsuitable as a data source. Use JQL Query for anything counted."
+    },
+    {
+      "name": "JQL Search",
+      "paged": true,
+      "pageType": "ITERATION",
+      "suffix": "/rest/api/2/search/jql?jql={JQL?}&fields={Fields?:*all,*navigable,...}&expand={Expand?:renderedFields,names,schema...}&properties={Properties?}&fieldsByKeys={Fields by Keys?:false|true}&maxResults={Max Results?}",
+      "description": "Searches issues with JQL -- THE issue table, and the only way to list issues at all. Jira has no plain \"all issues\" endpoint: every issue question starts here with a JQL expression such as \"project = ABC AND created >= -30d\". Each row carries a fields object holding summary, status, priority, issuetype, assignee, reporter, created, updated, duedate, resolution and resolutiondate, labels, components, fixVersions and the custom fields. THREE things decide whether the answer is right. Pass the fields parameter or only the navigable subset comes back. CUSTOM FIELDS ARRIVE AS customfield_10001 STYLE KEYS with no names attached -- Fields is what turns them back into something readable. And an issue is finished when RESOLUTION IS SET, not when its status merely looks final: a status named Done in one project is a workflow choice, while resolution and resolutiondate mean the same thing everywhere. This is Jira's enhanced search and it replaces JQL Query, which Atlassian is removing. It pages by an opaque token rather than by offset and returns NO TOTAL COUNT at all, so the number of matching issues cannot be read from a single page -- count by reading through, or use Issues Statistics where only a count is wanted."
     },
     {
       "name": "JQL Query",
       "paged": true,
-      "suffix": "/rest/api/2/search?jql={JQL?}&validateQuery={Validate Query?:strict|warn|none}&fields={Fields?:*all,*navigable,...}&expand={Expand?:renderedFields,names,schema...}&properties={Properties?}&fieldsByKeys={Fields by Keys?:false|true}"
+      "suffix": "/rest/api/2/search?jql={JQL?}&validateQuery={Validate Query?:strict|warn|none}&fields={Fields?:*all,*navigable,...}&expand={Expand?:renderedFields,names,schema...}&properties={Properties?}&fieldsByKeys={Fields by Keys?:false|true}",
+      "description": "LEGACY. Searches issues with JQL. ATLASSIAN IS REMOVING THIS ENDPOINT -- use JQL Search, which returns the same issues and is the supported route. Kept here for instances still served by it. It differs from the replacement in pinning: it pages by startAt offset and reports a total, which the enhanced search deliberately does not. Everything said about reading the result applies to both: pass fields or only the navigable subset comes back, custom fields arrive as customfield_10001 style keys that Fields decodes, and an issue is finished when its RESOLUTION is set rather than when its status happens to read Done."
     },
     {
       "name": "Issue Security Level",
       "paged": true,
-      "suffix": "/rest/api/2/securitylevel/{Security Level ID}"
+      "suffix": "/rest/api/2/securitylevel/{Security Level ID}",
+      "description": "A single security level by id. The level set on an issue decides who may see it."
     },
     {
       "name": "Issue Security Schemes",
       "paged": true,
-      "suffix": "/rest/api/2/issuesecurityschemes"
+      "suffix": "/rest/api/2/issuesecurityschemes",
+      "description": "The issue security schemes on the instance. These restrict which issues a user can see at all -- which is why two people running the same JQL query can get different counts, with nothing in the result indicating anything was hidden. Worth checking before trusting a total."
     },
     {
       "name": "Issue Security Scheme",
       "paged": true,
-      "suffix": "/rest/api/2/issuesecurityschemes/{Security Scheme ID}"
+      "suffix": "/rest/api/2/issuesecurityschemes/{Security Scheme ID}",
+      "description": "A single issue security scheme by id, with its levels and who is granted each."
     },
     {
       "name": "Issue Types",
@@ -383,137 +462,164 @@
           "key": "id",
           "parameterName": "Issue Type ID"
         }
-      ]
+      ],
+      "description": "The issue types defined on the instance -- Story, Bug, Task, Epic, Sub-task and any custom ones -- with name, description, whether each is a subtask type, and the hierarchy level. Two things matter for counting: SUBTASKS ARE ISSUES TOO and will be counted alongside their parents unless excluded, and epics sit at a higher hierarchy level, so summing all issue types double-counts work at every level."
     },
     {
       "name": "Issue Type",
       "paged": false,
-      "suffix": "/rest/api/2/issuetype/{Issue Type ID}"
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}",
+      "description": "A single issue type by id."
     },
     {
       "name": "Alternative Issue Types",
       "paged": true,
-      "suffix": "rest/api/2/issuetype/{Issue Type ID}/alternatives"
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/alternatives",
+      "description": "The issue types an issue of a given type could be changed to. Requires an issue type id. Configuration for a move operation, not data."
     },
     {
       "name": "Issue Type Properties",
       "paged": true,
-      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/properties"
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/properties",
+      "description": "The property keys stored against one issue type by apps. Requires an issue type id."
     },
     {
       "name": "Issue Type Property",
       "paged": true,
-      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/properties/{Property Key}"
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/properties/{Property Key}",
+      "description": "The value of one issue type property."
     },
     {
       "name": "Votes",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/votes"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/votes",
+      "description": "The vote count on one issue and who voted. Requires an issue id or key. Requires voting to be switched on in Jira's general configuration -- otherwise it errors. A demand signal for backlog prioritisation."
     },
     {
       "name": "Issue Watchers",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/watchers"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/watchers",
+      "description": "The watchers of one issue and their number. Requires an issue id or key, and watching to be enabled. Wider than the assignee and reporter: it is who cares about the issue."
     },
     {
       "name": "Worklogs",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog?startedAfter={StartedAfter?}&expand={Expand?}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog?startedAfter={StartedAfter?}&expand={Expand?}",
+      "description": "The time entries logged against one issue, oldest first: who logged it, timeSpentSeconds, the started timestamp and any comment. Requires an issue id or key. Time tracking must be enabled or this errors rather than returning nothing. The started date is when the work happened, which is often not when it was recorded -- use started, not created, for any time-spent-by-period analysis."
     },
     {
       "name": "Worklog",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{id}?expand={Expand?}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{id}?expand={Expand?}",
+      "description": "A single worklog entry. Requires the issue id or key and the worklog id."
     },
     {
       "name": "Deleted Worklogs",
       "paged": true,
-      "suffix": "/rest/api/2/worklog/deleted?since={Since?}"
+      "suffix": "/rest/api/2/worklog/deleted?since={Since?}",
+      "description": "The IDs and deletion timestamps of worklogs removed after a given time. Ids only, and the same incremental-sync purpose: it is how a copy learns that entries have gone, which no other endpoint reveals."
     },
     {
       "name": "Updated Worklogs",
       "paged": true,
-      "suffix": "/rest/api/2/worklog/updated?since={Since?}&expand={Expand?}"
+      "suffix": "/rest/api/2/worklog/updated?since={Since?}&expand={Expand?}",
+      "description": "The IDs and update timestamps of worklogs changed after a given time, across the whole instance. Returns IDS ONLY, not the entries themselves -- it exists so a downstream copy can be kept in step without re-reading everything, and each id must then be fetched. Paged at 1000 per page."
     },
     {
       "name": "Worklog Properties",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{Worklog ID}/properties"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{Worklog ID}/properties",
+      "description": "The property keys stored against one worklog by apps. Requires the issue and worklog ids."
     },
     {
       "name": "Worklog Property",
       "paged": true,
-      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{Worklog ID}/properties/{Property Key}"
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{Worklog ID}/properties/{Property Key}",
+      "description": "The value of one worklog property."
     },
     {
       "name": "Application Properties",
       "paged": true,
-      "suffix": "/rest/api/2/application-properties?key={Key?}&permissionLevel={Permission Level?}&keyFilter={Key Filter?}"
+      "suffix": "/rest/api/2/application-properties?key={Key?}&permissionLevel={Permission Level?}&keyFilter={Key Filter?}",
+      "description": "The instance's application properties -- configuration values an administrator can set. Administrator only."
     },
     {
       "name": "Advanced Settings",
       "paged": true,
-      "suffix": "/rest/api/2/application-properties/advanced-settings"
+      "suffix": "/rest/api/2/application-properties/advanced-settings",
+      "description": "The advanced configuration properties of the instance. Administrator only."
     },
     {
       "name": "Global Settings",
       "paged": true,
-      "suffix": "/rest/api/2/configuration"
+      "suffix": "/rest/api/2/configuration",
+      "description": "The instance's global settings: whether voting, watching, attachments, sub-tasks, issue linking and time tracking are switched on. One record, and worth reading first -- several endpoints here return an error rather than an empty result when the feature behind them is off, and this says which ones are."
     },
     {
       "name": "Field Reference Data",
       "paged": true,
-      "suffix": "/rest/api/2/jql/autocompletedata"
+      "suffix": "/rest/api/2/jql/autocompletedata",
+      "description": "The fields, operators, functions and reserved words JQL accepts on this instance, including the writable name of every custom field. Reference data for CONSTRUCTING a valid JQL query, which is worth reading before writing one against custom fields, since a field's JQL name is often not its display name."
     },
     {
       "name": "Field Autocomplete Suggestions",
       "paged": true,
-      "suffix": "/rest/api/2/jql/autocompletedata/suggestions?fieldName={FieldName?}&fieldValue={FieldValue?}&predicateName={PredicateName?}&predicateValue={PredicateValue?}"
+      "suffix": "/rest/api/2/jql/autocompletedata/suggestions?fieldName={FieldName?}&fieldValue={FieldValue?}&predicateName={PredicateName?}&predicateValue={PredicateValue?}",
+      "description": "Suggested values for one field while typing a JQL clause. A type-ahead helper for the query editor, not data."
     },
     {
       "name": "Labels",
       "paged": true,
-      "suffix": "/rest/api/2/label"
+      "suffix": "/rest/api/2/label",
+      "description": "Every label in use across the instance, one row each. Labels are free text with no definition anywhere -- there is no colour, owner or description as there is in GitLab or GitHub, and no protection against near-duplicates, so 'backend' and 'back-end' are two labels. Useful as a vocabulary check before filtering issues by label."
     },
     {
       "name": "Preference",
       "paged": true,
-      "suffix": "/rest/api/2/mypreferences?key={Key}"
+      "suffix": "/rest/api/2/mypreferences?key={Key}",
+      "description": "One preference value of the calling user, by key. Personal setting."
     },
     {
       "name": "Locale",
       "paged": false,
-      "suffix": "/rest/api/2/mypreferences/locale"
+      "suffix": "/rest/api/2/mypreferences/locale",
+      "description": "The calling user's locale. Relevant only because it decides how dates and numbers are formatted for them, not for anything returned by the API."
     },
     {
       "name": "Current User",
       "paged": true,
-      "suffix": "/rest/api/2/myself?expand={Expand?:groups,applicationRoles}"
+      "suffix": "/rest/api/2/myself?expand={Expand?:groups,applicationRoles}",
+      "description": "The account the credentials belong to. One record, always the caller. Worth reading first when results look incomplete, since almost every Jira listing is filtered by what this account may see."
     },
     {
       "name": "Current User Permissions",
       "paged": true,
-      "suffix": "/rest/api/2/mypermissions?permissions={Permissions}&projectKey={Project Key?}&projectId={Project ID?}&issueKey={Issue Key?}&issueId={Issue ID?}&permissions={Permissions?}&projectUuid={Project UUID?}&projectConfigurationUuid={Project Configuration UUID?}"
+      "suffix": "/rest/api/2/mypermissions?permissions={Permissions}&projectKey={Project Key?}&projectId={Project ID?}&issueKey={Issue Key?}&issueId={Issue ID?}&permissions={Permissions?}&projectUuid={Project UUID?}&projectConfigurationUuid={Project Configuration UUID?}",
+      "description": "The permissions the caller holds, globally or on a given project or issue. One record of permission keys with a granted flag. The direct explanation for why a table came back short or empty."
     },
     {
       "name": "Permissions",
       "paged": true,
-      "suffix": "/rest/api/2/permissions"
+      "suffix": "/rest/api/2/permissions",
+      "description": "Every permission Jira defines, with key, name and description. Reference data -- the vocabulary that permission schemes and grants are written in."
     },
     {
       "name": "Permission Schemes",
       "paged": true,
-      "suffix": "/rest/api/2/permissionscheme?expand={Expand?:all,field,group...}"
+      "suffix": "/rest/api/2/permissionscheme?expand={Expand?:all,field,group...}",
+      "description": "The permission schemes on the instance. A scheme is a set of grants -- which permission goes to which users, groups, roles or field values -- and a project uses one. Together with Assigned Permission Scheme this is how project access is actually determined."
     },
     {
       "name": "Permission Scheme",
       "paged": false,
-      "suffix": "/rest/api/2/permissionscheme/{Scheme ID}?expand={Expand?:all,field,group...}"
+      "suffix": "/rest/api/2/permissionscheme/{Scheme ID}?expand={Expand?:all,field,group...}",
+      "description": "A single permission scheme by id, with its grants."
     },
     {
       "name": "Permission Scheme Grant",
       "paged": false,
-      "suffix": "/rest/api/2/permissionscheme/{Scheme ID}/permission/{Permission ID}?expand={Expand?:all,field,group...}"
+      "suffix": "/rest/api/2/permissionscheme/{Scheme ID}/permission/{Permission ID}?expand={Expand?:all,field,group...}",
+      "description": "One grant within a permission scheme: a permission and who holds it. Requires the scheme id and permission id."
     },
     {
       "name": "Projects",
@@ -539,52 +645,62 @@
           "key": "id",
           "parameterName": "Project ID or Key"
         }
-      ]
+      ],
+      "description": "The projects visible to the caller, one row each -- the top dimension nearly every Jira question joins to. Carries id, key, name, projectTypeKey (software, service_desk or business), style (classic or next-gen), the lead, the category and the avatar. Note that project TYPE and project STYLE both matter and mean different things: type is what the project is for, style is whether it is company-managed or team-managed, and team-managed projects define their own statuses, issue types and fields, which is why cross-project comparisons so often fail to line up."
     },
     {
       "name": "Project",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}?expand={Expand?:description,issueTypes...}&properties={Properties?}"
+      "suffix": "/rest/api/2/project/{Project ID or Key}?expand={Expand?:description,issueTypes...}&properties={Properties?}",
+      "description": "A single project by id or key. Same fields as Projects, and optionally its components, versions and issue types. Note the key can be changed by an administrator, while the id cannot -- prefer the id for anything stored."
     },
     {
       "name": "Project Statuses",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/statuses"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/statuses",
+      "description": "The valid statuses of one project, GROUPED BY ISSUE TYPE. Requires a project id or key. This is the project's workflow laid out: each issue type has its own set of statuses, so a Bug and a Story in the same project may move through entirely different states. Read it before assuming one status flow covers a project."
     },
     {
       "name": "Issue Type Hierarchy",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/hierarchy"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/hierarchy",
+      "description": "The issue type levels of one team-managed project: epic at level one, story and task and bug at level zero, subtasks below. Requires a project id. What defines parent and child relationships in that project, and therefore how work rolls up."
     },
     {
       "name": "Project Notification Scheme",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/notificationscheme?expand={Expand?:all,field...}"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/notificationscheme?expand={Expand?:all,field...}",
+      "description": "The notification scheme assigned to one project. Requires a project id or key. Administrator only. Configuration."
     },
     {
       "name": "Project Avatars",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/avatars"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/avatars",
+      "description": "The avatars available to one project, system and custom. Presentation only."
     },
     {
       "name": "Categories",
       "paged": true,
-      "suffix": "/rest/api/2/projectCategory"
+      "suffix": "/rest/api/2/projectCategory",
+      "description": "The project categories defined on the instance, with name and description. The usual place a business unit or portfolio grouping is recorded, and often the only cross-project dimension an organisation has."
     },
     {
       "name": "Category",
       "paged": false,
-      "suffix": "/rest/api/2/projectCategory/{Category ID}"
+      "suffix": "/rest/api/2/projectCategory/{Category ID}",
+      "description": "A single project category by id."
     },
     {
       "name": "Component",
       "paged": true,
-      "suffix": "/rest/api/2/component/{Component ID}"
+      "suffix": "/rest/api/2/component/{Component ID}",
+      "description": "A single component by id. Same fields as Components."
     },
     {
       "name": "Component Issue Count",
       "paged": false,
-      "suffix": "/rest/api/2/component/{Component ID}/relatedIssueCounts"
+      "suffix": "/rest/api/2/component/{Component ID}/relatedIssueCounts",
+      "description": "How many issues are assigned to one component. Requires a component id. A single number, and cheaper than counting through JQL."
     },
     {
       "name": "Components",
@@ -597,77 +713,92 @@
           "key": "id",
           "parameterName": "Component ID"
         }
-      ]
+      ],
+      "description": "The components of one project, paginated. Requires a project id or key. Carries name, description, the lead, and the assignee type that decides who new issues go to. Components are the sub-project grouping issues are divided by -- the nearest thing Jira has to a module or service dimension."
     },
     {
       "name": "Security Scheme",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/issuesecuritylevelscheme"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/issuesecuritylevelscheme",
+      "description": "The issue security scheme assigned to one project. Requires a project id or key. Administrator only."
     },
     {
       "name": "Assigned Permission Scheme",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/permissionscheme?expand={Expand?:all,field...}"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/permissionscheme?expand={Expand?:all,field...}",
+      "description": "The permission scheme assigned to one project. Requires a project id or key. Administrator only. Which permissions that scheme actually grants is in Permission Scheme."
     },
     {
       "name": "Security Levels",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/securitylevel"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/securitylevel",
+      "description": "The security levels of one project that the caller can see. Requires a project id or key."
     },
     {
       "name": "Project Properties",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/properties"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/properties",
+      "description": "The property keys stored against one project by apps. Requires a project id or key. App storage; integrations often keep configuration here."
     },
     {
       "name": "Project Property",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/properties/{Property Key}"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/properties/{Property Key}",
+      "description": "The value of one project property, by key."
     },
     {
       "name": "Project Roles",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/role"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/role",
+      "description": "The roles defined for one project, as names and links. Requires a project id or key. Roles are how Jira grants project-level access, and the role LIST is common to every project -- who is in each role is what varies, and that is in Project Role."
     },
     {
       "name": "Project Role",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/role/{Role ID}"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/role/{Role ID}",
+      "description": "One role in one project WITH ITS ACTORS -- the users and groups actually holding it, sorted by display name. Requires the project id or key and role id. This is the table that answers who can do what in a project; the role listing alone does not."
     },
     {
       "name": "Project Role Details",
       "paged": true,
-      "suffix": "/rest/api/2/project/{Project ID or Key}/roledetails?currentMember={Current Member?:false|true}&excludeConnectAddons={Exclude Connect Addons?:false|true}"
+      "suffix": "/rest/api/2/project/{Project ID or Key}/roledetails?currentMember={Current Member?:false|true}&excludeConnectAddons={Exclude Connect Addons?:false|true}",
+      "description": "Every project role with its details, for one project. Requires a project id or key."
     },
     {
       "name": "Roles",
       "paged": true,
-      "suffix": "/rest/api/2/role"
+      "suffix": "/rest/api/2/role",
+      "description": "The project roles defined instance-wide, with name and description. The definitions; membership is per project."
     },
     {
       "name": "Role",
       "paged": true,
-      "suffix": "/rest/api/2/role/{Role ID}"
+      "suffix": "/rest/api/2/role/{Role ID}",
+      "description": "A single project role by id, with its default actors -- the users and groups added to this role in every new project."
     },
     {
       "name": "Role Actors",
       "paged": true,
-      "suffix": "/rest/api/2/role/{Role ID}/actors"
+      "suffix": "/rest/api/2/role/{Role ID}/actors",
+      "description": "The default actors of one project role: who is placed in this role automatically when a project is created. Requires a role id. Configuration that explains access nobody granted explicitly."
     },
     {
       "name": "Project Types",
       "paged": true,
-      "suffix": "/rest/api/2/project/type"
+      "suffix": "/rest/api/2/project/type",
+      "description": "The project types the instance knows about, licensed or not. Reference data."
     },
     {
       "name": "Project Type",
       "paged": true,
-      "suffix": "/rest/api/2/project/type/{Project Type Key:software|service_desk|business}"
+      "suffix": "/rest/api/2/project/type/{Project Type Key:software|service_desk|business}",
+      "description": "A single project type by key."
     },
     {
       "name": "Accessible Project Type",
       "paged": true,
-      "suffix": "/rest/api/2/project/type/{Project Type Key:software|service_desk|business}/accessible"
+      "suffix": "/rest/api/2/project/type/{Project Type Key:software|service_desk|business}/accessible",
+      "description": "A project type, returned only if the caller may use it. The same record as Project Type, filtered by licence and permission."
     },
     {
       "name": "Versions",
@@ -683,27 +814,32 @@
           "key": "id",
           "parameterName": "Version ID"
         }
-      ]
+      ],
+      "description": "The versions of one project, paginated. Requires a project id or key. Carries name, description, the released and archived flags, startDate and releaseDate, and whether the version is overdue. Versions are Jira's release container -- the fixVersion field on an issue points here, and released with a releaseDate is what marks a delivery. NOTE that releaseDate is a PLANNED OR DECLARED date entered by a person, not a record of when anything was deployed."
     },
     {
       "name": "Version",
       "paged": true,
-      "suffix": "/rest/api/2/version/{Version ID}?expand={Expand?:operations,issuesstatus}"
+      "suffix": "/rest/api/2/version/{Version ID}?expand={Expand?:operations,issuesstatus}",
+      "description": "A single version by id. Same fields as Versions."
     },
     {
       "name": "Version Related Issue Count",
       "paged": true,
-      "suffix": "/rest/api/2/version/{Version ID}/relatedIssueCounts"
+      "suffix": "/rest/api/2/version/{Version ID}/relatedIssueCounts",
+      "description": "For one version, the number of issues with it as fixVersion, the number with it as affectedVersion, and counts from any version custom fields. Requires a version id. A ready-made aggregate -- much cheaper than a JQL count, and it separates 'will be fixed in' from 'was broken in', which are routinely confused."
     },
     {
       "name": "Version Unresolved Issue Count",
       "paged": false,
-      "suffix": "/rest/api/2/version/{Version ID}/unresolvedIssueCount"
+      "suffix": "/rest/api/2/version/{Version ID}/unresolvedIssueCount",
+      "description": "For one version, how many issues it contains and how many of those are still unresolved. Requires a version id. The direct answer to whether a release is ready, without paging its issues. Note it counts UNRESOLVED, using the resolution field rather than status -- which is the correct basis."
     },
     {
       "name": "Field Screens",
       "paged": false,
-      "suffix": "/rest/api/2/field/{Custom Field ID}/screens"
+      "suffix": "/rest/api/2/field/{Custom Field ID}/screens",
+      "description": "The screens one field appears on. Requires a field id; administrator only. Use it to find where a field is actually exposed to users -- a field defined but on no screen is unreachable and will be empty on every issue."
     },
     {
       "name": "Screens",
@@ -719,12 +855,14 @@
           "key": "id",
           "parameterName": "Screen ID"
         }
-      ]
+      ],
+      "description": "The screens defined on the instance. A screen is the set of fields shown when creating, editing or transitioning an issue. Configuration, but it explains why a field is empty everywhere: a field on no screen can never be filled in."
     },
     {
       "name": "Screen Fields",
       "paged": true,
-      "suffix": "/rest/api/2/screens/{Screen ID}/availableFields"
+      "suffix": "/rest/api/2/screens/{Screen ID}/availableFields",
+      "description": "The fields that could be added to one screen but are not on it yet. Requires a screen id. The complement of what the screen shows."
     },
     {
       "name": "Screen Tabs",
@@ -737,112 +875,134 @@
           "key": "id",
           "parameterName": "Tab ID"
         }
-      ]
+      ],
+      "description": "The tabs of one screen. Requires a screen id."
     },
     {
       "name": "Screen Tab Fields",
       "paged": true,
-      "suffix": "/rest/api/2/screens/{Screen ID}/tabs/{Tab ID}/fields?&projectKey={Project Key?}"
+      "suffix": "/rest/api/2/screens/{Screen ID}/tabs/{Tab ID}/fields?&projectKey={Project Key?}",
+      "description": "The fields on one tab of one screen, in order. Requires the screen and tab ids. This is what a user actually sees when filling in an issue."
     },
     {
       "name": "Screen Schemes",
       "paged": true,
-      "suffix": "/rest/api/2/screenscheme"
+      "suffix": "/rest/api/2/screenscheme",
+      "description": "The screen schemes on the instance, mapping operations to screens."
     },
     {
       "name": "Server Info",
       "paged": true,
-      "suffix": "/rest/api/2/serverInfo"
+      "suffix": "/rest/api/2/serverInfo",
+      "description": "The Jira version, build number, deployment type and server time. One record. Worth checking when an endpoint behaves unexpectedly, since available fields and behaviour differ between Cloud and Server and between versions."
     },
     {
       "name": "Task",
       "paged": true,
-      "suffix": "/rest/api/2/task/{Task ID}"
+      "suffix": "/rest/api/2/task/{Task ID}",
+      "description": "The status of one long-running asynchronous task, with progress and result. Requires a task id. Operational -- it reports whether a bulk operation finished, and holds no issue data."
     },
     {
       "name": "Time Tracking Provider",
       "paged": false,
-      "suffix": "/rest/api/2/configuration/timetracking"
+      "suffix": "/rest/api/2/configuration/timetracking",
+      "description": "The time tracking provider currently in use, whether Jira's own or an app's."
     },
     {
       "name": "Time Tracking Providers",
       "paged": true,
-      "suffix": "/rest/api/2/configuration/timetracking/list"
+      "suffix": "/rest/api/2/configuration/timetracking/list",
+      "description": "The time tracking providers available on the instance."
     },
     {
       "name": "Time Tracking Settings",
       "paged": false,
-      "suffix": "/rest/api/2/configuration/timetracking/options"
+      "suffix": "/rest/api/2/configuration/timetracking/options",
+      "description": "The time tracking configuration: hours per day, days per week, the default unit and display format. Worklogs record seconds, and these settings are what turn those seconds into the days and weeks a person would recognise -- an eight-hour day makes 28800 seconds one day, not a third of one."
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/rest/api/2/user?accountId={Account ID?}&username={Username?}&key={Key?}&expand={Expand?:groups,applicationRoles}"
+      "suffix": "/rest/api/2/user?accountId={Account ID?}&username={Username?}&key={Key?}&expand={Expand?:groups,applicationRoles}",
+      "description": "A single user by account id. Same fields and the same privacy caveats. Optionally expands to their groups and application roles."
     },
     {
       "name": "User Default Columns",
       "paged": true,
-      "suffix": "/rest/api/2/user/columns?accountId={Account ID?}&username={Username?}"
+      "suffix": "/rest/api/2/user/columns?accountId={Account ID?}&username={Username?}",
+      "description": "The columns one user has configured for their issue list. Personal display preference, no analytical value."
     },
     {
       "name": "User Groups",
       "paged": true,
-      "suffix": "/rest/api/2/user/groups?accountId={Account ID}&username={Username?}&key={Key?}"
+      "suffix": "/rest/api/2/user/groups?accountId={Account ID}&username={Username?}&key={Key?}",
+      "description": "The groups one user belongs to. Requires an account id, and permission to browse users and groups. Group membership is how most Jira permissions are actually granted, so this is the practical answer to what a person can reach."
     },
     {
       "name": "Users",
       "paged": true,
-      "suffix": "/rest/api/2/users"
+      "suffix": "/rest/api/2/users",
+      "description": "Every user with an Atlassian account on the instance -- ACTIVE, INACTIVE AND PREVIOUSLY DELETED alike, told apart by the active flag. Carries accountId, displayName, accountType and active. TWO things shape what comes back. Users are identified by ACCOUNT ID, not username: Atlassian removed usernames, so nothing here joins to a name-based identifier from an older system. And PRIVACY CONTROLS APPLY -- emailAddress and even displayName may be withheld depending on each user's own profile settings and the token's permissions, so blank fields mean 'hidden', not 'absent'."
     },
     {
       "name": "User Properties",
       "paged": true,
-      "suffix": "/rest/api/2/user/properties?accountId={Account ID?}&userKey={User Key?}&username={Username?}"
+      "suffix": "/rest/api/2/user/properties?accountId={Account ID?}&userKey={User Key?}&username={Username?}",
+      "description": "The property keys stored against one user by apps. Note these are NOT the user properties an administrator sets in Jira's own user management -- those are not exposed here at all."
     },
     {
       "name": "User Property",
       "paged": true,
-      "suffix": "/rest/api/2/user/properties/{Property Key}?accountId={Account ID?}&userKey={User Key?}&username={Username?}"
+      "suffix": "/rest/api/2/user/properties/{Property Key}?accountId={Account ID?}&userKey={User Key?}&username={Username?}",
+      "description": "The value of one app-stored user property."
     },
     {
       "name": "Users Assignable to Projects",
       "paged": true,
-      "suffix": "/rest/api/2/user/assignable/multiProjectSearch?query={Query?}&username={Username?}&accountId={Account ID?}&projectKeys={Project Keys}"
+      "suffix": "/rest/api/2/user/assignable/multiProjectSearch?query={Query?}&username={Username?}&accountId={Account ID?}&projectKeys={Project Keys}",
+      "description": "The users who can be assigned issues in one or more projects. A permission-derived list, not a roster: it says who COULD take work, which is what capacity questions actually need."
     },
     {
       "name": "Users Assignable to Issues",
       "paged": true,
-      "suffix": "/rest/api/2/user/assignable/search?project={Project?}&issueKey={Issue Key?}&actionDescriptorId={Action Descriptor ID?}&query={Query?}&sessionId={Session ID?}&username={Username?}&accountId={Account ID?}&recommend={Recommend?:false|true}"
+      "suffix": "/rest/api/2/user/assignable/search?project={Project?}&issueKey={Issue Key?}&actionDescriptorId={Action Descriptor ID?}&query={Query?}&sessionId={Session ID?}&username={Username?}&accountId={Account ID?}&recommend={Recommend?:false|true}",
+      "description": "The users who can be assigned one specific issue, or a new issue in a given project. Requires an issue key or project key. Narrower than the project-level version because issue security and permissions apply."
     },
     {
       "name": "Users with Permissions",
       "paged": true,
-      "suffix": "/rest/api/2/user/permission/search?query={Query?}&username={Username?}&accountId={Account ID?}&permissions={Permissions}&issueKey={Issue Key?}&projectKey={Project Key?}"
+      "suffix": "/rest/api/2/user/permission/search?query={Query?}&username={Username?}&accountId={Account ID?}&permissions={Permissions}&issueKey={Issue Key?}&projectKey={Project Key?}",
+      "description": "Users holding a given set of permissions on a project or issue. Requires the permissions and a project or issue. The way to answer who can administer, transition or resolve work in a project."
     },
     {
       "name": "Users for Picker",
       "paged": true,
-      "suffix": "/rest/api/2/user/picker?query={Query}&showAvatar={Show Avatar?:false|true}&exclude={Exclude?}&excludeAccountIds={Exclude Account Ids?}&avatarSize={Avatar Size?}&excludeConnectUsers={Exclude Connect Users?:false|true}"
+      "suffix": "/rest/api/2/user/picker?query={Query}&showAvatar={Show Avatar?:false|true}&exclude={Exclude?}&excludeAccountIds={Exclude Account Ids?}&avatarSize={Avatar Size?}&excludeConnectUsers={Exclude Connect Users?:false|true}",
+      "description": "Users matching a query term, formatted for type-ahead with the matched text wrapped in HTML markup. Built for a UI control -- truncated and marked up, so not a data source. Use Users or User Search instead."
     },
     {
       "name": "User Search",
       "paged": true,
-      "suffix": "/rest/api/2/user/search/query?query={Query}"
+      "suffix": "/rest/api/2/user/search/query?query={Query}",
+      "description": "Users matching a structured query, paginated. The search-by-attribute route when the account id is not known."
     },
     {
       "name": "Users with Browse Permission",
       "paged": true,
-      "suffix": "/rest/api/2/user/viewissue/search?query={Query?}&username={Username?}&accountId={Account ID?}&issueKey={Issue Key?}&projectKey={Project Key?}"
+      "suffix": "/rest/api/2/user/viewissue/search?query={Query?}&username={Username?}&accountId={Account ID?}&issueKey={Issue Key?}&projectKey={Project Key?}",
+      "description": "Users who can see a given issue or project at all. Requires an issue key or project key. Useful precisely because issue security can hide issues from people -- this is who the issue is visible to."
     },
     {
       "name": "Workflows",
       "paged": true,
-      "suffix": "/rest/api/2/workflow/search?workflowName={Workflow Name?}&expand={Expand?:transitions,transitions.rules...}"
+      "suffix": "/rest/api/2/workflow/search?workflowName={Workflow Name?}&expand={Expand?:transitions,transitions.rules...}",
+      "description": "The workflows defined on the instance, with name, description, whether each is active, and its statuses and transitions. A workflow is what defines the statuses an issue can occupy and the moves between them -- read it to understand why issues in one project follow a different path from another. Atlassian is retiring this endpoint in favour of a newer workflow search."
     },
     {
       "name": "Workflow Transition Rule Configurations",
       "paged": true,
-      "suffix": "/rest/api/2/workflow/rule/config?types={Types:postfunction,condition,validator}&keys={Keys?}&expand={Expand?}"
+      "suffix": "/rest/api/2/workflow/rule/config?types={Types:postfunction,condition,validator}&keys={Keys?}&expand={Expand?}",
+      "description": "The app-provided rules attached to workflow transitions -- conditions, validators and post functions. Administrator only. Explains automated behaviour that no issue field records."
     },
     {
       "name": "Workflow Schemes",
@@ -858,67 +1018,80 @@
           "key": "id",
           "parameterName": "Scheme ID"
         }
-      ]
+      ],
+      "description": "The workflow schemes on the instance. A scheme maps issue types to workflows, and a project uses one scheme -- so this is the join between a project and the process its issues follow."
     },
     {
       "name": "Workflow Scheme",
       "paged": false,
-      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}?returnDraftIfExists={Return Draft If Exists?:false|true}"
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}?returnDraftIfExists={Return Draft If Exists?:false|true}",
+      "description": "A single workflow scheme by id, with its issue-type-to-workflow mapping."
     },
     {
       "name": "Default Workflow",
       "paged": false,
-      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/default?returnDraftIfExists={Return Draft If Exists?:false|true}"
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/default?returnDraftIfExists={Return Draft If Exists?:false|true}",
+      "description": "The workflow a scheme applies to any issue type not mapped explicitly. Requires a scheme id."
     },
     {
       "name": "Issue Type Workflow",
       "paged": false,
-      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/issuetype/{Issue Type ID}?returnDraftIfExists={Return Draft If Exists?:false|true}"
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/issuetype/{Issue Type ID}?returnDraftIfExists={Return Draft If Exists?:false|true}",
+      "description": "The workflow one scheme uses for one issue type. Requires the scheme id and issue type id."
     },
     {
       "name": "Workflow Issue Types",
       "paged": false,
-      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/workflow?workflowName={Workflow Name}&returnDraftIfExists={Return Draft If Exists?:false|true}"
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/workflow?workflowName={Workflow Name}&returnDraftIfExists={Return Draft If Exists?:false|true}",
+      "description": "The issue types mapped to a given workflow within one scheme. Requires the scheme id and workflow name."
     },
     {
       "name": "Workflow Scheme Projects",
       "paged": true,
-      "suffix": "/rest/api/2/workflowscheme/project?projectId={Project ID}"
+      "suffix": "/rest/api/2/workflowscheme/project?projectId={Project ID}",
+      "description": "Which workflow scheme each of the given projects uses. Requires project ids. The quickest way to see whether several projects share a process, which is what decides if their statuses are comparable."
     },
     {
       "name": "Statuses",
       "paged": true,
-      "suffix": "/rest/api/2/status"
+      "suffix": "/rest/api/2/status",
+      "description": "All statuses belonging to active workflows, with name, description, and the STATUS CATEGORY each rolls up to. This is the dimension for the status column on issues. IMPORTANT for any cross-project question: status names are chosen per workflow, so two projects may both have a status meaning 'in review' under different names, and one name may exist twice with different ids. Status category is the stable roll-up -- group by it rather than by name whenever more than one project is in scope."
     },
     {
       "name": "Status",
       "paged": true,
-      "suffix": "/rest/api/2/status/{Status ID or Name}"
+      "suffix": "/rest/api/2/status/{Status ID or Name}",
+      "description": "A single status by id or name. Prefer the id: where a name is used by more than one status, only the first found is returned, silently."
     },
     {
       "name": "Status Categories",
       "paged": true,
-      "suffix": "/rest/api/2/statuscategory"
+      "suffix": "/rest/api/2/statuscategory",
+      "description": "The three fixed categories every status maps to -- To Do, In Progress and Done -- with their keys and colours. Fixed by Jira and identical on every instance, which is exactly what makes them safe to group by when statuses themselves are not comparable across projects."
     },
     {
       "name": "Status Category",
       "paged": false,
-      "suffix": "/rest/api/2/statuscategory/{Category ID or Key}"
+      "suffix": "/rest/api/2/statuscategory/{Category ID or Key}",
+      "description": "A single status category by id or key."
     },
     {
       "name": "Workflow Transition Properties",
       "paged": true,
-      "suffix": "/rest/api/2/workflow/transitions/{Transition ID}/properties?includeReservedKeys={Include Reserved Keys?:false|true}&key={Key?}&workflowName={Workflow Name}&workflowMode={Workflow Mode?:live|draft}"
+      "suffix": "/rest/api/2/workflow/transitions/{Transition ID}/properties?includeReservedKeys={Include Reserved Keys?:false|true}&key={Key?}&workflowName={Workflow Name}&workflowMode={Workflow Mode?:live|draft}",
+      "description": "Properties set on a workflow transition. REMOVED: this endpoint is absent from Atlassian's current Jira Cloud API description and has no direct replacement -- expect it to fail rather than return an empty result."
     },
     {
       "name": "Addon Application Properties",
       "paged": true,
-      "suffix": "/rest/atlassian-connect/1/addons/{Addon Key}/properties"
+      "suffix": "/rest/atlassian-connect/1/addons/{Addon Key}/properties",
+      "description": "The property keys a Connect app has stored on the instance. Requires the app key. App storage, reached through the Connect API rather than the Jira API. Not Jira data."
     },
     {
       "name": "Addon Application Property",
       "paged": false,
-      "suffix": "/rest/atlassian-connect/1/addons/{Addon Key}/properties/{Property Key}"
+      "suffix": "/rest/atlassian-connect/1/addons/{Addon Key}/properties/{Property Key}",
+      "description": "The value of one Connect app property."
     }
   ]
 }

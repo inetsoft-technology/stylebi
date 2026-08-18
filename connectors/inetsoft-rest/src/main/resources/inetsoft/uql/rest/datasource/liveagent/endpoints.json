@@ -4,282 +4,329 @@
       "name": "Agent list",
       "suffix": "/v3/agents",
       "paged": "true",
-      "lookups":[
+      "lookups": [
         {
           "endpoint": "Agent statuses in departments",
           "jsonPath": "$.[*]",
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The agents on the account, with name, email, role and status."
     },
     {
       "name": "Agent",
       "suffix": "/v3/agents/{User ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One agent by user id."
     },
     {
       "name": "Agent statuses in departments",
       "suffix": "/v3/agents/{User ID}/status",
-      "paged": "false"
+      "paged": "false",
+      "description": "One agent's availability per department. Requires a user id. Availability is per department rather than global, so an agent can be online for chat and offline for calls."
     },
     {
       "name": "Agent activity list",
       "suffix": "/v3/agents/activity?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Agent activity records, filtered -- when agents were online, on calls or handling chats. The staffing and utilisation table."
     },
     {
       "name": "Ban list",
       "suffix": "/v3/bans?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The banned visitors and addresses, filtered. Moderation; also the explanation for contacts whose messages never became tickets."
     },
     {
       "name": "Ban",
       "suffix": "/v3/bans/{Ban ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One ban by id."
     },
     {
       "name": "Call list",
       "suffix": "/v3/calls?_filters={Filters?}",
       "paged": "true",
-      "lookups":[
+      "lookups": [
         {
           "endpoint": "Call status",
           "jsonPath": "$.[*]",
           "key": "id",
           "parameterName": "Call ID"
         }
-      ]
+      ],
+      "description": "Phone calls, filtered. The voice channel, with direction, duration and the agent who took it."
     },
     {
       "name": "Call status",
       "suffix": "/v3/calls/{Call ID}/status?unreachableAgents={Unreachable Agents?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The live status of one call, optionally including agents currently unreachable. Requires a call id. A real-time snapshot, not history."
     },
     {
       "name": "Canned message list",
       "suffix": "/v3/canned_messages",
-      "paged": "true"
+      "paged": "true",
+      "description": "The canned responses agents insert. Which exist and which are used says a good deal about the standard cases a team handles."
     },
     {
       "name": "Canned message",
       "suffix": "/v3/canned_messages/{Canned Message ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One canned message by id."
     },
     {
       "name": "Chat list",
       "suffix": "/v3/chats?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Live chat conversations, filtered. Chats become tickets, so these overlap with the ticket table -- this is the chat-specific view with its own timings such as wait time before an agent joined."
     },
     {
       "name": "Company list",
       "suffix": "/v3/companies?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The companies contacts belong to, filtered. The account-level dimension ticket volume can be grouped by."
     },
     {
       "name": "Company",
       "suffix": "/v3/companies/{Company ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One company by id."
     },
     {
       "name": "Contact list",
       "suffix": "/v3/contacts?_filters={Filters?}",
       "paged": "true",
-      "lookups":[
+      "lookups": [
         {
           "endpoint": "Page visits",
           "jsonPath": "$.[*]",
           "key": "id",
           "parameterName": "Contact ID"
         }
-      ]
+      ],
+      "description": "The customers who have contacted support, filtered. Carries name, emails, phone numbers and the company each belongs to."
     },
     {
       "name": "Contact",
       "suffix": "/v3/contacts/{Contact ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One contact by id."
     },
     {
       "name": "Custom button list",
       "suffix": "/v3/custom_buttons?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom buttons configured in the agent interface, filtered. Interface configuration."
     },
     {
       "name": "Custom button",
       "suffix": "/v3/custom_buttons/{Custom Button ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One custom button by id."
     },
     {
       "name": "Department list",
       "suffix": "/v3/departments?_filters={Filters?}",
       "paged": "true",
-      "lookups":[
+      "lookups": [
         {
           "endpoint": "Device departments by department id",
           "jsonPath": "$.[*]",
           "key": "department_id",
           "parameterName": "Department ID"
         }
-      ]
+      ],
+      "description": "The departments tickets are routed to, filtered. The team dimension."
     },
     {
       "name": "Department",
       "suffix": "/v3/departments/{Department ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One department by id."
     },
     {
       "name": "Is agent in department",
       "suffix": "/v3/departments/{Department ID}/{Agent ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Whether one agent belongs to one department. Requires both ids. A membership check rather than a listing."
     },
     {
       "name": "Device list",
       "suffix": "/v3/devices?_filters={Filters?}",
       "paged": "true",
-      "lookups":[
+      "lookups": [
         {
           "endpoint": "Device departments",
           "jsonPath": "$.[*]",
           "key": "id",
           "parameterName": "Device ID"
         }
-      ]
+      ],
+      "description": "The devices registered on the account, filtered."
     },
     {
       "name": "Device",
       "suffix": "/v3/devices/{Device ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One device by id."
     },
     {
       "name": "Device departments",
       "suffix": "/v3/devices/{Device ID}/departments?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The departments one device serves. Requires a device id."
     },
     {
       "name": "Device department by id",
       "suffix": "/v3/devices/{Device ID}/departments/{Department ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One device-to-department assignment."
     },
     {
       "name": "Device department plan",
       "suffix": "/v3/devices/{Device ID}/departments/{Department ID}/plans",
-      "paged": "false"
+      "paged": "false",
+      "description": "The routing plan for one device in one department."
     },
     {
       "name": "Device departments by department id",
       "suffix": "/v3/devices/departments/{Department ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The devices serving one department. The reverse view."
     },
     {
       "name": "Filter list",
       "suffix": "/v3/filters?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The saved ticket filters defined, filtered. These encode the queues agents actually work from, so their definitions state the team's own categories."
     },
     {
       "name": "Filter",
       "suffix": "/v3/filters/{Filter ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One saved filter by id, with its conditions."
     },
     {
       "name": "List of reports for time reports grid",
       "suffix": "/v3/grid/reports/time?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Time-based report rows, filtered. LiveAgent's own reporting output -- pre-aggregated, and the cheaper route to figures that would otherwise be computed from ticket history."
     },
     {
       "name": "Contact group list",
       "suffix": "/v3/groups",
-      "paged": "true"
+      "paged": "true",
+      "description": "The groups contacts are organised into. The customer segmentation dimension."
     },
     {
       "name": "Contact group",
       "suffix": "/v3/groups/{Group ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One contact group by id."
     },
     {
       "name": "Message",
       "suffix": "/v3/messages/{Message ID}?subString_Start={Substring Start?}&subString_Length={Substring Length?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One message by id, optionally with a substring of its body. The individual message rather than the ticket conversation."
     },
     {
       "name": "Page visits",
       "suffix": "/v3/page_visits/{Contact ID}/contact?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The pages one contact visited on the website before contacting support. Requires a contact id. Behavioural context for a ticket, which the ticket itself does not carry."
     },
     {
       "name": "Phone numbers list",
       "suffix": "/v3/phone_numbers?additionalObjects={Additional Objects?}&&_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The phone numbers configured, with the department each routes to. The inbound voice routing map."
     },
     {
       "name": "Phone number",
       "suffix": "/v3/phone_numbers/{Phone Number ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One phone number by id."
     },
     {
       "name": "Available dial out prefix",
       "suffix": "/v3/phone_numbers/availablePrefix",
-      "paged": "false"
+      "paged": "false",
+      "description": "The dial-out prefixes available. Configuration for outbound calling."
     },
     {
       "name": "Phone device list",
       "suffix": "/v3/phones?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The registered phone devices -- softphones and hardware -- agents take calls on."
     },
     {
       "name": "Phone device",
       "suffix": "/v3/phones/{Phone ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One phone device by id."
     },
     {
       "name": "Predefined answer list",
       "suffix": "/v3/predefined_answers?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The predefined answers available, filtered. Similar to canned messages, used in different contexts."
     },
     {
       "name": "Predefined answer",
       "suffix": "/v3/predefined_answers/{Predefined Answer ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One predefined answer by id."
     },
     {
       "name": "Batch status and remaining items to process",
       "suffix": "/v3/queue/batch/{Batch ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The progress of a queued batch operation. Requires a batch id. Operational."
     },
     {
       "name": "Settings list",
       "suffix": "/v3/settings?settingsNames={Settings Names?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The account settings, optionally by name. Configuration, and worth checking when a feature-dependent table comes back empty."
     },
     {
       "name": "Sla list",
       "suffix": "/v3/slas",
-      "paged": "false"
+      "paged": "false",
+      "description": "The SLA levels defined, with their response and resolution targets. The targets that make a duration fast or slow; a raw resolution time means nothing without them."
     },
     {
       "name": "Sla",
       "suffix": "/v3/slas/{Level ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One SLA level by id."
     },
     {
       "name": "Ticket Sla history",
       "suffix": "/v3/slas/{Ticket ID}/history",
-      "paged": "false"
+      "paged": "false",
+      "description": "The SLA events of one ticket over time. Requires the ticket id. When the clock started, paused and stopped -- and therefore why a breach happened."
     },
     {
       "name": "Tag list",
       "suffix": "/v3/tags",
-      "paged": "true"
+      "paged": "true",
+      "description": "The tags applied to tickets. The free-form categorisation, and usually the only statement of what tickets are about beyond their subject line."
     },
     {
       "name": "Tag",
       "suffix": "/v3/tags/{Tag ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One tag by id."
     },
     {
       "name": "Ticket list",
       "suffix": "/v3/tickets?_filters={Filters?}",
       "paged": "true",
-      "lookups":[
+      "lookups": [
         {
           "endpoint": "Ticket history",
           "jsonPath": "$.[*]",
@@ -304,42 +351,50 @@
           "key": "id",
           "parameterName": "Ticket ID"
         }
-      ]
+      ],
+      "description": "The support tickets, filtered by LiveAgent's own _filters expression. Carries the subject, the customer, the department and assigned agent, status, channel, tags, and the created and changed timestamps. The central table. NOTE THE CHANNEL COLUMN: LiveAgent unifies email, chat, phone calls and social messages into one ticket stream, so a ticket count spans channels that behave nothing alike -- a chat and an email ticket have very different natural durations, and mixing them makes an average response time meaningless."
     },
     {
       "name": "Ticket",
       "suffix": "/v3/tickets/{Ticket ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One ticket by id, with its full detail."
     },
     {
       "name": "Ticket attribute",
       "suffix": "/v3/tickets/{Ticket ID}/attributes/{Attribute Name:endChatOrCall|note}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One named attribute of a ticket, such as whether a chat or call has ended. Requires the ticket id and attribute name."
     },
     {
       "name": "Ticket history",
       "suffix": "/v3/tickets/{Ticket ID}/history",
-      "paged": "false"
+      "paged": "false",
+      "description": "The change history of one ticket: status changes, transfers, assignments, each with the actor and timestamp. Requires a ticket id. The ticket holds current state only, so response and resolution timings are derived from here."
     },
     {
       "name": "Ticket message groups and messages",
       "suffix": "/v3/tickets/{Ticket ID}/messages?includeQuotedMessages={Include Quoted Messages?:true|false}&_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The conversation on one ticket, grouped into message groups. Requires a ticket id. Where the actual text lives -- the ticket record carries only its subject."
     },
     {
       "name": "Ticket Sla",
       "suffix": "/v3/tickets/{Ticket ID}/sla",
-      "paged": "false"
+      "paged": "false",
+      "description": "The SLA applying to one ticket and its current state against it. Requires a ticket id. Whether a ticket is breaching is only answerable here; the ticket itself carries no SLA field."
     },
     {
       "name": "Tickets history list",
       "suffix": "/v3/tickets/history?_filters={Filters?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Ticket history events across all tickets, filtered. The account-wide change log, and the practical basis for time-in-status analysis without a request per ticket."
     },
     {
       "name": "User",
       "suffix": "/v3/users/{User ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One user by id."
     }
   ]
 }

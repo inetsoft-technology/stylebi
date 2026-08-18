@@ -3,508 +3,597 @@
     {
       "name": "Ad Account",
       "paged": false,
-      "suffix": "/rest/adAccounts/{Ad Account ID}"
+      "suffix": "/rest/adAccounts/{Ad Account ID}",
+      "description": "One advertising account by id, with its budget and status."
     },
     {
       "name": "Ad Accounts",
       "paged": true,
       "pageType": "ITERATION",
-      "suffix": "/rest/adAccounts?q=search"
+      "suffix": "/rest/adAccounts?q=search",
+      "description": "The advertising accounts the credentials can reach, with name, type, status, currency and the reference the advertiser assigned. THE STARTING POINT: nearly every endpoint here takes a sponsored account URN, and LINKEDIN IDENTIFIES EVERYTHING BY URN rather than by bare id -- a string like urn:li:sponsoredAccount:12345 -- so an id lifted from one response usually needs wrapping before another will accept it."
     },
     {
       "name": "Ad Account User",
       "paged": false,
-      "suffix": "/rest/adAccountUsers?account={Sponsored Account URN}&user={User URN}"
+      "suffix": "/rest/adAccountUsers?account={Sponsored Account URN}&user={User URN}",
+      "description": "One user's access to one account. Requires both URNs."
     },
     {
       "name": "Authenticated Ad Account User",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAccountUsers?q=authenticatedUser"
+      "suffix": "/rest/adAccountUsers?q=authenticatedUser",
+      "description": "The caller's own access records. Always the caller's, and the explanation for which accounts the rest of this connector can see."
     },
     {
       "name": "Ad Account Users by Accounts",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAccountUsers?q=accounts&accounts={Sponsored Account URNs,:urn1,urn2,...}"
+      "suffix": "/rest/adAccountUsers?q=accounts&accounts={Sponsored Account URNs,:urn1,urn2,...}",
+      "description": "Access records across several named accounts at once. The efficient route for an agency managing many."
     },
     {
       "name": "Ad Account Users",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAccountUsers?&q=account&totals=true&Account={Sponsored Account URN}"
+      "suffix": "/rest/adAccountUsers?&q=account&totals=true&Account={Sponsored Account URN}",
+      "description": "The users with access to one account and the role each holds. Requires the account URN."
     },
     {
       "name": "Campaign Group",
       "paged": false,
-      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaignGroups/{Campaign Group ID}"
+      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaignGroups/{Campaign Group ID}",
+      "description": "One campaign group by id."
     },
     {
       "name": "Campaign Groups",
       "paged": true,
       "pageType": "ITERATION",
-      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaignGroups?q=search"
+      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaignGroups?q=search",
+      "description": "The campaign groups within one account -- the budget and scheduling container above campaigns. Requires an account id. Budgets are frequently set here rather than per campaign, so campaign-level spend does not add up to the group's budget."
     },
     {
       "name": "Campaign",
       "paged": false,
-      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaigns/{Campaign ID}"
+      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaigns/{Campaign ID}",
+      "description": "One campaign by id, with its full targeting."
     },
     {
       "name": "Campaigns",
       "paged": true,
       "pageType": "ITERATION",
-      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaigns?q=search"
+      "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaigns?q=search",
+      "description": "The campaigns within one account, with name, type, status, objective, the daily and total budget, bid, schedule and targeting criteria. Requires an account id. The unit most advertising questions are asked about. STATUS separates ACTIVE from PAUSED, DRAFT, ARCHIVED, COMPLETED and CANCELED, so an unfiltered spend or count includes campaigns that never ran."
     },
     {
       "name": "Creative",
       "paged": false,
-      "suffix": "/rest/creatives/{Creative ID}"
+      "suffix": "/rest/creatives/{Creative ID}",
+      "description": "One creative by id."
     },
     {
       "name": "Creatives",
       "paged": true,
       "pageType": "ITERATION",
-      "suffix": "/rest/creatives?q=search"
+      "suffix": "/rest/creatives?q=search",
+      "description": "The creatives -- the actual ads -- with their status, the campaign each belongs to, and the content they reference. Uses LinkedIn's search finder, so the account and campaign are given as SEARCH CRITERIA rather than as named parameters, which is why no account id appears in the path. A campaign holds several creatives, so creative-level performance is where a winning variant is identified."
     },
     {
       "name": "Ad Targeting Facets",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adTargetingFacets"
+      "suffix": "/rest/adTargetingFacets",
+      "description": "The targeting dimensions available -- industry, job function, seniority, skills, company size and the rest. The vocabulary campaigns are targeted in."
     },
     {
       "name": "Ad Targeting Entities",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adTargetingEntities?q=adTargetingFacet&facet={Ad Targeting Facet URN}"
+      "suffix": "/rest/adTargetingEntities?q=adTargetingFacet&facet={Ad Targeting Facet URN}",
+      "description": "The specific values within one targeting facet. Requires the facet. THE DECODER for targeting criteria: a campaign's targeting is a set of URNs, and this is what resolves them to names."
     },
     {
       "name": "Ad Targeting Entities by Similar Entities",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adTargetingEntities?q=similarEntities&facet={Ad Targeting Facet URN}&entities={Entity URN}"
+      "suffix": "/rest/adTargetingEntities?q=similarEntities&facet={Ad Targeting Facet URN}&entities={Entity URN}",
+      "description": "Targeting values similar to given ones. Audience expansion, for finding adjacent segments."
     },
     {
       "name": "Audience Counts",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/audienceCounts?q=targetingCriteria&targetingCriteria={Targeting Criteria}"
+      "suffix": "/rest/audienceCounts?q=targetingCriteria&targetingCriteria={Targeting Criteria}",
+      "description": "The estimated size of an audience matching given targeting criteria. Planning rather than reporting -- it says how many people could be reached, not how many were."
     },
     {
       "name": "Ad Supply Forecasts",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adSupplyForecasts?q=criteriaV2&targetingCriteria={Targeting Criteria}"
+      "suffix": "/rest/adSupplyForecasts?q=criteriaV2&targetingCriteria={Targeting Criteria}",
+      "description": "The forecast impressions available for given targeting criteria. The inventory side of the same planning question."
     },
     {
       "name": "Video Ad",
       "paged": false,
-      "suffix": "/rest/adDirectSponsoredContents/{UGC Post URN}"
+      "suffix": "/rest/adDirectSponsoredContents/{UGC Post URN}",
+      "description": "One video ad by its post URN."
     },
     {
       "name": "Video Ads By Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adDirectSponsoredContents?q=account&types=List[VIDEO]&includeTotals=false&account={Sponsored Account URN}&owner={Organization URN}"
+      "suffix": "/rest/adDirectSponsoredContents?q=account&types=List[VIDEO]&includeTotals=false&account={Sponsored Account URN}&owner={Organization URN}",
+      "description": "The video creatives available to one account. Requires the account URN. Video is handled separately from other creative types in LinkedIn's model."
     },
     {
       "name": "Video Ads by Owner",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adDirectSponsoredContents?q=owner&owner={Organization URN}"
+      "suffix": "/rest/adDirectSponsoredContents?q=owner&owner={Organization URN}",
+      "description": "The video creatives owned by one organisation."
     },
     {
       "name": "Sponsored Conversation",
       "paged": false,
-      "suffix": "/rest/sponsoredConversations/{Conversation ID}"
+      "suffix": "/rest/sponsoredConversations/{Conversation ID}",
+      "description": "One sponsored conversation by id, with its flow."
     },
     {
       "name": "Sponsored Conversations",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/sponsoredConversations?ids={Conversation IDs:List(id1,id2,...)}"
+      "suffix": "/rest/sponsoredConversations?ids={Conversation IDs:List(id1,id2,...)}",
+      "description": "The sponsored conversation ads -- LinkedIn's interactive message format -- by id. The message-based ad type, distinct from feed ads."
     },
     {
       "name": "Sponsored Message Contents",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/sponsoredConversations/{Conversation ID}/sponsoredMessageContents"
+      "suffix": "/rest/sponsoredConversations/{Conversation ID}/sponsoredMessageContents",
+      "description": "The message steps within one sponsored conversation. Requires the conversation id. The conversation's actual content and branching."
     },
     {
       "name": "Sponsored Message Content",
       "paged": false,
-      "suffix": "/rest/sponsoredConversations/{Conversation ID}/sponsoredMessageContents/{Content ID}"
+      "suffix": "/rest/sponsoredConversations/{Conversation ID}/sponsoredMessageContents/{Content ID}",
+      "description": "One message step within a conversation."
     },
     {
       "name": "Ad InMail Content",
       "paged": false,
-      "suffix": "/rest/adInMailContents/{Content ID}"
+      "suffix": "/rest/adInMailContents/{Content ID}",
+      "description": "One InMail content by id."
     },
     {
       "name": "Ad InMail Contents",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adInMailContents?ids={Content IDs,:id1,id2,...}"
+      "suffix": "/rest/adInMailContents?ids={Content IDs,:id1,id2,...}",
+      "description": "The sponsored InMail message contents by id. The older single-message format."
     },
     {
       "name": "Member Sender Permissions by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adInMailMemberSenderPermissions?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/adInMailMemberSenderPermissions?q=account&account={Sponsored Account URN}",
+      "description": "Which members may be used as the sender of sponsored messages for one account. Requires the account URN. Sponsored messages come from a person, so this is who the account may send as."
     },
     {
       "name": "Company Senders by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adInMailCompanySenderPermissions?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/adInMailCompanySenderPermissions?q=account&account={Sponsored Account URN}",
+      "description": "Which companies may be used as the sender for one account."
     },
     {
       "name": "Sender Permissions by Member",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adInMailMemberSenderPermissions?q=member&member={Member URN}"
+      "suffix": "/rest/adInMailMemberSenderPermissions?q=member&member={Member URN}",
+      "description": "The accounts one member has granted sending permission to. The reverse view."
     },
     {
       "name": "Ad Analytics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAnalytics?q=analytics&pivot={Pivot}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs?}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}"
+      "suffix": "/rest/adAnalytics?q=analytics&pivot={Pivot}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs?}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}",
+      "description": "THE PERFORMANCE TABLE, and the one most questions here reduce to. Requires a pivot, a time granularity and a date range. Returns impressions, clicks, spend, conversions, video views and dozens of other metrics, PIVOTED by whatever dimension is asked for -- campaign, creative, account, company, job function, seniority, industry and more. THREE THINGS TO KNOW. The pivot IS the grouping: the same query pivoted differently is a different report, and only one pivot is allowed per request. Metrics must be named in the fields parameter or a minimal default set comes back. And demographic pivots are subject to a minimum-audience threshold -- LinkedIn withholds rows below it for privacy, so pivoted totals do not add up to the unpivoted figure."
     },
     {
       "name": "Ad Statistics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAnalytics?q=statistics&pivots={Pivots}&objectiveType={Objective Type}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Sponsored Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}"
+      "suffix": "/rest/adAnalytics?q=statistics&pivots={Pivots}&objectiveType={Objective Type}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Sponsored Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}",
+      "description": "The same analytics addressed by the statistics finder, taking multiple pivots and an objective type. Use it where a breakdown needs two dimensions at once, which the single-pivot analytics finder cannot express."
     },
     {
       "name": "Pricing Insights by Criteria",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adBudgetPricing?q=criteriaV2&campaignType={Campaign Type}&account={Sponsored Account URN}&bidType={Bid Type}&currency={ISO Currency Code?}&countryCode={ISO Country Code}&matchType={Match Type}&targetingCriteria={Targeting Criteria}&dailyBudget={Daily Budget}&objectiveType={Objective Type}&optimizationTargetType={Optimization Target Type}"
+      "suffix": "/rest/adBudgetPricing?q=criteriaV2&campaignType={Campaign Type}&account={Sponsored Account URN}&bidType={Bid Type}&currency={ISO Currency Code?}&countryCode={ISO Country Code}&matchType={Match Type}&targetingCriteria={Targeting Criteria}&dailyBudget={Daily Budget}&objectiveType={Objective Type}&optimizationTargetType={Optimization Target Type}",
+      "description": "The estimated bid range for a given campaign type and targeting. Forward-looking market pricing, used before spending rather than after."
     },
     {
       "name": "Insight Tags by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/insightTags?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/insightTags?q=account&account={Sponsored Account URN}",
+      "description": "The LinkedIn Insight Tags in one account -- the tracking pixels installed on the advertiser's site. Requires the account URN. NO TAG MEANS NO CONVERSION DATA, so this is the first thing to check when conversions are absent."
     },
     {
       "name": "Insight Tag",
       "paged": false,
-      "suffix": "/rest/insightTags/{Insight Tag ID}"
+      "suffix": "/rest/insightTags/{Insight Tag ID}",
+      "description": "One insight tag by id."
     },
     {
       "name": "Insight Tag Permissions by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/insightTagPermission?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/insightTagPermission?q=account&account={Sponsored Account URN}",
+      "description": "Who may use one account's insight tags. Relevant on shared or agency-managed tags."
     },
     {
       "name": "Insight Tag Domains by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/insightTagDomains?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/insightTagDomains?q=account&account={Sponsored Account URN}",
+      "description": "The domains an account's insight tags are firing on. Where tracking is actually installed, as opposed to where it was intended."
     },
     {
       "name": "Conversion",
       "paged": false,
-      "suffix": "/rest/conversions/{Conversion ID}?account={Sponsored Account URN}"
+      "suffix": "/rest/conversions/{Conversion ID}?account={Sponsored Account URN}",
+      "description": "One conversion definition by id."
     },
     {
       "name": "Conversions",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/conversions?account={Sponsored Account URN}&ids={Conversion IDs}"
+      "suffix": "/rest/conversions?account={Sponsored Account URN}&ids={Conversion IDs}",
+      "description": "Several conversion definitions by id."
     },
     {
       "name": "Conversions by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/conversions?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/conversions?q=account&account={Sponsored Account URN}",
+      "description": "The conversion definitions in one account -- the actions on the advertiser's own site that count as success, with their type and attribution window. Requires the account URN. Conversion COUNTS appear in analytics; what a conversion MEANS is defined here."
     },
     {
       "name": "Campaign Conversion",
       "paged": false,
-      "suffix": "/rest/campaignConversions/{Campaign and Conversion URN}"
+      "suffix": "/rest/campaignConversions/{Campaign and Conversion URN}",
+      "description": "One campaign-to-conversion association."
     },
     {
       "name": "Campaign Conversions",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/campaignConversions?ids={Campaign and Conversion URNs}"
+      "suffix": "/rest/campaignConversions?ids={Campaign and Conversion URNs}",
+      "description": "Several campaign-to-conversion associations by URN."
     },
     {
       "name": "Campaign Conversions by Campaign",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/campaignConversions?q=campaigns&campaigns={Campaign URNs}"
+      "suffix": "/rest/campaignConversions?q=campaigns&campaigns={Campaign URNs}",
+      "description": "Which conversions are attached to which campaigns. The link that decides what a campaign's conversion count is counting."
     },
     {
       "name": "Campaign Recommendations",
       "paged": false,
-      "suffix": "/rest/adCampaignRecommendations?q=campaigns&campaigns={Campaign URNs}"
+      "suffix": "/rest/adCampaignRecommendations?q=campaigns&campaigns={Campaign URNs}",
+      "description": "LinkedIn's suggested changes to named campaigns -- budget, bid and targeting adjustments. Advice, not data."
     },
     {
       "name": "Campaign Insights",
       "paged": false,
-      "suffix": "/rest/adCampaignInsights?q=entities&entities={Campaign URNs}"
+      "suffix": "/rest/adCampaignInsights?q=entities&entities={Campaign URNs}",
+      "description": "LinkedIn's own generated observations about named campaigns. Interpretation rather than measurement."
     },
     {
       "name": "Third-Party Tracking Tag",
       "paged": false,
-      "suffix": "/rest/thirdPartyTrackingTags/{Tag ID}"
+      "suffix": "/rest/thirdPartyTrackingTags/{Tag ID}",
+      "description": "One third-party tracking tag by id."
     },
     {
       "name": "Third-Party Tracking Tags by Creative",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/thirdPartyTrackingTags?q=creative&totals=true&creative={Creative URN}"
+      "suffix": "/rest/thirdPartyTrackingTags?q=creative&totals=true&creative={Creative URN}",
+      "description": "The external tracking tags attached to one creative. Requires the creative URN. Third-party verification, which produces figures that will not match LinkedIn's own."
     },
     {
       "name": "Ad Forms by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adForms?q=account&totals=true&account={Sponsored Account URN}"
+      "suffix": "/rest/adForms?q=account&totals=true&account={Sponsored Account URN}",
+      "description": "The lead generation forms in one account. Requires the account URN. Lead gen forms collect contact details in-platform, so they are the conversion mechanism for lead campaigns."
     },
     {
       "name": "Ad Form",
       "paged": false,
-      "suffix": "/rest/adForms/{Form ID}"
+      "suffix": "/rest/adForms/{Form ID}",
+      "description": "One lead gen form by id, with its questions."
     },
     {
       "name": "Ad Forms",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adForms?ids={Form IDs,}"
+      "suffix": "/rest/adForms?ids={Form IDs,}",
+      "description": "Several lead gen forms by id."
     },
     {
       "name": "Ad Form Question",
       "paged": false,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adFormQuestions?form={Form URN}&questionId={Question ID}"
+      "suffix": "/rest/adFormQuestions?form={Form URN}&questionId={Question ID}",
+      "description": "One question within a form. Requires the form URN and question id. The decoder for a response's answers, which reference question ids."
     },
     {
       "name": "Ad Form Responses by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adFormResponses?q=account&account={Sponsored Account URN}&campaign={Campaign URN?}&creative={Creative URN?}&form={Form URN?}&leadType={Lead Type?}&timeRange.start={Start Time?:Unix Timestamp}&timeRange.end={End Time?:Unix Timestamp}"
+      "suffix": "/rest/adFormResponses?q=account&account={Sponsored Account URN}&campaign={Campaign URN?}&creative={Creative URN?}&form={Form URN?}&leadType={Lead Type?}&timeRange.start={Start Time?:Unix Timestamp}&timeRange.end={End Time?:Unix Timestamp}",
+      "description": "THE LEADS THEMSELVES -- every form submission in one account, with the answers given and the campaign that produced them. Requires the account URN. The commercial output of a lead gen campaign, and the only place the actual contact details are."
     },
     {
       "name": "Ad Form Response",
       "paged": false,
-      "suffix": "/rest/adFormResponses/{Response ID}?account={Sponsored Account URN}"
+      "suffix": "/rest/adFormResponses/{Response ID}?account={Sponsored Account URN}",
+      "description": "One form response by id. Requires the account URN."
     },
     {
       "name": "Ad Form Responses",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adFormResponses?account={Sponsored Account URN}&ids={Response IDs,}"
+      "suffix": "/rest/adFormResponses?account={Sponsored Account URN}&ids={Response IDs,}",
+      "description": "Several form responses by id."
     },
     {
       "name": "DMP Segments",
       "paged": false,
-      "suffix": "/rest/dmpSegments?ids={Segment IDs}"
+      "suffix": "/rest/dmpSegments?ids={Segment IDs}",
+      "description": "Several segments by id."
     },
     {
       "name": "DMP Segment",
       "paged": false,
-      "suffix": "/rest/dmpSegments/{Segment ID}"
+      "suffix": "/rest/dmpSegments/{Segment ID}",
+      "description": "One segment by id, with its size and status."
     },
     {
       "name": "DMP Segments by Account",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/dmpSegments?q=account&account={Sponsored Account URN}"
+      "suffix": "/rest/dmpSegments?q=account&account={Sponsored Account URN}",
+      "description": "The matched audience segments in one account -- uploaded contact lists, website retargeting audiences and lookalikes. Requires the account URN. Carries the match rate, which is what determines whether an uploaded list is usable: a low match rate means most of the uploaded people were not found on LinkedIn."
     },
     {
       "name": "DMP Segment Destination",
       "paged": false,
-      "suffix": "/rest/dmpSegments/{Segment ID}/destinations/{Destination}"
+      "suffix": "/rest/dmpSegments/{Segment ID}/destinations/{Destination}",
+      "description": "One segment destination."
     },
     {
       "name": "DMP Segment Destinations",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/dmpSegments/{Segment ID}/destinations"
+      "suffix": "/rest/dmpSegments/{Segment ID}/destinations",
+      "description": "Where one segment is shared to. Requires the segment id."
     },
     {
       "name": "DMP Segment Lookalikes",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/dmpSegments/{Segment ID}/lookalikes"
+      "suffix": "/rest/dmpSegments/{Segment ID}/lookalikes",
+      "description": "The lookalike audiences derived from one segment. Requires the segment id. Audience expansion built on a seed list."
     },
     {
       "name": "Ad Segment Status",
       "paged": false,
-      "suffix": "/rest/adSegments/{Segment ID}"
+      "suffix": "/rest/adSegments/{Segment ID}",
+      "description": "The processing status of one audience segment. Segments take time to build after upload, so this explains a segment that exists but cannot yet be targeted."
     },
     {
       "name": "Organization",
       "paged": false,
-      "suffix": "/rest/organizations/{Organization ID}"
+      "suffix": "/rest/organizations/{Organization ID}",
+      "description": "One organisation by id -- the company page behind an advertiser. Carries the name, vanity name, description, industry, size and locations."
     },
     {
       "name": "Organization by Email Domain",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/organizations?q=emailDomain&emailDomain={Email Domain}"
+      "suffix": "/rest/organizations?q=emailDomain&emailDomain={Email Domain}",
+      "description": "The organisation matching an email domain. The lookup from a company's mail domain to its LinkedIn page."
     },
     {
       "name": "Organization Follower Count",
       "paged": false,
-      "suffix": "/rest/networkSizes/{Organization URN}?edgeType=CompanyFollowedByMember"
+      "suffix": "/rest/networkSizes/{Organization URN}?edgeType=CompanyFollowedByMember",
+      "description": "The follower count of one organisation. Requires the organisation URN. A single number and the cheapest audience-size check."
     },
     {
       "name": "Organization Brand",
       "paged": false,
-      "suffix": "/rest/organizationBrands/{Brand ID}"
+      "suffix": "/rest/organizationBrands/{Brand ID}",
+      "description": "One brand page by id."
     },
     {
       "name": "Organization Brands by Organization",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/organizations?q=parentOrganization&parent={Parent Organization URN}"
+      "suffix": "/rest/organizations?q=parentOrganization&parent={Parent Organization URN}",
+      "description": "The brand pages under one parent organisation. Large companies run several brand pages, so a total for the company means summing them."
     },
     {
       "name": "Organization Brands by Vanity Name",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/organizationBrands?q=vanityName&vanityName={Vanity Name}"
+      "suffix": "/rest/organizationBrands?q=vanityName&vanityName={Vanity Name}",
+      "description": "A brand page by its vanity URL name."
     },
     {
       "name": "Follower Statistics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+      "suffix": "/rest/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "description": "Follower counts and gains for one organisation, broken down by seniority, function, industry, staff count and country. THE AUDIENCE COMPOSITION TABLE -- who follows the page, as opposed to how many. Subject to the same minimum-threshold suppression as ad demographics."
     },
     {
       "name": "Organization Page Statistics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/organizationPageStatistics?q=organization&organization={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+      "suffix": "/rest/organizationPageStatistics?q=organization&organization={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "description": "Page views and unique visitors for one organisation's page, by section and by viewer demographic, over a time range. The organic counterpart to ad analytics."
     },
     {
       "name": "Brand Page Statistics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/brandPageStatistics?q=brand&brand={Brand URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+      "suffix": "/rest/brandPageStatistics?q=brand&brand={Brand URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "description": "The same page statistics for one brand page. Requires the brand URN."
     },
     {
       "name": "Share Statistics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+      "suffix": "/rest/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "description": "Engagement statistics for one organisation's posts -- impressions, clicks, likes, comments, shares and engagement rate. ORGANIC PERFORMANCE, which the advertising analytics does not cover: a company's own posting reach lives here."
     },
     {
       "name": "UGC Posts by URN",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/posts/{Post or Share URN}?viewContext={View Context:AUTHOR|READER}"
+      "suffix": "/rest/posts/{Post or Share URN}?viewContext={View Context:AUTHOR|READER}",
+      "description": "One post by its URN, in a given view context."
     },
     {
       "name": "UGC Posts",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/posts?ids={Post URNs}"
+      "suffix": "/rest/posts?ids={Post URNs}",
+      "description": "Several posts by URN."
     },
     {
       "name": "UGC Posts by Authors",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/posts?q=authors&authors={Person or Organization URNs}"
+      "suffix": "/rest/posts?q=authors&authors={Person or Organization URNs}",
+      "description": "The posts authored by named people or organisations. Requires the author URNs. The content table for organic activity."
     },
     {
       "name": "UGC Posts by Group",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/posts?q=containerEntities&containerEntities={Group URNs}"
+      "suffix": "/rest/posts?q=containerEntities&containerEntities={Group URNs}",
+      "description": "The posts within a LinkedIn group. Requires the group URN."
     },
     {
       "name": "UGC Posts by Permalink Suffixes",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/posts?q=permalinkSuffixes&permalinkSuffixes={Permalink Suffixes}"
+      "suffix": "/rest/posts?q=permalinkSuffixes&permalinkSuffixes={Permalink Suffixes}",
+      "description": "Posts looked up by the suffix of their public URL. The route in when only a shared link is known."
     },
     {
       "name": "Share",
       "paged": false,
-      "suffix": "/rest/shares/{Share ID}"
+      "suffix": "/rest/shares/{Share ID}",
+      "description": "One share by id."
     },
     {
       "name": "Shares by Owner",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/shares?q=owners&owners={Owner URN}&sharesPerOwner={Shares Per Owner?}"
+      "suffix": "/rest/shares?q=owners&owners={Owner URN}&sharesPerOwner={Shares Per Owner?}",
+      "description": "The shares posted by one owner. Requires the owner URN. Shares are the older post model that coexists with UGC posts, so a complete content history may need both."
     },
     {
       "name": "Shares",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/shares?ids={Share IDs}"
+      "suffix": "/rest/shares?ids={Share IDs}",
+      "description": "Several shares by id."
     },
     {
       "name": "Activities",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/activities?ids={Activity IDs,}"
+      "suffix": "/rest/activities?ids={Activity IDs,}",
+      "description": "Activity records by id. The wrapper LinkedIn uses around shares and posts in some contexts."
     },
     {
       "name": "Social Actions Summary",
       "paged": false,
-      "suffix": "/rest/socialActions/{Share/Post/Comment URN}"
+      "suffix": "/rest/socialActions/{Share/Post/Comment URN}",
+      "description": "The like, comment and share counts on one post, share or comment. Requires its URN. The engagement totals; the individual actions are separate endpoints."
     },
     {
       "name": "Likes",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/socialActions/{Share/Post/Comment URN}/likes"
+      "suffix": "/rest/socialActions/{Share/Post/Comment URN}/likes",
+      "description": "The individual likes on one post or comment. Requires its URN. Who engaged, as opposed to how many."
     },
     {
       "name": "Comments",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/socialActions/{Share/Post/Comment URN}/comments"
+      "suffix": "/rest/socialActions/{Share/Post/Comment URN}/comments",
+      "description": "The comments on one post, with their authors and text. Requires the post URN. The qualitative response to content, which no engagement count conveys."
     },
     {
       "name": "Social Metadata Summary",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/socialMetadata/{Share/Post/Comment URN}"
+      "suffix": "/rest/socialMetadata/{Share/Post/Comment URN}",
+      "description": "The social metadata of one entity -- comment and reaction settings and totals. Requires its URN."
     },
     {
       "name": "Social Metadata Summaries",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/socialMetadata?ids={Share/Post/Comment URNs}"
+      "suffix": "/rest/socialMetadata?ids={Share/Post/Comment URNs}",
+      "description": "The same for several entities at once."
     },
     {
       "name": "Reactions",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/reactions/{Share/Post/Comment URN}?q=entity"
+      "suffix": "/rest/reactions/{Share/Post/Comment URN}?q=entity",
+      "description": "The reactions on one post, by reaction type -- like, celebrate, support, insightful and the rest. Requires the post URN. Finer than a like count, and the reaction mix says something a total cannot."
     },
     {
       "name": "Video Analytics",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/videoAnalytics?q=entity&entity={Post URN}&type={Type:VIDEO_VIEW|VIEWER|TIME_WATCHED|TIME_WATCHED_FOR_VIDEO_VIEWS}&aggregation={Aggregation?:DAY|WEEK|ALL}"
+      "suffix": "/rest/videoAnalytics?q=entity&entity={Post URN}&type={Type:VIDEO_VIEW|VIEWER|TIME_WATCHED|TIME_WATCHED_FOR_VIDEO_VIEWS}&aggregation={Aggregation?:DAY|WEEK|ALL}",
+      "description": "The view statistics of one video post -- views, view rate and completion. Requires the post URN. Video completion is measured here rather than in the general analytics endpoint."
     },
     {
       "name": "Current User Profile",
       "paged": false,
-      "suffix": "/v2/me"
+      "suffix": "/v2/me",
+      "description": "The member profile the credentials belong to. One record, always the caller. Note LinkedIn restricts profile fields severely: what comes back depends on the permissions granted, and most fields available in the interface are not available through the API at all."
     },
     {
       "name": "User Profile",
       "paged": false,
-      "suffix": "/v2/people/{Person ID}"
+      "suffix": "/v2/people/{Person ID}",
+      "description": "One member profile by id. Subject to the same severe field restrictions -- LinkedIn does not permit general profile lookup, so this works only for members who have authorised the application."
     },
     {
       "name": "User Profiles",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/v2/people?ids={Person IDs}"
+      "suffix": "/v2/people?ids={Person IDs}",
+      "description": "Several member profiles by id, with the same restrictions."
     }
   ]
 }

@@ -3,7 +3,8 @@
     {
       "name": "Ticket",
       "paged": false,
-      "suffix": "/api/v2/tickets/{Ticket ID}"
+      "suffix": "/api/v2/tickets/{Ticket ID}",
+      "description": "One ticket by id, with its full field set including custom fields."
     },
     {
       "name": "Tickets",
@@ -21,217 +22,260 @@
             "Module Name": "tickets"
           }
         }
-      ]
+      ],
+      "description": "The service desk tickets, with subject, description, status, priority, urgency, impact, the requester, the agent and group assigned, the category and subcategory, the source, and created, updated and due timestamps. Filterable by a named filter or requester email. NOTE THE CODED COLUMNS: status, priority, source, urgency and impact are all returned as NUMBERS, not labels, and Freshservice fixes their meaning rather than exposing a decoder endpoint -- status 2 is Open, 3 Pending, 4 Resolved, 5 Closed, and priority runs 1 Low to 4 Urgent. A breakdown left as raw integers is unreadable."
     },
     {
       "name": "Tickets Requested By ID",
       "paged": true,
-      "suffix": "/api/v2/tickets?requester_id={Requester ID}"
+      "suffix": "/api/v2/tickets?requester_id={Requester ID}",
+      "description": "The tickets raised by one requester. Requires a requester id. Equivalent to filtering the ticket list, and the per-person view."
     },
     {
       "name": "Custom Ticket Query",
       "paged": true,
-      "suffix": "/api/v2/tickets/filter?query={Query}"
+      "suffix": "/api/v2/tickets/filter?query={Query}",
+      "description": "Tickets matching a query in Freshservice's own filter syntax. Requires a query. The only route to arbitrary criteria -- the plain listing supports a few named filters and nothing else -- so most non-trivial ticket questions come through here."
     },
     {
       "name": "Ticket Fields",
       "paged": false,
-      "suffix": "/api/v2/ticket_form_fields"
+      "suffix": "/api/v2/ticket_form_fields",
+      "description": "Every field a ticket can carry, standard and custom, with type, whether required, and for dropdowns the allowed choices. The decoder for custom fields, and the statement of what the account actually records."
     },
     {
       "name": "Problem",
       "paged": false,
-      "suffix": "/api/v2/problems/{Problem Display ID}"
+      "suffix": "/api/v2/problems/{Problem Display ID}",
+      "description": "One problem by its display id."
     },
     {
       "name": "Problems",
       "paged": true,
-      "suffix": "/api/v2/problems"
+      "suffix": "/api/v2/problems",
+      "description": "Problem records -- the underlying causes behind recurring incidents, in ITIL terms. Carries the same coded status and priority columns as tickets. The link from many tickets to one root cause is what makes this table worth having."
     },
     {
       "name": "Problem Fields",
       "paged": false,
-      "suffix": "/api/v2/problem_form_fields"
+      "suffix": "/api/v2/problem_form_fields",
+      "description": "Every field a problem can carry."
     },
     {
       "name": "Change",
       "paged": false,
-      "suffix": "/api/v2/changes/{Change ID}"
+      "suffix": "/api/v2/changes/{Change ID}",
+      "description": "One change by id."
     },
     {
       "name": "Changes",
       "paged": true,
-      "suffix": "/api/v2/changes"
+      "suffix": "/api/v2/changes",
+      "description": "Change records -- planned modifications to infrastructure, with their risk, impact, planned start and end, and approval state. The ITIL change log; change failure rate is measured from here rather than from tickets."
     },
     {
       "name": "Custom Changes Query",
       "paged": true,
-      "suffix": "/api/v2/changes?query={Query}"
+      "suffix": "/api/v2/changes?query={Query}",
+      "description": "Changes matching a query. Requires a query; the arbitrary-criteria route for changes."
     },
     {
       "name": "Change Fields",
       "paged": false,
-      "suffix": "/api/v2/change_fields"
+      "suffix": "/api/v2/change_fields",
+      "description": "Every field a change can carry."
     },
     {
       "name": "Release",
       "paged": false,
-      "suffix": "/api/v2/releases/{Release Display ID}"
+      "suffix": "/api/v2/releases/{Release Display ID}",
+      "description": "One release by its display id."
     },
     {
       "name": "Releases",
       "paged": true,
-      "suffix": "/api/v2/releases"
+      "suffix": "/api/v2/releases",
+      "description": "Release records -- the deployments changes are grouped into. The delivery record above changes."
     },
     {
       "name": "Filtered Releases",
       "paged": true,
-      "suffix": "/api/v2/releases/filter_name={Filter Name:all|my_open|deleted|unassigned|completed|incompleted}"
+      "suffix": "/api/v2/releases?filter_name={Filter Name:all|my_open|deleted|unassigned|completed|incompleted}",
+      "description": "Releases restricted to a named filter -- all, my open, deleted, unassigned, completed or incompleted. Requires the filter name."
     },
     {
       "name": "Release Fields",
       "paged": false,
-      "suffix": "/api/v2/release_form_fields"
+      "suffix": "/api/v2/release_form_fields",
+      "description": "Every field a release can carry."
     },
     {
       "name": "Time Entries",
       "paged": false,
-      "suffix": "/api/v2/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/time_entries"
+      "suffix": "/api/v2/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/time_entries",
+      "description": "The time logged against one ticket, problem, change or release. Requires the module name and the item id. Effort per item, which the item record itself does not carry -- so cost of support is only answerable through this."
     },
     {
       "name": "Task",
       "paged": false,
-      "suffix": "/api/v2/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/tasks/{Task ID}"
+      "suffix": "/api/v2/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/tasks/{Task ID}",
+      "description": "The tasks attached to one ticket, problem, change or release. Requires the module name and item id. Sub-work within an item, each with its own status and agent."
     },
     {
       "name": "Release Tasks by ID",
       "paged": false,
-      "suffix": "/api/v2/releases/{Release ID}/tasks"
+      "suffix": "/api/v2/releases/{Release ID}/tasks",
+      "description": "The tasks of one release. Requires a release id."
     },
     {
       "name": "Agent",
       "paged": false,
-      "suffix": "/api/v2/agents/{Agent ID}"
+      "suffix": "/api/v2/agents/{Agent ID}",
+      "description": "One agent by id, with their name, email, groups and roles."
     },
     {
       "name": "Active Agents",
       "paged": false,
-      "suffix": "/api/v2/agents?active=true"
+      "suffix": "/api/v2/agents?active=true",
+      "description": "The agents currently active. The working roster; agents who have left remain owners of their historical tickets."
     },
     {
       "name": "Agents by Status",
       "paged": false,
-      "suffix": "/api/v2/agents?state={Status:fulltime|occasional}"
+      "suffix": "/api/v2/agents?state={Status:fulltime|occasional}",
+      "description": "Agents filtered to full-time or occasional. Requires the status. Occasional agents share a licence pool, which is why a headcount and a licence count differ."
     },
     {
       "name": "User by ID",
       "paged": false,
-      "suffix": "/api/v2/requesters/{User ID}"
+      "suffix": "/api/v2/requesters/{User ID}",
+      "description": "One requester by id."
     },
     {
       "name": "Users",
       "paged": false,
-      "suffix": "/api/v2/requesters?query={Query?}"
+      "suffix": "/api/v2/requesters?query={Query?}",
+      "description": "The requesters -- the people who raise tickets, as opposed to the agents who work them. Optionally filtered by a query. In Freshservice these are two different tables, so a count of people in the system is the sum of both."
     },
     {
       "name": "Department",
       "paged": false,
-      "suffix": "/api/v2/departments/{Department ID}"
+      "suffix": "/api/v2/departments/{Department ID}",
+      "description": "One department by id."
     },
     {
       "name": "Departments",
       "paged": false,
-      "suffix": "/api/v2/departments"
+      "suffix": "/api/v2/departments",
+      "description": "The departments requesters belong to, with their heads and domains. The organisational dimension ticket volume is broken down by."
     },
     {
       "name": "Asset CI Types",
       "paged": false,
-      "suffix": "/api/v2/asset_types"
+      "suffix": "/api/v2/asset_types",
+      "description": "The asset type hierarchy -- the classes assets belong to, each with its parent. Types are account-specific and nested, so an asset's own fields depend on its type."
     },
     {
       "name": "Asset CI Type Fields",
       "paged": false,
-      "suffix": "/api/v2/assets_types/{asset_type_id}/fields"
+      "suffix": "/api/v2/asset_types/{asset_type_id}/fields",
+      "description": "The fields defined for one asset type. Requires the asset type id. THE DECODER for type-specific asset fields, which differ entirely between a laptop and a database service."
     },
     {
       "name": "Asset",
       "paged": false,
-      "suffix": "/api/v2/assets/{Asset Display ID}"
+      "suffix": "/api/v2/assets/{Asset Display ID}",
+      "description": "One asset by its display id, with its type-specific fields."
     },
     {
       "name": "Assets",
       "paged": true,
-      "suffix": "/api/v2/assets"
+      "suffix": "/api/v2/assets",
+      "description": "The configuration items in the CMDB -- hardware, software, services -- with their asset type, display id, impact, usage and assignment. THE ITSM SIDE THAT TICKETS ATTACH TO: a ticket about a failing laptop is only connectable to that laptop through here."
     },
     {
       "name": "Asset Search",
       "paged": true,
-      "suffix": "/api/v2/assets?search={Query}"
+      "suffix": "/api/v2/assets?search={Query}",
+      "description": "Assets matching a search query. Requires the query."
     },
     {
       "name": "Relationship Types",
       "paged": false,
-      "suffix": "/api/v2/relationship_types"
+      "suffix": "/api/v2/relationship_types",
+      "description": "The relationship types defined, each with its forward and reverse names. The decoder for the direction of a relationship, which the relationship record only references."
     },
     {
       "name": "Relationships",
       "paged": false,
-      "suffix": "/api/v2/relationships/{Asset Display ID}"
+      "suffix": "/api/v2/relationships/{Asset Display ID}",
+      "description": "The relationships one asset has to others -- depends on, connected to, hosted on. Requires the asset display id. The CMDB's graph, and what makes impact analysis possible: which services a failing server takes down is only answerable here."
     },
     {
       "name": "Solution Category",
       "paged": false,
-      "suffix": "/api/v2/solutions/categories/{Category ID}"
+      "suffix": "/api/v2/solutions/categories/{Category ID}",
+      "description": "One knowledge base category by id."
     },
     {
       "name": "Solution Folders",
       "paged": false,
-      "suffix": "/api/v2/solutions/folders/{Folder ID}"
+      "suffix": "/api/v2/solutions/folders/{Folder ID}",
+      "description": "The folders within one category. Requires the folder id."
     },
     {
       "name": "Solution Categories",
       "paged": false,
-      "suffix": "/api/v2/solutions/categories"
+      "suffix": "/api/v2/solutions/categories",
+      "description": "The top level of the knowledge base."
     },
     {
       "name": "Solution Article",
       "paged": false,
-      "suffix": "/api/v2/solutions/articles/{Article ID}"
+      "suffix": "/api/v2/solutions/articles/{Article ID}",
+      "description": "One article by id, with its body."
     },
     {
       "name": "Solution Articles",
       "paged": false,
-      "suffix": "/api/v2/solutions/articles?folder_id={Folder ID}"
+      "suffix": "/api/v2/solutions/articles?folder_id={Folder ID}",
+      "description": "The knowledge base articles in one folder, with title, status and view counts. Requires a folder id. The self-service content whose use is what deflects tickets."
     },
     {
       "name": "Service Items",
       "paged": true,
-      "suffix": "/api/v2/service_catalog/items"
+      "suffix": "/api/v2/service_catalog/items",
+      "description": "Every item in the service catalogue, with name, description, cost and delivery time. What can be requested, and the cost figure is one of the few monetary values Freshservice holds."
     },
     {
       "name": "Service Categories",
       "paged": false,
-      "suffix": "/api/v2/service_catalog/categories"
+      "suffix": "/api/v2/service_catalog/categories",
+      "description": "The categories of the service catalogue -- the requestable services, as opposed to the incidents in the ticket table."
     },
     {
       "name": "Service Category Items",
       "paged": true,
-      "suffix": "/api/v2/service_catalog/items"
+      "suffix": "/api/v2/service_catalog/items?category_id={Category ID}",
+      "description": "The catalogue items within one category. Requires a category id."
     },
     {
       "name": "Service Item",
       "paged": false,
-      "suffix": "/api/v2/service_catalog/items/{Item Display ID}.json"
+      "suffix": "/api/v2/service_catalog/items/{Item Display ID}.json",
+      "description": "One catalogue item by its display id, with its request fields."
     },
     {
       "name": "Contract",
       "paged": false,
-      "suffix": "/api/v2/contracts/{Contract Display ID}.json"
+      "suffix": "/api/v2/contracts/{Contract Display ID}.json",
+      "description": "One contract by its display id."
     },
     {
       "name": "Contracts",
       "paged": true,
-      "suffix": "/api/v2/contracts"
+      "suffix": "/api/v2/contracts",
+      "description": "The support and licence contracts recorded, with vendor, cost, start and expiry dates, and the assets covered. Contract expiry is the usual reason this table is consulted, and it is not derivable from the assets themselves."
     }
   ]
 }

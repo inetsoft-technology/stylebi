@@ -6,182 +6,225 @@
       "suffix": "/crm/v2/settings/modules",
       "lookups": [
         {
-          "endpoints": ["Fields", "Layouts", "Related Lists", "Custom Views", "Records", "Deleted Records", "Tags"],
+          "endpoints": [
+            "Fields",
+            "Layouts",
+            "Related Lists",
+            "Custom Views",
+            "Records",
+            "Deleted Records",
+            "Tags"
+          ],
           "jsonPath": "$.modules.[*]",
           "key": "api_name",
           "parameterName": "Module API Name"
         }
-      ]
+      ],
+      "description": "Every module in the account -- standard and custom -- with its API name, display label, and whether it is visible and creatable. THE FIRST REQUEST: the API name is what every data endpoint here takes, and it is not always the display name, particularly for custom modules."
     },
     {
       "name": "Organization",
       "paged": false,
-      "suffix": "/crm/v2/org"
+      "suffix": "/crm/v2/org",
+      "description": "The CRM organisation's details -- company name, licence edition, time zone, currency and user limits. One record, and the edition matters because several endpoints here are edition-gated."
     },
     {
       "name": "Users",
       "paged": true,
-      "suffix": "/crm/v2/users?type={Type?:AllUsers|ActiveUsers|...}"
+      "suffix": "/crm/v2/users?type={Type?:AllUsers|ActiveUsers|...}",
+      "description": "The users of the CRM, filterable by type -- all, active, deactivated, confirmed, admin. Every record carries an owner, so this is the dimension per-person performance joins to. Deactivated users still own their historical records, so excluding them loses that history."
     },
     {
       "name": "User",
       "paged": false,
-      "suffix": "/crm/v2/users/{User ID}"
+      "suffix": "/crm/v2/users/{User ID}",
+      "description": "One user by id, with their profile and role."
     },
     {
       "name": "Roles",
       "paged": false,
-      "suffix": "/crm/v2/settings/roles"
+      "suffix": "/crm/v2/settings/roles",
+      "description": "The role hierarchy, each role with its reporting parent. ROLES CONTROL WHAT DATA A USER SEES in Zoho -- a manager sees their subordinates' records -- so this hierarchy is the reason two people running the same query get different row counts."
     },
     {
       "name": "Role",
       "paged": false,
-      "suffix": "/crm/v2/settings/roles/{Role ID}"
+      "suffix": "/crm/v2/settings/roles/{Role ID}",
+      "description": "One role by id."
     },
     {
       "name": "Profiles",
       "paged": false,
-      "suffix": "/crm/v2/settings/profiles"
+      "suffix": "/crm/v2/settings/profiles",
+      "description": "The permission profiles, each with the operations it permits. Distinct from roles: a profile says what a user may DO, a role says whose records they may see."
     },
     {
       "name": "Profile",
       "paged": false,
-      "suffix": "/crm/v2/settings/profiles/{Profile ID}"
+      "suffix": "/crm/v2/settings/profiles/{Profile ID}",
+      "description": "One profile by id, with its permission set."
     },
     {
       "name": "Territories",
       "paged": false,
-      "suffix": "/crm/v2/settings/territories"
+      "suffix": "/crm/v2/settings/territories",
+      "description": "The territories defined, if territory management is enabled. A second access dimension beyond the role hierarchy, and another reason record visibility differs between users."
     },
     {
       "name": "Module",
       "paged": false,
-      "suffix": "/crm/v2/settings/modules/{Module API Name}"
+      "suffix": "/crm/v2/settings/modules/{Module API Name}",
+      "description": "One module by API name, with its settings and properties."
     },
     {
       "name": "Fields",
       "paged": false,
-      "suffix": "/crm/v2/settings/fields?module={Module API Name}"
+      "suffix": "/crm/v2/settings/fields?module={Module API Name}",
+      "description": "Every field of one module, with API name, display label, data type, whether it is custom, mandatory or read-only, and for picklists the allowed values. Requires the module API name. THE DECODER: records return values under field API names, and picklist values are stored as their raw values, so neither is readable without this."
     },
     {
       "name": "Layouts",
       "paged": false,
-      "suffix": "/crm/v2/settings/layouts?module={Module API Name}"
+      "suffix": "/crm/v2/settings/layouts?module={Module API Name}",
+      "description": "The page layouts of one module, each with its sections, the fields on it, and which profiles it applies to. Requires the module API name. Different profiles can see different layouts, so this is why two users see different fields on the same record."
     },
     {
       "name": "Layout",
       "paged": false,
-      "suffix": "/crm/v2/settings/layouts/{Layout ID}?module={Module API Name}"
+      "suffix": "/crm/v2/settings/layouts/{Layout ID}?module={Module API Name}",
+      "description": "One layout by id. Requires the module API name."
     },
     {
       "name": "Related Lists",
       "paged": false,
-      "suffix": "/crm/v2/settings/related_lists?module={Module API Name}"
+      "suffix": "/crm/v2/settings/related_lists?module={Module API Name}",
+      "description": "The relationships defined on one module, each with its API name and the module it points at. Requires the module API name. The catalogue of what can be traversed from a record, and the source of the names Related Records needs."
     },
     {
       "name": "Custom Views",
       "paged": true,
-      "suffix": "/crm/v2/settings/custom_views?module={Module API Name}"
+      "suffix": "/crm/v2/settings/custom_views?module={Module API Name}",
+      "description": "The saved views of one module, with name, whether shared, and their criteria. Requires the module API name. Views encode the segments the business already agreed on, and their criteria state the definitions in the organisation's own terms."
     },
     {
       "name": "Custom View",
       "paged": false,
-      "suffix": "/crm/v2/settings/custom_views/{Custom View ID}?module={Module API Name}"
+      "suffix": "/crm/v2/settings/custom_views/{Custom View ID}?module={Module API Name}",
+      "description": "One custom view by id, with its full criteria. Requires the module API name."
     },
     {
       "name": "Records",
       "paged": true,
-      "suffix": "/crm/v2/{Module API Name}?fields={Fields?:value1,value2,...}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}&cvid={Custom View ID?}&territory_id={Territory ID?}&include_child={Include Children?:true|false}"
+      "suffix": "/crm/v2/{Module API Name}?fields={Fields?:value1,value2,...}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}&cvid={Custom View ID?}&territory_id={Territory ID?}&include_child={Include Children?:true|false}",
+      "description": "The records of ONE MODULE. Requires the module's API name -- Leads, Contacts, Accounts, Deals, or any custom module the account defined. THIS IS THE DATA ENDPOINT FOR EVERYTHING: Zoho has no per-object endpoints, only this one parameterised by module, so the first request in any Zoho question is Modules, to learn what exists. Fields come back under their API names, which for custom fields are generated rather than chosen, so Fields is needed to read them."
     },
     {
       "name": "Record",
       "paged": false,
-      "suffix": "/crm/v2/{Module API Name}/{Record ID}"
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}",
+      "description": "One record by id within a module. Requires the module API name."
     },
     {
       "name": "Deleted Records",
       "paged": true,
-      "suffix": "/crm/v2/{Module API Name}/deleted?module={Module API Name}&type={Type?:All|Recycle|Permanent}"
+      "suffix": "/crm/v2/{Module API Name}/deleted?module={Module API Name}&type={Type?:All|Recycle|Permanent}",
+      "description": "The records deleted from one module, filterable by whether they were deleted permanently or are in the recycle bin. Requires the module API name. THE ONLY WAY A SYNCHRONISED COPY LEARNS THAT RECORDS HAVE GONE -- deletions leave no trace in the module itself."
     },
     {
       "name": "Record Search",
       "paged": true,
-      "suffix": "/crm/v2/{Module API Name}/search?criteria={Criteria}&email={Email?}&phone={Phone?}&word={Word?}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}"
+      "suffix": "/crm/v2/{Module API Name}/search?criteria={Criteria}&email={Email?}&phone={Phone?}&word={Word?}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}",
+      "description": "Records within one module matching criteria, an email, a phone number or a word. Requires the module API name. The criteria syntax is Zoho's own and is evaluated server-side."
     },
     {
       "name": "Related Records",
       "paged": true,
-      "suffix": "/crm/v2/{Module API Name}/{Record ID}/{Related List API Name}"
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/{Related List API Name}",
+      "description": "The records related to one record through a named relationship -- a deal's contacts, an account's deals. Requires the module, record id and the related list's API name, which comes from Related Lists. How the object graph is actually traversed."
     },
     {
       "name": "Variables",
       "paged": false,
-      "suffix": "/crm/v2/settings/variables"
+      "suffix": "/crm/v2/settings/variables",
+      "description": "The organisation variables -- named values used in workflows and templates. Configuration."
     },
     {
       "name": "Variable",
       "paged": false,
-      "suffix": "/crm/v2/settings/variables/{Variable ID}?group={Variable Group ID}"
+      "suffix": "/crm/v2/settings/variables/{Variable ID}?group={Variable Group ID}",
+      "description": "One variable by id. Requires its group."
     },
     {
       "name": "Variable Group",
       "paged": false,
-      "suffix": "/crm/v2/settings/Variable Groups/{Variable Group ID}"
+      "suffix": "/crm/v2/settings/variable_groups/{Variable Group ID}",
+      "description": "One variable group by id."
     },
     {
       "name": "Blueprint",
       "paged": false,
-      "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/blueprint"
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/blueprint",
+      "description": "The blueprint state of one record -- Zoho's guided process, with the current stage and the transitions available. Requires the module and record id. Where a business process is enforced, the record's own status field is only half the picture; this says where it sits in the process and what may happen next."
     },
     {
       "name": "Tags",
       "paged": false,
-      "suffix": "/crm/v2/settings/tags?module={Module API Name}&my_tags={My Tags?:true|false}"
+      "suffix": "/crm/v2/settings/tags?module={Module API Name}&my_tags={My Tags?:true|false}",
+      "description": "The tags defined for one module, with names and colours. Requires the module API name. Zoho tags are per module rather than global, so the same word on Leads and Deals is two separate tags."
     },
     {
       "name": "Tag Record Count",
       "paged": false,
-      "suffix": "/crm/v2/settings/tags/{Tag ID}/actions/records_count?module={Module API Name}"
+      "suffix": "/crm/v2/settings/tags/{Tag ID}/actions/records_count?module={Module API Name}",
+      "description": "How many records carry one tag within a module. Requires the tag id and module. A ready-made count rather than a filtered scan."
     },
     {
       "name": "Notes",
       "paged": true,
-      "suffix": "/crm/v2/Notes"
+      "suffix": "/crm/v2/Notes",
+      "description": "Every note across the account, with its content, the record it is attached to, and the author. The qualitative record beside the structured one."
     },
     {
       "name": "Record Notes",
       "paged": true,
-      "suffix": "/crm/v2/{Module API Name}/{Record ID}/Notes"
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/Notes",
+      "description": "The notes on one record. Requires the module and record id."
     },
     {
       "name": "Attachments",
       "paged": false,
-      "suffix": "/crm/v2/{Module API Name}/{Record ID}/Attachments"
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/Attachments",
+      "description": "The files attached to one record. Requires the module and record id."
     },
     {
       "name": "Mass Update Status",
       "paged": false,
-      "suffix": "/crm/v2/{Module API Name}/actions/mass_update?job_id={Job ID}"
+      "suffix": "/crm/v2/{Module API Name}/actions/mass_update?job_id={Job ID}",
+      "description": "The progress of a bulk update job. Requires the module and job id. Bulk operations report only that they were queued, so this is where their outcome and per-record failures are found."
     },
     {
       "name": "Currencies",
       "paged": false,
-      "suffix": "/crm/v2/org/currencies"
+      "suffix": "/crm/v2/org/currencies",
+      "description": "The currencies enabled, with their exchange rates and which is the base. Records store amounts in their own currency with a rate, so a multi-currency total has to decide which it means."
     },
     {
       "name": "Currency",
       "paged": false,
-      "suffix": "/crm/v2/org/currencies/{Currency ID}"
+      "suffix": "/crm/v2/org/currencies/{Currency ID}",
+      "description": "One currency by id, with its rate."
     },
     {
       "name": "Shared Record",
       "paged": false,
-      "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/share?sharedTo={Shared To?}&view={View?:summary|manage}"
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/share?sharedTo={Shared To?}&view={View?:summary|manage}",
+      "description": "Who one record has been shared with and at what permission. Requires the module and record id. Sharing overrides the role hierarchy, so this explains access the hierarchy does not."
     },
     {
       "name": "Notifications",
       "paged": true,
-      "suffix": "/crm/v2/actions/watch?channel_id={Channel ID}&module={Module API Name?}"
+      "suffix": "/crm/v2/actions/watch?channel_id={Channel ID}&module={Module API Name?}",
+      "description": "The change notification channels currently subscribed. Integration state rather than data."
     }
   ]
 }

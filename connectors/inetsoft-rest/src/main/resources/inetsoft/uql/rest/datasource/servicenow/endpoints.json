@@ -1,135 +1,166 @@
 {
   "endpoints": [
     {
-      "paged": "false", 
-      "name": "Agent Presence Status", 
-      "suffix": "/now/awa/agents/{Agent ID}"
-    }, 
+      "paged": "false",
+      "name": "Agent Presence Status",
+      "suffix": "/now/awa/agents/{Agent ID}",
+      "description": "One agent's current availability in Advanced Work Assignment. Requires an agent id. A live snapshot with no history."
+    },
     {
-      "paged": "false", 
-      "name": "Aggregate Statistics", 
-      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg={Average Fields?}&sysparm_sum={Sum Fields?}sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}"
-    }, 
+      "paged": "false",
+      "name": "Aggregate Statistics",
+      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg={Average Fields?}&sysparm_sum={Sum Fields?}sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}",
+      "description": "COUNTS, SUMS, AVERAGES, MINIMA AND MAXIMA computed server-side over any table, with grouping. Requires the table name; takes a query, the aggregate functions and sysparm_group_by. Far cheaper than paging a table to count it, and the right answer to 'how many incidents by priority' or 'average resolution time by group' -- ServiceNow does the aggregation rather than shipping the rows."
+    },
     {
-      "paged": "false", 
-      "name": "Application Service CIs", 
-      "suffix": "/now/cmdb/app_service/{Application Service ID}/getContent?Mode={Mode?:Shallow|Full}"
-    }, 
-    {
-      "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Attachments", 
-      "suffix": "api/now/attachment?sysparm_query={Query}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Attachment", 
-      "suffix": "api/now/attachment/{Attachment ID}"
-    }, 
+      "paged": "false",
+      "name": "Application Service CIs",
+      "suffix": "/now/cmdb/app_service/{Application Service ID}/getContent?Mode={Mode?:Shallow|Full}",
+      "description": "The configuration items making up one application service, as a dependency map. Requires an application service id. THE SERVICE-TO-INFRASTRUCTURE MAP: which servers, databases and middleware a business service actually runs on, and therefore what a failure in one takes down."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Standard Changes", 
+      "pageType": "OFFSET",
+      "name": "Attachments",
+      "suffix": "api/now/attachment?sysparm_query={Query}",
+      "description": "The file attachments on the instance, filtered by an encoded query -- usually on the table and record they belong to. Metadata; the binary is a separate fetch."
+    },
+    {
+      "paged": "false",
+      "name": "Attachment",
+      "suffix": "api/now/attachment/{Attachment ID}",
+      "description": "One attachment's metadata by sys_id."
+    },
+    {
+      "paged": "true",
+      "pageType": "OFFSET",
+      "name": "Standard Changes",
       "suffix": "/sn_chg_rest/change/standard?sysparm_query={Query?}&textSearch={Text Search?}",
       "lookups": [
         {
-          "endpoints": ["Change Tasks", "Change Conflict Status", "Change Cls"],
+          "endpoints": [
+            "Change Tasks",
+            "Change Conflict Status",
+            "Change Cls"
+          ],
           "jsonPath": "$.result[*].value",
           "key": "value",
           "parameterName": "Change ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Changes of the STANDARD type -- pre-approved, low-risk, raised from a template. They bypass approval entirely, so including them in an approval-time measure drags the average down misleadingly."
+    },
     {
-      "paged": "false", 
-      "name": "Standard Change", 
-      "suffix": "/sn_chg_rest/change/standard/{Change ID}"
-    }, 
-    {
-      "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Change Templates", 
-      "suffix": "/sn_chg_rest/change/standard/template?sysparm_query={Query?}&textSearch={Text Search?}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Change Template", 
-      "suffix": "/sn_chg_rest/change/standard/template/{Change Template ID}"
-    }, 
+      "paged": "false",
+      "name": "Standard Change",
+      "suffix": "/sn_chg_rest/change/standard/{Change ID}",
+      "description": "One standard change by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Normal Changes", 
+      "pageType": "OFFSET",
+      "name": "Change Templates",
+      "suffix": "/sn_chg_rest/change/standard/template?sysparm_query={Query?}&textSearch={Text Search?}",
+      "description": "The templates standard changes are raised from, each with its pre-approved content. The catalogue of what has been deemed routine."
+    },
+    {
+      "paged": "false",
+      "name": "Change Template",
+      "suffix": "/sn_chg_rest/change/standard/template/{Change Template ID}",
+      "description": "One change template by id."
+    },
+    {
+      "paged": "true",
+      "pageType": "OFFSET",
+      "name": "Normal Changes",
       "suffix": "/sn_chg_rest/change/normal?sysparm_query={Query?}&textSearch={Text Search?}",
       "lookups": [
         {
-          "endpoints": ["Change Tasks", "Change Conflict Status", "Change Cls"],
+          "endpoints": [
+            "Change Tasks",
+            "Change Conflict Status",
+            "Change Cls"
+          ],
           "jsonPath": "$.result[*].value",
           "key": "value",
           "parameterName": "Change ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Change requests of the NORMAL type -- those requiring assessment and approval. Filterable by encoded query or text search. ServiceNow separates change types because they follow different processes, so a change-management measure has to say which types it counts."
+    },
     {
-      "paged": "false", 
-      "name": "Normal Change", 
-      "suffix": "/sn_chg_rest/change/normal/{Change ID}"
-    }, 
+      "paged": "false",
+      "name": "Normal Change",
+      "suffix": "/sn_chg_rest/change/normal/{Change ID}",
+      "description": "One normal change by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Emergency Changes", 
+      "pageType": "OFFSET",
+      "name": "Emergency Changes",
       "suffix": "/sn_chg_rest/change/emergency?sysparm_query={Query?}&textSearch={Text Search?}",
       "lookups": [
         {
-          "endpoints": ["Change Tasks", "Change Conflict Status", "Change Cls"],
+          "endpoints": [
+            "Change Tasks",
+            "Change Conflict Status",
+            "Change Cls"
+          ],
           "jsonPath": "$.result[*].value",
           "key": "value",
           "parameterName": "Change ID"
         }
-      ]
-    }, 
+      ],
+      "description": "Changes of the EMERGENCY type -- raised outside the normal process to fix something now. Their rate and their failure rate are the interesting figures: emergency changes are the ones most likely to cause incidents."
+    },
     {
-      "paged": "false", 
-      "name": "Emergency Change", 
-      "suffix": "/sn_chg_rest/change/emergency/{Change ID}"
-    }, 
-    {
-      "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Change Tasks", 
-      "suffix": "/sn_chg_rest/change/{Change ID}/task?sysparm_query={Query?}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Change Task", 
-      "suffix": "/sn_chg_rest/change/{Change ID}/task/{Task ID}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Change Conflict Status", 
-      "suffix": "/sn_chg_rest/change/{Change ID}/conflict"
-    }, 
+      "paged": "false",
+      "name": "Emergency Change",
+      "suffix": "/sn_chg_rest/change/emergency/{Change ID}",
+      "description": "One emergency change by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Change Cls", 
-      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type?:affected|impacted|offering}&sysparm_query={Query}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "Change Tasks",
+      "suffix": "/sn_chg_rest/change/{Change ID}/task?sysparm_query={Query?}",
+      "description": "The individual tasks making up one change. Requires a change id. A change is a container; the work and its timings are in these."
+    },
     {
-      "paged": "false", 
+      "paged": "false",
+      "name": "Change Task",
+      "suffix": "/sn_chg_rest/change/{Change ID}/task/{Task ID}",
+      "description": "One change task by id. Requires the change id."
+    },
+    {
+      "paged": "false",
+      "name": "Change Conflict Status",
+      "suffix": "/sn_chg_rest/change/{Change ID}/conflict",
+      "description": "Whether one change conflicts with another change or a blackout window. Requires a change id. The scheduling check, and the explanation for a change that was refused rather than rejected."
+    },
+    {
+      "paged": "true",
+      "pageType": "OFFSET",
+      "name": "Change Cls",
+      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type?:affected|impacted|offering}&sysparm_query={Query}",
+      "description": "The configuration items one change affects, by association type. Requires a change id. THE LINK BETWEEN A CHANGE AND WHAT IT TOUCHED -- which is how a change is connected to the incidents that followed it."
+    },
+    {
+      "paged": "false",
       "name": "Change Worker Status",
-      "suffix": "/sn_chg_rest/change/worker/{Worker ID}"
-    }, 
+      "suffix": "/sn_chg_rest/change/worker/{Worker ID}",
+      "description": "The progress of an asynchronous change operation. Operational."
+    },
     {
-      "paged": "false", 
-      "name": "Account", 
-      "suffix": "/now/account/{Account ID}"
-    }, 
+      "paged": "false",
+      "name": "Account",
+      "suffix": "/now/account/{Account ID}",
+      "description": "One CSM account by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Accounts", 
+      "pageType": "OFFSET",
+      "name": "Accounts",
       "suffix": "/now/account?sysparm_query={Query?}",
       "lookups": [
         {
@@ -138,123 +169,145 @@
           "key": "primary_contact",
           "parameterName": "Contact ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The customer accounts in Customer Service Management, filterable by query. The company dimension cases group under."
+    },
     {
-      "paged": "false", 
-      "name": "CSM Case", 
-      "suffix": "api/sn_customerservice/case/{Case ID}"
-    }, 
-    {
-      "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "CSM Cases", 
-      "suffix": "/sn_customerservice/case?sysparm_query={Query?}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "CSM Consumer Record", 
-      "suffix": "/now/consumer/{Consumer Record ID}"
-    }, 
+      "paged": "false",
+      "name": "CSM Case",
+      "suffix": "api/sn_customerservice/case/{Case ID}",
+      "description": "One customer service case by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "CSM Consumer Records", 
-      "suffix": "/now/consumer?sysparm_query={Query?}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "CSM Cases",
+      "suffix": "/sn_customerservice/case?sysparm_query={Query?}",
+      "description": "Customer service cases -- the customer-facing counterpart to internal incidents. Filterable by encoded query. Distinct from the incident table: cases are raised by customers against accounts, incidents by employees against services."
+    },
     {
-      "paged": "false", 
-      "name": "CSM Contact", 
-      "suffix": "/now/contact/{Contact ID}"
-    }, 
-    {
-      "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "CSM Contacts", 
-      "suffix": "/now/contact?sysparm_query={Query?}"
-    }, 
+      "paged": "false",
+      "name": "CSM Consumer Record",
+      "suffix": "/now/consumer/{Consumer Record ID}",
+      "description": "One consumer record by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "DevOps Tools", 
-      "suffix": "/sn_devops/devops/admin?id={Tool ID?}&name={Name?}&type={Type?:Planning|Coding|TaskExecution}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "CSM Consumer Records",
+      "suffix": "/now/consumer?sysparm_query={Query?}",
+      "description": "Individual consumers, for business-to-consumer service models where the customer is a person rather than a company."
+    },
     {
-      "paged": "false", 
-      "name": "Code Resource Schema", 
-      "suffix": "/sn_devops/devops/code/schema?resource={Resource?:commit|repository|branch}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Orchestration Change Control", 
-      "suffix": "/sn_devops/devops/orchestration/changeControl?orchestrationTaskURL={Orchestration Task Url}&toolId={Tool ID}&changeControlId={Change Control ID?}&orchestrationTaskName={Task Name?}&testConnection={Test Connnection?:true|false}&type={Type?:jenkins|...}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Orchestration Resource Schema", 
-      "suffix": "/sn_devops/devops/orchestration/schema?resource={Resource?:build_details|callback|orchestration_task|task_execution}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Orchestration Step Mapping", 
-      "suffix": "/sn_devops/devops/orchestration/stepMapping?orchestrationTaskName={Task Name}&orchestrationTaskURL={Orchestration Task Url}&toolId={Tool Id}&branchName={Branch Name?}&parentStageName={Parent Stage Name?}&parentStageURL={Parent Stage URL?}&testConnection={Test Connection?:true|false}&type={Type?:jenkins|...}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Plan Schema", 
-      "suffix": "/sn_devops/devops/plan/schema?resource={Resource?:build_details|callback|orchestration_task|task_execution}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Email", 
-      "suffix": "/now/v1/email/{Email ID}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Import Set", 
-      "suffix": "/now/v1/import/{Table Name}/{Import Set ID}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Major Incident Communication Cards", 
-      "suffix": "/sn_major_inc_mgmt/mim/status/{Incident ID}"
-    }, 
+      "paged": "false",
+      "name": "CSM Contact",
+      "suffix": "/now/contact/{Contact ID}",
+      "description": "One CSM contact by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Metric Time Series", 
-      "suffix": "api/now/clotho/table/{Table Name}/{Time Series ID}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_display_value={Display Value?:true|false}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "CSM Contacts",
+      "suffix": "/now/contact?sysparm_query={Query?}",
+      "description": "The people at customer accounts who raise cases. Distinct from sys_user, which holds employees."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Metric Transform", 
-      "suffix": "/now/clotho/transform/{Table Name}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_transforms={Transforms?:avg,sum,add,mul,resample,top,label}&sysparm_subject_limit={Subject Limit?}&sysparm_display_value={Display Value?:true|false}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "DevOps Tools",
+      "suffix": "/sn_devops/devops/admin?id={Tool ID?}&name={Name?}&type={Type?:Planning|Coding|TaskExecution}",
+      "description": "The development tools registered with DevOps Change Velocity -- source control, build and deployment systems. The inventory that DevOps change automation runs against."
+    },
     {
-      "paged": "false", 
-      "name": "Published NLU Models", 
-      "suffix": "/now/v1/open-nlu/models"
-    }, 
+      "paged": "false",
+      "name": "Code Resource Schema",
+      "suffix": "/sn_devops/devops/code/schema?resource={Resource?:commit|repository|branch}",
+      "description": "The schema of DevOps code resources such as commits, repositories and branches. Reference data describing what the DevOps tables hold."
+    },
     {
-      "paged": "false", 
-      "name": "Published NLU Intents", 
-      "suffix": "/now/open-nlu/models/{Model ID}/intents"
-    }, 
+      "paged": "false",
+      "name": "Orchestration Change Control",
+      "suffix": "/sn_devops/devops/orchestration/changeControl?orchestrationTaskURL={Orchestration Task Url}&toolId={Tool ID}&changeControlId={Change Control ID?}&orchestrationTaskName={Task Name?}&testConnection={Test Connnection?:true|false}&type={Type?:jenkins|...}",
+      "description": "Whether change control is enabled for a named orchestration task -- that is, whether a pipeline stage requires a change request to proceed. The link between a deployment pipeline and ServiceNow approval."
+    },
+    {
+      "paged": "false",
+      "name": "Orchestration Resource Schema",
+      "suffix": "/sn_devops/devops/orchestration/schema?resource={Resource?:build_details|callback|orchestration_task|task_execution}",
+      "description": "The schema of DevOps orchestration resources such as builds and pipelines."
+    },
+    {
+      "paged": "false",
+      "name": "Orchestration Step Mapping",
+      "suffix": "/sn_devops/devops/orchestration/stepMapping?orchestrationTaskName={Task Name}&orchestrationTaskURL={Orchestration Task Url}&toolId={Tool Id}&branchName={Branch Name?}&parentStageName={Parent Stage Name?}&parentStageURL={Parent Stage URL?}&testConnection={Test Connection?:true|false}&type={Type?:jenkins|...}",
+      "description": "How pipeline steps map to ServiceNow orchestration tasks. The configuration that makes automated change control work."
+    },
+    {
+      "paged": "false",
+      "name": "Plan Schema",
+      "suffix": "/sn_devops/devops/plan/schema?resource={Resource?:build_details|callback|orchestration_task|task_execution}",
+      "description": "The schema of DevOps planning resources such as build details."
+    },
+    {
+      "paged": "false",
+      "name": "Email",
+      "suffix": "/now/v1/email/{Email ID}",
+      "description": "One email record by id, with its recipients, body and delivery state. The notification audit trail."
+    },
+    {
+      "paged": "false",
+      "name": "Import Set",
+      "suffix": "/now/v1/import/{Table Name}/{Import Set ID}",
+      "description": "The result of one import set row -- what a staged import created or updated, and any errors. Requires the table and import set id. Where a data load's outcome, including silently transformed rows, is recorded."
+    },
+    {
+      "paged": "false",
+      "name": "Major Incident Communication Cards",
+      "suffix": "/sn_major_inc_mgmt/mim/status/{Incident ID}",
+      "description": "The status updates published for one major incident. Requires an incident id. The customer-facing communications record, separate from the incident's own work notes."
+    },
+    {
+      "paged": "true",
+      "pageType": "OFFSET",
+      "name": "Metric Time Series",
+      "suffix": "api/now/clotho/table/{Table Name}/{Time Series ID}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_display_value={Display Value?:true|false}",
+      "description": "The time series of one metric field on one table -- ServiceNow's own performance instrumentation. Requires the table, series and metric field. Numeric history rather than record state."
+    },
+    {
+      "paged": "true",
+      "pageType": "OFFSET",
+      "name": "Metric Transform",
+      "suffix": "/now/clotho/transform/{Table Name}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_transforms={Transforms?:avg,sum,add,mul,resample,top,label}&sysparm_subject_limit={Subject Limit?}&sysparm_display_value={Display Value?:true|false}",
+      "description": "A transformed view of a metric series -- aggregated or resampled server-side. Requires the table and metric field."
+    },
+    {
+      "paged": "false",
+      "name": "Published NLU Models",
+      "suffix": "/now/v1/open-nlu/models",
+      "description": "The natural language understanding models published on the instance, used by virtual agent and predictive intelligence."
+    },
+    {
+      "paged": "false",
+      "name": "Published NLU Intents",
+      "suffix": "/now/open-nlu/models/{Model ID}/intents",
+      "description": "The intents defined in one NLU model. Requires the model id. What the virtual agent is able to recognise, which bounds what it can deflect."
+    },
     {
       "paged": "true",
       "pageType": "PAGE",
-      "name": "Analytics Indicators", 
-      "suffix": "/now/pa/scorecards?sysparm_uuid={Indicator/Breakdown/Aggregate/Domain IDs?}&sysparm_breakdown={Breakdown ID?}&sysparm_display_value={Display Value?:true|false|all}&sysparm_include_scores={Include Scores?:true|false}&sysparm_include_aggregates={Include Aggregates?:true|false}&sysparm_include_available_breakdowns={Include Available Breakdowns?:true|false }&sysparm_include_available_aggregates={Include Available Aggregates?:true|false}&sysparm_exclude_reference_link={Exclude Reference Link?:true|false}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Prediction", 
-      "suffix": "/now/agent_intelligence/solution/{Solution Name}/prediction"
-    }, 
+      "name": "Analytics Indicators",
+      "suffix": "/now/pa/scorecards?sysparm_uuid={Indicator/Breakdown/Aggregate/Domain IDs?}&sysparm_breakdown={Breakdown ID?}&sysparm_display_value={Display Value?:true|false|all}&sysparm_include_scores={Include Scores?:true|false}&sysparm_include_aggregates={Include Aggregates?:true|false}&sysparm_include_available_breakdowns={Include Available Breakdowns?:true|false }&sysparm_include_available_aggregates={Include Available Aggregates?:true|false}&sysparm_exclude_reference_link={Exclude Reference Link?:true|false}",
+      "description": "Performance Analytics scorecard data by indicator, breakdown or aggregate UUID. THE TREND STORE: ServiceNow tables hold current state, and Performance Analytics is what snapshots them over time, so questions about how a backlog moved historically are answerable here and not from the tables."
+    },
     {
       "paged": "false",
-      "name": "Service Catalogs", 
+      "name": "Prediction",
+      "suffix": "/now/agent_intelligence/solution/{Solution Name}/prediction",
+      "description": "A prediction from one trained Predictive Intelligence solution -- category, assignment group or similar. Requires the solution name. Model output rather than recorded data, so it is a suggestion and not a fact."
+    },
+    {
+      "paged": "false",
+      "name": "Service Catalogs",
       "suffix": "/sn_sc/servicecatalog/catalogs?sysparm_view={View?:desktop|mobile|both}&sysparm_text={Title Keyword?}&sysparm_limit=10000",
       "lookups": [
         {
@@ -263,80 +316,95 @@
           "key": "sys_id",
           "parameterName": "Catalog ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The service catalogues published on the instance -- the storefronts users request things from."
+    },
     {
-      "paged": "false", 
-      "name": "Service Catalog", 
-      "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}?sysparm_view={View?:desktop|mobile|both}"
-    }, 
-    {
-      "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Service Catalog Categories", 
-      "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}/categories?sysparm_top_level_only={Top Level Only?:true|false}&sysparm_view={View?:desktop|mobile|both}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Service Catalog Category", 
-      "suffix": "/sn_sc/servicecatalog/categories/{Category ID}?sysparm_view={View?:desktop|mobile|both}"
-    }, 
+      "paged": "false",
+      "name": "Service Catalog",
+      "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}?sysparm_view={View?:desktop|mobile|both}",
+      "description": "One catalogue by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Service Catalog Items", 
-      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "Service Catalog Categories",
+      "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}/categories?sysparm_top_level_only={Top Level Only?:true|false}&sysparm_view={View?:desktop|mobile|both}",
+      "description": "The categories within one catalogue. Requires a catalogue id."
+    },
     {
-      "paged": "false", 
-      "name": "Service Catalog Item", 
-      "suffix": "/sn_sc/servicecatalog/items/{Catalog Item ID}?sysparm_view={View?:desktop|mobile|both}"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Service Catalog Cart", 
-      "suffix": "/sn_sc/servicecatalog/cart"
-    }, 
-    {
-      "paged": "false", 
-      "name": "Shipping Address", 
-      "suffix": "/sn_sc/servicecatalog/cart/delivery_address/{User ID}"
-    }, 
+      "paged": "false",
+      "name": "Service Catalog Category",
+      "suffix": "/sn_sc/servicecatalog/categories/{Category ID}?sysparm_view={View?:desktop|mobile|both}",
+      "description": "One catalogue category by id."
+    },
     {
       "paged": "true",
-      "pageType": "OFFSET", 
-      "name": "Table Records", 
-      "suffix": "/now/table/{Table Name}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_query={Query?}&sysparm_view={View?:desktop|mobile|both}"
-    }, 
+      "pageType": "OFFSET",
+      "name": "Service Catalog Items",
+      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}",
+      "description": "The requestable items across the catalogues, with their descriptions, prices and the variables each asks for. What can be requested, as opposed to the requests themselves -- those are rows in the sc_request and sc_req_item tables via Table Records."
+    },
     {
-      "paged": "false", 
-      "name": "Table Record", 
-      "suffix": "/now/table/{Table Name}/{Table Record ID}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_view={View?:desktop|mobile|both}"
-    }, 
+      "paged": "false",
+      "name": "Service Catalog Item",
+      "suffix": "/sn_sc/servicecatalog/items/{Catalog Item ID}?sysparm_view={View?:desktop|mobile|both}",
+      "description": "One catalogue item by id, with its request variables."
+    },
     {
-      "paged": "false", 
-      "name": "Task Channels", 
-      "suffix": "/sn_comm_management/task_communication_management/channels?sysparm_table={Task Table Name}"
-    }, 
+      "paged": "false",
+      "name": "Service Catalog Cart",
+      "suffix": "/sn_sc/servicecatalog/cart",
+      "description": "The calling user's current cart. Scoped to the caller and transient."
+    },
     {
-      "paged": "false", 
-      "name": "Task Channels Metadata", 
-      "suffix": "/sn_comm_management/task_communication_management/changes_per_task/{Task ID}/{Table Name}"
-    }, 
+      "paged": "false",
+      "name": "Shipping Address",
+      "suffix": "/sn_sc/servicecatalog/cart/delivery_address/{User ID}",
+      "description": "The delivery address on one user's cart. Requires a user id."
+    },
     {
-      "paged": "false", 
-      "name": "Communication Plan Details", 
-      "suffix": "/sn_comm_management/task_communication_management/communication_detail/{Task ID}"
-    }, 
+      "paged": "true",
+      "pageType": "OFFSET",
+      "name": "Table Records",
+      "suffix": "/now/table/{Table Name}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_query={Query?}&sysparm_view={View?:desktop|mobile|both}",
+      "description": "The rows of ANY ServiceNow table, by table name -- incident, problem, change_request, sys_user, cmdb_ci, task, sc_request, or any custom table the instance defines. THIS IS THE WHOLE PLATFORM IN ONE ENDPOINT and almost every ServiceNow question should start here; the scoped APIs elsewhere in this connector are convenience wrappers over the same data. THREE PARAMETERS DECIDE WHETHER THE RESULT IS USABLE. sysparm_query takes ServiceNow's encoded query syntax and is the only filtering available. sysparm_fields limits the columns, which matters because instance tables routinely carry hundreds. And sysparm_display_value IS THE ONE THAT CATCHES PEOPLE: by default reference fields come back as 32-character sys_ids, so assigned_to is an opaque string rather than a name and state is a number rather than a label -- set it to true for labels, or all to get both, otherwise the result is unreadable without a lookup per reference."
+    },
     {
-      "paged": "false", 
-      "name": "Communication Plan Groups", 
-      "suffix": "/sn_comm_management/task_communication_management/groups/{Task ID}"
-    }, 
+      "paged": "false",
+      "name": "Table Record",
+      "suffix": "/now/table/{Table Name}/{Table Record ID}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_view={View?:desktop|mobile|both}",
+      "description": "One row of any table by sys_id. Requires the table name and record id. Same display-value behaviour."
+    },
     {
-      "paged": "false", 
-      "name": "User Roles", 
-      "suffix": "/global/user_role_inheritance?user_sysid={User ID}"
+      "paged": "false",
+      "name": "Task Channels",
+      "suffix": "/sn_comm_management/task_communication_management/channels?sysparm_table={Task Table Name}",
+      "description": "The communication channels configured for task notifications, filtered by query."
+    },
+    {
+      "paged": "false",
+      "name": "Task Channels Metadata",
+      "suffix": "/sn_comm_management/task_communication_management/changes_per_task/{Task ID}/{Table Name}",
+      "description": "The change history of task communication channels."
+    },
+    {
+      "paged": "false",
+      "name": "Communication Plan Details",
+      "suffix": "/sn_comm_management/task_communication_management/communication_detail/{Task ID}",
+      "description": "The communication plan attached to a task -- who is told what, and when."
+    },
+    {
+      "paged": "false",
+      "name": "Communication Plan Groups",
+      "suffix": "/sn_comm_management/task_communication_management/groups/{Task ID}",
+      "description": "The recipient groups in one task's communication plan. Requires the task id."
+    },
+    {
+      "paged": "false",
+      "name": "User Roles",
+      "suffix": "/global/user_role_inheritance?user_sysid={User ID}",
+      "description": "The roles one user holds INCLUDING THOSE INHERITED through group membership and role containment. Requires a user id. ServiceNow roles nest, so a user's directly assigned roles are usually a small subset of what they can actually do -- this is the resolved answer."
     }
   ]
 }
