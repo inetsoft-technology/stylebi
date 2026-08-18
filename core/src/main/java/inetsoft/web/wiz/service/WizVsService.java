@@ -34,6 +34,7 @@ import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.uql.XTable;
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
@@ -2153,8 +2154,13 @@ public class WizVsService {
     * Dispatches to the appropriate extract method based on assembly type.
     *
     * <p>Package-private (not private) so tests can stub it out via a Mockito spy — it drives the real
-    * ViewsheetSandbox, which is expensive to set up faithfully in a unit test, the same reason
-    * {@link #fetchAssemblyData} is already package-private.
+    * ViewsheetSandbox, which is expensive to set up faithfully in a unit test.
+    *
+    * <p><b>This is not a read.</b> It cancels every in-flight query on the runtime's sandbox
+    * ({@code cancelAllQueries} is per-box, not per-assembly), writes the row cap onto the shared base
+    * worksheet, drops this assembly's cached data and graph, and then executes the view. Callers that
+    * run inside the turn which owns the runtime pay nothing for that; a caller that can fire while the
+    * browser is rendering the same viewsheet can cancel an unrelated chart's render.
     */
    CreateViewsheetResult executeAndExtract(RuntimeViewsheet rvs, VSAssembly assembly,
                                            int sampleMaxRows)
@@ -2212,18 +2218,64 @@ public class WizVsService {
     * Executes the sandbox for an existing assembly and returns headers/rows/hasData.
     * Called after {@code createViewsheetSkipExecution} to lazily populate row data
     * (e.g. for data insight generation on a type switch).
+    *
+    * <p>Public because it is also the whole of {@code POST /api/wiz/viewsheet/assembly-data}: a
+    * caller answering a question about a chart built earlier in a conversation needs that chart's
+    * own rows, and this reads exactly them — addressed by the same (runtimeId, assemblyName) pair
+    * the browser embed renders with, at whatever row cap that chart is already showing. There is
+    * deliberately no parameter to widen that cap; see AssemblyDataRequest.
+    *
+    * <p>Returns a whole {@link CreateViewsheetResult}, of which the endpoint's documented contract is
+    * {@code headers} + {@code rows} + {@code binding}; {@code hasData} and the {@code truncated} /
+    * {@code sampled} / {@code sampleMaxRows} trio describe the same read and are meaningful to a
+    * caller deciding whether the rows are the whole population.
+    *
+    * <p><b>Not a pure read</b> — see {@link #executeAndExtract}: it re-executes the view and
+    * invalidates this assembly's cached render.
+    *
+    * <p>An expired runtime or a missing assembly both come back as an EMPTY result rather than an
+    * error, because both mean "nothing to answer from" rather than "this chart is empty", and the
+    * caller degrades on an empty result instead of retrying.
     */
-   CreateViewsheetResult fetchAssemblyData(String runtimeId, String assemblyName,
-                                           Principal user) throws Exception
+   public CreateViewsheetResult fetchAssemblyData(String runtimeId, String assemblyName,
+                                                  Principal user) throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+      // Action-level gate ("Visual Composer -> Data Viewsheet"), the same one every other
+      // endpoint-backed method in the wiz services applies — including the read-only
+      // getChartAestheticModel. Without it, the one endpoint that returns raw ROW DATA would be the
+      // only ungated one. A no-op for the internal callers in WizAutoBindingService, which have all
+      // passed this identical check before reaching here.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
 
-      if(rvs == null) {
+      if(runtimeId == null || runtimeId.isEmpty() || assemblyName == null || assemblyName.isEmpty()) {
+         throw new IllegalArgumentException("runtimeId and assemblyName are required");
+      }
+
+      RuntimeViewsheet rvs;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, user);
+      }
+      catch(ExpiredSheetException e) {
+         // A reaped runtime is the ORDINARY case here, not a failure: the chart is equally
+         // unavailable to the user at that point, so "no data to answer from" is the accurate
+         // outcome. getSheet THROWS for an id it no longer holds rather than returning null, so
+         // catching this — not a null check — is what makes that the actual behaviour. Left uncaught
+         // it reached the controller's generic handler as a 500 with an ERROR-level stack trace, for
+         // the single most routine condition on this path, burying the failures that do matter.
+         //
+         // Deliberately NOT catch(Exception): a genuine fault must still surface. Only expiry is
+         // expected, and only expiry is answered with silence.
+         LOG.debug("Runtime viewsheet [{}] has expired; no data for assembly [{}]",
+                   runtimeId, assemblyName);
          return new CreateViewsheetResult();
       }
 
-      Viewsheet vs = rvs.getViewsheet();
-      VSAssembly assembly = vs.getAssembly(assemblyName);
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
       if(assembly == null) {
          return new CreateViewsheetResult();
@@ -2237,14 +2289,16 @@ public class WizVsService {
       int curMax = WizUtil.sampledPreviewCap(fetchWs);
       CreateViewsheetResult result = executeAndExtract(rvs, assembly, curMax);
 
-      if(result != null) {
-         // Order matters: executeAndExtract runs executeView above, which populates the
-         // chart's RT refs. collectFlatBinding prefers RT refs, so it must come after.
-         result.setBinding(collectFlatBinding(assembly));
+      // One decision about nullability, not two: this used to guard setBinding and then dereference
+      // the same variable unguarded on the very next line, so the guard protected nothing.
+      if(result == null) {
+         return new CreateViewsheetResult();
       }
 
-      boolean metadataMode = vs.getViewsheetInfo().isMetadata();
-      result.setHasData(computeHasData(metadataMode, result));
+      // Order matters: executeAndExtract runs executeView above, which populates the
+      // chart's RT refs. collectFlatBinding prefers RT refs, so it must come after.
+      result.setBinding(collectFlatBinding(assembly));
+      result.setHasData(computeHasData(vs.getViewsheetInfo().isMetadata(), result));
       return result;
    }
 
