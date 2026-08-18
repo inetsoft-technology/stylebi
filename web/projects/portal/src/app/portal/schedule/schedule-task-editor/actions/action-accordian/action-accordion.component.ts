@@ -1313,8 +1313,112 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    }
 
    get dataSizeOptionVisible(): boolean {
-      return this.isDashboard && this.action.format !== "HTML" && this.action.format !== "CSV" &&
-         (this.action.format !== "PDF" || !this.hasPrintLayout);
+      return this.isDashboard && (this.action.format !== "PDF" || !this.hasPrintLayout);
+   }
+
+   get emailLayoutUnavailable(): boolean {
+      return this.action.format === "HTML" || this.action.format === "CSV";
+   }
+
+   get emailLayoutReason(): string {
+      if(this.action.format === "HTML") {
+         return "_#(js:Not applied to HTML)";
+      }
+
+      if(this.action.format === "CSV") {
+         return "_#(js:Not applied to CSV)";
+      }
+
+      return "";
+   }
+
+   private get emailExpandActive(): boolean {
+      return !this.emailLayoutUnavailable && !this.action.emailMatchLayout;
+   }
+
+   get emailExpandSelectionsDisabled(): boolean {
+      return !this.model.expandEnabled || !this.emailExpandActive ||
+         (this.action.format === "Excel" && this.action.emailOnlyDataComponents);
+   }
+
+   get emailExpandSelectionsReason(): string {
+      if(!this.model.expandEnabled) {
+         return "_#(js:Requires Expand Components permission)";
+      }
+
+      if(!this.emailExpandActive) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      if(this.action.format === "Excel" && this.action.emailOnlyDataComponents) {
+         return "_#(js:Not used with data-only export)";
+      }
+
+      return "";
+   }
+
+   get emailOnlyDataDisabled(): boolean {
+      return this.action.format !== "Excel" || !this.emailExpandActive;
+   }
+
+   get emailOnlyDataReason(): string {
+      if(this.action.format !== "Excel") {
+         return "_#(js:Excel only)";
+      }
+
+      if(!this.emailExpandActive) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      return "";
+   }
+
+   get emailTabbedTablesDisabled(): boolean {
+      return this.action.format !== "Excel";
+   }
+
+   get saveExpandActive(): boolean {
+      return !this.action.saveMatchLayout;
+   }
+
+   get saveExpandSelectionsDisabled(): boolean {
+      return !this.model.expandEnabled || this.action.saveMatchLayout || this.action.saveOnlyDataComponents;
+   }
+
+   get saveExpandSelectionsReason(): string {
+      if(!this.model.expandEnabled) {
+         return "_#(js:Requires Expand Components permission)";
+      }
+
+      if(this.action.saveMatchLayout) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      if(this.action.saveOnlyDataComponents) {
+         return "_#(js:Not used with data-only export)";
+      }
+
+      return "";
+   }
+
+   get saveOnlyDataDisabled(): boolean {
+      return !this.hasExcelFormat() || this.action.saveMatchLayout;
+   }
+
+   get saveOnlyDataReason(): string {
+      if(!this.hasExcelFormat()) {
+         return "_#(js:Excel only)";
+      }
+
+      if(this.action.saveMatchLayout) {
+         return "_#(js:Needs Expand components)";
+      }
+
+      return "";
+   }
+
+   get saveTabbedTablesDisabled(): boolean {
+      return !this.hasExcelFormat();
    }
 
    private isHtmlFormat(format: string) {

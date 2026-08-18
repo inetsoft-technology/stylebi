@@ -71,32 +71,43 @@
           <mat-error *ngIf="form.controls.format?.errors?.required">_#(em.schedule.action.formatRequired)</mat-error>
         </mat-form-field>
         @if (dataSizeOptionVisible) {
-          <mat-radio-group class="flex-col left-padding" formControlName="emailMatchLayout"
-            (change)="fireDeliveryChanged()">
-            <mat-radio-button [value]="true">_#(Match Layout)</mat-radio-button>
-            <mat-radio-button [value]="false"
-            [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
-          </mat-radio-group>
-        }
-        <div class="full-width">
-          @if (dataSizeOptionVisible) {
-            <mat-checkbox class="left-padding"
-              formControlName="emailExpandSelections"
+          <div class="option-group">
+            <div class="group-label left-padding">_#(Deliver content as)</div>
+            <mat-radio-group class="flex-col left-padding"
+              formControlName="emailMatchLayout"
               (change)="fireDeliveryChanged()">
-              _#(Expand Selection List/Tree)
-            </mat-checkbox>
-          }
-          @if (type == 'viewsheet' && format == 'Excel') {
-            <mat-checkbox class="left-padding"
-              formControlName="emailOnlyDataComponents"
-              (change)="fireDeliveryChanged()">_#(Only Data Elements)
-            </mat-checkbox>
-          }
-        </div>
-        @if (type == 'viewsheet' && format == 'Excel') {
-          <mat-checkbox class="left-padding"
-            formControlName="exportAllTabbedTables"
-          (change)="fireDeliveryChanged()">_#(Export All Tabbed Tables)</mat-checkbox>
+              <mat-radio-button [value]="true">_#(Match Layout)</mat-radio-button>
+              <div class="option-row">
+                <mat-radio-button [value]="false"
+                [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
+                @if (emailLayoutReason) {
+                  <span class="option-reason">{{ emailLayoutReason }}</span>
+                }
+              </div>
+            </mat-radio-group>
+            <div class="option-indent left-padding">
+              <div class="option-row">
+                <mat-checkbox formControlName="emailExpandSelections" (change)="fireDeliveryChanged()">
+                  _#(Expand Selection List/Tree)
+                </mat-checkbox>
+                @if (emailExpandSelectionsReason) {
+                  <span class="option-reason">{{ emailExpandSelectionsReason }}</span>
+                }
+              </div>
+              <div class="option-row">
+                <mat-checkbox formControlName="emailOnlyDataComponents" (change)="fireDeliveryChanged()">_#(Only Data Elements)</mat-checkbox>
+                @if (emailOnlyDataReason) {
+                  <span class="option-reason">{{ emailOnlyDataReason }}</span>
+                }
+              </div>
+              <div class="option-row">
+                <mat-checkbox formControlName="exportAllTabbedTables" (change)="fireDeliveryChanged()">_#(Export All Tabbed Tables)</mat-checkbox>
+                @if (emailTabbedTablesDisabled) {
+                  <span class="option-reason">_#(Excel only)</span>
+                }
+              </div>
+            </div>
+          </div>
         }
         <mat-checkbox class="left-padding"
           formControlName="bundledAsZip"
