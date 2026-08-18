@@ -252,21 +252,8 @@ public class WizDatabaseController {
     * <p>POST rather than GET because the type list is unbounded, matching {@code
     * /datasources/search} and {@code /datasources/statuses} in this same controller.</p>
     *
-    * <p>No permission gate, but that reasoning only covers half the response. {@code catalogs} is a
-    * property of the CONNECTOR — identical for every customer, compiled into the connector jar,
-    * carrying nothing about any one of them. There is no instance, no path and no stored data to
-    * authorize against, so no permission applies. {@code notCatalogued}, {@code unavailable} and
-    * {@code unknownType} are not that: they report which connector plugins THIS deployment has
-    * installed and how its type registry is configured, which is instance-specific information a
-    * customer-neutral catalogue is not. Do not extend the "no instance to authorize against"
-    * reasoning to those three fields — it does not hold for them.</p>
-    *
-    * <p>The actual boundary protecting this endpoint today is authentication, not permission: the
-    * whole {@code /api/wiz/**} prefix sits behind {@code WizServiceAuthenticationFilter}'s bearer
-    * token check, so the exposure is "any authenticated wiz caller can enumerate this server's
-    * installed connector plugins by POSTing every known {@code Rest.*} type", not "anyone on the
-    * network can". Whether that residual exposure warrants its own permission is a separate policy
-    * decision, not made here — this handler does not even take a {@code Principal} yet.</p>
+    * <p>No permission gate: a catalogue is compiled into the connector jar and is identical for
+    * every customer, so there is no instance, no path and no stored data to authorize against.</p>
     *
     * <p>{@code unavailable} and {@code unknownType} answer two different questions and must not be
     * merged. Both start from {@code Config.getQueryClass(type)}, a plain map lookup that either
