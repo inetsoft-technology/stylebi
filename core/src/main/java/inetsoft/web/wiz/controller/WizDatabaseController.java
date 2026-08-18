@@ -264,8 +264,19 @@ public class WizDatabaseController {
       List<String> notCatalogued = new ArrayList<>();
       List<String> unavailable = new ArrayList<>();
       List<String> types = request.getTypes() == null ? List.of() : request.getTypes();
+      Set<String> distinctTypes = new LinkedHashSet<>();
 
-      for(String type : new LinkedHashSet<>(types)) {
+      // A null element is neither "no catalogue" nor "unreadable" - it is not a type at all, and
+      // uqlConfig.getQueryClass(null) does not reject it, so left unfiltered it would surface as a
+      // literal null in the unavailable array with no way for the caller to explain it. A
+      // blank string is filtered for the same reason: it cannot name any data source type either.
+      for(String type : types) {
+         if(type != null && !type.isBlank()) {
+            distinctTypes.add(type);
+         }
+      }
+
+      for(String type : distinctTypes) {
          Class<?> queryClass;
 
          try {

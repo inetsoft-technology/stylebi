@@ -37,6 +37,7 @@ import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.request.WizDatabaseTestRequest;
 import inetsoft.web.wiz.request.WizDatasourceStatusRequest;
+import inetsoft.web.wiz.request.WizEndpointCatalogRequest;
 import inetsoft.web.wiz.service.EndpointCatalogReader;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -247,6 +248,26 @@ class WizDatabaseControllerSecurityTest {
 
       assertTrue(result.isEmpty(), "an unreadable path yields no status rather than an error");
       verifyNoInteractions(fixture.dataSourceStatusService);
+   }
+
+   /**
+    * A null or blank element in {@code types} is neither "no catalogue" nor "unreadable" - it does
+    * not name a type at all, and {@code Config.getQueryClass} does not reject it. Left unfiltered it
+    * would surface as a literal, uninterpretable entry in the response instead of being dropped
+    * before the lookup ever runs.
+    */
+   @Test
+   void endpointCatalog_dropsNullAndBlankTypesFromTheResponse() {
+      Fixture fixture = new Fixture();
+      WizEndpointCatalogRequest request = new WizEndpointCatalogRequest();
+      request.setTypes(Arrays.asList(null, "  ", MySQLDatabaseType.TYPE));
+
+      WizEndpointCatalogResponse response = fixture.controller.getEndpointCatalog(request);
+
+      assertEquals(List.of(MySQLDatabaseType.TYPE), response.unavailable(),
+                   "a null or blank type must never surface as a literal entry in the response");
+      assertTrue(response.notCatalogued().isEmpty());
+      assertTrue(response.catalogs().isEmpty());
    }
 
    /**
