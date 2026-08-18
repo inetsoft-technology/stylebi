@@ -258,6 +258,10 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           openService);
@@ -289,6 +293,10 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));
@@ -312,6 +320,10 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));
@@ -339,6 +351,122 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class));
+   }
+
+   /**
+    * Regression for the highlight header-cell defect: omitting {@code row}/{@code col} must
+    * reach {@link AssemblyHighlightService} as a {@code null} Region, not
+    * {@code Region(0, 0, ...)}. A non-null Region there skips the service's fall-forward to the
+    * first data cell, so every call that named no location landed on a table's header — which
+    * has no highlightable fields — and was refused. An explicit {@code row}/{@code col} of 0 must
+    * still arrive as a real Region: the caller asked for that cell, and second-guessing it would
+    * highlight somewhere they did not request.
+    */
+   @Test
+   void listHighlightsPassesANullRegionWhenNoLocationWasNamed() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+
+      controller.listHighlights("tok", "Table1", null, null, null, principal());
+
+      verify(highlightService).list(eq("tok"), any(Principal.class), eq("Table1"),
+                                    isNull());
+   }
+
+   @Test
+   void listHighlightsPassesARealRegionWhenALocationWasNamed() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+
+      controller.listHighlights("tok", "Table1", 1, 1, null, principal());
+
+      verify(highlightService).list(eq("tok"), any(Principal.class), eq("Table1"),
+                                    eq(new AssemblyHighlightService.Region(1, 1, null, false,
+                                                                          false)));
+   }
+
+   /**
+    * {@code colName} is a standalone address, not a qualifier on {@code row}/{@code col} — a
+    * chart has no rows or columns, so picking one of its measures to highlight is addressed by
+    * {@code colName} alone, with {@code row}/{@code col} both omitted. An earlier version of
+    * {@code highlightRegion} checked only {@code row}/{@code col} for null and dropped a
+    * {@code colName}-only address into the "no location named" branch, silently losing it.
+    */
+   @Test
+   void listHighlightsPassesARealRegionWhenOnlyColNameWasNamed() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+
+      controller.listHighlights("tok", "Chart1", null, null, "Sum(Sales)", principal());
+
+      verify(highlightService).list(eq("tok"), any(Principal.class), eq("Chart1"),
+                                    eq(new AssemblyHighlightService.Region(null, null,
+                                                                          "Sum(Sales)", false,
+                                                                          false)));
+   }
+
+   /** Same signal, reached through {@code HighlightRequest.region()} for set/delete. */
+   @Test
+   void setHighlightPassesANullRegionWhenNoLocationWasNamed() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, "HighRevenue", null, "#FFDDDD", List.of(), false, false);
+
+      controller.setHighlight("tok", request, "", principal());
+
+      verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"), isNull(),
+                                   any(), eq(false), eq(""));
+   }
+
+   @Test
+   void setHighlightPassesARealRegionWhenALocationWasNamed() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", 0, 0, null, "HighRevenue", null, "#FFDDDD", List.of(), false, false);
+
+      controller.setHighlight("tok", request, "", principal());
+
+      verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"),
+                                   eq(new AssemblyHighlightService.Region(0, 0, null, false,
+                                                                          false)),
+                                   any(), eq(false), eq(""));
+   }
+
+   /** Feature enabled, only {@code highlightService} wired -- for the highlight-region tests. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      AssemblyHighlightService highlightService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          highlightService,
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class));

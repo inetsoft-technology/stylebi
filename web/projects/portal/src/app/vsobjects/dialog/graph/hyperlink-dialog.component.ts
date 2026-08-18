@@ -317,7 +317,11 @@ export class HyperlinkDialog implements OnInit {
       }
 
       const { fields, ...modelClone } = this.model;
-      const model: HyperlinkDialogModel = { ...modelClone, fields: [] };
+      // Only a final commit (OK) carries the revision it was read at -- Apply leaves the
+      // dialog open with its held model never refreshed, so echoing this back on Apply would
+      // make the dialog conflict with its own prior Apply on the next one.
+      const model: HyperlinkDialogModel = { ...modelClone, fields: [], revision: undefined };
+      const commitModel: HyperlinkDialogModel = { ...model, revision: this.model.revision };
 
       // Check trap
       const trapInfo = new TrapInfo(CHECK_TRAP_REST_URI, this.objectName, this.runtimeId,
@@ -325,7 +329,7 @@ export class HyperlinkDialog implements OnInit {
 
       this.trapService.checkTrap(trapInfo, () => {
          if(commit) {
-            this.onCommit.emit(model);
+            this.onCommit.emit(commitModel);
          }
          else {
             this.onApply.emit({collapse: collapse, result: model});
@@ -333,7 +337,7 @@ export class HyperlinkDialog implements OnInit {
       }, () => {
       }, () => {
          if(commit) {
-            this.onCommit.emit(model);
+            this.onCommit.emit(commitModel);
          }
          else {
             this.onApply.emit({collapse: collapse, result: model});

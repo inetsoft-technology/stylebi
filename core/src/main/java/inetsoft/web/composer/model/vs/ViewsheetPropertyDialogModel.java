@@ -33,6 +33,13 @@ import javax.annotation.Nullable;
 public interface ViewsheetPropertyDialogModel {
    @Nullable String id();
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   @Nullable Integer revision();
+
    @Value.Default
    default VSOptionsPaneModel vsOptionsPane() {
       return new VSOptionsPaneModel();

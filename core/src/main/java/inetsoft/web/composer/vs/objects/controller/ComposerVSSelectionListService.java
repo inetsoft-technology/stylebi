@@ -195,7 +195,13 @@ public class ComposerVSSelectionListService {
 
       final VSAssembly container = assembly.getContainer();
 
-      if(!(assembly instanceof SelectionListVSAssembly) &&
+      // Both are required, not either: the body below dereferences the container unconditionally.
+      // With && a standalone selection list passed this guard, and getContainer() returns null unless
+      // the assembly is inside a Tab, GroupContainer or CurrentSelection container -- so the cast of
+      // null succeeded and getAssemblies() threw NullPointerException. Inside a Tab or
+      // GroupContainer it threw ClassCastException instead. Unreachable from the Composer, whose menu
+      // item is hidden unless inSelectionContainer, but reachable by any other caller.
+      if(!(assembly instanceof SelectionListVSAssembly) ||
          !(container instanceof CurrentSelectionVSAssembly))
       {
          return null;

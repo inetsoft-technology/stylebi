@@ -207,6 +207,7 @@ public class CrosstabPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(crosstabAssemblyInfo.getScript() == null ?
                                               "" : crosstabAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -338,7 +339,7 @@ public class CrosstabPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       return null;
    }

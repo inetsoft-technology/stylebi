@@ -253,6 +253,7 @@ public class ViewsheetPropertyDialogService {
       vsScriptPane.enableAutocomplete(true);
       vsScriptPane.enableScript(info.isScriptEnabled());
       vsModel.vsScriptPane(vsScriptPane.build());
+      vsModel.revision(rvs.getWriteRevision());
 
       return vsModel.build();
    }
@@ -265,6 +266,22 @@ public class ViewsheetPropertyDialogService {
    {
       String updatedName = null;
       RuntimeViewsheet rvs = this.viewsheetService.getViewsheet(runtimeId, principal);
+
+      // Write coordination: refuse a stale commit rather than silently applying it over
+      // whatever changed since this dialog's model was read. This dialog has no defensive
+      // clone at all -- it mutates ViewsheetInfo live -- so the check matters even more here
+      // than in the dialogs that at least clone before patching. See
+      // 2026-08-17-write-coordination-design.md / -implementation.md.
+      Integer expectedRevision = value.revision();
+
+      if(expectedRevision != null && expectedRevision != rvs.getWriteRevision()) {
+         MessageCommand command = new MessageCommand();
+         command.setMessage(Catalog.getCatalog().getString("common.writeConflict", "Viewsheet"));
+         command.setType(MessageCommand.Type.ERROR);
+         commandDispatcher.sendCommand(command);
+         return null;
+      }
+
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
       VSOptionsPaneModel vsOptionsPaneModel = value.vsOptionsPane();
@@ -501,6 +518,8 @@ public class ViewsheetPropertyDialogService {
             throw e;
          }
       }
+
+      rvs.bumpWriteRevision();
 
       return updatedName;
    }

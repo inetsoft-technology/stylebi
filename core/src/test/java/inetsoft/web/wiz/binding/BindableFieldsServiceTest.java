@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.binding.model.BindableField;
@@ -199,11 +202,131 @@ class BindableFieldsServiceTest {
       assertTrue(serviceReturning(null).list("rt1", null, principal()).isEmpty());
    }
 
+   /**
+    * The B3-observed live shape: an unscoped call's tree has a WORKSHEET-typed container node
+    * between the root and the real tables, and {@code VSTreeHandler.isLeaf} marks every
+    * {@code AssetEntry.Type.WORKSHEET} entry a leaf unconditionally -- so this container node is
+    * {@code leaf: true} at the same time as carrying real table children, because
+    * {@code createNodeFromEntry} sets the two independently.
+    *
+    * <p>Trusting {@code leaf()} treated the container itself as a column: {@code
+    * fieldOf(wsContainer)} turned its own label into a fabricated {@code {column, dataType: null,
+    * role: null}}, and the real table beneath it was never visited. Observed live as
+    * {@code {name: null, fields: [{column: "a1", dataType: null, role: null}]}} in place of the
+    * viewsheet's actual tables.
+    */
+   @Test
+   void walksIntoAWorksheetTypedContainerNodeDespiteItClaimingToBeALeaf() throws Exception {
+      TreeNodeModel column = TreeNodeModel.builder().label("Sales").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "Sales", "double")).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("Orders").data(entry(AssetEntry.Type.TABLE, "Orders", null))
+         .addChildren(column).build();
+      // The container: WORKSHEET-typed (so VSTreeHandler.isLeaf marks it leaf: true) but carrying
+      // the real table as a child regardless -- exactly what refreshBaseWSTree's non-direct-source
+      // branch builds.
+      TreeNodeModel wsContainer = TreeNodeModel.builder()
+         .label("MyWorksheet").leaf(true)
+         .data(entry(AssetEntry.Type.WORKSHEET, "MyWorksheet", null))
+         .addChildren(table).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(wsContainer).build();
+
+      List<BindableTable> tables = serviceReturning(root).list("rt1", null, principal());
+
+      assertEquals(1, tables.size(),
+                   "must not fabricate a field from the WORKSHEET container's own label");
+      assertEquals("Orders", tables.get(0).name());
+      assertEquals("Sales", tables.get(0).fields().get(0).column());
+   }
+
+   /**
+    * Review finding (larryliang-inetsoft): trusting childlessness alone reintroduces the same
+    * defect one level up. A table with nothing exposed under it -- permission-filtered, a fresh
+    * embedded table, mid-load metadata -- has no children either, so without excluding tables
+    * from {@code isColumn} its own label gets fabricated into a column standing in for it, the
+    * same shape as the WORKSHEET-container bug this fix closes. The old {@code leaf()}-based code
+    * never had this failure mode, because {@code leaf()} is hardcoded false for table types
+    * regardless of children.
+    */
+   @Test
+   void anEmptyTableYieldsNoFieldsRatherThanFabricatingOneFromItsOwnLabel() throws Exception {
+      TreeNodeModel emptyTable = TreeNodeModel.builder()
+         .label("EmptyTable").data(entry(AssetEntry.Type.TABLE, "EmptyTable", null)).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(emptyTable).build();
+
+      List<BindableTable> tables = serviceReturning(root).list("rt1", null, principal());
+
+      assertTrue(tables.isEmpty(),
+                 "an empty table must report no fields, not a fabricated column named after it");
+   }
+
+   // ── unknown assembly name (the D4 regression) ────────────────────────────
+
+   /**
+    * {@code VSBindingTreeService.getBinding} resolves {@code viewsheet.getAssembly(name)}, which
+    * returns {@code null} for an unknown name exactly as it does for {@code null} itself — so
+    * scoping to a name that does not exist used to fall into the same "list everything" branch as
+    * not scoping at all, and silently returned the whole-viewsheet field list instead of refusing.
+    */
+   @Test
+   void refusesAnAssemblyNameThatDoesNotExistRatherThanListingEverything() throws Exception {
+      TreeNodeModel root = TreeNodeModel.builder().label("root").build();
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Nope")).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class))).thenReturn(root);
+      BindableFieldsService service = new BindableFieldsService(tree, engine);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.list("rt1", "Nope", principal()));
+
+      assertTrue(thrown.getMessage().contains("Nope"));
+      verify(tree, never()).getBinding(anyString(), any(), anyBoolean(), any(Principal.class));
+   }
+
+   /** A real assembly name still resolves normally, without touching the existence check's error. */
+   @Test
+   void listsNormallyWhenTheAssemblyNameIsReal() throws Exception {
+      inetsoft.uql.viewsheet.VSAssembly assembly = mock(inetsoft.uql.viewsheet.VSAssembly.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Table1")).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), eq("Table1"), anyBoolean(), any(Principal.class)))
+         .thenReturn(null);
+      BindableFieldsService service = new BindableFieldsService(tree, engine);
+
+      assertTrue(service.list("rt1", "Table1", principal()).isEmpty());
+   }
+
+   /** Omitting the assembly is the deliberate "list everything" request; it must not resolve one. */
+   @Test
+   void doesNotResolveAnAssemblyWhenNoneWasNamed() throws Exception {
+      ViewsheetService engine = mock(ViewsheetService.class);
+      serviceReturning(null, engine).list("rt1", null, principal());
+
+      verify(engine, never()).getViewsheet(anyString(), any(Principal.class));
+   }
+
    private static BindableFieldsService serviceReturning(TreeNodeModel root) throws Exception {
+      return serviceReturning(root, mock(ViewsheetService.class));
+   }
+
+   private static BindableFieldsService serviceReturning(TreeNodeModel root,
+                                                         ViewsheetService engine)
+      throws Exception
+   {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class)))
          .thenReturn(root);
-      return new BindableFieldsService(tree);
+      return new BindableFieldsService(tree, engine);
    }
 
    private static Principal principal() {

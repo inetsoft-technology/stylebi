@@ -137,6 +137,8 @@ public class GroupContainerPropertyDialogService {
       vsAssemblyScriptPane.expression(info.getScript() == null ? "" : info.getScript());
       groupContainerPropertyDialog.setVsAssemblyScriptPane(vsAssemblyScriptPane.build());
 
+      groupContainerPropertyDialog.setRevision(rvs.getWriteRevision());
+
       return groupContainerPropertyDialog;
    }
 
@@ -207,7 +209,8 @@ public class GroupContainerPropertyDialogService {
       info.setScript(vsAssemblyScriptPane.expression());
 
       this.vsObjectPropertyService.editObjectProperty(
-         rvs, info, objectId, basicGeneralPane.getName(), linkUri, principal, commandDispatcher);
+         rvs, info, objectId, basicGeneralPane.getName(), linkUri, principal, commandDispatcher,
+         true, value.getRevision());
 
       return null;
    }

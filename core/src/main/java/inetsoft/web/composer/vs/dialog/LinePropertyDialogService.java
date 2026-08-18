@@ -104,6 +104,7 @@ public class LinePropertyDialogService {
       vsAssemblyScriptPaneModel.expression(lineAssemblyInfo.getScript() == null ?
                                               "" : lineAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -200,7 +201,7 @@ public class LinePropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, lineAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
       return null;
    }

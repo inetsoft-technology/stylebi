@@ -17,8 +17,11 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.binding.model.BindableField;
@@ -40,13 +43,38 @@ import java.util.List;
 @Service
 public class BindableFieldsService {
    @Autowired
-   public BindableFieldsService(VSBindingTreeService tree) {
+   public BindableFieldsService(VSBindingTreeService tree, ViewsheetService viewsheetService) {
       this.tree = tree;
+      this.viewsheetService = viewsheetService;
    }
 
+   /**
+    * Refuses an {@code assembly} that does not exist, rather than silently listing everything.
+    *
+    * <p>{@code VSBindingTreeService.getBinding} resolves the assembly with
+    * {@code viewsheet.getAssembly(name)}, which returns {@code null} for an unknown name exactly
+    * as it does for {@code null} itself — so "list every table" and "list the tables for a name
+    * that doesn't exist" fell into the identical fallback branch and returned the identical
+    * whole-viewsheet tree. An agent scoping to the wrong assembly name got a full, plausible field
+    * list back and had no way to tell its scoping request was silently ignored (CLAUDE.md's
+    * tool-misuse-accepted-silently class). {@code assembly == null} is the caller's deliberate
+    * "list everything," so only a non-null name that fails to resolve is refused.
+    */
    public List<BindableTable> list(String runtimeId, String assembly, Principal user)
       throws Exception
    {
+      if(assembly != null) {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+         if(vs == null || vs.getAssembly(assembly) == null) {
+            throw new IllegalArgumentException(
+               "'" + assembly + "' is not an assembly on this viewsheet. Omit 'assembly' to list " +
+               "every table the viewsheet offers, or call read_viewsheet_model to see what " +
+               "assemblies exist.");
+         }
+      }
+
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
@@ -85,7 +113,7 @@ public class BindableFieldsService {
       List<BindableField> direct = new ArrayList<>();
 
       for(TreeNodeModel child : node.children()) {
-         if(child.leaf()) {
+         if(isColumn(child)) {
             direct.add(fieldOf(child));
          }
          else {
@@ -105,13 +133,44 @@ public class BindableFieldsService {
    /** Every column at or below this node, however deeply the Composer nests them. */
    private void gather(TreeNodeModel node, List<BindableField> out) {
       for(TreeNodeModel child : node.children()) {
-         if(child.leaf()) {
+         if(isColumn(child)) {
             out.add(fieldOf(child));
          }
          else {
             gather(child, out);
          }
       }
+   }
+
+   /**
+    * Whether a node is safe to treat as a column — checked by its actual children rather than the
+    * tree's own {@code leaf} flag, and never true for a table, columns or not.
+    *
+    * <p>{@code leaf} is a UI hint, not a structural guarantee, and the two can disagree:
+    * {@code VSTreeHandler.isLeaf} marks every {@code AssetEntry.Type.WORKSHEET} entry as a leaf so
+    * the Composer's asset browser does not expand into a referenced worksheet inline. But
+    * {@code VSEventUtil.refreshBaseWSTree} — the tree an unscoped {@code list_bindable_fields}
+    * reads — reuses a WORKSHEET-typed entry as the *container* holding the viewsheet's actual
+    * tables, which does have real children. {@code createNodeFromEntry} sets {@code .leaf(...)}
+    * and {@code .children(...)} independently, so that container node ends up {@code leaf: true}
+    * with real table children underneath it at the same time.
+    *
+    * <p>Trusting {@code leaf()} there treated the container itself as one column — {@code
+    * fieldOf(wsNode)} turned the worksheet's own label into a fabricated {@code {column, dataType:
+    * null, role: null}} — and never walked into the real tables beneath it, so an unscoped call
+    * returned that one manufactured field instead of the viewsheet's tables. A node with children
+    * is never a column regardless of what {@code leaf()} claims; only genuine childlessness is.
+    *
+    * <p>Childlessness alone is not sufficient, though: a table with nothing exposed under it
+    * (permission-filtered, a fresh embedded table, mid-load metadata) has no children either, and
+    * without the {@link #isTable} exclusion this reintroduces the exact defect it fixes one level
+    * up — an empty table's own label gets fabricated into a column standing in for the table,
+    * instead of correctly reporting no fields for it. {@code isTable} was already the answer to
+    * "is this a table" everywhere else in this class; the childlessness check must defer to it
+    * rather than deciding leaf-ness on its own.
+    */
+   private boolean isColumn(TreeNodeModel node) {
+      return node.children().isEmpty() && !isTable(node);
    }
 
    private BindableField fieldOf(TreeNodeModel node) {
@@ -190,4 +249,5 @@ public class BindableFieldsService {
    private static final String MEASURE = "measure";
 
    private final VSBindingTreeService tree;
+   private final ViewsheetService viewsheetService;
 }

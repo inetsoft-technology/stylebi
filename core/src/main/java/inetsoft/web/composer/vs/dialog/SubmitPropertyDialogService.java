@@ -101,6 +101,7 @@ public class SubmitPropertyDialogService {
       clickableScriptPaneModel.scriptExpression(script);
       clickableScriptPaneModel.onClickExpression(onClick);
       result.setClickableScriptPaneModel(clickableScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -149,7 +150,7 @@ public class SubmitPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, submitAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       return null;
    }

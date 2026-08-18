@@ -57,7 +57,21 @@ public class GroupContainerPropertyDialogModel implements Serializable {
       this.vsAssemblyScriptPane = vsAssemblyScriptPane;
    }
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
    private GroupContainerGeneralPaneModel groupContainerGeneralPane;
    private ImageScalePaneModel imageScalePane;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPane;
+   private Integer revision;
 }

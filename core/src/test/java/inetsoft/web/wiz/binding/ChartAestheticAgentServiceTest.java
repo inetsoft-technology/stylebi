@@ -19,6 +19,8 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartAestheticService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
@@ -189,6 +191,68 @@ class ChartAestheticAgentServiceTest {
                    () -> service.setField("tok", principal(), "Chart1", "colour",
                                           new FieldRef("Region", "dimension", null, null, null),
                                           ""));
+   }
+
+   // ── node channels (spec 2c Phase 3) ───────────────────────────────────────
+
+   @Test
+   void refusesNodeColorOnAChartThatIsNotARelationChart() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setField("tok", principal(), "Chart1", "node-color",
+                                new FieldRef("Region", "dimension", null, null, null), ""));
+      assertTrue(thrown.getMessage().contains("relation"));
+   }
+
+   @Test
+   void acceptsNodeColorOnARelationChart() throws Exception {
+      ChartVSAssembly relationChart = relationChartAssembly();
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      serviceWith(sessionsFor(relationChart), new ChartBindingModel(), aesthetics)
+         .setField("tok", principal(), "Chart1", "node-color",
+                  new FieldRef("Region", "dimension", null, null, null), "");
+
+      assertEquals("Region", captureEvent(aesthetics).getModel().getNodeColorField().getFullName());
+   }
+
+   @Test
+   void readReportsNodeChannelsOnlyForARelationChart() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color",
+                                     new FieldRef("Region", "dimension", null, null, null), true);
+      ChartAestheticAgentService onRelation = serviceWith(sessionsFor(relationChartAssembly()),
+                                                     model, mock(ChangeChartAestheticService.class));
+      ChartAestheticAgentService onBar = serviceWith(sessionsFor(mock(ChartVSAssembly.class)),
+                                               model, mock(ChangeChartAestheticService.class));
+
+      assertTrue(onRelation.read("tok", principal(), "Chart1").containsKey("node-color"));
+      assertFalse(onBar.read("tok", principal(), "Chart1").containsKey("node-color"),
+                 "a bar chart's read must not advertise a channel it cannot render");
+   }
+
+   @Test
+   void optionsNamesTheNodeChannelsWithTheRelationChartCaveat() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Map<String, Object> options = service.options();
+
+      assertEquals(List.of("node-color", "node-size"), options.get("nodeChannels"));
+      assertTrue(((String) options.get("nodeChannelsNote")).contains("relation charts"));
+   }
+
+   private static ChartVSAssembly relationChartAssembly() {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_NETWORK);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

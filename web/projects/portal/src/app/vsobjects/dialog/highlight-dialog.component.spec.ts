@@ -74,6 +74,23 @@ describe("Highlight Dialog Test", () => {
       expect(validateHighlights).toHaveBeenCalled();
    });
 
+   // Write coordination: OK carries the revision the dialog was read at so a concurrent write
+   // is detected; Apply must not, since the dialog's held model is never refreshed after a
+   // commit and echoing the revision back would make Apply conflict with its own prior Apply.
+   it("sends revision on commit but not on apply", () => {
+      highlightDialog.model.revision = 7;
+
+      let committed: HighlightDialogModel;
+      highlightDialog.onCommit.subscribe((m: HighlightDialogModel) => committed = m);
+      highlightDialog.ok();
+      expect(committed.revision).toBe(7);
+
+      let applied: any;
+      highlightDialog.onApply.subscribe((p: any) => applied = p);
+      highlightDialog.apply(false);
+      expect(applied.result.revision).toBeUndefined();
+   });
+
    // Bug #18500 when deleting selected item, the last item should be highlighted
 //   it("should select the last item when deleting highlight items", () => {
 //      let highlight1 = createHighlightModel("highlight1");

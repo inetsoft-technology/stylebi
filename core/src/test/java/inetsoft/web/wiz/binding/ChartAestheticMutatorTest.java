@@ -311,4 +311,90 @@ class ChartAestheticMutatorTest {
          assertTrue(described.containsKey(channel), "missing channel " + channel);
       }
    }
+
+   // ── node channels (spec 2c Phase 3) ───────────────────────────────────────
+
+   @Test
+   void bindsAFieldToTheNodeColorChannelOnARelationChart() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartAestheticMutator.setField(model, "node-color", dimension("Region"), true);
+
+      AestheticInfo info = model.getNodeColorField();
+      assertNotNull(info);
+      assertEquals("Region", info.getFullName());
+      // The regular color channel is a separate property -- binding the node channel must not
+      // also populate it, or the two would be indistinguishable to a later read.
+      assertNull(model.getColorField());
+   }
+
+   @Test
+   void bindsAFieldToTheNodeSizeChannelOnARelationChart() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartAestheticMutator.setField(model, "node-size", measure("Weight", "Sum"), true);
+
+      assertNotNull(model.getNodeSizeField());
+      assertNull(model.getSizeField());
+   }
+
+   @Test
+   void refusesTheNodeColorChannelWhenTheChartIsNotARelationChart() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(new ChartBindingModel(), "node-color",
+                                              dimension("Region"), false));
+
+      assertTrue(thrown.getMessage().contains("relation"));
+   }
+
+   /** The 3-arg overload every existing caller uses defaults to non-relation. */
+   @Test
+   void theThreeArgOverloadRefusesNodeChannelsByDefault() {
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(new ChartBindingModel(), "node-color",
+                                              dimension("Region")));
+   }
+
+   @Test
+   void clearingTheNodeColorChannelUnbindsItWithoutTouchingColor() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setField(model, "node-color", dimension("Category"), true);
+
+      ChartAestheticMutator.clearField(model, "node-color", true);
+
+      assertNull(model.getNodeColorField());
+      assertNotNull(model.getColorField(), "clearing node-color must not clear color");
+   }
+
+   @Test
+   void setsANodeColorFrameOnARelationChart() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartAestheticMutator.setFrame(model, "node-color",
+                                     spec("type", "static", "color", "#4e79a7"), true);
+
+      assertNotNull(model.getNodeColorFrame());
+      assertNull(model.getColorFrame());
+   }
+
+   @Test
+   void describesNodeChannelsOnlyWhenAskedToOnARelationChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color", dimension("Region"), true);
+
+      Map<String, Object> notRelation = ChartAestheticMutator.describe(model);
+      Map<String, Object> relation = ChartAestheticMutator.describe(model, true);
+
+      assertFalse(notRelation.containsKey("node-color"),
+                  "a non-relation read must not advertise a channel this chart cannot render");
+      assertTrue(relation.containsKey("node-color"));
+      @SuppressWarnings("unchecked")
+      Map<String, Object> nodeColor = (Map<String, Object>) relation.get("node-color");
+      assertEquals("Region", nodeColor.get("field"));
+      assertEquals(true, nodeColor.get("acceptsField"));
+      assertEquals(true, nodeColor.get("acceptsFrame"));
+   }
 }

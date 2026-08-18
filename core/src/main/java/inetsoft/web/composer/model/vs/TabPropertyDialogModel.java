@@ -49,6 +49,19 @@ public class TabPropertyDialogModel implements Serializable {
       this.vsAssemblyScriptPaneModel = vsAssemblyScriptPaneModel;
    }
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
    @Override
    public String toString() {
       return "TabPropertyDialogModel{" +
@@ -59,4 +72,5 @@ public class TabPropertyDialogModel implements Serializable {
 
    private TabGeneralPaneModel tabGeneralPaneModel;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private Integer revision;
 }
