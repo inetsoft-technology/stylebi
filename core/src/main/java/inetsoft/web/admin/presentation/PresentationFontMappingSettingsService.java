@@ -39,6 +39,12 @@ public class PresentationFontMappingSettingsService {
 
          for(String fontMapping : fontMappings) {
             int index = fontMapping.indexOf(":");
+
+            // skip malformed entries, matching PDF3Generator.getPDFGenerator()
+            if(index < 0) {
+               continue;
+            }
+
             fontMappingModels.add(PresentationFontMappingModel.builder()
                                      .trueTypeFont(fontMapping.substring(0, index))
                                      .cidFont(fontMapping.substring(index + 1))
