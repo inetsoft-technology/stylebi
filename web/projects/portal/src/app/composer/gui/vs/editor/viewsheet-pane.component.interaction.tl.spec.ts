@@ -210,6 +210,93 @@ describe("VSPane — processSetViewsheetInfoCommand", () => {
          expect.anything(),
       );
    });
+
+   it("should store the modernizable flag on the sheet", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      mocks.dispatchCommand("SetViewsheetInfoCommand", {
+         assemblyInfo: { name: "VS" },
+         layouts: [],
+         baseEntry: null,
+         info: { viewsheetBackground: "#ffffff", statusText: null, snapGrid: 20,
+                 templateWidth: 0, templateHeight: 0, templateEnabled: false, metadata: false,
+                 messageLevels: null, modernizable: true },
+         linkUri: null,
+         hasScript: false,
+         hideNotifications: false,
+         annotation: false,
+         annotated: false,
+         formTable: false,
+      });
+
+      expect(comp.vs.modernizable).toBe(true);
+   });
+
+   it("should treat a missing modernizable flag as false", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.modernizable = true;
+
+      mocks.dispatchCommand("SetViewsheetInfoCommand", {
+         assemblyInfo: { name: "VS" },
+         layouts: [],
+         baseEntry: null,
+         info: { viewsheetBackground: "#ffffff", statusText: null, snapGrid: 20,
+                 templateWidth: 0, templateHeight: 0, templateEnabled: false, metadata: false,
+                 messageLevels: null },
+         linkUri: null,
+         hasScript: false,
+         hideNotifications: false,
+         annotation: false,
+         annotated: false,
+         formTable: false,
+      });
+
+      expect(comp.vs.modernizable).toBe(false);
+   });
+
+   it("should offer Modernize in the canvas menu only where there is unmarked content", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      const entry = comp.menuActions
+         .reduce((all, group) => all.concat(group.actions), [])
+         .find(action => action.id() === "composer vspane modernize");
+
+      comp.vs.modernizable = false;
+      expect(entry.visible()).toBe(false);
+
+      comp.vs.modernizable = true;
+      expect(entry.visible()).toBe(true);
+   });
+
+   it("should keep the menu entry after the bar is dismissed", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.modernizable = true;
+      comp.vs.modernizeBarDismissed = true;
+      const entry = comp.menuActions
+         .reduce((all, group) => all.concat(group.actions), [])
+         .find(action => action.id() === "composer vspane modernize");
+
+      expect(entry.visible()).toBe(true);
+      expect(comp.modernizeOffered).toBe(false);
+   });
+
+   it("should hide both the bar and the menu entry as soon as modernize is pressed", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.modernizable = true;
+
+      comp.modernize();
+
+      const entry = comp.menuActions
+         .reduce((all, group) => all.concat(group.actions), [])
+         .find(action => action.id() === "composer vspane modernize");
+
+      expect(comp.vs.modernizable).toBe(false);
+      expect(entry.visible()).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------

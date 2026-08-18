@@ -289,7 +289,7 @@ cd E:/StyleBI/stylebi-enterprise/community
 ./mvnw test -pl core -Dtest=SeedChromeDefaultsTest
 ```
 
-Expected: **PASS**, all twelve. Any failure means an assertion mis-describes today's behaviour — correct the assertion, never the production code. The accessors used here were checked at `119bfdaac`: `BorderColors` exposes public `topColor`/`bottomColor`/`leftColor`/`rightColor` fields (`:181-184`), `getPadding()` returns `Insets` (`VSAssemblyInfo:1295`), and `getTableStyleValue()` lives on `TableDataVSAssemblyInfo:90`.
+Expected: **PASS**, all eleven. Any failure means an assertion mis-describes today's behaviour — correct the assertion, never the production code. The accessors used here were checked at `119bfdaac`: `BorderColors` exposes public `topColor`/`bottomColor`/`leftColor`/`rightColor` fields (`:181-184`), `getPadding()` returns `Insets` (`VSAssemblyInfo:1295`), and `getTableStyleValue()` lives on `TableDataVSAssemblyInfo:90`.
 
 - [ ] **Step 3: Commit**
 
@@ -511,7 +511,7 @@ Two equivalences this relies on, both checked at `119bfdaac` — state them in t
 ./mvnw test -pl core -Dtest=SeedChromeDefaultsTest
 ```
 
-Expected: **PASS**, all sixteen. A failure in one of Task 1's twelve means the extraction changed a created value — fix the extraction, not the net.
+Expected: **PASS**, all sixteen. A failure in one of Task 1's eleven means the extraction changed a created value — fix the extraction, not the net.
 
 - [ ] **Step 5: Run the neighbouring suites the base class feeds**
 
@@ -1724,9 +1724,29 @@ Record failures. The bar for this phase is *no worse than the baseline at `119bf
 
 - [ ] **Step 2: The manual pass**
 
-Build and start per `CLAUDE.md`, then with `viewsheet.modernVisualization` **on** in EM → Properties:
+Build and start per `CLAUDE.md`, then with `viewsheet.modernVisualization` **on** in EM → Properties.
 
-1. Open a dashboard saved before the mark existed. **The bar appears.** Nothing else about the dashboard has changed — chrome, radius, row heights all as before.
+**Read this before running check 1 — the expected state, established by running it 2026-08-18.** In the
+P3-only state a legacy dashboard **does** render modern chrome with the gate on, and that is correct. P3
+changes no render-time read: it modifies no `VS*Defaults` resolver, no chart pipeline, no export path and
+no table lens, and 35 files still call `VizContext.ofGate()` on read paths. So the gate still decides
+appearance for every assembly regardless of its mark, exactly as it did before this phase. Comparing a
+gate-off dashboard against a gate-on one therefore shows real differences — title colour, table header
+and total-row bands, axis and gridline colour, card border warmth — all of which come from the earlier
+phases (6A's title chrome, phase 7's text foreground, 9C's chart axis and border work, the table
+structure palette). **Making an unmarked dashboard render legacy is P4**, whose own verification line is
+"an unmarked dashboard under gate-on renders legacy". Do not file any of that as a P3 defect.
+
+A second consequence of the same interim state, also expected: the bar's message describes the
+dashboard's provenance, not its current appearance, so it offers to modernize a dashboard that already
+looks modern. The wording is deliberately left as it is, because P4 makes it accurate.
+
+1. **Gate on throughout — the baseline is this branch before P3, not the gate-off look.** A legacy
+   dashboard renders exactly as it did with the gate on before this phase, and **the bar is the only new
+   thing on screen.** Run it as an A/B rather than by eye: `git stash push -u -- core/src web/projects`,
+   reopen the dashboard and screenshot, `git stash pop`, reopen and screenshot. The two must match apart
+   from the bar. Shoot both with the same data state — an active brush or date-comparison selection will
+   otherwise change the marks and muddy the comparison.
 2. Dismiss it. It stays gone when you switch composer tabs away and back. Right-click the canvas: **Modernize Dashboard is still there.**
 3. Close the dashboard and reopen it. **The bar is back.**
 4. Press Modernize. Cards take the modern border, radius and background; charts take rounded bars and smooth lines. **The bar disappears** without a refresh of its own.
@@ -1737,8 +1757,13 @@ Build and start per `CLAUDE.md`, then with `viewsheet.modernVisualization` **on*
 9. Create a new dashboard: **no bar** — new content is marked at creation.
 10. Turn the gate **off** and reopen the legacy dashboard: **no bar**, and the canvas menu has no Modernize entry.
 11. Open composer preview and the viewer on a legacy dashboard: **no bar in either.**
+12. Press Modernize where it finds nothing to do — gate on and already fully marked, or the second press
+    in check 6 — then Ctrl+Z. An empty undo checkpoint is the accepted cost of `@Undoable` being an
+    `@AfterReturning` aspect; confirm that is all that happens.
 
-Record the result of each in the commit message. Any deviation is a defect in this phase, not a note for later.
+Record the result of each in the commit message. Any deviation is a defect in this phase, not a note for
+later — with the two exceptions named in the expected-state note above, which are P4's work and not
+this phase's.
 
 - [ ] **Step 3: Update the design document**
 
@@ -1768,7 +1793,7 @@ git commit -m "docs(chart-card): record what P3 built and re-derive the next ste
 ## Done when
 
 - `seedChromeDefaults(VizContext)` exists on `VSAssemblyInfo` with overrides on `ChartVSAssemblyInfo`, `TableDataVSAssemblyInfo` and `ViewsheetVSAssemblyInfo`; `ViewsheetVSAssemblyInfo.setDefaultFormat(boolean)` is gone.
-- `SeedChromeDefaultsTest`'s twelve characterization tests, written before the refactor, still pass after it.
+- `SeedChromeDefaultsTest`'s eleven characterization tests, written before the refactor, still pass after it.
 - The hook applied to a gate-off-created assembly produces the same persisted values as a gate-on-created one, per type, including the four `PlotDescriptor` seeds and the TITLEPATH border colour — and a user-tier format set beforehand survives.
 - `grep -rn "VizContext.ofGate()"` across the four seed-site classes returns exactly one hit.
 - `VizModernizeUtil.modernize` stamps only unmarked content, is idempotent, is a no-op with the gate off, skips embedded children, and leaves all four author-provenance flags alone.

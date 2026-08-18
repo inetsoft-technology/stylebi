@@ -309,6 +309,10 @@ public class CoreLifecycleService {
                      vizDensity == null || vizDensity.isEmpty() ? "dense" : vizDensity);
          infoMap.put("darkMode",
                      SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true));
+         // recomputed on every refresh, so the composer's Modernize affordance disappears when the
+         // action completes and returns if the user undoes it
+         infoMap.put("modernizable",
+                     VSDensityDefaults.isModern() && VizModernizeUtil.hasUnmarked(vs));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

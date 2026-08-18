@@ -1,12 +1,15 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-15 (fifth revision — the seed mark's P2 is built, so `VizContext` is threaded and the four
-sub-gates are gone; the fourth revision's rebase note is retained below because it still governs how to
-check a hash)
-**Verified against:** community `viz-updates` @ `119bfdaac`, which is `HEAD`.
-`8f75872a6` shipped the seed mark's P1 and `119bfdaac` its P2; `be0e3c664` carries the P1 null-guard that
-P2's suite run exposed. `380705bc1` shipped the density gating; `1d26dbefb`/`d4d0d5d48` the userTitleHeight
-flag. Every code claim below was re-checked against `HEAD`.
+**Date:** 2026-08-18 (sixth revision — the seed mark's P3 is built: the enumeration point and Modernize; the
+fifth revision's P2 note and the fourth revision's rebase note are both retained below)
+**Verified against:** community `viz-updates` @ `a38cb6957`, which is `HEAD`, plus P3's uncommitted working
+tree. A commit-approval gate denied every one of P3's nine tasks its own commit, so `a38cb6957` — the doc
+commit that corrected P3's design and planned the phase, the last thing committed after P2 shipped — is still
+`HEAD`, and every P3 code citation below was checked directly against files on disk rather than against a
+commit. `8f75872a6` shipped the seed mark's P1 and `119bfdaac` its P2;
+`be0e3c664` carries the P1 null-guard that P2's suite run exposed. `380705bc1` shipped the density gating;
+`1d26dbefb`/`d4d0d5d48` the userTitleHeight flag. Every code claim below was re-checked, against `HEAD` where
+a claim is about committed code and against the working tree where it is about P3.
 **Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
 it, and the decisions that gate what remains
 
@@ -61,7 +64,7 @@ rather than repairing it — the whole of its content is one reading of the two 
      The row needs both. On the flag alone it resizes every dashboard ever saved.
      P1 and P2 landing do NOT free it: the row must READ the mark, and nothing reads it until P4.
 
-  M. Seed mark — five phases. P1 + P2 SHIPPED; P3–P5 remain.
+  M. Seed mark — five phases. P1 + P2 + P3 BUILT (P3 uncommitted); P4–P5 remain.
      design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–12
      ALSO THE RELEASE GATE (needs the revert sweep, out of the forward half's scope)
 
@@ -69,17 +72,18 @@ rather than repairing it — the whole of its content is one reading of the two 
       │
      P2  VizContext threaded, 71 files, ofGate()        SHIPPED 119bfdaac
       │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
-     P3  decision 11's enumeration point + Modernize    STARTABLE · the only route in for old content
-      │
-     P4  server reads follow the mark                   THE BEHAVIOUR REVERSAL
-      │                                                 unblocks L' above
+     P3  decision 11's enumeration point + Modernize    BUILT, uncommitted (commit-approval gate)
+      │  the only route in for old content              eleven manual checks still outstanding
+     P4  server reads follow the mark                   STARTABLE · THE BEHAVIOUR REVERSAL
+      │                                                 unblocks L' above · one ofGate() site to flip
      P5  browser reads follow the mark
       └──┬──→ Card radius 12→6, retire resolveSeededCorner()
          ├──→ §07 derived selection, retire the teal family
          │         └──→ Range slider — painter half
          └──→ Outlined text conversion (also behind G)
 
-     Only P5 unblocks the six items. P1 and P2 unblocked none of them, by design.
+     Only P5 unblocks the six items. P1, P2 and P3 unblocked none of them, by design — P3 unblocks P4's
+     testability instead.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
@@ -126,32 +130,66 @@ Four corrections this picture carries against the external set, all recorded in
 
 ## What to pick up next
 
-**Ranked 2026-08-15, re-derived after the seed mark's P2 shipped.** This is a reading of
-the picture above, not a new decision — it goes stale as things land, and the picture is what to re-derive it
-from. Effort is relative to this track, not absolute.
+**Re-derived 2026-08-18, from the dependency picture above rather than by editing the 2026-08-15 ranking in
+place — this file's own instructions say to re-derive rather than repair, and P3 landing changes what is
+first.** This is a reading of the picture, not a new decision; it goes stale as things land.
+Effort is relative to this track, not absolute.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **M-P3 — enumeration point + Modernize** | the only route in for existing content | **M** | P4's testability | reads still unchanged; nothing renders differently until pressed |
-| 2 | **M-P4 — server reads follow the mark** | **the behaviour reversal** | **M–L** | L', and half of the six | legacy dashboards stop looking modern; export-affecting, manual pass needed |
-| 3 | **M-P5 — browser reads follow the mark** | closes the forward half | **M** | the six items | modifies shipped slices 1–3; body class becomes per-assembly |
-| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | **M-P4 — server reads follow the mark** | **the behaviour reversal** | **M–L**, cheaper than the 2026-08-15 estimate — see below | L', and half of the six | legacy dashboards stop looking modern; export-affecting, manual pass needed |
+| 2 | **M-P5 — browser reads follow the mark** | closes the forward half | **M** | the six items | modifies shipped slices 1–3; body class becomes per-assembly |
+| 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**The seed mark is no longer one XL item, and two of its five phases are now behind us.** P1 shipped the
-field; P2 shipped the carrier. Both deliberately unblocked **nothing**, because nothing reads the mark yet.
-What used to be "M, XL, six items" is three remaining phases, and only the last of them frees the six.
+**M-P3 dropped off this table because it is built, not because it is done.** It sits in the working tree,
+uncommitted — see "the seed mark" section below — and its eleven manual checks are outstanding. Committing it
+and running that pass are real prerequisites for anyone continuing this track, even though neither is a
+ranked item in the sense the table above means: there is no design work or code left to write for either.
 
-**P3's design was re-checked against the code on 2026-08-18 and carries five corrections — read them before
-starting it.** They are in the forward-half design's §4, and none of them changes the shape: one virtual method
-that creation and Modernize share. What they change is that the method takes no `VSCompositeFormat` (four of the
-values it must carry live on `PlotDescriptor`, not on any format), that it carries only the gate-dependent
-values (the overrides mix those with unconditional defaults, and re-running those would reset an author's
-padding, table style and fonts), that its per-path contract has to name TITLEPATH and DETAIL as well as
-OBJECTPATH (the base and two subclasses install *fresh* composites at seventeen other paths, dropping the
-author's USER tier at each), that one of the three seeding overrides sits on a different overload, and that
-`applyModernDefaults` is not available as a name. The two decisions it raised were settled the same day and
-are recorded in that document's items 6 and 7: the hook is `seedChromeDefaults(VizContext)`, and it does write
-the title border colour at TITLEPATH, by mutating the composite already installed there.
+**M-P4 is cheaper than the 2026-08-15 estimate for two reasons P3 leaves behind it.** First, P3 collapsed the
+four creation-path `VizContext.ofGate()` calls the P2-era design counted into one — a single call inside
+`VSAssemblyInfo.setDefaultFormat` — so the read-side flip P4 makes at the creation seeds is a one-site change,
+not four. Second, the chart-pipeline threading question this section already answered below (`GraphGenerator`'s
+two constructors, and the `ChartColorPaletteController` decision) still stands and does not need re-answering;
+P4 inherits it as read, not as new work.
+
+**The seed mark is no longer one XL item, and three of its five phases are now behind us.** P1 shipped the
+field; P2 shipped the carrier; P3 built the only route existing content has to modern chrome. All three
+deliberately unblocked **nothing** for the six items downstream — P3 unblocks P4's testability instead — so
+what used to be "M, XL, six items" is two remaining phases, and only the last of them frees the six.
+
+**P3's design was re-checked against the code on 2026-08-18 and carries five corrections, and P3 has since
+shipped to exactly that shape.** They are in the forward-half design's §4, and none of them changes the shape:
+one virtual method that creation and Modernize share. What they change is that the method takes no
+`VSCompositeFormat` (four of the values it must carry live on `PlotDescriptor`, not on any format), that it
+carries only the gate-dependent values (the overrides mix those with unconditional defaults, and re-running
+those would reset an author's padding, table style and fonts), that its per-path contract has to name
+TITLEPATH and DETAIL as well as OBJECTPATH (the base and two subclasses install *fresh* composites at
+seventeen other paths, dropping the author's USER tier at each), that one of the three seeding overrides sits
+on a different overload, and that `applyModernDefaults` is not available as a name. The two decisions it
+raised were settled the same day and are recorded in that document's items 6 and 7: the hook is
+`seedChromeDefaults(VizContext)`, and it does write the title border colour at TITLEPATH, by mutating the
+composite already installed there.
+
+**Building P3 found three more bypass cases the corrections above had not, all closed before the phase was
+called done.** Seven types — `CheckBoxVSAssemblyInfo`, `ComboBoxVSAssemblyInfo`, `RadioButtonVSAssemblyInfo`,
+`SpinnerVSAssemblyInfo`, `SubmitVSAssemblyInfo`, `TextInputVSAssemblyInfo` and `TextVSAssemblyInfo` — override
+`setDefaultFormat` without calling `super` and hardcode the legacy border colour directly, so the hook never
+ran for them at creation and must not run for them under Modernize either; `CalendarVSAssemblyInfo` reaches
+the same place by never calling `setDefaultFormat` at all. `ChartVSAssemblyInfo` and
+`SelectionBaseVSAssemblyInfo` replace the whole title composite after `super` returns, discarding whatever
+border colour the base wrote, so the hook must not write one they will only throw away. Both findings became
+private predicates on `VSAssemblyInfo` (`bypassesBaseChrome()`, `installsOwnTitleFormat()`), consulted by the
+hook itself for the same reason `isCornerSeedTarget()` already lives there rather than in a caller. Full
+citations are in the forward-half design's §4.
+
+**P3 built 2026-08-18, in the working tree, not yet committed — see "the seed mark" section below for the
+detail.** `seedChromeDefaults(VizContext)` on `VSAssemblyInfo`, three overrides, `VizModernizeUtil`'s
+enumeration and stamp-then-seed loop, the composer endpoint and its `@ClusterProxy` service, the
+`modernizable` flag on `SetViewsheetInfoCommand`, and the dismissable bar with its permanent menu entry. The
+one thing this phase's own verification claim could not check without a live composer is left explicitly
+outstanding: the eleven manual checks the plan calls for, plus a twelfth added while building, covering
+what an empty undo checkpoint does to Ctrl+Z. None of them has run.
 
 **P2 shipped: `VizContext` is threaded and all four sub-gates are gone.** Every `VS*Defaults` value method
 now takes a context; every call site passes `VizContext.ofGate()`, which reads exactly what the statics read
@@ -309,7 +347,7 @@ Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
 
 ## The long pole: the seed mark
 
-**The forward half is designed and its P1 and P2 are built — see
+**The forward half is designed and its P1, P2 and P3 are built — P3 uncommitted — see
 [2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md).** The design
 covers the mark, the re-keying of every read path onto it, the per-assembly browser scope and the Modernize
 action, in six phases. It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms
@@ -360,6 +398,42 @@ Four things P2 established that the later phases should read before starting:
 - **`ofGate()` is called per-row.** `SelectionBaseVSAssemblyInfo.getEffectiveCellHeight()` runs once per
   displayed row from two `getRowHeights` loops and once per selection value. P2 removed the redundant
   double gate read this exposed; anything P4 adds to the factories pays that multiplier.
+
+**P3 built 2026-08-18, in the working tree, not committed.** A commit-approval gate denied every one of its
+nine tasks' commits, so there is no commit range to cite — the code exists only on disk. It extracted
+`seedChromeDefaults(VizContext)` from `VSAssemblyInfo.setDefaultFormat` and the three subclass overrides that
+used to compute the gate-dependent seeds inline, built `VizModernizeUtil` to stamp and re-seed a dashboard's
+unmarked content, and wired a composer-only Modernize action behind a dismissable bar and a permanent menu
+entry. Every read still calls `ofGate()`; nothing renders differently until Modernize is pressed.
+
+Four things P3 established that P4 and P5 should read before starting:
+
+- **Three more types opt out of the base chrome seeds than the design's corrections had found**, discovered by
+  re-reading every override while extracting the hook rather than by trusting the corrections' enumeration.
+  Seven types (`CheckBoxVSAssemblyInfo`, `ComboBoxVSAssemblyInfo`, `RadioButtonVSAssemblyInfo`,
+  `SpinnerVSAssemblyInfo`, `SubmitVSAssemblyInfo`, `TextInputVSAssemblyInfo`, `TextVSAssemblyInfo`) never call
+  `super.setDefaultFormat` at all, and `CalendarVSAssemblyInfo` never calls `setDefaultFormat` at all; a
+  Modernize that did not know this would give a modernized checkbox or text assembly a border colour no
+  freshly created one of the same type has ever taken. `ChartVSAssemblyInfo` and `SelectionBaseVSAssemblyInfo`
+  separately replace the whole title composite after `super` returns, so a title-border write the hook makes
+  would be inert at creation but land on a live composite under Modernize. Both are now private predicates on
+  `VSAssemblyInfo` the hook consults directly, for the reason `isCornerSeedTarget()` already lives there:
+  a same-package caller could not consult a private predicate without exposing it or duplicating the list.
+- **`Viewsheet.getAssemblies(true)` never yields embedded-viewsheet containers.** Its recursive collector
+  recurses into a `Viewsheet`-typed child and never adds it, so `VizModernizeUtil` enumerates containers with a
+  second, non-recursive pass. A container is this sheet's own content and gets stamped like anything else; its
+  children belong to the embedded asset and stay excluded.
+- **`isEmbedded()` means two different things depending on the info type.** The base means "my containing
+  sheet is embedded"; `ViewsheetVSAssemblyInfo`'s override means "I am a container," the opposite question.
+  P4 and P5's read paths will consult this method, and neither should meet the asymmetry as a surprise.
+- **A new assembly inherits its host's stored mark, absence included — never the gate.** So on a legacy
+  dashboard an author's newly added assembly comes out unmarked even with the gate open, and the sheet stays
+  wholly legacy until someone presses Modernize. Pre-existing since P1, but P3 is where it first has visible
+  consequences worth restating.
+
+**Outstanding: the eleven manual checks the plan calls for, plus a twelfth added while building.** None has
+run — they need a built server, a browser and a legacy dashboard. See the design document's P3 section for
+the full list, including the added check on what an empty undo checkpoint does to Ctrl+Z.
 
 **Superseded by a product decision set, 2026-08-12. Read
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
@@ -562,6 +636,7 @@ older copy of this file recognise what moved — **none of those hashes is reach
 | **M-P1 — the seed mark's field, persistence and creation stamps** | `8f75872a6` | postdates the third revision |
 | **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | `119bfdaac` | postdates the third revision |
 | M-P1's null-guard — a mocked host viewsheet with no assembly info | `be0e3c664` | postdates the third revision |
+| **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the fifth revision |
 
 **Why P2 landed as two commits.** `be0e3c664` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
 regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole
