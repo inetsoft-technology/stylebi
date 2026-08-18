@@ -71,14 +71,15 @@ public class ComposerRangeSliderService {
 
       final VSAssembly container = assembly.getContainer();
 
-      // The type test is an either-or; the container is mandatory, because the body below
-      // dereferences it unconditionally. Chaining all three with && let an assembly of the right type
-      // through with no container, whereupon the cast of getContainer()'s null succeeded and
-      // getAssemblies() threw NullPointerException -- or ClassCastException inside a Tab or
-      // GroupContainer. Unreachable from the Composer, which hides the menu item unless
-      // inSelectionContainer, but reachable by any other caller.
-      if((!(assembly instanceof SelectionListVSAssembly) &&
-          !(assembly instanceof TimeSliderVSAssembly)) ||
+      // The container is mandatory, because the body below dereferences it unconditionally, and
+      // createSelectionListVSAssembly's only caller (below) unconditionally casts to
+      // TimeSliderVSAssembly -- this converts a time slider TO a selection list, not the other
+      // way around, so a SelectionListVSAssembly must be refused here rather than accepted
+      // alongside it. Accepting either type (as this once did, mirroring
+      // ComposerVSSelectionListService's own guard for its own single type) let a
+      // SelectionListVSAssembly with a valid container reach the cast below and throw
+      // ClassCastException.
+      if(!(assembly instanceof TimeSliderVSAssembly) ||
          !(container instanceof CurrentSelectionVSAssembly))
       {
          return null;

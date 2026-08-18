@@ -115,6 +115,29 @@ class ConvertContainerGuardTest {
    }
 
    /**
+    * The type check accepted either {@code SelectionListVSAssembly} or {@code TimeSliderVSAssembly},
+    * but {@code createSelectionListVSAssembly} — the only thing the guard protects — unconditionally
+    * casts to {@code TimeSliderVSAssembly}: this converts a time slider TO a selection list, not the
+    * other way around. A {@code SelectionListVSAssembly} with a valid container passed the guard and
+    * hit that cast. {@code container = null} above declines it before the cast is ever reached, so it
+    * cannot catch this — a valid container is required to reach it.
+    */
+   @Test
+   void aSelectionListWithAValidContainerIsDeclinedRatherThanCastExceptioning() throws Exception {
+      SelectionListVSAssembly list = mock(SelectionListVSAssembly.class);
+      SelectionListVSAssemblyInfo info = mock(SelectionListVSAssemblyInfo.class);
+      when(info.isEmbedded()).thenReturn(false);
+      doReturn(info).when(list).getInfo();
+      when(list.getContainer()).thenReturn(mock(CurrentSelectionVSAssembly.class));
+
+      ComposerRangeSliderService service =
+         new ComposerRangeSliderService(engineFor(list), mock(CoreLifecycleService.class));
+
+      assertDoesNotThrow(() -> service.convertCSComponent(
+         "rt1", event("Filter1"), principal(), null, ""));
+   }
+
+   /**
     * The guard must still decline a wrong type, which is the behaviour the {@code &&} version did get
     * right — so the fix must not have widened what is accepted.
     */
