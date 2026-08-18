@@ -49,6 +49,7 @@ import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.request.*;
+import inetsoft.web.wiz.service.EndpointCatalogReader;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +106,8 @@ public class WizDatabaseController {
                                 DatabaseTypeService databaseTypeService,
                                 SecurityEngine securityEngine,
                                 Config uqlConfig,
-                                XRepository xrepository)
+                                XRepository xrepository,
+                                EndpointCatalogReader endpointCatalogReader)
    {
       this.dataSourceBrowserService = dataSourceBrowserService;
       this.dataSourceStatusService = dataSourceStatusService;
@@ -114,6 +116,7 @@ public class WizDatabaseController {
       this.securityEngine = securityEngine;
       this.uqlConfig = uqlConfig;
       this.xrepository = xrepository;
+      this.endpointCatalogReader = endpointCatalogReader;
    }
 
    /**
@@ -241,6 +244,110 @@ public class WizDatabaseController {
       }
 
       return result;
+   }
+
+   /**
+    * The endpoint catalogues for a set of data source types.
+    *
+    * <p>POST rather than GET because the type list is unbounded, matching {@code
+    * /datasources/search} and {@code /datasources/statuses} in this same controller.</p>
+    *
+    * <p>No permission gate: a catalogue is compiled into the connector jar and is identical for
+    * every customer, so there is no instance, no path and no stored data to authorize against.</p>
+    *
+    * <p>{@code unavailable} and {@code unknownType} answer two different questions and must not be
+    * merged. Both start from {@code Config.getQueryClass(type)}, a plain map lookup that either
+    * returns a class name or {@code null} — {@code null} means the type is not registered in this
+    * build at all, permanently, regardless of which plugins get installed, so that case is {@code
+    * unknownType} and is never retried. A returned class name is then resolved with {@code
+    * Config.getClass}, which does the actual class loading and throws when the type is registered
+    * but its connector plugin is not installed; that failure is an environment problem that goes
+    * away once the plugin is installed, so it is {@code unavailable}. Collapsing the two would send
+    * a client that mistyped a type, or that is talking to a server on a different version, into an
+    * endless retry loop against a type that will never resolve, and would point operators at a
+    * plugin that does not exist.</p>
+    *
+    * @param request the types to look up. An absent or empty list yields an empty answer rather
+    *                than an error — asking about nothing is not a fault.
+    */
+   @PostMapping(value = "/datasources/endpoint-catalog", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizEndpointCatalogResponse getEndpointCatalog(@RequestBody WizEndpointCatalogRequest request) {
+      Map<String, WizEndpointCatalog> catalogs = new LinkedHashMap<>();
+      List<String> notCatalogued = new ArrayList<>();
+      List<String> unavailable = new ArrayList<>();
+      List<String> unknownType = new ArrayList<>();
+      List<String> types = request.getTypes() == null ? List.of() : request.getTypes();
+      Set<String> distinctTypes = new LinkedHashSet<>();
+
+      // A null element is neither "no catalogue" nor "unreadable" - it is not a type at all, and
+      // uqlConfig.getQueryClass(null) does not reject it, so left unfiltered it would surface as a
+      // literal null in the unavailable array with no way for the caller to explain it. A
+      // blank string is filtered for the same reason: it cannot name any data source type either.
+      for(String type : types) {
+         if(type != null && !type.isBlank()) {
+            distinctTypes.add(type);
+         }
+      }
+
+      for(String type : distinctTypes) {
+         String className;
+
+         try {
+            // A plain map lookup (dxmap.get(type)) that cannot fail for a well-formed registry;
+            // caught defensively so a lookup failure is treated the same as the type being absent,
+            // rather than being misread as a plugin-load failure below.
+            className = uqlConfig.getQueryClass(type);
+         }
+         catch(Throwable ex) {
+            LOG.debug("Failed to resolve the query class name for type {}: {}", type, ex.getMessage());
+            className = null;
+         }
+
+         if(className == null) {
+            // Nothing in the type registry for this string at all. This is permanent - a client
+            // typo or a version mismatch, never something a plugin install fixes - so it must not
+            // be reported as "unavailable", which the portal retries.
+            unknownType.add(type);
+            continue;
+         }
+
+         Class<?> queryClass;
+
+         try {
+            queryClass = uqlConfig.getClass(type, className);
+         }
+         catch(Throwable ex) {
+            // The type is registered, so this is the connector's plugin failing to load - an
+            // environment problem, not a verdict about the connector, and not a verdict that the
+            // type does not exist. It must not land in notCatalogued or unknownType.
+            LOG.debug("Failed to load the query class for type {}: {}", type, ex.getMessage());
+            queryClass = null;
+         }
+
+         if(queryClass == null) {
+            unavailable.add(type);
+            continue;
+         }
+
+         try {
+            WizEndpointCatalog catalog = endpointCatalogReader.read(queryClass);
+
+            if(catalog == null) {
+               notCatalogued.add(type);
+            }
+            else {
+               catalogs.put(type, catalog);
+            }
+         }
+         catch(Exception ex) {
+            // The resource is there but unreadable. Reporting it as "has no catalogue" would send
+            // the portal to ask the user for documentation it does not need.
+            LOG.warn("Failed to read the endpoint catalogue for type {}: {}", type, ex.getMessage());
+            unavailable.add(type);
+         }
+      }
+
+      return new WizEndpointCatalogResponse(catalogs, notCatalogued, unavailable, unknownType);
    }
 
    /**
@@ -1159,6 +1266,7 @@ public class WizDatabaseController {
    private final SecurityEngine securityEngine;
    private final Config uqlConfig;
    private final XRepository xrepository;
+   private final EndpointCatalogReader endpointCatalogReader;
 
    /** Annotation classes. See {@link WizDatasourceEntry} for what each one means to the portal. */
    private static final String JDBC = "JDBC";

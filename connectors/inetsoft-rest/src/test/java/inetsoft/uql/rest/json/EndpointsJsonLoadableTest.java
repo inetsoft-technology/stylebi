@@ -18,6 +18,9 @@
 package inetsoft.uql.rest.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.web.wiz.model.WizEndpointCatalog;
+import inetsoft.web.wiz.model.WizEndpointCatalogEntry;
+import inetsoft.web.wiz.model.WizEndpointLookup;
 import org.junit.jupiter.api.Test;
 
 import java.io.*;
@@ -93,6 +96,115 @@ class EndpointsJsonLoadableTest {
       assertTrue(failures.isEmpty(),
                  "endpoints.json failed to parse for " + failures.size() + " connector(s):\n  "
                     + String.join("\n  ", failures));
+   }
+
+   /**
+    * The same 65 files must ALSO parse through the wiz catalog DTO, which has the opposite
+    * requirement to the loader above: it binds a subset of the properties and must therefore
+    * IGNORE the rest. Fifteen connectors declare extras of their own (pageType, post, bodyTemplate,
+    * pageLimit, pagePath, pageRequiredParameter, paginationPath, freePageLimit, url); a strict
+    * mapper here would take those connectors' catalogs to zero while the loader stayed green.
+    */
+   @Test
+   void everyConnectorEndpointsFileParsesAsCatalog() throws Exception {
+      List<Path> roots = findDatasourceRoots();
+      List<Path> files = findEndpointFiles(roots);
+
+      assertFalse(files.isEmpty(),
+                  "found no endpoints.json under " + DATASOURCE_PACKAGE + " (searched " + roots + ")");
+
+      ObjectMapper mapper = new ObjectMapper();
+      List<String> failures = new ArrayList<>();
+
+      // name is a poor guard against a renamed or misspelled JSON key: it is the one field every
+      // one of the 4035 entries across all 65 files always carries, and the portal's Tier 1
+      // retrieval does not depend on it. A binding failure on suffix, description, or lookups --
+      // the fields retrieval actually uses -- would null them out for every connector while this
+      // check alone stayed green. The per-field checks below close that gap.
+      boolean sawStripeLookupWithEndpointsArray = false;
+      boolean sawGithubLookupWithSingularEndpoint = false;
+
+      for(Path file : files) {
+         String connector = file.getParent().getFileName().toString();
+
+         try(InputStream input = Files.newInputStream(file)) {
+            WizEndpointCatalog catalog = mapper.readValue(input, WizEndpointCatalog.class);
+
+            if(catalog.endpoints() == null || catalog.endpoints().isEmpty()) {
+               failures.add(connector + ": parsed but declares no endpoints");
+               continue;
+            }
+
+            boolean hasSuffix = false;
+            boolean hasDescription = false;
+
+            for(WizEndpointCatalogEntry entry : catalog.endpoints()) {
+               if(entry.name() == null || entry.name().isBlank()) {
+                  failures.add(connector + ": an entry has no name");
+                  break;
+               }
+            }
+
+            for(WizEndpointCatalogEntry entry : catalog.endpoints()) {
+               if(entry.suffix() != null && !entry.suffix().isBlank()) {
+                  hasSuffix = true;
+               }
+
+               if(entry.description() != null && !entry.description().isBlank()) {
+                  hasDescription = true;
+               }
+
+               if(entry.lookups() != null) {
+                  for(WizEndpointLookup lookup : entry.lookups()) {
+                     if("stripe".equals(connector) && lookup.endpoints() != null
+                        && !lookup.endpoints().isEmpty())
+                     {
+                        sawStripeLookupWithEndpointsArray = true;
+                     }
+
+                     if("github".equals(connector) && lookup.endpoint() != null
+                        && !lookup.endpoint().isBlank())
+                     {
+                        sawGithubLookupWithSingularEndpoint = true;
+                     }
+                  }
+               }
+            }
+
+            // Every one of the 65 files has a non-blank suffix on at least one entry; a renamed or
+            // misspelled "suffix" JSON key would null it out everywhere while the name-only check
+            // above stayed green.
+            if(!hasSuffix) {
+               failures.add(connector + ": no entry has a non-blank suffix");
+            }
+
+            // The description backfill has in fact reached every connector: every entry in every
+            // one of the 65 files already carries a non-blank description, so this is asserted for
+            // all of them rather than only stripe and github.
+            if(!hasDescription) {
+               failures.add(connector + ": no entry has a non-blank description");
+            }
+         }
+         catch(Exception e) {
+            failures.add(connector + ": " + e.getMessage());
+         }
+      }
+
+      // Both lookup spellings are exercised in the wild -- Stripe/Zendesk write an "endpoints"
+      // array, GitHub writes a singular "endpoint" -- and WizEndpointLookup carries both fields as
+      // written (see its javadoc). A binding regression on either field would only show up here,
+      // never in the entry-level checks above.
+      if(!sawStripeLookupWithEndpointsArray) {
+         failures.add("stripe: no lookup bound a non-empty \"endpoints\" array");
+      }
+
+      if(!sawGithubLookupWithSingularEndpoint) {
+         failures.add("github: no lookup bound a non-blank singular \"endpoint\"");
+      }
+
+      assertTrue(failures.isEmpty(),
+                 "endpoints.json failed to parse as a catalog for " + failures.size()
+                    + " connector(s):\n  " + String.join("\n  ", failures));
    }
 
    /**
