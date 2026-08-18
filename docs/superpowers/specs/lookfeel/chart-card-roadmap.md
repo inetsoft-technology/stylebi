@@ -3,10 +3,10 @@
 **Date:** 2026-08-15 (fifth revision — the seed mark's P2 is built, so `VizContext` is threaded and the four
 sub-gates are gone; the fourth revision's rebase note is retained below because it still governs how to
 check a hash)
-**Verified against:** community `viz-updates` @ `e670744c1` plus P2's uncommitted working tree.
-`8f75872a6` shipped the seed mark's P1; **P2 is complete, reviewed and manually verified but not yet
-committed**, so it has no hash to cite — every P2 claim below was checked against the working tree.
-`380705bc1` shipped the density gating; `1d26dbefb`/`d4d0d5d48` the userTitleHeight flag.
+**Verified against:** community `viz-updates` @ `119bfdaac`, which is `HEAD`.
+`8f75872a6` shipped the seed mark's P1 and `119bfdaac` its P2; `be0e3c664` carries the P1 null-guard that
+P2's suite run exposed. `380705bc1` shipped the density gating; `1d26dbefb`/`d4d0d5d48` the userTitleHeight
+flag. Every code claim below was re-checked against `HEAD`.
 **Covers:** the chart card track — the anchored toolbar rollout, the shell and chart surfaces found through
 it, and the decisions that gate what remains
 
@@ -67,7 +67,7 @@ rather than repairing it — the whole of its content is one reading of the two 
 
      P1  the field, persisted, stamped at creation      SHIPPED 8f75872a6 — nothing reads it
       │
-     P2  VizContext threaded, 70 files, ofGate()        SHIPPED (pending commit)
+     P2  VizContext threaded, 71 files, ofGate()        SHIPPED 119bfdaac
       │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
      P3  decision 11's enumeration point + Modernize    STARTABLE · the only route in for old content
       │
@@ -141,13 +141,25 @@ from. Effort is relative to this track, not absolute.
 field; P2 shipped the carrier. Both deliberately unblocked **nothing**, because nothing reads the mark yet.
 What used to be "M, XL, six items" is three remaining phases, and only the last of them frees the six.
 
+**P3's design was re-checked against the code on 2026-08-18 and carries five corrections — read them before
+starting it.** They are in the forward-half design's §4, and none of them changes the shape: one virtual method
+that creation and Modernize share. What they change is that the method takes no `VSCompositeFormat` (four of the
+values it must carry live on `PlotDescriptor`, not on any format), that it carries only the gate-dependent
+values (the overrides mix those with unconditional defaults, and re-running those would reset an author's
+padding, table style and fonts), that its per-path contract has to name TITLEPATH and DETAIL as well as
+OBJECTPATH (the base and two subclasses install *fresh* composites at seventeen other paths, dropping the
+author's USER tier at each), that one of the three seeding overrides sits on a different overload, and that
+`applyModernDefaults` is not available as a name. The two decisions it raised were settled the same day and
+are recorded in that document's items 6 and 7: the hook is `seedChromeDefaults(VizContext)`, and it does write
+the title border colour at TITLEPATH, by mutating the composite already installed there.
+
 **P2 shipped: `VizContext` is threaded and all four sub-gates are gone.** Every `VS*Defaults` value method
 now takes a context; every call site passes `VizContext.ofGate()`, which reads exactly what the statics read
 before, so nothing renders differently. `viewsheet.modernObjectChrome`, `modernChartChrome`,
 `modernChartPalette` and `modernTableStructure` are read nowhere in `core/src` — main, test and comments
 alike — and exactly one `public static boolean isModern()` survives, `VSDensityDefaults`', as the master-gate
 reader. Sizing note for anyone budgeting a comparable sweep: the design guessed ~90 call sites, this file
-previously recorded an audited 115, and the landed change is **70 files** (56 production, 14 test) — the
+previously recorded an audited 115, and the landed change is **71 files** (56 production, 15 test) — the
 count that matters is files touched per class, not raw call sites, because a single method often holds
 several.
 
@@ -163,6 +175,19 @@ several.
   the legacy report / `ReportSheet` / `ChartElementDef` model, which never carries a `VSAssembly` — and
   `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules. It is report-path
   only, so P4 most likely wants `VizContext.LEGACY` there rather than a threaded context.
+- **The dialog models are not the whole of the threading problem** — added 2026-08-18. Five chart-pipeline
+  sites see a `ChartInfo` or a descriptor and never a `VSAssemblyInfo`: `GraphGenerator:2345,2570`,
+  `CSSChartStyles.apply` (called from `VGraphPair:1353`, `CSSProcessor:303` and `VSChartDndService:224`) and
+  `ChangeChartProcessor:1893`. `GraphGenerator` gives the pattern for all of them — it has two constructors,
+  `:218` taking a `ChartVSAssemblyInfo` and `:433` taking a `ChartInfo`, so a `VizContext` field set at
+  construction is `of(chart)` on the viewsheet path and `LEGACY` on the report path, which also gives the
+  LEGACY-identity axis a real home instead of a convention two tests defend. `CSSChartStyles.apply` then takes
+  a context parameter: `of(info)` from its two viewsheet callers, `LEGACY` from `CSSProcessor`. Easier than the
+  roadmap implied elsewhere: `VGraphPair.fixChartFormat` already receives a `ChartVSAssemblyInfo`, and all nine
+  `web/viewsheet/model/*` sites are in constructors that already hold the info, so each is a one-word change.
+  One site has no assembly at all — `ChartColorPaletteController.getChartColorPalette()`, a bootstrap fetch
+  with no parameters — so the colour picker's swatch list cannot become per-assembly without a new endpoint.
+  Decide it in P4: keep it org-gated, or move it.
 
 **One thing P2 introduced that P4 must not trip over.** `VizContext` now carries an implicit fourth axis —
 *is this a viewsheet chart at all* — encoded as **identity** against `VizContext.LEGACY`. Seven chart
@@ -309,7 +334,7 @@ Three things P1 established that change how the rest should be read:
 - **The human partner decided type conversion keeps the converted object's own mark**, extending decision 3,
   whose table had been silent on it. Recorded in the decisions file.
 
-**P2 shipped (pending commit).** `VizContext` — immutable, `modern`/`dark`/`density`, factories `ofGate()`,
+**P2 shipped in `119bfdaac`.** `VizContext` — immutable, `modern`/`dark`/`density`, factories `ofGate()`,
 `of(VSAssemblyInfo)`, `of(VizMark)` and the `LEGACY` constant — is threaded through all eight in-scope
 `VS*Defaults` classes and the nine chart descriptors' `initDefaultFormat`. The six per-class `isModern()`
 predicates and all four sub-gate properties are deleted. Every call site passes `ofGate()`, so **nothing
@@ -535,13 +560,14 @@ older copy of this file recognise what moved — **none of those hashes is reach
 | `userTitleHeight` — N, the flag and its per-type default | `1d26dbefb` | `07c91926e` |
 | `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `d4d0d5d48` | `307a6ee09` |
 | **M-P1 — the seed mark's field, persistence and creation stamps** | `8f75872a6` | postdates the third revision |
-| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | *pending commit* | postdates the third revision |
+| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | `119bfdaac` | postdates the third revision |
+| M-P1's null-guard — a mocked host viewsheet with no assembly info | `be0e3c664` | postdates the third revision |
 
-**M-P2's hash is not yet resolvable.** The work is complete, reviewed and manually verified, but sits
-uncommitted in the working tree — replace *pending commit* above once it lands, and note that it is expected
-to arrive as **two** commits: the phase itself, plus a two-line `AbstractVSAssembly` null-guard that belongs
-to P1's subject (a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw from the P1 stamp
-and was the sole cause of ten suite errors at P2's baseline).
+**Why P2 landed as two commits.** `be0e3c664` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
+regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole
+cause of ten suite errors at P2's baseline. It belongs to P1's subject, not P2's, so it was split out rather
+than folded in. `119bfdaac` carries the phase itself — 71 files under `core/src` — plus its plan, the design
+doc's sub-gate decision and this roadmap.
 
 The docs commits, also re-resolved: the v3 design set and the seeded-value decisions in `d4ef55100`, the
 strip and lane decisions in `ef42a6c65`, the `userTitleHeight` plan and strip-and-lane decision 5 in

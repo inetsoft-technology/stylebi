@@ -992,7 +992,7 @@ EOF
 - `VSAssemblyInfo` carries the field, persists it, clears it on a mark-free parse, and carries it through `copyViewInfo` — six passing tests.
 - A new viewsheet stamps itself from the gate; a legacy one loaded under an open gate stays unmarked.
 - A new assembly inherits its host's mark, in both directions.
-- `grep -rn "getVizMark" --include=*.java core/src/main` finds three hits: the accessor declaration, `VSEventUtil.stampVizMark`, and `Viewsheet.getWarningTextAssembly`.
+- `grep -rn "getVizMark" --include=*.java core/src/main` finds five hits. **Corrected 2026-08-18** — this line originally predicted three, naming `VSEventUtil.stampVizMark` and `Viewsheet.getWarningTextAssembly`; neither is what shipped, and the code is right rather than the prediction. At `119bfdaac` the hits are: the accessor declaration (`VSAssemblyInfo:1093`), the host-mark inherit in `AbstractVSAssembly:136`, the `VizContext.of(VSAssemblyInfo)` factory (`:57`, called from nothing outside tests until P4), and the two type-conversion carries in `ComposerRangeSliderService:111` and `ComposerVSSelectionListService:229` that this phase added. The sheet stamps itself in `ViewsheetVSAssemblyInfo`'s constructor rather than through `VSEventUtil`, per the design's §1, and `Viewsheet:4211` *clears* the mark on parse rather than reading it.
 - The manual checks in Tasks 3 and 4 confirm a legacy dashboard round-trips with no `vizMark` anywhere and renders unchanged.
 - The design document matches what was built.
 
