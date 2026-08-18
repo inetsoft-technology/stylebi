@@ -105,7 +105,26 @@ public class PipedriveQuery extends EndpointJsonQuery<PipedriveEndpoint> {
 
    @Override
    protected void updatePagination(PipedriveEndpoint endpoint) {
-      if(endpoint.isPaged()) {
+      if(!endpoint.isPaged()) {
+         paginationSpec = PaginationSpec.builder()
+            .type(PaginationType.NONE)
+            .build();
+      }
+      else if(isVersion2(endpoint)) {
+         // v2 pages by an opaque cursor and reports the end with a null next_cursor. It carries
+         // no offset and no total, so the v1 spec below cannot drive it: there is no next_start
+         // to advance and nothing to count towards.
+         paginationSpec = PaginationSpec.builder()
+            .type(PaginationType.ITERATION)
+            .hasNextParam(PaginationParamType.JSON_PATH, "$.additional_data.next_cursor")
+            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.additional_data.next_cursor")
+            .pageOffsetParamToWrite(PaginationParamType.QUERY, "cursor")
+            .maxResultsPerPageParam(PaginationParamType.QUERY, "limit")
+            .maxResultsPerPage(500)
+            .build();
+      }
+      else {
+         // How v1 pages, and how every endpoint still on v1 continues to page.
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.ITERATION)
             .hasNextParam(PaginationParamType.JSON_PATH, "$.additional_data.pagination.more_items_in_collection")
@@ -115,11 +134,18 @@ public class PipedriveQuery extends EndpointJsonQuery<PipedriveEndpoint> {
             .maxResultsPerPage(500)
             .build();
       }
-      else {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.NONE)
-            .build();
-      }
+   }
+
+   /**
+    * Whether an endpoint targets Pipedrive's v2 API.
+    *
+    * <p>Read from the suffix rather than from a declared property, because the suffix is what
+    * actually decides which API is called — a flag could disagree with it, and the two failure
+    * modes that produces (v1 paging against v2, or the reverse) are both silent.</p>
+    */
+   private static boolean isVersion2(PipedriveEndpoint endpoint) {
+      final String suffix = endpoint.getSuffix();
+      return suffix != null && suffix.startsWith(VERSION_2_PREFIX);
    }
 
    @Override
@@ -136,4 +162,6 @@ public class PipedriveQuery extends EndpointJsonQuery<PipedriveEndpoint> {
       private final Map<String, PipedriveEndpoint> endpoints =
          Endpoints.load(PipedriveEndpoints.class);
     }
+
+   static final String VERSION_2_PREFIX = "/api/v2/";
 }

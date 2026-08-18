@@ -3,32 +3,38 @@
     {
       "name": "Management Link",
       "suffix": "/portal/customers/{Customer ID}/management_link.json",
-      "paged": false
+      "paged": false,
+      "description": "A self-service portal link for one customer. Requires a customer id. Operational, and short-lived."
     },
     {
       "name": "Component by Handle",
       "suffix": "/components/lookup.json?handle={Component Handle}",
-      "paged": false
+      "paged": false,
+      "description": "One component by handle."
     },
     {
       "name": "Product Family Components",
       "suffix": "/product_families/{Product Family ID}/components.json?include_archived={Include Archived?:true/false}",
-      "paged": false
+      "paged": false,
+      "description": "The components available within one family. Requires a family id."
     },
     {
       "name": "Product Family Component",
       "suffix": "/product_families/{Product Family ID}/components/{Component ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One component within a family."
     },
     {
       "name": "Product Family Component by Handle",
       "suffix": "/product_families/{Product Family ID}/components/handle:{Component Handle}.json",
-      "paged": false
+      "paged": false,
+      "description": "One component within a family, by handle."
     },
     {
       "name": "Subscription Components",
       "suffix": "/subscriptions/{Subscription ID}/components.json",
-      "paged": false
+      "paged": false,
+      "description": "The components attached to one subscription, with their allocated quantities and prices. Requires a subscription id. What a subscription actually consists of beyond its product."
     },
     {
       "name": "Components",
@@ -43,182 +49,218 @@
           "key": "component.id",
           "parameterName": "Component ID"
         }
-      ]
+      ],
+      "description": "The metered, quantity and on-off components that can be attached to subscriptions -- the usage-based part of a bill, as opposed to the flat product price."
     },
     {
       "name": "Subscription Component",
       "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One component on one subscription."
     },
     {
       "name": "Subscription Component Usage",
       "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}/usages.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
-      "paged": true
+      "paged": true,
+      "description": "The metered usage recorded against one component on one subscription. Requires both ids. THE RAW CONSUMPTION that a usage-based charge is computed from -- the invoice shows the charge, this shows what drove it."
     },
     {
       "name": "Subscription Component Allocations",
       "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}/allocations.json",
-      "paged": false
+      "paged": false,
+      "description": "The history of quantity changes for one component on one subscription. Requires both ids. Upgrades and downgrades within a term are recorded here rather than on the subscription, so seat-count changes are only traceable through this."
     },
     {
       "name": "Component Price Points",
       "suffix": "/components/{Component ID}/price_points.json",
-      "paged": false
+      "paged": false,
+      "description": "The alternative price points of one component. Requires a component id."
     },
     {
       "name": "Product Family Coupons",
       "suffix": "/product_families/{Product Family ID}/coupons.json",
-      "paged": true
+      "paged": true,
+      "description": "The coupons within one family. Requires a family id. The gap between list price and realised price is explained here."
     },
     {
       "name": "Product Family Coupon",
       "suffix": "/product_families/{Product Family ID}/coupons/{Coupon ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One coupon within a family."
     },
     {
       "name": "Coupon Usage",
       "suffix": "/coupons/{Coupon ID}/usage.json",
-      "paged": false
+      "paged": false,
+      "description": "How often one coupon has been redeemed, and against which products. Requires a coupon id. Campaign take-up, which the coupon definition does not carry."
     },
     {
       "name": "Coupon Search",
       "suffix": "/coupons/find.json?product_family_id={Product Family ID?}&code={Coupon Code?}",
-      "paged": false
+      "paged": false,
+      "description": "Coupons matching criteria across families. The lookup when the family is not known."
     },
     {
       "name": "Default Product Family Coupons",
       "suffix": "/coupons.json",
-      "paged": true
+      "paged": true,
+      "description": "The coupons of the default product family."
     },
     {
       "name": "Coupon Subcodes",
       "suffix": "/coupons/{Coupon ID}/codes.json",
-      "paged": false
+      "paged": false,
+      "description": "The individual codes issued under one coupon. Requires a coupon id. Where a campaign issues unique codes per recipient, redemption is tracked at this level."
     },
     {
       "name": "Customers",
       "suffix": "/customers.json",
-      "paged": true
+      "paged": true,
+      "description": "The customers, with name, email, organisation, address, the reference from the source system, and their created and updated dates."
     },
     {
       "name": "Customer",
       "suffix": "/customers/{Customer ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One customer by id."
     },
     {
       "name": "Customer by Reference",
       "suffix": "/customers/lookup.json?reference={Reference ID}",
-      "paged": false
+      "paged": false,
+      "description": "One customer by the external reference. The lookup from a source-system id."
     },
     {
       "name": "Customer Subscriptions",
       "suffix": "/customers/{Customer ID}/subscriptions.json",
-      "paged": false
+      "paged": false,
+      "description": "The subscriptions of one customer. Requires a customer id. One customer can hold several."
     },
     {
       "name": "Customer Search",
       "suffix": "/customers.json?q={Search Term?:email,ID,reference,organization}",
-      "paged": false
+      "paged": false,
+      "description": "Customers matching a term across email, id, reference and organisation. The general lookup."
     },
     {
       "name": "Subscription Events",
       "suffix": "/subscriptions/{Subscription ID}/events.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
-      "paged": true
+      "paged": true,
+      "description": "The event history of one subscription since a given id. Requires a subscription id. The per-account lifecycle, and the source for churn timing."
     },
     {
       "name": "Events",
       "suffix": "/events.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
-      "paged": true
+      "paged": true,
+      "description": "Everything that has happened on the site since a given id -- subscription state changes, payments, renewals, component allocations. THE AUDIT TRAIL AND THE INCREMENTAL-SYNC MECHANISM: entity tables carry current state only, so when a subscription changed and what it changed from is answerable here alone."
     },
     {
       "name": "Event Count",
       "suffix": "/events/count.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
-      "paged": false
+      "paged": false,
+      "description": "The number of events matching the filters. The size check before a sync."
     },
     {
       "name": "Invoices",
       "suffix": "/invoices.json?subscription_id={Subscription ID?}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&status={Status?:draft|open|paid|pending|voided}&line_items={Include Line Items?:true|false}&discounts={Include Discounts?:true|false}&taxes={Include Taxes Data?:true|false}&credits={Include Credits Data?:true|false}&payments={Include Payments Data?:true|false}&custom_fields={Include Custom Fields?:true|false}",
-      "paged": true
+      "paged": true,
+      "description": "The invoices raised, filterable by subscription and date. Carries the customer, subscription, number, status, totals and line items."
     },
     {
       "name": "Invoice",
       "suffix": "/invoices/{Invoice ID}.json?start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}",
-      "paged": false
+      "paged": false,
+      "description": "One invoice by id, with its line items and payments."
     },
     {
       "name": "Invoice Payments",
       "suffix": "/invoices/{Invoice ID}/payments.json?start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}",
-      "paged": false
+      "paged": false,
+      "description": "The payments applied to one invoice. Requires an invoice id. The invoice carries a balance; this says when money arrived."
     },
     {
       "name": "Invoice Events",
       "suffix": "/invoices/events.json?since_id={IDs Greater Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&invoice_uid={Invoice ID?}",
-      "paged": true
+      "paged": true,
+      "description": "The events on invoices since a given id -- issued, applied, voided, refunded. The change log for billing documents, and the incremental-sync route for them."
     },
     {
       "name": "Credit Notes",
       "suffix": "/credit_notes.json?subscription_id={Subscription ID?}&line_items={Include Line Items?:true|false}&discounts={Include Discounts?:true|false}&taxes={Include Taxes Data?:true|false}&refunds={Include Credits Data?:true|false}&applications={Include Payments Data?:true|false}",
-      "paged": false
+      "paged": false,
+      "description": "Credits issued against invoices, filterable by subscription. Revenue net of credits requires this; invoice totals alone overstate it."
     },
     {
       "name": "Credit Note",
       "suffix": "/credit_notes/{Credit Note ID}",
-      "paged": false
+      "paged": false,
+      "description": "One credit note by id."
     },
     {
       "name": "Notes",
       "suffix": "/subscriptions/{Subscription ID}/notes.json",
-      "paged": true
+      "paged": true,
+      "description": "Internal notes on one subscription. Requires a subscription id. Where a human explanation of an unusual account is recorded."
     },
     {
       "name": "Note",
       "suffix": "/subscriptions/{Subscription ID}/notes/{Note ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One note by id."
     },
     {
       "name": "Offers",
       "suffix": "/offers.json",
-      "paged": false
+      "paged": false,
+      "description": "The bundled offers defined -- a product plus components and coupons sold as one package. What is actually presented for sale, as opposed to its constituent parts."
     },
     {
       "name": "Offer",
       "suffix": "/offers/{Offer ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One offer by id, with its components."
     },
     {
       "name": "Payment Profiles",
       "suffix": "/payment_profiles.json?customer_id={Customer ID?}",
-      "paged": true
+      "paged": true,
+      "description": "The stored payment methods, optionally for one customer. Carries the type, the card's expiry and last four digits, and the gateway. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN and the expiry here is the only place it can be anticipated."
     },
     {
       "name": "Payment Profile",
       "suffix": "/payment_profiles/{Payment Profile ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One payment profile by id."
     },
     {
       "name": "Products",
       "suffix": "/product_families/{Product Family ID}/products.json?include_archived={Include Archived?:true|false}",
-      "paged": false
+      "paged": false,
+      "description": "The products within one family, with their price, billing period, trial and setup charges. Requires a family id. What subscriptions are sold on."
     },
     {
       "name": "Product",
       "suffix": "/products/{Product ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One product by id."
     },
     {
       "name": "Product by Handle",
       "suffix": "/products/handle/{Product Handle}.json",
-      "paged": false
+      "paged": false,
+      "description": "One product by its handle -- the human-readable identifier, more stable than the numeric id across environments."
     },
     {
       "name": "Product Price Points",
       "suffix": "/products/{Product ID}/price_points.json",
-      "paged": false
+      "paged": false,
+      "description": "The alternative price points of one product. Requires a product id. A product can be sold at several prices, so the product's headline price is not necessarily what a given subscription pays."
     },
     {
       "name": "Product Price Point",
       "suffix": "/products/{Product ID}/price_points/{Price Point ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One product price point by id."
     },
     {
       "name": "Product Families",
@@ -236,62 +278,74 @@
           "key": "product_family.id",
           "parameterName": "Product Family ID"
         }
-      ]
+      ],
+      "description": "The product families -- the top-level grouping products, components and coupons belong to. NEARLY EVERYTHING IN CHARGIFY IS SCOPED TO A FAMILY, so this is the first request and a figure taken without regard to family may span unrelated product lines."
     },
     {
       "name": "Product Family",
       "suffix": "/product_families/{Product Family ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One product family by id."
     },
     {
       "name": "Reason Codes",
       "suffix": "/reason_codes.json",
-      "paged": true
+      "paged": true,
+      "description": "The cancellation reason codes configured. THE STRUCTURED ANSWER TO WHY CUSTOMERS LEAVE, which the cancellation message alone does not give in analysable form."
     },
     {
       "name": "Reason Code",
       "suffix": "/reason_codes/{Reason Code ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One reason code by id."
     },
     {
       "name": "Validate Referral Code",
       "suffix": "/referral_codes/validate.json?code={Referral Code}",
-      "paged": false
+      "paged": false,
+      "description": "Checks whether a referral code is valid. A validation call rather than data."
     },
     {
       "name": "Subscription Statement IDs",
       "suffix": "/subscriptions/{Subscription ID}/statements/ids.json?settled_since={Settled Since?:UNIX timestamp}",
-      "paged": false
+      "paged": false,
+      "description": "The statement ids of one subscription, filterable by settlement date."
     },
     {
       "name": "Statement IDs",
       "suffix": "/statements/ids.json?settled_since={Settled Since?:UNIX timestamp}",
-      "paged": false
+      "paged": false,
+      "description": "The ids of statements settled since a date. The cheap way to find what to fetch rather than paging statements themselves."
     },
     {
       "name": "Subscription Statements",
       "suffix": "/subscriptions/{Subscription ID}/statements.json",
-      "paged": true
+      "paged": true,
+      "description": "The statements of one subscription. Requires a subscription id."
     },
     {
       "name": "Statements",
       "suffix": "/statements.json",
-      "paged": false
+      "paged": false,
+      "description": "The billing statements produced. A statement is the period summary sent to a customer, as distinct from an invoice."
     },
     {
       "name": "Statement",
       "suffix": "/statements/{Statement ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One statement by id."
     },
     {
       "name": "Stats",
       "suffix": "/stats.json",
-      "paged": false
+      "paged": false,
+      "description": "The site's headline figures -- subscription counts by state, revenue this month, and similar. One record of totals, and the cheapest sanity check on any figure derived the long way."
     },
     {
       "name": "Subscription",
       "suffix": "/subscriptions/{Subscription ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One subscription by id, with its full state and product detail."
     },
     {
       "name": "Subscriptions",
@@ -309,37 +363,44 @@
           "key": "subscription.id",
           "parameterName": "Subscription ID"
         }
-      ]
+      ],
+      "description": "The subscriptions on the site, one row each -- the central table. Carries the customer, product, the STATE, current period start and end, activated_at, cancelled_at and the cancellation message, the balance, and any coupon applied. Filterable by state. STATE IS THE FILTER EVERYTHING DEPENDS ON, and Chargify's set is unusually fine: trialing, assessing, active, soft_failure, past_due, canceled, expired, unpaid, on_hold and pending_cancellation. PAST_DUE AND SOFT_FAILURE ARE STILL ACTIVE SUBSCRIPTIONS whose payment failed -- they are the involuntary-churn pipeline, and reading state as a simple active-or-cancelled misses them entirely."
     },
     {
       "name": "Subscription by Reference",
       "suffix": "/subscriptions/lookup.json?reference={Reference}",
-      "paged": false
+      "paged": false,
+      "description": "One subscription looked up by the reference the source system assigned. The bridge from an external identifier to Chargify's own."
     },
     {
       "name": "Transactions",
       "suffix": "/transactions.json?kinds[]={Transactions Types?,:charge,payment,credit,...}&since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
-      "paged": true
+      "paged": true,
+      "description": "Payment attempts and their outcomes, filterable by kind. Carries the type, amount, success flag, the gateway response and the subscription. FAILED PAYMENTS EXIST HERE AND NOWHERE ELSE, which is where involuntary churn is diagnosed."
     },
     {
       "name": "Transaction",
       "suffix": "/transactions/{Transaction ID}.json",
-      "paged": false
+      "paged": false,
+      "description": "One transaction by id."
     },
     {
       "name": "Subscription Transactions",
       "suffix": "/subscriptions/{Subscription ID}/transactions.json?kinds[]={Transactions Types?,:charge,payment,credit,...}&since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
-      "paged": true
+      "paged": true,
+      "description": "The transactions of one subscription, filterable by kind. Requires a subscription id. The per-account payment history."
     },
     {
       "name": "Transaction Count",
       "suffix": "/transactions/count.json",
-      "paged": false
+      "paged": false,
+      "description": "The number of transactions matching the filters, without returning them. The cheap size check before an extract."
     },
     {
       "name": "Webhooks",
       "suffix": "/webhooks.json?since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
-      "paged": true
+      "paged": true,
+      "description": "The webhook deliveries attempted, filterable by date and status. NOT configuration: this is the delivery log, so a silently broken integration is visible here."
     }
   ]
 }

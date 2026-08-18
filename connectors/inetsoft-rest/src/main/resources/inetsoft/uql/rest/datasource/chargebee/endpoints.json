@@ -1,8 +1,8 @@
 {
   "endpoints": [
     {
-      "paged": "true", 
-      "name": "Subscriptions", 
+      "paged": "true",
+      "name": "Subscriptions",
       "suffix": "/v2/subscriptions?include_deleted={Include Deleted?:true|false}",
       "lookups": [
         {
@@ -20,25 +20,33 @@
             "Entity Type": "subscription"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The subscriptions on the site, one row each -- the central table of a recurring-revenue business. Carries the customer, plan, quantity, unit price, billing period and period unit, the STATUS, current_term_start and current_term_end, next_billing_at, trial dates, activated_at, cancelled_at and the cancellation reason, and the MRR. STATUS IS THE FILTER EVERYTHING DEPENDS ON: future, in_trial, active, non_renewing, paused and cancelled all live here, and only active and non_renewing are billing revenue -- while non_renewing means active but already cancelled at period end, which is the leading indicator of churn and is invisible if status is read as a simple active-or-not. NOTE ALSO THAT MONEY IS IN THE SMALLEST CURRENCY UNIT throughout Chargebee: an amount of 1000 with currency USD is ten dollars. Deleted records are excluded unless include_deleted is passed."
+    },
     {
-      "paged": "false", 
-      "name": "Subscription", 
-      "suffix": "/v2/subscriptions/{Subscription ID}"
-    }, 
+      "paged": "false",
+      "name": "Subscription",
+      "suffix": "/v2/subscriptions/{Subscription ID}",
+      "description": "One subscription by id, with its full term and addon detail."
+    },
     {
-      "paged": "false", 
-      "name": "Subscription with Scheduled Changes", 
-      "suffix": "/v2/subscriptions/{Subscription ID}/retrieve_with_scheduled_changes"
-    }, 
+      "paged": "false",
+      "name": "Subscription with Scheduled Changes",
+      "suffix": "/v2/subscriptions/{Subscription ID}/retrieve_with_scheduled_changes",
+      "description": "One subscription together with any CHANGES ALREADY SCHEDULED for its next term -- plan switches, quantity changes, price updates. Requires the subscription id. The subscription itself shows today's terms only, so a forward revenue view that ignores this misses committed changes."
+    },
     {
-      "paged": "true", 
-      "name": "Customers", 
+      "paged": "true",
+      "name": "Customers",
       "suffix": "/v2/customers?include_deleted={Include Deleted?:true|false}",
       "lookups": [
         {
-          "endpoints": ["Contacts for a Customer", "Hierarchy", "Customer's card", "Upcoming Invoices Estimates"],
+          "endpoints": [
+            "Contacts for a Customer",
+            "Hierarchy",
+            "Customer's card",
+            "Upcoming Invoices Estimates"
+          ],
           "jsonPath": "$.list[*].customer",
           "key": "id",
           "parameterName": "Customer ID"
@@ -52,61 +60,72 @@
             "Entity Type": "customer"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The customers, with company, email, billing address, the payment method on file, auto_collection setting, net term days, the taxability and any excess payments or refundable credits. The account-level entity subscriptions hang off; one customer can hold several. AUTO_COLLECTION matters for cash questions: a customer set to off is invoiced rather than charged, so their invoices sit open by design rather than through failure."
+    },
     {
-      "paged": "false", 
-      "name": "Customer", 
-      "suffix": "/v2/customers/{Customer ID}"
-    }, 
+      "paged": "false",
+      "name": "Customer",
+      "suffix": "/v2/customers/{Customer ID}",
+      "description": "One customer by id."
+    },
     {
-      "paged": "true", 
-      "name": "Contacts for a Customer", 
-      "suffix": "/v2/customers/{Customer ID}/contacts"
-    }, 
+      "paged": "true",
+      "name": "Contacts for a Customer",
+      "suffix": "/v2/customers/{Customer ID}/contacts",
+      "description": "The additional contacts on one customer, with their roles and whether each receives billing email. Requires a customer id."
+    },
     {
-      "paged": "false", 
-      "name": "Hierarchy", 
-      "suffix": "/v2/customers/{Customer ID}/hierarchy?hierarchy_operation_type={Hierarchy Operation Type?:complete_hierarchy|subordinates|path_to_root}"
-    }, 
+      "paged": "false",
+      "name": "Hierarchy",
+      "suffix": "/v2/customers/{Customer ID}/hierarchy?hierarchy_operation_type={Hierarchy Operation Type?:complete_hierarchy|subordinates|path_to_root}",
+      "description": "The parent and child relationships of one customer, for accounts that bill a group under one payer. Requires a customer id and an operation type. Where consolidated invoicing is in use, a child's revenue appears on the parent's invoice -- so per-customer revenue read without this attributes money to the wrong account."
+    },
     {
-      "paged": "true", 
-      "name": "Payment Sources", 
-      "suffix": "/v2/payment_sources"
-    }, 
+      "paged": "true",
+      "name": "Payment Sources",
+      "suffix": "/v2/payment_sources",
+      "description": "The stored payment methods, with type, status, the gateway, the card's expiry and last four digits. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN, and the expiry month and year here are the only place it can be seen coming."
+    },
     {
-      "paged": "false", 
-      "name": "Payment Source", 
-      "suffix": "/v2/payment_sources/{Customer Payment Source ID}"
-    }, 
+      "paged": "false",
+      "name": "Payment Source",
+      "suffix": "/v2/payment_sources/{Customer Payment Source ID}",
+      "description": "One payment source by id."
+    },
     {
-      "paged": "true", 
-      "name": "Virtual Bank Accounts", 
-      "suffix": "/v2/virtual_bank_accounts"
-    }, 
+      "paged": "true",
+      "name": "Virtual Bank Accounts",
+      "suffix": "/v2/virtual_bank_accounts",
+      "description": "The virtual account numbers issued to customers for bank transfer payments. Relevant where collection is by transfer rather than card."
+    },
     {
-      "paged": "false", 
-      "name": "Virtual Bank Account", 
-      "suffix": "/v2/virtual_bank_accounts/{Virtual Bank Account ID}"
-    }, 
+      "paged": "false",
+      "name": "Virtual Bank Account",
+      "suffix": "/v2/virtual_bank_accounts/{Virtual Bank Account ID}",
+      "description": "One virtual bank account by id."
+    },
     {
-      "paged": "false", 
-      "name": "Customer's card", 
-      "suffix": "/v2/cards/{Customer ID}"
-    }, 
+      "paged": "false",
+      "name": "Customer's card",
+      "suffix": "/v2/cards/{Customer ID}",
+      "description": "The card on file for one customer, in Chargebee's older card representation. Requires a customer id. Superseded by payment sources, which covers every method rather than cards alone."
+    },
     {
-      "paged": "true", 
-      "name": "Promotional Credits", 
-      "suffix": "/v2/promotional_credits"
-    }, 
+      "paged": "true",
+      "name": "Promotional Credits",
+      "suffix": "/v2/promotional_credits",
+      "description": "Non-refundable credits granted to customers -- goodwill, incentives, referral rewards -- with the amount, type and description. These reduce what a customer pays without appearing as a discount on the plan, so revenue analysis that ignores them overstates realised price."
+    },
     {
-      "paged": "false", 
-      "name": "Promotional Credit", 
-      "suffix": "/v2/promotional_credits/{Account Credit ID}"
-    }, 
+      "paged": "false",
+      "name": "Promotional Credit",
+      "suffix": "/v2/promotional_credits/{Account Credit ID}",
+      "description": "One promotional credit entry by id."
+    },
     {
-      "paged": "true", 
-      "name": "Invoices", 
+      "paged": "true",
+      "name": "Invoices",
       "suffix": "/v2/invoices?include_deleted={Include Deleted?:true|false}",
       "lookups": [
         {
@@ -118,16 +137,18 @@
             "Entity Type": "invoice"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The invoices raised, with the customer and subscription, the date, the STATUS, the total, amount_paid, amount_due and amount_adjusted, the line items, taxes and discounts, and the due date. Status separates paid, posted, payment_due, not_paid, voided and pending -- and only paid represents collected money while voided never counted at all. This is the billing record; recurring-revenue metrics come from subscriptions, and the two legitimately disagree because invoices include one-off charges."
+    },
     {
-      "paged": "false", 
-      "name": "Invoice", 
-      "suffix": "/v2/invoices/{Invoice ID}"
-    }, 
+      "paged": "false",
+      "name": "Invoice",
+      "suffix": "/v2/invoices/{Invoice ID}",
+      "description": "One invoice by id, with its full line items and linked transactions."
+    },
     {
-      "paged": "true", 
-      "name": "Credit Notes", 
+      "paged": "true",
+      "name": "Credit Notes",
       "suffix": "/v2/credit_notes?include_deleted={Include Deleted?:true|false}",
       "lookups": [
         {
@@ -139,41 +160,48 @@
             "Entity Type": "credit_note"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "Credits issued against invoices, with the reason code, the amount, what has been refunded and what remains allocatable. Revenue net of credits requires this: the invoice totals alone overstate it."
+    },
     {
-      "paged": "false", 
-      "name": "Credit Note", 
-      "suffix": "/v2/credit_notes/{credit_note_id}"
-    }, 
+      "paged": "false",
+      "name": "Credit Note",
+      "suffix": "/v2/credit_notes/{credit_note_id}",
+      "description": "One credit note by id."
+    },
     {
-      "paged": "true", 
-      "name": "Unbilled Charges", 
-      "suffix": "/v2/unbilled_charges?include_deleted={Include Deleted?:true|false}"
-    }, 
+      "paged": "true",
+      "name": "Unbilled Charges",
+      "suffix": "/v2/unbilled_charges?include_deleted={Include Deleted?:true|false}",
+      "description": "Charges accrued but NOT YET INVOICED -- usage recorded mid-term, one-off additions, proration from a mid-cycle change. Revenue that exists and is invisible in the invoice table until the next billing run, which is why an accrual view and a billed view differ."
+    },
     {
-      "paged": "true", 
-      "name": "Orders", 
-      "suffix": "/v2/orders?include_deleted={Include Deleted?:true|false}"
-    }, 
+      "paged": "true",
+      "name": "Orders",
+      "suffix": "/v2/orders?include_deleted={Include Deleted?:true|false}",
+      "description": "Orders raised from invoices, where the site fulfils physical goods. Carries status, shipping details and the invoice it derives from."
+    },
     {
-      "paged": "false", 
-      "name": "Order", 
-      "suffix": "/v2/orders/{Order ID}"
-    }, 
+      "paged": "false",
+      "name": "Order",
+      "suffix": "/v2/orders/{Order ID}",
+      "description": "One order by id."
+    },
     {
-      "paged": "true", 
-      "name": "Gifts", 
-      "suffix": "/v2/gifts"
-    }, 
+      "paged": "true",
+      "name": "Gifts",
+      "suffix": "/v2/gifts",
+      "description": "Gift subscriptions, with the giver, receiver and claim status. Only meaningful on sites that sell gifting."
+    },
     {
-      "paged": "false", 
-      "name": "Gift", 
-      "suffix": "/v2/gifts/{Gift ID}"
-    }, 
+      "paged": "false",
+      "name": "Gift",
+      "suffix": "/v2/gifts/{Gift ID}",
+      "description": "One gift by id."
+    },
     {
-      "paged": "true", 
-      "name": "Transactions", 
+      "paged": "true",
+      "name": "Transactions",
       "suffix": "/v2/transactions?include_deleted={Include Deleted?:true|false}",
       "lookups": [
         {
@@ -185,36 +213,42 @@
             "Entity Type": "transaction"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The payment attempts and their outcomes, with the type (payment, refund, authorization), the STATUS (success, failure, timeout, needs_attention), the gateway, the amount, the error code and text where it failed, and the invoices settled. FAILED PAYMENTS ARE ROWS HERE AND NOWHERE ELSE -- an invoice shows only that it is unpaid, and involuntary churn is diagnosed from the error codes in this table."
+    },
     {
-      "paged": "false", 
-      "name": "Transaction", 
-      "suffix": "/v2/transactions/{Transaction ID}"
-    }, 
+      "paged": "false",
+      "name": "Transaction",
+      "suffix": "/v2/transactions/{Transaction ID}",
+      "description": "One transaction by id, with its gateway response."
+    },
     {
-      "paged": "true", 
-      "name": "Hosted Pages", 
-      "suffix": "/v2/hosted_pages"
-    }, 
+      "paged": "true",
+      "name": "Hosted Pages",
+      "suffix": "/v2/hosted_pages",
+      "description": "The checkout and portal pages generated, with their state and the object each created. Operational records of checkout sessions rather than customer data."
+    },
     {
-      "paged": "false", 
-      "name": "Hosted Page", 
-      "suffix": "/v2/hosted_pages/{Hosted Page ID}"
-    }, 
+      "paged": "false",
+      "name": "Hosted Page",
+      "suffix": "/v2/hosted_pages/{Hosted Page ID}",
+      "description": "One hosted page by id."
+    },
     {
-      "paged": "false", 
-      "name": "Subscription Renewal Estimate", 
-      "suffix": "/v2/subscriptions/{Subscription ID}/renewal_estimate?include_delayed_charges={Include Delayed Charges?}&use_existing_balances={Use Existing Balances?}&ignore_scheduled_cancellation={Ignore Scheduled Cancellation?}&ignore_scheduled_changes={Ignore Scheduled Changes?}"
-    }, 
+      "paged": "false",
+      "name": "Subscription Renewal Estimate",
+      "suffix": "/v2/subscriptions/{Subscription ID}/renewal_estimate?include_delayed_charges={Include Delayed Charges?}&use_existing_balances={Use Existing Balances?}&ignore_scheduled_cancellation={Ignore Scheduled Cancellation?}&ignore_scheduled_changes={Ignore Scheduled Changes?}",
+      "description": "What one subscription WILL be charged at its next renewal, computed by Chargebee. Requires the subscription id. Forward-looking rather than historical -- and it applies the coupons, taxes and scheduled changes that make a naive price-times-quantity estimate wrong."
+    },
     {
-      "paged": "false", 
-      "name": "Upcoming Invoices Estimates", 
-      "suffix": "/v2/customers/{Customer ID}/upcoming_invoices_estimate"
-    }, 
+      "paged": "false",
+      "name": "Upcoming Invoices Estimates",
+      "suffix": "/v2/customers/{Customer ID}/upcoming_invoices_estimate",
+      "description": "The invoices one customer is due to receive next, estimated across all their subscriptions. Requires a customer id. The customer-level forward view."
+    },
     {
-      "paged": "true", 
-      "name": "Quotes", 
+      "paged": "true",
+      "name": "Quotes",
       "suffix": "/v2/quotes?include_deleted={Include Deleted?:true|false}",
       "lookups": [
         {
@@ -226,16 +260,18 @@
             "Entity Type": "quote"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "Quotes issued to prospects, with the line items, total and status. The pipeline before a subscription exists; an accepted quote becomes a subscription."
+    },
     {
-      "paged": "false", 
-      "name": "Quote", 
-      "suffix": "/v2/quotes/{Quote ID}"
-    }, 
+      "paged": "false",
+      "name": "Quote",
+      "suffix": "/v2/quotes/{Quote ID}",
+      "description": "One quote by id."
+    },
     {
-      "paged": "true", 
-      "name": "Plans", 
+      "paged": "true",
+      "name": "Plans",
       "suffix": "/v2/plans",
       "lookups": [
         {
@@ -247,16 +283,18 @@
             "Entity Type": "plan"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The recurring plans offered, with price, billing period and period unit, currency, trial period, setup cost, and status. The catalogue subscriptions reference. Note a plan is per currency, so the same commercial offer in three currencies is three plans."
+    },
     {
-      "paged": "false", 
-      "name": "Plan", 
-      "suffix": "/v2/plans/{Plan ID}"
-    }, 
+      "paged": "false",
+      "name": "Plan",
+      "suffix": "/v2/plans/{Plan ID}",
+      "description": "One plan by id."
+    },
     {
-      "paged": "true", 
-      "name": "Addons", 
+      "paged": "true",
+      "name": "Addons",
       "suffix": "/v2/addons",
       "lookups": [
         {
@@ -268,16 +306,18 @@
             "Entity Type": "addon"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The optional extras subscriptions can carry, with price, type (recurring, non-recurring or quantity-based), and period. Addon revenue sits alongside plan revenue and is easy to omit from an ARPU figure."
+    },
     {
-      "paged": "false", 
-      "name": "Addon", 
-      "suffix": "/v2/addons/{Addon ID}"
-    }, 
+      "paged": "false",
+      "name": "Addon",
+      "suffix": "/v2/addons/{Addon ID}",
+      "description": "One addon by id."
+    },
     {
-      "paged": "true", 
-      "name": "Coupons", 
+      "paged": "true",
+      "name": "Coupons",
       "suffix": "/v2/coupons",
       "lookups": [
         {
@@ -289,82 +329,98 @@
             "Entity Type": "coupon"
           }
         }
-      ]
-    }, 
+      ],
+      "description": "The discounts defined, with the discount type and amount, duration, and the plans they apply to. The gap between list price and realised price is explained here."
+    },
     {
-      "paged": "false", 
-      "name": "Coupon", 
-      "suffix": "/v2/coupons/{coupon_id}"
-    }, 
+      "paged": "false",
+      "name": "Coupon",
+      "suffix": "/v2/coupons/{coupon_id}",
+      "description": "One coupon by id."
+    },
     {
-      "paged": "true", 
-      "name": "Coupon Sets", 
-      "suffix": "/v2/coupon_sets"
-    }, 
+      "paged": "true",
+      "name": "Coupon Sets",
+      "suffix": "/v2/coupon_sets",
+      "description": "Groups of single-use coupon codes issued under one campaign. The container; the individual codes are separate."
+    },
     {
-      "paged": "false", 
-      "name": "Coupon Set", 
-      "suffix": "/v2/coupon_sets/{Coupon Set ID}"
-    }, 
+      "paged": "false",
+      "name": "Coupon Set",
+      "suffix": "/v2/coupon_sets/{Coupon Set ID}",
+      "description": "One coupon set by id, with how many of its codes are used and how many remain."
+    },
     {
-      "paged": "true", 
-      "name": "Coupon Codes", 
-      "suffix": "/v2/coupon_codes"
-    }, 
+      "paged": "true",
+      "name": "Coupon Codes",
+      "suffix": "/v2/coupon_codes",
+      "description": "The individual redeemable codes within coupon sets, with their redemption status. Take-up of a campaign is counted here."
+    },
     {
-      "paged": "false", 
-      "name": "Coupon Code", 
-      "suffix": "/v2/coupon_codes/{Coupon Code Code}"
-    }, 
+      "paged": "false",
+      "name": "Coupon Code",
+      "suffix": "/v2/coupon_codes/{Coupon Code Code}",
+      "description": "One coupon code by its code string."
+    },
     {
-      "paged": "true", 
-      "name": "Addresses", 
-      "suffix": "/v2/addresses?subscription_id={Subscription ID}&label={Label}"
-    }, 
+      "paged": "true",
+      "name": "Addresses",
+      "suffix": "/v2/addresses?subscription_id={Subscription ID}&label={Label}",
+      "description": "The shipping and billing addresses on one subscription, by label. Requires the subscription id."
+    },
     {
-      "paged": "true", 
-      "name": "Events", 
-      "suffix": "/v2/events"
-    }, 
+      "paged": "true",
+      "name": "Events",
+      "suffix": "/v2/events",
+      "description": "Everything that has happened on the site as a stream -- subscription created, changed, cancelled, payment succeeded or failed, invoice generated -- each with its type, timestamp and the affected object. THE AUDIT TRAIL AND THE INCREMENTAL-SYNC MECHANISM: entity tables carry current state only, so when a subscription changed and what it changed from is answerable only here. Events are retained for a limited period, so older history is genuinely gone."
+    },
     {
-      "paged": "false", 
-      "name": "Event", 
-      "suffix": "/v2/events/{Event ID}"
-    }, 
+      "paged": "false",
+      "name": "Event",
+      "suffix": "/v2/events/{Event ID}",
+      "description": "One event by id, with its full payload."
+    },
     {
-      "paged": "true", 
-      "name": "Comments", 
-      "suffix": "/v2/comments?entity_type={Entity Type?}&entity_id={Entity ID?}"
-    }, 
+      "paged": "true",
+      "name": "Comments",
+      "suffix": "/v2/comments?entity_type={Entity Type?}&entity_id={Entity ID?}",
+      "description": "Internal notes on customers, subscriptions and invoices, filterable by entity type and id. Where a human explanation of an unusual account is recorded."
+    },
     {
-      "paged": "false", 
-      "name": "Comment", 
-      "suffix": "/v2/comments/{Comment ID}"
-    }, 
+      "paged": "false",
+      "name": "Comment",
+      "suffix": "/v2/comments/{Comment ID}",
+      "description": "One comment by id."
+    },
     {
-      "paged": "false", 
-      "name": "Portal Session", 
-      "suffix": "/v2/portal_sessions/{Portal Session ID}"
-    }, 
+      "paged": "false",
+      "name": "Portal Session",
+      "suffix": "/v2/portal_sessions/{Portal Session ID}",
+      "description": "One customer self-service portal session by id. Short-lived operational record."
+    },
     {
-      "paged": "true", 
-      "name": "Site Migration Details", 
-      "suffix": "/v2/site_migration_details"
-    }, 
+      "paged": "true",
+      "name": "Site Migration Details",
+      "suffix": "/v2/site_migration_details",
+      "description": "Records of subscriptions migrated in or out of this site. Explains subscriptions whose history appears to begin mid-life."
+    },
     {
-      "paged": "false", 
-      "name": "Time Machine", 
-      "suffix": "/v2/time_machines/{Time Machine Name}"
-    }, 
+      "paged": "false",
+      "name": "Time Machine",
+      "suffix": "/v2/time_machines/{Time Machine Name}",
+      "description": "The state of a test site's simulated clock. Requires the time machine name. TEST SITES ONLY -- it exists so future billing can be simulated, and returns nothing meaningful on a live site."
+    },
     {
-      "paged": "false", 
-      "name": "Export", 
-      "suffix": "/v2/exports/{Export ID}"
-    }, 
+      "paged": "false",
+      "name": "Export",
+      "suffix": "/v2/exports/{Export ID}",
+      "description": "The status of one bulk export job, with its download link once complete. Requires an export id. THE ROUTE TO A FULL EXTRACT: the list endpoints page, and an export is how a whole site's data is obtained in one piece."
+    },
     {
-      "paged": "false", 
-      "name": "Payment Intent", 
-      "suffix": "/v2/payment_intents/{Payment Intent ID}"
+      "paged": "false",
+      "name": "Payment Intent",
+      "suffix": "/v2/payment_intents/{Payment Intent ID}",
+      "description": "One payment intent by id, used in checkout flows requiring additional authentication. Operational rather than analytical."
     }
   ]
 }

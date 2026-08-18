@@ -1,55 +1,67 @@
 {
   "endpoints": [
     {
-      "name": "Blocked Items", 
-      "suffix": "/account/v1/blocked?presenter={Presenter?:plain|tags|indexedTags}"
-    }, 
+      "name": "Blocked Items",
+      "suffix": "/account/v1/blocked?presenter={Presenter?:plain|tags|indexedTags}",
+      "description": "Everything excluded from tracking -- bots, IP addresses and visitors. WORTH READING BEFORE TRUSTING TRAFFIC FIGURES: an exclusion rule changes every number in the trends tables and appears nowhere in them."
+    },
     {
-      "name": "Blocked Bots", 
-      "suffix": "/account/v1/blocked/bots"
-    }, 
+      "name": "Blocked Bots",
+      "suffix": "/account/v1/blocked/bots",
+      "description": "The bot exclusions in force."
+    },
     {
-      "name": "Blocked IPs", 
-      "suffix": "/account/v1/blocked/ips"
-    }, 
+      "name": "Blocked IPs",
+      "suffix": "/account/v1/blocked/ips",
+      "description": "The IP addresses excluded, which is typically how a company filters its own staff out of its analytics."
+    },
     {
-      "name": "Blocked Visitors", 
-      "suffix": "/account/v1/blocked/visitors"
-    }, 
+      "name": "Blocked Visitors",
+      "suffix": "/account/v1/blocked/visitors",
+      "description": "The individual visitors excluded."
+    },
     {
-      "name": "Feeds", 
-      "suffix": "/account/v1/feeds"
-    }, 
+      "name": "Feeds",
+      "suffix": "/account/v1/feeds",
+      "description": "The activity feeds available on the account."
+    },
     {
-      "name": "Report Preferences", 
-      "suffix": "/account/v1/reportPreferences"
-    }, 
+      "name": "Report Preferences",
+      "suffix": "/account/v1/reportPreferences",
+      "description": "The report and notification preferences configured. Configuration."
+    },
     {
-      "name": "Team Members", 
-      "suffix": "/account/v1/sharedUsers"
-    }, 
+      "name": "Team Members",
+      "suffix": "/account/v1/sharedUsers",
+      "description": "The users with access to the account."
+    },
     {
-      "name": "Sites", 
-      "suffix": "/account/v1/sites?presenter={Presenter?:grouped|flat}"
-    }, 
+      "name": "Sites",
+      "suffix": "/account/v1/sites?presenter={Presenter?:grouped|flat}",
+      "description": "The sites tracked on the account, with their tokens. EVERY OTHER ENDPOINT NEEDS A SITE TOKEN, so this is the first request. The presenter parameter changes the response shape -- grouped or flat -- which is a pattern throughout this connector and worth noticing, since the same endpoint returns structurally different JSON depending on it."
+    },
     {
-      "name": "Site Domains", 
-      "suffix": "/account/v1/sites/{Site Token}/domains"
-    }, 
+      "name": "Site Domains",
+      "suffix": "/account/v1/sites/{Site Token}/domains",
+      "description": "The domains registered for one site. Requires a site token. Traffic is only tracked from these, so an unexpected gap in data often traces back to a domain that was never registered."
+    },
     {
-      "name": "Site Domain", 
-      "suffix": "/account/v1/sites/{Site Token}/domains/{Domain}"
-    }, 
+      "name": "Site Domain",
+      "suffix": "/account/v1/sites/{Site Token}/domains/{Domain}",
+      "description": "One domain by name. Requires the site token."
+    },
     {
-      "name": "Tagged Visitors", 
-      "suffix": "/account/v1/taggedVisitors?presenter={Presenter?:plain|indexed}"
-    }, 
+      "name": "Tagged Visitors",
+      "suffix": "/account/v1/taggedVisitors?presenter={Presenter?:plain|indexed}",
+      "description": "The visitors carrying tags. Tags are the manual segmentation of individuals, as opposed to the rule-based smart groups."
+    },
     {
-      "name": "Trigger Types", 
-      "suffix": "/account/v1/triggerTypes"
-    }, 
+      "name": "Trigger Types",
+      "suffix": "/account/v1/triggerTypes",
+      "description": "The trigger types webhooks can subscribe to. Reference data."
+    },
     {
-      "name": "Webhooks", 
+      "name": "Webhooks",
       "suffix": "/account/v1/webhooks",
       "lookups": [
         {
@@ -58,195 +70,243 @@
           "key": "id",
           "parameterName": "Webhook ID"
         }
-      ]
-    }, 
+      ],
+      "description": "The webhooks configured. Integration configuration."
+    },
     {
-      "name": "Webhook", 
-      "suffix": "/account/v1/webhooks/{Webhook ID}"
-    }, 
+      "name": "Webhook",
+      "suffix": "/account/v1/webhooks/{Webhook ID}",
+      "description": "One webhook by id."
+    },
     {
-      "name": "Webhook Triggers", 
-      "suffix": "/account/v1/webhooks/{Webhook ID}/triggers"
-    }, 
+      "name": "Webhook Triggers",
+      "suffix": "/account/v1/webhooks/{Webhook ID}/triggers",
+      "description": "The triggers attached to one webhook. Requires a webhook id."
+    },
     {
-      "name": "Online Browsers", 
-      "suffix": "/now/v3/browsers/presenter={Presenter?:truncatedList|list|truncatedObject|object}"
-    }, 
+      "name": "Online Browsers",
+      "suffix": "/now/v3/browsers/presenter={Presenter?:truncatedList|list|truncatedObject|object}",
+      "description": "The browsers current visitors are using."
+    },
     {
-      "name": "Online Campaigns", 
-      "suffix": "/now/v3/campaigns"
-    }, 
+      "name": "Online Campaigns",
+      "suffix": "/now/v3/campaigns",
+      "description": "The marketing campaigns current visitors arrived through."
+    },
     {
-      "name": "Online Concurrent Visitors", 
-      "suffix": "/now/v3/concurrents"
-    }, 
+      "name": "Online Concurrent Visitors",
+      "suffix": "/now/v3/concurrents",
+      "description": "How many people are on the site right now."
+    },
     {
-      "name": "Online Countries", 
-      "suffix": "/now/v3/countries"
-    }, 
+      "name": "Online Countries",
+      "suffix": "/now/v3/countries",
+      "description": "Where current visitors are, by country."
+    },
     {
-      "name": "Realtime Engagement", 
-      "suffix": "/now/v3/engagement"
-    }, 
+      "name": "Realtime Engagement",
+      "suffix": "/now/v3/engagement",
+      "description": "The live engagement measure -- how actively current visitors are interacting rather than merely present."
+    },
     {
-      "name": "Online Geographic User Info", 
-      "suffix": "/now/v3/geo?visitorsMode={Visitors Mode?:all|tagged|returning}&dateFormat={Date Format?}"
-    }, 
+      "name": "Online Geographic User Info",
+      "suffix": "/now/v3/geo?visitorsMode={Visitors Mode?:all|tagged|returning}&dateFormat={Date Format?}",
+      "description": "Current visitors by geography in more detail, filterable by visitor mode."
+    },
     {
-      "name": "Online Languages", 
-      "suffix": "/now/v3/languages?presenter={Presenter?:truncatedList|list|truncatedObject|object}"
-    }, 
+      "name": "Online Languages",
+      "suffix": "/now/v3/languages?presenter={Presenter?:truncatedList|list|truncatedObject|object}",
+      "description": "The browser languages of current visitors."
+    },
     {
-      "name": "Online Notifications", 
-      "suffix": "/now/v3/notifications?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Online Notifications",
+      "suffix": "/now/v3/notifications?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "The notifications raised for the site over a period -- traffic spikes, goals met, alerts fired. The events GoSquared thought worth flagging."
+    },
     {
-      "name": "Online Organizations", 
-      "suffix": "/now/v3/organisations?presenter={Presenter?:truncatedList|list|truncatedObject|object}"
-    }, 
+      "name": "Online Organizations",
+      "suffix": "/now/v3/organisations?presenter={Presenter?:truncatedList|list|truncatedObject|object}",
+      "description": "The organisations current visitors resolve to, from their IP addresses. B2B attribution -- which companies are on the site now, which no consumer analytics tool offers."
+    },
     {
-      "name": "Realtime Overview", 
-      "suffix": "/now/v3/overview?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Realtime Overview",
+      "suffix": "/now/v3/overview?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "The live headline figures for a site -- concurrent visitors, pages viewed, and the current engagement summary. THE NOW API IS A SNAPSHOT: everything under it describes this instant and keeps no history, so a trend can only be built by sampling repeatedly. The trends endpoints below are the historical ones."
+    },
     {
-      "name": "Online Pages", 
-      "suffix": "/now/v3/pages?href={Page URL?}"
-    }, 
+      "name": "Online Pages",
+      "suffix": "/now/v3/pages?href={Page URL?}",
+      "description": "The pages being viewed right now, with their visitor counts."
+    },
     {
-      "name": "Online Platforms", 
-      "suffix": "/now/v3/platforms?presenter={Presenter?:truncatedList|list|truncatedObject|object}"
-    }, 
+      "name": "Online Platforms",
+      "suffix": "/now/v3/platforms?presenter={Presenter?:truncatedList|list|truncatedObject|object}",
+      "description": "The operating systems and devices of current visitors."
+    },
     {
-      "name": "Online Sources", 
-      "suffix": "/now/v3/sources?sections={Sources?:direct,site,social,organic,internal}&minimal={Compact?:true|false}"
-    }, 
+      "name": "Online Sources",
+      "suffix": "/now/v3/sources?sections={Sources?:direct,site,social,organic,internal}&minimal={Compact?:true|false}",
+      "description": "Where current visitors came from, by section -- direct, search, social, referral."
+    },
     {
-      "name": "Current Time", 
-      "suffix": "/now/v3/time"
-    }, 
+      "name": "Current Time",
+      "suffix": "/now/v3/time",
+      "description": "GoSquared's own clock. Useful for anchoring a relative range to the service's time rather than the caller's."
+    },
     {
-      "name": "Time Series", 
-      "suffix": "/now/v3/timeSeries?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:5min}"
-    }, 
+      "name": "Time Series",
+      "suffix": "/now/v3/timeSeries?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:5min}",
+      "description": "A live time series over a short recent window. The bridge between the instantaneous now API and the historical trends API."
+    },
     {
-      "name": "Visitors", 
-      "suffix": "/now/v3/visitors?visitorsMode={Visitors Mode?:all|tagged|returning}&from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Visitors",
+      "suffix": "/now/v3/visitors?visitorsMode={Visitors Mode?:all|tagged|returning}&from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "The individual visitors currently on the site, filterable to all, tagged or returning. The person-level live view, as opposed to the counts."
+    },
     {
-      "name": "Historical Aggregate Data", 
-      "suffix": "/trends/v2/aggregate?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:hour|day|month}"
-    }, 
+      "name": "Historical Aggregate Data",
+      "suffix": "/trends/v2/aggregate?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:hour|day|month}",
+      "description": "Site totals over a date range -- visits, page views, unique visitors and engagement. THE TRENDS API IS THE HISTORICAL ONE, in contrast to the now API above, and this is its headline table."
+    },
     {
-      "name": "Historical Browser Data", 
-      "suffix": "/trends/v2/browser?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Browser Data",
+      "suffix": "/trends/v2/browser?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by browser over a date range."
+    },
     {
-      "name": "Historical Campaign Content", 
-      "suffix": "/trends/v2/campaign_content?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Campaign Content",
+      "suffix": "/trends/v2/campaign_content?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by campaign content -- utm_content, which distinguishes creative variants."
+    },
     {
-      "name": "Historical Campaign Medium", 
-      "suffix": "/trends/v2/campaign_medium?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Campaign Medium",
+      "suffix": "/trends/v2/campaign_medium?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by campaign medium -- utm_medium."
+    },
     {
-      "name": "Historical Campaign Name", 
-      "suffix": "/trends/v2/campaign_name?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Campaign Name",
+      "suffix": "/trends/v2/campaign_name?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by campaign name over a range -- the utm_campaign dimension."
+    },
     {
-      "name": "Historical Campaign Source", 
-      "suffix": "/trends/v2/campaign_source?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Campaign Source",
+      "suffix": "/trends/v2/campaign_source?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by campaign source -- utm_source."
+    },
     {
-      "name": "Historical Campaign Term", 
-      "suffix": "/trends/v2/campaign_term?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Campaign Term",
+      "suffix": "/trends/v2/campaign_term?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by campaign term -- utm_term, the paid keyword."
+    },
     {
-      "name": "Historical Country Data", 
-      "suffix": "/trends/v2/country?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Country Data",
+      "suffix": "/trends/v2/country?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by country over a date range."
+    },
     {
-      "name": "Historical Event Data", 
-      "suffix": "/trends/v2/event?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Event Data",
+      "suffix": "/trends/v2/event?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Custom events recorded over a date range. Events are whatever the site's own code sends, so their names and meanings are entirely account-specific."
+    },
     {
-      "name": "Historical Language Data", 
-      "suffix": "/trends/v2/language?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Language Data",
+      "suffix": "/trends/v2/language?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by browser language over a date range."
+    },
     {
-      "name": "Historical Organization Data", 
-      "suffix": "/trends/v2/organisation?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Organization Data",
+      "suffix": "/trends/v2/organisation?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by resolved organisation over a date range. The historical B2B view, and the basis for account-based marketing questions."
+    },
     {
-      "name": "Historical OS Data", 
-      "suffix": "/trends/v2/os?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical OS Data",
+      "suffix": "/trends/v2/os?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by operating system over a date range."
+    },
     {
-      "name": "Historical Page Data", 
-      "suffix": "/trends/v2/page?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Page Data",
+      "suffix": "/trends/v2/page?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Page views over a date range, by page. Which content earned the traffic."
+    },
     {
-      "name": "Historical Base Path Data", 
-      "suffix": "/trends/v2/path1?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Base Path Data",
+      "suffix": "/trends/v2/path1?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic grouped by the FIRST path segment over a range. The section-level view -- blog, product, docs -- which the per-page table cannot give without manual grouping."
+    },
     {
-      "name": "Historical Screen Dimensions Data", 
-      "suffix": "/trends/v2/screenDimensions?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
-    }, 
+      "name": "Historical Screen Dimensions Data",
+      "suffix": "/trends/v2/screenDimensions?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "description": "Traffic by screen size over a date range. What a responsive design actually has to serve."
+    },
     {
-      "name": "Historical Sources Data", 
-      "suffix": "/trends/v2/sources?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&group={Group by Common Source?:true|false}"
-    }, 
+      "name": "Historical Sources Data",
+      "suffix": "/trends/v2/sources?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&group={Group by Common Source?:true|false}",
+      "description": "Traffic by referral source over a date range. The acquisition table."
+    },
     {
-      "name": "People CRM Devices", 
-      "suffix": "/people/v1/devices"
-    }, 
+      "name": "People CRM Devices",
+      "suffix": "/people/v1/devices",
+      "description": "The devices seen, each linked to the person using it. One person can have several, which is why device counts and people counts differ."
+    },
     {
-      "name": "People CRM Device", 
-      "suffix": "/people/v1/devices/{Device ID}"
-    }, 
+      "name": "People CRM Device",
+      "suffix": "/people/v1/devices/{Device ID}",
+      "description": "One device by id."
+    },
     {
-      "name": "People CRM Event Types", 
-      "suffix": "/people/v1/eventTypes"
-    }, 
+      "name": "People CRM Event Types",
+      "suffix": "/people/v1/eventTypes",
+      "description": "The event types recorded against people. The vocabulary of behaviours being tracked."
+    },
     {
-      "name": "People CRM Search", 
-      "suffix": "/people/v1/people?query={Search Term}&fields={Fields?:id,email,...}&dateFormat={Date Format?}"
-    }, 
+      "name": "People CRM Search",
+      "suffix": "/people/v1/people?query={Search Term}&fields={Fields?:id,email,...}&dateFormat={Date Format?}",
+      "description": "People in the GoSquared CRM matching a query. THIS IS THE IDENTITY LAYER: analytics elsewhere counts anonymous sessions, and People links those sessions to named individuals with properties and event history -- so it is what turns traffic into accounts."
+    },
     {
-      "name": "People CRM Person", 
-      "suffix": "/people/v1/people/{Person ID}"
-    }, 
+      "name": "People CRM Person",
+      "suffix": "/people/v1/people/{Person ID}",
+      "description": "One person by id, with their properties and activity."
+    },
     {
-      "name": "People CRM Property Types", 
-      "suffix": "/people/v1/propertyTypes"
-    }, 
+      "name": "People CRM Property Types",
+      "suffix": "/people/v1/propertyTypes",
+      "description": "The properties people can carry, standard and custom. The decoder for the property keys on a person."
+    },
     {
-      "name": "People CRM Custom Property Types", 
-      "suffix": "/people/v1/propertyTypes/custom"
-    }, 
+      "name": "People CRM Custom Property Types",
+      "suffix": "/people/v1/propertyTypes/custom",
+      "description": "Only the custom properties defined. What the business chose to record about people, which is entirely account-specific."
+    },
     {
-      "name": "People CRM Property Type", 
-      "suffix": "/people/v1/propertyTypes/{Property ID}"
-    }, 
+      "name": "People CRM Property Type",
+      "suffix": "/people/v1/propertyTypes/{Property ID}",
+      "description": "One property type by id."
+    },
     {
-      "name": "People CRM Smart Groups", 
-      "suffix": "/people/v1/smartgroups"
-    }, 
+      "name": "People CRM Smart Groups",
+      "suffix": "/people/v1/smartgroups",
+      "description": "The smart groups defined -- audiences described by rules over properties and behaviour rather than by explicit membership. Their rules state the business's own segment definitions."
+    },
     {
-      "name": "People CRM Smart Group", 
-      "suffix": "/people/v1/smartgroups/{Group ID}"
-    }, 
+      "name": "People CRM Smart Group",
+      "suffix": "/people/v1/smartgroups/{Group ID}",
+      "description": "One smart group by id, with its rules and current membership count."
+    },
     {
-      "name": "Archived Chats", 
-      "suffix": "/chat/v1/archivedChats?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}"
-    }, 
+      "name": "Archived Chats",
+      "suffix": "/chat/v1/archivedChats?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}",
+      "description": "Closed chat conversations over a period. The historical record; active chats move here when they end."
+    },
     {
-      "name": "Active Chats", 
-      "suffix": "/chat/v1/chats?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}"
-    }, 
+      "name": "Active Chats",
+      "suffix": "/chat/v1/chats?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}",
+      "description": "Live chat conversations over a period. The support channel alongside the analytics."
+    },
     {
-      "name": "Active Chat", 
-      "suffix": "/chat/v1/chats/{Chat ID}"
+      "name": "Active Chat",
+      "suffix": "/chat/v1/chats/{Chat ID}",
+      "description": "One chat by id, with its messages."
     }
   ]
 }

@@ -3,102 +3,122 @@
     {
       "name": "Accounts",
       "suffix": "/3/accounts?search={Search?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The customer organisations contacts belong to, with name, account URL and their created dates. The company-level dimension in ActiveCampaign's CRM."
     },
     {
       "name": "Account",
       "suffix": "/3/accounts/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One account by id."
     },
     {
       "name": "Account Associations",
       "suffix": "/3/accountContacts?filters[contact]={Contract?}&filters[account]={Account?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The links between contacts and accounts, each with the contact's job title. How people are attached to companies, which neither record states alone."
     },
     {
       "name": "Account Association",
       "suffix": "/3/accountContacts/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One account association by id."
     },
     {
       "name": "Custom account fields",
       "suffix": "/3/accountCustomFieldMeta",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom field definitions for accounts."
     },
     {
       "name": "Custom account field",
       "suffix": "/3/accountCustomFieldMeta/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One account field definition by id."
     },
     {
       "name": "Custom account field values",
       "suffix": "/3/accountCustomFieldData?filters[customerAccountId]={Customer Account ID?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom field values on accounts, keyed by field id."
     },
     {
       "name": "Custom account field value",
       "suffix": "/3/accountCustomFieldData/{Field ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One account field value by id."
     },
     {
       "name": "Addresses",
       "suffix": "/3/addresses",
-      "paged": "true"
+      "paged": "true",
+      "description": "The physical sender addresses used in campaign footers, as anti-spam law requires. Configuration."
     },
     {
       "name": "Address",
       "suffix": "/3/addresses/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One address by id."
     },
     {
       "name": "Automations",
       "suffix": "/3/automations",
-      "paged": "true"
+      "paged": "true",
+      "description": "The automation workflows defined, with name, status and entry conditions. WHERE MOST EMAIL ACTUALLY GETS SENT in an ActiveCampaign account -- campaign volume alone understates sending, because automations run continuously in response to behaviour."
     },
     {
       "name": "Brandings",
       "suffix": "/3/brandings",
-      "paged": "true"
+      "paged": "true",
+      "description": "The branding configurations available for emails and pages. Presentation."
     },
     {
       "name": "Branding",
       "suffix": "/3/brandings/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One branding by id."
     },
     {
       "name": "Calendar feeds",
       "suffix": "/3/calendars",
-      "paged": "true"
+      "paged": "true",
+      "description": "The calendar feeds published from the account."
     },
     {
       "name": "Calendar",
       "suffix": "/3/calendars/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One calendar feed by id."
     },
     {
       "name": "Campaigns",
       "suffix": "/3/campaigns",
-      "paged": "true"
+      "paged": "true",
+      "description": "The email campaigns, with name, type, status, send date, and the counts of sends, opens, clicks, bounces and unsubscribes. The performance table. Status separates drafts and scheduled sends from those actually delivered, so counting all rows counts campaigns that never went out."
     },
     {
       "name": "Campaign links",
       "suffix": "/3/campaigns/{ID}/links",
-      "paged": "true"
+      "paged": "true",
+      "description": "The links in one campaign with their click counts. Requires a campaign id. Which content drew the response, as opposed to whether anything did."
     },
     {
       "name": "Campaign",
       "suffix": "/3/campaigns/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One campaign by id, with its full statistics."
     },
     {
       "name": "Messages",
       "suffix": "/3/messages",
-      "paged": "true"
+      "paged": "true",
+      "description": "The message templates campaigns send -- the subject, sender and content. A campaign references a message, so this is what turns a campaign into readable content."
     },
     {
       "name": "Message",
       "suffix": "/3/messages/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One message by id."
     },
     {
       "name": "Contacts",
@@ -117,332 +137,398 @@
           "key": "id",
           "parameterName": "ID"
         }
-      ]
+      ],
+      "description": "The contacts in the account, with email, name, phone, the customer account, and their created and updated dates. The central table. NOTE THE CUSTOM FIELD SPLIT, which is the shape of this whole API: a contact's custom values do NOT come back on the contact -- they live in Custom contact field values, keyed by field id, and Custom contact fields is what names those ids. Nothing is readable from one table alone."
     },
     {
       "name": "Contact",
       "suffix": "/3/contacts/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One contact by id."
     },
     {
       "name": "Contact's automations",
       "suffix": "/3/contacts/{ID}/contactAutomations",
-      "paged": "true"
+      "paged": "true",
+      "description": "The automations one contact is currently in, with their status and the step reached. Requires a contact id. WHERE A CONTACT SITS IN THE MARKETING PROCESS -- the contact record itself says nothing about it."
     },
     {
       "name": "Contact's score values",
       "suffix": "/3/contacts/{ID}/scoreValues",
-      "paged": "true"
+      "paged": "true",
+      "description": "The lead scores of one contact. Requires a contact id. Scores are computed from behaviour, so this is the engagement measure the contact record lacks."
     },
     {
       "name": "Contact automations",
       "suffix": "/3/contactAutomations",
-      "paged": "true"
+      "paged": "true",
+      "description": "Every contact-to-automation membership on the account. The account-wide view of who is in what, and the basis for automation funnel analysis."
     },
     {
       "name": "Contact automation",
       "suffix": "/3/contactAutomations/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One contact automation record by id."
     },
     {
       "name": "Custom contact fields",
       "suffix": "/3/fields",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom field DEFINITIONS for contacts, with their titles, types and options. The decoder half of the split."
     },
     {
       "name": "Custom contact field",
       "suffix": "/3/fields/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One contact field definition by id."
     },
     {
       "name": "Custom contact field values",
       "suffix": "/3/fieldValues?filters[fieldid]={Field ID?}&filters[val]={Value?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom field VALUES, each pairing a contact, a field id and a value. The data half. Join to the definitions to make it readable."
     },
     {
       "name": "Custom contact field value",
       "suffix": "/3/fieldValues/{Field ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One contact field value by id."
     },
     {
       "name": "Deals",
       "suffix": "/3/deals?filters[search]={Search?}&filters[search_field]={Search Field?}&filters[title]={Title?}&filters[stage]={Stage?}&filters[group]={Group?}&filters[status]={Status?}&filters[owner]={Owner?}&filters[nextdate_range]={Nextdate Range?}&filters[tag]={Tag?}&filters[tasktype]={Tasktype?}&filters[created_before]={Created Before?}&filters[created_after]={Created After?}&filters[updated_before]={Updated Before?}&filters[updated_after]={Updated After?}&filters[organization]={Organization?}&filters[minimum_value]={Minimum Value?}&filters[maximum_value]={Maximum Value?}&filters[score_greater_than]={Score Greater Than?}&filters[score_less_than]={Score Less Than?}&filters[score]={Score?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The sales opportunities, with title, value, currency, the contact and account, the pipeline and stage, owner, status and expected close date. The CRM side of ActiveCampaign. Custom values follow the same split as contacts -- Custom deal field values holds them, Custom deal fields names them."
     },
     {
       "name": "Deal",
       "suffix": "/3/deals/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One deal by id."
     },
     {
       "name": "Pipelines",
       "suffix": "/3/dealGroups?filters[title]={Title?}&filters[have_stages]={Have Stages?:0|1}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The deal pipelines defined. Most accounts run more than one and stages are not comparable between them, so a funnel question has to name the pipeline."
     },
     {
       "name": "Pipeline",
       "suffix": "/3/dealGroups/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One pipeline by id."
     },
     {
       "name": "Stages",
       "suffix": "/3/dealStages?filters[title]={Title?}&filters[d_groupid]={Deal Group ID?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The stages within pipelines, with their order and the pipeline each belongs to. The dimension a funnel breakdown joins to."
     },
     {
       "name": "Stage",
       "suffix": "/3/dealStages/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One stage by id."
     },
     {
       "name": "Custom deal fields",
       "suffix": "/3/dealCustomFieldMeta",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom field definitions for deals."
     },
     {
       "name": "Custom deal field",
       "suffix": "/3/dealCustomFieldMeta/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One deal field definition by id."
     },
     {
       "name": "Custom deal field values",
       "suffix": "/3/dealCustomFieldData?filters[dealId]={Deal ID?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom field values on deals, keyed by field id."
     },
     {
       "name": "Custom deal field value",
       "suffix": "/3/dealCustomFieldData/{Field ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One deal field value by id."
     },
     {
       "name": "Secondary contacts",
       "suffix": "/3/contactDeals",
-      "paged": "true"
+      "paged": "true",
+      "description": "The additional contacts linked to deals beyond the primary one. A deal names one contact; this is everyone involved."
     },
     {
       "name": "Secondary contact",
       "suffix": "/3/contactDeals/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One deal-to-contact link by id."
     },
     {
       "name": "Connections",
       "suffix": "/3/connections?filters[service]={Service?}&filters[externalid]={External ID?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The e-commerce store connections configured, with their service and status. WHETHER THE STORE IS CONNECTED DECIDES whether the e-commerce tables have anything in them, so an empty result there is usually an integration fact rather than an absence of sales."
     },
     {
       "name": "Connection",
       "suffix": "/3/connections/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One connection by id."
     },
     {
       "name": "E-Commerce customers",
       "suffix": "/3/ecomCustomers?filters[email]={Email?}&filters[externalid]={External ID?}&filters[connectionid]={Connection ID?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The customers synced from a connected store, each linked to an ActiveCampaign contact and carrying their store-side identifiers. The bridge between marketing contacts and purchase behaviour."
     },
     {
       "name": "E-Commerce customer",
       "suffix": "/3/ecomCustomers/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One e-commerce customer by id."
     },
     {
       "name": "E-Commerce orders",
       "suffix": "/3/ecomOrders?filters[connectionid]={Connection ID?}&filters[externalid]={External ID?}&filters[externalcheckoutid]={External Checkout ID?}&filters[email]={Email?}&filters[state]={State?:0|1|2|3|4}&filters[customerid]={Customer ID?}&filters[external_created_date]={External Created Date?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The orders synced from connected stores, with the customer, total, currency, date and source. REVENUE ATTRIBUTION LIVES HERE: campaigns and automations can be tied to orders, which is the only way to connect email to money in ActiveCampaign."
     },
     {
       "name": "E-Commerce order",
       "suffix": "/3/ecomOrders/{E-Commerce Order ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One order by id."
     },
     {
       "name": "E-Commerce order products",
       "suffix": "/3/ecomOrderProducts",
-      "paged": "true"
+      "paged": "true",
+      "description": "The line items across orders. What was actually bought, as opposed to the order total."
     },
     {
       "name": "E-Commerce order products for a specific E-Commerce Order",
       "suffix": "/3/ecomOrders/{E-Commerce Order ID}/orderProducts",
-      "paged": "true"
+      "paged": "true",
+      "description": "The line items of one order. Requires an order id."
     },
     {
       "name": "E-Commerce order product",
       "suffix": "/3/ecomOrderProducts/{E-Commerce Order Product ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One order line item by id."
     },
     {
       "name": "Forms",
       "suffix": "/3/forms",
-      "paged": "true"
+      "paged": "true",
+      "description": "The signup forms, with their fields and the lists they feed. The acquisition side, and the explanation for where contacts came from."
     },
     {
       "name": "Form",
       "suffix": "/3/forms/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One form by id."
     },
     {
       "name": "Lists",
       "suffix": "/3/lists?filters[name]={Name?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The mailing lists, with name, subscriber counts and the sender details. The audience container."
     },
     {
       "name": "List",
       "suffix": "/3/lists/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One list by id."
     },
     {
       "name": "Contact Notes",
       "suffix": "/3/contacts/{Contact ID}/notes",
-      "paged": "false"
+      "paged": "false",
+      "description": "The notes on one contact. Requires a contact id."
     },
     {
       "name": "Note",
       "suffix": "/3/notes/{Note ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One note by id."
     },
     {
       "name": "Organizations",
       "suffix": "/3/organizations?filters[name]={Name?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The organisations defined for user grouping. Distinct from Accounts, which are customer companies; these group the account's own staff."
     },
     {
       "name": "Organization",
       "suffix": "/3/organizations/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One organization by id."
     },
     {
       "name": "Saved responses",
       "suffix": "/3/savedResponses",
-      "paged": "true"
+      "paged": "true",
+      "description": "The canned replies available. Which exist says a good deal about the standard cases handled."
     },
     {
       "name": "Saved response",
       "suffix": "/3/savedResponses/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One saved response by id."
     },
     {
       "name": "Scores",
       "suffix": "/3/scores",
-      "paged": "true"
+      "paged": "true",
+      "description": "The scoring rules defined, each with the conditions that add or subtract points. The definitions behind a score value, and where the business's own idea of a qualified lead is written down."
     },
     {
       "name": "Score",
       "suffix": "/3/scores/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One score rule by id."
     },
     {
       "name": "Segments",
       "suffix": "/3/segments",
-      "paged": "true"
+      "paged": "true",
+      "description": "The segments defined, each with the conditions describing an audience. Their conditions state the organisation's own definitions of terms like engaged or lapsed."
     },
     {
       "name": "Segment",
       "suffix": "/3/segments/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One segment by id."
     },
     {
       "name": "Event tracking status",
       "suffix": "/3/eventTracking",
-      "paged": "false"
+      "paged": "false",
+      "description": "Whether custom event tracking is enabled. Event data is only collected when it is, so this explains an empty event vocabulary."
     },
     {
       "name": "Names of tracked events",
       "suffix": "/3/eventTrackingEvents",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom event names being recorded. Events are whatever the site's own code sends, so this is the only way to learn what exists before segmenting on it."
     },
     {
       "name": "Site tracking status",
       "suffix": "/3/siteTracking",
-      "paged": "false"
+      "paged": "false",
+      "description": "Whether site visit tracking is enabled."
     },
     {
       "name": "Whitelisted site tracking domains",
       "suffix": "/3/siteTrackingDomains",
-      "paged": "true"
+      "paged": "true",
+      "description": "The domains site tracking accepts. Visits from anywhere else are not recorded, which is a common cause of gaps."
     },
     {
       "name": "Tags",
       "suffix": "/3/tags?search={Search?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The tags defined. In ActiveCampaign tags drive automation entry and segmentation, so this list is effectively the catalogue of states the business tracks."
     },
     {
       "name": "Tag",
       "suffix": "/3/tags/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One tag by id."
     },
     {
       "name": "Tasks",
       "suffix": "/3/dealTasks?filters[title]={Title?}&filters[reltype]={Relating Object?}&filters[relid]={Relational Object ID?}&filters[status]={Status?}&filters[note]={Note?}&filters[duedate]={Due Date?}&filters[d_tasktypeid]={Task Type?}&filters[userid]={User ID?}&filters[due_after]={Due After?}&filters[due_before]={Due Before?}&filters[duedate_range]={Due Date Range?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The tasks attached to deals, with due date, type, owner and completion. The forward-looking sales work."
     },
     {
       "name": "Task",
       "suffix": "/3/dealTasks/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One deal task by id."
     },
     {
       "name": "Task types",
       "suffix": "/3/dealTasktypes",
-      "paged": "true"
+      "paged": "true",
+      "description": "The task types configured -- call, email, meeting. The decoder for a task's type and the dimension that turns task volume into activity mix."
     },
     {
       "name": "Task type",
       "suffix": "/3/dealTasktypes/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One task type by id."
     },
     {
       "name": "Template",
       "suffix": "/3/templates/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One email template by id. The design layer beneath messages."
     },
     {
       "name": "Users",
       "suffix": "/3/users",
-      "paged": "true"
+      "paged": "true",
+      "description": "The staff users of the account, with name, email and group. Every deal carries an owner, so this is the dimension per-person performance joins to."
     },
     {
       "name": "User by id",
       "suffix": "/3/users/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One user by id."
     },
     {
       "name": "User by email",
       "suffix": "/3/users/email/{Email}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One user by email address. The lookup when the id is unknown."
     },
     {
       "name": "User by username",
       "suffix": "/3/users/username/{Username}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One user by username."
     },
     {
       "name": "Logged-in user",
       "suffix": "/3/users/me",
-      "paged": "false"
+      "paged": "false",
+      "description": "The account the credentials belong to. One record, always the caller."
     },
     {
       "name": "Groups",
       "suffix": "/3/groups",
-      "paged": "true"
+      "paged": "true",
+      "description": "The permission groups users belong to, each with what its members may see. The reason two users get different row counts."
     },
     {
       "name": "Group",
       "suffix": "/3/groups/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One group by id."
     },
     {
       "name": "Webhooks",
       "suffix": "/3/webhooks?filters[name]={Name?}&filters[url]={URL Filter?}&filters[listid]={List ID?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The webhooks configured, with the events each subscribes to. Integration configuration."
     },
     {
       "name": "Webhook events",
       "suffix": "/3/webhook/events",
-      "paged": "true"
+      "paged": "true",
+      "description": "The event types a webhook can subscribe to. Reference data."
     },
     {
       "name": "Webhook",
       "suffix": "/3/webhooks/{ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One webhook by id."
     }
   ]
 }

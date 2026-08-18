@@ -3,17 +3,20 @@
     {
       "name": "Abuse Report",
       "paged": false,
-      "suffix": "/api/core/v3/abuseReports/{Report ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/abuseReports/{Report ID}?fields={Fields?}",
+      "description": "One abuse report by id, with the reporter and the object reported. Community moderation, and the record behind removed content."
     },
     {
       "name": "Acclaims",
       "paged": true,
-      "suffix": "/api/core/v3/acclaim?before={Before?:yyyy-MM-dd'T'HH:mm:ssZ}"
+      "suffix": "/api/core/v3/acclaim?before={Before?:yyyy-MM-dd'T'HH:mm:ssZ}",
+      "description": "The acclaim awarded within the community. Recognition at the community level."
     },
     {
       "name": "Action",
       "paged": false,
-      "suffix": "/api/core/v3/actions/{Action ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/actions/{Action ID}?fields={Fields?}",
+      "description": "One action by id."
     },
     {
       "name": "Actions",
@@ -28,47 +31,56 @@
           "key": "id",
           "parameterName": "Action ID"
         }
-      ]
+      ],
+      "description": "The actionable items assigned to the calling user -- approvals, mentions, tasks awaiting response. The personal work queue."
     },
     {
       "name": "Actions Counts",
       "paged": false,
-      "suffix": "/api/core/v3/actions/counts"
+      "suffix": "/api/core/v3/actions/counts",
+      "description": "How many actions are outstanding, by type. The badge counts, without fetching the items."
     },
     {
       "name": "Activities",
       "paged": true,
-      "suffix": "/api/core/v3/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-dd'T'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+      "suffix": "/api/core/v3/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-dd'T'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}",
+      "description": "The community activity stream -- every action taken, with the actor, the verb, the object acted on and the timestamp. THE BEHAVIOURAL RECORD, as opposed to the content tables which hold what exists: who read, liked, commented, followed and created, and when. Filterable by time and by activity type. Note streams have a retention window, so this is not a permanent history."
     },
     {
       "name": "Activities Count",
       "paged": false,
-      "suffix": "/api/core/v3/activities/count?after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&max={Max Number?}&exclude={Exclude?:false|true}"
+      "suffix": "/api/core/v3/activities/count?after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&max={Max Number?}&exclude={Exclude?:false|true}",
+      "description": "How many activities match given filters, without returning them. The cheap size check."
     },
     {
       "name": "Frequent Content",
       "paged": true,
-      "suffix": "/api/core/v3/activities/frequent/content?fields={Fields?}&filter={Filter?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/activities/frequent/content?fields={Fields?}&filter={Filter?}&abridged={Abridged?:false|true}",
+      "description": "The content the calling user interacts with most. Personalised."
     },
     {
       "name": "Frequent People",
       "paged": true,
-      "suffix": "/api/core/v3/activities/frequent/people?fields={Fields?}"
+      "suffix": "/api/core/v3/activities/frequent/people?fields={Fields?}",
+      "description": "The people the calling user interacts with most. Personalised -- and one of the few endpoints that measures working relationships rather than declared ones."
     },
     {
       "name": "Frequent Places",
       "paged": true,
-      "suffix": "/api/core/v3/activities/frequent/places?fields={Fields?}"
+      "suffix": "/api/core/v3/activities/frequent/places?fields={Fields?}",
+      "description": "The places the calling user visits most. Personalised."
     },
     {
       "name": "Add On",
       "paged": true,
-      "suffix": "/api/core/v3/addOns/{AddOn UUID}?fields={Fields?}"
+      "suffix": "/api/core/v3/addOns/{AddOn UUID}?fields={Fields?}",
+      "description": "One add-on by id, with its status. Add-ons provide tiles, external streams and app content, so this explains community features and data that Jive itself did not produce."
     },
     {
       "name": "Plugin",
       "paged": false,
-      "suffix": "/api/core/v3/admin/plugins/{Plugin Name}?fields={Fields?}"
+      "suffix": "/api/core/v3/admin/plugins/{Plugin Name}?fields={Fields?}",
+      "description": "One plugin by id."
     },
     {
       "name": "Plugins",
@@ -83,17 +95,20 @@
           "key": "pluginID",
           "parameterName": "Plugin Name"
         }
-      ]
+      ],
+      "description": "The plugins installed on the instance. Administrative inventory."
     },
     {
       "name": "Profile Field",
       "paged": false,
-      "suffix": "/api/core/v3/admin/profileFields/{Profile Field ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/admin/profileFields/{Profile Field ID}?fields={Fields?}",
+      "description": "One profile field by id."
     },
     {
       "name": "Profile Field Name",
       "paged": false,
-      "suffix": "/api/core/v3/admin/profileFields/@name?fields={Fields?}"
+      "suffix": "/api/core/v3/admin/profileFields/@name?fields={Fields?}",
+      "description": "One profile field by name."
     },
     {
       "name": "Profile Fields",
@@ -108,7 +123,8 @@
           "key": "profileFieldID",
           "parameterName": "Profile Field ID"
         }
-      ]
+      ],
+      "description": "The profile fields configured community-wide, with their types and whether each is searchable. THE DECODER for the profile field values on a person, and the statement of what the organisation records about people."
     },
     {
       "name": "Properties",
@@ -123,17 +139,20 @@
           "key": "id",
           "parameterName": "Property Name"
         }
-      ]
+      ],
+      "description": "The system properties of the instance. Administrative configuration, and worth checking when a feature-dependent endpoint returns nothing."
     },
     {
       "name": "Property",
       "paged": false,
-      "suffix": "/api/core/v3/admin/properties/{Property Name}?fields={Fields?}"
+      "suffix": "/api/core/v3/admin/properties/{Property Name}?fields={Fields?}",
+      "description": "One system property by name."
     },
     {
       "name": "Announcement",
       "paged": false,
-      "suffix": "/api/core/v3/announcements/{Announcement ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/announcements/{Announcement ID}?fields={Fields?}",
+      "description": "One announcement by id, with its body and the place it applies to."
     },
     {
       "name": "System Announcements",
@@ -148,517 +167,620 @@
           "key": "id",
           "parameterName": "Announcement ID"
         }
-      ]
+      ],
+      "description": "The community-wide announcements currently active. Administrative communication rather than user content."
     },
     {
       "name": "Attachment",
       "paged": false,
-      "suffix": "/api/core/v3/attachments/{Attachment ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/attachments/{Attachment ID}?fields={Fields?}",
+      "description": "One attachment by id."
     },
     {
       "name": "Attachments",
       "paged": true,
-      "suffix": "/api/core/v3/attachments/contents/{Content ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/attachments/contents/{Content ID}?fields={Fields?}",
+      "description": "The attachments on one object. Requires the object id. Metadata; binaries are separate."
     },
     {
       "name": "Event Calendar",
       "paged": false,
-      "suffix": "/api/core/v3/calendar/{Place ID}"
+      "suffix": "/api/core/v3/calendar/{Place ID}",
+      "description": "The calendar of events in the community, with their dates and places. Events are content with a schedule, so they appear in the content tables too -- this is the time-ordered view."
     },
     {
       "name": "Check Points",
       "paged": true,
-      "suffix": "/api/core/v3/checkpoints/{Project ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/checkpoints/{Project ID}?fields={Fields?}",
+      "description": "The checkpoints of one video, marking positions viewers reached. Requires the video id. Video engagement depth, as opposed to view counts."
     },
     {
       "name": "Collaboration",
       "paged": false,
-      "suffix": "/api/core/v3/collaborations/{Collaboration ID}"
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}",
+      "description": "One collaboration session by id -- Jive's real-time co-editing record."
     },
     {
       "name": "Collaboration by External ID",
       "paged": false,
-      "suffix": "/api/core/v3/collaborations/ext/{External ID}"
+      "suffix": "/api/core/v3/collaborations/ext/{External ID}",
+      "description": "One collaboration by the external system's identifier."
     },
     {
       "name": "Interaction",
       "paged": false,
-      "suffix": "/api/core/v3/collaborations/interactions/{Interaction ID}"
+      "suffix": "/api/core/v3/collaborations/interactions/{Interaction ID}",
+      "description": "One interaction by id."
     },
     {
       "name": "Interaction Optionally With Context",
       "paged": false,
-      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/interactions/{Interaction ID}"
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/interactions/{Interaction ID}",
+      "description": "One interaction with its surrounding context, where available."
     },
     {
       "name": "Interactions",
       "paged": true,
-      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/interactions"
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/interactions",
+      "description": "The interactions within collaborations -- the individual actions taken in a session. Fine-grained collaboration telemetry."
     },
     {
       "name": "Participants",
       "paged": true,
-      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/participants"
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/participants",
+      "description": "Who took part in one collaboration. Requires the collaboration id."
     },
     {
       "name": "Abuse Reports for Comment",
       "paged": true,
-      "suffix": "/api/core/v3/comments/{Comment ID}/abuseReports?fields={Fields?}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/abuseReports?fields={Fields?}",
+      "description": "The abuse reports raised against one comment. Requires the comment id."
     },
     {
       "name": "Comment",
       "paged": false,
-      "suffix": "/api/core/v3/comments/{Comment ID}?fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/comments/{Comment ID}?fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "One comment by id, with its body and author."
     },
     {
       "name": "Comment Likes",
       "paged": true,
-      "suffix": "/api/core/v3/comments/{Comment ID}/likes?fields={Fields?}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/likes?fields={Fields?}",
+      "description": "Who liked one comment. Requires the comment id."
     },
     {
       "name": "Comment Comments",
       "paged": true,
-      "suffix": "/api/core/v3/comments/{Comment ID}/comments?fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/comments?fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}",
+      "description": "The replies to one comment. Requires the comment id. Comments nest, so a full thread means walking this."
     },
     {
       "name": "Editable Comment",
       "paged": false,
-      "suffix": "/api/core/v3/comments/{Comment ID}/editable?fields={Fields?}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/editable?fields={Fields?}",
+      "description": "Whether the calling user may edit one comment. A permission check."
     },
     {
       "name": "Comment Marked Helpful",
       "paged": true,
-      "suffix": "/api/core/v3/comments/{Comment ID}/helpful?fields={Fields?}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/helpful?fields={Fields?}",
+      "description": "Whether one comment is marked helpful, and by whom. Requires the comment id. IN A SUPPORT COMMUNITY THIS IS THE QUALITY SIGNAL -- a helpful mark says an answer worked, which no like count conveys."
     },
     {
       "name": "Comment Marked Unhelpful",
       "paged": true,
-      "suffix": "/api/core/v3/comments/{Comment ID}/unhelpful?fields={Fields?}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/unhelpful?fields={Fields?}",
+      "description": "Whether one comment is marked unhelpful. The negative signal, and worth reading alongside the positive rather than instead of it."
     },
     {
       "name": "Comment Outcome Types",
       "paged": true,
-      "suffix": "/api/core/v3/comments/{Comment ID}/outcomeTypes?fields={Fields?}"
+      "suffix": "/api/core/v3/comments/{Comment ID}/outcomeTypes?fields={Fields?}",
+      "description": "The outcome types applicable to one comment. Requires the comment id."
     },
     {
       "name": "Abuse Reports for Content",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/abuseReports?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/abuseReports?fields={Fields?}",
+      "description": "The abuse reports raised against one content object. Requires the content id. Moderation, and the explanation for content that disappeared."
     },
     {
       "name": "Child Outcome Types",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/childOutcomeTypes?fields={Fields?}&isCreate={Is Create?:false|true}"
+      "suffix": "/api/core/v3/contents/{Content ID}/childOutcomeTypes?fields={Fields?}&isCreate={Is Create?:false|true}",
+      "description": "The outcome types applicable to the children of one content object. Requires the content id."
     },
     {
       "name": "Content Comments",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/comments?filter={Filter?:outcomeType}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}&author={Author?:false|true}&inline={Inline?:false|true}"
+      "suffix": "/api/core/v3/contents/{Content ID}/comments?filter={Filter?:outcomeType}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}&author={Author?:false|true}&inline={Inline?:false|true}",
+      "description": "The comments on one content object. Requires the content id. Where discussion beneath a document or blog post lives."
     },
     {
       "name": "Content Data",
       "paged": false,
-      "suffix": "/api/core/v3/contents/{Content ID}/data"
+      "suffix": "/api/core/v3/contents/{Content ID}/data",
+      "description": "One content object by id, with its full body and metadata. Requires the content id."
     },
     {
       "name": "Content Followers",
       "paged": false,
-      "suffix": "/api/core/v3/contents/{Content ID}/followers?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/followers?fields={Fields?}",
+      "description": "Who follows one content object. Requires the content id. Following is Jive's subscription mechanism, so this is the audience that gets notified about a document."
     },
     {
       "name": "Content Following In",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/followingIn?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/followingIn?fields={Fields?}",
+      "description": "The streams one content object is being followed in. Requires the content id."
     },
     {
       "name": "Content Likes",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/likes?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/likes?fields={Fields?}",
+      "description": "Who liked one content object. Requires the content id. The content record carries a like count; this is who they were."
     },
     {
       "name": "Contents",
       "paged": true,
-      "suffix": "/api/core/v3/contents?filter={Filter?}&fields={Fields?}&abridged={Abridged?:false|true}&includeBlogs={Include Blogs?:false|true}"
+      "suffix": "/api/core/v3/contents?filter={Filter?}&fields={Fields?}&abridged={Abridged?:false|true}&includeBlogs={Include Blogs?:false|true}",
+      "description": "ALL CONTENT IN THE COMMUNITY IN ONE TABLE -- documents, discussions, blog posts, polls, ideas, files, videos and status updates are every one of them 'content', told apart by a TYPE field. This polymorphism is the defining fact of the Jive API and it repeats for places and activities: one endpoint, many shapes, and a type discriminator deciding which fields are even present. So any question about a particular kind of content is a filter on type, and a count taken without one counts everything the community has ever produced. TWO OTHER THINGS APPLY THROUGHOUT. The FILTER parameter takes Jive's own syntax -- type(document), place(...), search(...), tag(...) -- and is the only real query mechanism. And the FIELDS parameter decides which fields come back: Jive returns a default subset, so most of a content object is absent unless named."
     },
     {
       "name": "Editable Content",
       "paged": false,
-      "suffix": "/api/core/v3/contents/{Content ID}/editable?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/editable?fields={Fields?}",
+      "description": "The content the calling user may edit. A permission view, scoped to the caller."
     },
     {
       "name": "Featured Content",
       "paged": true,
-      "suffix": "/api/core/v3/contents/featured?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/contents/featured?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "The content editorially marked as featured. A human choice rather than a computed one."
     },
     {
       "name": "My Entitlements",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/entitlements?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/entitlements?fields={Fields?}",
+      "description": "The permissions the calling user holds on one content object. Requires the content id. Why the caller can or cannot act on it."
     },
     {
       "name": "Content Outcomes",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/outcomes?fields={Fields?}&includeChildrenOutcomes={Include?:false|true}"
+      "suffix": "/api/core/v3/contents/{Content ID}/outcomes?fields={Fields?}&includeChildrenOutcomes={Include?:false|true}",
+      "description": "The outcomes marked on one content object -- resolved, decision, action item, success and the rest. Requires the content id. OUTCOMES ARE HOW JIVE RECORDS THAT SOMETHING WAS SETTLED: a discussion with an answer is distinguished from one without only by an outcome, so question-resolution rates depend entirely on this table."
     },
     {
       "name": "Content Outcome Types",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/outcomeTypes?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/outcomeTypes?fields={Fields?}",
+      "description": "The outcome types that may be applied to one content object. Requires the content id. Which outcomes are permitted depends on the content type, so this is the per-object vocabulary."
     },
     {
       "name": "Popular Content",
       "paged": true,
-      "suffix": "/api/core/v3/contents/popular"
+      "suffix": "/api/core/v3/contents/popular",
+      "description": "The content ranked by engagement over a period. Jive's own popularity calculation rather than a raw count."
     },
     {
       "name": "Preview Image",
       "paged": false,
-      "suffix": "/api/core/v3/contents/{Content ID}/previewImage?size={Size?}&returnDefaultImageWhenNoPreviewAvailable={Preview Available?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/previewImage?size={Size?}&returnDefaultImageWhenNoPreviewAvailable={Preview Available?}",
+      "description": "The preview image of one content object. Requires the content id. Presentation."
     },
     {
       "name": "Recent Content",
       "paged": true,
-      "suffix": "/api/core/v3/contents/recent?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/contents/recent?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "The content most recently created or modified across the community. The incremental view, and the practical entry point when the question is about what changed."
     },
     {
       "name": "Recommended Content",
       "paged": true,
-      "suffix": "/api/core/v3/contents/recommended?fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/contents/recommended?fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "Content Jive recommends to the calling user. Personalised, so it describes the caller rather than the community."
     },
     {
       "name": "Trending Content",
       "paged": true,
-      "suffix": "/api/core/v3/contents/trending?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/contents/trending?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "The content gaining engagement fastest right now. Distinct from popular: trending is about acceleration, popular about volume, and a piece of content can be one without the other."
     },
     {
       "name": "User Entitlements",
       "paged": true,
-      "suffix": "/api/core/v3/contents/{Content ID}/entitlements/{Person ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/contents/{Content ID}/entitlements/{Person ID}?fields={Fields?}",
+      "description": "The permissions a named user holds on one content object. Requires the content id."
     },
     {
       "name": "Deleted Contents",
       "paged": true,
-      "suffix": "/api/core/v3/deletedObjects/contents?filter={Filter?:since|type}&fields={Fields?}"
+      "suffix": "/api/core/v3/deletedObjects/contents?filter={Filter?:since|type}&fields={Fields?}",
+      "description": "The content deleted since a given time. THE ONLY WAY A SYNCHRONISED COPY LEARNS THAT CONTENT HAS GONE -- deletions leave no trace in the content tables, so a downstream store diverges silently without this."
     },
     {
       "name": "Deleted Object",
       "paged": false,
-      "suffix": "/api/core/v3/deletedObjects/{Deleted Object ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/deletedObjects/{Deleted Object ID}?fields={Fields?}",
+      "description": "One deleted object's record, by id."
     },
     {
       "name": "Deleted People",
       "paged": true,
-      "suffix": "/api/core/v3/deletedObjects/people?filter={Filter?:since}&fields={Fields?}"
+      "suffix": "/api/core/v3/deletedObjects/people?filter={Filter?:since}&fields={Fields?}",
+      "description": "The people deleted since a given time."
     },
     {
       "name": "Deleted Places",
       "paged": true,
-      "suffix": "/api/core/v3/deletedObjects/places?filter={Filter?:since|type}&fields={Fields?}"
+      "suffix": "/api/core/v3/deletedObjects/places?filter={Filter?:since|type}&fields={Fields?}",
+      "description": "The places deleted since a given time."
     },
     {
       "name": "Direct Message Comments",
       "paged": true,
-      "suffix": "/api/core/v3 /dms/{Direct Message ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+      "suffix": "/api/core/v3/dms/{Direct Message ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}",
+      "description": "The replies within one direct message thread. Requires the message id."
     },
     {
       "name": "Direct Message Images",
       "paged": true,
-      "suffix": "/api/core/v3/dms/{Direct Message ID}/images?fields={Fields?}"
+      "suffix": "/api/core/v3/dms/{Direct Message ID}/images?fields={Fields?}",
+      "description": "The images within one direct message. Requires the message id."
     },
     {
       "name": "Direct Message",
       "paged": false,
-      "suffix": "/api/core/v3/dms/{Direct Message ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/dms/{Direct Message ID}?fields={Fields?}",
+      "description": "One direct message by id. Private messages between users, invisible in the content and activity tables, which is why community-wide engagement figures understate real communication."
     },
     {
       "name": "Event Type",
       "paged": false,
-      "suffix": "/api/core/v3/eventTypes/{Event Type ID}"
+      "suffix": "/api/core/v3/eventTypes/{Event Type ID}",
+      "description": "One event type by id."
     },
     {
       "name": "Event Types",
       "paged": true,
-      "suffix": "/api/core/v3/eventTypes"
+      "suffix": "/api/core/v3/eventTypes",
+      "description": "The event types configured. The decoder for an event's type."
     },
     {
       "name": "External Stream Definition",
       "paged": false,
-      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}?fields={Fields?}",
+      "description": "One external stream definition by id."
     },
     {
       "name": "External Stream Definition I18n Resource",
       "paged": false,
-      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}/i18n/{Language?}/{Country?}"
+      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}/i18n/{Language?}/{Country?}",
+      "description": "The translated strings of one external stream definition."
     },
     {
       "name": "External Stream Definitions",
       "paged": true,
-      "suffix": "/api/core/v3/extstreamDefs?filter={Filter?:name|addonUUID|state}&fields={Fields?}"
+      "suffix": "/api/core/v3/extstreamDefs?filter={Filter?:name|addonUUID|state}&fields={Fields?}",
+      "description": "The external stream types add-ons provide."
     },
     {
       "name": "Prototype",
       "paged": false,
-      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}/prototype?fields={Fields?}"
+      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}/prototype?fields={Fields?}",
+      "description": "A prototype external stream object. Scaffolding."
     },
     {
       "name": "External Stream Tile Category",
       "paged": false,
-      "suffix": "/api/core/v3/extstreamDefs/category/{Tile Category ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/extstreamDefs/category/{Tile Category ID}?fields={Fields?}",
+      "description": "The tile category associated with an external stream definition."
     },
     {
       "name": "Specified External Stream Instance",
       "paged": false,
-      "suffix": "/api/core/v3/extstreams/{Definition ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/extstreams/{Definition ID}?fields={Fields?}",
+      "description": "One external stream instance by id."
     },
     {
       "name": "Instance by External ID",
       "paged": false,
-      "suffix": "/api/core/v3/extstreams/external/{Extension UUID}/{External ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/extstreams/external/{Extension UUID}/{External ID}?fields={Fields?}",
+      "description": "One external stream instance by the external system's identifier."
     },
     {
       "name": "External Stream Instances",
       "paged": true,
-      "suffix": "/api/core/v3/extstreams?filter={Filter:tilePage}&fields={Fields?}"
+      "suffix": "/api/core/v3/extstreams?filter={Filter:tilePage}&fields={Fields?}",
+      "description": "The external stream instances configured -- integrations pushing activity from other systems into Jive streams. WHERE ACTIVITY FROM OUTSIDE JIVE ENTERS: the activity tables include these, so an activity count spans systems, and this is what says which."
     },
     {
       "name": "External Stream Private Properties",
       "paged": true,
-      "suffix": "/api/core/v3/extstreams/{Instance ID}/privateprops"
+      "suffix": "/api/core/v3/extstreams/{Instance ID}/privateprops",
+      "description": "The private configuration of one external stream instance."
     },
     {
       "name": "Content Votes",
       "paged": true,
-      "suffix": "/api/core/v3/ideaVotes/{Content ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/ideaVotes/{Content ID}?fields={Fields?}",
+      "description": "The votes cast on one poll or idea. Requires the content id. THE OUTCOME OF A POLL OR IDEA lives here rather than on the content itself, so a result is only readable through this."
     },
     {
       "name": "Content Images",
       "paged": true,
-      "suffix": "/api/core/v3/images/contents/{Content ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/images/contents/{Content ID}?fields={Fields?}",
+      "description": "The images embedded in one content object. Requires the content id."
     },
     {
       "name": "Image",
       "paged": false,
-      "suffix": "/api/core/v3/images/{Image ID}?width={Width?}&height={Height?}&preserveAspectRatio={Preserve?:false|true}&thumbnail={Thumbnail?}false|true"
+      "suffix": "/api/core/v3/images/{Image ID}?width={Width?}&height={Height?}&preserveAspectRatio={Preserve?:false|true}&thumbnail={Thumbnail?}false|true",
+      "description": "One image by id."
     },
     {
       "name": "Activity Inbox",
       "paged": true,
-      "suffix": "/api/core/v3/inbox?filter={Filter?:author|notifications|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}&directive={Directive?:include_rtc|collapse|collapseSkip}"
+      "suffix": "/api/core/v3/inbox?filter={Filter?:author|notifications|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}&directive={Directive?:include_rtc|collapse|collapseSkip}",
+      "description": "The calling user's inbox stream -- everything they are meant to see. Scoped to the caller, so it describes one person's attention rather than the community."
     },
     {
       "name": "Counts",
       "paged": false,
-      "suffix": "/api/core/v3/inbox/counts?filter={Filter?}"
+      "suffix": "/api/core/v3/inbox/counts?filter={Filter?}",
+      "description": "The unread counts of the calling user's inbox."
     },
     {
       "name": "Invite",
       "paged": false,
-      "suffix": "/api/core/v3/invites/{Invite ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/invites/{Invite ID}?fields={Fields?}",
+      "description": "One invitation by id. Pending membership, which no member list shows."
     },
     {
       "name": "Place Invites",
       "paged": true,
-      "suffix": "/api/core/v3/invites/places/{Place ID}?fields={Fields?}&inviter={Inviter?}&invitee={Invitee?}"
+      "suffix": "/api/core/v3/invites/places/{Place ID}?fields={Fields?}&inviter={Inviter?}&invitee={Invitee?}",
+      "description": "The invitations to join one place. Requires the place id. Pending membership, which the member list does not show."
     },
     {
       "name": "All Invites",
       "paged": true,
-      "suffix": "/api/core/v3/invites/event/all/{Event ID}"
+      "suffix": "/api/core/v3/invites/event/all/{Event ID}",
+      "description": "Every outstanding invitation. The onboarding backlog."
     },
     {
       "name": "Member",
       "paged": false,
-      "suffix": "/api/core/v3/members/{Member ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/members/{Member ID}?fields={Fields?}",
+      "description": "One membership record by id, with the person and group and the role held."
     },
     {
       "name": "Members by Group",
       "paged": true,
-      "suffix": "/api/core/v3/members/places/{Place ID}?filter={Filter?:person}&fields={Fields?}&state={State?:banned|invited|member|owner|pending}"
+      "suffix": "/api/core/v3/members/places/{Place ID}?filter={Filter?:person}&fields={Fields?}&state={State?:banned|invited|member|owner|pending}",
+      "description": "The members of one security group. Requires the group id."
     },
     {
       "name": "Members by Person",
       "paged": true,
-      "suffix": "/api/core/v3/members/people/{Person ID}?filter={Filter?:place}&fields={Fields?}&state={State?:banned|invited|member|owner|pending}"
+      "suffix": "/api/core/v3/members/people/{Person ID}?filter={Filter?:place}&fields={Fields?}&state={State?:banned|invited|member|owner|pending}",
+      "description": "The groups one person belongs to. Requires the person id."
     },
     {
       "name": "Mention",
       "paged": false,
-      "suffix": "/api/core/v3/mentions/{Mention ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/mentions/{Mention ID}?fields={Fields?}",
+      "description": "One mention by id -- a reference to a person inside content. Mentions are how attention is directed in Jive, so they are a better signal of who is being pulled into work than follower counts."
     },
     {
       "name": "Content Replies",
       "paged": true,
-      "suffix": "/api/core/v3/messages/contents/{Content ID}?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+      "suffix": "/api/core/v3/messages/contents/{Content ID}?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}",
+      "description": "The replies to one message. Requires the message id. Discussions are threaded through messages rather than comments, which is why both exist."
     },
     {
       "name": "Editable Message",
       "paged": false,
-      "suffix": "/api/core/v3/messages/{Message ID}/editable?fields={Fields?}"
+      "suffix": "/api/core/v3/messages/{Message ID}/editable?fields={Fields?}",
+      "description": "Whether the calling user may edit one message. A permission check."
     },
     {
       "name": "Message Marked Helpful",
       "paged": true,
-      "suffix": "/api/core/v3/messages/{Message ID}/helpful?fields={Fields?}"
+      "suffix": "/api/core/v3/messages/{Message ID}/helpful?fields={Fields?}",
+      "description": "Whether one message is marked helpful, and by whom. Requires the message id."
     },
     {
       "name": "Message Marked Unhelpful",
       "paged": true,
-      "suffix": "/api/core/v3/messages/{Message ID}/unhelpful?fields={Fields?}"
+      "suffix": "/api/core/v3/messages/{Message ID}/unhelpful?fields={Fields?}",
+      "description": "Whether one message is marked unhelpful. Requires the message id."
     },
     {
       "name": "Message",
       "paged": false,
-      "suffix": "/api/core/v3/messages/{Message ID}?fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/messages/{Message ID}?fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "One message by id -- a reply within a discussion thread. Discussions are built from messages, not comments, which is the distinction to keep straight when counting participation."
     },
     {
       "name": "Message Likes",
       "paged": true,
-      "suffix": "/api/core/v3/messages/{Message ID}/likes?fields={Fields?}"
+      "suffix": "/api/core/v3/messages/{Message ID}/likes?fields={Fields?}",
+      "description": "Who liked one message. Requires the message id."
     },
     {
       "name": "Message Outcomes",
       "paged": true,
-      "suffix": "/api/core/v3/messages/{Message ID}/outcomes?fields={Fields?}"
+      "suffix": "/api/core/v3/messages/{Message ID}/outcomes?fields={Fields?}",
+      "description": "The outcomes marked on one message. Requires the message id. A message marked as the correct answer is how a question is resolved, so this is the resolution record for discussions."
     },
     {
       "name": "Message Replies",
       "paged": true,
-      "suffix": "/api/core/v3/messages/{Message ID}/messages?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}&messageTarget={Message Target?}"
+      "suffix": "/api/core/v3/messages/{Message ID}/messages?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}&messageTarget={Message Target?}",
+      "description": "The replies to one message. Requires the message id. How a discussion thread branches."
     },
     {
       "name": "Available Locale Metadata",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/locales/available"
+      "suffix": "/api/core/v3/metadata/locales/available",
+      "description": "The locales the instance could offer."
     },
     {
       "name": "Supported Locale Metadata",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/locales/supported"
+      "suffix": "/api/core/v3/metadata/locales/supported",
+      "description": "The locales the instance actually supports. Content and profile fields are localised, so this bounds what a multilingual query can ask for."
     },
     {
       "name": "All Object Metadata",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/objects/@all?fields={Fields?:@all}"
+      "suffix": "/api/core/v3/metadata/objects/@all?fields={Fields?:@all}",
+      "description": "The metadata of every object type. The whole schema in one call."
     },
     {
       "name": "Field Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/objects/{Object Name}/{Field}"
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}/{Field}",
+      "description": "The metadata of one field -- its type, constraints and whether it is filterable."
     },
     {
       "name": "Field Metadata Values",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/objects/{Object Name}/{Field}/values?filter={Filter?:search|fieldValues}&count={Count?}&includeCount={Include Count?:false|true}&objectValues={Object Values?:false|true}"
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}/{Field}/values?filter={Filter?:search|fieldValues}&count={Count?}&includeCount={Include Count?:false|true}&objectValues={Object Values?:false|true}",
+      "description": "The permitted values of one field. The decoder for that field's codes."
     },
     {
       "name": "Object Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/objects/{Object Name}"
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}",
+      "description": "The metadata of one object type -- its fields, their types and their constraints. Requires the type name."
     },
     {
       "name": "Object Metadata Values",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/objects/{Object Name}/values?filter={Filter?:search|fieldValues}&count={Count?}&includeCount={Include Count?:false|true}&fields={Fields?}"
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}/values?filter={Filter?:search|fieldValues}&count={Count?}&includeCount={Include Count?:false|true}&fields={Fields?}",
+      "description": "The permitted values of one object type's enumerated fields. The decoder for coded values."
     },
     {
       "name": "Object Types",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/objects"
+      "suffix": "/api/core/v3/metadata/objects",
+      "description": "The object types the API exposes. THE ROOT OF JIVE'S METADATA MODEL, which is unusually complete: the platform describes its own schema, so what a field means and which values it accepts are answerable from the API rather than from documentation."
     },
     {
       "name": "All Property Metadata",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/properties"
+      "suffix": "/api/core/v3/metadata/properties",
+      "description": "The metadata of every system property."
     },
     {
       "name": "Property Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/properties/{Property Name}"
+      "suffix": "/api/core/v3/metadata/properties/{Property Name}",
+      "description": "The metadata of one system property."
     },
     {
       "name": "All Public Property Metadata",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/properties/public"
+      "suffix": "/api/core/v3/metadata/properties/public",
+      "description": "The metadata of the publicly readable properties. The subset available without administrative rights."
     },
     {
       "name": "Public Property Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/properties/public/{Property Name}"
+      "suffix": "/api/core/v3/metadata/properties/public/{Property Name}",
+      "description": "The metadata of one public property."
     },
     {
       "name": "Field Resource Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/resources/{Object Name}/{Field}"
+      "suffix": "/api/core/v3/metadata/resources/{Object Name}/{Field}",
+      "description": "The API resources associated with one field."
     },
     {
       "name": "Object Resource Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/resources/{Object Name}"
+      "suffix": "/api/core/v3/metadata/resources/{Object Name}",
+      "description": "The API resources available on one object type. What can be done with it."
     },
     {
       "name": "Object Type Mappings",
       "paged": true,
-      "suffix": "/api/core/v3/metadata/resources"
+      "suffix": "/api/core/v3/metadata/resources",
+      "description": "How object type names map to their identifiers. The translation between the names used in filters and those in responses."
     },
     {
       "name": "All Time Zone Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/timezones"
+      "suffix": "/api/core/v3/metadata/timezones",
+      "description": "Every time zone the instance recognises. Relevant because activity timestamps are rendered per user."
     },
     {
       "name": "Time Zone Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/metadata/timezones/{First}/{Second}/{Third?}"
+      "suffix": "/api/core/v3/metadata/timezones/{First}/{Second}/{Third?}",
+      "description": "One time zone's metadata."
     },
     {
       "name": "Moderation Counts",
       "paged": false,
-      "suffix": "/api/core/v3/moderation/pending/counts?filter={Filter?}"
+      "suffix": "/api/core/v3/moderation/pending/counts?filter={Filter?}",
+      "description": "How many items await moderation, by type. The backlog size."
     },
     {
       "name": "Moderation",
       "paged": false,
-      "suffix": "/api/core/v3/moderation/{Moderation ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/moderation/{Moderation ID}?fields={Fields?}",
+      "description": "The moderation queue -- content awaiting approval. Content in moderation is NOT visible in the ordinary content listings, so a publishing-volume figure omits it until it is approved."
     },
     {
       "name": "Pending Moderation",
       "paged": false,
-      "suffix": "/api/core/v3/moderation/pending?filter={Filter?:objectType|place|author|moderationType}&fields={Fields?}"
+      "suffix": "/api/core/v3/moderation/pending?filter={Filter?:objectType|place|author|moderationType}&fields={Fields?}",
+      "description": "The items awaiting moderation for the calling user, as a moderator."
     },
     {
       "name": "Embed",
       "paged": false,
-      "suffix": "/api/core/v3/oembed"
+      "suffix": "/api/core/v3/oembed",
+      "description": "The oEmbed representation of a URL. A rendering helper rather than data."
     },
     {
       "name": "History",
       "paged": false,
-      "suffix": "/api/core/v3/outcomes/{Outcome ID}/history"
+      "suffix": "/api/core/v3/outcomes/{Outcome ID}/history",
+      "description": "The history of outcomes on one object. Requires the object id. An outcome can be changed or removed, so this is the record of how a resolution state evolved."
     },
     {
       "name": "Outcome",
       "paged": false,
-      "suffix": "/api/core/v3/outcomes/{Outcome ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/outcomes/{Outcome ID}?fields={Fields?}",
+      "description": "One outcome by id, with the object it was applied to and by whom."
     },
     {
       "name": "Outcomes",
       "paged": false,
-      "suffix": "/api/core/v3/outcomes?fields={Fields?}&hidden={Hidden?:false|true}"
+      "suffix": "/api/core/v3/outcomes?fields={Fields?}&hidden={Hidden?:false|true}",
+      "description": "The outcomes recorded across the community -- resolved, decision, action item, success, helpful. OUTCOMES ARE HOW JIVE RECORDS THAT SOMETHING WAS SETTLED, so resolution rates, decision counts and unanswered-question analysis all reduce to this table."
     },
     {
       "name": "Page",
       "paged": false,
-      "suffix": "/api/core/v3/pages/{Page ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/pages/{Page ID}?fields={Fields?}",
+      "description": "One page by id, with its tiles."
     },
     {
       "name": "Prototype Page",
       "paged": false,
-      "suffix": "/api/core/v3/pages/prototype?placeTemplateID={PlaceTemplate ID}&placeURI={Place URI}&fields={Fields?}"
+      "suffix": "/api/core/v3/pages/prototype?placeTemplateID={PlaceTemplate ID}&placeURI={Place URI}&fields={Fields?}",
+      "description": "A blank page object, for building a new one. Scaffolding rather than data."
     },
     {
       "name": "Activity Person",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/activities?filter={Filter?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+      "suffix": "/api/core/v3/people/{Person ID}/activities?filter={Filter?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}",
+      "description": "The activity stream of one person. Requires the person id. What someone actually did, as opposed to what they are."
     },
     {
       "name": "All People",
@@ -701,172 +823,206 @@
           "key": "id",
           "parameterName": "Person ID"
         }
-      ]
+      ],
+      "description": "Every person in the community, paged. The complete roster, as opposed to the filtered listing."
     },
     {
       "name": "Blog",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/blog?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/blog?fields={Fields?}",
+      "description": "One person's blog. Requires the person id."
     },
     {
       "name": "Colleagues",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@colleagues?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@colleagues?fields={Fields?}",
+      "description": "The colleagues of one person. Requires the person id."
     },
     {
       "name": "Common Bidirectional Related People",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@common?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@common?fields={Fields?}",
+      "description": "The people two users have in common, following each other. THE SOCIAL GRAPH INTERSECTION -- who connects two people, which no directory can answer."
     },
     {
       "name": "Featured Content for Person",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@featuredContent?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/people/{Person ID}/@featuredContent?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "The content featured for one person. Personalised."
     },
     {
       "name": "Filterable Fields",
       "paged": true,
-      "suffix": "/api/core/v3/people/@filterableFields"
+      "suffix": "/api/core/v3/people/@filterableFields",
+      "description": "The person fields that may be filtered on. Narrower than the supported set, and the limit on what a people query can ask."
     },
     {
       "name": "Followers",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@followers?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@followers?fields={Fields?}",
+      "description": "Who follows one person. Requires the person id."
     },
     {
       "name": "Following",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@following?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@following?fields={Fields?}",
+      "description": "Who one person follows. Requires the person id."
     },
     {
       "name": "Following In",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/followingIn?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/followingIn?fields={Fields?}",
+      "description": "The streams one person is followed in. Requires the person id."
     },
     {
       "name": "Following Person",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/@following/{Followed Person ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@following/{Followed Person ID}?fields={Fields?}",
+      "description": "Whether one person follows another. A relationship check."
     },
     {
       "name": "Manager",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/@manager"
+      "suffix": "/api/core/v3/people/{Person ID}/@manager",
+      "description": "One person's manager. Requires the person id. The organisational hierarchy, where Jive is fed from a directory."
     },
     {
       "name": "Metadata",
       "paged": false,
-      "suffix": "/api/core/v3/people/@metadata"
+      "suffix": "/api/core/v3/people/@metadata",
+      "description": "The metadata describing the person object. The schema behind a person record."
     },
     {
       "name": "News",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@news?fields={Fields?}&maxPerStream={Max Number?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@news?fields={Fields?}&maxPerStream={Max Number?}",
+      "description": "The news stream of one person. Requires the person id. What Jive presents to them, not what they produced."
     },
     {
       "name": "Pages",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/pages"
+      "suffix": "/api/core/v3/people/{Person ID}/pages",
+      "description": "The custom pages built in the community. Layout containers assembled from tiles."
     },
     {
       "name": "Pages Prototype",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/pages/prototype?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/pages/prototype?fields={Fields?}",
+      "description": "A prototype page object for one person, for building a new page."
     },
     {
       "name": "Pending Expertise Tags",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/expertise/pending"
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/pending",
+      "description": "The expertise endorsements awaiting one person's acceptance. Requires the person id."
     },
     {
       "name": "People",
       "paged": false,
-      "suffix": "/api/core/v3/people?ids={Person IDs?}&query={Query?}&fields={Fields?}&filter={Filter?}"
+      "suffix": "/api/core/v3/people?ids={Person IDs?}&query={Query?}&fields={Fields?}&filter={Filter?}",
+      "description": "The users of the community, with name, email, title, location, the profile fields, and their follower and content counts. Filterable and field-selectable like everything else here."
     },
     {
       "name": "Person by ID",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}?fields={Fields?}",
+      "description": "One person by id."
     },
     {
       "name": "Person by Email",
       "paged": false,
-      "suffix": "/api/core/v3/people/email/{Email}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/email/{Email}?fields={Fields?}",
+      "description": "One person by email address. The lookup when the id is unknown."
     },
     {
       "name": "Person by External Identity",
       "paged": false,
-      "suffix": "/api/core/v3/people/external/{Identity Type}/{Identity?}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/external/{Identity Type}/{Identity?}?fields={Fields?}",
+      "description": "One person by an identity from an external system. THE BRIDGE from a corporate directory or single-sign-on identifier to a Jive user, which no other endpoint provides."
     },
     {
       "name": "Person by Username",
       "paged": false,
-      "suffix": "/api/core/v3/people/username/{User Name}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/username/{User Name}?fields={Fields?}",
+      "description": "One person by username."
     },
     {
       "name": "Private Properties for Person",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/privateprops"
+      "suffix": "/api/core/v3/people/{Person ID}/privateprops",
+      "description": "The private properties stored against one person. Requires the person id. Application storage rather than profile data."
     },
     {
       "name": "Profile Field Privacy",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/profilePrivacy/{Field ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/profilePrivacy/{Field ID}?fields={Fields?}",
+      "description": "The privacy setting of one profile field for a person. WHY A FIELD IS BLANK: a hidden field returns nothing, which looks identical to an unfilled one."
     },
     {
       "name": "Profile Fields Privacy",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/profilePrivacy?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/profilePrivacy?fields={Fields?}",
+      "description": "The privacy settings of all profile fields for a person."
     },
     {
       "name": "Profile Image",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/images/{Image Index}"
+      "suffix": "/api/core/v3/people/{Person ID}/images/{Image Index}",
+      "description": "One person's profile image."
     },
     {
       "name": "Profile Images",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/images?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/images?fields={Fields?}",
+      "description": "All profile images of one person."
     },
     {
       "name": "Recognition",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/@recognition?maxOutcomes={Outcomes Number?}&fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@recognition?maxOutcomes={Outcomes Number?}&fields={Fields?}",
+      "description": "The recognition badges awarded to one person. Requires the person id. Jive's peer-recognition record."
     },
     {
       "name": "Recommended People",
       "paged": false,
-      "suffix": "/api/core/v3/people/recommended?fields={Fields?}"
+      "suffix": "/api/core/v3/people/recommended?fields={Fields?}",
+      "description": "People recommended to the calling user. Personalised."
     },
     {
       "name": "Report",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/@reports/{Report Person ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@reports/{Report Person ID}?fields={Fields?}",
+      "description": "One direct report of a person."
     },
     {
       "name": "Reports",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@reports?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@reports?fields={Fields?}",
+      "description": "The direct reports of one person. Requires the person id. Together with Manager this reconstructs the org chart."
     },
     {
       "name": "Person Resources",
       "paged": true,
-      "suffix": "/api/core/v3/people/@resources"
+      "suffix": "/api/core/v3/people/@resources",
+      "description": "The API resources available for one person. A discovery aid rather than data."
     },
     {
       "name": "Person Roles",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/roles"
+      "suffix": "/api/core/v3/people/{Person ID}/roles",
+      "description": "The roles one person holds. Requires the person id. Roles decide capability, so this is why two users can do different things."
     },
     {
       "name": "Security Groups for Person",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/securityGroups?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/securityGroups?fields={Fields?}",
+      "description": "The security groups one person belongs to. Requires the person id. Group membership is how most access is granted, so this is the practical answer to what someone can reach."
     },
     {
       "name": "Social Users",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@social?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/@social?fields={Fields?}",
+      "description": "The external social accounts linked to one person. Requires the person id."
     },
     {
       "name": "Streams",
@@ -884,122 +1040,146 @@
           "key": "id",
           "parameterName": "Stream ID"
         }
-      ]
+      ],
+      "description": "The custom streams defined -- the curated feeds users assemble from places, people and content they follow. A stream's ASSOCIATIONS state what its owner considered worth watching, which is a more honest signal of interest than following counts."
     },
     {
       "name": "Supported Fields",
       "paged": true,
-      "suffix": "/api/core/v3/people/@supportedFields"
+      "suffix": "/api/core/v3/people/@supportedFields",
+      "description": "The person fields the API supports returning. The vocabulary for the fields parameter."
     },
     {
       "name": "Tags on User",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/expertise/endorse"
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/endorse",
+      "description": "The tags applied to one person. Requires the person id."
     },
     {
       "name": "Tasks",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/tasks?filter={Filter?:completed}&fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/tasks?filter={Filter?:completed}&fields={Fields?}",
+      "description": "The tasks assigned to one person. Requires the person id."
     },
     {
       "name": "Terms And Conditions",
       "paged": false,
-      "suffix": "/api/core/v3/people/{Person ID}/termsAndConditions"
+      "suffix": "/api/core/v3/people/{Person ID}/termsAndConditions",
+      "description": "The terms and conditions record for one person -- whether they accepted and when. Compliance evidence."
     },
     {
       "name": "Top Expertise",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/expertise/top"
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/top",
+      "description": "The expertise tags one person is most endorsed for. Requires the person id."
     },
     {
       "name": "Trending Content for Person",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@trendingContent?fields={Fields?}&abridged={Abridged?:false|true}&fallback={Fallback?:false|true}"
+      "suffix": "/api/core/v3/people/{Person ID}/@trendingContent?fields={Fields?}&abridged={Abridged?:false|true}&fallback={Fallback?:false|true}",
+      "description": "The content trending for one person. Personalised."
     },
     {
       "name": "Trending People",
       "paged": false,
-      "suffix": "/api/core/v3/people/trending?filter={Filter?:place}&fields={Fields?}"
+      "suffix": "/api/core/v3/people/trending?filter={Filter?:place}&fields={Fields?}",
+      "description": "The people gaining followers or engagement fastest."
     },
     {
       "name": "Trending Places for Person",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/@trendingPlaces?fields={Fields?}&fallback={Fallback?:false|true}"
+      "suffix": "/api/core/v3/people/{Person ID}/@trendingPlaces?fields={Fields?}&fallback={Fallback?:false|true}",
+      "description": "The places trending for one person. Personalised."
     },
     {
       "name": "Users by Expertise",
       "paged": true,
-      "suffix": "/api/core/v3/people/expertise/{Tag Name}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/expertise/{Tag Name}?fields={Fields?}",
+      "description": "People holding a given expertise tag. EXPERTISE IS JIVE'S SKILLS MODEL, endorsed by colleagues rather than self-declared, so this is a socially validated answer to who knows about something."
     },
     {
       "name": "Who Endorsed",
       "paged": true,
-      "suffix": "/api/core/v3/people/{Person ID}/expertise/endorsers/{Tag Name}?fields={Fields?}"
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/endorsers/{Tag Name}?fields={Fields?}",
+      "description": "Who endorsed one person for a given expertise. Requires the person id and tag. The evidence behind an expertise claim."
     },
     {
       "name": "Place Activity",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/activities?filter={Filter?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+      "suffix": "/api/core/v3/places/{Place ID}/activities?filter={Filter?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}",
+      "description": "The activity stream of one place. Requires the place id."
     },
     {
       "name": "Place Applied Entitlements",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/appliedEntitlements?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/appliedEntitlements?fields={Fields?}",
+      "description": "The entitlements actually in force on one place, after inheritance. Requires the place id. The resolved answer, as opposed to the configuration."
     },
     {
       "name": "Place Content",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/contents?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/places/{Place ID}/contents?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "The content inside one place. Requires the place id. The per-container view, and the usual route from an organisational unit to what it produced."
     },
     {
       "name": "Place Featured Content",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/contents/featured?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}"
+      "suffix": "/api/core/v3/places/{Place ID}/contents/featured?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}",
+      "description": "The content editorially featured in one place. Requires the place id."
     },
     {
       "name": "Place",
       "paged": false,
-      "suffix": "/api/core/v3/places/{Place ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}?fields={Fields?}",
+      "description": "One place by id, with its settings and counts."
     },
     {
       "name": "Place Announcements",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/announcements?fields={Fields?}&activeOnly={Active Only?:false|true}"
+      "suffix": "/api/core/v3/places/{Place ID}/announcements?fields={Fields?}&activeOnly={Active Only?:false|true}",
+      "description": "The announcements posted in one place. Requires the place id."
     },
     {
       "name": "Place Avatar",
       "paged": false,
-      "suffix": "/api/core/v3/places/{Place ID}/avatar?size={Size?:large|medium|small}"
+      "suffix": "/api/core/v3/places/{Place ID}/avatar?size={Size?:large|medium|small}",
+      "description": "The avatar image of one place. Presentation."
     },
     {
       "name": "Place Categories",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/categories?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/categories?fields={Fields?}",
+      "description": "The categories defined within one place. Requires the place id. A place's own content taxonomy, which is local rather than community-wide."
     },
     {
       "name": "Place Category",
       "paged": false,
-      "suffix": "/api/core/v3/places/{Place ID}/categories/{Category ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/categories/{Category ID}?fields={Fields?}",
+      "description": "One place category by id."
     },
     {
       "name": "Place Followers",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/followers?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/followers?fields={Fields?}",
+      "description": "Who follows one place. Requires the place id. The audience a place's content reaches."
     },
     {
       "name": "Place Following In",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/followingIn?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/followingIn?fields={Fields?}",
+      "description": "The streams one place is being followed in. Requires the place id."
     },
     {
       "name": "Place Permissions",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/permissions"
+      "suffix": "/api/core/v3/places/{Place ID}/permissions",
+      "description": "The permissions configured on one place. Requires the place id. Who may see and post, which is why two users see different content lists."
     },
     {
       "name": "Place Places",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/places?filter={Filter?:type|search|tag}&fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/places?filter={Filter?:type|search|tag}&fields={Fields?}",
+      "description": "The child places of one place. Requires the place id. Places nest, so a full tree means walking this repeatedly."
     },
     {
       "name": "Places",
@@ -1033,332 +1213,398 @@
           "key": "placeId",
           "parameterName": "Place ID"
         }
-      ]
+      ],
+      "description": "THE CONTAINERS CONTENT LIVES IN -- spaces, groups and projects, again polymorphic and told apart by a type field. A space is the permanent organisational structure, a group is a self-forming community, a project is time-bounded work, and they behave differently enough that mixing them in one count is rarely meaningful. Same filter and fields rules as content."
     },
     {
       "name": "Place Settings",
       "paged": false,
-      "suffix": "/api/core/v3/places/{Place ID}/settings"
+      "suffix": "/api/core/v3/places/{Place ID}/settings",
+      "description": "The settings of one place. Requires the place id."
     },
     {
       "name": "Place Statics",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/statics?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/statics?fields={Fields?}",
+      "description": "The static resources attached to one place. Requires the place id."
     },
     {
       "name": "Place Suggested Places",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/suggested/{Content Type}?filter={Filter?:type}&fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/suggested/{Content Type}?filter={Filter?:type}&fields={Fields?}",
+      "description": "Places Jive suggests as related to one place. Requires the place id. Derived rather than curated."
     },
     {
       "name": "Place Tasks",
       "paged": true,
-      "suffix": "/api/core/v3/places/{Place ID}/tasks?fields={Fields?}"
+      "suffix": "/api/core/v3/places/{Place ID}/tasks?fields={Fields?}",
+      "description": "The tasks within one place. Requires the place id."
     },
     {
       "name": "Recommended Places",
       "paged": true,
-      "suffix": "/api/core/v3/places/recommended?fields={Fields?}"
+      "suffix": "/api/core/v3/places/recommended?fields={Fields?}",
+      "description": "Places recommended to the calling user. Personalised."
     },
     {
       "name": "Root Space",
       "paged": false,
-      "suffix": "/api/core/v3/places/root?fields={Fields?}"
+      "suffix": "/api/core/v3/places/root?fields={Fields?}",
+      "description": "The top-level space of the community. The root of the place hierarchy, and the starting point for walking it."
     },
     {
       "name": "Suggested Places",
       "paged": true,
-      "suffix": "/api/core/v3/places/suggested/{Content Type}?filter={Filter?:type}&fields={Fields?}"
+      "suffix": "/api/core/v3/places/suggested/{Content Type}?filter={Filter?:type}&fields={Fields?}",
+      "description": "Places suggested to the calling user. Personalised."
     },
     {
       "name": "Trending Places",
       "paged": true,
-      "suffix": "/api/core/v3/places/trending?fields={Fields?}"
+      "suffix": "/api/core/v3/places/trending?fields={Fields?}",
+      "description": "The places gaining activity fastest. The community-wide view of where attention is moving."
     },
     {
       "name": "Place Template Categories",
       "paged": true,
-      "suffix": "/api/core/v3/placeTemplateCategories?filter={Filter?:templateState}&fields={Fields?}"
+      "suffix": "/api/core/v3/placeTemplateCategories?filter={Filter?:templateState}&fields={Fields?}",
+      "description": "The categories place templates are grouped into."
     },
     {
       "name": "Place Template Category",
       "paged": false,
-      "suffix": "/api/core/v3/placeTemplateCategories/{Category ID}"
+      "suffix": "/api/core/v3/placeTemplateCategories/{Category ID}",
+      "description": "One place template category by id."
     },
     {
       "name": "Place Template",
       "paged": false,
-      "suffix": "/api/core/v3/placeTemplates/{Place Template ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/placeTemplates/{Place Template ID}?fields={Fields?}",
+      "description": "One place template by id."
     },
     {
       "name": "Place Templates",
       "paged": true,
-      "suffix": "/api/core/v3/placeTemplates?filter={Filter?:author|name|displayName|global|state}&fields={Fields?}"
+      "suffix": "/api/core/v3/placeTemplates?filter={Filter?:author|name|displayName|global|state}&fields={Fields?}",
+      "description": "The templates new places are created from. What the organisation considers a standard kind of space or group."
     },
     {
       "name": "Place Topic",
       "paged": false,
-      "suffix": "/api/core/v3/placeTopics/{Topic ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/placeTopics/{Topic ID}?fields={Fields?}",
+      "description": "One place topic by id."
     },
     {
       "name": "Place Topics",
       "paged": true,
-      "suffix": "/api/core/v3/placeTopics"
+      "suffix": "/api/core/v3/placeTopics",
+      "description": "The place topics defined across the community. Topics are the subject labels places are tagged with, so this is the community-wide vocabulary; one topic by id comes from Place Topic."
     },
     {
       "name": "Publication",
       "paged": false,
-      "suffix": "/api/core/v3/publications/{Publication ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/publications/{Publication ID}?fields={Fields?}",
+      "description": "One publication by id, with its sections."
     },
     {
       "name": "Publications",
       "paged": true,
-      "suffix": "/api/core/v3/publications?fields={Fields?}"
+      "suffix": "/api/core/v3/publications?fields={Fields?}",
+      "description": "The publications defined -- Jive's curated content collections, distributed on a schedule. Editorial rather than organic content."
     },
     {
       "name": "Subscriber Users",
       "paged": true,
-      "suffix": "/api/core/v3/publications/{Publication ID}/subscriptions/{Subscription ID}/subscribers?fields={Fields?}"
+      "suffix": "/api/core/v3/publications/{Publication ID}/subscriptions/{Subscription ID}/subscribers?fields={Fields?}",
+      "description": "Who subscribes to one publication. Requires the publication id. The reach of a curated channel."
     },
     {
       "name": "Have Same Questions",
       "paged": true,
-      "suffix": "/api/core/v3/questions/{Content ID}/sameQuestion?fields={Fields?}"
+      "suffix": "/api/core/v3/questions/{Content ID}/sameQuestion?fields={Fields?}",
+      "description": "The people who indicated they have the same question. Requires the content id. Demand for an answer, which the view count cannot express."
     },
     {
       "name": "RSVP Invitees",
       "paged": true,
-      "suffix": "/api/core/v3/rsvp/{Event ID}/invitees"
+      "suffix": "/api/core/v3/rsvp/{Event ID}/invitees",
+      "description": "Who was invited to one event, regardless of response. The denominator for any attendance figure."
     },
     {
       "name": "RSVP Maybe Attendees",
       "paged": true,
-      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/maybe"
+      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/maybe",
+      "description": "Who responded tentatively to one event."
     },
     {
       "name": "RSVP No Attendees",
       "paged": true,
-      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/no"
+      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/no",
+      "description": "Who declined one event."
     },
     {
       "name": "RSVP Events",
       "paged": true,
-      "suffix": "/api/core/v3/rsvp/{Event ID}"
+      "suffix": "/api/core/v3/rsvp/{Event ID}",
+      "description": "The events the calling user has been invited to."
     },
     {
       "name": "RSVP Yes Attendees",
       "paged": true,
-      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/yes"
+      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/yes",
+      "description": "Who accepted one event. Requires the event id. ATTENDANCE INTENT IS SPLIT ACROSS FOUR ENDPOINTS -- yes, no, maybe and invited -- so a response rate needs all of them, and the invited list is the denominator."
     },
     {
       "name": "Search Contents",
       "paged": true,
-      "suffix": "/api/core/v3/search/contents?filter={Filter?}&fields={Fields?}&directive={Directive?:include_rtc}&collapse={Collapse?:false|true}&highlight={Highlight?:false|true}&socialSearch={Social Search?:false|true}&returnScore={Score?:false|true}&origin={Origin?}&includeCategoryFacets={Include Facets?:false|true}"
+      "suffix": "/api/core/v3/search/contents?filter={Filter?}&fields={Fields?}&directive={Directive?:include_rtc}&collapse={Collapse?:false|true}&highlight={Highlight?:false|true}&socialSearch={Social Search?:false|true}&returnScore={Score?:false|true}&origin={Origin?}&includeCategoryFacets={Include Facets?:false|true}",
+      "description": "Content matching a search query. Jive's search takes its own filter syntax, and searching is usually faster than filtering the content listing when the question is about words rather than structure."
     },
     {
       "name": "Search People",
       "paged": true,
-      "suffix": "/api/core/v3/search/people?filter={Filter?}&fields={Fields?}&origin={Origin?}&viewContentURI={URI?}"
+      "suffix": "/api/core/v3/search/people?filter={Filter?}&fields={Fields?}&origin={Origin?}&viewContentURI={URI?}",
+      "description": "People matching a search term across name, title and profile fields."
     },
     {
       "name": "Search Places",
       "paged": true,
-      "suffix": "/api/core/v3/search/places?filter={Filter?:nameonly|search}&fields={Fields?}&collapse={Collapse?:false|true}&highlight={Highlight?:false|true}&socialSearch={Social Search?:false|true}&returnScore={Score?:false|true}&origin={Origin?}"
+      "suffix": "/api/core/v3/search/places?filter={Filter?:nameonly|search}&fields={Fields?}&collapse={Collapse?:false|true}&highlight={Highlight?:false|true}&socialSearch={Social Search?:false|true}&returnScore={Score?:false|true}&origin={Origin?}",
+      "description": "Places matching a search query."
     },
     {
       "name": "Search Tags",
       "paged": true,
-      "suffix": "/api/core/v3/search/tags?filter={Filter?:search}&origin={Origin?}"
+      "suffix": "/api/core/v3/search/tags?filter={Filter?:search}&origin={Origin?}",
+      "description": "Tags matching a search query. Useful for discovering the community's own vocabulary before filtering by tag."
     },
     {
       "name": "Section Avatar",
       "paged": false,
-      "suffix": "/api/core/v3/sections/{Section ID}/avatar?size={Size?:large|medium|small}"
+      "suffix": "/api/core/v3/sections/{Section ID}/avatar?size={Size?:large|medium|small}",
+      "description": "The avatar image of one section."
     },
     {
       "name": "Section",
       "paged": false,
-      "suffix": "/api/core/v3/sections/{Section ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/sections/{Section ID}?fields={Fields?}",
+      "description": "One section by id."
     },
     {
       "name": "Sections",
       "paged": true,
-      "suffix": "/api/core/v3/sections?fields={Fields?}"
+      "suffix": "/api/core/v3/sections?fields={Fields?}",
+      "description": "The sections of a publication or support centre. The structural level below a publication."
     },
     {
       "name": "Group Administrators",
       "paged": true,
-      "suffix": "/api/core/v3/securityGroups/{Group ID}/administrators?fields={Fields?}"
+      "suffix": "/api/core/v3/securityGroups/{Group ID}/administrators?fields={Fields?}",
+      "description": "The administrators of one security group. Requires the group id."
     },
     {
       "name": "Group Member",
       "paged": false,
-      "suffix": "/api/core/v3/securityGroups/{Group ID}/members/{Person ID}"
+      "suffix": "/api/core/v3/securityGroups/{Group ID}/members/{Person ID}",
+      "description": "One member of a security group."
     },
     {
       "name": "Group Members",
       "paged": true,
-      "suffix": "/api/core/v3/securityGroups/{Group ID}/members?fields={Fields?}"
+      "suffix": "/api/core/v3/securityGroups/{Group ID}/members?fields={Fields?}",
+      "description": "The members of one security group. Requires the group id."
     },
     {
       "name": "Security Group by Name",
       "paged": false,
-      "suffix": "/api/core/v3/securityGroups/name/{Group Name}?fields={Fields?}"
+      "suffix": "/api/core/v3/securityGroups/name/{Group Name}?fields={Fields?}",
+      "description": "One security group by name."
     },
     {
       "name": "Security Groups",
       "paged": true,
-      "suffix": "/api/core/v3/securityGroups?filter={Filter?:updated}&fields={Fields?}"
+      "suffix": "/api/core/v3/securityGroups?filter={Filter?:updated}&fields={Fields?}",
+      "description": "The security groups defined -- the units access is granted to. Together with place permissions this is how visibility is actually determined, and why two users see different content."
     },
     {
       "name": "Share",
       "paged": false,
-      "suffix": "/api/core/v3/shares/{Share ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/shares/{Share ID}?fields={Fields?}",
+      "description": "One share by id -- content passed to a person or place with a note. The internal amplification record."
     },
     {
       "name": "Slide",
       "paged": false,
-      "suffix": "/api/core/v3/slides/{Slide ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/slides/{Slide ID}?fields={Fields?}",
+      "description": "One slide by id."
     },
     {
       "name": "Slides",
       "paged": true,
-      "suffix": "/api/core/v3/slides"
+      "suffix": "/api/core/v3/slides",
+      "description": "The slides held across the community's presentation content. The per-slide detail comes from Slide."
     },
     {
       "name": "Banner",
       "paged": true,
-      "suffix": "/api/core/v3/solutions/supportCenter/banner?fields={Fields?}"
+      "suffix": "/api/core/v3/solutions/supportCenter/banner?fields={Fields?}",
+      "description": "The support centre banner configuration. Presentation."
     },
     {
       "name": "Channels",
       "paged": true,
-      "suffix": "/api/core/v3/solutions/supportCenter/channels?fields={Fields?}"
+      "suffix": "/api/core/v3/solutions/supportCenter/channels?fields={Fields?}",
+      "description": "The support channels configured. How customers may reach support, which no ticket table states."
     },
     {
       "name": "Support Center Section",
       "paged": false,
-      "suffix": "/api/core/v3/solutions/supportCenter/sections/{Section ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/solutions/supportCenter/sections/{Section ID}?fields={Fields?}",
+      "description": "One support centre section by id."
     },
     {
       "name": "Support Center Sections",
       "paged": true,
-      "suffix": "/api/core/v3/solutions/supportCenter/sections?fields={Fields?}"
+      "suffix": "/api/core/v3/solutions/supportCenter/sections?fields={Fields?}",
+      "description": "The sections within the support centre."
     },
     {
       "name": "Support Center Categories",
       "paged": true,
-      "suffix": "/api/core/v3/solutions/supportCenter/categories"
+      "suffix": "/api/core/v3/solutions/supportCenter/categories",
+      "description": "The categories of the support centre -- Jive's customer-facing help structure."
     },
     {
       "name": "Stage",
       "paged": false,
-      "suffix": "/api/core/v3/stages/{Stage ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/stages/{Stage ID}?fields={Fields?}",
+      "description": "One stage by id."
     },
     {
       "name": "Stages",
       "paged": true,
-      "suffix": "/api/core/v3/stages?fields={Fields?}"
+      "suffix": "/api/core/v3/stages?fields={Fields?}",
+      "description": "The stages an idea moves through -- Jive's idea lifecycle. WHERE IDEAS SIT IN THE PROCESS, which the idea content object records only as a current value."
     },
     {
       "name": "Static",
       "paged": false,
-      "suffix": "/api/core/v3/statics/{Static ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/statics/{Static ID}?fields={Fields?}",
+      "description": "One static resource by id."
     },
     {
       "name": "Statics",
       "paged": true,
-      "suffix": "/api/core/v3/statics?filter={Filter?}&fields={Fields?}"
+      "suffix": "/api/core/v3/statics?filter={Filter?}&fields={Fields?}",
+      "description": "The static resources uploaded to the community."
     },
     {
       "name": "Stream Comments",
       "paged": true,
-      "suffix": "/api/core/v3/streamEntries/{Entry ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+      "suffix": "/api/core/v3/streamEntries/{Entry ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}",
+      "description": "The comments on one stream entry. Requires the entry id."
     },
     {
       "name": "Stream Likes",
       "paged": true,
-      "suffix": "/api/core/v3/streamEntries/{Entry ID}/likes?fields={Fields?}"
+      "suffix": "/api/core/v3/streamEntries/{Entry ID}/likes?fields={Fields?}",
+      "description": "The likes on one stream entry. Requires the entry id."
     },
     {
       "name": "Stream Activity",
       "paged": true,
-      "suffix": "/api/core/v3/streams/{Stream ID}/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}&updateLastRead={Update Last Read?:false|true}"
+      "suffix": "/api/core/v3/streams/{Stream ID}/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}&updateLastRead={Update Last Read?:false|true}",
+      "description": "The activity within one stream. Requires the stream id."
     },
     {
       "name": "Stream Activity Count",
       "paged": false,
-      "suffix": "/api/core/v3/streams/{Stream ID}/activities/count?after={After?:yyyy-MM-ddTHH:mm:ssZ}&max={Max Number?}&exclude={Exclude?:false|true}"
+      "suffix": "/api/core/v3/streams/{Stream ID}/activities/count?after={After?:yyyy-MM-ddTHH:mm:ssZ}&max={Max Number?}&exclude={Exclude?:false|true}",
+      "description": "How much activity one stream carries. The size check."
     },
     {
       "name": "Stream Association",
       "paged": false,
-      "suffix": "/api/core/v3/streams/{Stream ID}/associations/{Object Type}/{Object ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/streams/{Stream ID}/associations/{Object Type}/{Object ID}?fields={Fields?}",
+      "description": "One stream association by id."
     },
     {
       "name": "Stream Associations",
       "paged": true,
-      "suffix": "/api/core/v3/streams/{Stream ID}/associations?filter={Filter?:type}&fields={Fields?}"
+      "suffix": "/api/core/v3/streams/{Stream ID}/associations?filter={Filter?:type}&fields={Fields?}",
+      "description": "What one stream is subscribed to. Requires the stream id. The stream's actual definition."
     },
     {
       "name": "Connections Activity",
       "paged": true,
-      "suffix": "/api/core/v3/streams/connections/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+      "suffix": "/api/core/v3/streams/connections/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}",
+      "description": "The activity of the people the calling user is connected to. The social feed."
     },
     {
       "name": "Stream",
       "paged": false,
-      "suffix": "/api/core/v3/streams/{Stream ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/streams/{Stream ID}?fields={Fields?}",
+      "description": "One stream by id."
     },
     {
       "name": "Tag",
       "paged": true,
-      "suffix": "/api/core/v3/tags/{Tag ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/tags/{Tag ID}?fields={Fields?}",
+      "description": "One tag by name, with its usage. Tags are the community's free-form taxonomy, unconstrained and often near-duplicated."
     },
     {
       "name": "Tile Definition",
       "paged": false,
-      "suffix": "/api/core/v3/tileDefs/{Tile ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/tileDefs/{Tile ID}?fields={Fields?}",
+      "description": "One tile definition -- the type of tile an add-on provides, as opposed to an instance of it."
     },
     {
       "name": "Tile Definition I18n Resource",
       "paged": false,
-      "suffix": "/api/core/v3/tileDefs/{Tile ID}/i18n/{Language?}/{Country?}"
+      "suffix": "/api/core/v3/tileDefs/{Tile ID}/i18n/{Language?}/{Country?}",
+      "description": "The translated strings of one tile definition."
     },
     {
       "name": "Tile Definition Instances",
       "paged": true,
-      "suffix": "/api/core/v3/tileDefs?filter={Filter?:name|addonUUID|state}&fields={Fields?}"
+      "suffix": "/api/core/v3/tileDefs?filter={Filter?:name|addonUUID|state}&fields={Fields?}",
+      "description": "The instances created from one tile definition. Requires the definition id. How widely an add-on's tile is actually used."
     },
     {
       "name": "Tile Definition Prototype",
       "paged": false,
-      "suffix": "/api/core/v3/tileDefs/{Tile ID}/prototype?fields={Fields?}"
+      "suffix": "/api/core/v3/tileDefs/{Tile ID}/prototype?fields={Fields?}",
+      "description": "A prototype tile object for a definition. Scaffolding."
     },
     {
       "name": "Tile Definition Categories",
       "paged": true,
-      "suffix": "/api/core/v3/tileDefs/categories?filter={Filter?:tileState}&fields={Fields?}"
+      "suffix": "/api/core/v3/tileDefs/categories?filter={Filter?:tileState}&fields={Fields?}",
+      "description": "The categories tile definitions are grouped into."
     },
     {
       "name": "Tile Definition Category",
       "paged": false,
-      "suffix": "/api/core/v3/tileDefs/category/{Tile Category ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/tileDefs/category/{Tile Category ID}?fields={Fields?}",
+      "description": "One tile definition category by id."
     },
     {
       "name": "Tile Instance",
       "paged": false,
-      "suffix": "/api/core/v3/tiles/{Instance ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/tiles/{Instance ID}?fields={Fields?}",
+      "description": "One tile instance by id."
     },
     {
       "name": "Tile Instance by External ID",
       "paged": false,
-      "suffix": "/api/core/v3/tiles/external/{Extension UUID}/{External ID}"
+      "suffix": "/api/core/v3/tiles/external/{Extension UUID}/{External ID}",
+      "description": "One tile instance by the external system's identifier. The bridge from an integration's own id to Jive's."
     },
     {
       "name": "Tile Instance Data",
       "paged": false,
-      "suffix": "/api/core/v3/tiles/{Instance ID}/data"
+      "suffix": "/api/core/v3/tiles/{Instance ID}/data",
+      "description": "THE DATA A TILE IS DISPLAYING. Requires the tile id. Where an integration has pushed content into Jive, this is the only place that content is readable -- it lives in the tile rather than in any content table."
     },
     {
       "name": "Tile Instances",
@@ -1375,62 +1621,74 @@
           "key": "id",
           "parameterName": "Instance ID"
         }
-      ]
+      ],
+      "description": "The tile instances across the community."
     },
     {
       "name": "Tile Private Properties",
       "paged": true,
-      "suffix": "/api/core/v3/tiles/{Instance ID}/privateprops"
+      "suffix": "/api/core/v3/tiles/{Instance ID}/privateprops",
+      "description": "The private configuration of one tile instance. Application storage."
     },
     {
       "name": "Tile Categories",
       "paged": true,
-      "suffix": "/api/core/v3/tiles/categories?filter={Filter?:tilePage}&fields={Fields?}"
+      "suffix": "/api/core/v3/tiles/categories?filter={Filter?:tilePage}&fields={Fields?}",
+      "description": "The categories tiles are grouped into."
     },
     {
       "name": "Tile Category",
       "paged": false,
-      "suffix": "/api/core/v3/tiles/categories/{Tile Category ID}"
+      "suffix": "/api/core/v3/tiles/categories/{Tile Category ID}",
+      "description": "One tile category by id."
     },
     {
       "name": "URL Comments",
       "paged": true,
-      "suffix": "/api/core/v3/urls/{URL ID}/comments?filter={Filter?:type}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+      "suffix": "/api/core/v3/urls/{URL ID}/comments?filter={Filter?:type}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}",
+      "description": "The comments on one external URL object. Requires the URL id."
     },
     {
       "name": "Content External URLs",
       "paged": true,
-      "suffix": "/api/core/v3/urls/contents/{Content ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/urls/contents/{Content ID}?fields={Fields?}",
+      "description": "The external links referenced by one content object. Requires the content id."
     },
     {
       "name": "External URL",
       "paged": false,
-      "suffix": "/api/core/v3/urls/{URL ID}"
+      "suffix": "/api/core/v3/urls/{URL ID}",
+      "description": "One external URL object by id. Jive tracks links shared into the community as objects, so this is how external references become countable."
     },
     {
       "name": "Version",
       "paged": false,
-      "suffix": "/api/core/v3/versions/{Content ID}/{Version Number}"
+      "suffix": "/api/core/v3/versions/{Content ID}/{Version Number}",
+      "description": "One version of one content object."
     },
     {
       "name": "Versions",
       "paged": true,
-      "suffix": "/api/core/v3/versions/{Content ID}?fields={Fields?}"
+      "suffix": "/api/core/v3/versions/{Content ID}?fields={Fields?}",
+      "description": "The version history of one content object. Requires the content id. Jive versions documents, so this is the only record of what a document said before it was edited -- and who changed it."
     },
     {
       "name": "Download Options",
       "paged": false,
-      "suffix": "/api/core/v3/videos/downloadOptions/{Video ID}"
+      "suffix": "/api/core/v3/videos/downloadOptions/{Video ID}",
+      "description": "The download formats available for one video. Requires the video id."
     },
     {
       "name": "Vitals",
       "paged": true,
-      "suffix": "/api/core/v3/vitals"
+      "suffix": "/api/core/v3/vitals",
+      "description": "Vital statistics -- view, like, comment and follower counts -- for content across the community. THE CHEAP ENGAGEMENT SUMMARY: it avoids fetching likes, comments and followers separately when only the totals are wanted."
     },
     {
       "name": "Votes",
       "paged": true,
-      "suffix": "/api/core/v3/votes/{Content ID}"
+      "suffix": "/api/core/v3/votes/{Content ID}",
+      "description": "The votes cast on one poll. Requires the poll id. The result of a poll, which the poll object does not carry."
     }
   ]
 }

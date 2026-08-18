@@ -3,107 +3,128 @@
     {
       "name": "Site Users",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/users?context={Context?:display|edit}&meta={Include Metadata?:sites,likes,...}&fields={Include Fields?:ID,title,...}&authors_only={Fetch Authors Only?:true|false}&type={Post Type?}&search={Search Text?}&search_columns={Search Columns?,:ID,user_login,user_email,...}&role={User Role?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/users?context={Context?:display|edit}&meta={Include Metadata?:sites,likes,...}&fields={Include Fields?:ID,title,...}&authors_only={Fetch Authors Only?:true|false}&type={Post Type?}&search={Search Text?}&search_columns={Search Columns?,:ID,user_login,user_email,...}&role={User Role?}",
+      "description": "The users of one site, with their roles and capabilities. Requires a site."
     },
     {
       "name": "Site User",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/users/login:{User Login}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/users/login:{User Login}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One site user by login. Requires the site."
     },
     {
       "name": "Current User Metadata",
       "paged": false,
-      "suffix": "/v1.1/me?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The authenticated account's profile -- name, email, avatar and primary blog. One record, always the caller."
     },
     {
       "name": "Current User Billing History",
       "paged": false,
-      "suffix": "/v1.1/me/billing-history?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/billing-history?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The caller's purchase history on WordPress.com -- plans, domains and upgrades bought. The commercial record, which no site endpoint carries."
     },
     {
       "name": "Current User Settings",
       "paged": false,
-      "suffix": "/v1.1/me/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The caller's account settings."
     },
     {
       "name": "Current User Preferences",
       "paged": false,
-      "suffix": "/v1.1/me/preferences?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/preferences?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The caller's interface preferences."
     },
     {
       "name": "Current User Profile Links",
       "paged": false,
-      "suffix": "/v1.1/me/settings/profile-links?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/settings/profile-links?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The links on the caller's public profile."
     },
     {
       "name": "Current User Connected Applications",
       "paged": false,
-      "suffix": "/v1.1/me/connected-applications?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/connected-applications?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The third-party applications authorised against the caller's account. Security inventory."
     },
     {
       "name": "Current User Connected Application",
       "paged": false,
-      "suffix": "/v1.1/me/connected-applications/{Application ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/connected-applications/{Application ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One connected application by id."
     },
     {
       "name": "Current User Likes",
       "paged": true,
-      "suffix": "/v1.1/me/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}"
+      "suffix": "/v1.1/me/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}",
+      "description": "The posts the caller has liked across WordPress.com."
     },
     {
       "name": "Site Shortcodes",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/shortcodes?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/shortcodes?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The shortcodes available on one site. Content embedded through these is invisible in raw post content, which is worth knowing when post text seems incomplete."
     },
     {
       "name": "Site Embeds",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/embeds?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/embeds?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The embed providers one site supports."
     },
     {
       "name": "Site",
       "paged": false,
-      "suffix": "/v1.2/sites/{Site ID or Domain}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.2/sites/{Site ID or Domain}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One site's details -- name, description, URL, post count, subscriber count, language, and the plan and features it has. THIS IS THE WORDPRESS.COM API, not the REST API of a self-hosted install: it serves WordPress.com sites and self-hosted ones connected through Jetpack, and a plain self-hosted WordPress is not reachable through it at all. Every endpoint here takes a site id or domain."
     },
     {
       "name": "Site Page Templates",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/page-templates?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/page-templates?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The page templates the site's theme offers."
     },
     {
       "name": "Site Post Types",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/post-types?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/post-types?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The post types registered on one site -- post, page, and any custom ones. Requires a site. What kinds of content exist, which the post listing's default hides."
     },
     {
       "name": "Site Post Counts by Type",
       "paged": false,
-      "suffix": "/v1.2/sites/{Site ID or Domain}/post-counts/{Post Type}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.2/sites/{Site ID or Domain}/post-counts/{Post Type}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "How many posts of one type exist, by status. Requires the site and post type. The cheap count, broken out by draft, published and trashed."
     },
     {
       "name": "Site Widgets",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/widgets?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/widgets?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The widgets configured on one site."
     },
     {
       "name": "Site WordAds Settings",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The advertising configuration of one site."
     },
     {
       "name": "Site WordAds Earnings",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/earnings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/earnings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Advertising earnings by period. The revenue side of running ads."
     },
     {
       "name": "Site WordAds TOS",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/tos?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/tos?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the site has accepted the advertising terms. Ads do not run until it has, which explains zero earnings on a configured site."
     },
     {
       "name": "Site WordAds Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:day|week|month}&quantity={Quantity?}&date={Date?:yyyy-MM-dd}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:day|week|month}&quantity={Quantity?}&date={Date?:yyyy-MM-dd}",
+      "description": "Advertising impressions and revenue for one site over a period. Only meaningful where WordAds is enabled."
     },
     {
       "name": "Current User Sites",
@@ -157,32 +178,38 @@
           "key": "ID",
           "parameterName": "Site ID or Domain"
         }
-      ]
+      ],
+      "description": "The sites the authenticated user can access. The starting point, since everything else needs a site."
     },
     {
       "name": "Site Widget",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/widgets/widget:{Widget ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/widgets/widget:{Widget ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One widget by id."
     },
     {
       "name": "Site Theme Headers",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/headers/{Theme Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/headers/{Theme Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The header images available for one theme. Requires the site and theme slug."
     },
     {
       "name": "Site Headers",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/headers/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/headers/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The header images in use on one site."
     },
     {
       "name": "Post by ID",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One post by id. Requires the site."
     },
     {
       "name": "Post by Slug",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/slug:{Post Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/slug:{Post Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One post by its URL slug. Requires the site. The route in when only the public URL is known."
     },
     {
       "name": "Search Posts",
@@ -204,7 +231,8 @@
           "key": "ID",
           "parameterName": "Post ID"
         }
-      ]
+      ],
+      "description": "The posts of one site, filterable by status, type, author, category, tag, search term and date. Requires a site. THE MAIN CONTENT TABLE. Carries title, content, excerpt, status, the author, date and modified date, categories, tags, and the counts of likes and comments. NOTE THE DEFAULT: only PUBLISHED posts of type post are returned, so drafts, pages and custom post types are absent unless asked for -- which quietly excludes most of a site's content on anything but a simple blog."
     },
     {
       "name": "Current User Posts",
@@ -226,37 +254,44 @@
           "key": "ID",
           "parameterName": "Post ID"
         }
-      ]
+      ],
+      "description": "The posts the caller has written across their sites."
     },
     {
       "name": "Post Likes",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Who liked one post. Requires the site and post id. The post carries a like count; this is who they were."
     },
     {
       "name": "Current User Post Like Status",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the caller has liked one post."
     },
     {
       "name": "Post Subscribers",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Who subscribed to one post's comments. Requires the site and post id."
     },
     {
       "name": "Current User Post Subscription Status",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the caller subscribes to one post."
     },
     {
       "name": "Current User Post Reblog Status",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/reblogs/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/reblogs/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the caller has reblogged one post."
     },
     {
       "name": "Comment",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One comment by id. Requires the site."
     },
     {
       "name": "Recent Comments",
@@ -273,7 +308,8 @@
           "key": "ID",
           "parameterName": "Comment ID"
         }
-      ]
+      ],
+      "description": "The comments on one site, filterable by status. Requires a site. Carries the author, content, date, the post commented on, and the approval status. STATUS MATTERS: unapproved, spam and trashed comments share this table with approved ones, so an engagement count that does not filter includes spam."
     },
     {
       "name": "Post Recent Comments",
@@ -290,32 +326,38 @@
           "key": "ID",
           "parameterName": "Comment ID"
         }
-      ]
+      ],
+      "description": "The comments on one post. Requires the site and post id."
     },
     {
       "name": "Comment Counts",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/comment-counts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&post_id={Post ID?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comment-counts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&post_id={Post ID?}",
+      "description": "Comment counts by status for one site. Requires a site. The ready-made summary, and it separates approved from spam without paging anything."
     },
     {
       "name": "Comment Audit History",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/comment-history/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comment-history/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The moderation history of one comment -- approvals, spam marks and edits. Requires the site and comment id. Why a comment is in its current state, which the comment itself does not say."
     },
     {
       "name": "Comment Likes",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Who liked one comment. Requires the site and comment id."
     },
     {
       "name": "Current User Comment Like Status",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the caller has liked one comment."
     },
     {
       "name": "Site Categories",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/categories?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/categories?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}",
+      "description": "The categories of one site, with post counts. Requires a site. The primary content taxonomy."
     },
     {
       "name": "Site Tags",
@@ -331,112 +373,134 @@
           "key": "slug",
           "parameterName": "Tag"
         }
-      ]
+      ],
+      "description": "The tags of one site, with post counts. Requires a site. The secondary, free-form taxonomy."
     },
     {
       "name": "Site Category",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/categories/slug:{Category Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/categories/slug:{Category Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One category by slug. Requires the site."
     },
     {
       "name": "Site Tag",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/tags/slug:{Tag Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/tags/slug:{Tag Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One tag by slug. Requires the site."
     },
     {
       "name": "Taxonomy Term",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms/slug:{Term Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms/slug:{Term Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One taxonomy term by slug. Requires the site and taxonomy."
     },
     {
       "name": "Post Type Taxonomies",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/post-types/{Post Type}/taxonomies?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/post-types/{Post Type}/taxonomies?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The taxonomies attached to one post type. Requires the site and post type. CUSTOM POST TYPES BRING THEIR OWN TAXONOMIES, so categories and tags are not the whole classification on a site that uses them."
     },
     {
       "name": "Taxonomy Terms",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}",
+      "description": "The terms of one taxonomy. Requires the site and taxonomy. The generalised version of categories and tags."
     },
     {
       "name": "Site Followers",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/follows?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/follows?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The followers of one site. Requires a site. The audience list behind the follower count."
     },
     {
       "name": "Current User Blog Following Status",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/follows/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/follows/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the caller follows one site."
     },
     {
       "name": "Sharing Buttons",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&enabled_only={Enabled Only?:true|false}&visibility={Visibility?:visible|hidden}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&enabled_only={Enabled Only?:true|false}&visibility={Visibility?:visible|hidden}",
+      "description": "The sharing buttons configured on one site."
     },
     {
       "name": "External Services",
       "paged": false,
-      "suffix": "/v1.1/meta/external-services?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:publicize|other}"
+      "suffix": "/v1.1/meta/external-services?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:publicize|other}",
+      "description": "The external services WordPress.com can connect to. Reference data."
     },
     {
       "name": "External Service",
       "paged": false,
-      "suffix": "/v1.1/meta/external-services/{Service}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/meta/external-services/{Service}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One external service by name."
     },
     {
       "name": "Current User Publicize Connections",
       "paged": false,
-      "suffix": "/v1.1/me/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&keyring_connection_ID={Keyring Connection ID?}&site={Site?}"
+      "suffix": "/v1.1/me/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&keyring_connection_ID={Keyring Connection ID?}&site={Site?}",
+      "description": "The caller's own social publishing connections."
     },
     {
       "name": "Current User Publicize Connection",
       "paged": false,
-      "suffix": "/v1.1/me/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One of the caller's publicize connections by id."
     },
     {
       "name": "Current User Keyring Connections",
       "paged": false,
-      "suffix": "/v1.1/me/keyring-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&site={Site?}&force_external_users_refetch={Force Refetch External Users?:true|false}&force_connection_test={Force Test Connection?:true|false}"
+      "suffix": "/v1.1/me/keyring-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&site={Site?}&force_external_users_refetch={Force Refetch External Users?:true|false}&force_connection_test={Force Test Connection?:true|false}",
+      "description": "The caller's underlying authorisations to external services. The credential layer beneath publicize connections."
     },
     {
       "name": "Current User Keyring Connection",
       "paged": false,
-      "suffix": "/v1.1/me/keyring-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/me/keyring-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One keyring connection by id."
     },
     {
       "name": "Site Publicize Connections",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&user_id={User ID?}&keyring_connection_ID={Keyring Connection ID?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&user_id={User ID?}&keyring_connection_ID={Keyring Connection ID?}",
+      "description": "The social accounts one site auto-publishes to. Requires a site. Where a post reaches beyond the site itself."
     },
     {
       "name": "Site Publicize Connection",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One site publicize connection by id."
     },
     {
       "name": "External Services with Sharing Buttons",
       "paged": false,
-      "suffix": "/v1.1/meta/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/meta/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The services available as sharing buttons. Reference data."
     },
     {
       "name": "Insights List",
       "paged": false,
-      "suffix": "/v1.1/insights?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/insights?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The insight reports available. WordPress.com's own prepared analyses, as opposed to the raw statistics."
     },
     {
       "name": "Insights Data",
       "paged": false,
-      "suffix": "/v1.1/insights/{Report Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:daily|monthly|cumulative|&after={Since?:Unix Timestamp}&before={Before?:Unix Timestamp}"
+      "suffix": "/v1.1/insights/{Report Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:daily|monthly|cumulative}&after={Since?:Unix Timestamp}&before={Before?:Unix Timestamp}",
+      "description": "One insight report by slug."
     },
     {
       "name": "Default Reader Menu",
       "paged": false,
-      "suffix": "/v1.1/read/menu?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/read/menu?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The Reader's default menu structure. Interface configuration."
     },
     {
       "name": "Feed",
       "paged": false,
-      "suffix": "/v1.1/read/feed/{Feed URL or ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/read/feed/{Feed URL or ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One feed by URL or id, with its recent posts."
     },
     {
       "name": "Followed Blog Posts",
@@ -458,7 +522,8 @@
           "key": "ID",
           "parameterName": "Post ID"
         }
-      ]
+      ],
+      "description": "The posts from sites the caller follows. The Reader feed -- consumption rather than publishing."
     },
     {
       "name": "Liked Blog Posts",
@@ -480,7 +545,8 @@
           "key": "ID",
           "parameterName": "Post ID"
         }
-      ]
+      ],
+      "description": "The posts the caller has liked, as a feed."
     },
     {
       "name": "Tagged Posts",
@@ -502,7 +568,8 @@
           "key": "ID",
           "parameterName": "Post ID"
         }
-      ]
+      ],
+      "description": "Recent posts carrying one tag, across WordPress.com. Requires the tag. Cross-site content discovery, unlike Site Tags which is one site's own taxonomy."
     },
     {
       "name": "Subscribed Tags",
@@ -518,7 +585,8 @@
           "key": "slug",
           "parameterName": "Tag"
         }
-      ]
+      ],
+      "description": "The tags the caller follows in the Reader."
     },
     {
       "name": "Trending Tags",
@@ -534,157 +602,188 @@
           "key": "slug",
           "parameterName": "Tag"
         }
-      ]
+      ],
+      "description": "The tags trending across WordPress.com. A snapshot with no history behind it."
     },
     {
       "name": "Tag",
       "paged": false,
-      "suffix": "/v1.1/read/tags/{Tag}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/read/tags/{Tag}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One Reader tag by name, with its post count."
     },
     {
       "name": "Tag Subscription Status",
       "paged": false,
-      "suffix": "/v1.1/read/tags/{Tag}/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/read/tags/{Tag}/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Whether the caller follows one tag."
     },
     {
       "name": "Followed Feeds",
       "paged": false,
-      "suffix": "/v1.1/read/following/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/read/following/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The feeds the caller follows."
     },
     {
       "name": "Feed Search",
       "paged": true,
-      "suffix": "/v1.1/read/feed?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&url={Site Domain or URL?}&q={Query Text?}&exclude_followed={Exclude Already Followed Sites?:true|false}"
+      "suffix": "/v1.1/read/feed?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&url={Site Domain or URL?}&q={Query Text?}&exclude_followed={Exclude Already Followed Sites?:true|false}",
+      "description": "Feeds matching a query. Discovery within the Reader."
     },
     {
       "name": "Recommended Blogs",
       "paged": false,
-      "suffix": "/v1.1/read/recommendations/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&exclude={Exclude Blog IDs?,:id1,id2,...}&lang={Language Code?}&source={Source?:mobile|reader_sidebar|...}"
+      "suffix": "/v1.1/read/recommendations/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&exclude={Exclude Blog IDs?,:id1,id2,...}&lang={Language Code?}&source={Source?:mobile|reader_sidebar|...}",
+      "description": "Blogs WordPress.com recommends to the caller. Algorithmic suggestion rather than data."
     },
     {
       "name": "Site Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The headline traffic figures for one site over a period -- views, visitors, likes and comments. Requires a site. THE WORDPRESS.COM STATS SYSTEM, which is separate from the content tables and computed independently: a post's view count comes from here rather than from the post record."
     },
     {
       "name": "Site Summary Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/summary?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Period Date?:yyyy-MM-dd}&offset={Time Zone Offset?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/summary?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Period Date?:yyyy-MM-dd}&offset={Time Zone Offset?}",
+      "description": "The site's aggregate figures for a period -- views, visitors, best-ever day and totals. The overview."
     },
     {
       "name": "Site Top Post Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summarize={Summarize Data?:true|false}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summarize={Summarize Data?:true|false}",
+      "description": "The most-viewed posts over a period, with their view counts. Which content actually earned the traffic."
     },
     {
       "name": "Video Post Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The play statistics of one video post."
     },
     {
       "name": "Site Referrer Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/referrers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/referrers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
+      "description": "Where traffic came from over a period, by referring site. The acquisition table."
     },
     {
       "name": "Site Outbound Click Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/clicks?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/clicks?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
+      "description": "The outbound links visitors clicked, over a period. Where readers went next -- which no view count reveals."
     },
     {
       "name": "Site Views by Tag and Category",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/tags?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&max={Maximum Number of Results?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/tags?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&max={Maximum Number of Results?}",
+      "description": "Traffic by taxonomy term over a period. Which subjects draw readers, as opposed to which individual posts."
     },
     {
       "name": "Site Top Author Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-authors?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-authors?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}",
+      "description": "Views by author over a period. Per-writer performance on a multi-author site."
     },
     {
       "name": "Site Top Comment Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comments?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comments?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The most-commented posts and the most active commenters over a period."
     },
     {
       "name": "Site Video Plays Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video-plays?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video-plays?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}",
+      "description": "Video plays across the site over a period."
     },
     {
       "name": "Site File Download Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/file-downloads?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/file-downloads?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}",
+      "description": "Downloads of files hosted on the site, over a period."
     },
     {
       "name": "Post View Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/post/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/post/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The view history of ONE post over time. Requires the site and post id. The per-post series, as opposed to a ranking snapshot."
     },
     {
       "name": "Site Views by Country",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/country-views?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/country-views?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
+      "description": "Traffic by country over a period."
     },
     {
       "name": "Site Follower Statistics",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:wpcom|email}&search={Email Address?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:wpcom|email}&search={Email Address?}",
+      "description": "The site's follower count over time, and the recent followers. Audience growth rather than traffic."
     },
     {
       "name": "Site Comment Follower Statistics",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comment-followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comment-followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Followers subscribed to comments rather than to posts."
     },
     {
       "name": "Site Publicize Follower Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/publicize?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/publicize?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "Follower counts on the connected social accounts. Reach beyond the site itself."
     },
     {
       "name": "Site Search Term Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/search-terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/search-terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
+      "description": "The search terms that brought visitors, over a period. NOTE most search engines withhold the term, so this table is heavily incomplete by design and its totals do not reconcile with search referral counts."
     },
     {
       "name": "Post Total View Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/views/posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Days?:1-30}&post_ids={Post IDs:id1,id2,...}&date={Most Recent Day to Include?:yyyy-MM-dd}&offset={Time Zone Offset?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/views/posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Days?:1-30}&post_ids={Post IDs:id1,id2,...}&date={Most Recent Day to Include?:yyyy-MM-dd}&offset={Time Zone Offset?}",
+      "description": "Lifetime view totals for the site's posts. The all-time ranking rather than a period one."
     },
     {
       "name": "Calendar Heatmap Statistics",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/streak?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&startDate={Start Date?:yyyy-MM-dd}&endDate={End Date?:yyyy-MM-dd}&max={Maximum Number of Posts to Return?}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/streak?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&startDate={Start Date?:yyyy-MM-dd}&endDate={End Date?:yyyy-MM-dd}&max={Maximum Number of Posts to Return?}",
+      "description": "Posting activity by day, as the data behind a contribution-style heatmap. Publishing cadence rather than readership."
     },
     {
       "name": "Media Item",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/media/{Media ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/media/{Media ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One media item by id."
     },
     {
       "name": "Media Items",
       "paged": true,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/media?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search Query?}&post_ID={Post ID?}&mime_type={MIME Type?}&after={Uploaded After?:yyyy-MM-ddTHH:mm:ss}&before={Uploaded Before?:yyyy-MM-ddTHH:mm:ss}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/media?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search Query?}&post_ID={Post ID?}&mime_type={MIME Type?}&after={Uploaded After?:yyyy-MM-ddTHH:mm:ss}&before={Uploaded Before?:yyyy-MM-ddTHH:mm:ss}",
+      "description": "The media library of one site, with file name, type, dimensions, size, the post each is attached to and the upload date. Requires a site. Storage questions and unused-asset questions are answered here."
     },
     {
       "name": "Navigation Menu",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/menus/{Menu ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/menus/{Menu ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "One menu by id."
     },
     {
       "name": "Navigation Menus",
       "paged": false,
-      "suffix": "/v1.1/sites/{Site ID or Domain}/menus?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/sites/{Site ID or Domain}/menus?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The navigation menus of one site, with their items. The site's own structure as presented to readers."
     },
     {
       "name": "Video Metadata",
       "paged": false,
-      "suffix": "/v1.1/videos/{Video ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&birth_month={Birth Month?}&birth_day={Birth Day?}&birth_year={Birth Year?}"
+      "suffix": "/v1.1/videos/{Video ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&birth_month={Birth Month?}&birth_day={Birth Day?}&birth_year={Birth Year?}",
+      "description": "The metadata of one VideoPress video -- duration, dimensions and processing state. Requires a video id."
     },
     {
       "name": "Video Poster",
       "paged": false,
-      "suffix": "/v1.1/videos/{Video ID}/poster?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+      "suffix": "/v1.1/videos/{Video ID}/poster?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "description": "The poster image of one video."
     }
   ]
 }
