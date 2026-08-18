@@ -882,41 +882,14 @@ public final class WizardRecommenderUtil {
       min = vals[0] + inc;
       max = vals[1] > max ? vals[1] - inc : vals[1];
       final int n = (int) Math.round((max - min) / inc) - 1;
-
-      StringBuilder builder = new StringBuilder();
-      ArrayList<String> ranges = new ArrayList<>();
       field = field.replace("'", "\\'");
 
-      for(int i = 0; i <= n; min += inc, i++) {
-         if(i == 0) {
-            String range = "< " + Tool.toString(min);
-            builder.append("if(field['" + field + "'] < " + Tool.toString(min) + ") {\n");
-            builder.append("  '" + range + "'\n");
-            builder.append("}\n");
-            ranges.add(range);
-         }
-
-         if(i == n) {
-            String range = "> " + Tool.toString(min);
-            builder.append("else {\n");
-            builder.append("  '" + range + "'\n");
-            builder.append("}\n");
-            ranges.add(range);
-         }
-         else {
-            String range = Tool.toString(min) + " - " + Tool.toString(min + inc);
-            builder.append("else if(field['" + field + "'] >= " + Tool.toString(min) +
-                              " && field['" + field + "'] < " + Tool.toString(min + inc) + ") {\n");
-            builder.append("  '" + range + "'\n");
-            builder.append("}\n");
-            ranges.add(range);
-         }
-      }
+      RangeExpression built = buildRangeExpression(min, inc, n, field);
 
       CalculateRef calc = new CalculateRef();
       calc.setName(refValue);
       ExpressionRef expr = new ExpressionRef();
-      expr.setExpression(builder.toString());
+      expr.setExpression(built.expression());
       expr.setName(refValue);
       calc.setDataRef(expr);
       calc.setSQL(false);
@@ -925,7 +898,67 @@ public final class WizardRecommenderUtil {
       rvs.getViewsheet().addCalcField(tname, calc);
       dim.setGroupColumnValue(calc.getName());
       dim.setOrder(XConstants.SORT_SPECIFIC);
-      dim.setManualOrderList(ranges);
+      dim.setManualOrderList(built.ranges());
+   }
+
+   /** The generated bin-assignment JS expression, plus the ordered bucket labels it can produce. */
+   record RangeExpression(String expression, ArrayList<String> ranges) {}
+
+   /**
+    * Build the JS if/else-if chain that assigns a row's {@code field} value to one of {@code n + 1}
+    * numeric buckets starting at {@code min} and stepping by {@code inc}. Package-visible (rather than
+    * inlined into {@link #buildRangeDimension}) so the generated expression's null-handling can be
+    * asserted directly in a plain unit test, with no {@code RuntimeViewsheet}/sandbox scaffolding.
+    *
+    * <p>Every branch must check {@code field != null} explicitly. JS coerces {@code null} to {@code 0}
+    * in a relational comparison, so an unguarded {@code field < min} (the first bucket) or an
+    * unconditional trailing {@code else} (the last bucket) both silently admit a null value — the
+    * exact defect found live sweeping openproject F1 ("distribution of estimated hours"): with ~18%
+    * of work packages having no estimate, the first bucket read 803 instead of the true 629, inflated
+    * by exactly the null count. A null field must match NO branch, so it is excluded from the
+    * distribution — mirroring the convention {@link NumericRangeRef} already uses correctly for the
+    * unrelated classic composer "Numeric Range" calc field feature.
+    *
+    * <p>The middle buckets ({@code field >= X && field < Y}) need the same guard, not just the first
+    * and last: {@code null} coerces to {@code 0}, so for any bucket whose range straddles zero
+    * ({@code X <= 0 < Y}) — reachable whenever {@code min} can be negative, e.g. a profit/loss or
+    * temperature-delta field, not just non-negative fields like {@code estimated_hours} — a null value
+    * satisfies {@code 0 >= X && 0 < Y} and lands in that bucket silently, the identical defect just
+    * relocated rather than fixed. So every branch is guarded unconditionally, with no "only the edges
+    * need it" special-casing.
+    */
+   static RangeExpression buildRangeExpression(double min, double inc, int n, String field) {
+      StringBuilder builder = new StringBuilder();
+      ArrayList<String> ranges = new ArrayList<>();
+
+      for(int i = 0; i <= n; min += inc, i++) {
+         if(i == 0) {
+            String range = "< " + Tool.toString(min);
+            builder.append("if(field['" + field + "'] != null && field['" + field + "'] < " + Tool.toString(min) + ") {\n");
+            builder.append("  '" + range + "'\n");
+            builder.append("}\n");
+            ranges.add(range);
+         }
+
+         if(i == n) {
+            String range = "> " + Tool.toString(min);
+            builder.append("else if(field['" + field + "'] != null) {\n");
+            builder.append("  '" + range + "'\n");
+            builder.append("}\n");
+            ranges.add(range);
+         }
+         else {
+            String range = Tool.toString(min) + " - " + Tool.toString(min + inc);
+            builder.append("else if(field['" + field + "'] != null && field['" + field + "'] >= " +
+                              Tool.toString(min) + " && field['" + field + "'] < " +
+                              Tool.toString(min + inc) + ") {\n");
+            builder.append("  '" + range + "'\n");
+            builder.append("}\n");
+            ranges.add(range);
+         }
+      }
+
+      return new RangeExpression(builder.toString(), ranges);
    }
 
    // remove calculate ref created by prepareCalculateRefs() that are no longer used

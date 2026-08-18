@@ -66,4 +66,60 @@ class WizardRecommenderUtilTest {
       WizardRecommenderUtil.applyNumericBin(ref);
       assertNull(ref.getGroupColumnValue());
    }
+
+   /**
+    * Regression: found live sweeping openproject F1 ("distribution of estimated hours"). A bare
+    * "field &lt; min" for the first bucket, and a bare unconditional "else" for the last, both
+    * silently admit a null value — JS coerces null to 0 in a relational comparison, so
+    * "null &lt; 20" is true. With ~18% of work packages having no estimate, the first bucket read
+    * 803 instead of the true 629 — inflated by exactly the null count (verified live via an
+    * explicit IS NOT NULL filter, which reproduced 629 unchanged).
+    *
+    * <p>Every branch is guarded, not just the first and last: a middle, range-bounded bucket
+    * ("field &gt;= X &amp;&amp; field &lt; Y") is only safe from null-as-0 when X is positive, and
+    * this generator is shared by every numeric histogram, not just non-negative fields like
+    * estimated_hours. See {@link #aZeroSpanningMiddleBucketDoesNotSilentlyAdmitNull()}.
+    */
+   @Test
+   void everyBucketGuardsAgainstNull() {
+      WizardRecommenderUtil.RangeExpression built =
+         WizardRecommenderUtil.buildRangeExpression(20, 20, 6, "estimated_hours");
+      String expr = built.expression();
+      String[] branches = expr.split("(?=\\belse\\b|^if\\()");
+
+      for(String branch : branches) {
+         assertTrue(branch.contains("!= null"), "every bucket must guard field != null: " + branch);
+      }
+   }
+
+   @Test
+   void theTrailingBucketIsNoLongerAnUnconditionalElse() {
+      WizardRecommenderUtil.RangeExpression built =
+         WizardRecommenderUtil.buildRangeExpression(20, 20, 6, "estimated_hours");
+
+      // A bare "else {" with no "if" is exactly the shape that used to catch every null the
+      // (now-guarded) first bucket correctly rejects -- relocating the bug rather than fixing it.
+      assertFalse(built.expression().contains("else {\n"),
+         "trailing bucket must not be an unconditional else: " + built.expression());
+   }
+
+   /**
+    * Regression for the reviewer's finding on stylebi#4597 (larryliang-inetsoft): guarding only the
+    * first and last buckets is safe for a non-negative field like estimated_hours, but not in
+    * general. min=-40, inc=20 produces a bucket "0 - 20" whose range straddles zero
+    * (field &gt;= 0 &amp;&amp; field &lt; 20) — a null field coerces to 0 in JS, so "0 &gt;= 0
+    * &amp;&amp; 0 &lt; 20" is true, and the null would silently land in that bucket instead of
+    * being excluded, for any field whose values can go negative (profit/loss, temperature delta).
+    */
+   @Test
+   void aZeroSpanningMiddleBucketDoesNotSilentlyAdmitNull() {
+      WizardRecommenderUtil.RangeExpression built =
+         WizardRecommenderUtil.buildRangeExpression(-40, 20, 5, "balance");
+      String expr = built.expression();
+
+      assertTrue(expr.contains("field['balance'] >= 0 && field['balance'] < 20"),
+         "expected a zero-spanning bucket in the generated expression: " + expr);
+      assertTrue(expr.contains("field['balance'] != null && field['balance'] >= 0"),
+         "the zero-spanning bucket must guard against null: " + expr);
+   }
 }
