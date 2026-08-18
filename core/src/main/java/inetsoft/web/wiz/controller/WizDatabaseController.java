@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -35,6 +36,7 @@ import inetsoft.web.admin.content.database.types.*;
 import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceInfo;
@@ -486,6 +488,60 @@ public class WizDatabaseController {
    }
 
    /**
+    * Creates a folder in the data source repository.
+    *
+    * <p>Gated by the same rule as {@link #createDatabase}: WRITE on the parent folder, or, at the
+    * root only, the standalone {@code CREATE_DATA_SOURCE} grant. {@code addDatasourceFolder} itself
+    * performs no duplicate check and no permission check — the native
+    * {@code DataSourceController} guards both in the caller, and this mirrors that rather than
+    * relying on the service to catch either.</p>
+    *
+    * <p>{@code userScope} is passed through from {@link #requireCreatePermission}: {@code true} only
+    * when the caller reached this endpoint on the strength of the standalone
+    * {@code CREATE_DATA_SOURCE} grant, with no WRITE on the parent folder itself. That flag is what
+    * grants such a caller personal READ/WRITE/DELETE on the new folder — the same "create in my own
+    * scope" affordance the native controller applies for the identical case. Without it, that caller
+    * would have no permission entry on the folder they just created and no WRITE on the root to
+    * inherit from, and would be locked out of it immediately after creating it.</p>
+    *
+    * @param request   the parent folder and the new folder's name.
+    * @param principal the current user.
+    *
+    * @return the new folder's path, or {@code DUPLICATE_NAME} when a folder or data source of that
+    *         name already exists in the parent.
+    *
+    * <p><b>Known limitations, both pre-existing in the underlying repository API rather than
+    * introduced here:</b> the duplicate check is advisory, not atomic with the create that follows —
+    * two concurrent requests for the same name can both pass it, the same race
+    * {@code checkTabularDuplicateName} already has on the tabular create path. And neither this
+    * endpoint nor the native {@code DataSourceController.addDatasourceFolder} it mirrors confirms that
+    * {@code parentPath} names an existing folder before creating inside it, so a caller with WRITE on
+    * a broad ancestor can create a folder under a path that does not exist.</p>
+    */
+   @PostMapping(value = "/datasources/folders/create", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizFolderSaveResult createFolder(@RequestBody WizFolderCreateRequest request,
+                                           Principal principal)
+      throws Exception
+   {
+      String name = requireFolderName(request);
+      String parentPath = normalizePath(request.parentPath());
+
+      boolean userScope = requireCreatePermission(parentPath, principal);
+
+      String path = parentPath == null ? name : parentPath + "/" + name;
+      CheckDuplicateResponse duplicate = dataSourceBrowserService.checkFolderDuplicate(path);
+
+      if(duplicate != null && duplicate.isDuplicate()) {
+         return WizFolderSaveResult.failed(WizFolderSaveResult.DUPLICATE_NAME);
+      }
+
+      String auditPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
+      dataSourceBrowserService.addDatasourceFolder(path, auditPath, principal, userScope);
+
+      return WizFolderSaveResult.ok(path);
+   }
+
+   /**
     * Fails unless the caller holds the action on a data source.
     *
     * <p>Throws {@code java.lang.SecurityException}, which is what {@code SecuredAspect} throws for
@@ -509,21 +565,32 @@ public class WizDatabaseController {
     * {@code CREATE_DATA_SOURCE} grant that lets a user own data sources without holding the root
     * folder. The native controller's fuller rule set is not reproduced — this is a guard in front of
     * {@code saveDatabase}, which enforces the real thing.</p>
+    *
+    * @return whether the ONLY grant that let the caller through was the standalone
+    *         {@code CREATE_DATA_SOURCE} permission, i.e. they hold no WRITE on the parent folder
+    *         itself. {@code createDatabase} ignores this — {@code saveDatabase} grants the creator
+    *         ownership of the new database itself — but {@code createFolder} needs it: that is the
+    *         exact case where the caller would otherwise have no permission on the folder they just
+    *         created. See the {@code userScope} note on {@code createFolder}.
     */
-   private void requireCreatePermission(String parentPath, Principal principal) throws Exception {
+   private boolean requireCreatePermission(String parentPath, Principal principal) throws Exception {
       boolean root = parentPath == null;
-      boolean allowed = securityEngine.checkPermission(
+      boolean writeOnParent = securityEngine.checkPermission(
          principal, ResourceType.DATA_SOURCE_FOLDER, root ? "/" : parentPath, ResourceAction.WRITE);
 
-      if(!allowed && root) {
-         allowed = securityEngine.checkPermission(
-            principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
+      if(writeOnParent) {
+         return false;
       }
 
-      if(!allowed) {
+      boolean createDataSourceOnly = root && securityEngine.checkPermission(
+         principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
+
+      if(!createDataSourceOnly) {
          throw new SecurityException("Unauthorized access to data source folder \"" +
                                         (root ? "/" : parentPath) + "\" by user " + principal);
       }
+
+      return true;
    }
 
    /** The database type identifiers the editor offers, i.e. what {@code getDatabaseMeta} returns. */
@@ -995,6 +1062,25 @@ public class WizDatabaseController {
 
       if(name == null || name.isEmpty()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
+      }
+
+      return name;
+   }
+
+   private static String requireFolderName(WizFolderCreateRequest request) {
+      if(request == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "request is required");
+      }
+
+      String name = request.name() == null ? null : request.name().trim();
+
+      if(name == null || name.isEmpty()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
+      }
+
+      if(name.contains("/") || ".".equals(name) || "..".equals(name)) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "name must be a single path segment");
       }
 
       return name;
