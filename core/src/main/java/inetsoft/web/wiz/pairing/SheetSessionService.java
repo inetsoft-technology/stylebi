@@ -74,6 +74,42 @@ public class SheetSessionService {
    public void close(String token) { if (token != null) sessions.remove(token); }
 
    /**
+    * Ends every pane-scoped session bound to {@code socketSessionId} -- called when that
+    * WebSocket session disconnects (crash, network drop, or a killed tab; see
+    * {@code SheetSessionSocketCleanup}). A pane-scoped session (nullable
+    * {@link JoinSession#editorContext()} non-null) is meant to live only "while a script pane
+    * is active"; once its socket is gone, that is no longer knowable to be true, so it is
+    * expired immediately rather than given a reconnect grace period. A user who legitimately
+    * blips and reconnects just re-pairs -- cheap, one click -- versus leaving a live write
+    * handle open for an unknown gap, which is the exact hole this task exists to close.
+    *
+    * <p>Whole-sheet (editorContext == null) sessions are deliberately left untouched here --
+    * they keep today's TTL-only lifetime so a toolbar-paired user does not lose their session
+    * to a transient socket blip. This is the regression this method must never cause.
+    */
+   public void socketClosed(String socketSessionId) {
+      if(socketSessionId == null) return;
+      sessions.values().removeIf(
+         s -> s.editorContext() != null && socketSessionId.equals(s.socketSessionId()));
+   }
+
+   /**
+    * Ends the one pane-scoped session bound to both {@code socketSessionId} and
+    * {@code editorContext}, if any -- called explicitly when the script pane or formula editor
+    * that produced it is destroyed (its dialog closed or cancelled). Scoped to the exact
+    * {@code editorContext} match, not just the socket, so closing one pane does not end a
+    * session paired from a different pane/dialog still open on the same browser socket.
+    *
+    * <p>Distinct from {@link #socketClosed}, which reacts to the transport itself going away
+    * (crash/network drop) rather than a deliberate, in-app close.
+    */
+   public void detach(String socketSessionId, EditorContext editorContext) {
+      if(socketSessionId == null || editorContext == null) return;
+      sessions.values().removeIf(
+         s -> editorContext.equals(s.editorContext()) && socketSessionId.equals(s.socketSessionId()));
+   }
+
+   /**
     * Returns an unexpired session of {@code sheetType} owned by {@code ownerIdentity}, or null if
     * none is held.
     *

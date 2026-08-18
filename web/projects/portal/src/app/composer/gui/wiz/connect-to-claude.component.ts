@@ -114,6 +114,26 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
       this.error = "Could not copy to clipboard — please copy the code manually.";
    }
 
+   /**
+    * Ends any pane-scoped session paired from this exact location. Called explicitly by the
+    * script pane / formula editor that hosts this component from their own `ngOnDestroy`, so a
+    * pane session dies with its editor -- a user who pairs then cancels or closes the dialog
+    * does not leave a live write handle behind.
+    *
+    * A whole-sheet ("Connect to Claude" toolbar) mint has no `editorContext` and must never
+    * reach this endpoint -- its session is TTL-only by design, so this is a no-op there.
+    */
+   detach(): void {
+      if(!this.editorContext || !this.socketConnection) {
+         return;
+      }
+
+      this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
+         conn.send("/events/wiz/pairing/detach", {},
+                   JSON.stringify({ editorContext: this.editorContext }));
+      });
+   }
+
    ngOnDestroy(): void {
       if(this.mintSubscription) {
          this.mintSubscription.unsubscribe();

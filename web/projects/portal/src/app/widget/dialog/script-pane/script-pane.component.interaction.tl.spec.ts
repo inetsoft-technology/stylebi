@@ -256,4 +256,27 @@ describe("ScriptPane - pane-scoped pairing runtime/socket inputs [Group 5, Risk 
       expect(comp.runtimeId).toBe("vs-123");
       expect(comp.socketConnection).toBe(clientServiceStub);
    });
+
+   it("detaches its Connect-to-Claude session on ngOnDestroy (G2 Task 9)", () => {
+      const { comp, codeMirror, ternServer } = createScriptPane();
+      (comp as any).codemirrorInstance = codeMirror;
+      (comp as any).ternServer = ternServer;
+      (comp as any).cancelAutocomplete = vi.fn();
+      const connectToClaude = { detach: vi.fn() };
+      (comp as any).connectToClaude = connectToClaude;
+
+      comp.ngOnDestroy();
+
+      expect(connectToClaude.detach).toHaveBeenCalledTimes(1);
+   });
+
+   it("ngOnDestroy tolerates no Connect-to-Claude control being present", () => {
+      const { comp, codeMirror, ternServer } = createScriptPane();
+      (comp as any).codemirrorInstance = codeMirror;
+      (comp as any).ternServer = ternServer;
+      (comp as any).cancelAutocomplete = vi.fn();
+      (comp as any).connectToClaude = undefined;
+
+      expect(() => comp.ngOnDestroy()).not.toThrow();
+   });
 });

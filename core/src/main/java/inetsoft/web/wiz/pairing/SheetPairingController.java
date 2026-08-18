@@ -51,10 +51,12 @@ import java.util.Map;
 @RestController
 public class SheetPairingController {
    @Autowired
-   public SheetPairingController(SheetPairingService pairing, SheetAgentFeature feature,
+   public SheetPairingController(SheetPairingService pairing, SheetSessionService sessions,
+                                 SheetAgentFeature feature,
                                  @Value("${wiz.agent.rest-mint.enabled:false}") boolean restMintEnabled)
    {
       this.pairing = pairing;
+      this.sessions = sessions;
       this.feature = feature;
       this.restMintEnabled = restMintEnabled;
    }
@@ -138,6 +140,33 @@ public class SheetPairingController {
       }
    }
 
+   /** Payload for the STOMP detach. {@code editorContext} is required -- a whole-sheet
+    *  ("Connect to Claude" toolbar) mint never sends one, and there is nothing for a detach
+    *  without one to correctly target: the toolbar session's lifetime is TTL-only by design and
+    *  must not be reachable from this endpoint. */
+   public record DetachRequest(EditorContext editorContext) {}
+
+   /**
+    * STOMP detach — sent by {@code ConnectToClaudeComponent.detach()} when the script pane or
+    * formula editor that minted a pane-scoped pairing code is destroyed (its dialog closed or
+    * cancelled), ending any live session paired from that exact location. This is the
+    * deliberate-close half of Task 9; {@link SheetSessionSocketCleanup} is the other half,
+    * covering the socket simply going away (crash/network drop/killed tab).
+    *
+    * <p>No reply is sent -- the browser never held the session token to begin with (only the
+    * agent that joined does), so there is nothing meaningful to report back.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/detach}
+    */
+   @MessageMapping("/wiz/pairing/detach")
+   public void detachViaSocket(@Payload DetachRequest req, SimpMessageHeaderAccessor accessor) {
+      if(req == null || req.editorContext() == null) {
+         return;
+      }
+
+      sessions.detach(accessor.getSessionId(), req.editorContext());
+   }
+
    @ExceptionHandler(PairingException.class)
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {
@@ -180,6 +209,7 @@ public class SheetPairingController {
    }
 
    private final SheetPairingService pairing;
+   private final SheetSessionService sessions;
    private final SheetAgentFeature feature;
    private final boolean restMintEnabled;
 

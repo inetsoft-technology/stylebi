@@ -91,6 +91,9 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
    @ViewChild("scriptEditor") scriptEditor: ElementRef;
    @ViewChild("scriptEditorContainer") scriptEditorContainer: ElementRef;
+   /** Present only while [runtimeId] and [socketConnection] are both set (see the template's
+    *  guarding @if) -- absent otherwise, e.g. this pane has no runtime to pair against. */
+   @ViewChild(ConnectToClaudeComponent) connectToClaude?: ConnectToClaudeComponent;
 
    private _expression: string;
    private codemirrorInstance: any;
@@ -280,6 +283,11 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
 
    ngOnDestroy(): void {
       this.destroyCodeMirror();
+      // A pane session dies with its editor: ends any agent-pairing session paired from this
+      // pane's exact editorContext, so cancelling/closing this pane doesn't leave a live write
+      // handle behind. No-op when this pane never showed a Connect-to-Claude control, or when
+      // it did but editorContext is a whole-sheet (null) mint.
+      this.connectToClaude?.detach();
    }
 
    private isEditorElementDisplayed(): boolean {

@@ -187,6 +187,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Output() aggregateDelete: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild("newAggrDialog") newAggrDialog: TemplateRef<any>;
    @ViewChild("formElement") formElementRef: ElementRef<HTMLFormElement>;
+   /** Present only while [canPair] is true (see the template's guarding @if) -- absent
+    *  otherwise, e.g. this dialog has no runtime/socket to pair against. */
+   @ViewChild(ConnectToClaudeComponent) connectToClaude?: ConnectToClaudeComponent;
    private _scriptDefinitions: any = null;
    _aggregates: DataRef[] = [];
    public static DATE_PART_COLUMN: string = "date_part_column";
@@ -272,6 +275,12 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    }
 
    ngOnDestroy(): void {
+      // A pane session dies with its editor: ends any agent-pairing session paired from this
+      // dialog's exact editorContext, so cancelling/closing it doesn't leave a live write
+      // handle behind. No-op when this dialog never showed a Connect-to-Claude control, or when
+      // it did but editorContext is a whole-sheet (null) mint.
+      this.connectToClaude?.detach();
+
       if(!!this.subscriptions) {
          this.subscriptions.unsubscribe();
          this.subscriptions = null;

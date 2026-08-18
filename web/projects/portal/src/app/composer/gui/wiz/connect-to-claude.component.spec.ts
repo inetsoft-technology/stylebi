@@ -202,4 +202,34 @@ describe("ConnectToClaudeComponent", () => {
       const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
       expect("editorContext" in sent).toBe(false);
    });
+
+   describe("detach (G2 Task 9)", () => {
+      it("sends a detach message naming this location's editorContext", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+
+         component.detach();
+
+         expect(mockSocketConnection.whenConnected).toHaveBeenCalled();
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/detach",
+            {},
+            JSON.stringify({ editorContext: { kind: "assemblyMain", assembly: "Chart1" } })
+         );
+      });
+
+      it("is a no-op for a whole-sheet (toolbar) mint with no editorContext", () => {
+         component.editorContext = undefined;
+
+         component.detach();
+
+         expect(mockSocketConnection.whenConnected).not.toHaveBeenCalled();
+      });
+
+      it("is a no-op when there is no socket connection", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         component.socketConnection = undefined as any;
+
+         expect(() => component.detach()).not.toThrow();
+      });
+   });
 });

@@ -32,6 +32,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * [Resolve: expired] resolve returns null for expired session
  * [Resolve: refresh] resolve refreshes TTL (lastAccess advances)
  * [Close]            close invalidates the token
+ * [Socket close: pane]    socketClosed expires a pane-scoped session on that socket
+ * [Socket close: toolbar] socketClosed leaves a whole-sheet session's TTL behaviour alone
+ * [Detach]                detach ends the one session matching socket + editorContext
  */
 @Tag("core")
 class SheetSessionServiceTest {
@@ -125,6 +128,83 @@ class SheetSessionServiceTest {
 
       assertNotNull(found);
       assertEquals(session.sessionToken(), found.sessionToken());
+   }
+
+   @Test
+   void expiresAPaneSessionWhenItsSocketGoesAway() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      svc.socketClosed("sock-1");
+
+      assertNull(svc.resolve(pane.sessionToken(), "owner~;~org"));
+   }
+
+   /**
+    * The regression guard: whole-sheet ("Connect to Claude" toolbar) sessions must NOT
+    * acquire editor-bound lifetime. Pane-scoping must never leak into them, or every existing
+    * toolbar user loses their session the moment their socket blips.
+    */
+   @Test
+   void aToolbarSessionKeepsTodaysTtlBehaviour() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession sheet = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+
+      svc.socketClosed("sock-1");
+
+      assertNotNull(svc.resolve(sheet.sessionToken(), "owner~;~org"));
+   }
+
+   @Test
+   void socketClosedIgnoresASocketWithNoSessionsOnIt() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      svc.socketClosed("some-other-socket");
+
+      assertNotNull(svc.resolve(pane.sessionToken(), "owner~;~org"),
+                    "a different socket disconnecting must not touch this session");
+   }
+
+   @Test
+   void detachEndsTheSessionMatchingBothSocketAndEditorContext() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      svc.detach("sock-1", ctx);
+
+      assertNull(svc.resolve(pane.sessionToken(), "owner~;~org"));
+   }
+
+   @Test
+   void detachLeavesASiblingPaneOnTheSameSocketAlone() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext closed = new EditorContext("assemblyMain", "Chart1", null, null);
+      EditorContext stillOpen = new EditorContext("assemblyMain", "Chart2", null, null);
+      JoinSession closedPane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                        "owner", closed);
+      JoinSession openPane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                      "owner", stillOpen);
+
+      svc.detach("sock-1", closed);
+
+      assertNull(svc.resolve(closedPane.sessionToken(), "owner~;~org"));
+      assertNotNull(svc.resolve(openPane.sessionToken(), "owner~;~org"),
+                    "detaching one pane must not end a different pane's session on the same socket");
+   }
+
+   @Test
+   void detachNeverReachesAWholeSheetSession() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession sheet = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+
+      svc.detach("sock-1", ctx);
+
+      assertNotNull(svc.resolve(sheet.sessionToken(), "owner~;~org"));
    }
 
    @Test
