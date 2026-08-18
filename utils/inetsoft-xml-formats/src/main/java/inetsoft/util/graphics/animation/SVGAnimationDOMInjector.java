@@ -79,6 +79,14 @@ public class SVGAnimationDOMInjector {
       // class, which the radar hover rules never match), so this is a pre-existing design-time
       // limitation, not a regression introduced by the #75642 overlap fix.
       if(animHint.contains(":" + SVGSupport.ANIMATION_FLAG_NOANIM)) {
+         // The donut center-hole overlay is an inetsoft-bar group just like a slice, so the bar
+         // hover-dim rule fades it to HOVER_DIM_OPACITY and the full pie underneath shows through
+         // the middle. Reclassifying it (normally done by injectPieAnimation) is a hover concern,
+         // not an animation one, so it must run on design-time surfaces too.
+         if(SVGSupport.ANIMATION_PIE.equals(base)) {
+            preprocessDonutHoles(svgRoot);
+         }
+
          return;
       }
 
