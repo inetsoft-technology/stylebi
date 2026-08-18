@@ -594,7 +594,16 @@ export class AutoDrillDialog implements OnInit, AfterViewInit {
     * @param index
     */
    removeParameter(index: number): void {
-      this.editDrill.params.splice(index, 1);
+      const title: string = "_#(js:data.logicalmodel.drillDeleteParameter)";
+      const message: string = "_#(js:data.logicalmodel.confirmRemoveParam)";
+
+      ComponentTool.showConfirmDialog(this.modalService, title, message)
+         .then((result: string) => {
+            if(result == "ok") {
+               this.editDrill.params.splice(index, 1);
+            }
+         },
+         () => {});
    }
 
    /**

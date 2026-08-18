@@ -50,6 +50,7 @@ import { VirtualScrollTreeComponent } from "../../tree/virtual-scroll-tree/virtu
 
 
 const LINT_MARKERS = "CodeMirror-lint-markers";
+const DUPLICATE_CLICK_THRESHOLD = 500;
 
 @Component({
     selector: "script-pane",
@@ -96,6 +97,8 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    private _operatorTreeRoot: TreeNodeModel;
    private _analysisResults: AnalysisResult[] = [];
    private cursorTop: boolean = false;
+   private lastClickedNode: TreeNodeModel = null;
+   private lastClickedTime: number = 0;
    @Input() showHelp: boolean = true;
    helpURL = "";
    needUseVirtualScroll: boolean = true;
@@ -611,6 +614,21 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    }
 
    itemClicked(node: TreeNodeModel, target: string): void {
+      // tree selection fires on mousedown, so a double-click (two mousedowns) on the
+      // same leaf reaches here twice and would insert the field text twice.
+      // Collapse those into a single insertion.
+      const now = Date.now();
+
+      if(node === this.lastClickedNode &&
+         now - this.lastClickedTime < DUPLICATE_CLICK_THRESHOLD)
+      {
+         this.lastClickedTime = now;
+         return;
+      }
+
+      this.lastClickedNode = node;
+      this.lastClickedTime = now;
+
       // make sure focus is on text area
       setTimeout(() => this.codemirrorInstance.focus(), 200);
 

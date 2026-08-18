@@ -1420,8 +1420,13 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
    }
 
    /**
-    * Checks for any unjoined tables in the view. Returns the first pair of
-    * unjoined tables that are found.
+    * Checks for any unjoined tables in the view. Groups all tables into
+    * connected components and, if more than one exists, returns a
+    * representative of the largest (main) component paired with a
+    * representative of the smallest component. This ensures the reported
+    * table names always include an actual disconnected table, rather than
+    * an arbitrary table (which may itself belong to a minor component)
+    * used as a fixed comparison anchor.
     *
     * @return the names of the unjoined tables or <code>null</code> if no
     *         unjoined tables are found.
@@ -1430,22 +1435,46 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     */
    public String[] getUnjoinedTables() {
       Enumeration e = getTables();
-      String[] tables = new String[getTableCount()];
+      List<String> tableList = new ArrayList<>();
 
-      for(int i = 0; e.hasMoreElements(); i++) {
+      while(e.hasMoreElements()) {
          PartitionTable temp = (PartitionTable) e.nextElement();
-         tables[i] = temp.getName();
+         tableList.add(temp.getName());
       }
 
-      // check for missing joins
-      for(int i = 1; i < tables.length; i++) {
-         if(findJoinPath(tables[0], tables[i], null, new ArrayList<>(), false) == null)
-         {
-            return new String[] { tables[0], tables[i] };
+      if(tableList.size() < 2) {
+         return null;
+      }
+
+      List<List<String>> components = new ArrayList<>();
+
+      for(String table : tableList) {
+         List<String> matched = null;
+
+         for(List<String> component : components) {
+            if(findJoinPath(component.get(0), table, null, new ArrayList<>(), false) != null) {
+               matched = component;
+               break;
+            }
+         }
+
+         if(matched != null) {
+            matched.add(table);
+         }
+         else {
+            List<String> component = new ArrayList<>();
+            component.add(table);
+            components.add(component);
          }
       }
 
-      return null;
+      if(components.size() <= 1) {
+         return null;
+      }
+
+      components.sort((a, b) -> b.size() - a.size());
+
+      return new String[] { components.get(0).get(0), components.get(1).get(0) };
    }
 
    /**
