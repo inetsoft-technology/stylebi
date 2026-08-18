@@ -2814,6 +2814,50 @@ public class WizVsService {
    }
 
    /**
+    * Execute a Gauge/Text (OutputVSAssembly) assembly's scalar value to verify the saved
+    * visualization actually renders, without materializing a table.
+    *
+    * <p>THE BUG THIS FIXES. The controller's dispatch used to be a two-way branch --
+    * {@code ChartVSAssembly ? verifyChartData : verifyTableData} -- on the unstated assumption
+    * that "not a chart" means "table or crosstab". An OutputVSAssembly (Gauge, Text -- the same
+    * shape {@link #verifyChartData}'s own sibling {@link #verifyTableData} was added to handle
+    * for table/crosstab) is NEITHER: it falls into the {@code verifyTableData} branch, which
+    * calls {@link ViewsheetSandbox#getTableData}, and a Gauge/Text assembly has no TableLens at
+    * all -- {@code getTableData} returns {@code null}, so verifyTableData reports
+    * {@code hasData=false, rowCount=0} unconditionally. Every saved Gauge/Text visualization was
+    * therefore reported as a "silently-broken save" even when it rendered a real value, live,
+    * moments earlier -- reproduced on orangehrm: a headcount gauge (value 251, or 39 filtered)
+    * verified as 0 rows / no data every time.
+    *
+    * <p>Mirrors {@link #extractOutputAssemblyData}'s own execute-then-read pattern (the ONE place
+    * in this class that already correctly reads a Gauge/Text's computed value for
+    * create_viewsheet's response), rather than inventing a second implementation of it.
+    */
+   public VerifyResult verifyOutputData(RuntimeViewsheet rvs, String assemblyName) throws Exception {
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+      if(boxOpt.isEmpty()) {
+         return new VerifyResult(false, 0);
+      }
+
+      ViewsheetSandbox box = boxOpt.get();
+      VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+      if(!(vsAssembly instanceof OutputVSAssembly outputAssembly)) {
+         return new VerifyResult(false, 0);
+      }
+
+      // executeOutput runs the scalar query via getData() and then calls assembly.setValue(),
+      // which is required before getValue() returns the computed result -- see
+      // extractOutputAssemblyData's identical call for why.
+      box.executeOutput(outputAssembly.getAssemblyEntry());
+
+      Object value = outputAssembly.getValue();
+
+      return value == null ? new VerifyResult(false, 0) : new VerifyResult(true, 1);
+   }
+
+   /**
     * Extracts tabular data from a Table or Crosstab assembly via its TableLens.
     * Row 0 through headerRowCount-1 are header rows; data begins at headerRowCount.
     * <p>

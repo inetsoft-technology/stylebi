@@ -436,8 +436,24 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Get the {@code ORDER BY field['o1'] DESC, field['o2'] ASC} fragment, or "" if there is no
-    * ordering.
+    * Get the {@code ORDER BY CASE WHEN field['o1'] IS NULL THEN 1 ELSE 0 END, field['o1'] DESC,
+    * ...} fragment, or "" if there is no ordering.
+    * <p>
+    * A synthetic {@code CASE WHEN <col> IS NULL THEN 1 ELSE 0 END} key is emitted immediately
+    * before each real sort key so a NULL value always sorts last, regardless of ASC/DESC and
+    * regardless of the database's own default NULL-ordering rule. Without this guard, a bare
+    * {@code ORDER BY field['x'] DESC} defaults to {@code NULLS FIRST} on Postgres/Oracle, so a row
+    * with a NULL value wins the "largest value" ranking position -- e.g.
+    * {@code ROW_NUMBER() OVER (PARTITION BY project ORDER BY estimated_hours DESC)} would pick a
+    * work package with a null {@code estimated_hours} as rank 1 instead of the one with the
+    * actual largest value.
+    * <p>
+    * This uses a portable {@code CASE WHEN} key rather than the {@code NULLS LAST} keyword because
+    * that keyword is not available on every dialect {@code windowCapability.ts} advertises as
+    * window-function-capable: SQL Server has no {@code NULLS LAST}/{@code NULLS FIRST} syntax at
+    * all, and MySQL did not add it until 8.0.14 (StyleBI's supported floor is MySQL 8.0.0). A
+    * {@code CASE WHEN} key plus a multi-key {@code ORDER BY} is ANSI-standard SQL and behaves
+    * identically across Postgres, Oracle, SQL Server, and MySQL 8.0+.
     */
    private String getOrderFragment() {
       if(orderBy == null || orderBy.isEmpty()) {
@@ -452,7 +468,9 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
          }
 
          SortRef sort = orderBy.get(i);
-         sb.append(fieldToken(sort.getDataRef()));
+         String token = fieldToken(sort.getDataRef());
+         sb.append("CASE WHEN ").append(token).append(" IS NULL THEN 1 ELSE 0 END, ");
+         sb.append(token);
          sb.append(sort.getOrder() == XConstants.SORT_ASC ? " ASC" : " DESC");
       }
 

@@ -32,9 +32,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.security.Principal;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +218,246 @@ class FkIntegrityServiceTest {
       assertTrue(sql.contains("GROUP BY id"), sql);
       assertTrue(sql.contains("HAVING COUNT(*) > 1"), sql);
       assertFalse(sql.contains("'"), "the statement must contain no string literals: " + sql);
+   }
+
+   // ------------------------------------------------------------------
+   // THE CAST FIX — a text FK pointing at a numeric target key
+   // ------------------------------------------------------------------
+   //
+   // Reproduced live on orangehrm: hs_hr_employee.sal_grd_code is a VARCHAR, genuinely FK to
+   // ohrm_pay_grade.id (an integer PK). The bare `tgt.id = src.sal_grd_code` comparison this
+   // class always used to emit fails outright on Postgres ("operator does not exist: integer =
+   // character varying"), which propagates as a SQLException and is reported upstream as
+   // UNESTABLISHED -- so the FK-label feature silently never offered a pay-grade filter, with no
+   // error anywhere a caller could see. These tests pin resolveCastSide's classification and the
+   // SQL it produces; the end-to-end checkIntegrity test pins that the cast actually reaches the
+   // statement that gets executed.
+
+   @Test
+   void resolveCastSide_castsTheNumericTargetWhenFkIsText() throws Exception {
+      Connection conn = columnTypedConnection("sal_grd_code", Types.VARCHAR, "id", Types.INTEGER);
+
+      assertEquals(FkIntegrityService.CastSide.TARGET_KEY,
+         FkIntegrityService.resolveCastSide(conn, "public.hs_hr_employee", "sal_grd_code",
+            "public.ohrm_pay_grade", "id"));
+   }
+
+   @Test
+   void resolveCastSide_castsTheNumericFkWhenTargetIsText() throws Exception {
+      Connection conn = columnTypedConnection("partner_id", Types.INTEGER, "code", Types.VARCHAR);
+
+      assertEquals(FkIntegrityService.CastSide.FK,
+         FkIntegrityService.resolveCastSide(conn, "public.sale_order", "partner_id",
+            "public.res_partner", "code"));
+   }
+
+   @Test
+   void resolveCastSide_isNoneWhenBothSidesAgree() throws Exception {
+      Connection conn = columnTypedConnection("partner_id", Types.INTEGER, "id", Types.INTEGER);
+
+      assertEquals(FkIntegrityService.CastSide.NONE,
+         FkIntegrityService.resolveCastSide(conn, "public.sale_order", "partner_id",
+            "public.res_partner", "id"));
+   }
+
+   @Test
+   void resolveCastSide_isNoneForDifferentNumericFamiliesInTheSameCategory() throws Exception {
+      // INTEGER vs BIGINT: different java.sql.Types codes, but every dialect this feature runs
+      // against already compares them directly -- casting would be pure churn.
+      Connection conn = columnTypedConnection("partner_id", Types.INTEGER, "id", Types.BIGINT);
+
+      assertEquals(FkIntegrityService.CastSide.NONE,
+         FkIntegrityService.resolveCastSide(conn, "public.sale_order", "partner_id",
+            "public.res_partner", "id"));
+   }
+
+   @Test
+   void resolveCastSide_isNoneWhenColumnMetadataCannotBeEstablished() throws Exception {
+      // getMetaData() answers null -- an un-mocked/minimal connection, exactly what every OTHER
+      // test in this file already uses. Must degrade to NONE, never throw and never guess.
+      Connection conn = mock(Connection.class);
+
+      assertEquals(FkIntegrityService.CastSide.NONE,
+         FkIntegrityService.resolveCastSide(conn, "public.sale_order", "partner_id",
+            "public.res_partner", "id"));
+   }
+
+   @Test
+   void resolveCastSide_isNoneWhenGetColumnsThrows() throws Exception {
+      Connection conn = mock(Connection.class);
+      DatabaseMetaData meta = mock(DatabaseMetaData.class);
+      when(conn.getMetaData()).thenReturn(meta);
+      when(meta.getColumns(any(), any(), any(), any()))
+         .thenThrow(new SQLException("driver does not support getColumns"));
+
+      assertEquals(FkIntegrityService.CastSide.NONE,
+         FkIntegrityService.resolveCastSide(conn, "public.sale_order", "partner_id",
+            "public.res_partner", "id"));
+   }
+
+   @Test
+   void buildDroppedRowCountSql_castsTheTargetKeyToTextWhenDirected() {
+      String sql = FkIntegrityService.buildDroppedRowCountSql(
+         "public.hs_hr_employee", "sal_grd_code", "public.ohrm_pay_grade", "id",
+         FkIntegrityService.CastSide.TARGET_KEY, FkIntegrityService.Dialect.DEFAULT);
+
+      assertTrue(sql.contains("CAST(tgt.id AS VARCHAR) = src.sal_grd_code"), sql);
+      // The NULL check must stay on the RAW column -- NULL-ness does not depend on type agreement.
+      assertTrue(sql.contains("src.sal_grd_code IS NULL"), sql);
+   }
+
+   @Test
+   void buildDroppedRowCountSql_castsTheFkToTextWhenDirected() {
+      String sql = FkIntegrityService.buildDroppedRowCountSql(
+         "public.sale_order", "partner_id", "public.res_partner", "code",
+         FkIntegrityService.CastSide.FK, FkIntegrityService.Dialect.DEFAULT);
+
+      assertTrue(sql.contains("tgt.code = CAST(src.partner_id AS VARCHAR)"), sql);
+   }
+
+   @Test
+   void buildDroppedRowCountSql_usesCharNotVarcharOnMySql() {
+      // MySQL's CAST rejects VARCHAR as a target type outright; it wants CHAR.
+      String sql = FkIntegrityService.buildDroppedRowCountSql(
+         "public.hs_hr_employee", "sal_grd_code", "public.ohrm_pay_grade", "id",
+         FkIntegrityService.CastSide.TARGET_KEY, FkIntegrityService.Dialect.MYSQL);
+
+      assertTrue(sql.contains("CAST(tgt.id AS CHAR)"), sql);
+      assertFalse(sql.contains("VARCHAR"), sql);
+   }
+
+   /**
+    * Oracle's CAST requires an explicit length for a character target (VARCHAR2(n)) -- a bare
+    * "CAST(... AS VARCHAR)" is a SYNTAX ERROR on Oracle, not merely the wrong keyword. TO_CHAR
+    * needs no length and is Oracle's own numeric-to-text conversion, which is always what this
+    * cast means: resolveCastSide only ever directs the NUMERIC side to be cast.
+    */
+   @Test
+   void buildDroppedRowCountSql_usesToCharOnOracle() {
+      String sql = FkIntegrityService.buildDroppedRowCountSql(
+         "public.hs_hr_employee", "sal_grd_code", "public.ohrm_pay_grade", "id",
+         FkIntegrityService.CastSide.TARGET_KEY, FkIntegrityService.Dialect.ORACLE);
+
+      assertTrue(sql.contains("TO_CHAR(tgt.id) = src.sal_grd_code"), sql);
+      assertFalse(sql.contains("CAST"), sql);
+      assertFalse(sql.contains("VARCHAR"), sql);
+   }
+
+   @Test
+   void buildDroppedRowCountSql_fourArgOverloadAppliesNoCast() {
+      // The pre-existing 4-arg overload must stay byte-identical to before this fix -- every
+      // caller that never resolves a cast side (or can't) gets exactly the old SQL.
+      assertEquals(DROP_SQL, FkIntegrityService.buildDroppedRowCountSql(
+         "public.sale_order", "partner_id", "public.res_partner", "id"));
+   }
+
+   /** End-to-end: the cast actually reaches the statement checkIntegrity executes. */
+   @Test
+   void checkIntegrity_castsTheTargetKeyWhenTheFkIsTextAndTheTargetIsNumeric() throws Exception {
+      Harness harness = new Harness();
+      harness.request.setSourceTable("public.hs_hr_employee");
+      harness.request.setFkColumn("sal_grd_code");
+      harness.request.setTargetTable("public.ohrm_pay_grade");
+      harness.request.setTargetKeyColumn("id");
+      harness.stubColumnTypes(Types.VARCHAR, Types.INTEGER);
+
+      String expectedDrop =
+         "SELECT COUNT(*) FROM public.hs_hr_employee src WHERE src.sal_grd_code IS NULL " +
+         "OR NOT EXISTS (SELECT 1 FROM public.ohrm_pay_grade tgt " +
+         "WHERE CAST(tgt.id AS VARCHAR) = src.sal_grd_code)";
+      String expectedDuplicate =
+         "SELECT COUNT(*) FROM (SELECT id FROM public.ohrm_pay_grade GROUP BY id " +
+         "HAVING COUNT(*) > 1) d";
+      doReturn(harness.dropStatement).when(harness.connection).prepareStatement(expectedDrop);
+      doReturn(harness.duplicateStatement).when(harness.connection)
+         .prepareStatement(expectedDuplicate);
+
+      FkIntegrityResponse response =
+         harness.service.checkIntegrity(harness.request, harness.principal);
+
+      assertEquals(0L, response.droppedRowCount());
+      verify(harness.connection).prepareStatement(expectedDrop);
+   }
+
+   /** Same shape, but on a MySQL connection -- CHAR, not VARCHAR. */
+   @Test
+   void checkIntegrity_usesCharOnMySqlWhenCasting() throws Exception {
+      Harness harness = new Harness();
+      harness.request.setSourceTable("public.hs_hr_employee");
+      harness.request.setFkColumn("sal_grd_code");
+      harness.request.setTargetTable("public.ohrm_pay_grade");
+      harness.request.setTargetKeyColumn("id");
+      harness.stubColumnTypes(Types.VARCHAR, Types.INTEGER);
+      when(harness.databaseMetaData.getDatabaseProductName()).thenReturn("MySQL");
+
+      String expectedDrop =
+         "SELECT COUNT(*) FROM public.hs_hr_employee src WHERE src.sal_grd_code IS NULL " +
+         "OR NOT EXISTS (SELECT 1 FROM public.ohrm_pay_grade tgt " +
+         "WHERE CAST(tgt.id AS CHAR) = src.sal_grd_code)";
+      String expectedDuplicate =
+         "SELECT COUNT(*) FROM (SELECT id FROM public.ohrm_pay_grade GROUP BY id " +
+         "HAVING COUNT(*) > 1) d";
+      doReturn(harness.dropStatement).when(harness.connection).prepareStatement(expectedDrop);
+      doReturn(harness.duplicateStatement).when(harness.connection)
+         .prepareStatement(expectedDuplicate);
+
+      harness.service.checkIntegrity(harness.request, harness.principal);
+
+      verify(harness.connection).prepareStatement(expectedDrop);
+   }
+
+   /** Same shape, but on an Oracle connection -- TO_CHAR, not CAST ... VARCHAR (a syntax error there). */
+   @Test
+   void checkIntegrity_usesToCharOnOracleWhenCasting() throws Exception {
+      Harness harness = new Harness();
+      harness.request.setSourceTable("public.hs_hr_employee");
+      harness.request.setFkColumn("sal_grd_code");
+      harness.request.setTargetTable("public.ohrm_pay_grade");
+      harness.request.setTargetKeyColumn("id");
+      harness.stubColumnTypes(Types.VARCHAR, Types.INTEGER);
+      when(harness.databaseMetaData.getDatabaseProductName()).thenReturn("Oracle");
+
+      String expectedDrop =
+         "SELECT COUNT(*) FROM public.hs_hr_employee src WHERE src.sal_grd_code IS NULL " +
+         "OR NOT EXISTS (SELECT 1 FROM public.ohrm_pay_grade tgt " +
+         "WHERE TO_CHAR(tgt.id) = src.sal_grd_code)";
+      String expectedDuplicate =
+         "SELECT COUNT(*) FROM (SELECT id FROM public.ohrm_pay_grade GROUP BY id " +
+         "HAVING COUNT(*) > 1) d";
+      doReturn(harness.dropStatement).when(harness.connection).prepareStatement(expectedDrop);
+      doReturn(harness.duplicateStatement).when(harness.connection)
+         .prepareStatement(expectedDuplicate);
+
+      harness.service.checkIntegrity(harness.request, harness.principal);
+
+      verify(harness.connection).prepareStatement(expectedDrop);
+   }
+
+   /**
+    * Wires a mocked {@code DatabaseMetaData.getColumns(...)} call so {@code resolveCastSide} can
+    * classify both columns without a live database -- routed EXPLICITLY by each column's own
+    * name (never by position or by exclusion), so a test naming two columns that happen to share
+    * a name with another test's fixture can never cross-contaminate.
+    */
+   private static Connection columnTypedConnection(
+      String fkColumnName, int fkJdbcType, String targetColumnName, int targetJdbcType)
+      throws SQLException
+   {
+      Connection conn = mock(Connection.class);
+      DatabaseMetaData meta = mock(DatabaseMetaData.class);
+      when(conn.getMetaData()).thenReturn(meta);
+
+      ResultSet fkRs = mock(ResultSet.class);
+      when(fkRs.next()).thenReturn(true, false);
+      when(fkRs.getInt("DATA_TYPE")).thenReturn(fkJdbcType);
+      when(meta.getColumns(any(), any(), any(), eq(fkColumnName))).thenReturn(fkRs);
+
+      ResultSet targetRs = mock(ResultSet.class);
+      when(targetRs.next()).thenReturn(true, false);
+      when(targetRs.getInt("DATA_TYPE")).thenReturn(targetJdbcType);
+      when(meta.getColumns(any(), any(), any(), eq(targetColumnName))).thenReturn(targetRs);
+
+      return conn;
    }
 
    // ------------------------------------------------------------------
@@ -516,15 +758,41 @@ class FkIntegrityServiceTest {
          when(duplicateResultSet.getLong(1)).thenReturn(count);
       }
 
+      /**
+       * Wires {@code connection.getMetaData()} so {@code resolveCastSide} can classify
+       * {@code request}'s fkColumn/targetKeyColumn without a live database. Call AFTER setting
+       * {@code request}'s column names -- the routing is by column name, matching how
+       * {@code columnJdbcType} actually calls {@code getColumns}.
+       */
+      void stubColumnTypes(int fkJdbcType, int targetJdbcType) throws SQLException {
+         when(connection.getMetaData()).thenReturn(databaseMetaData);
+         // Default product name so resolveDialect degrades to DEFAULT unless a test overrides it.
+         when(databaseMetaData.getDatabaseProductName()).thenReturn("PostgreSQL");
+
+         ResultSet fkRs = mock(ResultSet.class);
+         when(fkRs.next()).thenReturn(true, false);
+         when(fkRs.getInt("DATA_TYPE")).thenReturn(fkJdbcType);
+         ResultSet targetRs = mock(ResultSet.class);
+         when(targetRs.next()).thenReturn(true, false);
+         when(targetRs.getInt("DATA_TYPE")).thenReturn(targetJdbcType);
+
+         when(databaseMetaData.getColumns(any(), any(), any(), eq(request.getFkColumn())))
+            .thenReturn(fkRs);
+         when(databaseMetaData.getColumns(any(), any(), any(), eq(request.getTargetKeyColumn())))
+            .thenReturn(targetRs);
+      }
+
       final MetadataApiService metadataService = mock(MetadataApiService.class);
       final DataSourceService dataSourceService = mock(DataSourceService.class);
       final JDBCDataSource dataSource = mock(JDBCDataSource.class);
       final Connection connection = mock(Connection.class);
+      final DatabaseMetaData databaseMetaData = mock(DatabaseMetaData.class);
       final PreparedStatement dropStatement = mock(PreparedStatement.class);
       final PreparedStatement duplicateStatement = mock(PreparedStatement.class);
       final ResultSet dropResultSet = mock(ResultSet.class);
       final ResultSet duplicateResultSet = mock(ResultSet.class);
       final Principal principal = mock(Principal.class);
+      final FkIntegrityRequest request = request();
       final FkIntegrityService service;
       int connectionsOpened;
    }

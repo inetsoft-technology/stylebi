@@ -64,8 +64,10 @@ class WindowExpressionRefTest {
          List.of(new AttributeRef("stage")),
          List.of(sort("amount", XConstants.SORT_DESC)));
 
-      assertEquals("ROW_NUMBER() OVER (PARTITION BY field['stage'] ORDER BY field['amount'] DESC)",
-                   ref.getExpression());
+      assertEquals(
+         "ROW_NUMBER() OVER (PARTITION BY field['stage'] ORDER BY "
+         + "CASE WHEN field['amount'] IS NULL THEN 1 ELSE 0 END, field['amount'] DESC)",
+         ref.getExpression());
    }
 
    @Test
@@ -75,7 +77,10 @@ class WindowExpressionRefTest {
          List.of(),
          List.of(sort("amount", XConstants.SORT_DESC)));
 
-      assertEquals("NTILE(4) OVER (ORDER BY field['amount'] DESC)", ref.getExpression());
+      assertEquals(
+         "NTILE(4) OVER (ORDER BY "
+         + "CASE WHEN field['amount'] IS NULL THEN 1 ELSE 0 END, field['amount'] DESC)",
+         ref.getExpression());
    }
 
    @Test
@@ -85,7 +90,10 @@ class WindowExpressionRefTest {
          List.of(),
          List.of(sort("t", XConstants.SORT_ASC)));
 
-      assertEquals("LAG(field['amount'], 1) OVER (ORDER BY field['t'] ASC)", ref.getExpression());
+      assertEquals(
+         "LAG(field['amount'], 1) OVER (ORDER BY "
+         + "CASE WHEN field['t'] IS NULL THEN 1 ELSE 0 END, field['t'] ASC)",
+         ref.getExpression());
    }
 
    @Test
@@ -113,7 +121,53 @@ class WindowExpressionRefTest {
          List.of(),
          List.of(sort("t", XConstants.SORT_ASC)));
 
-      assertEquals("LAG(field['amount']) OVER (ORDER BY field['t'] ASC)", ref.getExpression());
+      assertEquals(
+         "LAG(field['amount']) OVER (ORDER BY "
+         + "CASE WHEN field['t'] IS NULL THEN 1 ELSE 0 END, field['t'] ASC)",
+         ref.getExpression());
+   }
+
+   // ---- getOrderFragment() nulls-last guard (J6 regression) ------------------------------------
+
+   @Test
+   void orderBy_emitsNullsLastGuard_regardlessOfDirection() {
+      // Root cause: on Postgres/Oracle, a bare "ORDER BY x DESC" defaults to NULLS FIRST, so a
+      // NULL value wins a "largest value" window ranking -- e.g. ROW_NUMBER() OVER (PARTITION BY
+      // project_name ORDER BY estimated_hours DESC) picked a work package with a null
+      // estimated_hours as rank 1 instead of the row with the actual largest value. The fix
+      // prepends a portable CASE WHEN key (not the NULLS LAST keyword, which SQL Server never
+      // supports and MySQL only gained in 8.0.14) so NULL always sorts last on every dialect
+      // windowCapability.ts advertises as window-function-capable, regardless of ASC/DESC.
+      WindowExpressionRef desc = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, List.of(new AttributeRef("project_name")),
+         List.of(sort("estimated_hours", XConstants.SORT_DESC)));
+      assertEquals(
+         "ROW_NUMBER() OVER (PARTITION BY field['project_name'] ORDER BY "
+         + "CASE WHEN field['estimated_hours'] IS NULL THEN 1 ELSE 0 END, "
+         + "field['estimated_hours'] DESC)",
+         desc.getExpression());
+
+      WindowExpressionRef asc = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, List.of(new AttributeRef("project_name")),
+         List.of(sort("estimated_hours", XConstants.SORT_ASC)));
+      assertEquals(
+         "ROW_NUMBER() OVER (PARTITION BY field['project_name'] ORDER BY "
+         + "CASE WHEN field['estimated_hours'] IS NULL THEN 1 ELSE 0 END, "
+         + "field['estimated_hours'] ASC)",
+         asc.getExpression());
+   }
+
+   @Test
+   void orderBy_multipleKeys_eachGetsOwnNullsLastGuard() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, List.of(),
+         List.of(sort("stage", XConstants.SORT_ASC), sort("amount", XConstants.SORT_DESC)));
+
+      assertEquals(
+         "ROW_NUMBER() OVER (ORDER BY "
+         + "CASE WHEN field['stage'] IS NULL THEN 1 ELSE 0 END, field['stage'] ASC, "
+         + "CASE WHEN field['amount'] IS NULL THEN 1 ELSE 0 END, field['amount'] DESC)",
+         ref.getExpression());
    }
 
    // ---- isSQL() ------------------------------------------------------------------------------
@@ -303,7 +357,8 @@ class WindowExpressionRefTest {
          List.of(sort("t", XConstants.SORT_ASC)));
       ref.setFrame("PRECEDING", 2, "CURRENT_ROW", 0);
       assertEquals(
-         "SUM(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC "
+         "SUM(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY "
+         + "CASE WHEN field['t'] IS NULL THEN 1 ELSE 0 END, field['t'] ASC "
          + "ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)",
          ref.getExpression());
    }
@@ -314,7 +369,8 @@ class WindowExpressionRefTest {
          "LAST_VALUE", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
          List.of(sort("t", XConstants.SORT_ASC)));
       assertEquals(
-         "LAST_VALUE(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC "
+         "LAST_VALUE(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY "
+         + "CASE WHEN field['t'] IS NULL THEN 1 ELSE 0 END, field['t'] ASC "
          + "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)",
          ref.getExpression());
    }
@@ -325,7 +381,8 @@ class WindowExpressionRefTest {
          "FIRST_VALUE", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
          List.of(sort("t", XConstants.SORT_ASC)));
       assertEquals(
-         "FIRST_VALUE(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC)",
+         "FIRST_VALUE(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY "
+         + "CASE WHEN field['t'] IS NULL THEN 1 ELSE 0 END, field['t'] ASC)",
          ref.getExpression());
    }
 
@@ -335,7 +392,8 @@ class WindowExpressionRefTest {
          "SUM", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
          List.of(sort("t", XConstants.SORT_ASC)));
       assertEquals(
-         "SUM(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC)",
+         "SUM(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY "
+         + "CASE WHEN field['t'] IS NULL THEN 1 ELSE 0 END, field['t'] ASC)",
          ref.getExpression());
    }
 

@@ -26,6 +26,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.model.VerifyViewsheetResult;
@@ -135,5 +136,43 @@ class ViewsheetRuntimeControllerVerifyDispatchTest {
       assertEquals(29, result.getRowCount());
       verify(wizVsService).verifyChartData(rvs, "Chart1");
       verify(wizVsService, never()).verifyTableData(any(), any());
+   }
+
+   /**
+    * THE BUG THIS PINS DOWN. Before {@code verifyOutputData} existed, the dispatch was a two-way
+    * branch on the unstated assumption that "not a chart" means "table or crosstab". A Gauge/Text
+    * (OutputVSAssembly) is neither: it fell into {@code verifyTableData}, which calls
+    * {@code getTableData} — there is no TableLens for a Gauge/Text at all, so that always
+    * returned null and reported {@code hasData=false, rowCount=0}. Every saved Gauge/Text
+    * visualization verified as a "silently-broken save" even when it rendered a real value,
+    * live, moments earlier. Reproduced on orangehrm: a headcount gauge (value 251) verified as
+    * 0 rows / no data every time.
+    */
+   @Test
+   void routesOutputAssemblyThroughVerifyOutputDataNotVerifyTableData() throws Exception {
+      Principal principal = mock(Principal.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+      when(gauge.getName()).thenReturn("Gauge1");
+      when(vs.getAssemblies()).thenReturn(new Assembly[] { gauge });
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetService vsService = grantedViewsheetService(principal, "rt3", rvs);
+      SecurityEngine securityEngine = grantedSecurityEngine(principal);
+      WizVsService wizVsService = mock(WizVsService.class);
+      when(wizVsService.verifyOutputData(rvs, "Gauge1"))
+         .thenReturn(new WizVsService.VerifyResult(true, 1));
+
+      ViewsheetRuntimeController controller =
+         new ViewsheetRuntimeController(vsService, wizVsService, securityEngine);
+
+      VerifyViewsheetResult result = controller.verifyViewsheet(managedIdentifier(), null, principal);
+
+      assertTrue(result.isHasData(), "gauge assembly with a real value should report hasData");
+      assertEquals(1, result.getRowCount());
+      verify(wizVsService).verifyOutputData(rvs, "Gauge1");
+      verify(wizVsService, never()).verifyTableData(any(), any());
+      verify(wizVsService, never()).verifyChartData(any(), any());
    }
 }

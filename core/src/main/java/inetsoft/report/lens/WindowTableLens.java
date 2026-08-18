@@ -274,7 +274,22 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       boolean[] oasc = orderAsc();
 
       for(int i = 0; i < ocols.length; i++) {
-         int r = Tool.compare(table.getObject(a + hrows, ocols[i]), table.getObject(b + hrows, ocols[i]), true, true);
+         Object v1 = table.getObject(a + hrows, ocols[i]);
+         Object v2 = table.getObject(b + hrows, ocols[i]);
+
+         // A null always sorts last regardless of ASC/DESC, matching
+         // WindowExpressionRef.getOrderFragment's SQL-pushdown NULLS-LAST behavior -- Tool.compare
+         // treats null as smallest, which the oasc[i] negation below would otherwise flip to
+         // NULLS-FIRST for an ascending key.
+         if(v1 == null || v2 == null) {
+            if(v1 == v2) {
+               continue;
+            }
+
+            return v1 == null ? 1 : -1;
+         }
+
+         int r = Tool.compare(v1, v2, true, true);
 
          if(r != 0) {
             return oasc[i] ? r : -r;
@@ -884,7 +899,19 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       boolean[] oasc = spec.orderAsc;
 
       for(int i = 0; i < ocols.length; i++) {
-         int r = Tool.compare(table.getObject(a + hrows, ocols[i]), table.getObject(b + hrows, ocols[i]), true, true);
+         Object v1 = table.getObject(a + hrows, ocols[i]);
+         Object v2 = table.getObject(b + hrows, ocols[i]);
+
+         // Same NULLS-LAST-always rule as compareRows -- see the comment there.
+         if(v1 == null || v2 == null) {
+            if(v1 == v2) {
+               continue;
+            }
+
+            return v1 == null ? 1 : -1;
+         }
+
+         int r = Tool.compare(v1, v2, true, true);
 
          if(r != 0) {
             return oasc[i] ? r : -r;

@@ -539,6 +539,58 @@ class WindowTableLensTest {
                  "error should name the null-order-value cause: " + ex.getMessage());
    }
 
+   // ── NULLS-LAST parity with WindowExpressionRef.getOrderFragment's SQL-pushdown path ─────────
+
+   @Test
+   void rowNumber_ascOrder_nullSortsLast_notFirst() {
+      // ORDER BY amount ASC with a null value. Tool.compare treats null as smallest, so before
+      // the fix compareRows put the null row FIRST for ascending order -- inconsistent with the
+      // SQL-pushdown path, which now forces NULLS LAST regardless of direction. Base rows stay in
+      // ORIGINAL order (see rowNumber_perPartition_orderedDesc above); only rn reflects the sorted
+      // position. Original order here is 10, null, 20; ASC+nulls-last sorted order is 10, 20, null.
+      Object[][] data = {{"amount"}, {10.0}, {null}, {20.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      WindowTableLens.Spec spec = new WindowTableLens.Spec(
+         "rn", "ROW_NUMBER", -1, 0, new int[0], new int[]{0}, new boolean[]{true});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{spec});
+      assertEquals(10.0, cell(lens, 0, 0)); assertEquals(1, cell(lens, 0, 1)); // 10 -> rn 1
+      assertNull(cell(lens, 1, 0));         assertEquals(3, cell(lens, 1, 1)); // null -> rn 3 (last)
+      assertEquals(20.0, cell(lens, 2, 0)); assertEquals(2, cell(lens, 2, 1)); // 20 -> rn 2
+   }
+
+   @Test
+   void rowNumber_descOrder_nullStillSortsLast() {
+      // DESC happened to come out right before the fix too (negation flips it), pinned here so a
+      // future change can't regress the direction that already worked. Sorted DESC+nulls-last
+      // order is 20, 10, null.
+      Object[][] data = {{"amount"}, {10.0}, {null}, {20.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      WindowTableLens.Spec spec = new WindowTableLens.Spec(
+         "rn", "ROW_NUMBER", -1, 0, new int[0], new int[]{0}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{spec});
+      assertEquals(10.0, cell(lens, 0, 0)); assertEquals(2, cell(lens, 0, 1)); // 10 -> rn 2
+      assertNull(cell(lens, 1, 0));         assertEquals(3, cell(lens, 1, 1)); // null -> rn 3 (last)
+      assertEquals(20.0, cell(lens, 2, 0)); assertEquals(1, cell(lens, 2, 1)); // 20 -> rn 1
+   }
+
+   @Test
+   void rank_ascOrder_nullGetsHighestRank_notTiedForFirst() {
+      // RANK's own per-spec tie-counting goes through orderKeyCompare, a separate method from
+      // compareRows with the identical pre-fix bug. Before the fix a null could tie for rank 1
+      // under ASC (Tool.compare's "null is smallest" reading it as the least value) even though
+      // compareRows had already physically sorted it last -- the two methods disagreeing on
+      // null's place is exactly the inconsistency this fix removes. No ties here, so RANK equals
+      // ROW_NUMBER's sorted position: 10 -> 1, 20 -> 2, null -> 3.
+      Object[][] data = {{"amount"}, {10.0}, {null}, {20.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      WindowTableLens.Spec spec = new WindowTableLens.Spec(
+         "rk", "RANK", -1, 0, new int[0], new int[]{0}, new boolean[]{true});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{spec});
+      assertEquals(10.0, cell(lens, 0, 0)); assertEquals(1, cell(lens, 0, 1));
+      assertNull(cell(lens, 1, 0));         assertEquals(3, cell(lens, 1, 1));
+      assertEquals(20.0, cell(lens, 2, 0)); assertEquals(2, cell(lens, 2, 1));
+   }
+
    @Test
    void columnIdentifier_delegatesBaseColumnsToUnderlyingTable() {
       // Regression: WindowTableLens must expose its pass-through (base) columns' identifiers by
