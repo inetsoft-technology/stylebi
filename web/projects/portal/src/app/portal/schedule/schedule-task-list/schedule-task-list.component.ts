@@ -458,8 +458,12 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    get parentFolder(): AssetEntry {
-      if(!this.showTasksAsList && this.selectedNodes.length == 1) {
+      if(!this.showTasksAsList && this.selectedNodes.length > 0) {
          return this.selectedNodes[0].data;
+      }
+
+      if(!this.showTasksAsList && !!this.rootNode) {
+         return this.rootNode.data;
       }
 
       return null;
