@@ -117,8 +117,14 @@ public class PaneScopeService {
     * the spec draws around a single dialog, as distinct from "this sheet". A calc field's formula
     * editor has no such sibling — it is single-purpose — so {@code calcField} matches only its
     * own (table, name), never another field on the same table.
+    *
+    * <p>Public (not package-private): {@code WorksheetScriptService} (G2 Task 8b), in the sibling
+    * {@code inetsoft.web.wiz.worksheet} package, reuses this to narrow its own {@code targets}
+    * enumeration exactly the way {@code ScriptReadService.list(RuntimeViewsheet, JoinSession)}
+    * already does in-package for the viewsheet side -- the scoping rule is one function of
+    * (grant, target) regardless of which sheet type is asking, not a per-sheet reimplementation.
     */
-   static boolean matchesGrant(EditorContext grant, ScriptTarget target) {
+   public static boolean matchesGrant(EditorContext grant, ScriptTarget target) {
       if(grant == null) {
          return true;
       }

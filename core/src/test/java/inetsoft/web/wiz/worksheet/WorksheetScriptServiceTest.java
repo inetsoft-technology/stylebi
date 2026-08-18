@@ -22,6 +22,8 @@ import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.ScriptTarget;
+import inetsoft.web.wiz.script.model.ScriptInfo;
+import inetsoft.web.wiz.script.model.ScriptTargetInfo;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -310,5 +312,132 @@ class WorksheetScriptServiceTest {
 
       assertTrue(ex.getMessage().contains("calcField"), ex.getMessage());
       verifyNoInteractions(worksheetController);
+   }
+
+   // ---------------------------------------------------------------------------
+   // list() -- G2 Task 8b: the discovery companion write() always lacked
+   // ---------------------------------------------------------------------------
+
+   /** A worksheet with one non-embedded table carrying an existing pre-condition on a field. */
+   private static RuntimeWorksheet worksheetWithExpressionAndCondition() {
+      Worksheet ws = new Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Query1", "price", "cost", "region");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.addExpressionColumn(t, "Margin", "field['price']", "double", false);
+      WorksheetMutationSupport.addFilter(t, "region", ">", "0");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      return rws;
+   }
+
+   @Test
+   void listReturnsEveryTargetForAWholeSheetSession() {
+      RuntimeWorksheet rws = worksheetWithExpressionAndCondition();
+
+      List<ScriptTargetInfo> targets = service.list(rws, wholeSheetSession());
+
+      assertTrue(targets.stream().anyMatch(t ->
+         "worksheetExpression".equals(t.kind()) && "Margin".equals(t.name())), targets.toString());
+      assertTrue(targets.stream().anyMatch(t ->
+         "worksheetCondition".equals(t.kind()) && "region".equals(t.name())), targets.toString());
+      assertTrue(targets.stream().allMatch(t -> "worksheet".equals(t.hostSheet())), targets.toString());
+   }
+
+   @Test
+   void listNarrowsToAPaneScopedSessionsOwnGrant() {
+      RuntimeWorksheet rws = worksheetWithExpressionAndCondition();
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetExpression", "Query1", "Margin", null));
+
+      List<ScriptTargetInfo> targets = service.list(rws, session);
+
+      assertEquals(1, targets.size(), targets.toString());
+      assertEquals("Margin", targets.get(0).name());
+      assertEquals("worksheetExpression", targets.get(0).kind());
+   }
+
+   @Test
+   void listReportsTheExpressionColumnsSqlFlag() {
+      Worksheet ws = new Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Query1", "price", "cost");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.addExpressionColumn(t, "Margin", "price + cost", "double", true);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      List<ScriptTargetInfo> targets = service.list(rws, wholeSheetSession());
+
+      ScriptTargetInfo info = targets.stream()
+         .filter(t2 -> "Margin".equals(t2.name())).findFirst().orElseThrow();
+      assertEquals(Boolean.TRUE, info.sql());
+   }
+
+   // ---------------------------------------------------------------------------
+   // read() -- G2 Task 8b: the read-side companion write() always lacked
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void readReturnsTheExpressionsCurrentText() throws Exception {
+      seedExpressionColumn("Query1", "Margin", "field['price']", false);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetExpression", "Query1", "Margin", null));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      ScriptInfo info = service.read(session, agent, target);
+
+      assertEquals("field['price']", info.text());
+   }
+
+   @Test
+   void readReturnsTheConditionsCurrentTextFormatted() throws Exception {
+      Worksheet ws = new Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Query1", "price", "region");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.addFilter(t, "region", "ONE_OF", "East", "West");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editService.resolve("TOK", agent)).thenReturn(rws);
+
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetCondition", "Query1", "region", null));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "region");
+
+      ScriptInfo info = service.read(session, agent, target);
+
+      assertEquals("ONE_OF East,West", info.text());
+   }
+
+   @Test
+   void readOfAFieldWithNoConditionYetReturnsEmptyText() throws Exception {
+      Worksheet ws = new Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Query1", "price", "region");
+      ws.addAssembly(t);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editService.resolve("TOK", agent)).thenReturn(rws);
+
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetCondition", "Query1", "region", null));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "region");
+
+      ScriptInfo info = service.read(session, agent, target);
+
+      assertEquals("", info.text());
+   }
+
+   @Test
+   void readRefusesAWholeSheetSession() throws Exception {
+      JoinSession session = wholeSheetSession();
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.read(session, agent, target));
+
+      assertTrue(ex.getMessage().contains("editor"), ex.getMessage());
    }
 }

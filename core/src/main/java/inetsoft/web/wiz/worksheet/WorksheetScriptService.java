@@ -19,6 +19,12 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.ConditionListWrapper;
+import inetsoft.uql.HierarchyItem;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
@@ -26,16 +32,21 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.SheetType;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.script.ScriptTarget;
+import inetsoft.web.wiz.script.model.ScriptInfo;
+import inetsoft.web.wiz.script.model.ScriptTargetInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,6 +70,15 @@ import java.util.Set;
  *       {@code type}, {@code sql}, or the column's existence, since only the expression/condition
  *       TEXT of the paired location is writable through a pane-scoped session.</li>
  * </ol>
+ *
+ * <p><b>G2 Task 8b</b> wires this service to {@link WorksheetScriptController}'s real HTTP
+ * endpoints and adds its read side: {@link #list} enumerates worksheetExpression/
+ * worksheetCondition targets (mirroring {@code ScriptReadService#list(RuntimeViewsheet,
+ * JoinSession)}'s whole-sheet-sees-everything / pane-scoped-sees-its-own-grant split), and
+ * {@link #read} reads one target's current text, enforcing the exact same three gates {@link
+ * #write} does. Before Task 8b, this class had no caller in {@code core/src/main/java} outside
+ * itself, so the "front door, not second writer" guarantee above was proven only against a
+ * Mockito stub of {@link WorksheetAgentController}.
  */
 @Service
 public class WorksheetScriptService {
@@ -105,6 +125,240 @@ public class WorksheetScriptService {
          : conditionEditRequest(target, text);
 
       worksheetController.edit(session.sessionToken(), req, agent);
+   }
+
+   // ---------------------------------------------------------------------------
+   // Discovery (G2 Task 8b) -- targets/read, the companions write() already had
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Enumerates every worksheetExpression/worksheetCondition target on {@code rws}, scoped to
+    * {@code session}'s own grant.
+    *
+    * <p>Mirrors {@code ScriptReadService.list(RuntimeViewsheet, JoinSession)}: a whole-sheet
+    * session ({@code session} is {@code null} or carries no {@link JoinSession#editorContext()})
+    * sees the full enumeration -- discovery only, since {@link #write}/{@link #read} still refuse
+    * it per-target via {@link PaneScopeService}, exactly as a whole-sheet viewsheet session can
+    * see every {@code calcField} in {@code list_script_targets} without being able to write one.
+    * A pane-scoped session sees only the target(s) {@link PaneScopeService#matchesGrant} lets it
+    * act on.
+    *
+    * <p>One target per expression column found (any table), and one target per FIELD carrying an
+    * existing pre-condition (any filterable table) -- not one per possible column, since
+    * {@code editCondition} adding a condition to a field with none is legitimate but a "every
+    * column on every table is a target" enumeration would explode into a list nobody asked for.
+    */
+   public List<ScriptTargetInfo> list(RuntimeWorksheet rws, JoinSession session) {
+      List<ScriptTargetInfo> all = new ArrayList<>();
+      Worksheet ws = rws == null ? null : rws.getWorksheet();
+
+      if(ws != null) {
+         for(Assembly a : ws.getAssemblies()) {
+            if(a instanceof TableAssembly t) {
+               collectExpressionTargets(t, all);
+               collectConditionTargets(t, all);
+            }
+         }
+      }
+
+      if(session == null || session.editorContext() == null) {
+         return all;
+      }
+
+      EditorContext grant = session.editorContext();
+      return all.stream()
+         .filter(info -> matchesGrant(grant, info))
+         .toList();
+   }
+
+   /** Decodes {@code info}'s own id back into a {@link ScriptTarget} to test it against grant. */
+   private static boolean matchesGrant(EditorContext grant, ScriptTargetInfo info) {
+      try {
+         return PaneScopeService.matchesGrant(grant, ScriptTarget.fromId(info.id()));
+      }
+      catch(PairingException ex) {
+         // A target whose own id fails to decode cannot be addressed anyway; exclude it from a
+         // scoped listing rather than let a malformed id leak past the filter.
+         return false;
+      }
+   }
+
+   private static void collectExpressionTargets(TableAssembly t, List<ScriptTargetInfo> out) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(!(ref instanceof ColumnRef cr) || !(cr.getDataRef() instanceof ExpressionRef er)) {
+            continue;
+         }
+
+         String name = er.getName() != null ? er.getName() : er.getAttribute();
+         ScriptTarget target;
+
+         try {
+            target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, t.getName(), name);
+         }
+         catch(PairingException ex) {
+            // Unreachable: t.getName() and name are both non-blank here.
+            continue;
+         }
+
+         out.add(new ScriptTargetInfo(
+            target.id(), ScriptTarget.Kind.WORKSHEET_EXPRESSION.wireName(), t.getName(), name,
+            cr.isSQL(), null,
+            "Worksheet expression column '" + name + "' on " + t.getName(),
+            "each time " + t.getName() + " is queried",
+            true,                            // an expression column always has a body (may be "")
+            true,                            // no per-column enable flag exists
+            "worksheetExpression:" + t.getName() + ":" + name,
+            "worksheet", null));             // no legacy delimited form
+      }
+   }
+
+   private static void collectConditionTargets(TableAssembly t, List<ScriptTargetInfo> out) {
+      ConditionListWrapper wrapper = t.getPreConditionList();
+
+      if(wrapper == null || wrapper.isEmpty()) {
+         return;
+      }
+
+      ConditionList cl = wrapper.getConditionList();
+      Set<String> seen = new LinkedHashSet<>();
+
+      for(int i = 0; i < cl.getSize(); i++) {
+         HierarchyItem hi = cl.getItem(i);
+
+         if(!(hi instanceof ConditionItem ci)) {
+            continue;
+         }
+
+         DataRef attr = ci.getAttribute();
+         String name = attr.getAttribute() != null && !attr.getAttribute().isEmpty()
+            ? attr.getAttribute() : attr.getName();
+
+         if(name == null || !seen.add(name)) {
+            continue; // one target per field, even when several ANDed conditions share it
+         }
+
+         ScriptTarget target;
+
+         try {
+            target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, t.getName(), name);
+         }
+         catch(PairingException ex) {
+            continue; // unreachable: t.getName() and name are both non-blank here
+         }
+
+         out.add(new ScriptTargetInfo(
+            target.id(), ScriptTarget.Kind.WORKSHEET_CONDITION.wireName(), t.getName(), name,
+            null, null,
+            "Worksheet condition on '" + t.getName() + "." + name + "'",
+            "each time " + t.getName() + " is queried",
+            true, true,
+            "worksheetCondition:" + t.getName() + ":" + name,
+            "worksheet", null));
+      }
+   }
+
+   /**
+    * Reads the current text of {@code target} -- the read-side companion to {@link #write},
+    * enforcing the same three gates (served kind, worksheet session, pane scope) since a read of
+    * an expression-level location leaks the same identity a write would.
+    */
+   public ScriptInfo read(JoinSession session, Principal agent, ScriptTarget target)
+      throws PairingException
+   {
+      requireServedKind(target);
+      requireWorksheetSession(session);
+      requirePaneScope(session, target);
+
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+      Worksheet ws = rws == null ? null : rws.getWorksheet();
+      Assembly a = ws == null ? null : ws.getAssembly(target.assemblyName());
+
+      if(!(a instanceof TableAssembly t)) {
+         throw new PairingException("Table not found in worksheet: " + target.assemblyName());
+      }
+
+      return target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION
+         ? readExpression(t, target)
+         : readCondition(t, target);
+   }
+
+   private static ScriptInfo readExpression(TableAssembly t, ScriptTarget target)
+      throws PairingException
+   {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(ref instanceof ColumnRef cr && cr.getDataRef() instanceof ExpressionRef er) {
+            if(target.name().equals(er.getName()) || target.name().equals(er.getAttribute())) {
+               String text = er.getExpression();
+               return new ScriptInfo(target.toString(), text == null ? "" : text, true);
+            }
+         }
+      }
+
+      throw new PairingException(
+         "No expression column '" + target.name() + "' exists on '" + target.assemblyName() +
+         "'.");
+   }
+
+   private static ScriptInfo readCondition(TableAssembly t, ScriptTarget target) {
+      ConditionListWrapper wrapper = t.getPreConditionList();
+
+      if(wrapper != null && !wrapper.isEmpty()) {
+         ConditionList cl = wrapper.getConditionList();
+
+         for(int i = 0; i < cl.getSize(); i++) {
+            HierarchyItem hi = cl.getItem(i);
+
+            if(hi instanceof ConditionItem ci) {
+               DataRef attr = ci.getAttribute();
+
+               if(target.name().equals(attr.getAttribute()) || target.name().equals(attr.getName())) {
+                  return new ScriptInfo(target.toString(),
+                     formatCondition((Condition) ci.getXCondition()), true);
+               }
+            }
+         }
+      }
+
+      // No condition set on this field yet -- not an error; editCondition() can add one.
+      return new ScriptInfo(target.toString(), "", true);
+   }
+
+   /**
+    * The inverse of {@link #parseConditionText}: renders a {@link Condition} back into the same
+    * free-text vocabulary a caller would write, e.g. {@code "> 0"}, {@code "BETWEEN 1 AND 10"},
+    * {@code "ONE_OF a,b,c"}, or {@code "NULL"}, so a round-trip read/write sees the same grammar.
+    */
+   private static String formatCondition(Condition c) {
+      boolean negated = c.isNegated();
+      List<String> values = new ArrayList<>();
+
+      for(int i = 0; i < c.getValueCount(); i++) {
+         Object v = c.getValue(i);
+         values.add(v == null ? "" : String.valueOf(v));
+      }
+
+      String first = values.isEmpty() ? "" : values.get(0);
+
+      return switch(c.getOperation()) {
+         case XCondition.NULL -> negated ? "NOT_NULL" : "NULL";
+         case XCondition.BETWEEN ->
+            "BETWEEN " + first + " AND " + (values.size() > 1 ? values.get(1) : "");
+         case XCondition.ONE_OF -> (negated ? "NOT_ONE_OF " : "ONE_OF ") + String.join(",", values);
+         case XCondition.STARTING_WITH -> "STARTING_WITH " + first;
+         case XCondition.CONTAINS -> "CONTAINS " + first;
+         case XCondition.LIKE -> "LIKE " + first;
+         case XCondition.LESS_THAN -> (c.isEqual() ? "<= " : "< ") + first;
+         case XCondition.GREATER_THAN -> (c.isEqual() ? ">= " : "> ") + first;
+         default -> (negated ? "!= " : "= ") + first; // XCondition.EQUAL_TO and any other fallback
+      };
    }
 
    private static void requireServedKind(ScriptTarget target) throws PairingException {
