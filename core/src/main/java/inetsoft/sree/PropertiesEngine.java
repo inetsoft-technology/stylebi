@@ -705,8 +705,7 @@ public class PropertiesEngine {
       long maxSize = Long.parseLong(getProperty("report.log.max"));
       int maxCount = Integer.parseInt(Objects.toString(getProperty("report.log.count"), "10"));
       boolean performance = performanceLevel != null &&
-         !LogLevel.OFF.level().equalsIgnoreCase(performanceLevel) &&
-         LogManager.parseLevel(prop) != null;
+         !LogLevel.OFF.level().equalsIgnoreCase(performanceLevel);
       logManagerProvider.ifAvailable(lm -> lm.initialize(
          logFile, discriminator, console, maxSize, maxCount, performance));
    }
