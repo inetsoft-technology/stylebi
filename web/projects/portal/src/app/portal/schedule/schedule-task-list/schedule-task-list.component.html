@@ -40,7 +40,7 @@
       <button type="button" class="btn btn-secondary" (click)="loadTasks(true)">_#(Refresh List)</button>
       <button type="button" class="btn btn-secondary"
               (click)="moveTasks()"
-              [disabled]="(showTasksAsList || !removeEnable())">
+              [disabled]="(showTasksAsList || !removeEnable() || !parentFolder)">
         _#(Move)
       </button>
       <button type="button" class="btn btn-secondary"
