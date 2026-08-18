@@ -383,20 +383,24 @@ public class ValueOfColumnTest {
    }
 
    /**
-    * Regression test for Bug #75664 (ranking follow-up): PREVIOUS navigation on a
-    * part-date-group dimension (e.g. HourOfDay) must use natural calendar order even when
-    * the dimension has an explicit value-based sort comparator — as set by a Top-N/Bottom-N
-    * "Sort By Value" ranking. Without the fix, DataSetRouter would sort by the ranking's
-    * value order (e.g. by Sum(contact_id) desc) instead of numeric hour order, so "previous
-    * hour" would resolve to the wrong row or incorrectly return INVALID.
+    * Regression test for Bug #76039: PREVIOUS navigation on a part-date-group dimension
+    * (e.g. HourOfDay) must follow the dimension's display sort even when that sort is
+    * value-based, as set by a Top-N/Bottom-N "Sort By Value" ranking. The calc has to agree
+    * with the order the values are plotted in and with the order scripts see them in via
+    * getData() — so the value that is first in display order has no previous value, even
+    * though a numerically-earlier one exists elsewhere in the data.
     *
-    * Data is intentionally NOT in either row order or hour order (row order: 5, 2, 11), and
-    * the mock comparator sorts by an unrelated ranking value (id desc: 11, 5, 2) rather than
-    * by hour. Natural hour order is 2, 5, 11 — so "previous" of hour 5 must resolve to hour 2
-    * (id=20), not to whatever the ranking comparator would place before it.
+    * This deliberately reverses the follow-up fix for Bug #75664 ("bug-75664-1"), which gave
+    * natural calendar order priority over a value-based sort comparator. The two cannot both
+    * hold: for a sort-by-value part-date dimension, calendar order and display order differ.
+    * The natural-order fallback still applies when no sort is configured — see
+    * {@link #testPreviousOnPartDateGroupWithOthersLabel()}.
+    *
+    * Row order is 5, 2, 11; the ranking comparator puts the hours in descending order
+    * (11, 5, 2), which is neither row order nor calendar order.
     */
    @Test
-   void testPreviousOnPartDateGroupIgnoresRankingSortComparator() {
+   void testPreviousOnPartDateGroupFollowsRankingSortOrder() {
       valueOfColumn = new ValueOfColumn("id", "sum(id)");
       valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
       valueOfColumn.setDim("HourOfDay(order_time)");
@@ -411,20 +415,24 @@ public class ValueOfColumnTest {
       VSDimensionRef hourRef = mock(VSDimensionRef.class);
       when(hourRef.getFullName()).thenReturn("HourOfDay(order_time)");
       when(hourRef.getDateLevel()).thenReturn(XConstants.HOUR_OF_DAY_DATE_GROUP);
-      // Simulates a Top-N ranking's "Sort By Value" comparator: orders by id desc
-      // (11, 5, 2) rather than by natural hour order (2, 5, 11).
+      // Simulates a Top-N ranking's "Sort By Value" comparator, ordering the hours 11, 5, 2
+      // rather than in natural hour order 2, 5, 11.
       when(hourRef.getOrder()).thenReturn(XConstants.SORT_VALUE_DESC);
       when(hourRef.createComparator(org.mockito.ArgumentMatchers.any()))
          .thenReturn((a, b) -> Integer.compare((Integer) b, (Integer) a));
 
       vsDataSet = new VSDataSet(tb, new VSDataRef[] { hourRef });
 
-      // Row 0 = hour 5. Natural-order previous is hour 2 (id=20).
+      // Row 0 = hour 5; previous in display order (11, 5, 2) is hour 11 (id=30).
       Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
-      assertEquals(20, result);
+      assertEquals(30, result);
 
-      // Row 1 = hour 2, the earliest hour → no previous → INVALID.
+      // Row 1 = hour 2; previous in display order is hour 5 (id=10).
       result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+
+      // Row 2 = hour 11, first in display order → no previous → INVALID.
+      result = valueOfColumn.calculate(vsDataSet, 2, false, false);
       assertEquals(CalcColumn.INVALID, result);
    }
 

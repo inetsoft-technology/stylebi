@@ -59,16 +59,15 @@ public class DataSetRouter extends AbstractRouter {
          }
       }
 
-      // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) navigate
-      // previous/next in natural calendar order when the field has no display sort, or when
-      // its display sort is value-based (e.g. a Top-N "Sort By Value" ranking) — "previous
-      // hour" has no meaning in rank-value order. An explicit label sort (ascending,
-      // descending, or specific order) is honored instead, so that calc navigation stays
-      // aligned with the order the values are actually plotted in.
-      XDimensionRef partDateDim = getPartDateDimension(data, field);
+      // Any display sort configured on the field — ascending, descending, specific order, or
+      // value-based (a Top-N "Sort By Value" ranking) — defines the order that previous/next
+      // navigation follows, so that the calc stays aligned with the order the values are
+      // actually plotted in. Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear,
+      // Quarter) fall back to natural calendar order only when no sort is configured, since
+      // raw row-appearance order is arbitrary there. (76039)
       comp = data.getComparator(field);
 
-      if(partDateDim != null && (comp == null || isSortByValue(partDateDim))) {
+      if(comp == null && getPartDateDimension(data, field) != null) {
          comp = PART_DATE_ORDER;
       }
 
@@ -100,15 +99,6 @@ public class DataSetRouter extends AbstractRouter {
 
       XDimensionRef dim = (XDimensionRef) ref;
       return (dim.getDateLevel() & XConstants.PART_DATE_GROUP) != 0 ? dim : null;
-   }
-
-   /**
-    * Check if the dimension is sorted by an aggregate value (as set by a Top-N/Bottom-N
-    * "Sort By Value" ranking) rather than by its own labels.
-    */
-   private static boolean isSortByValue(XDimensionRef dim) {
-      int order = dim.getOrder();
-      return order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC;
    }
 
    /**
