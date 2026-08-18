@@ -183,21 +183,32 @@ public class SVGAnimationDOMInjector {
             .filter(g -> !"true".equals(g.getAttribute("data-" + SVGSupport.ATTR_PARETO)))
             .toList();
 
-         int numComboSeries = 0;
+         Map<String, Integer> comboSeriesRank = Map.of();
 
          if(!comboLines.isEmpty()) {
-            numComboSeries = injectComboLineAnimation(comboLines, svgRoot, doc);
+            comboSeriesRank = injectComboLineAnimation(comboLines, svgRoot, doc);
          }
 
          // An area measure's border line is a LineVO annotation animated as a combo line above,
          // but AreaVO's fill polygon is a separate inetsoft-area group that no branch here
          // touched — so the fill appeared instantly while everything around it animated.  Wipe it
-         // in on the same timeline, reusing the denominator the border lines were staggered with
-         // so a fill and its own border move in step.
+         // in on the same timeline as its own border line so the two move in step.
          if(!annotAreas.isEmpty()) {
             Map<String, Integer> areaColorRank = buildAreaColorRank(annotAreas);
-            injectAreaFillAnimation(annotAreas, comboLines, doc, areaColorRank,
-                                    Math.max(numComboSeries, areaColorRank.size()));
+
+            // Only the area measures' own border lines, still in DOM order.  An independent line
+            // measure (bar + area + line binds three) also lands in comboLines, and
+            // injectAreaFillAnimation pairs annotAreas[i] with annotLines[i] positionally —
+            // an interleaved line group shifts that pairing, which silently leaves stacked
+            // fills un-reshaped into bands.
+            List<Element> areaBorderLines = comboLines.stream()
+               .filter(g -> areaColorRank.containsKey(g.getAttribute("data-" + SVGSupport.ATTR_COLOR)))
+               .toList();
+
+            injectAreaFillAnimation(annotAreas, areaBorderLines, doc,
+                                    alignAreaRankToLines(areaColorRank, areaBorderLines,
+                                                         comboSeriesRank),
+                                    Math.max(comboSeriesRank.size(), areaColorRank.size()));
          }
 
          // Gantt charts have interval bars plus a milestone point marker (a separate
@@ -1256,11 +1267,12 @@ public class SVGAnimationDOMInjector {
     *
     * <p>The caller must have emitted the keyframes via {@link #appendLineDrawKeyframes}.
     *
-    * @return the stagger denominator used, so an area measure's fills can be wiped in on the
-    *         same timeline as their border lines.
+    * @return the {@link #buildSeriesRank} map these lines were staggered with, so an area
+    *         measure's fills can be wiped in on the same timeline as their own border lines
+    *         (see {@link #alignAreaRankToLines}).  Its size is the stagger denominator.
     */
-   private static int injectComboLineAnimation(List<Element> comboLines,
-                                               Element svgRoot, Document doc)
+   private static Map<String, Integer> injectComboLineAnimation(List<Element> comboLines,
+                                                                Element svgRoot, Document doc)
    {
       Map<String, Integer> seriesRank = buildSeriesRank(comboLines);
       int numSeries = seriesRank.size();
@@ -1277,7 +1289,7 @@ public class SVGAnimationDOMInjector {
          applyLineDrawAnimation(g, path, delay);
       }
 
-      return numSeries;
+      return seriesRank;
    }
 
    /**
@@ -1489,24 +1501,76 @@ public class SVGAnimationDOMInjector {
    }
 
    /**
+    * Re-point an area color rank at the stagger ranks its border lines actually got, so a fill and
+    * its own border line animate at the same moment.
+    *
+    * <p>Needed because the two rank maps count different populations.  In the multi-style branch of
+    * {@link #injectAnimation} the border lines are ranked by {@link #buildSeriesRank} over
+    * <em>every</em> combo line, which includes any independent line measure; {@code areaColorRank}
+    * is built from the area groups alone and never sees that extra line.  A third measure therefore
+    * shifts the border line's ordinal without shifting the fill's.  Sharing the stagger denominator
+    * is not enough to cover that: {@link AnimationConstants#staggerDelay(int, int)} multiplies the
+    * <em>index</em> by the window, so differing indices mean differing delays — the exact fill/border
+    * desync this alignment prevents.
+    *
+    * <p>Keys are preserved verbatim, so the returned map still has one entry per area series and can
+    * stand in for {@code areaColorRank} wherever its size drives panel chunking.  A color with no
+    * matching border line keeps its DOM rank.
+    *
+    * @param areaColorRank   {@code data-color} → DOM rank, from {@link #buildAreaColorRank}.
+    * @param areaBorderLines the areas' border line groups.
+    * @param lineSeriesRank  the rank map the border lines were staggered with.
+    */
+   private static Map<String, Integer> alignAreaRankToLines(Map<String, Integer> areaColorRank,
+                                                           List<Element> areaBorderLines,
+                                                           Map<String, Integer> lineSeriesRank)
+   {
+      Map<String, Integer> lineRankByColor = new LinkedHashMap<>();
+
+      for(Element g : areaBorderLines) {
+         Integer rank = lineSeriesRank.get(seriesKey(g));
+
+         if(rank != null) {
+            lineRankByColor.putIfAbsent(g.getAttribute("data-" + SVGSupport.ATTR_COLOR), rank);
+         }
+      }
+
+      Map<String, Integer> aligned = new LinkedHashMap<>();
+
+      for(Map.Entry<String, Integer> e : areaColorRank.entrySet()) {
+         aligned.put(e.getKey(), lineRankByColor.getOrDefault(e.getKey(), e.getValue()));
+      }
+
+      return aligned;
+   }
+
+   /**
     * Animate area fill groups: a left-to-right wipe per series, then reshape stacked fills into
     * non-overlapping bands.
     *
     * <p>Shared by {@link #injectLineAnimationFromAnnotations} (standalone area chart) and the
     * multi-style branch of {@link #injectAnimation}, where an area measure is drawn beside bars.
     * That branch animates the fill's border line through {@link #injectComboLineAnimation} and
-    * passes the same {@code numSeries} denominator here, so a fill and its border stay in step.
+    * runs the resulting ranks through {@link #alignAreaRankToLines}, so a fill and its own border
+    * stay in step.
     *
-    * <p>{@code numSeries} is the stagger denominator, which may exceed the number of area series
-    * when line measures are present; panel chunking uses {@code areaColorRank} instead.
+    * <p>{@code annotLines} must hold only the areas' border lines, in DOM order: {@code annotAreas}
+    * and {@code annotLines} are paired by position (see below), so any unrelated line group mixed in
+    * would shift the pairing and skip band reshaping.
     *
     * <p>The caller must have emitted the {@code inetsoft-line-wipe} keyframes.
+    *
+    * @param areaStaggerRank {@code data-color} → 0-based stagger index, one entry per area series.
+    *                        Values set each fill's delay; the map's size drives panel chunking.
+    * @param numSeries       the stagger denominator, which may exceed the number of area series when
+    *                        line measures are present.
     */
    private static void injectAreaFillAnimation(List<Element> annotAreas, List<Element> annotLines,
-                                               Document doc, Map<String, Integer> areaColorRank,
+                                               Document doc,
+                                               Map<String, Integer> areaStaggerRank,
                                                int numSeries)
    {
-      int numAreaSeries = areaColorRank.size();
+      int numAreaSeries = areaStaggerRank.size();
 
       // Area fill groups — wipe left-to-right; reshape into non-overlapping bands.
       //
@@ -1527,7 +1591,7 @@ public class SVGAnimationDOMInjector {
          }
 
          String color     = g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-         int    seriesIdx = areaColorRank.getOrDefault(color, 0);
+         int    seriesIdx = areaStaggerRank.getOrDefault(color, 0);
          double delay     = AnimationConstants.staggerDelay(seriesIdx, numSeries);
 
          // Collect the panel-local line path for band polygon computation below.

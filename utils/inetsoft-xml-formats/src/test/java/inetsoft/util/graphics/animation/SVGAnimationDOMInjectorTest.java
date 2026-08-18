@@ -1226,6 +1226,74 @@ class SVGAnimationDOMInjectorTest {
                  "the wipe keyframes must be emitted for a multi-style area measure");
    }
 
+   /**
+    * Bar + area + an independent line measure — three measures, three chart types.  The border
+    * lines are staggered by a rank over every combo line, which counts that third measure, while
+    * the fills were staggered by a rank built from the area groups alone, which does not.  The
+    * extra line shifted the border line's index without shifting its fill's, and since
+    * staggerDelay multiplies the index by the window, sharing the denominator did not save them:
+    * an area's fill wiped in while its own outline was still waiting to draw.
+    */
+   @Test
+   void multiStyleAreaFillStaysInStepWithItsBorderLineWhenALineMeasureIsBound() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      // DOM order: area A + its border, the independent line measure, then area B + its border.
+      // The interleaved line is what pushes area B's border line rank past its fill's.
+      Element areaA = addLineAreaPair(doc, svg, "10,20,30", "0",
+                                      "M0 100 L50 60 L100 80 L100 100 L0 100 Z",
+                                      "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      Element areaB = addLineAreaPair(doc, svg, "40,50,60", "1",
+                                      "M0 60 L50 30 L100 50 L100 100 L0 100 Z",
+                                      "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_GROW);
+
+      for(Element area : List.of(areaA, areaB)) {
+         String color      = area.getAttribute("data-color");
+         Element fillPath  = firstDescendantPathOf(area);
+         Element borderPath = firstDescendantPathOf(borderLineOf(svg, color));
+         assertNotNull(fillPath, "area " + color + " must still hold its fill path");
+         assertNotNull(borderPath, "area " + color + " must still hold its border line path");
+
+         double fillDelay   = animationDelayOf(fillPath.getAttribute("style"));
+         double borderDelay = animationDelayOf(borderPath.getAttribute("style"));
+         assertEquals(borderDelay, fillDelay, 0.001,
+                      "area " + color + " fill must wipe in at the same moment its own border " +
+                      "line draws, but fill was " + fillDelay + "s and border " + borderDelay + "s");
+      }
+   }
+
+   /**
+    * Area fills are reshaped into non-overlapping bands by pairing annotAreas[i] with
+    * annotLines[i] positionally.  An independent line measure lands in the same combo-line list,
+    * so it shifted that pairing: the color-equality guard then found no matching border line and
+    * the band reshaping was silently skipped, leaving stacked fills overlapping.
+    */
+   @Test
+   void multiStyleStackedAreaFillsAreStillReshapedWhenALineMeasureIsBound() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      String fillA = "M0 100 L50 60 L100 80 L100 100 L0 100 Z";
+      String fillB = "M0 60 L50 30 L100 50 L100 100 L0 100 Z";
+      Element areaA = addLineAreaPair(doc, svg, "10,20,30", "0", fillA, "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      Element areaB = addLineAreaPair(doc, svg, "40,50,60", "1", fillB, "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_GROW);
+
+      String newA = firstDescendantPathOf(areaA).getAttribute("d");
+      String newB = firstDescendantPathOf(areaB).getAttribute("d");
+      assertTrue(!fillA.equals(newA) || !fillB.equals(newB),
+                 "one of two overlapping area fills must be rewritten into a band polygon, but " +
+                 "both kept their original d (A=" + newA + ", B=" + newB + ")");
+   }
+
    /** A plain bar chart references no line/area keyframes, so none may be emitted. */
    @Test
    void plainBarChartGetsNoLineOrWipeKeyframes() throws Exception {
@@ -1251,11 +1319,21 @@ class SVGAnimationDOMInjectorTest {
    private static Element addLineAreaPair(Document doc, Element svg,
                                            String color, String fillD, String lineD)
    {
+      return addLineAreaPair(doc, svg, color, "0", fillD, lineD);
+   }
+
+   /**
+    * As {@link #addLineAreaPair(Document, Element, String, String, String)}, with an explicit
+    * {@code data-series} index so a chart can hold more than one area measure.
+    */
+   private static Element addLineAreaPair(Document doc, Element svg, String color, String series,
+                                           String fillD, String lineD)
+   {
       // Area annotation group: outer g → inner Batik style g → clip g → path
       Element areaAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       areaAnnot.setAttribute("class", SVGSupport.ANNOTATION_AREA);
       areaAnnot.setAttribute("data-color", color);
-      areaAnnot.setAttribute("data-series", "0");
+      areaAnnot.setAttribute("data-series", series);
 
       Element batikStyleG = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       batikStyleG.setAttribute("text-rendering", "geometricPrecision");
@@ -1268,11 +1346,22 @@ class SVGAnimationDOMInjectorTest {
       areaAnnot.appendChild(batikStyleG);
       svg.appendChild(areaAnnot);
 
-      // Line annotation group: outer g → inner g → path
+      addLineGroup(doc, svg, color, series, lineD);
+
+      return areaAnnot;
+   }
+
+   /**
+    * Adds a standalone {@code inetsoft-line} annotation group (outer g → inner g → path) to the
+    * SVG root — an area measure's border line, or a line measure of its own.
+    */
+   private static Element addLineGroup(Document doc, Element svg, String color, String series,
+                                       String lineD)
+   {
       Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
       lineAnnot.setAttribute("data-color", color);
-      lineAnnot.setAttribute("data-series", "0");
+      lineAnnot.setAttribute("data-series", series);
 
       Element lineInner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
@@ -1283,7 +1372,33 @@ class SVGAnimationDOMInjectorTest {
       lineAnnot.appendChild(lineInner);
       svg.appendChild(lineAnnot);
 
-      return areaAnnot;
+      return lineAnnot;
+   }
+
+   /** The {@code inetsoft-line} group carrying the given {@code data-color}. */
+   private static Element borderLineOf(Element svg, String color) {
+      NodeList children = svg.getChildNodes();
+
+      for(int i = 0; i < children.getLength(); i++) {
+         if(children.item(i) instanceof Element c
+            && SVGSupport.ANNOTATION_LINE.equals(c.getAttribute("class"))
+            && color.equals(c.getAttribute("data-color")))
+         {
+            return c;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * The {@code animation-delay} of an {@code animation:} shorthand, in seconds — the injector
+    * always emits it as the last {@code Ns} token before the fill mode.
+    */
+   private static double animationDelayOf(String style) {
+      Matcher m = Pattern.compile("animation:[^;]*?([0-9]+\\.[0-9]+)s both").matcher(style);
+      assertTrue(m.find(), "no animation delay found in style: " + style);
+      return Double.parseDouble(m.group(1));
    }
 
    /** DFS traversal to find the first {@code <path>} descendant of the given element. */
