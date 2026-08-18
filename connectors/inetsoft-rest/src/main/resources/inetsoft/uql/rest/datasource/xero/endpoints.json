@@ -1,340 +1,394 @@
 {
-    "endpoints": [
+  "endpoints": [
+    {
+      "name": "Attachments",
+      "paged": false,
+      "suffix": "/api.xro/2.0/{Endpoint}/{GUID}/Attachments/{File Name?}",
+      "description": "Files attached to a record. A GENERIC ENDPOINT: the {Endpoint} placeholder takes the resource type -- Invoices, Contacts, BankTransactions and so on -- and the GUID takes that record's id, so one endpoint serves every attachable resource. Returns metadata; the file content is a separate fetch."
+    },
+    {
+      "name": "Accounts",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Accounts/{Account ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "The chart of accounts -- every account the ledger posts to, with Code, Name, Type (REVENUE, EXPENSE, CURRENT, FIXED, BANK, EQUITY and so on), Class, TaxType, Status, and whether each is a system account. THE DIMENSION THE WHOLE LEDGER HANGS OFF: every journal line, invoice line and bank transaction names an account, and Type is what turns a code into revenue or cost. Bank accounts appear here as Type BANK, carrying the account number and currency."
+    },
+    {
+      "name": "Bank Transactions",
+      "paged": true,
+      "paginationPath": "$.BankTransactions.length()",
+      "suffix": "/api.xro/2.0/BankTransactions/{Bank Transaction ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Money in and out of bank accounts recorded directly, without an invoice. Type separates SPEND from RECEIVE (and their overpayment and prepayment variants), so it must be read before summing anything. Carries the contact, bank account, date, status, line items, and totals. This is spending and income that never passed through the invoice tables -- which is why cash movement and invoiced revenue disagree."
+    },
+    {
+      "name": "Bank Transfers",
+      "paged": false,
+      "suffix": "/api.xro/2.0/BankTransfers/{Bank Transfer ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Money moved between the business's own bank accounts, with the from and to accounts, amount, date and currency rate. NOT income or expenditure: a transfer appears as money leaving one account and arriving in another, and counting either side as a real flow double-counts the business's activity."
+    },
+    {
+      "name": "Batch Payments",
+      "paged": false,
+      "suffix": "/api.xro/2.0/BatchPayments/{Batch Payment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Payments grouped into a single bank transaction, with the batch total, date, and the individual payments inside. Where a business pays many suppliers at once, the bank statement shows the batch while the ledger shows the parts -- this is what reconciles the two."
+    },
+    {
+      "name": "Branding Themes",
+      "paged": false,
+      "suffix": "/api.xro/2.0/BrandingThemes/{Branding Theme ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "The invoice templates available, with their names and sort order. Presentation configuration; an invoice references one by id."
+    },
+    {
+      "name": "Contacts",
+      "paged": true,
+      "paginationPath": "$.Contacts.length()",
+      "suffix": "/api.xro/2.0/Contacts/{Contact ID?}?ids={IDs?}&ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}&includeArchived={Include Archived?}",
+      "lookups": [
         {
-            "name": "Attachments",
-            "paged": false,
-            "suffix": "/api.xro/2.0/{Endpoint}/{GUID}/Attachments/{File Name?}"
-        },
-        {
-            "name": "Accounts",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Accounts/{Account ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Bank Transactions",
-            "paged": true,
-            "paginationPath": "$.BankTransactions.length()",
-            "suffix": "/api.xro/2.0/BankTransactions/{Bank Transaction ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Bank Transfers",
-            "paged": false,
-            "suffix": "/api.xro/2.0/BankTransfers/{Bank Transfer ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Batch Payments",
-            "paged": false,
-            "suffix": "/api.xro/2.0/BatchPayments/{Batch Payment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Branding Themes",
-            "paged": false,
-            "suffix": "/api.xro/2.0/BrandingThemes/{Branding Theme ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Contacts",
-            "paged": true,
-            "paginationPath": "$.Contacts.length()",
-            "suffix": "/api.xro/2.0/Contacts/{Contact ID?}?ids={IDs?}&ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}&includeArchived={Include Archived?}",
-          "lookups": [
-            {
-              "endpoints": [
-                "Aged Payables By Contact",
-                "Aged Receivables By Contact"
-              ],
-              "jsonPath": "$.Contacts.*",
-              "key": "ContactID",
-              "parameterName": "Contact ID"
-            }
-          ]
-        },
-        {
-            "name": "Contact Groups",
-            "paged": false,
-            "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?&where={Filter?}"
-        },
-        {
-            "name": "Credit Notes",
-            "paged": true,
-            "paginationPath": "$.CreditNotes.length()",
-            "suffix": "/api.xro/2.0/CreditNotes/{Credit Note ID/Number?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Currencies",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Currencies?where={Filter?}"
-        },
-        {
-            "name": "Employees",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Employees/{Employee ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Expense Claims",
-            "paged": false,
-            "suffix": "/api.xro/2.0/ExpenseClaims/{Expense Claim ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "History and Notes",
-            "paged": false,
-            "suffix": "/api.xro/2.0/{Endpoint}/{GUID}/history"
-        },
-        {
-            "name": "Invoices",
-            "paged": true,
-            "paginationPath": "$.Invoices.length()",
-            "suffix": "/api.xro/2.0/Invoices/{Invoice ID/InvoiceNumber?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&IDs={IDs?:value1,value2,...}&InvoiceNumbers={Invoice Numbers?:value1,value2,...}&ContactIDs={Contact IDs?:value1,value2,...}&Statuses={Statuses?:value1,value2,...}&where={Filter?}&createdByMyApp={Created By My App?:true|false}"
-        },
-        {
-            "name": "Invoice Reminders",
-            "paged": false,
-            "suffix": "/api.xro/2.0/InvoiceReminders/Settings/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Journals",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Journals/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&offset={Offset?}&paymentsOnly={Payments Only?:true|false}"
-        },
-        {
-            "name": "Linked Transactions (Billable Expenses)",
-            "paged": true,
-            "paginationPath": "$.LinkedTransactions.length()",
-            "suffix": "/api.xro/2.0/LinkedTransactions/{Linked Transaction ID?}?SourceTransactionID={Source Transaction ID?}&ContactID={Contact ID?}&Status={Status?}&TargetTransactionID={Target Transaction ID?}"
-        },
-        {
-            "name": "Manual Journals",
-            "paged": true,
-            "paginationPath": "$.ManualJournals.length()",
-            "suffix": "/api.xro/2.0/ManualJournals/{Manual Journal ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Organisation",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Organisation"
-        },
-        {
-            "name": "Overpayments",
-            "paged": true,
-            "paginationPath": "$.Overpayments.length()",
-            "suffix": "/api.xro/2.0/Overpayments/{Overpayment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Payments",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Payments/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Prepayments",
-            "paged": true,
-            "paginationPath": "$.Prepayments.length()",
-            "suffix": "/api.xro/2.0/Prepayments/{Prepayment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Purchase Orders",
-            "paged": true,
-            "paginationPath": "$.PurchaseOrders.length()",
-            "suffix": "/api.xro/2.0/PurchaseOrders/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}"
-        },
-        {
-            "name": "Quotes",
-            "paged": true,
-            "paginationPath": "$.Quotes.length()",
-            "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}"
-        },
-        {
-            "name": "Receipts",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Receipts/{Receipt ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Repeating Invoices",
-            "paged": false,
-            "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?&where={Filter?}"
-        },
-        {
-            "name": "1099 Report",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/TenNinetyNine?reportYear={Report Year?:yyyy}"
-        },
-        {
-            "name": "Aged Payables By Contact",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/AgedPayablesByContact?contactID={Contact ID}&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
-        },
-        {
-            "name": "Aged Receivables By Contact",
-            "paged": false,
-            "suffix": "/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
-        },
-        {
-            "name": "Balance Sheet",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/BalanceSheet?date={Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:MONTH|QUARTER|YEAR}&trackingOptionID1={Tracking Option ID1?}&trackingOptionID2={Tracking Option ID2?}&standardLayout={Standard Layout?:true|false}&paymentsOnly={Payments Only?:true|false}"
-        },
-        {
-            "name": "Bank Summary",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/BankSummary?fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
-        },
-        {
-            "name": "BAS Report",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/{Report ID?}"
-        },
-        {
-            "name": "Budget Summary",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/BudgetSummary?date={Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:1|3|12}"
-        },
-        {
-            "name": "Executive Summary",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/ExecutiveSummary?date={Date?:yyyy-MM-dd}"
-        },
-        {
-            "name": "GST Report",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/{Report ID?}"
-        },
-        {
-            "name": "Profit And Loss",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/ProfitAndLoss?fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:MONTH|QUARTER|YEAR}&trackingCategoryID={Tracking Category ID?}&trackingOptionID={Tracking Option ID?}&trackingCategoryID2={Tracking Category ID2?}&trackingOptionID2={Tracking Option ID2?}&standardLayout={Standard Layout?:true|false}&paymentsOnly={Payments Only?:true|false}"
-        },
-        {
-            "name": "Trial Balance",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Reports/TrialBalance?date={Date?:yyyy-MM-dd}&paymentsOnly={paymentsOnly?:true|false}"
-        },
-        {
-            "name": "Tax Rates",
-            "paged": false,
-            "suffix": "/api.xro/2.0/TaxRates?TaxType={Tax Type?}&where={Filter?}"
-        },
-        {
-            "name": "Tracking Categories",
-            "paged": false,
-            "suffix": "/api.xro/2.0/TrackingCategories/{Tracking Category ID?}?where={Filter?}&includeArchived={Include Archived?:true|false}"
-        },
-        {
-            "name": "Users",
-            "paged": false,
-            "suffix": "/api.xro/2.0/Users/{User ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
-        },
-        {
-            "name": "Assets",
-            "paged": true,
-            "paginationPath": "$.items.length()",
-            "suffix": "/assets.xro/1.0/Assets?status={Status:Draft|Registered|Disposed}&sortDirection={Sort Direction?:ASC|DESC}&filterBy={Filter By?}",
-          "lookups": [
-            {
-              "endpoint": "An Asset",
-              "jsonPath": "$.items.*",
-              "key": "assetId",
-              "parameterName": "Asset ID"
-            }
-          ]
-        },
-        {
-            "name": "An Asset",
-            "paged": false,
-            "suffix": "/assets.xro/1.0/Assets/{Asset ID}"
-        },
-        {
-            "name": "Asset Types",
-            "paged": false,
-            "suffix": "/assets.xro/1.0/AssetTypes"
-        },
-        {
-            "name": "Assets Settings",
-            "paged": false,
-            "suffix": "/assets.xro/1.0/Settings"
-        },
-        {
-            "name": "Files",
-            "paged": true,
-            "paginationPath": "$.Items.length()",
-            "suffix": "/files.xro/1.0/Files",
-          "lookups": [
-            {
-              "endpoints": [
-                "A File",
-                "Associations"
-              ],
-              "jsonPath": "$.Items.*",
-              "key": "Id",
-              "parameterName": "File ID"
-            }
-          ]
-        },
-        {
-            "name": "A File",
-            "paged": false,
-            "suffix": "/files.xro/1.0/Files/{File ID}"
-        },
-        {
-            "name": "Folders",
-            "paged": false,
-            "suffix": "/files.xro/1.0/Folders",
-          "lookups": [
-            {
-              "endpoint": "A Folder",
-              "jsonPath": "$.*",
-              "key": "Id",
-              "parameterName": "Folder ID"
-            }
-          ]
-        },
-        {
-            "name": "A Folder",
-            "paged": false,
-            "suffix": "/files.xro/1.0/Folders/{Folder ID}"
-        },
-        {
-            "name": "Associations",
-            "paged": false,
-            "suffix": "/files.xro/1.0/Files/{File ID}/Associations"
-        },
-        {
-            "name": "Projects",
-            "paged": true,
-            "paginationPath": "$.items.length()",
-            "suffix": "/projects.xro/2.0/projects?projectIDs={Project IDs?:value1,value2,...}&contactID={Contact ID?}&states={States?:INPROGRESS|CLOSED}",
-          "lookups": [
-            {
-              "endpoints": [
-                "A Project",
-                "Tasks",
-                "Time"
-              ],
-              "jsonPath": "$.items.*",
-              "key": "projectId",
-              "parameterName": "Project ID"
-            }
-          ]
-        },
-        {
-            "name": "A Project",
-            "paged": false,
-            "suffix": "/projects.xro/2.0/projects/{Project ID}"
-        },
-        {
-            "name": "Projects Users",
-            "paged": true,
-            "paginationPath": "$.items.length()",
-            "suffix": "/projects.xro/2.0/projectsusers"
-        },
-        {
-            "name": "Tasks",
-            "paged": true,
-            "paginationPath": "$.items.length()",
-            "suffix": "/projects.xro/2.0/projects/{Project ID}/tasks/{Task ID?}?taskIDs={Task IDs?:value1,value2,...}&chargeType={Charge Type?:TIME|FIXED|NON_CHARGEABLE}"
-        },
-        {
-            "name": "Time",
-            "paged": true,
-            "paginationPath": "$.items.length()",
-            "suffix": "/projects.xro/2.0/projects/{Project ID}/time/{Time EntryID?}?userID={User ID?}&taskID={Task ID?}&dateAfterUtc={Date After Utc?:yyyy-MM-ddTHH:mm:ss.SSSZ}&dateBeforeUtc={Date Before Utc?:yyyy-MM-ddTHH:mm:ss.SSSZ}&isChargeable={Is Chargeable?}&invoiceID={Invoice ID?}&contactID={Contact ID?}&states={States?}"
+          "endpoints": [
+            "Aged Payables By Contact",
+            "Aged Receivables By Contact"
+          ],
+          "jsonPath": "$.Contacts.*",
+          "key": "ContactID",
+          "parameterName": "Contact ID"
         }
-    ]
+      ],
+      "description": "The people and companies the business trades with -- and CUSTOMERS AND SUPPLIERS ARE THE SAME TABLE, told apart by the IsCustomer and IsSupplier flags, either or both of which can be set. Carries Name, ContactNumber, EmailAddress, addresses and phones, DefaultCurrency, the account numbers used for sales and purchases, payment terms, and Balances holding outstanding and overdue amounts for both directions. Those balances are pre-computed, so 'who owes us most' does not need the invoice table at all. ContactStatus separates ACTIVE from ARCHIVED."
+    },
+    {
+      "name": "Contact Groups",
+      "paged": false,
+      "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?&where={Filter?}",
+      "description": "The groups contacts are organised into, with their members. Contact groups are Xero's only native segmentation of customers, so they are the axis available for grouping receivables by anything other than the contact itself."
+    },
+    {
+      "name": "Credit Notes",
+      "paged": true,
+      "paginationPath": "$.CreditNotes.length()",
+      "suffix": "/api.xro/2.0/CreditNotes/{Credit Note ID/Number?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Credit notes, which reduce what is owed -- and like invoices, BOTH DIRECTIONS live here: ACCRECCREDIT reduces a customer's balance, ACCPAYCREDIT reduces a supplier's. Carries the contact, date, status, totals and the remaining credit. Revenue net of credits requires this table; the invoice totals alone overstate it, and AmountCredited on an invoice only shows what was applied to that one."
+    },
+    {
+      "name": "Currencies",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Currencies?where={Filter?}",
+      "description": "The currencies enabled for the organisation, with code and description. Relevant because invoices carry both a CurrencyCode and a CurrencyRate: amounts are stored in the source currency, and only the ledger is in the base currency, so any cross-currency total must decide which of the two it means."
+    },
+    {
+      "name": "Employees",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Employees/{Employee ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Employees for expense claim purposes. MOVED: Xero has taken employees out of the Accounting API and into the region-specific Payroll APIs, and this path is absent from the current Accounting description. Expect it to fail; employee data is not reachable through this connector."
+    },
+    {
+      "name": "Expense Claims",
+      "paged": false,
+      "suffix": "/api.xro/2.0/ExpenseClaims/{Expense Claim ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Employee expense claims, with the user, status, total, and the receipts making them up. Note the receipts hold the detail; the claim is only their sum."
+    },
+    {
+      "name": "History and Notes",
+      "paged": false,
+      "suffix": "/api.xro/2.0/{Endpoint}/{GUID}/history",
+      "description": "The change history and manual notes on one record. Generic in the same way: {Endpoint} is the resource type and GUID the record. Each entry carries the user, the date, the change type and any note. THE RECORDS THEMSELVES CARRY ONLY THEIR CURRENT STATE, so this is the only source for when an invoice was approved, sent or amended -- and the only audit trail available per document."
+    },
+    {
+      "name": "Invoices",
+      "paged": true,
+      "paginationPath": "$.Invoices.length()",
+      "suffix": "/api.xro/2.0/Invoices/{Invoice ID/InvoiceNumber?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&IDs={IDs?:value1,value2,...}&InvoiceNumbers={Invoice Numbers?:value1,value2,...}&ContactIDs={Contact IDs?:value1,value2,...}&Statuses={Statuses?:value1,value2,...}&where={Filter?}&createdByMyApp={Created By My App?:true|false}",
+      "description": "Invoices, and READ THE TYPE COLUMN BEFORE ANYTHING ELSE: this one table holds BOTH sales invoices (Type = ACCREC, money owed to the business) AND supplier bills (Type = ACCPAY, money the business owes). They are opposite sides of the ledger, so any revenue, receivables or payables figure taken without filtering on Type is meaningless. Each row carries InvoiceNumber, Contact, Date and DueDate, Status, LineAmountTypes, SubTotal, TotalTax and Total, AmountDue, AmountPaid and AmountCredited, CurrencyCode and CurrencyRate. STATUS matters just as much: DRAFT and SUBMITTED are not yet in the books, VOIDED and DELETED are reversed, and only AUTHORISED and PAID represent real obligations -- so a total that does not exclude the first four overstates the business. Note also that line items are omitted from the list view and come only from fetching a single invoice."
+    },
+    {
+      "name": "Invoice Reminders",
+      "paged": false,
+      "suffix": "/api.xro/2.0/InvoiceReminders/Settings/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Whether automatic invoice reminders are switched on. One setting, and the explanation for whether overdue invoices are being chased at all."
+    },
+    {
+      "name": "Journals",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Journals/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&offset={Offset?}&paymentsOnly={Payments Only?:true|false}",
+      "description": "The general ledger itself -- every posted double-entry line, with the JournalDate, the account, the debit or credit amount, the tax, and the source document and its type. THE AUTHORITATIVE RECORD: invoices, bank transactions and credit notes are all documents that produce journal lines, so anything reconciled or audited comes from here, and the sum of this table is the definition of the accounts. Paged in blocks of 100 by an offset parameter, which is the only way through it -- so a full ledger extract is many sequential calls."
+    },
+    {
+      "name": "Linked Transactions (Billable Expenses)",
+      "paged": true,
+      "paginationPath": "$.LinkedTransactions.length()",
+      "suffix": "/api.xro/2.0/LinkedTransactions/{Linked Transaction ID?}?SourceTransactionID={Source Transaction ID?}&ContactID={Contact ID?}&Status={Status?}&TargetTransactionID={Target Transaction ID?}",
+      "description": "Costs recorded against one contact and then re-billed to another -- the link between a supplier bill line and the customer invoice line that recovers it. Requires the source or target transaction. This is the only place cost recovery is traceable; both invoices otherwise look like unrelated documents."
+    },
+    {
+      "name": "Manual Journals",
+      "paged": true,
+      "paginationPath": "$.ManualJournals.length()",
+      "suffix": "/api.xro/2.0/ManualJournals/{Manual Journal ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Journal entries posted by hand rather than produced by a document, with narration, date, status and their lines. Adjustments, accruals and corrections live here, and they are exactly the entries that have no invoice or receipt behind them -- worth separating when explaining a movement no transaction accounts for."
+    },
+    {
+      "name": "Organisation",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Organisation",
+      "description": "The organisation itself: name, legal name, country, base currency, financial year end, tax basis, edition and timezone. One record, and the first thing to read -- the FINANCIAL YEAR END determines what any period-based report means, and the base currency determines what its totals are denominated in."
+    },
+    {
+      "name": "Overpayments",
+      "paged": true,
+      "paginationPath": "$.Overpayments.length()",
+      "suffix": "/api.xro/2.0/Overpayments/{Overpayment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Money received or paid beyond what was invoiced, awaiting allocation. Carries the contact, date, total and remaining amount. Cash received here is real money that no invoice accounts for, so reconciling receipts against invoices without it leaves an unexplained difference."
+    },
+    {
+      "name": "Payments",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Payments/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "The payments applied against invoices, credit notes and prepayments, one row each, with the date, amount, the invoice it settles, the bank account it moved through, and the currency rate used. The link between an invoice and the cash: an invoice's AmountPaid is the total, while this says WHEN each part arrived, which is what any collection-time or cash-flow-timing question needs."
+    },
+    {
+      "name": "Prepayments",
+      "paged": true,
+      "paginationPath": "$.Prepayments.length()",
+      "suffix": "/api.xro/2.0/Prepayments/{Prepayment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Payments made or received in advance of an invoice, with the amount still unallocated. Same reconciliation role as overpayments, from the other direction in time."
+    },
+    {
+      "name": "Purchase Orders",
+      "paged": true,
+      "paginationPath": "$.PurchaseOrders.length()",
+      "suffix": "/api.xro/2.0/PurchaseOrders/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}",
+      "description": "Purchase orders raised to suppliers, with the contact, date, delivery date, status, line items and totals. A commitment rather than a liability -- it becomes a bill only when invoiced, so orders are what the business has promised to spend and the ACCPAY invoices are what it actually owes."
+    },
+    {
+      "name": "Quotes",
+      "paged": true,
+      "paginationPath": "$.Quotes.length()",
+      "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}",
+      "description": "Quotes issued to customers, with the contact, dates, expiry, status and totals. The pipeline before an invoice exists: a quote's status (DRAFT, SENT, ACCEPTED, DECLINED, INVOICED) is the closest thing Xero has to a sales funnel."
+    },
+    {
+      "name": "Receipts",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Receipts/{Receipt ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "Individual receipts entered against expense claims, with the contact, date, line items, account and total. Draft receipts exist before being claimed, so status separates what has been submitted from what has merely been captured."
+    },
+    {
+      "name": "Repeating Invoices",
+      "paged": false,
+      "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?&where={Filter?}",
+      "description": "The templates that generate invoices on a schedule, with the contact, the repeat interval, the next scheduled date, the end date and the amounts. Not invoices themselves -- these are what will produce them, so forward revenue commitments are here while the invoices they created are in the invoice table."
+    },
+    {
+      "name": "1099 Report",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/TenNinetyNine?reportYear={Report Year?:yyyy}",
+      "description": "US 1099-MISC contractor payment totals by contact for a tax year. Jurisdiction-specific: it returns nothing meaningful for an organisation outside the United States."
+    },
+    {
+      "name": "Aged Payables By Contact",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/AgedPayablesByContact?contactID={Contact ID}&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}",
+      "description": "What the business owes each supplier, bucketed by age. The payables mirror of the receivables report."
+    },
+    {
+      "name": "Aged Receivables By Contact",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}",
+      "description": "What each customer owes, bucketed by how overdue it is. Requires a contact id, or runs across contacts for the ageing summary. The collections table -- Contacts carries a single outstanding balance while this says how old it is, which is what distinguishes a slow payer from a bad debt."
+    },
+    {
+      "name": "Balance Sheet",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/BalanceSheet?date={Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:MONTH|QUARTER|YEAR}&trackingOptionID1={Tracking Option ID1?}&trackingOptionID2={Tracking Option ID2?}&standardLayout={Standard Layout?:true|false}&paymentsOnly={Payments Only?:true|false}",
+      "description": "The balance sheet as at a given date, with assets, liabilities and equity, optionally compared across periods or split by tracking category. Same nested Rows shape. A point-in-time statement, unlike profit and loss which covers a range -- so the two cannot be filtered the same way."
+    },
+    {
+      "name": "Bank Summary",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/BankSummary?fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}",
+      "description": "Opening and closing balances with cash in and out for each bank account over a period. The cash-movement summary, and the quickest reconciliation of what the bank accounts did without reading Bank Transactions."
+    },
+    {
+      "name": "BAS Report",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/{Report ID?}",
+      "description": "An Australian Business Activity Statement, fetched by its report id. Jurisdiction-specific and available only to Australian organisations. NOTE that BAS and GST reports share one endpoint -- both are retrieved as /Reports/{ReportID} -- so the report id is what selects between them, and the two entries here differ in name only."
+    },
+    {
+      "name": "Budget Summary",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/BudgetSummary?date={Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:1|3|12}",
+      "description": "Budgeted amounts by account for a series of periods. The only place budget figures exist -- actuals come from Profit And Loss, and comparing the two requires both, since no endpoint returns variance."
+    },
+    {
+      "name": "Executive Summary",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/ExecutiveSummary?date={Date?:yyyy-MM-dd}",
+      "description": "A one-page set of headline figures -- cash, profitability, debtor and creditor days, and key ratios -- for a month, with comparison to the previous one. Pre-computed ratios that would otherwise have to be derived, though as a fixed monthly view it cannot be re-cut by period."
+    },
+    {
+      "name": "GST Report",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/{Report ID?}",
+      "description": "A New Zealand GST return, fetched by its report id. Same endpoint as the BAS report, distinguished only by which report id is passed, and available only to New Zealand organisations."
+    },
+    {
+      "name": "Profit And Loss",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/ProfitAndLoss?fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:MONTH|QUARTER|YEAR}&trackingCategoryID={Tracking Category ID?}&trackingOptionID={Tracking Option ID?}&trackingCategoryID2={Tracking Category ID2?}&trackingOptionID2={Tracking Option ID2?}&standardLayout={Standard Layout?:true|false}&paymentsOnly={Payments Only?:true|false}",
+      "description": "The profit and loss statement for a date range, optionally compared against previous periods and broken down by tracking category. A READY-MADE FINANCIAL STATEMENT: Xero has already applied the accounting rules -- accrual or cash basis per the organisation's setting, the correct sign on each account type, and the subtotals -- which reconstructing from Journals would mean reimplementing. THE SHAPE IS NOT TABULAR: every report here returns a nested Rows structure of sections, header rows and summary rows, not a flat row set, so it needs flattening before it can be charted, and the section a row sits in is what gives it meaning."
+    },
+    {
+      "name": "Trial Balance",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Reports/TrialBalance?date={Date?:yyyy-MM-dd}&paymentsOnly={paymentsOnly?:true|false}",
+      "description": "Every account with its debit and credit movements and closing balance as at a date. The bridge between the ledger and the statements: it is account-level rather than section-level, which makes it the most tabular of the reports and the easiest to work with directly."
+    },
+    {
+      "name": "Tax Rates",
+      "paged": false,
+      "suffix": "/api.xro/2.0/TaxRates?TaxType={Tax Type?}&where={Filter?}",
+      "description": "The tax rates configured, with Name, TaxType, the component rates making each up, and its effective rate. Every invoice and journal line names a TaxType, so this is what turns that code into a rate and a jurisdiction."
+    },
+    {
+      "name": "Tracking Categories",
+      "paged": false,
+      "suffix": "/api.xro/2.0/TrackingCategories/{Tracking Category ID?}?where={Filter?}&includeArchived={Include Archived?:true|false}",
+      "description": "Xero's dimensional tagging -- department, region, cost centre or whatever the business chose -- with each category's options. A ledger line can carry up to TWO tracking options, and this is the ONLY analytical axis Xero offers beyond the account code, so any question about profitability by team or location depends entirely on whether these are in use."
+    },
+    {
+      "name": "Users",
+      "paged": false,
+      "suffix": "/api.xro/2.0/Users/{User ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
+      "description": "The users with access to the organisation, with name, email, their role, and whether they are subscribers. Xero's role model is coarse, and the role is what explains whether a given token can see payroll or reports at all."
+    },
+    {
+      "name": "Assets",
+      "paged": true,
+      "paginationPath": "$.items.length()",
+      "suffix": "/assets.xro/1.0/Assets?status={Status:Draft|Registered|Disposed}&sortDirection={Sort Direction?:ASC|DESC}&filterBy={Filter By?}",
+      "lookups": [
+        {
+          "endpoint": "An Asset",
+          "jsonPath": "$.items.*",
+          "key": "assetId",
+          "parameterName": "Asset ID"
+        }
+      ],
+      "description": "Fixed assets registered in the fixed asset register, with name, number, purchase date and price, the asset type, current book value, and status. Status separates DRAFT, REGISTERED and DISPOSED -- and depreciation only runs on registered assets, so a draft asset holds a purchase price that has never touched the ledger."
+    },
+    {
+      "name": "An Asset",
+      "paged": false,
+      "suffix": "/assets.xro/1.0/Assets/{Asset ID}",
+      "description": "One fixed asset by id, with its full depreciation settings and book value history."
+    },
+    {
+      "name": "Asset Types",
+      "paged": false,
+      "suffix": "/assets.xro/1.0/AssetTypes",
+      "description": "The asset types configured, each carrying the depreciation method, rate and averaging convention applied to assets of that type. The decoder for how an asset's book value is being reduced; the asset itself names only its type."
+    },
+    {
+      "name": "Assets Settings",
+      "paged": false,
+      "suffix": "/assets.xro/1.0/Settings",
+      "description": "The fixed asset register's settings -- the default accounts depreciation posts to, and the register's start date. The start date matters: assets bought before it are not depreciated by Xero at all."
+    },
+    {
+      "name": "Files",
+      "paged": true,
+      "paginationPath": "$.Items.length()",
+      "suffix": "/files.xro/1.0/Files",
+      "lookups": [
+        {
+          "endpoints": [
+            "A File",
+            "Associations"
+          ],
+          "jsonPath": "$.Items.*",
+          "key": "Id",
+          "parameterName": "File ID"
+        }
+      ],
+      "description": "The files uploaded to the organisation's file store, with name, mime type, size, the folder each is in, and when it was uploaded. Metadata only; contents are a separate fetch."
+    },
+    {
+      "name": "A File",
+      "paged": false,
+      "suffix": "/files.xro/1.0/Files/{File ID}",
+      "description": "One file's metadata by id."
+    },
+    {
+      "name": "Folders",
+      "paged": false,
+      "suffix": "/files.xro/1.0/Folders",
+      "lookups": [
+        {
+          "endpoint": "A Folder",
+          "jsonPath": "$.*",
+          "key": "Id",
+          "parameterName": "Folder ID"
+        }
+      ],
+      "description": "The folders files are organised into, with a file count for each. Includes the Inbox, which is where emailed-in documents arrive before being filed."
+    },
+    {
+      "name": "A Folder",
+      "paged": false,
+      "suffix": "/files.xro/1.0/Folders/{Folder ID}",
+      "description": "One folder by id."
+    },
+    {
+      "name": "Associations",
+      "paged": false,
+      "suffix": "/files.xro/1.0/Files/{File ID}/Associations",
+      "description": "The accounting records one file is attached to -- an invoice, bank transaction or contact. Requires a file id. The link between a stored document and the transaction it evidences, which neither side carries alone."
+    },
+    {
+      "name": "Projects",
+      "paged": true,
+      "paginationPath": "$.items.length()",
+      "suffix": "/projects.xro/2.0/projects?projectIDs={Project IDs?:value1,value2,...}&contactID={Contact ID?}&states={States?:INPROGRESS|CLOSED}",
+      "lookups": [
+        {
+          "endpoints": [
+            "A Project",
+            "Tasks",
+            "Time"
+          ],
+          "jsonPath": "$.items.*",
+          "key": "projectId",
+          "parameterName": "Project ID"
+        }
+      ],
+      "description": "Projects used for time and cost tracking, with name, contact, status, deadline, and the estimated and actual amounts. A separate Xero product from the accounting ledger: project costs appear here whether or not they have been invoiced, so this is where work-in-progress lives before it reaches an invoice."
+    },
+    {
+      "name": "A Project",
+      "paged": false,
+      "suffix": "/projects.xro/2.0/projects/{Project ID}",
+      "description": "One project by id, with its totals: time and expense recorded, amounts invoiced, and what remains to be billed."
+    },
+    {
+      "name": "Projects Users",
+      "paged": true,
+      "paginationPath": "$.items.length()",
+      "suffix": "/projects.xro/2.0/projectsusers",
+      "description": "The users who can record time against projects. The roster for any per-person utilisation question."
+    },
+    {
+      "name": "Tasks",
+      "paged": true,
+      "paginationPath": "$.items.length()",
+      "suffix": "/projects.xro/2.0/projects/{Project ID}/tasks/{Task ID?}?taskIDs={Task IDs?:value1,value2,...}&chargeType={Charge Type?:TIME|FIXED|NON_CHARGEABLE}",
+      "description": "The billable tasks within one project, with the rate, charge type, estimated minutes, and the amounts recorded and invoiced. Requires a project id. The rate and charge type are what turn recorded time into money, so they are needed before any time figure means anything."
+    },
+    {
+      "name": "Time",
+      "paged": true,
+      "paginationPath": "$.items.length()",
+      "suffix": "/projects.xro/2.0/projects/{Project ID}/time/{Time EntryID?}?userID={User ID?}&taskID={Task ID?}&dateAfterUtc={Date After Utc?:yyyy-MM-ddTHH:mm:ss.SSSZ}&dateBeforeUtc={Date Before Utc?:yyyy-MM-ddTHH:mm:ss.SSSZ}&isChargeable={Is Chargeable?}&invoiceID={Invoice ID?}&contactID={Contact ID?}&states={States?}",
+      "description": "Time entries recorded against a project, with the user, task, date, duration in minutes, and description. Requires a project id. DURATION IS IN MINUTES, and the entry carries no monetary value of its own -- the rate lives on the task, so revenue per hour is a join rather than a column."
+    }
+  ]
 }

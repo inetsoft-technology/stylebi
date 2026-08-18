@@ -1,478 +1,560 @@
 {
-    "endpoints": [
-        {
-            "name": "Collaboration Whitelist",
-            "paged": true,
-            "suffix": "/2.0/collaboration_whitelist_entries?marker={Marker?}"
-        },
-        {
-            "name": "Collaboration Whitelist Entry",
-            "paged": false,
-            "suffix": "/2.0/collaboration_whitelist_entries/{Collaboration ID}"
-        },
-        {
-            "name": "Collaboration Whitelist Exempt Targets",
-            "paged": true,
-            "suffix": "/2.0/collaboration_whitelist_exempt_targets?marker={Marker?}"
-        },
-        {
-            "name": "Collaboration Whitelist Exempt Target",
-            "paged": false,
-            "suffix": "/2.0/collaboration_whitelist_exempt_targets/{Collaboration Exempt ID}"
-        },
-        {
-            "name": "Collaboration",
-            "paged": false,
-            "suffix": "/2.0/collaborations/{Collaboration ID}?fields={Fields?}"
-        },
-        {
-            "name": "File Collaborations",
-            "paged": true,
-            "suffix": "/2.0/files/{File ID}/collaborations?fields={Fields?}&marker={Marker?}"
-        },
-        {
-            "name": "Folder Collaborations",
-            "paged": true,
-            "suffix": "/2.0/folders/{Folder ID}/collaborations?fields={Fields?}"
-        },
-        {
-            "name": "Pending Collaborations",
-            "paged": true,
-            "suffix": "/2.0/collaborations?status=pending&fields={Fields?}"
-        },
-        {
-            "name": "Group Collaborations",
-            "paged": true,
-            "suffix": "/2.0/groups/{Group ID}/collaborations"
-        },
-        {
-            "name": "Collections",
-            "paged": true,
-            "suffix": "/2.0/collections?fields={Fields?}",
-            "lookups": [
-              {
-                "endpoint": "Collection Items",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Collection ID"
-              }
-            ]
-        },
-        {
-            "name": "Collection Items",
-            "paged": true,
-            "suffix": "/2.0/collections/{Collection ID}/items?fields={Fields?}"
-        },
-        {
-            "name": "File Comments",
-            "paged": true,
-            "suffix": "/2.0/files/{File ID}/comments?fields={Fields?}"
-        },
-        {
-            "name": "Comment",
-            "paged": false,
-            "suffix": "/2.0/comments/{Comment ID}?fields={Fields?}"
-        },
-        {
-            "name": "Device Pin",
-            "paged": false,
-            "suffix": "/2.0/device_pinners/{Device Pinner ID}"
-        },
-        {
-            "name": "Enterprise Device Pins",
-            "paged": true,
-            "suffix": "/2.0/enterprises/{Enterprise ID}/device_pinners?marker={Marker?}"
-        },
-        {
-            "name": "Download File",
-            "paged": false,
-            "suffix": "/2.0/files/{File ID}/content?version={Version?}"
-        },
-        {
-            "name": "User's Email Aliases",
-            "paged": true,
-            "suffix": "/2.0/users/{User ID}/email_aliases"
-        },
-        {
-            "name": "User and Enterprise Events",
-            "paged": true,
-            "suffix": "/2.0/events?created_after={Created After?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&created_before={Created Before?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&event_type={Event Type?:ACCESS_GRANTED|ACCESS_REVOKED|ADD_DEVICE_ASSOCIATION}&stream_position={Stream Position?}&stream_type={Stream Type?:all|changes|sync|admin_logs}"
-        },
-        {
-            "name": "File Version Legal Hold",
-            "paged": false,
-            "suffix": "/2.0/file_version_legal_holds/{File Version Legal ID}"
-        },
-        {
-            "name": "File Version Legal Holds",
-            "paged": true,
-            "suffix": "/2.0/file_version_legal_holds?marker={Marker?}&policy_id={Policy ID?}"
-        },
-        {
-            "name": "Retention on File",
-            "paged": false,
-            "suffix": "/2.0/file_version_retentions/{File Version Retention ID}"
-        },
-        {
-            "name": "File Version Retentions",
-            "paged": true,
-            "suffix": "/2.0/file_version_retentions?disposition_action={Disposition Action?:permanently_delete|remove_retention}&disposition_after={Disposition After?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&disposition_before={Disposition Before?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&file_id={File ID?}&file_version_id={File Version ID?}&marker={Marker?}&policy_id={Policy ID?}"
-        },
-        {
-            "name": "File Versions",
-            "paged": true,
-            "suffix": "/2.0/files/{File ID}/versions?fields={Fields?}"
-        },
-        {
-            "name": "File Version",
-            "paged": false,
-            "suffix": "/2.0/files/{File ID}/versions/{File Version ID}?fields={Fields?}"
-        },
-        {
-            "name": "File Information",
-            "paged": true,
-            "suffix": "/2.0/files/{File ID}?fields={Fields?}"
-        },
-        {
-            "name": "Folder Information",
-            "paged": true,
-            "suffix": "/2.0/folders/{Folder ID}?fields={Fields?}"
-        },
-        {
-            "name": "Folder Items",
-            "paged": true,
-            "suffix": "/2.0/folders/{Folder ID}/items?fields={Fields?}"
-        },
-        {
-            "name": "User's Groups",
-            "paged": true,
-            "suffix": "/2.0/users/{User ID}/memberships",
-            "lookups": [
-              {
-                "endpoint": "Group Members",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Group ID"
-              },
-              {
-                "endpoint": "Group Collaborations",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Group ID"
-              }
-            ]
-        },
-        {
-            "name": "Group Members",
-            "paged": true,
-            "suffix": "/2.0/groups/{Group ID}/memberships"
-        },
-        {
-            "name": "Group Membership",
-            "paged": false,
-            "suffix": "/2.0/group_memberships/{Group Membership ID}?fields={Fields?}"
-        },
-        {
-            "name": "Enterprise Groups",
-            "paged": true,
-            "suffix": "/2.0/groups?fields={Fields?}",
-            "lookups": [
-              {
-                "endpoint": "Group",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Group ID"
-              },
-              {
-                "endpoint": "Group Members",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Group ID"
-              },
-              {
-                "endpoint": "Group Collaborations",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Group ID"
-              }
-            ]
-        },
-        {
-            "name": "Group",
-            "paged": false,
-            "suffix": "/2.0/groups/{Group ID}?fields={Fields?}"
-        },
-        {
-            "name": "User Invite Status",
-            "paged": false,
-            "suffix": "/2.0/invites/{Invite ID}?fields={Fields?}"
-        },
-        {
-            "name": "Legal Hold Policies",
-            "paged": true,
-            "suffix": "/2.0/legal_hold_policies?fields={Fields?}&marker={Marker?}&policy_name={Policy Name?}"
-        },
-        {
-            "name": "Legal Hold Policy",
-            "paged": false,
-            "suffix": "/2.0/legal_hold_policies/{Legal Hold Policy ID}"
-        },
-        {
-            "name": "Legal Hold Policy Assignments",
-            "paged": true,
-            "suffix": "/2.0/legal_hold_policy_assignments?policy_id={Policy ID}&assign_to_id={Assign To ID?}&assign_to_type={Assign To Type?:file|file_version|folder|user}&marker={Marker?}",
-            "lookups": [
-              {
-                "endpoint": "Legal Hold Policy Assignment",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "Legal Hold Policy Assignment ID"
-              }
-            ]
-        },
-        {
-            "name": "Legal Hold Policy Assignment",
-            "paged": false,
-            "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}"
-        },
-        {
-            "name": "Current File Versions",
-            "paged": true,
-            "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/files_on_hold?fields={Fields?}&marker={Marker?}"
-        },
-        {
-            "name": "Previous File Versions",
-            "paged": true,
-            "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/file_versions_on_hold?fields={Fields?}&marker={Marker?}"
-        },
-        {
-            "name": "Metadata Cascade Policies",
-            "paged": true,
-            "suffix": "/2.0/metadata_cascade_policies?folder_id={Folder_id}&marker={Marker?}&owner_enterprise_id={Owner Enterprise ID}"
-        },
-        {
-            "name": "Metadata Cascade Policy",
-            "paged": false,
-            "suffix": "/2.0/metadata_cascade_policies/{Metadata Cascade Policy ID}"
-        },
-        {
-            "name": "File Metadata Instances",
-            "paged": true,
-            "suffix": "/2.0/files/{File ID}/metadata"
-        },
-        {
-            "name": "File Metadata Instance",
-            "paged": false,
-            "suffix": "/2.0/files/{File ID}/metadata/{Scope:global|enterprise}/{Template Key}"
-        },
-        {
-            "name": "Folder Metadata Instances",
-            "paged": true,
-            "suffix": "/2.0/folders/{Folder ID}/metadata"
-        },
-        {
-            "name": "Folder Metadata Instance",
-            "paged": false,
-            "suffix": "/2.0/folders/{Folder ID}/metadata/{Scope:global|enterprise}/{Template Key}"
-        },
-        {
-            "name": "Metadata Template by Instance ID",
-            "paged": false,
-            "suffix": "/2.0/metadata_templates?metadata_instance_id={Metadata Instance ID}"
-        },
-        {
-            "name": "Metadata Template by Name",
-            "paged": false,
-            "suffix": "/2.0/metadata_templates/{Scope}/{Template Key}/schema"
-        },
-        {
-            "name": "Metadata Template by ID",
-            "paged": false,
-            "suffix": "/2.0/metadata_templates/{Template ID}"
-        },
-        {
-            "name": "Global Templates",
-            "paged": true,
-            "suffix": "/2.0/metadata_templates/global"
-        },
-        {
-            "name": "Enterprise Templates",
-            "paged": true,
-            "suffix": "/2.0/metadata_templates/enterprise?marker={Marker?}"
-        },
-        {
-            "name": "Recently Accessed Items",
-            "paged": true,
-            "suffix": "/2.0/recent_items?fields={Fields?}&marker={Marker?}"
-        },
-        {
-            "name": "Retention Policies",
-            "paged": true,
-            "suffix": "/2.0/retention_policies?created_by_user_id={Created By User ID?}&policy_name={Policy Name?}&policy_type={Policy Type?:finite|indefinite}"
-        },
-        {
-            "name": "Retention Policy",
-            "paged": false,
-            "suffix": "/2.0/retention_policies/{Retention Policy ID}"
-        },
-        {
-            "name": "Retention Policy Assignments",
-            "paged": true,
-            "suffix": "/2.0/retention_policies/{Retention Policy ID}/assignments?marker={Marker?}&type={Type?:folder|enterprise}"
-        },
-        {
-            "name": "Retention Policy Assignment",
-            "paged": false,
-            "suffix": "/2.0/retention_policy_assignments/{Retention Policy Assignment ID}"
-        },
-        {
-            "name": "Search for Content",
-            "paged": true,
-            "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}"
-        },
-        {
-            "name": "Find Item for Shared Link",
-            "paged": true,
-            "suffix": "/2.0/shared_items?fields={Fields?}"
-        },
-        {
-            "name": "Storage Policies",
-            "paged": true,
-            "suffix": "/2.0/storage_policies?fields={Fields?}&marker={Marker?}"
-        },
-        {
-            "name": "Storage Policy",
-            "paged": false,
-            "suffix": "/2.0/storage_policies/{Storage Policy ID}"
-        },
-        {
-            "name": "Storage Policy Assignments",
-            "paged": true,
-            "suffix": "/2.0/storage_policy_assignments?resolved_for_id={Resolved For ID}&resolved_for_type={Resolved For Type:user|enterprise}&marker={Marker?}"
-        },
-        {
-            "name": "Storage Policy Assignment",
-            "paged": false,
-            "suffix": "/2.0/storage_policy_assignments/{Storage Policy Assignment ID}"
-        },
-        {
-            "name": "Task Assignments",
-            "paged": true,
-            "suffix": "/2.0/tasks/{Task ID}/assignments"
-        },
-        {
-            "name": "Task Assignment",
-            "paged": false,
-            "suffix": "/2.0/task_assignments/{Task Assignment ID}"
-        },
-        {
-            "name": "Tasks on File",
-            "paged": true,
-            "suffix": "/2.0/files/{File ID}/tasks"
-        },
-        {
-            "name": "Task",
-            "paged": false,
-            "suffix": "/2.0/tasks/{Task ID}"
-        },
-        {
-            "name": "Terms of Services",
-            "paged": true,
-            "suffix": "/2.0/terms_of_services?tos_type={Terms of Service Type?:external|managed}"
-        },
-        {
-            "name": "Terms of Service",
-            "paged": false,
-            "suffix": "/2.0/terms_of_services/{Terms Of Service ID}"
-        },
-        {
-            "name": "Terms of Service User Statuses",
-            "paged": true,
-            "suffix": "/2.0/terms_of_service_user_statuses?tos_id={Terms of Service ID}&user_id={User ID?}"
-        },
-        {
-            "name": "Trashed File",
-            "paged": false,
-            "suffix": "/2.0/folders/{Folder ID}/trash?fields={Fields?}"
-        },
-        {
-            "name": "Trashed Folder",
-            "paged": false,
-            "suffix": "/2.0/folders/{Folder ID}/trash?fields={Fields?}"
-        },
-        {
-            "name": "Trashed Items",
-            "paged": true,
-            "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?false|true}"
-        },
-        {
-            "name": "Trashed Web Link",
-            "paged": false,
-            "suffix": "/2.0/web_links/{Web Link ID}/trash?fields={Fields?}"
-        },
-        {
-            "name": "Upload Session",
-            "paged": false,
-            "suffix": "/2.0/files/upload_sessions/{Upload Session ID}"
-        },
-        {
-            "name": "Upload Session Parts",
-            "paged": true,
-            "suffix": "/2.0/files/upload_sessions/{Upload Session ID}/parts"
-        },
-        {
-            "name": "Enterprise Users",
-            "paged": true,
-            "suffix": "/2.0/users?fields={Fields?}&filter_term={Filter Term?}&marker={Marker?}&usemarker={Usemarker?:false|true}&user_type={User Type?:all|managed|external}",
-            "lookups": [
-              {
-                "endpoint": "User's Email Aliases",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "User ID"
-              },
-              {
-                "endpoint": "User's Groups",
-                "jsonPath": "$.entries[*]",
-                "key": "id",
-                "parameterName": "User ID"
-              }
-            ]
-        },
-        {
-            "name": "Current User",
-            "paged": true,
-            "suffix": "/2.0/users/me?fields={Fields?}"
-        },
-        {
-            "name": "User",
-            "paged": false,
-            "suffix": "/2.0/users/{User ID}?fields={Fields?}"
-        },
-        {
-            "name": "File Watermark",
-            "paged": false,
-            "suffix": "/2.0/files/{File ID}/watermark"
-        },
-        {
-            "name": "Folder Watermark",
-            "paged": false,
-            "suffix": "/2.0/folders/{Folder ID}/watermark"
-        },
-        {
-            "name": "Web Link",
-            "paged": true,
-            "suffix": "/2.0/web_links/{Web Link ID}"
-        },
-        {
-            "name": "Webhooks",
-            "paged": true,
-            "suffix": "/2.0/webhooks?marker={Marker?}"
-        },
-        {
-            "name": "Webhook",
-            "paged": false,
-            "suffix": "/2.0/webhooks/{Webhook ID}"
+  "endpoints": [
+    {
+      "name": "Collaboration Whitelist",
+      "paged": true,
+      "suffix": "/2.0/collaboration_whitelist_entries?marker={Marker?}",
+      "description": "The external domains this enterprise permits collaboration with, and the direction each is allowed in. When entries exist, collaboration with any other domain is blocked -- so this is the explanation for invitations that silently fail, and the boundary of who can be shared with at all."
+    },
+    {
+      "name": "Collaboration Whitelist Entry",
+      "paged": false,
+      "suffix": "/2.0/collaboration_whitelist_entries/{Collaboration ID}",
+      "description": "One allowed domain entry by id."
+    },
+    {
+      "name": "Collaboration Whitelist Exempt Targets",
+      "paged": true,
+      "suffix": "/2.0/collaboration_whitelist_exempt_targets?marker={Marker?}",
+      "description": "The users exempted from the domain restrictions. Every row here is someone who can share outside the permitted domains, which makes this a short and important list for an access review."
+    },
+    {
+      "name": "Collaboration Whitelist Exempt Target",
+      "paged": false,
+      "suffix": "/2.0/collaboration_whitelist_exempt_targets/{Collaboration Exempt ID}",
+      "description": "One exempt user by id."
+    },
+    {
+      "name": "Collaboration",
+      "paged": false,
+      "suffix": "/2.0/collaborations/{Collaboration ID}?fields={Fields?}",
+      "description": "One collaboration by id: who was granted access to which file or folder, the ROLE they hold, the status, who invited them and when, and any expiry. Roles run editor, viewer, previewer, uploader, previewer uploader, viewer uploader, co-owner and owner -- the distinction that matters most is that anything from editor upward can change or remove content."
+    },
+    {
+      "name": "File Collaborations",
+      "paged": true,
+      "suffix": "/2.0/files/{File ID}/collaborations?fields={Fields?}&marker={Marker?}",
+      "description": "Everyone with explicit access to one file, with their role and status. Requires a file id. Note it lists collaborations granted ON THIS FILE; access inherited from a parent folder does not appear here, so an empty result does not mean the file is private."
+    },
+    {
+      "name": "Folder Collaborations",
+      "paged": true,
+      "suffix": "/2.0/folders/{Folder ID}/collaborations?fields={Fields?}",
+      "description": "Everyone with explicit access to one folder, with role and status. Requires a folder id. Because access is normally granted at folder level and inherited downward, this is where sharing actually lives -- and where an external collaborator on a whole tree shows up."
+    },
+    {
+      "name": "Pending Collaborations",
+      "paged": true,
+      "suffix": "/2.0/collaborations?status=pending&fields={Fields?}",
+      "description": "READ THE NAME LITERALLY: this returns ONLY collaborations awaiting the caller's acceptance, not the account's collaborations. Box has no endpoint that lists every collaboration -- they are reachable per file or per folder, so an access review has to walk the content tree. Treating this as the sharing table understates access to almost nothing."
+    },
+    {
+      "name": "Group Collaborations",
+      "paged": true,
+      "suffix": "/2.0/groups/{Group ID}/collaborations",
+      "description": "The folders and files one group has been granted access to, with the role on each. Requires a group id. The reverse view: what a team can reach, rather than who can reach one item."
+    },
+    {
+      "name": "Collections",
+      "paged": true,
+      "suffix": "/2.0/collections?fields={Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Collection Items",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Collection ID"
         }
-    ]
+      ],
+      "description": "The calling user's collections -- in practice the Favorites collection, which is the only type Box currently supports. Scoped to the caller."
+    },
+    {
+      "name": "Collection Items",
+      "paged": true,
+      "suffix": "/2.0/collections/{Collection ID}/items?fields={Fields?}",
+      "description": "The items in one collection. Requires a collection id. Same fields rule as folder items."
+    },
+    {
+      "name": "File Comments",
+      "paged": true,
+      "suffix": "/2.0/files/{File ID}/comments?fields={Fields?}",
+      "description": "The comments left on one file, with the message, the author and when it was posted. Requires a file id. Where discussion about a document lives; the file record carries no indication that any exists."
+    },
+    {
+      "name": "Comment",
+      "paged": false,
+      "suffix": "/2.0/comments/{Comment ID}?fields={Fields?}",
+      "description": "One comment by id, with its message and author."
+    },
+    {
+      "name": "Device Pin",
+      "paged": false,
+      "suffix": "/2.0/device_pinners/{Device Pinner ID}",
+      "description": "One device pin by id."
+    },
+    {
+      "name": "Enterprise Device Pins",
+      "paged": true,
+      "suffix": "/2.0/enterprises/{Enterprise ID}/device_pinners?marker={Marker?}",
+      "description": "The mobile devices authorised for the enterprise, with the user, device name and platform. Requires an enterprise id. A device inventory: it shows which endpoints hold synced content, which no user or file table reveals."
+    },
+    {
+      "name": "Download File",
+      "paged": false,
+      "suffix": "/2.0/files/{File ID}/content?version={Version?}",
+      "description": "The binary contents of one file. Requires a file id. NOT tabular data -- it returns the file itself, or a redirect to it, so it is useful for retrieving a document and useless for reporting on one."
+    },
+    {
+      "name": "User's Email Aliases",
+      "paged": true,
+      "suffix": "/2.0/users/{User ID}/email_aliases",
+      "description": "The additional email addresses registered to one user. Requires a user id. Relevant because collaborations and events can reference any of them, so matching activity to a person by primary email alone misses some of it."
+    },
+    {
+      "name": "User and Enterprise Events",
+      "paged": true,
+      "suffix": "/2.0/events?created_after={Created After?:yyyy-MM-dd’T’HH:mm:ssZ}&created_before={Created Before?:yyyy-MM-dd’T’HH:mm:ssZ}&event_type={Event Type?:ACCESS_GRANTED|ACCESS_REVOKED|ADD_DEVICE_ASSOCIATION}&stream_position={Stream Position?}&stream_type={Stream Type?:all|changes|sync|admin_logs}",
+      "description": "The event stream of the account -- who did what to which item and when. TWO DIFFERENT STREAMS come from this one endpoint and the stream_type parameter chooses between them. The user stream returns the calling user's own recent activity. The ADMIN LOGS stream returns enterprise-wide events -- logins, downloads, shares, deletions, permission changes -- and is the audit trail an access or compliance question needs; it requires admin credentials. Two limits worth stating: the enterprise stream is not real time and lags by a period Box does not guarantee, and history is bounded by the retention Box keeps for the account, so questions about long-past activity may find nothing rather than an empty answer."
+    },
+    {
+      "name": "File Version Legal Hold",
+      "paged": false,
+      "suffix": "/2.0/file_version_legal_holds/{File Version Legal ID}",
+      "description": "One file version legal hold record by id."
+    },
+    {
+      "name": "File Version Legal Holds",
+      "paged": true,
+      "suffix": "/2.0/file_version_legal_holds?marker={Marker?}&policy_id={Policy ID?}",
+      "description": "The individual file versions frozen by legal holds, one row each, with the hold that froze them. Filter by a legal hold policy assignment. This is the version-level record of what is actually under hold -- the assignment says what a hold reaches, this says which specific versions it caught, which matters because a hold placed on a user or folder pulls in versions nobody named."
+    },
+    {
+      "name": "Retention on File",
+      "paged": false,
+      "suffix": "/2.0/file_version_retentions/{File Version Retention ID}",
+      "description": "One file version retention record by id."
+    },
+    {
+      "name": "File Version Retentions",
+      "paged": true,
+      "suffix": "/2.0/file_version_retentions?disposition_action={Disposition Action?:permanently_delete|remove_retention}&disposition_after={Disposition After?:yyyy-MM-dd’T’HH:mm:ssZ}&disposition_before={Disposition Before?:yyyy-MM-dd’T’HH:mm:ssZ}&file_id={File ID?}&file_version_id={File Version ID?}&marker={Marker?}&policy_id={Policy ID?}",
+      "description": "The individual file versions currently held under retention, with the applicable policy and the disposition date. The record of what is actually retained, as opposed to what the policies say should be -- and the way to find what is due for disposition."
+    },
+    {
+      "name": "File Versions",
+      "paged": true,
+      "suffix": "/2.0/files/{File ID}/versions?fields={Fields?}",
+      "description": "The version history of one file, one row per prior version, with the version id, size, who created it, and when it was uploaded or restored. Requires a file id. NOTE that the CURRENT version is not among them -- this lists previous versions only, so a file never revised returns an empty list rather than one row. Storage questions want this: a heavily revised file consumes the sum of its versions, not the size shown on the file."
+    },
+    {
+      "name": "File Version",
+      "paged": false,
+      "suffix": "/2.0/files/{File ID}/versions/{File Version ID}?fields={Fields?}",
+      "description": "One prior version of a file by version id. Requires the file id as well."
+    },
+    {
+      "name": "File Information",
+      "paged": true,
+      "suffix": "/2.0/files/{File ID}?fields={Fields?}",
+      "description": "One file's metadata. Requires a file id. Can carry name, size in bytes, created_at and modified_at, created_by, modified_by and owned_by, the parent folder, path_collection giving its full ancestry, sha1, item_status, and any shared link. Subject to the same fields rule as everything else here -- ask for what is needed by name or most of that list does not arrive. path_collection is the only place a file's full path exists; the record otherwise names just its immediate parent."
+    },
+    {
+      "name": "Folder Information",
+      "paged": true,
+      "suffix": "/2.0/folders/{Folder ID}?fields={Fields?}",
+      "description": "One folder's metadata, with the same shape as a file plus item counts and, when requested, size roll-ups. Requires a folder id, where 0 is the root. Same fields rule."
+    },
+    {
+      "name": "Folder Items",
+      "paged": true,
+      "suffix": "/2.0/folders/{Folder ID}/items?fields={Fields?}",
+      "description": "The direct contents of one folder -- files, subfolders and web links -- one row each, told apart by the type column. Requires a folder id, and FOLDER ID 0 IS THE ROOT of the account. This is the workhorse of the whole connector, because BOX HAS NO ENDPOINT THAT LISTS ALL FILES: content is reached by walking this folder by folder from the root, or by Search for Content. Two things decide whether the rows are usable. THE fields PARAMETER IS ALMOST ALWAYS REQUIRED -- Box returns a minimal record by default, carrying little more than type, id, name and etag, so size, timestamps, owner and parent are ABSENT unless asked for by name, and their absence looks like empty data rather than an unmade request. And large folders must be paged with marker rather than offset: pass usemarker=true, since offset paging is capped and silently stops."
+    },
+    {
+      "name": "User's Groups",
+      "paged": true,
+      "suffix": "/2.0/users/{User ID}/memberships",
+      "lookups": [
+        {
+          "endpoint": "Group Members",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        },
+        {
+          "endpoint": "Group Collaborations",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ],
+      "description": "The groups one user belongs to. Requires a user id. The per-person view of group-derived access, which no collaboration table gives."
+    },
+    {
+      "name": "Group Members",
+      "paged": true,
+      "suffix": "/2.0/groups/{Group ID}/memberships",
+      "description": "The members of one group, as membership records carrying the user and their role in the group. Requires a group id."
+    },
+    {
+      "name": "Group Membership",
+      "paged": false,
+      "suffix": "/2.0/group_memberships/{Group Membership ID}?fields={Fields?}",
+      "description": "One group membership by id, with the user, the group and the role."
+    },
+    {
+      "name": "Enterprise Groups",
+      "paged": true,
+      "suffix": "/2.0/groups?fields={Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Group",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        },
+        {
+          "endpoint": "Group Members",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        },
+        {
+          "endpoint": "Group Collaborations",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ],
+      "description": "The groups defined in the enterprise, with name, and the settings governing who may view members and invite them. Groups are how access is granted at scale, so this is the dimension that explains permissions no individual collaboration records."
+    },
+    {
+      "name": "Group",
+      "paged": false,
+      "suffix": "/2.0/groups/{Group ID}?fields={Fields?}",
+      "description": "One group by id, with its settings."
+    },
+    {
+      "name": "User Invite Status",
+      "paged": false,
+      "suffix": "/2.0/invites/{Invite ID}?fields={Fields?}",
+      "description": "The state of one invitation to join the enterprise. Requires an invite id. Pending onboarding, which the user list does not show."
+    },
+    {
+      "name": "Legal Hold Policies",
+      "paged": true,
+      "suffix": "/2.0/legal_hold_policies?fields={Fields?}&marker={Marker?}&policy_name={Policy Name?}",
+      "description": "The legal holds in force, each with its name, description, and the period it covers. A legal hold freezes content against deletion regardless of retention policy, so anything under hold is exempt from the normal lifecycle -- which is why deletion counts and storage figures can behave unexpectedly during litigation."
+    },
+    {
+      "name": "Legal Hold Policy",
+      "paged": false,
+      "suffix": "/2.0/legal_hold_policies/{Legal Hold Policy ID}",
+      "description": "One legal hold policy by id, with counts of its assignments."
+    },
+    {
+      "name": "Legal Hold Policy Assignments",
+      "paged": true,
+      "suffix": "/2.0/legal_hold_policy_assignments?policy_id={Policy ID}&assign_to_id={Assign To ID?}&assign_to_type={Assign To Type?:file|file_version|folder|user}&marker={Marker?}",
+      "lookups": [
+        {
+          "endpoint": "Legal Hold Policy Assignment",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "Legal Hold Policy Assignment ID"
+        }
+      ],
+      "description": "What one hold applies to -- users, folders or files. Requires a policy id. The scope of the freeze."
+    },
+    {
+      "name": "Legal Hold Policy Assignment",
+      "paged": false,
+      "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}",
+      "description": "One legal hold assignment by id."
+    },
+    {
+      "name": "Current File Versions",
+      "paged": true,
+      "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/files_on_hold?fields={Fields?}&marker={Marker?}",
+      "description": "The files whose CURRENT version is held under one legal hold assignment. Requires an assignment id. What is frozen as it stands today."
+    },
+    {
+      "name": "Previous File Versions",
+      "paged": true,
+      "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/file_versions_on_hold?fields={Fields?}&marker={Marker?}",
+      "description": "The PRIOR versions held under one legal hold assignment. Requires an assignment id. Held separately from current versions because a hold preserves the history as well as the present state, and the two lists rarely match."
+    },
+    {
+      "name": "Metadata Cascade Policies",
+      "paged": true,
+      "suffix": "/2.0/metadata_cascade_policies?folder_id={Folder_id}&marker={Marker?}&owner_enterprise_id={Owner Enterprise ID}",
+      "description": "The policies that push a folder's metadata down onto everything inside it. Requires a folder id. Explains metadata appearing on files nobody set it on -- without this, inherited values look like they were applied individually."
+    },
+    {
+      "name": "Metadata Cascade Policy",
+      "paged": false,
+      "suffix": "/2.0/metadata_cascade_policies/{Metadata Cascade Policy ID}",
+      "description": "One cascade policy by id."
+    },
+    {
+      "name": "File Metadata Instances",
+      "paged": true,
+      "suffix": "/2.0/files/{File ID}/metadata",
+      "description": "All metadata attached to one file, one entry per template applied. Requires a file id. Box metadata is how organisations record business attributes files do not natively have -- contract value, department, retention class. The VALUES ARE KEYED BY TEMPLATE FIELD KEY, so they cannot be read without the template: Metadata Template by Name or by ID is the decoder."
+    },
+    {
+      "name": "File Metadata Instance",
+      "paged": false,
+      "suffix": "/2.0/files/{File ID}/metadata/{Scope:global|enterprise}/{Template Key}",
+      "description": "One metadata instance on a file, identified by its scope and template key. Requires the file id, scope (enterprise or global) and template key."
+    },
+    {
+      "name": "Folder Metadata Instances",
+      "paged": true,
+      "suffix": "/2.0/folders/{Folder ID}/metadata",
+      "description": "All metadata attached to one folder. Requires a folder id. Same keying, same need for the template."
+    },
+    {
+      "name": "Folder Metadata Instance",
+      "paged": false,
+      "suffix": "/2.0/folders/{Folder ID}/metadata/{Scope:global|enterprise}/{Template Key}",
+      "description": "One metadata instance on a folder, by scope and template key."
+    },
+    {
+      "name": "Metadata Template by Instance ID",
+      "paged": false,
+      "suffix": "/2.0/metadata_templates?metadata_instance_id={Metadata Instance ID}",
+      "description": "The template behind a given metadata instance id. The reverse lookup, for when an instance is in hand and its shape is not."
+    },
+    {
+      "name": "Metadata Template by Name",
+      "paged": false,
+      "suffix": "/2.0/metadata_templates/{Scope}/{Template Key}/schema",
+      "description": "One metadata template by its scope and template key, with every field it defines: the field key, its display name, its type, and for enum fields the allowed options. THE DECODER for metadata instances -- an instance returns values under field keys and nothing else identifies them."
+    },
+    {
+      "name": "Metadata Template by ID",
+      "paged": false,
+      "suffix": "/2.0/metadata_templates/{Template ID}",
+      "description": "The same template found by its id rather than by name."
+    },
+    {
+      "name": "Global Templates",
+      "paged": true,
+      "suffix": "/2.0/metadata_templates/global",
+      "description": "The metadata templates Box provides to every account, chiefly the properties template used for arbitrary key-value pairs. Reference data, identical everywhere."
+    },
+    {
+      "name": "Enterprise Templates",
+      "paged": true,
+      "suffix": "/2.0/metadata_templates/enterprise?marker={Marker?}",
+      "description": "Every metadata template defined by this enterprise, with their fields. The account's own vocabulary for describing content, and the natural starting point before reading any metadata."
+    },
+    {
+      "name": "Recently Accessed Items",
+      "paged": true,
+      "suffix": "/2.0/recent_items?fields={Fields?}&marker={Marker?}",
+      "description": "The items the calling user has recently opened, with the interaction type and time. Scoped to the caller, so it describes one person's activity rather than the account's."
+    },
+    {
+      "name": "Retention Policies",
+      "paged": true,
+      "suffix": "/2.0/retention_policies?created_by_user_id={Created By User ID?}&policy_name={Policy Name?}&policy_type={Policy Type?:finite|indefinite}",
+      "description": "The retention policies defined in the enterprise, with the name, the retention length, the disposition action, and whether the policy is finite or indefinite. Retention decides how long content survives deletion, so this is what explains why some files cannot be removed and others vanish on schedule."
+    },
+    {
+      "name": "Retention Policy",
+      "paged": false,
+      "suffix": "/2.0/retention_policies/{Retention Policy ID}",
+      "description": "One retention policy by id."
+    },
+    {
+      "name": "Retention Policy Assignments",
+      "paged": true,
+      "suffix": "/2.0/retention_policies/{Retention Policy ID}/assignments?marker={Marker?}&type={Type?:folder|enterprise}",
+      "description": "What one policy applies to -- an enterprise, a folder, or a metadata template. Requires a policy id. The policy says the rule; this says its reach, and a policy assigned to nothing has no effect at all."
+    },
+    {
+      "name": "Retention Policy Assignment",
+      "paged": false,
+      "suffix": "/2.0/retention_policy_assignments/{Retention Policy Assignment ID}",
+      "description": "One retention policy assignment by id."
+    },
+    {
+      "name": "Search for Content",
+      "paged": true,
+      "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}",
+      "description": "Searches the account's content by keyword, with filters for file extension, size range, date range, owner, ancestor folder and content type. The alternative to walking the folder tree, and usually the faster route to a set of files. Note that search indexes content and metadata, is eventually consistent so very recent uploads may be missing, and returns trashed items only when explicitly asked for."
+    },
+    {
+      "name": "Find Item for Shared Link",
+      "paged": true,
+      "suffix": "/2.0/shared_items?fields={Fields?}",
+      "description": "Resolves a shared link URL back to the item it points at. Requires the link in a header rather than the path. Use it to identify what a circulating link actually exposes."
+    },
+    {
+      "name": "Storage Policies",
+      "paged": true,
+      "suffix": "/2.0/storage_policies?fields={Fields?}&marker={Marker?}",
+      "description": "The storage policies available to the enterprise, which determine the geographic region content is stored in. Data-residency configuration -- relevant to compliance questions about where content physically lives."
+    },
+    {
+      "name": "Storage Policy",
+      "paged": false,
+      "suffix": "/2.0/storage_policies/{Storage Policy ID}",
+      "description": "One storage policy by id."
+    },
+    {
+      "name": "Storage Policy Assignments",
+      "paged": true,
+      "suffix": "/2.0/storage_policy_assignments?resolved_for_id={Resolved For ID}&resolved_for_type={Resolved For Type:user|enterprise}&marker={Marker?}",
+      "description": "Which users or enterprises each storage policy is assigned to. The reach of a residency rule."
+    },
+    {
+      "name": "Storage Policy Assignment",
+      "paged": false,
+      "suffix": "/2.0/storage_policy_assignments/{Storage Policy Assignment ID}",
+      "description": "One storage policy assignment by id."
+    },
+    {
+      "name": "Task Assignments",
+      "paged": true,
+      "suffix": "/2.0/tasks/{Task ID}/assignments",
+      "description": "Who a task was assigned to, with each assignee's resolution state and when they responded. Requires a task id. The task says what was asked; this says who answered and how."
+    },
+    {
+      "name": "Task Assignment",
+      "paged": false,
+      "suffix": "/2.0/task_assignments/{Task Assignment ID}",
+      "description": "One task assignment by id."
+    },
+    {
+      "name": "Tasks on File",
+      "paged": true,
+      "suffix": "/2.0/files/{File ID}/tasks",
+      "description": "The review or approval tasks attached to one file, with the action required, the message, the due date, and the completion rule. Requires a file id. Box tasks are how a document is routed for approval, so this plus its assignments is the audit of who was asked to sign off."
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/2.0/tasks/{Task ID}",
+      "description": "One task by id, with its assignments and completion state."
+    },
+    {
+      "name": "Terms of Services",
+      "paged": true,
+      "suffix": "/2.0/terms_of_services?tos_type={Terms of Service Type?:external|managed}",
+      "description": "The terms of service configured for the enterprise, with their text, whether each is enabled, and whether it applies to managed users or to external collaborators. Configuration."
+    },
+    {
+      "name": "Terms of Service",
+      "paged": false,
+      "suffix": "/2.0/terms_of_services/{Terms Of Service ID}",
+      "description": "One terms of service by id."
+    },
+    {
+      "name": "Terms of Service User Statuses",
+      "paged": true,
+      "suffix": "/2.0/terms_of_service_user_statuses?tos_id={Terms of Service ID}&user_id={User ID?}",
+      "description": "Who has accepted a given terms of service and when. Requires a terms of service id. The acceptance record, and therefore the compliance evidence -- the policy alone proves nothing about uptake."
+    },
+    {
+      "name": "Trashed File",
+      "paged": false,
+      "suffix": "/2.0/files/{File ID}/trash?fields={Fields?}",
+      "description": "One trashed file's metadata by file id. Confirms an item is in the trash and reports when it was deleted; a file not in the trash is not found here."
+    },
+    {
+      "name": "Trashed Folder",
+      "paged": false,
+      "suffix": "/2.0/folders/{Folder ID}/trash?fields={Fields?}",
+      "description": "One trashed folder's metadata by folder id."
+    },
+    {
+      "name": "Trashed Items",
+      "paged": true,
+      "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?false|true}",
+      "description": "Everything currently in the account's trash -- files, folders and web links -- with when each was moved there. Deleted content is EXCLUDED from Folder Items and from search, so a count taken there does not include it; this is where it went. Items leave trash permanently after the retention period, so this is a window, not a history."
+    },
+    {
+      "name": "Trashed Web Link",
+      "paged": false,
+      "suffix": "/2.0/web_links/{Web Link ID}/trash?fields={Fields?}",
+      "description": "One trashed web link by id."
+    },
+    {
+      "name": "Upload Session",
+      "paged": false,
+      "suffix": "/2.0/files/upload_sessions/{Upload Session ID}",
+      "description": "The state of one chunked upload in progress, with the total parts expected and how many have arrived. Requires a session id. Operational, and short-lived -- it describes an upload happening now, not any file that exists."
+    },
+    {
+      "name": "Upload Session Parts",
+      "paged": true,
+      "suffix": "/2.0/files/upload_sessions/{Upload Session ID}/parts",
+      "description": "The parts already uploaded in one chunked session, with their offsets and sizes. Requires a session id. Same short-lived scope."
+    },
+    {
+      "name": "Enterprise Users",
+      "paged": true,
+      "suffix": "/2.0/users?fields={Fields?}&filter_term={Filter Term?}&marker={Marker?}&usemarker={Usemarker?:false|true}&user_type={User Type?:all|managed|external}",
+      "lookups": [
+        {
+          "endpoint": "User's Email Aliases",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User's Groups",
+          "jsonPath": "$.entries[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ],
+      "description": "The user accounts in the enterprise, one row each. Carries name, login, status (active, inactive, cannot delete or edit, and so on), role, created_at, and -- when requested by name -- SPACE_AMOUNT and SPACE_USED in bytes. Those two are the storage-per-user answer and are among the fields Box omits unless the fields parameter asks for them. Note that inactive users still own their content, so excluding them from a storage total loses that content rather than tidying the figure."
+    },
+    {
+      "name": "Current User",
+      "paged": true,
+      "suffix": "/2.0/users/me?fields={Fields?}",
+      "description": "The account the credentials belong to. One record, always the caller -- and worth reading first, because most listings here are scoped to what this user can see, and an admin token and a user token return very different pictures of the same account."
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/2.0/users/{User ID}?fields={Fields?}",
+      "description": "One user by id. Same fields and the same fields-parameter rule."
+    },
+    {
+      "name": "File Watermark",
+      "paged": false,
+      "suffix": "/2.0/files/{File ID}/watermark",
+      "description": "Whether a watermark is applied to one file, and when it was set. Requires a file id. A protection setting; its presence usually indicates content the business treats as sensitive."
+    },
+    {
+      "name": "Folder Watermark",
+      "paged": false,
+      "suffix": "/2.0/folders/{Folder ID}/watermark",
+      "description": "Whether a watermark is applied to one folder, cascading to its contents. Requires a folder id."
+    },
+    {
+      "name": "Web Link",
+      "paged": true,
+      "suffix": "/2.0/web_links/{Web Link ID}",
+      "description": "One web link by id -- a bookmark stored in the folder tree alongside files, with its url, name and parent folder. Web links appear as rows in Folder Items and are neither files nor folders, so a naive file count that does not filter on type includes them."
+    },
+    {
+      "name": "Webhooks",
+      "paged": true,
+      "suffix": "/2.0/webhooks?marker={Marker?}",
+      "description": "The webhooks configured on the account: the item each watches, the events it fires on, and its target URL. Integration configuration; deliveries are not recorded here. Worth checking to see whether an external system already receives this content in real time."
+    },
+    {
+      "name": "Webhook",
+      "paged": false,
+      "suffix": "/2.0/webhooks/{Webhook ID}",
+      "description": "One webhook by id."
+    }
+  ]
 }
