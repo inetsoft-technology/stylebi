@@ -65,7 +65,7 @@ public class SVGAnimationDOMInjector {
 
       String base = animHint.split(":")[0];
 
-      appendHoverCSS(svgRoot, doc);
+      appendHoverCSS(svgRoot, doc, animHint);
 
       // Hover-only mode (design-time surfaces): the hover-dim CSS injected above is enough for
       // highlighting to work, but the entrance animation must be suppressed. Return before
@@ -149,12 +149,14 @@ public class SVGAnimationDOMInjector {
          animated = true;
 
          List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);
+         List<Element> annotAreas = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_AREA);
 
          // Both line helpers below use the same draw-on/wipe keyframes and can run in the same
          // invocation (a chart with a Pareto line and an unrelated multi-style line measure), so
-         // the keyframes are emitted here exactly once.  Guarded on annotLines so a plain bar
-         // chart is not given line CSS it never references.
-         if(!annotLines.isEmpty()) {
+         // the keyframes are emitted here exactly once.  Guarded on annotLines/annotAreas so a
+         // plain bar chart is not given line CSS it never references.  An area measure always
+         // brings its own border lines, so the annotAreas half of the guard is belt-and-braces.
+         if(!annotLines.isEmpty() || !annotAreas.isEmpty()) {
             appendLineDrawKeyframes(svgRoot, doc);
          }
 
@@ -181,8 +183,21 @@ public class SVGAnimationDOMInjector {
             .filter(g -> !"true".equals(g.getAttribute("data-" + SVGSupport.ATTR_PARETO)))
             .toList();
 
+         int numComboSeries = 0;
+
          if(!comboLines.isEmpty()) {
-            injectComboLineAnimation(comboLines, svgRoot, doc);
+            numComboSeries = injectComboLineAnimation(comboLines, svgRoot, doc);
+         }
+
+         // An area measure's border line is a LineVO annotation animated as a combo line above,
+         // but AreaVO's fill polygon is a separate inetsoft-area group that no branch here
+         // touched — so the fill appeared instantly while everything around it animated.  Wipe it
+         // in on the same timeline, reusing the denominator the border lines were staggered with
+         // so a fill and its own border move in step.
+         if(!annotAreas.isEmpty()) {
+            Map<String, Integer> areaColorRank = buildAreaColorRank(annotAreas);
+            injectAreaFillAnimation(annotAreas, comboLines, doc, areaColorRank,
+                                    Math.max(numComboSeries, areaColorRank.size()));
          }
 
          // Gantt charts have interval bars plus a milestone point marker (a separate
@@ -1240,9 +1255,12 @@ public class SVGAnimationDOMInjector {
     * the line would obscure the bars it overlays.
     *
     * <p>The caller must have emitted the keyframes via {@link #appendLineDrawKeyframes}.
+    *
+    * @return the stagger denominator used, so an area measure's fills can be wiped in on the
+    *         same timeline as their border lines.
     */
-   private static void injectComboLineAnimation(List<Element> comboLines,
-                                                Element svgRoot, Document doc)
+   private static int injectComboLineAnimation(List<Element> comboLines,
+                                               Element svgRoot, Document doc)
    {
       Map<String, Integer> seriesRank = buildSeriesRank(comboLines);
       int numSeries = seriesRank.size();
@@ -1258,6 +1276,8 @@ public class SVGAnimationDOMInjector {
             seriesRank.getOrDefault(seriesKey(g), 0), numSeries);
          applyLineDrawAnimation(g, path, delay);
       }
+
+      return numSeries;
    }
 
    /**
@@ -1311,16 +1331,7 @@ public class SVGAnimationDOMInjector {
       // documented for area below).
       Map<String, Integer> lineSeriesRank = buildSeriesRank(annotLines);
 
-      // Area rank: data-color in DOM first-seen order.
-      // AreaVO.getColIndex() is unreliable for ordering — in stacked area charts all AreaVO
-      // instances share the same measure column index.  data-color is unique per series and
-      // preserves DOM (visual) order, so it gives the correct stagger without extra metadata.
-      Map<String, Integer> areaColorRank = new LinkedHashMap<>();
-
-      for(Element g : annotAreas) {
-         String color = g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-         areaColorRank.putIfAbsent(color, areaColorRank.size());
-      }
+      Map<String, Integer> areaColorRank = buildAreaColorRank(annotAreas);
 
       int numLineSeries = lineSeriesRank.size();
       int numAreaSeries = areaColorRank.size();
@@ -1390,6 +1401,112 @@ public class SVGAnimationDOMInjector {
 
          applyLineDrawAnimation(g, path, delay);
       }
+
+      // Area fill groups — wipe left-to-right, then reshape stacked fills into bands.
+      injectAreaFillAnimation(annotAreas, annotLines, doc, areaColorRank, numSeries);
+
+      // Inject ghost fills in reverse so earlier (lower-indexed) series render behind later ones.
+      for(int gi = ghostFills.size() - 1; gi >= 0; gi--) {
+         GhostFillInfo gf = ghostFills.get(gi);
+         injectGhostFill(doc, gf.panel, gf.insertBeforeGroup, gf.polygon,
+                         gf.rgb, gf.delay, ghostFills.size(), gi, gf.transform,
+                         gf.clipPath);
+      }
+
+      // Dot groups: siblings of annotated line groups that contain point markers.
+      // Only look within panels that already have annotated lines — avoids full-SVG scan.
+      Set<Element> processedParents = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Element g : annotLines) {
+         Element parent = (Element) g.getParentNode();
+
+         if(parent == null || !processedParents.add(parent)) {
+            continue;
+         }
+
+         NodeList siblings = parent.getChildNodes();
+
+         for(int i = 0; i < siblings.getLength(); i++) {
+            if(!(siblings.item(i) instanceof Element sibling)) {
+               continue;
+            }
+
+            String sibClass = sibling.getAttribute("class");
+
+            // inetsoft-point annotation groups on a line chart (PointVO paints markers that
+            // sit on top of the line). Fade them in after all series have started drawing so
+            // the dot appears after, not before, its line.
+            if(SVGSupport.ANNOTATION_POINT.equals(sibClass)) {
+               mergeStyle(sibling, String.format(
+                  "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
+                  AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
+               continue;
+            }
+
+            // Skip all other annotated groups (they have an inetsoft-* class) and non-<g> elements.
+            if(!"g".equals(sibling.getLocalName()) || !sibClass.isEmpty()) {
+               continue;
+            }
+
+            if(classifyLineGroup(sibling) == LineGroupType.DOTS) {
+               for(Element circle : childCircles(sibling)) {
+                  mergeStyle(circle, String.format(
+                     "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
+                     AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
+               }
+            }
+         }
+      }
+
+      // Pass 5: data value label groups — delay until after all lines have drawn.
+      List<Element> valueLabelGroups = new ArrayList<>();
+      collectTextGroups(svgRoot, valueLabelGroups);
+
+      for(Element labelG : valueLabelGroups) {
+         mergeStyle(labelG, String.format(java.util.Locale.US,
+            "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
+      }
+
+   }
+
+   /**
+    * Rank area fill groups into stagger order: {@code data-color} → 0-based rank in DOM
+    * first-seen order.
+    *
+    * <p>{@code AreaVO.getColIndex()} is unreliable for ordering — in a stacked area chart every
+    * AreaVO shares the same measure column index, so every fill would rank 0 and wipe at once.
+    * {@code data-color} is unique per series and preserves DOM (visual) order.
+    */
+   private static Map<String, Integer> buildAreaColorRank(List<Element> annotAreas) {
+      Map<String, Integer> rank = new LinkedHashMap<>();
+
+      for(Element g : annotAreas) {
+         rank.putIfAbsent(g.getAttribute("data-" + SVGSupport.ATTR_COLOR), rank.size());
+      }
+
+      return rank;
+   }
+
+   /**
+    * Animate area fill groups: a left-to-right wipe per series, then reshape stacked fills into
+    * non-overlapping bands.
+    *
+    * <p>Shared by {@link #injectLineAnimationFromAnnotations} (standalone area chart) and the
+    * multi-style branch of {@link #injectAnimation}, where an area measure is drawn beside bars.
+    * That branch animates the fill's border line through {@link #injectComboLineAnimation} and
+    * passes the same {@code numSeries} denominator here, so a fill and its border stay in step.
+    *
+    * <p>{@code numSeries} is the stagger denominator, which may exceed the number of area series
+    * when line measures are present; panel chunking uses {@code areaColorRank} instead.
+    *
+    * <p>The caller must have emitted the {@code inetsoft-line-wipe} keyframes.
+    */
+   private static void injectAreaFillAnimation(List<Element> annotAreas, List<Element> annotLines,
+                                               Document doc, Map<String, Integer> areaColorRank,
+                                               int numSeries)
+   {
+      int numAreaSeries = areaColorRank.size();
 
       // Area fill groups — wipe left-to-right; reshape into non-overlapping bands.
       //
@@ -1492,70 +1609,6 @@ public class SVGAnimationDOMInjector {
             }
          }
       }
-
-      // Inject ghost fills in reverse so earlier (lower-indexed) series render behind later ones.
-      for(int gi = ghostFills.size() - 1; gi >= 0; gi--) {
-         GhostFillInfo gf = ghostFills.get(gi);
-         injectGhostFill(doc, gf.panel, gf.insertBeforeGroup, gf.polygon,
-                         gf.rgb, gf.delay, ghostFills.size(), gi, gf.transform,
-                         gf.clipPath);
-      }
-
-      // Dot groups: siblings of annotated line groups that contain point markers.
-      // Only look within panels that already have annotated lines — avoids full-SVG scan.
-      Set<Element> processedParents = Collections.newSetFromMap(new IdentityHashMap<>());
-
-      for(Element g : annotLines) {
-         Element parent = (Element) g.getParentNode();
-
-         if(parent == null || !processedParents.add(parent)) {
-            continue;
-         }
-
-         NodeList siblings = parent.getChildNodes();
-
-         for(int i = 0; i < siblings.getLength(); i++) {
-            if(!(siblings.item(i) instanceof Element sibling)) {
-               continue;
-            }
-
-            String sibClass = sibling.getAttribute("class");
-
-            // inetsoft-point annotation groups on a line chart (PointVO paints markers that
-            // sit on top of the line). Fade them in after all series have started drawing so
-            // the dot appears after, not before, its line.
-            if(SVGSupport.ANNOTATION_POINT.equals(sibClass)) {
-               mergeStyle(sibling, String.format(
-                  "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
-                  AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
-               continue;
-            }
-
-            // Skip all other annotated groups (they have an inetsoft-* class) and non-<g> elements.
-            if(!"g".equals(sibling.getLocalName()) || !sibClass.isEmpty()) {
-               continue;
-            }
-
-            if(classifyLineGroup(sibling) == LineGroupType.DOTS) {
-               for(Element circle : childCircles(sibling)) {
-                  mergeStyle(circle, String.format(
-                     "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
-                     AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
-               }
-            }
-         }
-      }
-
-      // Pass 5: data value label groups — delay until after all lines have drawn.
-      List<Element> valueLabelGroups = new ArrayList<>();
-      collectTextGroups(svgRoot, valueLabelGroups);
-
-      for(Element labelG : valueLabelGroups) {
-         mergeStyle(labelG, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
-            AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
-      }
-
    }
 
    // -------------------------------------------------------------------------
@@ -3423,7 +3476,7 @@ public class SVGAnimationDOMInjector {
     * <p>The {@code :has()} selector requires Chrome 105+, Firefox 121+, Safari 15.4+.
     * On older browsers the dim rules are silently ignored.
     */
-   private static void appendHoverCSS(Element svgRoot, Document doc) {
+   private static void appendHoverCSS(Element svgRoot, Document doc, String animHint) {
       String dim = String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY);
       String tr  = AnimationConstants.HOVER_TRANSITION;
       appendStyle(svgRoot, doc,
@@ -3507,6 +3560,54 @@ public class SVGAnimationDOMInjector {
          // applies to area charts as well. That is intentional — the opacity transition gives
          // area series a smooth fade-in/fade-out on hover, exactly as for pure line series.
          ".inetsoft-line{pointer-events:all;transition:" + tr + "}");
+
+      appendMultiStyleHoverCSS(svgRoot, doc, animHint, dim);
+   }
+
+   /**
+    * Inject the cross-chart-type hover dim rules for a multi-style chart.
+    *
+    * <p>Every rule emitted by {@link #appendHoverCSS} has the same annotation class in its
+    * {@code :has()} trigger as in its target, so an active bar can only ever dim other bars and an
+    * active point only other points.  A multi-style chart binds a chart type per measure, so one
+    * SVG holds a bar measure's {@code inetsoft-bar} groups next to a point measure's
+    * {@code inetsoft-point} groups, and hovering either left the other fully lit.  These rules dim
+    * across the two types so the hovered VO is the only bright thing in the plot.
+    *
+    * <p>Emitted only when the SVG really is a bar+point multi-style chart, because two
+    * <em>single</em>-style charts also draw both annotations and must keep their current behavior:
+    * <ul>
+    *   <li>Gantt — interval bars plus a {@code PointElement} milestone per bar.  A milestone marks
+    *       the end of its own bar, so a bar hover must not fade it.  Excluded by the gantt flag.</li>
+    *   <li>Box plot — boxes plus outlier points.  Excluded implicitly: {@code BoxVO} emits
+    *       {@code inetsoft-box}, so no {@code inetsoft-bar} group is present.</li>
+    * </ul>
+    *
+    * <p>Both directions are gated on {@code svg.ready} like every other point rule: point markers
+    * animate their own opacity (A1), so dimming them before the entrance animation completes would
+    * fight its fill-mode.  Line/area measures of a multi-style chart are not covered here — they
+    * carry no {@code inetsoft-active} class at all and are dimmed by the Angular directive's
+    * inline-opacity mechanism instead.
+    */
+   private static void appendMultiStyleHoverCSS(Element svgRoot, Document doc, String animHint,
+                                                String dim)
+   {
+      // The base hint is the first token and ":" is the separator, so a ":gantt" substring match is
+      // unambiguous (no base hint or other flag contains "gantt").
+      boolean gantt = animHint.contains(":" + SVGSupport.ANIMATION_FLAG_GANTT);
+
+      if(gantt || collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR).isEmpty() ||
+         collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT).isEmpty())
+      {
+         return;
+      }
+
+      appendStyle(svgRoot, doc,
+         "svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point-label:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}");
    }
 
    // -------------------------------------------------------------------------

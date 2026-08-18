@@ -271,6 +271,79 @@ class SVGAnimationDOMInjectorTest {
                  "hover CSS must contain ready-gated cross-tile dim rule for A1 types");
    }
 
+   /**
+    * Redmine #75871: a multi-style chart binds a chart type per measure, so one SVG holds a bar
+    * measure's groups next to a point measure's.  Every other dim rule has the same class in its
+    * trigger and its target, so hovering either style left the other fully lit.
+    */
+   @Test
+   void hoverCssMultiStyleCrossTypeDimRulesPresent() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT, Map.of("row", "0", "col", "1"),
+                    50, 50, 6, 6);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-bar.inetsoft-active) " +
+                      ".inetsoft-point:not(.inetsoft-active)"),
+         "an active bar must dim a multi-style chart's point measure");
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) " +
+                      ".inetsoft-bar:not(.inetsoft-active)"),
+         "an active point must dim a multi-style chart's bar measure");
+   }
+
+   /**
+    * A plain bar chart has no point measure to dim, so the cross-type rules must not be emitted
+    * (and vice versa for a plain point chart).
+    */
+   @Test
+   void hoverCssMultiStyleCrossTypeDimSkippedForSingleStyleCharts() throws Exception {
+      Document barOnly = newDocument();
+      addAnnotGroup(barOnly, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      SVGAnimationDOMInjector.injectAnimation(barOnly.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+      assertFalse(
+         allStyleContent(barOnly.getDocumentElement())
+            .contains("svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point"),
+         "a plain bar chart must not get the cross-type dim rule");
+
+      Document pointOnly = newDocument();
+      addAnnotGroup(pointOnly, SVGSupport.ANNOTATION_POINT, Map.of("row", "0", "col", "0"),
+                    50, 50, 6, 6);
+      SVGAnimationDOMInjector.injectAnimation(pointOnly.getDocumentElement(), SVGSupport.ANIMATION_POINT);
+      assertFalse(
+         allStyleContent(pointOnly.getDocumentElement())
+            .contains("svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar"),
+         "a plain point chart must not get the cross-type dim rule");
+   }
+
+   /**
+    * Gantt charts draw interval bars plus one {@code PointElement} milestone per bar.  A milestone
+    * marks the end of its own bar, so hovering the bar must not fade it — the cross-type rules are
+    * suppressed for the gantt hint even though both annotation classes are present.
+    */
+   @Test
+   void hoverCssMultiStyleCrossTypeDimSkippedForGantt() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 60, 20);
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT, Map.of("row", "0", "col", "0"),
+                    70, 12, 6, 6);
+      SVGAnimationDOMInjector.injectAnimation(
+         doc.getDocumentElement(),
+         SVGSupport.ANIMATION_GROW + ":" + SVGSupport.ANIMATION_FLAG_GANTT);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertFalse(css.contains("svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point"),
+                  "a gantt bar hover must not fade its own milestone");
+      assertFalse(css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar"),
+                  "a gantt milestone hover must not fade the bars");
+   }
+
    @Test
    void hoverCssTransitionIsUniform() throws Exception {
       Document doc = newDocument();
@@ -1123,6 +1196,49 @@ class SVGAnimationDOMInjectorTest {
          assertFalse(style.contains("inetsoft-line-fade"),
             "inner Batik style group inside inetsoft-area must not carry a label fade animation");
       }
+   }
+
+   /**
+    * A multi-style chart binds a chart type per measure, so hasBarVO wins the animation hint and
+    * the bar branch runs.  That branch animated bars, combo lines and point measures but never
+    * touched AreaVO fill polygons, so an area measure's fill popped in at full opacity while its
+    * own border line drew on around it.
+    */
+   @Test
+   void multiStyleAreaMeasureFillIsAnimated() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      Element areaAnnot = addLineAreaPair(doc, svg, "10,20,30",
+                                          "M0 100 L50 60 L100 80 L100 100 L0 100 Z",
+                                          "M0 100 L50 60 L100 80");
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_GROW);
+
+      Element fillPath = firstDescendantPathOf(areaAnnot);
+      assertNotNull(fillPath, "area annotation must still hold its fill path");
+      String style = fillPath.getAttribute("style");
+      assertTrue(style.contains("inetsoft-line-wipe"),
+                 "a multi-style chart area fill must wipe in, but style was: " + style);
+
+      // The wipe keyframes must be defined, or the animation name resolves to nothing.
+      assertTrue(allStyleContent(svg).contains("@keyframes inetsoft-line-wipe"),
+                 "the wipe keyframes must be emitted for a multi-style area measure");
+   }
+
+   /** A plain bar chart references no line/area keyframes, so none may be emitted. */
+   @Test
+   void plainBarChartGetsNoLineOrWipeKeyframes() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertFalse(css.contains("@keyframes inetsoft-line-wipe"),
+                  "a plain bar chart must not carry the line wipe keyframes");
+      assertFalse(css.contains("@keyframes inetsoft-line-draw"),
+                  "a plain bar chart must not carry the line draw keyframes");
    }
 
    /**

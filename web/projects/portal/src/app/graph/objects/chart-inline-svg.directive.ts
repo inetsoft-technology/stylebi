@@ -781,24 +781,18 @@ export class ChartInlineSvgDirective implements OnDestroy {
                .filter(c => c !== ".inetsoft-point"));
             this.element.nativeElement.style.zIndex = "1";
             this.setupLineHover(lineOnlyGroups);
-
-            // Multi-style chart: a line measure drawn beside class-hover VOs (bars, candles, ...).
-            // Both mechanisms must stay live, and each must dim the other's elements so the hovered
-            // VO is the only bright thing in the plot.
-            if(this.areaSeries.length > 0 && this.elementGroupMap.size > 0) {
-               this.mixedHover = true;
-               this.mixedClassHoverElements = ChartInlineSvgDirective.HOVER_CLASSES
-                  .concat(ChartInlineSvgDirective.HOVER_LABEL_CLASSES)
-                  .filter(c => c !== ".inetsoft-point" && c !== ".inetsoft-point-label")
-                  .flatMap(c => Array.from(
-                     this.element.nativeElement.querySelectorAll(c) as NodeListOf<Element>));
-            }
          }
          else {
             // Non-radar, non-area, non-line chart — reset in case SVG was replaced.
             this.element.nativeElement.style.zIndex = "";
          }
       }
+
+      // Multi-style chart: a line or area measure drawn beside class-hover VOs (a bar measure, a
+      // point measure, ...). Runs after the branch above so both the area and the line setup are
+      // covered — an area measure beside a bar measure has the same two-mechanism split a line
+      // measure does.
+      this.setupMixedHover();
 
       // Build relation connectivity maps so activateKeys can highlight connected edges/neighbors.
       const relationNodes = Array.from(
@@ -861,6 +855,70 @@ export class ChartInlineSvgDirective implements OnDestroy {
             }
          }
       }
+   }
+
+   /**
+    * Flag this tile as mixing both hover mechanisms and collect the class-hover elements a series
+    * hover has to dim. A multi-style chart binds a chart type per measure, so one SVG can hold a
+    * line/area series (cursor-resolved, dimmed by inline opacity) beside bars or a point measure
+    * (dimmed by the server :has() rule on inetsoft-active). Both stay live and dim each other.
+    *
+    * No-op unless the tile holds both, so a pure line/area chart (nothing in elementGroupMap — an
+    * AreaElement draws no point markers, and the line branch drops its own from the map) and a pure
+    * bar/point chart (no series) keep their single-mechanism behavior untouched.
+    */
+   private setupMixedHover(): void {
+      if(this.areaSeries.length === 0 || this.elementGroupMap.size === 0) {
+         return;
+      }
+
+      this.mixedHover = true;
+
+      // Point markers owned by a line series are dimmed by setAllSeriesDim along with the series
+      // they belong to, and the hovered series' own must stay bright, so they are left out here.
+      // Their value labels carry the marker's data-row/data-col, so they are matched by key.
+      // On an area measure no marker is series-owned (AreaElement emits no PointElement), which is
+      // what lets a point measure drawn beside it fade together with the bars.
+      const seriesPointKeys = new Set<string>();
+
+      for(const s of this.areaSeries) {
+         for(const p of s.points) {
+            this.addElementKey(seriesPointKeys, p);
+         }
+      }
+
+      for(const p of this.hoverDimOnlyElements) {
+         this.addElementKey(seriesPointKeys, p);
+      }
+
+      this.mixedClassHoverElements = ChartInlineSvgDirective.HOVER_CLASSES
+         .concat(ChartInlineSvgDirective.HOVER_LABEL_CLASSES)
+         .flatMap(c => Array.from(
+            this.element.nativeElement.querySelectorAll(c) as NodeListOf<Element>))
+         .filter(el => !this.isSeriesOwnedPoint(el, seriesPointKeys));
+   }
+
+   /** Add el's "data-row-data-col" key to keys, if it carries both attributes. */
+   private addElementKey(keys: Set<string>, el: Element): void {
+      const row = el.getAttribute("data-row");
+      const col = el.getAttribute("data-col");
+
+      if(row != null && col != null) {
+         keys.add(`${row}-${col}`);
+      }
+   }
+
+   /** True when el is a point marker (or its value label) belonging to a line series. */
+   private isSeriesOwnedPoint(el: Element, seriesPointKeys: Set<string>): boolean {
+      if(!el.classList.contains("inetsoft-point") &&
+         !el.classList.contains("inetsoft-point-label"))
+      {
+         return false;
+      }
+
+      const row = el.getAttribute("data-row");
+      const col = el.getAttribute("data-col");
+      return row != null && col != null && seriesPointKeys.has(`${row}-${col}`);
    }
 
    /**

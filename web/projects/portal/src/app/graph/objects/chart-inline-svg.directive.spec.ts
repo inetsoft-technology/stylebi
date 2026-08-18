@@ -517,6 +517,126 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("multi-style chart (bars + area + point measure in one SVG)", () => {
+      // Redmine #75871: three measures, three styles. The area measure takes the area branch of
+      // afterSvgInjected, so the mixed-hover setup has to run there too; and its own markers are
+      // not series-owned (an AreaElement emits no PointElement), so the point measure's markers
+      // must fade with the bars rather than be skipped the way a line series' markers are.
+      const html = `
+         <svg>
+            <g class="inetsoft-bar" data-row="0" data-col="0"></g>
+            <g class="inetsoft-bar-label" data-row="0" data-col="0"></g>
+            <g class="inetsoft-area" data-color="1,2,3"></g>
+            <g class="inetsoft-line" data-color="1,2,3"><path></path></g>
+            <g class="inetsoft-point" data-row="0" data-col="2" data-color="4,5,6"></g>
+            <g class="inetsoft-point-label" data-row="0" data-col="2"></g>
+         </svg>`;
+
+      // jsdom implements no SVG geometry interfaces, so setupAreaHover's
+      // `path instanceof SVGGeometryElement` guard would throw. Alias it to SVGElement, which
+      // jsdom's <path> is an instance of, so the area branch can be exercised at all.
+      const noGeometryElement = !("SVGGeometryElement" in globalThis);
+
+      beforeAll(() => {
+         if(noGeometryElement) {
+            (globalThis as any).SVGGeometryElement = (globalThis as any).SVGElement;
+         }
+      });
+
+      afterAll(() => {
+         if(noGeometryElement) {
+            delete (globalThis as any).SVGGeometryElement;
+         }
+      });
+
+      function activeFlags(host: HTMLElement, sel: string): boolean[] {
+         return Array.from(host.querySelectorAll(sel)).map(e => e.classList.contains("inetsoft-active"));
+      }
+
+      function makeMixedTile(): { dir: ChartInlineSvgDirective, host: HTMLElement } {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         return { dir, host };
+      }
+
+      it("treats an area measure drawn beside class-hover VOs as a mixed tile", () => {
+         const { dir } = makeMixedTile();
+         expect((dir as any).mixedHover).toBe(true);
+         // The point measure's markers and labels are not owned by the area series, so they are
+         // dimmed along with the bars when the series is hovered.
+         const mixed = (dir as any).mixedClassHoverElements as Element[];
+         expect(mixed.map(e => e.getAttribute("class"))).toEqual(
+            ["inetsoft-bar", "inetsoft-point", "inetsoft-bar-label", "inetsoft-point-label"]);
+      });
+
+      it("dims the area series while a bar is highlighted, and releases it after", () => {
+         vi.useFakeTimers();
+
+         try {
+            const { dir, host } = makeMixedTile();
+            dir.highlightElement(0, 0);
+            expect(activeFlags(host, ".inetsoft-bar")).toEqual([true]);
+            expect(opacities(host, ".inetsoft-area,.inetsoft-line")).toEqual(["0.2", "0.2"]);
+            dir.highlightElement(null, null);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(opacities(host, ".inetsoft-area,.inetsoft-line")).toEqual(["", ""]);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("dims the area series when the point measure is highlighted", () => {
+         const { dir, host } = makeMixedTile();
+         // Points stay in elementGroupMap on an area tile — they belong to a point measure, not to
+         // the area's own hover, so the canvas-driven highlight must still resolve them.
+         dir.highlightElement(0, 2);
+         expect(activeFlags(host, ".inetsoft-point")).toEqual([true]);
+         expect(opacities(host, ".inetsoft-area,.inetsoft-line")).toEqual(["0.2", "0.2"]);
+      });
+
+      it("dims the bars and the point measure when the cursor resolves the area series", () => {
+         const { dir, host } = makeMixedTile();
+         // jsdom has no path geometry, so stub the per-series y at the cursor x.
+         (dir as any).getScreenYAtX = () => 100;
+         (dir as any).onAreaMouseMove({ clientX: 10, clientY: 200 } as MouseEvent);
+         expect((dir as any).activeSeriesIdx).toBe(0);
+         expect(opacities(host, ".inetsoft-bar,.inetsoft-bar-label")).toEqual(["0.2", "0.2"]);
+         expect(opacities(host, ".inetsoft-point,.inetsoft-point-label")).toEqual(["0.2", "0.2"]);
+         // Cursor moves out of every series' band — the whole plot comes back.
+         (dir as any).getScreenYAtX = () => NaN;
+         (dir as any).onAreaMouseMove({ clientX: 10, clientY: 200 } as MouseEvent);
+         expect(opacities(host, ".inetsoft-bar,.inetsoft-point")).toEqual(["", ""]);
+      });
+
+      it("leaves a pure area chart on its single-mechanism path", () => {
+         const { dir } = makeDirective(`
+            <svg>
+               <g class="inetsoft-area" data-color="1,2,3"></g>
+               <g class="inetsoft-line" data-color="1,2,3"><path></path></g>
+            </svg>`);
+         (dir as any).afterSvgInjected();
+         expect((dir as any).mixedHover).toBe(false);
+         expect((dir as any).mixedClassHoverElements).toEqual([]);
+      });
+
+      it("still skips a line series' own markers, which setAllSeriesDim owns", () => {
+         // Line branch: the marker matches the line by data-col/data-series, so it and its label
+         // belong to the series and must not be listed as class-hover elements.
+         const { dir } = makeDirective(`
+            <svg>
+               <g class="inetsoft-bar" data-row="0" data-col="0"></g>
+               <g class="inetsoft-line" data-series="1" data-color="1,2,3"><path></path></g>
+               <g class="inetsoft-point" data-row="0" data-col="1" data-color="1,2,3"></g>
+               <g class="inetsoft-point-label" data-row="0" data-col="1"></g>
+            </svg>`);
+         (dir as any).afterSvgInjected();
+         expect((dir as any).mixedHover).toBe(true);
+         const mixed = (dir as any).mixedClassHoverElements as Element[];
+         expect(mixed.map(e => e.getAttribute("class"))).toEqual(["inetsoft-bar"]);
+      });
+   });
+
    describe("highlightSnapSeries (line chart snap dim)", () => {
       // Stacked line chart: one measure (data-series 2) split into two color groups, each with a
       // line and a point marker. Points carry row+col+color; the snapped point resolves to a color.
