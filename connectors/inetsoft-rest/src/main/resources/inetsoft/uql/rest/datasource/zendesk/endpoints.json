@@ -2,11 +2,13 @@
   "endpoints": [
     {
       "name": "Support Search",
+      "description": "Free-text search across tickets, users, organizations and groups at once, using Zendesk's own query syntax. Rows of different kinds come back in one list, told apart by the result_type field. Reach for a specific resource's endpoint when the kind is already known -- this one is for when it is not.",
       "pageType": "link",
       "suffix": "/api/v2/search.json?query={Query}"
     },
     {
       "name": "Support Users",
+      "description": "Everyone in the account, one row each: end users, agents and admins alike, told apart by the role field. Carries name, email, phone, role, active and suspended flags, locale, time_zone, tags, user_fields, organization_id, created_at and last_login_at. Use for agent rosters, customer counts, and joining tickets back to who raised or handled them.",
       "pageType": "link",
       "suffix": "/api/v2/users.json",
       "lookups": [
@@ -43,6 +45,7 @@
     },
     {
       "name": "Support Users for Group",
+      "description": "The agents in one group. Requires a group id.",
       "pageType": "link",
       "suffix": "/api/v2/groups/{Group ID}/users.json",
       "lookups": [
@@ -79,6 +82,7 @@
     },
     {
       "name": "Support Users for Organization",
+      "description": "The users belonging to one organization. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/users.json",
       "lookups": [
@@ -115,61 +119,73 @@
     },
     {
       "name": "Support User",
+      "description": "A single user by its id. Same fields as Support Users.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}.json"
     },
     {
       "name": "Support User Related Information",
+      "description": "Counts of what hangs off one user: assigned tickets, requested tickets, CC'd tickets, organization subscriptions. Requires a user id. A summary, not the tickets themselves.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/related.json"
     },
     {
       "name": "Support User Search",
+      "description": "Free-text search over users by name, email or external id. Returns the same shape as Support Users; use it when the identifier is known but the id is not.",
       "pageType": "link",
       "suffix": "/api/v2/users/search.json?query={Query}"
     },
     {
       "name": "Support Deleted Users",
+      "description": "Users that have been deleted but not yet permanently purged. Carries the name and email they had, plus when they were deleted. Use for auditing removals.",
       "pageType": "link",
       "suffix": "/api/v2/deleted_users.json"
     },
     {
       "name": "Support Deleted User",
+      "description": "A single deleted user by its id. Same fields as Support Deleted Users.",
       "pageType": "none",
       "suffix": "/api/v2/deleted_users/{User ID}.json"
     },
     {
       "name": "Support Compliance Deletion Statuses",
+      "description": "The progress of GDPR-style deletion requests for one user, per brand. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/compliance_deletion_statuses.json"
     },
     {
       "name": "Support Current User",
+      "description": "The user the API credentials belong to. One record, always the caller -- useful for verifying which account a connection is authenticated as.",
       "pageType": "none",
       "suffix": "/api/v2/users/me.json"
     },
     {
       "name": "Support User Identities",
+      "description": "The verified contact points of one user -- email addresses, phone numbers, social handles -- with which is primary and whether each is verified. Requires a user id. Users carries only the primary email.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/identities.json"
     },
     {
       "name": "Support User Identity",
+      "description": "A single identity of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/identities/{Identity ID}.json"
     },
     {
       "name": "Support Password Requirements",
+      "description": "The password policy applying to one user. Configuration, not data.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/password/requirements.json"
     },
     {
       "name": "Support End User",
+      "description": "One end user by its id, restricted to the fields an end user is allowed to see about themselves. Support User returns the full record and is the usual choice.",
       "pageType": "none",
       "suffix": "/api/v2/end_users/{User ID}.json"
     },
     {
       "name": "Support Groups",
+      "description": "The agent teams tickets are routed to, one row each. Carries name, description, whether the group is public, whether it is the account default, and created_at. Join tickets to it through group_id for per-team analysis.",
       "pageType": "link",
       "suffix": "/api/v2/groups.json",
       "lookups": [
@@ -187,6 +203,7 @@
     },
     {
       "name": "Support Groups for User",
+      "description": "The agent groups one user belongs to. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/groups.json",
       "lookups": [
@@ -204,6 +221,7 @@
     },
     {
       "name": "Support Assignable Groups",
+      "description": "Only the groups tickets can currently be assigned to. A subset of Support Groups, excluding deleted ones.",
       "pageType": "link",
       "suffix": "/api/v2/groups/assignable.json",
       "lookups": [
@@ -221,56 +239,67 @@
     },
     {
       "name": "Support Group",
+      "description": "A single group by its id. Same fields as Support Groups.",
       "pageType": "none",
       "suffix": "/api/v2/groups/{Group ID}.json"
     },
     {
       "name": "Support Group Memberships",
+      "description": "Every agent-to-group link in the account, one row each, with which is that agent's default group. Use it to resolve the many-to-many between agents and groups in one pass.",
       "pageType": "link",
       "suffix": "/api/v2/group_memberships.json"
     },
     {
       "name": "Support Group Memberships for User",
+      "description": "One user's group memberships as records, carrying which membership is the default. Requires a user id. Support Groups for User returns the groups themselves and is usually what is wanted.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/group_memberships.json"
     },
     {
       "name": "Support Group Memberships for Group",
+      "description": "The membership records of one group. Requires a group id.",
       "pageType": "link",
       "suffix": "/api/v2/groups/{Group ID}/memberships.json"
     },
     {
       "name": "Support Assignable Memberships",
+      "description": "Only the group memberships that can take ticket assignments, account-wide.",
       "pageType": "link",
       "suffix": "/api/v2/group_memberships/assignable.json"
     },
     {
       "name": "Support Assignable Memberships for Group",
+      "description": "The memberships of one group that can take ticket assignments. Requires a group id.",
       "pageType": "link",
       "suffix": "/api/v2/groups/{Group ID}/memberships/assignable.json"
     },
     {
       "name": "Support Group Membership",
+      "description": "A single agent-to-group membership by its id, carrying whether it is that agent's default group.",
       "pageType": "none",
       "suffix": "/api/v2/group_membership/{Membership ID}.json"
     },
     {
       "name": "Support Group Membership for User",
+      "description": "A single group membership of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/group_memberships/{Membership ID}.json"
     },
     {
       "name": "Support Custom Roles",
+      "description": "The custom agent permission sets an account has defined, with what each is allowed to do. Configuration; join to Support Users through custom_role_id.",
       "pageType": "link",
       "suffix": "/api/v2/custom_roles.json"
     },
     {
       "name": "Support Custom Role",
+      "description": "A single custom role by its id. Same fields as Support Custom Roles.",
       "pageType": "none",
       "suffix": "/api/v2/custom_roles/{Role ID}.json"
     },
     {
       "name": "Support Organizations",
+      "description": "The customer companies tickets and users are grouped under, one row each. Carries name, domain_names, tags, organization_fields, notes and details, whether tickets are shared within the organization, and created_at. Use for per-customer or per-account analysis; join tickets to it through organization_id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations.json",
       "lookups": [
@@ -292,66 +321,79 @@
     },
     {
       "name": "Support Organizations for User",
+      "description": "The organizations one user belongs to. Requires a user id. A user can belong to several.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/organizations.json"
     },
     {
       "name": "Support Organization Related Information",
+      "description": "Counts of what hangs off one organization: users, tickets and downgraded tickets. Requires an organization id.",
       "pageType": "none",
       "suffix": "/api/v2/organizations/{Organization ID}/related.json"
     },
     {
       "name": "Support Organization",
+      "description": "A single organization by its id. Same fields as Support Organizations.",
       "pageType": "none",
       "suffix": "/api/v2/organizations/{Organization ID}.json"
     },
     {
       "name": "Support Organization Subscriptions for Organization",
+      "description": "Who has subscribed to follow one organization's tickets. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/subscriptions.json"
     },
     {
       "name": "Support Organization Subscriptions",
+      "description": "Every organization-follow subscription in the account, one row each.",
       "pageType": "link",
       "suffix": "/api/v2/organization_subscriptions.json"
     },
     {
       "name": "Support Organization Subscriptions for User",
+      "description": "The organizations whose tickets one user has subscribed to follow. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/organization_subscriptions.json"
     },
     {
       "name": "Support Organization Subscription",
+      "description": "A single organization subscription by its id.",
       "pageType": "none",
       "suffix": "/api/v2/organization_subscriptions/{Subscription ID}.json"
     },
     {
       "name": "Support Organization Memberships",
+      "description": "Every user-to-organization link in the account, one row each, with which is that user's default. Use it to resolve the many-to-many between users and organizations in one pass rather than per user.",
       "pageType": "link",
       "suffix": "/api/v2/organization_memberships.json"
     },
     {
       "name": "Support Organization Memberships for User",
+      "description": "One user's organization memberships as records, carrying which is the default. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/organization_memberships.json"
     },
     {
       "name": "Support Organization Memberships for Organization",
+      "description": "The membership records of one organization. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/organization_memberships.json"
     },
     {
       "name": "Support Organization Membership",
+      "description": "A single organization membership by its id.",
       "pageType": "none",
       "suffix": "/api/v2/organization_memberships/{Membership ID}.json"
     },
     {
       "name": "Support Organization Membership for User",
+      "description": "A single organization membership of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/organization_memberships/{Membership ID}.json"
     },
     {
       "name": "Support Requests",
+      "description": "The SAME underlying tickets as Support Tickets, seen from the end user's side. Carries subject, description, status, priority, organization and requester, but not the agent-only fields. Which one to use depends on whose view the question is about; for agent-side analysis Support Tickets is the fuller table.",
       "pageType": "link",
       "suffix": "/api/v2/requests.json?status={Status?:hold,open,...}",
       "lookups": [
@@ -365,6 +407,7 @@
     },
     {
       "name": "Support Open Requests",
+      "description": "Requests still open for the calling user. A scoped convenience list, not an account-wide open-ticket count -- for that, filter Support Tickets by status.",
       "pageType": "link",
       "suffix": "/api/v2/requests/open.json",
       "lookups": [
@@ -378,6 +421,7 @@
     },
     {
       "name": "Support Solved Requests",
+      "description": "Requests already solved for the calling user. Scoped to one person, like Support Open Requests.",
       "pageType": "link",
       "suffix": "/api/v2/requests/solved.json",
       "lookups": [
@@ -391,6 +435,7 @@
     },
     {
       "name": "Support CCd Requests",
+      "description": "Requests the calling user is CC'd on rather than the requester of.",
       "pageType": "link",
       "suffix": "/api/v2/requests/ccd.json",
       "lookups": [
@@ -404,6 +449,7 @@
     },
     {
       "name": "Support Requests for User",
+      "description": "The requests raised by one user, end-user view. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/requests.json",
       "lookups": [
@@ -417,6 +463,7 @@
     },
     {
       "name": "Support Requests for Organization",
+      "description": "The requests belonging to one organization, end-user view. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/requests.json",
       "lookups": [
@@ -430,6 +477,7 @@
     },
     {
       "name": "Support Request Search",
+      "description": "Free-text search across requests visible to the caller. Takes a query string; returns the same shape as Support Requests.",
       "pageType": "link",
       "suffix": "/api/v2/requests/search.json?query={Query}",
       "lookups": [
@@ -443,21 +491,25 @@
     },
     {
       "name": "Support Request",
+      "description": "A single request by its id. Same fields as Support Requests.",
       "pageType": "none",
       "suffix": "/api/v2/requests/{Request ID}.json"
     },
     {
       "name": "Support Request Comments",
+      "description": "The conversation on one request, end-user side. Requires a request id. Public replies only -- internal notes are visible through Support Ticket Comments and not here.",
       "pageType": "link",
       "suffix": "/api/v2/requests/{Request ID}/comments.json?since={Since?:YYYY-MM-DDTHH:MM:SS}&role={Role?:agent|end_user}"
     },
     {
       "name": "Support Request Comment",
+      "description": "A single comment on one request. Requires the request id as well.",
       "pageType": "none",
       "suffix": "/api/v2/requests/{Request ID}/comments/{Comment ID}.json"
     },
     {
       "name": "Support Tickets",
+      "description": "Support tickets, one row each -- the central table of a Zendesk account. Carries subject and description, status, priority, type, tags, custom_fields, created_at and updated_at, and the ids of requester, assignee, group, organization and brand. Use for ticket volume, backlog, and any breakdown by team, customer or category. Timing and SLA figures are NOT here: they live in Ticket Metrics.",
       "pageType": "link",
       "suffix": "/api/v2/tickets.json",
       "lookups": [
@@ -483,6 +535,7 @@
     },
     {
       "name": "Support Tickets for Organization",
+      "description": "The tickets belonging to one organization. Requires an organization id. Equivalent to filtering Support Tickets by organization_id, and paged the same way.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/tickets.json",
       "lookups": [
@@ -508,6 +561,7 @@
     },
     {
       "name": "Support Requested Tickets for User",
+      "description": "The tickets one user raised. Requires a user id. Agent-side view, so fuller than Support Requests for User.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tickets/requested.json",
       "lookups": [
@@ -533,6 +587,7 @@
     },
     {
       "name": "Support CCd Tickets for User",
+      "description": "The tickets one user is CC'd on rather than assigned or requesting. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tickets/ccd.json",
       "lookups": [
@@ -558,6 +613,7 @@
     },
     {
       "name": "Support Assigned Tickets for User",
+      "description": "The tickets currently assigned to one agent. Requires a user id. Use for per-agent workload; for historical assignment, Support Ticket Audits records the changes.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tickets/assigned.json",
       "lookups": [
@@ -583,6 +639,7 @@
     },
     {
       "name": "Support Recent Tickets",
+      "description": "The tickets the calling agent viewed most recently. A convenience list scoped to one person, not an account-wide feed -- of little use for analysis.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/recent.json",
       "lookups": [
@@ -608,16 +665,19 @@
     },
     {
       "name": "Support Ticket",
+      "description": "A single ticket by its id. Same fields as Support Tickets; use it when the ticket id is already known rather than to scan or aggregate.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}.json"
     },
     {
       "name": "Support Ticket Related Information",
+      "description": "Counts of what hangs off one ticket: incidents, followups, topic and attachments. Requires a ticket id. A summary, not the linked records themselves.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}/related.json"
     },
     {
       "name": "Support Deleted Tickets",
+      "description": "Tickets that have been deleted but not yet permanently purged, carrying the subject and requester they had and when they were removed. They are absent from Support Tickets, so a volume count taken there excludes them -- come here to see what was deleted.",
       "pageType": "link",
       "suffix": "/api/v2/deleted_tickets.json",
       "lookups": [
@@ -643,61 +703,73 @@
     },
     {
       "name": "Support Ticket Collaborators",
+      "description": "The users CC'd on one ticket. Requires a ticket id. Use for who else was looped in.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/collaborators.json"
     },
     {
       "name": "Support Ticket Followers",
+      "description": "The agents following one ticket without being assigned to it. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/followers"
     },
     {
       "name": "Support Ticket Email CCs",
+      "description": "The users receiving email copies of one ticket. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/email_ccs"
     },
     {
       "name": "Support Ticket Incidents",
+      "description": "The incident tickets linked to one problem ticket. Requires a problem ticket id. Use for how many customers were hit by the same underlying issue.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/incidents.json"
     },
     {
       "name": "Support Ticket Problems",
+      "description": "Only the tickets of type 'problem', the ones other tickets are linked to as incidents. Use it to find the underlying issues that generated the most incidents; the incidents themselves are reachable per problem through Support Ticket Incidents.",
       "pageType": "link",
       "suffix": "/api/v2/problems.json"
     },
     {
       "name": "Support Attachment",
+      "description": "A single file attached to a ticket comment, by its id. Carries file name, size, content type, and the thumbnails generated for it.",
       "pageType": "none",
       "suffix": "/api/v2/attachments/{Attachment ID}.json"
     },
     {
       "name": "Support Satisfaction Ratings",
+      "description": "Customer satisfaction responses, one row per rating. Carries the score (good or bad), the free-text comment, reason and reason_code for a bad rating, created_at, and the ids of the ticket, requester, assignee and group. The table for CSAT, and for which agents or teams the ratings attach to.",
       "pageType": "link",
       "suffix": "/api/v2/satisfaction_ratings.json?score={Score?:offered|unoffered|received|...}&start_time={Start Time?:Unix timestamp}&end_time={End Time?:Unix timestamp}"
     },
     {
       "name": "Support Satisfaction Rating",
+      "description": "A single satisfaction rating by its id. Same fields as Support Satisfaction Ratings.",
       "pageType": "none",
       "suffix": "/api/v2/satisfaction_ratings/{Rating ID}.json"
     },
     {
       "name": "Support Satisfaction Reasons",
+      "description": "The account's list of reasons a customer can pick when giving a bad rating, with the id and text of each. This is the KEY to the reason_code column on Support Satisfaction Ratings, which stores only a numeric code -- without joining this table, bad-rating analysis can count the ratings but cannot say why.",
       "pageType": "link",
       "suffix": "/api/v2/satisfaction_reasons.json"
     },
     {
       "name": "Support Satisfaction Reason",
+      "description": "A single satisfaction reason by its id. Same fields as Support Satisfaction Reasons.",
       "pageType": "none",
       "suffix": "/api/v2/satisfaction_reasons/{Reason ID}.json"
     },
     {
       "name": "Support Suspended Tickets",
+      "description": "Inbound messages held back as suspected spam or from unrecognised senders, before they ever became tickets. Carries the author, subject, cause of suspension, and when it will be purged. They are NOT in Support Tickets -- use this to see what was filtered out.",
       "pageType": "link",
       "suffix": "/api/v2/suspended_tickets.json"
     },
     {
       "name": "Support Suspended Ticket",
+      "description": "A single suspended ticket by its id. Same fields as Support Suspended Tickets.",
       "pageType": "none",
       "suffix": "/api/v2/suspended_tickets/{Ticket ID}.json",
       "lookups": [
@@ -723,106 +795,127 @@
     },
     {
       "name": "Support Ticket Audits",
+      "description": "Every change made to every ticket, account-wide. The complete change log -- large, and paged from the beginning of the account. Prefer the per-ticket audits unless a full history is genuinely needed.",
       "pageType": "cursor",
       "suffix": "/api/v2/ticket_audits.json"
     },
     {
       "name": "Support Ticket Audits for Ticket",
+      "description": "Every change ever made to one ticket, with who changed what and when. Requires a ticket id. Use for auditing a single ticket's history.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/audits.json"
     },
     {
       "name": "Support Ticket Audit",
+      "description": "A single audit record of one ticket. Requires the ticket id as well.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}/audits/{Audit ID}.json"
     },
     {
       "name": "Support Ticket Comments",
+      "description": "The conversation on one ticket: every public reply and internal note, with author, body, whether it is public, and attachments. Requires a ticket id. This is where the text of a conversation lives -- Tickets carries only the opening description.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/comments.json"
     },
     {
       "name": "Support Ticket Skips",
+      "description": "Every ticket an agent skipped in guided mode, account-wide, with the reason given. Use for reviewing how queues are being worked through; the per-agent and per-ticket views are separate endpoints.",
       "pageType": "link",
       "suffix": "/api/v2/skips.json"
     },
     {
       "name": "Support Ticket Skips for Ticket",
+      "description": "Records of agents skipping over one ticket in guided mode, with the reason given. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/skips.json"
     },
     {
       "name": "Support Ticket Skips for User",
+      "description": "Tickets one agent skipped in guided mode, with the reason. Requires a user id. Use for reviewing how an agent works through a queue.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/skips.json"
     },
     {
       "name": "Support Ticket Metrics",
+      "description": "Timing and effort measurements per ticket, one row each -- the table SLA and responsiveness questions actually need. Carries first_resolution_time_in_minutes and full_resolution_time_in_minutes, reply_time_in_minutes, agent_wait_time and requester_wait_time, on_hold_time, the number of replies and reopens, and assignee and group station counts. Tickets itself has none of this.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_metrics.json"
     },
     {
       "name": "Support Ticket Metric",
+      "description": "The timing measurements of one ticket, by the metric id. Same fields as Support Ticket Metrics.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_metrics/{Metric ID}.json"
     },
     {
       "name": "Support Ticket Metrics for Ticket",
+      "description": "The timing measurements of one ticket. Requires a ticket id. Same fields as Support Ticket Metrics.",
       "pageType": "none",
       "suffix": "/api/v2/tickets/{Ticket ID}/metrics.json"
     },
     {
       "name": "Support Ticket Activities",
+      "description": "The activity feed of what happened recently on tickets the calling agent is involved with -- assignments, comments, status changes. Scoped to the caller rather than the account, so it is not a general audit trail; Support Ticket Audits is.",
       "pageType": "link",
       "suffix": "/api/v2/activities.json?since={Since?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Support Ticket Activity",
+      "description": "A single activity record by its id. Same fields as Support Ticket Activities.",
       "pageType": "none",
       "suffix": "/api/v2/activities/{Activity ID}.json"
     },
     {
       "name": "Support Sessions",
+      "description": "Every active login session in the account, with the user, when it began and when it was last used. Account-wide, unlike the per-user sessions endpoint. Use for security review.",
       "pageType": "link",
       "suffix": "/api/v2/sessions.json"
     },
     {
       "name": "Support Sessions for User",
+      "description": "The active login sessions of one user, with when each was created and last used. Requires a user id. Use for security review.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/sessions.json"
     },
     {
       "name": "Support Session",
+      "description": "A single session of one user. Requires the user id as well.",
       "pageType": "none",
       "suffix": "/api/v2/users/{User ID}/sessions/{Session ID}.json"
     },
     {
       "name": "Support Current Session",
+      "description": "The session the API credentials are using. One record, always the caller's.",
       "pageType": "none",
       "suffix": "/api/v2/users/me/session.json"
     },
     {
       "name": "Support Most Popular Tags",
+      "description": "The account's tags ranked by how often they are used, with a count for each. A ready-made frequency table -- cheaper than aggregating the tags column across tickets, and the usual answer to what customers write in about.",
       "pageType": "link",
       "suffix": "/api/v2/tags.json"
     },
     {
       "name": "Support Tags for Ticket",
+      "description": "The tags on one ticket. Requires a ticket id.",
       "pageType": "link",
       "suffix": "/api/v2/tickets/{Ticket ID}/tags.json"
     },
     {
       "name": "Support Tags for Organization",
+      "description": "The tags on one organization. Requires an organization id.",
       "pageType": "link",
       "suffix": "/api/v2/organizations/{Organization ID}/tags.json"
     },
     {
       "name": "Support Tags for User",
+      "description": "The tags on one user. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/users/{User ID}/tags.json"
     },
     {
       "name": "Support Views",
+      "description": "The saved ticket filters agents work from, one row each. Carries the view's title, whether it is active and who it is shared with, plus the conditions that define it. This is the definition of a view, not its contents -- the tickets it matches come from Support View Tickets.",
       "pageType": "link",
       "suffix": "/api/v2/views.json?access={Access?:personal|shared|account}&active={Active?:true|false}&group_id={Group ID?}",
       "lookups": [
@@ -839,11 +932,13 @@
     },
     {
       "name": "Support View",
+      "description": "A single view by its id. Same fields as Support Views.",
       "pageType": "none",
       "suffix": "/api/v2/views/{View ID}.json"
     },
     {
       "name": "Support View Tickets",
+      "description": "The tickets currently matching one view. Requires a view id. Returns ticket rows, so it is a pre-filtered slice of Support Tickets -- useful when a question is framed in terms of a queue the team already uses.",
       "pageType": "link",
       "suffix": "/api/v2/views/{View ID}/tickets.json",
       "lookups": [
@@ -869,16 +964,19 @@
     },
     {
       "name": "Support View Counts",
+      "description": "How many tickets each of several views currently matches, for the view ids given. Cheap compared with fetching the tickets, so it suits backlog-size questions across queues.",
       "pageType": "none",
       "suffix": "/api/v2/views/count_many.json?ids={View IDs:id1,id2,...}"
     },
     {
       "name": "Support View Count",
+      "description": "How many tickets one view currently matches. Requires a view id.",
       "pageType": "none",
       "suffix": "/api/v2/views/{View ID}/count.json"
     },
     {
       "name": "Support View Search",
+      "description": "Finds views by title. Returns the same shape as Support Views; use it when the view is known by name rather than by id.",
       "pageType": "link",
       "suffix": "/api/v2/views/search.json?query={Query}&access={Access?:personal|shared|account}&active={Active?:true|false}&group_id={Group ID?}"
     },
@@ -963,16 +1061,19 @@
     },
     {
       "name": "Support SLA Policies",
+      "description": "The service level agreements the account applies: which tickets each covers, and the targets it sets for first reply, next reply and resolution, per priority. The measurements in Support Ticket Metrics are only meaningful against these -- a resolution time is fast or slow relative to the target set here.",
       "pageType": "link",
       "suffix": "/api/v2/slas/policies"
     },
     {
       "name": "Support SLA Policy",
+      "description": "A single SLA policy by its id. Same fields as Support SLA Policies.",
       "pageType": "none",
       "suffix": "/api/v2/slas/policies/{Policy ID}"
     },
     {
       "name": "Support SLA Policy Definitions",
+      "description": "The filter conditions and target types an SLA policy may be built from. Reference data for interpreting or constructing policies, not the policies themselves.",
       "pageType": "link",
       "suffix": "/api/v2/slas/policies/definitions.json"
     },
@@ -1051,6 +1152,7 @@
     },
     {
       "name": "Support Brands",
+      "description": "The brands a multi-brand account serves, one row each. Carries name, subdomain, host mapping, logo and whether the brand is active and the default. Tickets carry a brand_id, so this is the dimension for splitting any ticket analysis by brand.",
       "pageType": "link",
       "suffix": "/api/v2/brands.json",
       "lookups": [
@@ -1064,6 +1166,7 @@
     },
     {
       "name": "Support Brand",
+      "description": "A single brand by its id. Same fields as Support Brands.",
       "pageType": "none",
       "suffix": "/api/v2/brands/{Brand ID}.json"
     },
@@ -1107,36 +1210,43 @@
     },
     {
       "name": "Support Locales",
+      "description": "The locales the account has enabled, with the id, code and name of each. Needed to interpret the locale_id carried on users and tickets.",
       "pageType": "link",
       "suffix": "/api/v2/locales.json"
     },
     {
       "name": "Support Public Locales",
+      "description": "Only the locales available to end users, a subset of Support Locales.",
       "pageType": "link",
       "suffix": "/api/v2/locales/public.json"
     },
     {
       "name": "Support Agent Locales",
+      "description": "Only the locales agents may use for the admin interface.",
       "pageType": "link",
       "suffix": "/api/v2/locales/agent.json"
     },
     {
       "name": "Support Locale",
+      "description": "A single locale by its id. Same fields as Support Locales.",
       "pageType": "none",
       "suffix": "/api/v2/locales/{Locale ID}.json"
     },
     {
       "name": "Support Current Locale",
+      "description": "The locale of the calling user. One record, always the caller's.",
       "pageType": "none",
       "suffix": "/api/v2/locales/current.json"
     },
     {
       "name": "Support Schedules",
+      "description": "The business hours the account runs on, with the working intervals of each schedule and its time zone. SLA clocks and wait-time metrics count business hours rather than wall-clock time where a schedule applies, so a resolution time cannot be read correctly without knowing which schedule was in force.",
       "pageType": "link",
       "suffix": "/api/v2/business_hours/schedules.json"
     },
     {
       "name": "Support Schedule",
+      "description": "A single schedule by its id. Same fields as Support Schedules.",
       "pageType": "none",
       "suffix": "/api/v2/business_hours/schedules/{Schedule ID}.json",
       "lookups": [
@@ -1150,11 +1260,13 @@
     },
     {
       "name": "Support Schedule Holidays",
+      "description": "The dates one schedule treats as non-working. Requires a schedule id. Part of the same business-hours calculation as the schedule itself.",
       "pageType": "link",
       "suffix": "/api/v2/business_hours/schedules/{Schedule ID}/holidays.json?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}"
     },
     {
       "name": "Support Schedule Holiday",
+      "description": "A single holiday of one schedule. Requires the schedule id as well.",
       "pageType": "none",
       "suffix": "/api/v2/business_hours/schedules/{Schedule ID}/holidays/{Holiday ID}.json"
     },
@@ -1180,16 +1292,19 @@
     },
     {
       "name": "Support Ticket Forms",
+      "description": "The alternative ticket layouts an account offers, each exposing a different set of fields. Carries name, whether it is active and whether end users see it. Configuration -- use it to interpret which custom fields apply to which tickets.",
       "pageType": "link",
       "suffix": "/api/v2/ticket_forms.json?active={Active?:true|false}&end_user_visible={Visible to End Users?:true|false}&fallback_to_default={Fallback to Default?:true|false}&associated_to_brand={Associated to Brand?:true|false}"
     },
     {
       "name": "Support Ticket Form",
+      "description": "A single ticket form by its id. Same fields as Support Ticket Forms.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_forms/{Form ID}.json"
     },
     {
       "name": "Support Ticket Fields",
+      "description": "Every field a ticket can carry, standard and custom. Carries the field type, title, whether it is required and active, and the position. This is the KEY to custom_fields on Support Tickets, which stores only numeric field ids and raw values -- without this table those columns cannot be read.",
       "pageType": "link",
       "suffix": "/api/v2/ticket_fields.json",
       "lookups": [
@@ -1203,21 +1318,25 @@
     },
     {
       "name": "Support Ticket Field",
+      "description": "A single ticket field by its id. Same fields as Support Ticket Fields.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_fields/{Field ID}.json"
     },
     {
       "name": "Support Ticket Field Options",
+      "description": "The permitted values of one dropdown ticket field, with the stored value and its display name. Requires a field id. Needed to turn a stored option value into something readable.",
       "pageType": "link",
       "suffix": "/api/v2/ticket_fields/{Field ID}/options.json"
     },
     {
       "name": "Support Ticket Field Option",
+      "description": "A single option of one ticket field. Requires the field id as well.",
       "pageType": "none",
       "suffix": "/api/v2/ticket_fields/{Field ID}/options/{Option ID}.json"
     },
     {
       "name": "Support User Fields",
+      "description": "Every custom field defined on users, standard ones excluded. Carries the field key, type, title, whether it is active, and its position. This is the KEY to the user_fields column on Support Users, which stores values against these keys -- those values cannot be interpreted without it.",
       "pageType": "link",
       "suffix": "/api/v2/user_fields.json",
       "lookups": [
@@ -1231,36 +1350,43 @@
     },
     {
       "name": "Support User Field",
+      "description": "A single user field by its id. Same fields as Support User Fields.",
       "pageType": "none",
       "suffix": "/api/v2/user_fields/{Field ID}.json"
     },
     {
       "name": "Support User Field Options",
+      "description": "The permitted values of one dropdown user field, with the stored value and its display name. Requires a field id.",
       "pageType": "link",
       "suffix": "/api/v2/user_fields/{Field ID}/options.json"
     },
     {
       "name": "Support User Field Option",
+      "description": "A single option of one user field. Requires the field id as well.",
       "pageType": "none",
       "suffix": "/api/v2/user_fields/{Field ID}/option/{Option ID}.json"
     },
     {
       "name": "Support Organization Fields",
+      "description": "Every custom field defined on organizations. Carries the field key, type, title and whether it is active. The KEY to the organization_fields column on Support Organizations, in the same way user fields are for users.",
       "pageType": "link",
       "suffix": "/api/v2/organization_fields.json"
     },
     {
       "name": "Support Organization Field",
+      "description": "A single organization field by its id. Same fields as Support Organization Fields.",
       "pageType": "none",
       "suffix": "/api/v2/organization_fields/{Field ID}.json"
     },
     {
       "name": "Support Job Statuses",
+      "description": "The state of asynchronous bulk operations -- bulk updates, imports, deletions -- with progress, results, and any errors per item. Use it to check whether a bulk change actually completed; the operation reports only that it was queued.",
       "pageType": "link",
       "suffix": "/api/v2/job_statuses.json"
     },
     {
       "name": "Support Job Status",
+      "description": "A single job status by its id. Same fields as Support Job Statuses.",
       "pageType": "none",
       "suffix": "/api/v2/job_statuses/{Status ID}.json"
     },
@@ -1387,6 +1513,7 @@
     },
     {
       "name": "Support OAuth Clients for Current User",
+      "description": "The OAuth applications registered by the calling user. Integration configuration, not ticket data.",
       "pageType": "link",
       "suffix": "/api/v2/users/me/oauth/clients.json"
     },
@@ -1422,11 +1549,13 @@
     },
     {
       "name": "Support Audit Logs",
+      "description": "Administrative changes to the account itself: settings altered, users created or deactivated, roles changed -- who did what and when. Distinct from Support Ticket Audits, which records changes to tickets. Use for compliance and change review.",
       "pageType": "link",
       "suffix": "/api/v2/audit_logs.json"
     },
     {
       "name": "Support Audit Log",
+      "description": "A single audit log entry by its id. Same fields as Support Audit Logs.",
       "pageType": "none",
       "suffix": "/api/v2/audit_logs/{Log ID}.json"
     },
@@ -1447,6 +1576,7 @@
     },
     {
       "name": "Help Desk Articles",
+      "description": "The knowledge base articles themselves, one row each -- the content agents publish for customers to read. Carries title, body, locale, author_id, section_id, created_at and updated_at, draft and promoted flags, position, outdated, and the running vote_sum, vote_count and comments_count. The table for knowledge base questions: how many articles exist, which are most or least useful, what is stale.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles.json?label_names={Labels?:label1,label2,...}",
       "lookups": [
@@ -1470,6 +1600,7 @@
     },
     {
       "name": "Help Desk Articles for Category",
+      "description": "The articles in one category, across all of its sections. Requires a category id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/categories/{Category ID}/articles.json",
       "lookups": [
@@ -1493,6 +1624,7 @@
     },
     {
       "name": "Help Desk Articles for Section",
+      "description": "The articles in one section. Requires a section id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}/articles.json",
       "lookups": [
@@ -1516,6 +1648,7 @@
     },
     {
       "name": "Help Desk Articles for User",
+      "description": "The articles written by one user. Requires a user id. Use for per-author output.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/users/{User ID}/articles.json",
       "lookups": [
@@ -1539,61 +1672,73 @@
     },
     {
       "name": "Help Desk Article",
+      "description": "A single article by its id. Same fields as Help Desk Articles.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}.json"
     },
     {
       "name": "Help Desk Article Attachments",
+      "description": "The files attached to one article. Requires an article id. Carries the file name, size, content type and whether it is inline.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/attachments.json"
     },
     {
       "name": "Help Desk Article Inline Attachments",
+      "description": "Only the attachments embedded in one article's body, as opposed to listed beside it. Requires an article id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/attachments/inline.json"
     },
     {
       "name": "Help Desk Article Block Attachments",
+      "description": "Only the attachments listed as separate downloads on one article, as opposed to embedded in the body. Requires an article id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/attachments/block.json"
     },
     {
       "name": "Help Desk Article Attachment",
+      "description": "A single article attachment by its id.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/articles/attachments/{Attachment ID}.json"
     },
     {
       "name": "Help Desk Article Comments",
+      "description": "Reader comments left on articles, one row each. Carries the body, author_id, the article it belongs to, created_at, and its own vote_sum and vote_count. Use for which articles provoke discussion, and as feedback text alongside the numeric votes.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/comments.json"
     },
     {
       "name": "Help Desk Article Comments for User",
+      "description": "The article comments written by one user. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/users/{User ID}/comments.json"
     },
     {
       "name": "Help Desk Article Comment",
+      "description": "A single article comment. Requires the article id as well.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/comments/{Comment ID}.json"
     },
     {
       "name": "Help Desk Article Labels",
+      "description": "Every label defined across the knowledge base, one row each. Labels are free-form tags on articles; use them to slice article analysis by topic when sections are too coarse.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/labels.json"
     },
     {
       "name": "Help Desk Article Label",
+      "description": "A single label by its id.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/articles/labels/{Label ID}.json"
     },
     {
       "name": "Help Desk Article Labels for Article",
+      "description": "The labels attached to one article. Requires an article id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/articles/{Article ID}/labels.json"
     },
     {
       "name": "Help Desk Categories",
+      "description": "The top level of the knowledge base. Categories hold sections, and sections hold articles -- this is the outermost of those three. Carries name, description, position, locale and whether it is visible to end users. Use it to give article analysis a top-level dimension.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/categories.json",
       "lookups": [
@@ -1612,6 +1757,7 @@
     },
     {
       "name": "Help Desk Category",
+      "description": "A single category by its id. Same fields as Help Desk Categories.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/categories/{Category ID}.json"
     },
@@ -1627,51 +1773,61 @@
     },
     {
       "name": "Help Desk Article Search",
+      "description": "Full-text search across article titles and bodies, using Help Center's own query syntax. Returns the same shape as Help Desk Articles, ranked by relevance.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/articles/search.json?query={Query}&category={Category ID?}&section={Section ID?}&label_names={Labels?}&locale={Locale?}&multibrand={Multibrand?:true|false}&brand_id={Brand ID?}&created_before={Created Before?:YYYY-MM-DD}&created_after={Created After?:YYYY-MM-DD}&created_at={Created On?:YYYY-MM-DD}&updated_before={Updated Before?:YYYY-MM-DD}&updated_after={Updated After?:YYYY-MM-DD}&updated_at={Updated On?:YYYY-MM-DD}"
     },
     {
       "name": "Help Desk Post Search",
+      "description": "Full-text search across community posts. Returns the same shape as Help Desk Posts, ranked by relevance.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/community_posts.json?query={Query}&topic={Topic ID?}&created_before={Created Before?:YYYY-MM-DD}&created_after={Created After?:YYYY-MM-DD}&created_at={Created On?:YYYY-MM-DD}&updated_before={Updated Before?:YYYY-MM-DD}&updated_after={Updated After?:YYYY-MM-DD}&updated_at={Updated On?:YYYY-MM-DD}"
     },
     {
       "name": "Help Desk Translations for Article",
+      "description": "The localized versions of one article, one row per locale. Carries title, body, locale, whether that translation is the source, and its own created_at and updated_at. Requires an article id. Multilingual knowledge bases hold their real text here rather than on the article.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/articles/{Article ID}/translations.json"
     },
     {
       "name": "Help Desk Translations for Section",
+      "description": "The localized versions of one section's name and description. Requires a section id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/section/{Section ID}/translations.json"
     },
     {
       "name": "Help Desk Translations for Category",
+      "description": "The localized versions of one category's name and description. Requires a category id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/categories/{Category ID}/translations.json"
     },
     {
       "name": "Help Desk Missing Translations for Article",
+      "description": "The locales one article has NOT been translated into. Requires an article id. Use for localization coverage gaps -- it answers what is absent, which the translations list cannot.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/articles/{Article ID}/translations/missing.json"
     },
     {
       "name": "Help Desk Missing Translations for Section",
+      "description": "The locales one section has not been translated into. Requires a section id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/section/{Section ID}/translations/missing.json"
     },
     {
       "name": "Help Desk Missing Translations for Category",
+      "description": "The locales one category has not been translated into. Requires a category id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/categories/{Category ID}/translations/missing.json"
     },
     {
       "name": "Help Desk Translation",
+      "description": "A single translation by its id.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/articles/{Article ID}/translations/{Locale}.json"
     },
     {
       "name": "Help Desk Locales",
+      "description": "The locales the Help Center is configured for, and which is the default. Needed to interpret the locale column on articles and translations.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/locales.json"
     },
@@ -1692,6 +1848,7 @@
     },
     {
       "name": "Help Desk Topics",
+      "description": "The top level of the community forum: the areas users post in. Carries name, description, position, and the running follower_count. Community content is user-written, unlike the knowledge base articles which staff publish -- the two are separate bodies of content that happen to share this API.",
       "pageType": "link",
       "suffix": "/api/v2/community/topics.json",
       "lookups": [
@@ -1705,11 +1862,13 @@
     },
     {
       "name": "Help Desk Topic",
+      "description": "A single community topic by its id. Same fields as Help Desk Topics.",
       "pageType": "none",
       "suffix": "/api/v2/community/topics/{Topic ID}.json"
     },
     {
       "name": "Help Desk Posts",
+      "description": "The community posts users write, one row each. Carries title, details, author_id, the parent topic_id, status, pinned and closed flags, created_at, and the running vote_sum, vote_count, comment_count and follower_count. The table for community activity: what is being asked, what draws responses, what is unanswered.",
       "pageType": "link",
       "suffix": "/api/v2/community/posts.json?filter_by={Filter By?:planned|not_planned|completed|answered|none}",
       "lookups": [
@@ -1726,6 +1885,7 @@
     },
     {
       "name": "Help Desk Posts for Topic",
+      "description": "The posts in one topic. Requires a topic id.",
       "pageType": "link",
       "suffix": "/api/v2/community/topics/{Topic ID}/posts.json?filter_by={Filter By?:planned|not_planned|completed|answered|none}",
       "lookups": [
@@ -1743,6 +1903,7 @@
     },
     {
       "name": "Help Desk Posts for User",
+      "description": "The posts written by one user. Requires a user id. Use for per-contributor activity.",
       "pageType": "link",
       "suffix": "/api/v2/community/users/{User ID}/posts.json?filter_by={Filter By?:planned|not_planned|completed|answered|none}",
       "lookups": [
@@ -1760,26 +1921,31 @@
     },
     {
       "name": "Help Desk Post",
+      "description": "A single post by its id. Same fields as Help Desk Posts.",
       "pageType": "none",
       "suffix": "/api/v2/community/posts/{Post ID}.json"
     },
     {
       "name": "Help Desk Post Comments",
+      "description": "The replies on one post, one row each. Carries the body, author_id, created_at, its own votes, and whether it is marked as the official answer. Requires a post id. Use for response rates and for which answers were accepted.",
       "pageType": "link",
       "suffix": "/api/v2/community/posts/{Post ID}/comments.json"
     },
     {
       "name": "Help Desk Post Comments for User",
+      "description": "The community replies written by one user. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/community/users/{User ID}/comments.json"
     },
     {
       "name": "Help Desk Post Comment",
+      "description": "A single post comment. Requires the post id as well.",
       "pageType": "none",
       "suffix": "/api/v2/community/posts/{Post ID}/comments/{Comment ID}.json"
     },
     {
       "name": "Help Desk Sections",
+      "description": "The middle level of the knowledge base: groupings of articles inside a category. Carries name, description, position, locale, the parent category_id and visibility. Join articles to it through section_id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/sections.json",
       "lookups": [
@@ -1798,6 +1964,7 @@
     },
     {
       "name": "Help Desk Sections for Category",
+      "description": "The sections inside one category. Requires a category id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/categories/{Category ID}/sections.json",
       "lookups": [
@@ -1816,56 +1983,67 @@
     },
     {
       "name": "Help Desk Section",
+      "description": "A single section by its id. Same fields as Help Desk Sections.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}.json"
     },
     {
       "name": "Help Desk Article Subscriptions",
+      "description": "Who has subscribed to be notified about one article. Requires an article id. Use as an interest signal per article.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/subscriptions.json"
     },
     {
       "name": "Help Desk Article Subscription",
+      "description": "A single article subscription. Requires the article id as well.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/subscriptions/{Subscription ID}.json"
     },
     {
       "name": "Help Desk Section Subscriptions",
+      "description": "Who has subscribed to one section, and so to everything published in it. Requires a section id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}/subscriptions.json"
     },
     {
       "name": "Help Desk Section Subscription",
+      "description": "A single section subscription. Requires the section id as well.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}/subscriptions/{Subscription ID}.json"
     },
     {
       "name": "Help Desk User Subscriptions",
+      "description": "Everything one user has subscribed to, across articles, sections, posts and topics. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/users/{User ID}/subscriptions.json"
     },
     {
       "name": "Help Desk Post Subscriptions",
+      "description": "Who is following one post. Requires a post id.",
       "pageType": "link",
       "suffix": "/api/v2/community/posts/{Post ID}/subscriptions.json"
     },
     {
       "name": "Help Desk Post Subscription",
+      "description": "A single post subscription. Requires the post id as well.",
       "pageType": "none",
       "suffix": "/api/v2/community/posts/{Post ID}/subscriptions/{Subscription ID}.json"
     },
     {
       "name": "Help Desk Topic Subscriptions",
+      "description": "Who is following one topic, and so everything posted in it. Requires a topic id.",
       "pageType": "link",
       "suffix": "/api/v2/community/topics/{Topic ID}/subscriptions.json"
     },
     {
       "name": "Help Desk Topic Subscription",
+      "description": "A single topic subscription. Requires the topic id as well.",
       "pageType": "none",
       "suffix": "/api/v2/community/topics/{Topic ID}/subscriptions/{Subscription ID}.json"
     },
     {
       "name": "Help Desk User Segments",
+      "description": "The audience rules that decide who can see which content -- by tag, organization or role. Configuration rather than content, but needed to explain why an article is visible to some readers and not others.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/user_segments.json?built_in={Built In?:true|false}",
       "lookups": [
@@ -1882,21 +2060,25 @@
     },
     {
       "name": "Help Desk Applicable User Segments",
+      "description": "The segments the calling user falls into. Scoped to the caller, not an account-wide list.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/user_segments/applicable.json?built_in={Built In?:true|false}"
     },
     {
       "name": "Help Desk User Segments for User",
+      "description": "The segments one user falls into. Requires a user id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/users/{User ID}/user_segments.json?built_in={Built In?:true|false}"
     },
     {
       "name": "Help Desk User Segment",
+      "description": "A single user segment by its id.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/user_segments/{Segment ID}.json"
     },
     {
       "name": "Help Desk User Segment Sections",
+      "description": "The sections one segment grants access to. Requires a segment id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/user_segments/{Segment ID}/sections.json",
       "lookups": [
@@ -1915,6 +2097,7 @@
     },
     {
       "name": "Help Desk User Segment Topics",
+      "description": "The community topics one segment grants access to. Requires a segment id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/user_segments/{Segment ID}/topics.json",
       "lookups": [
@@ -1928,31 +2111,37 @@
     },
     {
       "name": "Help Desk Votes for User",
+      "description": "Every vote one user has cast, across articles, posts and comments alike. Requires a user id. Use for reader engagement per person.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/users/{User ID}/votes.json"
     },
     {
       "name": "Help Desk Votes for Article",
+      "description": "The individual up and down votes cast on one article, each carrying its value and who cast it. Requires an article id. Articles already carries the totals as vote_sum and vote_count -- come here only when the individual votes or the voters matter.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/votes.json"
     },
     {
       "name": "Help Desk Votes for Article Comment",
+      "description": "The individual votes cast on one article comment. Requires the comment id.",
       "pageType": "link",
       "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/comments/{Comment ID}/votes.json"
     },
     {
       "name": "Help Desk Votes for Post",
+      "description": "The individual votes cast on one community post. Requires a post id.",
       "pageType": "link",
       "suffix": "/api/v2/community/posts/{Post ID}/votes.json"
     },
     {
       "name": "Help Desk Votes for Post Comment",
+      "description": "The individual votes cast on one community post comment. Requires the comment id.",
       "pageType": "link",
       "suffix": "/api/v2/community/posts/{Post ID}/comments/{Comment ID}/votes.json"
     },
     {
       "name": "Help Desk Vote",
+      "description": "A single vote by its id, carrying its value and the item it was cast on.",
       "pageType": "none",
       "suffix": "/api/v2/help_center/votes/{Vote ID}.json"
     },
@@ -1998,21 +2187,25 @@
     },
     {
       "name": "Talk Current Queue Activity",
+      "description": "A live snapshot of the call queue right now -- how many calls are waiting, the longest wait, and how many agents are online. Real-time state, not history: it answers what is happening at this instant and cannot be used for trends.",
       "pageType": "none",
       "suffix": "/api/v2/channels/voice/stats/current_queue_activity.json?phone_number_ids={Phone Number IDs?:id1,id2,...}"
     },
     {
       "name": "Talk Account Overview",
+      "description": "Account-wide voice metrics for Zendesk Talk: call volume, average wait and talk time, abandonment, voicemail counts and service levels. One aggregate record rather than a list. The starting point for phone-channel questions -- Support Tickets holds the tickets calls created, not the call statistics themselves.",
       "pageType": "none",
       "suffix": "/api/v2/channels/voice/stats/account_overview.json?phone_number_ids={Phone Number IDs?:id1,id2,...}"
     },
     {
       "name": "Talk Agents Overview",
+      "description": "The same voice metrics broken down per agent: calls handled, average talk time, wait time and availability. Use for phone-channel workload and responsiveness by person.",
       "pageType": "none",
       "suffix": "/api/v2/channels/voice/stats/agents_overview.json"
     },
     {
       "name": "Talk Agents Activity Statistics",
+      "description": "Per-agent activity in Talk over time, one row per agent: how long they spent available, on calls, and wrapping up. Use for utilisation and staffing questions.",
       "pageType": "none",
       "suffix": "/api/v2/channels/voice/stats/agents_activity.json"
     },

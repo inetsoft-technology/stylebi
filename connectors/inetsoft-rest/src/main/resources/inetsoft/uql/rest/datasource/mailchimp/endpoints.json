@@ -3,17 +3,20 @@
     {
       "name": "API Root",
       "suffix": "/3.0/?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The account itself: account name, contact details, plan type, industry, the total subscriber count across all audiences, the number of audiences, and the account's timezone. One record, and the natural first request -- it confirms which account the credentials belong to and gives account-wide totals without touching any listing."
     },
     {
       "name": "Authorized Apps",
       "suffix": "/3.0/authorized-apps?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The applications authorised to access the account, with name and the users who granted access. Security inventory -- these hold access that appears in no user list."
     },
     {
       "name": "Authorized App",
       "suffix": "/3.0/authorized-apps/{App ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One authorised application by id."
     },
     {
       "name": "Automations",
@@ -29,12 +32,14 @@
           "key": "id",
           "parameterName": "Workflow ID"
         }
-      ]
+      ],
+      "description": "The CLASSIC automation workflows on the account, with status, create_time and start_time, the audience targeted, the trigger settings, and a report_summary of opens and clicks. IMPORTANT SCOPE LIMIT: these are classic automations only. Mailchimp's current automation product is Customer Journeys, which HAS NO API and does not appear here at all -- so on an account that has moved to journeys this table is empty or stale while a great deal of automated mail is going out. An empty result is not evidence that nothing is automated."
     },
     {
       "name": "Automation",
       "suffix": "/3.0/automations/{Workflow ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One classic automation by workflow id. Note the trigger_settings returned describe the FIRST email in the workflow, not the workflow as a whole."
     },
     {
       "name": "Automation Emails",
@@ -47,57 +52,68 @@
           "key": "id",
           "parameterName": "Workflow Email ID"
         }
-      ]
+      ],
+      "description": "The individual emails making up one automation workflow, in order, each with its delay settings and its own report summary. Requires a workflow id. Per-step performance -- whether people drop out at step two or step five -- is only visible here."
     },
     {
       "name": "Automation Email",
       "suffix": "/3.0/automations/{Workflow ID}/emails/{Workflow Email ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One email of one workflow. Requires the workflow id and email id."
     },
     {
       "name": "Automation Email Subscribers",
       "suffix": "/3.0/automations/{Workflow ID}/emails/{Workflow Email ID}/queue",
-      "paged": "false"
+      "paged": "false",
+      "description": "The subscribers currently QUEUED for one automation email -- waiting for its delay to elapse. Requires the workflow id and email id. A snapshot of who is in flight, not of who has been sent to; it empties as the mail goes out."
     },
     {
       "name": "Automation Email Subscriber",
       "suffix": "/3.0/automations/{Workflow ID}/emails/{Workflow Email ID}/queue/{Subscriber Hash}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One queued subscriber. Requires the workflow id, email id and member id."
     },
     {
       "name": "Automation Removed Subscribers",
       "suffix": "/3.0/automations/{Workflow ID}/removed-subscribers",
-      "paged": "true"
+      "paged": "true",
+      "description": "The subscribers removed from one workflow before finishing it. Requires a workflow id. Where the drop-out from an automation is recorded, which the report summaries do not show."
     },
     {
       "name": "Batch Requests",
       "suffix": "/3.0/batches?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The batch operations submitted to the API, with status, submitted_at and completed_at, and counts of finished, errored and total operations. Batches run many API calls asynchronously; this is how their outcome is discovered, since submitting one only reports that it was queued."
     },
     {
       "name": "Batch Request Status",
       "suffix": "/3.0/batches/{Batch ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The status of one batch by id, including the URL of its results archive once complete."
     },
     {
       "name": "Batch Webhooks",
       "suffix": "/3.0/batch-webhooks?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The webhooks notified when a batch finishes. Configuration."
     },
     {
       "name": "Batch Webhook",
       "suffix": "/3.0/batch-webhooks/{Batch Webhook ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One batch webhook by id."
     },
     {
       "name": "Campaign Folders",
       "suffix": "/3.0/campaign-folders?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The folders campaigns are organised into, with a count of campaigns in each. Organisational only."
     },
     {
       "name": "Campaign Folder",
       "suffix": "/3.0/campaign-folders/{Folder ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One campaign folder by id."
     },
     {
       "name": "Campaigns",
@@ -120,32 +136,38 @@
           "key": "list_id",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The campaigns on the account, one row each. Carries the type, status, create_time and send_time, the recipients (audience and segment) with recipient_count, the settings holding subject_line, title, from_name and reply_to, and a report_summary with headline figures. TYPE MATTERS FOR ANY AGGREGATION: regular is a one-off send, rss sends repeatedly on a schedule, and variate is an A/B test that produces several child sends -- summing them together mixes single sends with recurring ones. STATUS matters too: save is a draft that was never sent, so counting campaigns without filtering on status=sent counts things that never went out."
     },
     {
       "name": "Campaign",
       "suffix": "/3.0/campaigns/{Campaign ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One campaign by id. Same fields as Campaigns, with the full settings and tracking configuration."
     },
     {
       "name": "Campaign Feedback List",
       "suffix": "/3.0/campaigns/{Campaign ID}/feedback?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Internal team comments on one campaign draft, with the author, the block commented on and whether it is resolved. Requires a campaign id. Collaboration notes, not recipient feedback -- recipient reactions are in the report tables."
     },
     {
       "name": "Campaign Feedback Message",
       "suffix": "/3.0/campaigns/{Campaign ID}/feedback/{Feedback ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One internal feedback comment by id. Requires the campaign id."
     },
     {
       "name": "Campaign Send Checklist",
       "suffix": "/3.0/campaigns/{Campaign ID}/send-checklist?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Mailchimp's pre-send validation for one campaign: each check with whether it passed and why. Requires a campaign id. Explains why a campaign cannot be sent; of no use once it has been."
     },
     {
       "name": "Campaign Content",
       "suffix": "/3.0/campaigns/{Campaign ID}/content?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The rendered content of one campaign -- HTML and plain text as sent. Requires a campaign id. Source text rather than tabular data."
     },
     {
       "name": "Chimp Chatter Activity",
@@ -164,7 +186,8 @@
           "key": "campaign_id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "The account's recent activity feed as short human-readable messages -- new subscribers, campaign sends, and similar. Display text with a type and timestamp rather than structured data; every event it mentions is available properly in the resource tables, so prefer those for anything counted."
     },
     {
       "name": "Connected Sites",
@@ -184,12 +207,14 @@
           "key": "store_id",
           "parameterName": "Store ID"
         }
-      ]
+      ],
+      "description": "The websites connected to the account for tracking, with the domain, its script, and its verification status. E-commerce and goal data depend on this being connected -- an unverified site is why those tables are empty."
     },
     {
       "name": "Connected Site",
       "suffix": "/3.0/connected-sites/{Connected Site Foreign ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One connected site by its foreign id."
     },
     {
       "name": "Conversations",
@@ -214,12 +239,14 @@
           "key": "id",
           "parameterName": "Conversation ID"
         }
-      ]
+      ],
+      "description": "DEPRECATED: Mailchimp replaced Conversations with Inbox, and this endpoint DOES NOT INCLUDE INBOX DATA. Past conversations remain readable here, but new campaign replies and current messages do not appear at all -- so this is a historical archive, and treating it as the current reply stream understates engagement to zero for anything recent."
     },
     {
       "name": "Conversation",
       "suffix": "/3.0/conversations/{Conversation ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One archived conversation by id. Same deprecation."
     },
     {
       "name": "Conversation Messages",
@@ -232,12 +259,14 @@
           "key": "list_id",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The messages within one archived conversation. Requires a conversation id. Historic only, for the reason above."
     },
     {
       "name": "Conversation Message",
       "suffix": "/3.0/conversations/{Conversation ID}/messages/{Message ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One archived message by id. Requires the conversation id."
     },
     {
       "name": "E-commerce Stores",
@@ -268,22 +297,26 @@
           "key": "site_foreign_id",
           "parameterName": "Connected Site Foreign ID"
         }
-      ]
+      ],
+      "description": "The connected stores on the account, each with its platform, domain, CURRENCY_CODE, money_format, primary_locale and timezone. Populated by an integration rather than by Mailchimp, so what is present depends entirely on what the store platform syncs. THE CURRENCY CODE IS PER STORE -- every monetary figure in the e-commerce tables is in its own store's currency, so summing revenue across stores without converting adds unlike units."
     },
     {
       "name": "E-commerce Store",
       "suffix": "/3.0/ecommerce/stores/{Store ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One store by id, with its settings and totals."
     },
     {
       "name": "E-commerce Store Customers",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/customers?fields={Fields?}&exclude_fields={Exclude Fields?}&email_address={Customer Email Address?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The customers of one store. Requires a store id. Carries the customer id from the source platform, email_address, opt_in_status, company, and the running ORDERS_COUNT and TOTAL_SPENT. total_spent is lifetime value already computed, so customer-value questions do not need the orders table at all. Note the customer id comes from the store, not from Mailchimp, and the link to a Mailchimp member is by email address."
     },
     {
       "name": "E-commerce Store Customer",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/customers/{Customer ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One customer by id. Requires the store id."
     },
     {
       "name": "All E-commerce Orders",
@@ -307,127 +340,152 @@
           "key": "campaign_id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "Orders across EVERY store on the account, rather than one at a time. Filter by campaign_id or outreach_id to answer revenue questions spanning stores in one request -- though the currency caveat still applies, since each order carries its own store's currency."
     },
     {
       "name": "E-commerce Store Orders",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/orders?fields={Fields?}&exclude_fields={Exclude Fields?}&campaign_id={Campaign ID?}&outreach_id={Outreach ID?}&customer_id={Customer ID?}&has_outreach={Has Outreach?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The orders of one store. Requires a store id. Carries order_total, tax_total, shipping_total, discount_total, the currency, processed_at_foreign and cancelled_at_foreign, the customer, and CAMPAIGN_ID. THAT LAST COLUMN IS THE POINT OF THIS TABLE: it names the campaign Mailchimp attributed the order to, which is the only link between an email being sent and money arriving. Revenue per campaign, per audience or per segment is built from it. Attribution is Mailchimp's own, within its attribution window, so orders with a null campaign_id are simply unattributed rather than organic."
     },
     {
       "name": "E-commerce Store Order",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/orders/{Order ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One order by id. Requires the store id. Same fields, with its line items."
     },
     {
       "name": "E-commerce Store Order Lines",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/orders/{Order ID}/lines?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The line items of one order: product, variant, quantity, price and discount. Requires the store id and order id. Order-level totals live on the order; what was actually bought is only here."
     },
     {
       "name": "E-commerce Store Order Line",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/orders/{Order ID}/lines/{Order Line ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One line item by id. Requires the store id and order id."
     },
     {
       "name": "E-commerce Store Products",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/products?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The products of one store, with title, handle, type, vendor and published status. Requires a store id. Prices and stock are on the variants, not here."
     },
     {
       "name": "E-commerce Store Product",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One product by id, with its variants. Requires the store id."
     },
     {
       "name": "E-commerce Store Product Variants",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/variants?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The variants of one product -- the individually purchasable versions, each with its own sku, price and inventory_quantity. Requires the store id and product id. A product with no explicit variants still has one default variant, so this table is never empty for a real product."
     },
     {
       "name": "E-commerce Store Product Variant",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/variants/{Product Variant ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One variant by id. Requires the store id and product id."
     },
     {
       "name": "E-commerce Store Product Images",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/images?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The images of one product. Requires the store id and product id. Presentation."
     },
     {
       "name": "E-commerce Store Product Image",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/images/{Product Image ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One product image by id."
     },
     {
       "name": "E-commerce Store Carts",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/carts?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The ABANDONED carts of one store. Requires a store id. A cart exists here only while it is unconverted -- once it becomes an order the integration removes it -- so this table is the current abandonment backlog rather than a history of all carts, and it cannot be used to compute an abandonment rate over time. It carries the same campaign_id attribution as orders."
     },
     {
       "name": "E-commerce Store Cart",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/carts/{Cart ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One cart by id, with its line items. Requires the store id."
     },
     {
       "name": "E-commerce Store Cart Lines",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/carts/{Cart ID}/lines?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The line items of one cart: what was left unbought. Requires the store id and cart id. The input to abandoned-cart campaigns."
     },
     {
       "name": "E-commerce Store Cart Line",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/carts/{Cart ID}/lines/{Cart Line ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One cart line item by id."
     },
     {
       "name": "E-commerce Store Promo Rules",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The discount rules of one store -- the amount or percentage, the type, and the period each is valid for. Requires a store id. The rule; the codes people actually type are in Promo Codes."
     },
     {
       "name": "E-commerce Store Promo Rule",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules/{Promo Rule ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One promo rule by id. Requires the store id."
     },
     {
       "name": "E-commerce Store Promo Codes",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules/{Promo Rule ID}/promo-codes?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The individual codes issued under one promo rule, each with its own USAGE_COUNT and enabled flag. Requires the store id and promo rule id. usage_count is the direct measure of whether a promotion was taken up, and exists nowhere else."
     },
     {
       "name": "E-commerce Store Promo Code",
       "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules/{Promo Rule ID}/promo-codes/{Promo Code ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One promo code by id. Requires the store id and promo rule id."
     },
     {
       "name": "Facebook Ads",
       "suffix": "/3.0/facebook-ads?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The Facebook and Instagram ads created in Mailchimp, with name, status, type, the audience targeted and the period each ran. Configuration and state; results are in Facebook Ad Reports."
     },
     {
       "name": "Facebook Ad",
       "suffix": "/3.0/facebook-ads/{Outreach ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One ad by id."
     },
     {
       "name": "Files",
       "suffix": "/3.0/file-manager/files?fields={Fields?}&exclude_fields={Exclude Fields?}&type={File Type?}&created_by={Created By?}&before_created_at={Before Created At?}&since_created_at={Since Created At?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The files in the account's Content Studio, with name, type, size, created_at and the folder each is in. Useful mainly for storage review; the width and height fields make it possible to find images too large for email."
     },
     {
       "name": "File",
       "suffix": "/3.0/file-manager/files/{File ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One file by id."
     },
     {
       "name": "Folders",
       "suffix": "/3.0/file-manager/folders?fields={Fields?}&exclude_fields={Exclude Fields?}&created_by={Created By?}&before_created_at={Before Created At?}&since_created_at={Since Created At?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The folders files are organised into, with a file count for each."
     },
     {
       "name": "Folder",
       "suffix": "/3.0/file-manager/folders/{Folder ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One file folder by id."
     },
     {
       "name": "Landing Pages",
@@ -465,17 +523,20 @@
           "key": "id",
           "parameterName": "Landing Page unique ID"
         }
-      ]
+      ],
+      "description": "The landing pages on the account, with name, status, url, published_at and the audience each feeds. The pages themselves; their performance is in Landing Page Reports."
     },
     {
       "name": "Landing Page Info",
       "suffix": "/3.0/landing-pages/{Landing Page unique ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One landing page by id."
     },
     {
       "name": "Landing Page Content",
       "suffix": "/3.0/landing-pages/{Landing Page unique ID}/content?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The rendered HTML of one landing page. Requires a page id. Source text, not data."
     },
     {
       "name": "Lists",
@@ -500,182 +561,218 @@
           "key": "id",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The audiences on the account, one row each -- what the API calls a list and the interface calls an audience. Carries the name, the from address and subject defaults, permission reminder, date_created, and a stats object holding member_count, unsubscribe_count, cleaned_count, campaign_count, avg_sub_rate and avg_unsub_rate, open_rate and click_rate, and last_sub_date. NOTE that member_count counts SUBSCRIBED members only, while unsubscribed and cleaned members are counted separately and still exist as rows in List Members -- so the audience size and the number of member records are different numbers, both correct. A GENERAL WARNING FOR EVERY MAILCHIMP LISTING: the default page size is 10 and the maximum is 1000, set with count and offset, so an unparameterised request returns ten rows and no sign that more exist."
     },
     {
       "name": "List",
       "suffix": "/3.0/lists/{List ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One audience by id. Same fields as Lists. Its counts include members who signed up but never confirmed, as well as unsubscribed and cleaned ones, so read the individual count fields rather than assuming a single total."
     },
     {
       "name": "List's Interest Categories",
       "suffix": "/3.0/lists/{List ID}/interest-categories?fields={Fields?}&exclude_fields={Exclude Fields?}&type={Interest Group Type?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The interest categories of one audience -- what the interface calls groups. Requires a list id. A category is a question such as 'which topics interest you', and its interests are the answers."
     },
     {
       "name": "List Interest Category",
       "suffix": "/3.0/lists/{List ID}/interest-categories/{Interest Category ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One interest category by id. Requires the list id."
     },
     {
       "name": "All Intersts in an Interest Category",
       "suffix": "/3.0/lists/{List ID}/interest-categories/{Interest Category ID}/interests?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The interests within one category -- the individual choices members can opt into. Requires the list id and category id. THE KEY TO THE interests OBJECT on a member, which is keyed by interest id and otherwise unreadable."
     },
     {
       "name": "Interest Category Interests",
       "suffix": "/3.0/lists/{List ID}/interest-categories/{Interest Category ID}/interests/{Interest ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One interest by id -- despite the plural name this returns a single interest, not a list. Requires the list id, category id and interest id."
     },
     {
       "name": "List Segments",
       "suffix": "/3.0/lists/{List ID}/segments?fields={Fields?}&exclude_fields={Exclude Fields?}&type={Segment Type?}&before_created_at={Before Created At?}&since_created_at={Since Created At?}&include_cleaned={Include Cleaned?:true|false}&include_transactional={Include Transactional?:true|false}&include_unsubscribed={Include Unsubscribed?:true|false}&since_updated_at={Since Updated At?}&before_updated_at={Before Updated At?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The segments of one audience. Requires a list id. A segment is either SAVED, defined by conditions that are re-evaluated, or STATIC, a fixed set of members -- the type field says which, and it matters because a saved segment's member count changes on its own while a static one does not. Tags also appear here as static segments."
     },
     {
       "name": "List Segment",
       "suffix": "/3.0/lists/{List ID}/segments/{Segment ID}?fields={Fields?}&exclude_fields={Exclude Fields?}&include_cleaned={Include Cleaned?:true|false}&include_transactional={Include Transactional?:true|false}&include_unsubscribed={Include Unsubscribed?:true|false}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One segment by id, with its conditions. Requires the list id. The conditions are the segment's real meaning; the name rarely states them."
     },
     {
       "name": "List Segment Members",
       "suffix": "/3.0/lists/{List ID}/segments/{Segment ID}/members?fields={Fields?}&exclude_fields={Exclude Fields?}&include_cleaned={Include Cleaned?:true|false}&include_transactional={Include Transactional?:true|false}&include_unsubscribed={Include Unsubscribed?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The members currently in one segment. Requires the list id and segment id. For a saved segment this is evaluated at request time, so it can differ from the count the segment itself reports."
     },
     {
       "name": "List Abuse Reports",
       "suffix": "/3.0/lists/{List ID}/abuse-reports?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Complaints from members of one audience who marked mail as spam, with the campaign involved and the date. Requires a list id. The most damaging deliverability signal there is."
     },
     {
       "name": "List Abuse Report",
       "suffix": "/3.0/lists/{List ID}/abuse-reports/{Report ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One abuse report by id. Requires the list id."
     },
     {
       "name": "List Activity",
       "suffix": "/3.0/lists/{List ID}/activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Daily aggregated activity for one audience -- sends, unique opens, recipient clicks, subscribes and unsubscribes per day. Requires a list id. TWO LIMITS: it covers AT MOST THE LAST 180 DAYS, and it EXCLUDES AUTOMATION ACTIVITY, so on an account that relies on automations these daily figures are systematically short of the true totals."
     },
     {
       "name": "List Clients",
       "suffix": "/3.0/lists/{List ID}/clients?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The email clients members of one audience open with, and how many use each. Requires a list id. Useful for deciding what a template must render in."
     },
     {
       "name": "List Growth History",
       "suffix": "/3.0/lists/{List ID}/growth-history?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Month-by-month growth of one audience: subscribes, unsubscribes, cleaned, transactional, and the existing count at each month's end. Requires a list id. The only table that gives audience size over TIME -- the audience record itself carries just today's numbers, so growth and churn cannot be measured anywhere else."
     },
     {
       "name": "List Growth History by Month",
       "suffix": "/3.0/lists/{List ID}/growth-history/{Month}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One month of growth history for one audience. Requires the list id and the month as YYYY-MM."
     },
     {
       "name": "List Members",
       "suffix": "/3.0/lists/{List ID}/members?fields={Fields?}&exclude_fields={Exclude Fields?}&email_type={Email Type?}&status={Subscriber Status?}&since_timestamp_opt={Since Timestamp Opt?}&before_timestamp_opt={Before Timestamp Opt?}&since_last_changed={Since Last Changed?}&before_last_changed={Before Last Changed?}&unique_email_id={Unique Email ID?}&vip_only={VIP Only?:true|false}&interest_category_id={Interest Category ID?}&interest_ids={Interest IDs?}&interest_match={Interest Match?}&since_last_campaign={Since Last Campaign?:true|false}&unsubscribed_since={Unsubscribed Since?:unsubscribed}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The members of one audience, one row each -- the subscriber table. Requires a list id. Carries email_address, status, merge_fields, interests, tags, member_rating, timestamp_signup and timestamp_opt, last_changed, the email client, an inferred location, the vip flag, and per-member stats holding avg_open_rate and avg_click_rate. TWO things decide whether a count is right. STATUS HAS FIVE VALUES, not two: subscribed, unsubscribed, PENDING (signed up, never confirmed), CLEANED (removed after hard bouncing) and transactional. Only subscribed members are mailable, so any 'how many subscribers' question must filter on status -- cleaned members in particular look like losses in the data but were never opt-outs. And merge_fields and interests come back keyed by id, which List Merge Fields and the interest tables decode."
     },
     {
       "name": "List Member",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One member of one audience. Requires the list id and the member id. THE MEMBER ID IS THE MD5 HASH OF THE LOWERCASED EMAIL ADDRESS -- not an opaque key, so a member can be addressed directly from their email without searching for them first. This is the least obvious and most useful fact about the Mailchimp API."
     },
     {
       "name": "List Member Activity",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The last 50 events for one member -- opens, clicks, bounces, unsubscribes and campaign sends. Requires the list id and member id. CAPPED AT 50 EVENTS, so it is a recent history rather than a complete one, and a long-standing member's earlier activity is simply not returned."
     },
     {
       "name": "List Member Goals",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/goals?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The last 50 goal events for one member -- website visits tracked by Mailchimp's goal tracking. Requires the list id and member id. Present only where goal tracking is installed on the site."
     },
     {
       "name": "List Member Notes",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/notes?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The notes staff have written about one member. Requires the list id and member id. Free text, entered by hand."
     },
     {
       "name": "List Member Note",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/notes/{Note ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "A single note by id. Requires the list id and member id."
     },
     {
       "name": "List Member Tags",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/events?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The tags applied to one member. Requires the list id and member id. Tags are Mailchimp's free-form labelling of members and are usually how an organisation records segmentation it does not have a merge field for."
     },
     {
       "name": "List Member Events",
       "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/tags?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The custom events recorded against one member by an integration. Requires the list id and member id. Application-defined events, present only where something is writing them."
     },
     {
       "name": "List Merge Fields",
       "suffix": "/3.0/lists/{List ID}/merge-fields?fields={Fields?}&exclude_fields={Exclude Fields?}&required={Required?:true|false}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The merge fields defined on one audience -- FNAME, LNAME, ADDRESS and any custom ones -- each with its tag, name, type and whether it is required. Requires a list id. THE KEY TO MEMBER DATA: members return merge_fields keyed by these tags, so without this table a column called MMERGE7 cannot be identified."
     },
     {
       "name": "List Merge Field",
       "suffix": "/3.0/lists/{List ID}/merge-fields/{Merge ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One merge field by id. Requires the list id."
     },
     {
       "name": "List Webhooks",
       "suffix": "/3.0/lists/{List ID}/webhooks",
-      "paged": "true"
+      "paged": "true",
+      "description": "The webhooks configured on one audience: the target URL and which events fire it. Requires a list id. Integration configuration; deliveries are not recorded."
     },
     {
       "name": "List Webhook",
       "suffix": "/3.0/lists/{List ID}/webhooks/{Webhook ID}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One audience webhook by id. Requires the list id."
     },
     {
       "name": "List Signup Forms",
       "suffix": "/3.0/lists/{List ID}/signup-forms",
-      "paged": "true"
+      "paged": "true",
+      "description": "The signup forms configured for one audience, with their headers and content. Requires a list id. Configuration -- how people join, not who did."
     },
     {
       "name": "List Locations",
       "suffix": "/3.0/lists/{List ID}/locations?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Where the members of one audience are, by country, with counts and percentages. Requires a list id. Locations are inferred from opens, so members who never open are absent and a privacy proxy places them elsewhere -- read it as the shape of the engaged audience, not of the whole."
     },
     {
       "name": "Ping",
       "suffix": "/3.0/ping",
-      "paged": "false"
+      "paged": "false",
+      "description": "A health check that returns nothing but a message when the API is reachable. Useful for confirming credentials work; it carries no data."
     },
     {
       "name": "Reporting Information",
       "suffix": "/3.0/reporting",
-      "paged": "false"
+      "paged": "false",
+      "description": "Not a resource. Mailchimp serves no report collection at this path -- reporting is split into Facebook Ad Reports, Landing Page Reports and campaign reports, each with its own endpoint. Expect this to fail; use those instead."
     },
     {
       "name": "Facebook Ad Reports",
       "suffix": "/3.0/reporting/facebook-ads?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Performance of the Facebook and Instagram ads run through Mailchimp, with impressions, clicks, reach, spend and attributed revenue. Distinct from campaign reports, which cover email only -- ad spend and email performance are separate tables and no endpoint joins them."
     },
     {
       "name": "Facebook Ad Report",
       "suffix": "/3.0/reporting/facebook-ads/{Outreach ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The report for one ad by outreach id."
     },
     {
       "name": "Facebook Ad Product Activity",
       "suffix": "/3.0/reporting/facebook-ads/{Outreach ID}/ecommerce-product-activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The products bought as a result of one ad, with quantity and revenue per product. Requires an outreach id. Requires e-commerce tracking; empty rather than absent without it."
     },
     {
       "name": "Landing Page Reports",
       "suffix": "/3.0/reporting/landing-pages?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Performance of the landing pages built in Mailchimp: visits, unique visits, subscribes and conversion rate. The signup side of acquisition, which no audience or campaign table covers."
     },
     {
       "name": "Landing Page Report",
       "suffix": "/3.0/reporting/landing-pages/{Outreach ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The report for one landing page by outreach id."
     },
     {
       "name": "Campaign Reports",
@@ -707,27 +804,32 @@
           "key": "list_id",
           "parameterName": "List ID"
         }
-      ]
+      ],
+      "description": "The performance report of every sent campaign, one row each -- the central table for email performance. Carries emails_sent, send_time, abuse_reports and unsubscribed, a bounces object split into HARD, SOFT and syntax_errors, an opens object with opens_total, unique_opens, open_rate and last_open, a clicks object with clicks_total, unique_clicks, unique_subscriber_clicks and click_rate, an ecommerce object with total_orders and total_revenue, plus industry_stats for comparison against the sender's sector. THREE readings to get right. THE RATES ARE COMPUTED AGAINST DELIVERED MAIL, not against emails_sent -- Mailchimp divides by emails_sent minus bounces -- so recomputing a rate from the raw columns without subtracting bounces gives a different, lower number than the one shown. HARD AND SOFT BOUNCES ARE DIFFERENT FAILURES: hard means the address is dead and the member will be cleaned, soft means a temporary problem and the address survives, so adding them together overstates list decay. And OPEN COUNTS CANNOT BE READ AS ATTENTION -- they depend on images loading, which undercounts, while Apple Mail Privacy Protection pre-loads them and inflates. Clicks are the sounder signal."
     },
     {
       "name": "Campaign Report",
       "suffix": "/3.0/reports/{Campaign ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The report of one campaign by id. Same fields as Campaign Reports, and the same three caveats."
     },
     {
       "name": "Campaign Abuse Reports",
       "suffix": "/3.0/reports/{Campaign ID}/abuse-reports?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The spam complaints from one campaign, with the member and the date. Requires a campaign id. Small numbers matter here: a handful of complaints on a send is enough to affect deliverability for everything that follows."
     },
     {
       "name": "Campaign Abuse Report",
       "suffix": "/3.0/reports/{Campaign ID}/abuse-reports/{Report ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One abuse report from one campaign. Requires the campaign id and report id."
     },
     {
       "name": "Campaign Feedback",
       "suffix": "/3.0/reports/{Campaign ID}/advice?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Mailchimp's own written advice about one campaign's performance, as short text notes with a type. Requires a campaign id. Generated commentary rather than data; the numbers it comments on are in Campaign Report."
     },
     {
       "name": "Campaign Click Details",
@@ -742,82 +844,98 @@
           "key": "id",
           "parameterName": "Link ID"
         }
-      ]
+      ],
+      "description": "Each link in one campaign with its total clicks, unique clicks, click percentage and the click_percentage of the campaign it accounted for. Requires a campaign id. The table for which content actually drew the response."
     },
     {
       "name": "Campaign Click Details for Specific Link",
       "suffix": "/3.0/reports/{Campaign ID}/click-details/{Link ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The click figures for one link. Requires the campaign id and link id."
     },
     {
       "name": "Subscribers Who Clicked a Specific Link",
       "suffix": "/3.0/reports/{Campaign ID}/click-details/{Link ID}/members?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The members who clicked one particular link, with their click counts. Requires the campaign id and link id. Use it to identify interest in a specific offer rather than in the campaign as a whole."
     },
     {
       "name": "Subscriber Who Clicked a Specific Link",
       "suffix": "/3.0/reports/{Campaign ID}/click-details/{Link ID}/members/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One member's clicks on one link. Requires the campaign id, link id and member id."
     },
     {
       "name": "Campaign Domain Performance Stats",
       "suffix": "/3.0/reports/{Campaign ID}/domain-performance?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One campaign's results broken down by RECIPIENT DOMAIN -- gmail.com, outlook.com and the rest -- with emails sent, delivered, opens, clicks and bounces for each. Requires a campaign id. The most diagnostically useful report table: deliverability failures are almost always specific to one provider, and this is the only place that shows it."
     },
     {
       "name": "Campaign Eepurl Activity",
       "suffix": "/3.0/reports/{Campaign ID}/eepurl?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Social and shortened-link activity for one campaign -- referrers, clicks from shared links, and any Twitter activity Mailchimp tracked. Requires a campaign id. Sparse on most accounts."
     },
     {
       "name": "Campaign Email Activity",
       "suffix": "/3.0/reports/{Campaign ID}/email-activity?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Email Activity since?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The per-member event log of one campaign: for each recipient, every open, click, bounce and unsubscribe with its timestamp and the URL clicked. Requires a campaign id. THE ONLY MEMBER-LEVEL TABLE for a send -- everything else in reports is an aggregate. It is correspondingly large, one row per recipient with a nested activity array, so bound it with the since parameter or by paging."
     },
     {
       "name": "Campaign Email Activity for a Specific Subscriber",
       "suffix": "/3.0/reports/{Campaign ID}/email-activity/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Email Activity since?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The event history of one recipient within one campaign. Requires the campaign id and the member id, which is the MD5 hash of their lowercased email."
     },
     {
       "name": "Campaign Top Locations",
       "suffix": "/3.0/reports/{Campaign ID}/locations?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Where one campaign was opened, by country and region, with open counts. Requires a campaign id. Inferred from opening IP addresses, so it describes the engaged portion of the audience and is distorted by privacy proxies."
     },
     {
       "name": "Campaign Recipients",
       "suffix": "/3.0/reports/{Campaign ID}/sent-to?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Who one campaign was sent to, with each recipient's delivery status and the address used. Requires a campaign id. This is the denominator for the campaign -- the actual send list, as opposed to the audience the campaign targeted, which can differ once suppression and segmentation are applied."
     },
     {
       "name": "Campaign Recipient",
       "suffix": "/3.0/reports/{Campaign ID}/sent-to/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The send record for one recipient of one campaign. Requires the campaign id and member id."
     },
     {
       "name": "Child Campaign Reports",
       "suffix": "/3.0/reports/{Campaign ID}/sub-reports?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The individual reports of the child sends of one A/B test campaign. Requires the parent campaign id. A variate campaign's own report is the combined figure; the per-variation results that decide which version won exist only here."
     },
     {
       "name": "Campaign Unsubscribed Members",
       "suffix": "/3.0/reports/{Campaign ID}/unsubscribed?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Who unsubscribed from one campaign, with the reason they gave and the timestamp. Requires a campaign id. The reason text is free-form and often the only qualitative feedback a send produces."
     },
     {
       "name": "Campaign Unsubscribed Member",
       "suffix": "/3.0/reports/{Campaign ID}/unsubscribed/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One unsubscribe record. Requires the campaign id and member id."
     },
     {
       "name": "Campaign Open Details",
       "suffix": "/3.0/reports/{Campaign ID}/open-details?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Campaign opens since?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "Which members opened one campaign, with each member's open count and the timestamps. Requires a campaign id. The aggregated-by-member view of opens; the raw events are in Campaign Email Activity. Carries the same open-tracking distortions."
     },
     {
       "name": "Campaign E-commerce Activity",
       "suffix": "/3.0/reports/{Campaign ID}/ecommerce-product-activity?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Campaign opens since?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The products bought as a result of one campaign, with quantities and revenue per product. Requires a campaign id. Requires e-commerce tracking to be connected -- without it the table is empty rather than absent, which reads as 'the campaign sold nothing'."
     },
     {
       "name": "Search Campaigns",
@@ -843,22 +961,26 @@
           "key": "id",
           "parameterName": "Campaign ID"
         }
-      ]
+      ],
+      "description": "Campaigns matching a search term across their title and subject line. Use it when a campaign is known by name rather than by id."
     },
     {
       "name": "Search Members",
       "suffix": "/3.0/search-members?query={Query}&fields={Fields?}&exclude_fields={Exclude Fields?}&list_id={List ID?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "Members matching a search term, across one audience or every audience on the account. Returns exact matches and partial matches in separate lists. The route to a member when the email address is not known in full -- when it is, hashing it and using List Member is cheaper."
     },
     {
       "name": "Template Folders",
       "suffix": "/3.0/template-folders?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "true"
+      "paged": "true",
+      "description": "The folders templates are organised into, with a count of templates in each."
     },
     {
       "name": "Template Folder",
       "suffix": "/3.0/template-folders/{Folder ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One template folder by id."
     },
     {
       "name": "Templates",
@@ -871,27 +993,32 @@
           "key": "id",
           "parameterName": "Template ID"
         }
-      ]
+      ],
+      "description": "The email templates on the account, both Mailchimp's own and the account's, told apart by the type field. Carries name, category, date_created, created_by and whether each is active. A campaign references a template, so this is what turns a template id into a name."
     },
     {
       "name": "Template",
       "suffix": "/3.0/templates/{Template ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One template by id."
     },
     {
       "name": "Template Default Content",
       "suffix": "/3.0/templates/{Template ID}/default-content?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "false",
+      "description": "The default content of one template, section by section. Requires a template id. What a campaign starts from before it is edited."
     },
     {
       "name": "All Sending Domains",
       "suffix": "/3.0/verified-domains",
-      "paged": "true"
+      "paged": "true",
+      "description": "The domains verified and authenticated for sending on the account, each with whether it is verified and whether it is AUTHENTICATED. The two are different: verification proves ownership of the address, while authentication is the DKIM setup receiving servers check. A domain that is verified but not authenticated sends mail that is far more likely to be filtered, and nothing in the campaign reports explains why until this is checked."
     },
     {
       "name": "Specific Sending Domain",
       "suffix": "/3.0/verified-domains/{Domain Name}",
-      "paged": "false"
+      "paged": "false",
+      "description": "One sending domain by name, with its verification and authentication state."
     }
   ]
 }

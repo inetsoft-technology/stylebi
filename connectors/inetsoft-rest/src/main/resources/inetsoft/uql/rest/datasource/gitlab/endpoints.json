@@ -3,137 +3,164 @@
     {
       "paged": "true",
       "name": "Group Access Requests",
-      "suffix": "/v4/groups/{Group ID}/access_requests"
+      "suffix": "/v4/groups/{Group ID}/access_requests",
+      "description": "Pending requests to join one group, with who asked and when. Requires a group id. Use for outstanding onboarding; granted requests become memberships and leave this table."
     },
     {
       "paged": "true",
       "name": "Project Access Requests",
-      "suffix": "/v4/projects/{Project ID}/access_requests"
+      "suffix": "/v4/projects/{Project ID}/access_requests",
+      "description": "Pending requests to join one project. Requires a project id."
     },
     {
       "paged": "false",
       "name": "Appearance Configuration",
-      "suffix": "/v4/application/appearance"
+      "suffix": "/v4/application/appearance",
+      "description": "The instance's branding: logos, title, description and sign-in text. Administrator only. Presentation configuration."
     },
     {
       "paged": "true",
       "name": "Applications",
-      "suffix": "/v4/applications"
+      "suffix": "/v4/applications",
+      "description": "The OAuth applications registered on the instance, with name, redirect uri and scopes. Administrator only. Integration and security inventory -- secrets are not returned."
     },
     {
       "paged": "false",
       "name": "Avatar",
-      "suffix": "/v4/avatar?email={Email:admin@example.com}&size={Size?}"
+      "suffix": "/v4/avatar?email={Email:admin@example.com}&size={Size?}",
+      "description": "The avatar URL for a given email address. A single lookup, not a table."
     },
     {
       "paged": "true",
       "name": "Issue Award Emojis",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/award_emoji"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/award_emoji",
+      "description": "The emoji reactions on one issue, with the reaction name and who gave it. Requires the project id and issue IID. Issues already carries the totals as upvotes and downvotes; this is the per-reaction detail. Reaction counts are the usual stand-in for demand when prioritising a backlog."
     },
     {
       "paged": "true",
       "name": "Merge Request Award Emojis",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/award_emoji"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/award_emoji",
+      "description": "The emoji reactions left on one merge request, one row per reaction with its name and who gave it. Requires the project id and merge request IID. Merge Requests already carries the upvote and downvote totals -- come here only when the individual reactions or the reactors matter."
     },
     {
       "paged": "true",
       "name": "Snippet Award Emojis",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/award_emoji"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/award_emoji",
+      "description": "The emoji reactions on one project snippet. Requires the project id and snippet id."
     },
     {
       "paged": "false",
       "name": "Issue Award Emoji",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/award_emoji/{Award ID}"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/award_emoji/{Award ID}",
+      "description": "A single reaction on an issue. Requires the award id as well."
     },
     {
       "paged": "false",
       "name": "Merge Request Award Emoji",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/award_emoji/{Award ID}"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/award_emoji/{Award ID}",
+      "description": "A single reaction on a merge request. Requires the award id as well."
     },
     {
       "paged": "false",
       "name": "Snippet Award Emoji",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/award_emoji/{Award ID}"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/award_emoji/{Award ID}",
+      "description": "A single reaction on a snippet. Requires the award id as well."
     },
     {
       "paged": "true",
       "name": "Comment Award Emojis",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}/award_emoji"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}/award_emoji",
+      "description": "The emoji reactions on one comment of an issue. Requires the project id, issue IID and note id."
     },
     {
       "paged": "false",
       "name": "Comment Award Emoji",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}/award_emoji/{Award ID}"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}/award_emoji/{Award ID}",
+      "description": "A single reaction on an issue comment. Requires the award id as well."
     },
     {
       "paged": "true",
       "name": "Project Badges",
-      "suffix": "/v4/projects/{Project ID}/badges?name={Badge Name?}"
+      "suffix": "/v4/projects/{Project ID}/badges?name={Badge Name?}",
+      "description": "The badges shown on one project's overview -- pipeline status, coverage and the like -- with their link and image urls. Requires a project id. Group badges are included. Presentation configuration."
     },
     {
       "paged": "false",
       "name": "Project Badge",
-      "suffix": "/v4/projects/{Project ID}/badges/{Badge ID}"
+      "suffix": "/v4/projects/{Project ID}/badges/{Badge ID}",
+      "description": "A single project badge by id."
     },
     {
       "paged": "false",
       "name": "Project Badge Preview",
-      "suffix": "/v4/projects/{Project ID}/badges/render?link_url={Link URL:URL of the badge link}&image_url={Image URL:URL of the badge image}"
+      "suffix": "/v4/projects/{Project ID}/badges/render?link_url={Link URL:URL of the badge link}&image_url={Image URL:URL of the badge image}",
+      "description": "Resolves the placeholders in a badge's urls for one project and returns what they expand to. A rendering helper, not a data endpoint."
     },
     {
       "paged": "true",
       "name": "Group Badges",
-      "suffix": "/v4/groups/{Group ID}/badges?name={Badge Name?}"
+      "suffix": "/v4/groups/{Group ID}/badges?name={Badge Name?}",
+      "description": "The badges defined on one group and inherited by its projects. Requires a group id."
     },
     {
       "paged": "false",
       "name": "Group Badge",
-      "suffix": "/v4/groups/{Group ID}/badges/{Badge ID}"
+      "suffix": "/v4/groups/{Group ID}/badges/{Badge ID}",
+      "description": "A single group badge by id."
     },
     {
       "paged": "false",
       "name": "Group Badge Preview",
-      "suffix": "/v4/groups/{Group ID}/badges/render?link_url={Link URL:URL of the badge link}&image_url={Image URL:URL of the badge image}"
+      "suffix": "/v4/groups/{Group ID}/badges/render?link_url={Link URL:URL of the badge link}&image_url={Image URL:URL of the badge image}",
+      "description": "Resolves a badge's url placeholders for one group. A rendering helper."
     },
     {
       "paged": "true",
       "name": "Repository Branches",
-      "suffix": "/v4/projects/{Project ID}/repository/branches?search={Search Query?}"
+      "suffix": "/v4/projects/{Project ID}/repository/branches?search={Search Query?}",
+      "description": "The branches of one project, one row each. Requires a project id. Carries the name, whether it is the default, whether it is merged, protection flags, and the tip commit with its author and date. The tip commit's date is the usual basis for finding stale branches."
     },
     {
       "paged": "false",
       "name": "Repository Branch",
-      "suffix": "/v4/projects/{Project ID}/repository/branches/{Branch Name}"
+      "suffix": "/v4/projects/{Project ID}/repository/branches/{Branch Name}",
+      "description": "A single branch by name. Requires the project id. Same fields as Repository Branches."
     },
     {
       "paged": "true",
       "name": "Broadcast Messages",
-      "suffix": "/v4/broadcast_messages"
+      "suffix": "/v4/broadcast_messages",
+      "description": "The banner announcements shown across the instance, with message text, colour, the period each is displayed for and its target. Administrative announcements, not user content."
     },
     {
       "paged": "false",
       "name": "Broadcast Message",
-      "suffix": "/v4/broadcast_messages/{Message ID}"
+      "suffix": "/v4/broadcast_messages/{Message ID}",
+      "description": "A single broadcast message by id."
     },
     {
       "paged": "true",
       "name": "Project Clusters",
-      "suffix": "/v4/projects/{Project ID}/clusters"
+      "suffix": "/v4/projects/{Project ID}/clusters",
+      "description": "The Kubernetes clusters connected to one project, with name, provider, platform and the environment scope each serves. Requires a project id. Deployment infrastructure configuration; the deployments that went to them are in Project Deployments."
     },
     {
       "paged": "false",
       "name": "Project Cluster",
-      "suffix": "/v4/projects/{Project ID}/clusters/{Cluster ID}"
+      "suffix": "/v4/projects/{Project ID}/clusters/{Cluster ID}",
+      "description": "A single project cluster by id."
     },
     {
       "paged": "true",
       "name": "Group Clusters",
-      "suffix": "/v4/groups/{Group ID}/clusters"
+      "suffix": "/v4/groups/{Group ID}/clusters",
+      "description": "The Kubernetes clusters connected to one group, shared by its projects. Requires a group id."
     },
     {
       "paged": "false",
       "name": "Group Cluster",
-      "suffix": "/v4/groups/{Group ID}/clusters/{Cluster ID}"
+      "suffix": "/v4/groups/{Group ID}/clusters/{Cluster ID}",
+      "description": "A single group cluster by id."
     },
     {
       "paged": "true",
@@ -160,42 +187,50 @@
           "key": "id",
           "parameterName": "Commit ID"
         }
-      ]
+      ],
+      "description": "The commit history of one project's repository, one row each. Requires a project id. Carries the sha, title and full message, author_name and author_email with authored_date, committer_name and committer_email with committed_date, and parent_ids. TWO traps worth knowing. First, the default is the default branch only -- pass all=true for every branch, or a total commit count will be short. Second, author_email comes from the committer's local git config and is NOT a GitLab user id: one person may appear under several addresses, and these values do not join reliably to Users. Pass with_stats=true to add per-commit additions, deletions and total, which are otherwise absent. Filter by date with since and until."
     },
     {
       "paged": "false",
       "name": "Single Commit",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}?stats={Include Commit Stats?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}?stats={Include Commit Stats?:true|false}",
+      "description": "One commit by its sha, or by a branch or tag name. Requires the project id. Same fields as Repository Commits, plus the parent commits and, with stats=true, its line counts."
     },
     {
       "paged": "true",
       "name": "References a Commit is Pushed To",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/refs?type={Type?:branch|tag|all}"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/refs?type={Type?:branch|tag|all}",
+      "description": "The branches and tags that contain one commit. Requires the project id and commit sha. Use it to answer whether a fix has reached a release branch."
     },
     {
       "paged": "true",
       "name": "Commit Diff",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/diff"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/diff",
+      "description": "The diff of one commit, file by file with patch text. Requires the project id and commit sha. Source text rather than tabular data -- for the size of a commit prefer the stats on Repository Commits."
     },
     {
       "paged": "true",
       "name": "Commit Comments",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/comments"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/comments",
+      "description": "The comments left on one commit. Requires the project id and commit sha. Comments made in a merge request review live on the merge request, not here, so this is usually sparse."
     },
     {
       "paged": "true",
       "name": "Commit Statuses",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/statuses?ref={Ref?:Repository branch or tag}&stage={Build Stage?:test}&name={Job Name?:bundler:audit}&all={All?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/statuses?ref={Ref?:Repository branch or tag}&stage={Build Stage?:test}&name={Job Name?:bundler:audit}&all={All?:true|false}",
+      "description": "The external status checks reported against one commit -- each with name, stage, status, description and target url. Requires the project id and commit sha. These come from systems outside GitLab CI; GitLab's own results are in Pipeline Jobs."
     },
     {
       "paged": "true",
       "name": "Commit Merge Requests",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/merge_requests"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/merge_requests",
+      "description": "The merge requests a given commit belongs to. Requires the project id and the commit SHA. The reverse of Merge Request Commits: use it to attribute a commit found in the repository history back to its review."
     },
     {
       "paged": "false",
       "name": "Commit GPG Signature",
-      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/signature"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/signature",
+      "description": "The cryptographic signature of one commit and whether it verifies. Requires the project id and commit sha. Returns 404 for unsigned commits, so absence is the common case and not an error to report as one. Use for commit-signing compliance."
     },
     {
       "paged": "true",
@@ -208,132 +243,158 @@
           "key": "id",
           "parameterName": "Repository ID"
         }
-      ]
+      ],
+      "description": "The container image repositories of one project. Requires a project id. Carries the repository name, path, location and created_at. The images themselves are tags -- this is only the repository level, and it holds no size figures."
     },
     {
       "paged": "true",
       "name": "Group Registry Repositories",
-      "suffix": "/v4/groups/{Group ID}/registry/repositories?tags={Tags?}"
+      "suffix": "/v4/groups/{Group ID}/registry/repositories?tags={Tags?}",
+      "description": "The container image repositories across one group. Requires a group id. Same fields, with the project each belongs to."
     },
     {
       "paged": "true",
       "name": "Project Registry Repository Tags",
-      "suffix": "/v4/projects/{Project ID}/registry/repositories/{Repository ID}/tags"
+      "suffix": "/v4/projects/{Project ID}/registry/repositories/{Repository ID}/tags",
+      "description": "The tags of one container repository -- the actual published images. Requires the project id and repository id. The list carries only names; size, digest, revision and created_at come from the per-tag endpoint, one request each. Registry storage questions therefore cost one call per image."
     },
     {
       "paged": "false",
       "name": "Project Registry Repository Tag",
-      "suffix": "/v4/projects/{Project ID}/registry/repositories/{Repository ID}/tags/{Tag Name}"
+      "suffix": "/v4/projects/{Project ID}/registry/repositories/{Repository ID}/tags/{Tag Name}",
+      "description": "A single container image tag, with its digest, revision, total_size and created_at. Requires the project id, repository id and tag name."
     },
     {
       "paged": "true",
       "name": "User Custom Attributes",
-      "suffix": "/v4/users/{User ID}/custom_attributes"
+      "suffix": "/v4/users/{User ID}/custom_attributes",
+      "description": "Arbitrary key-value attributes an administrator has set on one user. Requires a user id; administrator only. GitLab defines no meaning for these -- organisations use them to carry things GitLab has no field for, such as employee id, cost centre or team. Worth checking before concluding that some organisational dimension is unavailable."
     },
     {
       "paged": "true",
       "name": "Group Custom Attributes",
-      "suffix": "/v4/groups/{Group ID}/custom_attributes"
+      "suffix": "/v4/groups/{Group ID}/custom_attributes",
+      "description": "Key-value attributes set on one group. Requires a group id; administrator only. Same use as user custom attributes."
     },
     {
       "paged": "true",
       "name": "Project Custom Attributes",
-      "suffix": "/v4/projects/{Project ID}/custom_attributes"
+      "suffix": "/v4/projects/{Project ID}/custom_attributes",
+      "description": "Key-value attributes set on one project. Requires a project id; administrator only. Often where a cost centre, product line or ownership tag is kept when GitLab has no native field for it."
     },
     {
       "paged": "false",
       "name": "User Custom Attribute",
-      "suffix": "/v4/users/{User ID}/custom_attributes/{Attribute Key}"
+      "suffix": "/v4/users/{User ID}/custom_attributes/{Attribute Key}",
+      "description": "One custom attribute of a user, by its key. Requires the user id as well."
     },
     {
       "paged": "false",
       "name": "Group Custom Attribute",
-      "suffix": "/v4/groups/{Group ID}/custom_attributes/{Attribute Key}"
+      "suffix": "/v4/groups/{Group ID}/custom_attributes/{Attribute Key}",
+      "description": "One custom attribute of a group, by its key."
     },
     {
       "paged": "false",
       "name": "Project Custom Attribute",
-      "suffix": "/v4/projects/{Project ID}/custom_attributes/{Attribute Key}"
+      "suffix": "/v4/projects/{Project ID}/custom_attributes/{Attribute Key}",
+      "description": "One custom attribute of a project, by its key."
     },
     {
       "paged": "true",
       "name": "Project Dependencies",
-      "suffix": "/v4/projects/{Project ID}/dependencies?package_manager={Package Manager?:bundler,composer,maven,...}"
+      "suffix": "/v4/projects/{Project ID}/dependencies?package_manager={Package Manager?:bundler,composer,maven,...}",
+      "description": "The third-party dependencies detected in one project, one row each: name, version, package manager, the file they were declared in, and any known vulnerabilities. Requires a project id. An Ultimate feature backed by dependency scanning -- it is populated by pipeline scans, so a project that has never run one returns nothing, which is not the same as having no dependencies. Filter by package_manager."
     },
     {
       "paged": "true",
       "name": "Deploy Keys",
-      "suffix": "/v4/deploy_keys"
+      "suffix": "/v4/deploy_keys",
+      "description": "Every deploy key registered on the instance, with the projects each is used by. Administrator only. Deploy keys grant repository access without belonging to a user, so this is where access that no user list will show up in is found."
     },
     {
       "paged": "true",
       "name": "Project Deploy Keys",
-      "suffix": "/v4/projects/{Project ID}/deploy_keys"
+      "suffix": "/v4/projects/{Project ID}/deploy_keys",
+      "description": "The deploy keys enabled on one project, with title, fingerprint, whether write access is granted, and created_at. Requires a project id. Access-review material."
     },
     {
       "paged": "false",
       "name": "Project Deploy Key",
-      "suffix": "/v4/projects/{Project ID}/deploy_keys/{Key ID}"
+      "suffix": "/v4/projects/{Project ID}/deploy_keys/{Key ID}",
+      "description": "A single deploy key of a project. Requires the key id as well."
     },
     {
       "paged": "true",
       "name": "Project Deployments",
-      "suffix": "/v4/projects/{Project ID}/deployments?updated_after={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&updated_before={Updated Before?:YYYY-MM-DDTHH:MM:SSZ}&environment={Environment?}&status={Status?:created|running|success|...}"
+      "suffix": "/v4/projects/{Project ID}/deployments?updated_after={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&updated_before={Updated Before?:YYYY-MM-DDTHH:MM:SSZ}&environment={Environment?}&status={Status?:created|running|success|...}",
+      "description": "The deployments of one project, one row each. Requires a project id. Carries id, iid, ref, sha, status (created, running, success, failed, canceled), the environment deployed to, the user, the job that performed it, and created_at and updated_at. This is the table for deployment frequency and change-failure rate -- filter to status=success before counting, since failed attempts are rows here too. Filter by date with updated_after and updated_before."
     },
     {
       "paged": "false",
       "name": "Project Deployment",
-      "suffix": "/v4/projects/{Project ID}/deployments/{Deployment ID}"
+      "suffix": "/v4/projects/{Project ID}/deployments/{Deployment ID}",
+      "description": "A single deployment. Requires the project id and deployment id. Same fields as Project Deployments, plus the full job that ran it."
     },
     {
       "paged": "true",
       "name": "Project Issue Discussion Items",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/discussions"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/discussions",
+      "description": "The comments on one issue grouped into threads, with replies and resolution state. Requires the project id and issue IID. Notes returns the same comments flat."
     },
     {
       "paged": "false",
       "name": "Project Issue Discussion Item",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/discussions/{Discussion ID}"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/discussions/{Discussion ID}",
+      "description": "A single discussion thread on an issue. Requires the discussion id as well."
     },
     {
       "paged": "true",
       "name": "Project Snippet Discussion Items",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/discussions"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/discussions",
+      "description": "The comments on one snippet grouped into threads. Requires the project id and snippet id."
     },
     {
       "paged": "false",
       "name": "Project Snippet Discussion Item",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/discussions/{Discussion ID}"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/discussions/{Discussion ID}",
+      "description": "A single discussion thread on a snippet. Requires the discussion id as well."
     },
     {
       "paged": "true",
       "name": "Group Epic Discussion Items",
-      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/discussions"
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/discussions",
+      "description": "The comments on one epic grouped into threads. Requires the group id and epic id. The threaded view of Epic Notes."
     },
     {
       "paged": "false",
       "name": "Group Epic Discussion Item",
-      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/discussions/{Discussion ID}"
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/discussions/{Discussion ID}",
+      "description": "A single discussion thread on an epic. Requires the discussion id as well."
     },
     {
       "paged": "true",
       "name": "Project Merge Request Discussion Items",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/discussions"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/discussions",
+      "description": "The comments on one merge request grouped into threads, with each thread's replies and whether it is resolved. Requires the project id and merge request IID. Notes returns the same comments flat; come here when the threading matters -- unresolved threads are the usual measure of review still outstanding, and code-review threads carry the file and line they were left on."
     },
     {
       "paged": "false",
       "name": "Project Merge Request Discussion Item",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/discussions/{Discussion ID}"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/discussions/{Discussion ID}",
+      "description": "A single discussion thread on a merge request. Requires the discussion id as well."
     },
     {
       "paged": "true",
       "name": "Project Commit Discussion Items",
-      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions"
+      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions",
+      "description": "The comments on one commit grouped into threads. Requires the project id and commit id. The threaded view of Commit Comments."
     },
     {
       "paged": "false",
       "name": "Project Commit Discussion Item",
-      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions/{Discussion ID}"
+      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions/{Discussion ID}",
+      "description": "A single discussion thread on a commit. Requires the discussion id as well."
     },
     {
       "paged": "true",
@@ -346,12 +407,14 @@
           "key": "key",
           "parameterName": "Template Key"
         }
-      ]
+      ],
+      "description": "The Dockerfile templates GitLab offers when adding a Dockerfile to a project. Reference content shipped with GitLab, the same on every instance."
     },
     {
       "paged": "false",
       "name": "Dockerfile Template",
-      "suffix": "/v4/templates/dockerfiles/{Template Key}"
+      "suffix": "/v4/templates/dockerfiles/{Template Key}",
+      "description": "One Dockerfile template by key, with its full text."
     },
     {
       "paged": "true",
@@ -364,12 +427,14 @@
           "key": "id",
           "parameterName": "Environment ID"
         }
-      ]
+      ],
+      "description": "The deployment targets of one project -- production, staging and the rest -- with name, slug, external_url, tier, state (available or stopped) and the last deployment to each. Requires a project id. Small dimension table; join deployments to it to separate production from everything else, which most delivery metrics depend on."
     },
     {
       "paged": "false",
       "name": "Environment",
-      "suffix": "/v4/projects/{Project ID}/environments/{Environment ID}"
+      "suffix": "/v4/projects/{Project ID}/environments/{Environment ID}",
+      "description": "A single environment. Requires the project id and environment id. Same fields, plus the last deployment in more detail."
     },
     {
       "paged": "true",
@@ -395,57 +460,68 @@
           "key": "iid",
           "parameterName": "Epic IID"
         }
-      ]
+      ],
+      "description": "The epics of one group, one row each -- the planning level above issues, spanning projects. Requires a group id. Carries iid, title, description, state (opened or closed), author, labels, start_date and due_date, created_at, updated_at and closed_at, confidential, and parent_id where epics are nested. A Premium/Ultimate feature: on a Free instance this returns nothing, which is a licensing fact and not an empty backlog. Roll-up progress comes from Epic Issues, not from a column here."
     },
     {
       "paged": "false",
       "name": "Group Epic",
-      "suffix": "/v4/groups/{Group ID}/epics/{Epic IID}"
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic IID}",
+      "description": "A single epic. Requires the group id and the epic IID -- the per-group number, not the global id. Same fields as Group Epics."
     },
     {
       "paged": "true",
       "name": "User Events",
-      "suffix": "/v4/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}&scope={Scope?}"
+      "suffix": "/v4/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}&scope={Scope?}",
+      "description": "The activity feed of the authenticated user: what they did, to what, and when -- with action_name, target_type, target_title and created_at. TWO limitations that decide whether this table can be used at all. It does NOT include merge request or epic events, so it is not a complete activity record. And a push of many commits is collapsed into a single bulk event past the activity limit, so commit counts taken from here are undercounts. For commits use Repository Commits; for reviews use the merge request tables."
     },
     {
       "paged": "true",
       "name": "User Contribution Events",
-      "suffix": "/v4/users/{User ID}/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}"
+      "suffix": "/v4/users/{User ID}/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}",
+      "description": "The same activity feed for one named user rather than the caller. Requires a user id. Same two limitations: no merge request or epic events, and bulk push collapsing. The usual table for per-person activity over a period, with those caveats stated."
     },
     {
       "paged": "true",
       "name": "Project's Visible Events",
-      "suffix": "/v4/projects/{Project ID}/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}"
+      "suffix": "/v4/projects/{Project ID}/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}",
+      "description": "The activity feed of one project, across all users. Requires a project id. Same shape and the same bulk-push caveat. Use it for a project timeline; for anything counted precisely, go to the resource tables instead."
     },
     {
       "paged": "true",
       "name": "Features",
-      "suffix": "/v4/features"
+      "suffix": "/v4/features",
+      "description": "The feature flags set on the instance, with each flag's state and any gates limiting it to particular users, groups or projects. Administrator only. Explains why a documented capability is or is not available on this instance."
     },
     {
       "paged": "true",
       "name": "Geo Nodes",
-      "suffix": "/v4/geo_nodes"
+      "suffix": "/v4/geo_nodes",
+      "description": "The Geo replication nodes configured for the instance, with each node's url, whether it is primary, and what it is allowed to replicate. Administrator only, and only on instances running Geo. Configuration; the health of replication is in Geo Node Statuses."
     },
     {
       "paged": "false",
       "name": "Geo Node",
-      "suffix": "/v4/geo_nodes/{Geo Node ID}"
+      "suffix": "/v4/geo_nodes/{Geo Node ID}",
+      "description": "A single Geo node by id."
     },
     {
       "paged": "true",
       "name": "Geo Node Statuses",
-      "suffix": "/v4/geo_nodes/status"
+      "suffix": "/v4/geo_nodes/status",
+      "description": "Live replication health for every Geo node: how many repositories, wikis and attachments are synced, failed or still pending, plus verification counts and the lag behind the primary. Administrator only. Operational data rather than configuration -- this is where an out-of-date secondary shows up."
     },
     {
       "paged": "false",
       "name": "Geo Node Status",
-      "suffix": "/v4/geo_nodes/{Geo Node ID}/status"
+      "suffix": "/v4/geo_nodes/{Geo Node ID}/status",
+      "description": "The same replication health figures for one Geo node. Requires a node id."
     },
     {
       "paged": "true",
       "name": "Geo Node Failures",
-      "suffix": "/v4/geo_nodes/current/failures?type={Type?:repository|wiki}&failure_type={Failure Type?:sync|checksum_mismatch|verification}"
+      "suffix": "/v4/geo_nodes/current/failures?type={Type?:repository|wiki}&failure_type={Failure Type?:sync|checksum_mismatch|verification}",
+      "description": "The individual items that failed to sync or verify on the current Geo node, with what failed and why. Administrator only. Filter by type and failure_type. The detail behind the failure counts in Geo Node Statuses."
     },
     {
       "paged": "true",
@@ -480,7 +556,8 @@
           "key": "id",
           "parameterName": "Group ID"
         }
-      ]
+      ],
+      "description": "The groups visible to the caller, one row each -- the organisational unit projects and members hang off. Carries id, name, path, full_path, description, visibility, parent_id and created_at. parent_id is what makes the hierarchy: a group with a parent is a subgroup. Pass statistics=true for storage figures, which requires elevated permission."
     },
     {
       "paged": "true",
@@ -515,7 +592,8 @@
           "key": "id",
           "parameterName": "Group ID"
         }
-      ]
+      ],
+      "description": "The DIRECT children of one group. Requires a group id. Same fields as Groups. Only one level down -- a deep hierarchy has to be walked, or read from parent_id across the full Groups list."
     },
     {
       "paged": "true",
@@ -587,72 +665,86 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "The projects inside one group. Requires a group id. Same fields as Projects. NOTE that subgroup projects are excluded by default -- pass include_subgroups=true, or a group-wide count will be short wherever teams nest their groups."
     },
     {
       "paged": "false",
       "name": "Group",
-      "suffix": "/v4/groups/{Group ID}?with_custom_attributes={With Custom Attributes?:true|false}&with_projects={With Projects?:true|false}"
+      "suffix": "/v4/groups/{Group ID}?with_custom_attributes={With Custom Attributes?:true|false}&with_projects={With Projects?:true|false}",
+      "description": "A single group by id or path. Same fields as Groups, and by default it also returns the group's projects."
     },
     {
       "paged": "true",
       "name": "Search for Group",
-      "suffix": "/v4/groups?search={Search Query}"
+      "suffix": "/v4/groups?search={Search Query}",
+      "description": "Groups matching a search term. The same endpoint and fields as Groups with the search parameter filled in; use it when the group is known by name rather than by id."
     },
     {
       "paged": "true",
       "name": "Group Hooks",
-      "suffix": "/v4/groups/{Group ID}/hooks"
+      "suffix": "/v4/groups/{Group ID}/hooks",
+      "description": "The webhooks configured on one group, firing for every project beneath it. Requires a group id."
     },
     {
       "paged": "false",
       "name": "Group Hook",
-      "suffix": "/v4/groups/{Group ID}/hooks/{Hook ID}"
+      "suffix": "/v4/groups/{Group ID}/hooks/{Hook ID}",
+      "description": "A single group webhook by id. Requires the group id."
     },
     {
       "paged": "true",
       "name": "Project Issue Boards",
-      "suffix": "/v4/projects/{Project ID}/boards"
+      "suffix": "/v4/projects/{Project ID}/boards",
+      "description": "The kanban boards of one project. Requires a project id. Each board carries its name and the milestone, labels or assignee it is scoped to. The board itself holds no issues -- its columns are Project Issue Board Lists."
     },
     {
       "paged": "false",
       "name": "Project Issue Board",
-      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}"
+      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}",
+      "description": "A single board. Requires the project id and board id. Same fields, with its lists included."
     },
     {
       "paged": "true",
       "name": "Project Issue Board Lists",
-      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}/lists"
+      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}/lists",
+      "description": "The columns of one board, in order, each with the label, milestone or assignee it represents. Requires the project id and board id. This is where a team's workflow stages are actually written down -- pair it with Project Issue Label Events to measure how long issues spent in each stage, which neither table can answer alone."
     },
     {
       "paged": "false",
       "name": "Project Issue Board List",
-      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}/lists/{List ID}"
+      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}/lists/{List ID}",
+      "description": "A single board column. Requires the list id as well."
     },
     {
       "paged": "true",
       "name": "Group Issue Boards",
-      "suffix": "/v4/groups/{Group ID}/boards"
+      "suffix": "/v4/groups/{Group ID}/boards",
+      "description": "The kanban boards defined at group level, spanning the projects beneath. Requires a group id."
     },
     {
       "paged": "false",
       "name": "Group Issue Board",
-      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}"
+      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}",
+      "description": "A single group board. Requires the group id and board id."
     },
     {
       "paged": "true",
       "name": "Group Issue Board Lists",
-      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}/lists"
+      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}/lists",
+      "description": "The columns of one group board. Requires the group id and board id. Same use as the project version."
     },
     {
       "paged": "false",
       "name": "Group Issue Board List",
-      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}/lists/{List ID}"
+      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}/lists/{List ID}",
+      "description": "A single column of a group board. Requires the list id as well."
     },
     {
       "paged": "true",
       "name": "Issues",
-      "suffix": "/v4/issues?state={State?:opened|closed}&labels={Labels?:label1,label2,...}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+      "suffix": "/v4/issues?state={State?:opened|closed}&labels={Labels?:label1,label2,...}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}",
+      "description": "Issues visible to the authenticated user, one row each. Carries title, description, state (opened or closed), created_at, updated_at and closed_at, author, assignees, labels, milestone, due_date, weight, confidential, issue type, and the running user_notes_count, upvotes and downvotes. The table for backlog, throughput and ageing questions. NOTE the default scope: without scope=all this returns only issues created by the caller."
     },
     {
       "paged": "true",
@@ -680,7 +772,8 @@
             "Project ID": "$.project_id"
           }
         }
-      ]
+      ],
+      "description": "The issues of one group and its subgroups. Requires a group id. Same fields as Issues. Use for a cross-project backlog; project_id preserves the per-project split."
     },
     {
       "paged": "true",
@@ -705,17 +798,20 @@
           "key": "iid",
           "parameterName": "Issue IID"
         }
-      ]
+      ],
+      "description": "The issues of one project. Requires a project id. Same fields as Issues, and scoped rather than defaulting to the caller -- the usual table for per-repository backlog analysis."
     },
     {
       "paged": "false",
       "name": "Project Issue",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}",
+      "description": "A single issue. Requires the project id and the issue IID -- the per-project number in the URL and in '#123', NOT the global id column. Confidential issues need credentials that can see them."
     },
     {
       "paged": "false",
       "name": "Time Tracking Stats",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/time_stats"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/time_stats",
+      "description": "The time estimate and time spent on one issue, in seconds and human-readable form. Requires the project id and issue IID. Hand-entered figures rather than measured time."
     },
     {
       "paged": "true",
@@ -743,7 +839,8 @@
           "key": "id",
           "parameterName": "Merge Request IID"
         }
-      ]
+      ],
+      "description": "Every merge request mentioning or linked to one issue, whether or not it closes it. Requires the project id and issue IID. Broader than Merge Requests That Close Issue."
     },
     {
       "paged": "true",
@@ -771,7 +868,8 @@
           "key": "id",
           "parameterName": "Merge Request IID"
         }
-      ]
+      ],
+      "description": "Only the merge requests that close one issue when merged. Requires the project id and issue IID. Use it to pair an issue's closure with the change that delivered it -- the basis of any lead-time measure spanning request to release."
     },
     {
       "paged": "true",
@@ -805,12 +903,14 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "Everyone involved in one issue -- author, assignees and anyone who commented. Requires the project id and issue IID. Wider than the assignee column."
     },
     {
       "paged": "false",
       "name": "User Agent Details",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/user_agent_detail"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/user_agent_detail",
+      "description": "The browser and IP recorded when one issue was submitted. Requires the project id and issue IID. Abuse-report metadata, admin-only, of no analytical use."
     },
     {
       "paged": "true",
@@ -835,87 +935,104 @@
           "key": "iid",
           "parameterName": "Issue IID"
         }
-      ]
+      ],
+      "description": "The issues assigned to one epic. Requires the group id and epic IID. The link between an epic and the work that makes it up; roll-up progress is counted from these rows."
     },
     {
       "paged": "true",
       "name": "Issues Statistics",
-      "suffix": "/v4/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+      "suffix": "/v4/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}",
+      "description": "Pre-computed counts of the caller's issues: opened, closed and all, honouring whatever filters are passed. One record of totals, not issue rows. Far cheaper than paging every issue when only a count is wanted -- but it returns ONLY counts, so any breakdown by assignee, label or date needs the issue tables themselves."
     },
     {
       "paged": "true",
       "name": "Group Issues Statistics",
-      "suffix": "/v4/groups/{Group ID}/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+      "suffix": "/v4/groups/{Group ID}/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}",
+      "description": "The same opened, closed and all counts for one group. Requires a group id."
     },
     {
       "paged": "true",
       "name": "Project Issues Statistics",
-      "suffix": "/v4/projects/{Project ID}/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+      "suffix": "/v4/projects/{Project ID}/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}",
+      "description": "The same opened, closed and all counts for one project. Requires a project id."
     },
     {
       "paged": "true",
       "name": "Project Jobs",
-      "suffix": "/v4/projects/{Project ID}/jobs?scope={Scope?:created|pending|...}"
+      "suffix": "/v4/projects/{Project ID}/jobs?scope={Scope?:created|pending|...}",
+      "description": "Every CI job in one project, across all pipelines. Requires a project id. Same fields as Pipeline Jobs. Use it for failure rates and durations by job name or stage over time; filter with scope to a status. Large in an active project -- paged 20 at a time by default."
     },
     {
       "paged": "true",
       "name": "Pipeline Jobs",
-      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}/jobs?scope={Scope?:created|pending|...}"
+      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}/jobs?scope={Scope?:created|pending|...}",
+      "description": "The jobs of one pipeline, one row each. Requires the project id and pipeline id. Unlike the pipeline list, jobs DO carry timings in the list: status, stage, name, created_at, started_at, finished_at, duration and queued_duration in seconds, the runner that took the job, coverage and artifacts. This is the finest-grained CI table and usually the right one for where time goes and what fails."
     },
     {
       "paged": "false",
       "name": "Project Job",
-      "suffix": "/v4/projects/{Project ID}/jobs/{Job ID}"
+      "suffix": "/v4/projects/{Project ID}/jobs/{Job ID}",
+      "description": "A single job by its id. Requires the project id. Same fields as Project Jobs."
     },
     {
       "paged": "false",
       "name": "SSH Key by ID",
-      "suffix": "/v4/keys/{Key ID}"
+      "suffix": "/v4/keys/{Key ID}",
+      "description": "The user who owns a given SSH key id. Administrator only. An identity lookup, from key to person."
     },
     {
       "paged": "false",
       "name": "SSH Key by Fingerprint",
-      "suffix": "/v4/keys?fingerprint={Fingerprint:Fingerprint of an SSH key}"
+      "suffix": "/v4/keys?fingerprint={Fingerprint:Fingerprint of an SSH key}",
+      "description": "The user who owns a given SSH key fingerprint. Administrator only. Use it to attribute an access-log fingerprint back to a person."
     },
     {
       "paged": "true",
       "name": "Project Labels",
-      "suffix": "/v4/projects/{Project ID}/labels?with_counts={With Counts?:true|false}&include_ancestor_groups={Include Ancestor Groups?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/labels?with_counts={With Counts?:true|false}&include_ancestor_groups={Include Ancestor Groups?:true|false}",
+      "description": "The labels defined on one project, one row each, with name, colour, description and priority. Requires a project id. Pass with_counts=true and each label additionally carries open_issues_count, closed_issues_count and open_merge_requests_count -- a ready-made aggregate that answers 'how much work carries this label' without paging a single issue. Pass include_ancestor_groups to see group labels the project can also use, which are otherwise absent."
     },
     {
       "paged": "false",
       "name": "Project Label",
-      "suffix": "/v4/projects/{Project ID}/labels/{Label ID}?include_ancestor_groups={Include Ancestor Groups?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/labels/{Label ID}?include_ancestor_groups={Include Ancestor Groups?:true|false}",
+      "description": "A single label by id or name. Requires the project id. Same fields as Project Labels."
     },
     {
       "paged": "true",
       "name": "Group Labels",
-      "suffix": "/v4/groups/{Group ID}/labels?with_counts={With Counts?:true|false}&include_ancestor_groups={Include Ancestor Groups?:true|false}"
+      "suffix": "/v4/groups/{Group ID}/labels?with_counts={With Counts?:true|false}&include_ancestor_groups={Include Ancestor Groups?:true|false}",
+      "description": "The labels defined at group level and available to every project under it. Requires a group id. Same fields and the same with_counts aggregate. Most organisations define their workflow labels here rather than per project, so this is usually the fuller table."
     },
     {
       "paged": "false",
       "name": "Group Label",
-      "suffix": "/v4/groups/{Group ID}/labels/{Label ID}?include_ancestor_groups={Include Ancestor Groups?:true|false}"
+      "suffix": "/v4/groups/{Group ID}/labels/{Label ID}?include_ancestor_groups={Include Ancestor Groups?:true|false}",
+      "description": "A single group label. Requires the group id."
     },
     {
       "paged": "false",
       "name": "License",
-      "suffix": "/v4/license"
+      "suffix": "/v4/license",
+      "description": "The GitLab licence currently active on the instance: plan, expiry date, licensed user count and how many are in use. One record, administrator only. The table for seat usage and renewal questions -- and the answer to why a Premium-only endpoint returns nothing."
     },
     {
       "paged": "true",
       "name": "Licenses",
-      "suffix": "/v4/licenses"
+      "suffix": "/v4/licenses",
+      "description": "The history of licences uploaded to the instance, one row each, not just the active one. Administrator only. NOT to be confused with License Templates, which are open-source licence texts and have nothing to do with GitLab licensing."
     },
     {
       "paged": "true",
       "name": "License Templates",
-      "suffix": "/v4/templates/licenses?popular={Popular?:true|false}"
+      "suffix": "/v4/templates/licenses?popular={Popular?:true|false}",
+      "description": "The open-source licence texts GitLab offers when creating a project -- MIT, Apache, GPL and the rest. Reference content, unrelated to the instance's own GitLab licence."
     },
     {
       "paged": "false",
       "name": "License Template",
-      "suffix": "/v4/templates/licenses/{Key}?project={Copyrighted Project Name?}&fullname={Full-name of copyright holder?}"
+      "suffix": "/v4/templates/licenses/{Key}?project={Copyrighted Project Name?}&fullname={Full-name of copyright holder?}",
+      "description": "One open-source licence text by key, with the copyright holder and project name interpolated."
     },
     {
       "paged": "true",
@@ -940,7 +1057,8 @@
           "key": "iid",
           "parameterName": "Issue IID"
         }
-      ]
+      ],
+      "description": "The issues linked to one issue, and how they relate -- relates to, blocks, is blocked by. Requires the project id and issue IID. Use it to find dependency chains and what is blocking delivery."
     },
     {
       "paged": "true",
@@ -966,17 +1084,20 @@
           "key": "iid",
           "parameterName": "Epic IID"
         }
-      ]
+      ],
+      "description": "The child epics of one epic. Requires the group id and epic IID. Use it to walk a planning hierarchy; Epic Issues gives the issues at the bottom of it."
     },
     {
       "paged": "true",
       "name": "Managed Licenses",
-      "suffix": "/v4/projects/{Project ID}/managed_licenses"
+      "suffix": "/v4/projects/{Project ID}/managed_licenses",
+      "description": "The software licences one project has explicitly approved or denied for its dependencies. Requires a project id. Legacy compliance configuration, superseded by scan result policies in current GitLab -- expect it to be empty on a modern instance."
     },
     {
       "paged": "false",
       "name": "Managed License",
-      "suffix": "/v4/projects/{Project ID}/managed_licenses/{Managed License ID}"
+      "suffix": "/v4/projects/{Project ID}/managed_licenses/{Managed License ID}",
+      "description": "A single managed licence entry. Requires the licence id as well."
     },
     {
       "paged": "true",
@@ -1010,7 +1131,8 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The DIRECT members of one group and the access level each holds. Requires a group id. access_level is a numeric code and needs decoding: 10 Guest, 20 Reporter, 30 Developer, 40 Maintainer, 50 Owner (5 is Minimal Access where enabled). Also carries expires_at and the membership state. CRITICAL: direct members only -- anyone who reaches this group through an ancestor group or an invited group is absent, so a team-size count taken here can be badly short. Group Members Including Inherited is the complete list."
     },
     {
       "paged": "true",
@@ -1044,7 +1166,8 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The DIRECT members of one project and their access levels. Requires a project id. Same 10/20/30/40/50 coding as Group Members, and the same limitation: members who reach the project through its group are not listed. In most organisations access is granted at group level, so this table is frequently near-empty while the project has many real members."
     },
     {
       "paged": "true",
@@ -1078,7 +1201,8 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "Every member of one group, direct and inherited alike, including access granted through ancestor groups and group invitations. Requires a group id. Same access_level coding as Group Members. Where a user reaches the group by more than one route, the highest access level is what is reported. This is the table for who can actually see or change things."
     },
     {
       "paged": "true",
@@ -1112,57 +1236,68 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "Every member of one project, direct plus inherited from its groups and invitations. Requires a project id. The honest basis for who works on a project."
     },
     {
       "paged": "false",
       "name": "Group Member",
-      "suffix": "/v4/groups/{Group ID}/members/{User ID}"
+      "suffix": "/v4/groups/{Group ID}/members/{User ID}",
+      "description": "One direct member of a group. Requires the group id and user id. Returns nothing for a user whose access is inherited."
     },
     {
       "paged": "false",
       "name": "Project Member",
-      "suffix": "/v4/projects/{Project ID}/members/{User ID}"
+      "suffix": "/v4/projects/{Project ID}/members/{User ID}",
+      "description": "One direct member of a project. Requires the project id and user id."
     },
     {
       "paged": "false",
       "name": "Group Member Including Inherited",
-      "suffix": "/v4/groups/{Group ID}/members/all/{User ID}"
+      "suffix": "/v4/groups/{Group ID}/members/all/{User ID}",
+      "description": "One member of a group counting inherited access. Requires the group id and user id. Use this rather than Group Member when the answer must not depend on how the access was granted."
     },
     {
       "paged": "false",
       "name": "Project Member Including Inherited",
-      "suffix": "/v4/projects/{Project ID}/members/all/{User ID}"
+      "suffix": "/v4/projects/{Project ID}/members/all/{User ID}",
+      "description": "One member of a project counting inherited access. Requires the project id and user id."
     },
     {
       "paged": "false",
       "name": "Project Merge Request Approvals",
-      "suffix": "/v4/projects/{Project ID}/approvals"
+      "suffix": "/v4/projects/{Project ID}/approvals",
+      "description": "The project-wide merge request approval settings: how many approvals are required, whether approvals reset on a new push, and whether authors may approve their own work. Requires a project id. Governance configuration -- it says what the rules are, while Merge Request Approval Status says whether a given change met them."
     },
     {
       "paged": "true",
       "name": "Project Merge Request Approval Rules",
-      "suffix": "/v4/projects/{Project ID}/approval_rules"
+      "suffix": "/v4/projects/{Project ID}/approval_rules",
+      "description": "The named approval rules of one project: how many approvals each requires and which users or groups may give them. Requires a project id."
     },
     {
       "paged": "false",
       "name": "Merge Request Approval Status",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approvals"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approvals",
+      "description": "Who has approved one merge request and how many approvals are still required. Requires the project id and merge request IID. Carries every approver regardless of which rule they satisfied."
     },
     {
       "paged": "false",
       "name": "Merge Request Approval State",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approval_state"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approval_state",
+      "description": "The approval rules applying to one merge request and how far each is satisfied, including whether the rules were overridden for this merge request. Requires the project id and merge request IID. Richer than Merge Request Approval Status, which reports only the totals."
     },
     {
       "paged": "true",
       "name": "Merge Request Approval Rules",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approval_rules"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approval_rules",
+      "description": "The approval rules attached to one merge request: how many approvals each needs and which users or groups may give them. Requires the project id and merge request IID."
     },
     {
       "paged": "true",
       "name": "Merge Requests",
-      "suffix": "/v4/merge_requests?state={State?:opened|closed|...}&milestone={Milestone?:None|Any}&labels={Labels?:label1,label2,...}&author_id={Author ID?}&search={Search Query?}"
+      "suffix": "/v4/merge_requests?state={State?:opened|closed|...}&milestone={Milestone?:None|Any}&labels={Labels?:label1,label2,...}&author_id={Author ID?}&search={Search Query?}",
+      "description": "Merge requests visible to the authenticated user, one row each -- the central table for code review and delivery questions. Carries title, state (opened, closed, locked or merged), created_at, updated_at, merged_at and closed_at, source_branch and target_branch, author, assignees, reviewers, labels, milestone, draft, merge_status, and the running user_notes_count, upvotes and downvotes. Lead time, review throughput and merge rate all come from the timestamps here. NOTE the default scope: without scope=all this returns only the caller's own merge requests, which silently turns a team question into a personal one."
     },
     {
       "paged": "true",
@@ -1190,7 +1325,8 @@
           "key": "id",
           "parameterName": "Merge Request IID"
         }
-      ]
+      ],
+      "description": "The merge requests of one project. Requires a project id. Same fields as Merge Requests, but scoped rather than defaulting to the caller, so this is usually the right table for per-repository analysis."
     },
     {
       "paged": "true",
@@ -1218,12 +1354,14 @@
           "key": "id",
           "parameterName": "Merge Request IID"
         }
-      ]
+      ],
+      "description": "The merge requests of one group AND all of its subgroups. Requires a group id. Same fields as Merge Requests. Use it for an organisation-wide view without iterating projects; the project_id column keeps the per-project breakdown available."
     },
     {
       "paged": "false",
       "name": "Merge Request",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}?render_html={Render HTML?:true|false}&include_diverged_commits_count={Include Diverged Commits Count?:true|false}&include_rebase_in_progress={Include Rebase In Progess?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}?render_html={Render HTML?:true|false}&include_diverged_commits_count={Include Diverged Commits Count?:true|false}&include_rebase_in_progress={Include Rebase In Progess?:true|false}",
+      "description": "A single merge request. Requires the project id and the merge request IID -- the per-project number shown in the URL and in '!123', NOT the global id column. Returns everything the list returns plus changes_count, diff_refs and the diverged-commits count, which the list omits."
     },
     {
       "paged": "true",
@@ -1257,7 +1395,8 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "Everyone involved in one merge request -- author, assignees, reviewers and anyone who commented. Requires the project id and merge request IID. Broader than the assignee column, so it is the honest basis for who actually touched a change."
     },
     {
       "paged": "true",
@@ -1284,12 +1423,14 @@
           "key": "id",
           "parameterName": "Commit ID"
         }
-      ]
+      ],
+      "description": "The commits a merge request contains, with author, message and committed date. Requires the project id and merge request IID. Use it to size a change in commits, or to connect commit authorship back to the review that accepted it."
     },
     {
       "paged": "true",
       "name": "Merge Request Changes",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/changes"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/changes",
+      "description": "The full diff of a merge request, file by file, with the patch text of each. Requires the project id and merge request IID. This is source text, not tabular data, and a large merge request returns a very large payload -- for the size of a change prefer changes_count on Merge Request, or count rows from Merge Request Commits."
     },
     {
       "paged": "true",
@@ -1306,7 +1447,8 @@
           "key": "id",
           "parameterName": "Pipeline ID"
         }
-      ]
+      ],
+      "description": "The CI pipelines run for one merge request, with status, ref and sha. Requires the project id and merge request IID. Use it for how often a change had to be re-run before it was green."
     },
     {
       "paged": "true",
@@ -1331,7 +1473,8 @@
           "key": "iid",
           "parameterName": "Issue IID"
         }
-      ]
+      ],
+      "description": "The issues one merge request will close when it merges, taken from its 'Closes #123' references. Requires the project id and merge request IID. This is the link from delivered work back to requested work."
     },
     {
       "paged": "true",
@@ -1344,17 +1487,20 @@
           "key": "id",
           "parameterName": "Version ID"
         }
-      ]
+      ],
+      "description": "The successive diff versions of one merge request -- a new version is recorded each time the source branch is pushed to. Requires the project id and merge request IID. The row count is a direct measure of how many revisions a review demanded."
     },
     {
       "paged": "false",
       "name": "Merge Request Diff Version",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/versions/{Version ID}"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/versions/{Version ID}",
+      "description": "One diff version of a merge request, including its patch text. Requires the version id as well. Large payload, for the same reason as Merge Request Changes."
     },
     {
       "paged": "false",
       "name": "Merge Request Time Tracking Stats",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/time_stats"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/time_stats",
+      "description": "The time estimate and time spent on one merge request, in seconds and in human-readable form. Requires the project id and merge request IID. These are figures people entered by hand, not measured elapsed time -- treat them as intent, not as fact."
     },
     {
       "paged": "true",
@@ -1371,12 +1517,14 @@
           "key": "id",
           "parameterName": "Milestone ID"
         }
-      ]
+      ],
+      "description": "The milestones of one project -- the sprint or release container issues and merge requests are assigned to. Requires a project id. Carries iid, title, description, state (active or closed), start_date and due_date, created_at, updated_at and the expired flag. The dates here are the plan; what was actually delivered comes from Project Milestone Issues and Project Milestone Merge Requests."
     },
     {
       "paged": "false",
       "name": "Project Milestone",
-      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}"
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}",
+      "description": "A single milestone. Requires the project id and milestone id. Same fields as Project Milestones."
     },
     {
       "paged": "true",
@@ -1401,17 +1549,20 @@
           "key": "iid",
           "parameterName": "Issue IID"
         }
-      ]
+      ],
+      "description": "The issues assigned to one milestone. Requires the project id and milestone id. Use it for scope and completion of a planned release."
     },
     {
       "paged": "true",
       "name": "Project Milestone Merge Requests",
-      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/merge_requests"
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/merge_requests",
+      "description": "The merge requests assigned to one milestone. Requires the project id and milestone id."
     },
     {
       "paged": "true",
       "name": "Project Milestone Burndown Events",
-      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/burndown_events"
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/burndown_events",
+      "description": "The events a burndown chart is drawn from for one milestone: each issue added, closed, reopened or reweighted, with its timestamp. Requires the project id and milestone id. This is the only way to reconstruct scope over time -- the milestone itself carries just its current state, so 'how much scope was added mid-sprint' cannot be answered without it. A Premium feature."
     },
     {
       "paged": "true",
@@ -1428,12 +1579,14 @@
           "key": "id",
           "parameterName": "Milestone ID"
         }
-      ]
+      ],
+      "description": "The milestones defined at group level, usable by every project in the group. Requires a group id. Same fields as Project Milestones. A project's issues may carry either a project milestone or a group one, so a complete picture needs both tables."
     },
     {
       "paged": "false",
       "name": "Group Milestone",
-      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}"
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}",
+      "description": "A single group milestone. Requires the group id and milestone id."
     },
     {
       "paged": "true",
@@ -1458,27 +1611,32 @@
           "key": "iid",
           "parameterName": "Issue IID"
         }
-      ]
+      ],
+      "description": "The issues assigned to one group milestone, across every project in the group. Requires the group id and milestone id."
     },
     {
       "paged": "true",
       "name": "Group Milestone Merge Requests",
-      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/merge_requests"
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/merge_requests",
+      "description": "The merge requests assigned to one group milestone, across every project in the group. Requires the group id and milestone id."
     },
     {
       "paged": "true",
       "name": "Group Milestone Burndown Events",
-      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/burndown_events"
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/burndown_events",
+      "description": "The same scope-change event stream for a group milestone. Requires the group id and milestone id."
     },
     {
       "paged": "true",
       "name": "Namespaces",
-      "suffix": "/v4/namespaces?search={Search Query?}"
+      "suffix": "/v4/namespaces?search={Search Query?}",
+      "description": "Every namespace the caller can see -- both personal namespaces and groups, told apart by the kind column. Carries id, name, path, full_path and the parent. A project's path_with_namespace resolves through here. Administrators see all namespaces on the instance."
     },
     {
       "paged": "false",
       "name": "Namespace",
-      "suffix": "/v4/namespaces/{Namespace ID}"
+      "suffix": "/v4/namespaces/{Namespace ID}",
+      "description": "A single namespace by id or path. Same fields as Namespaces."
     },
     {
       "paged": "true",
@@ -1491,12 +1649,14 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The comments on one issue, with body, author and timestamps, and whether the note is a system note. Requires the project id and issue IID. As with merge request notes, system notes -- label changes, assignments, mentions -- are mixed in and usually outnumber human comments."
     },
     {
       "paged": "false",
       "name": "Project Issue Note",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}",
+      "description": "A single comment on an issue. Requires the note id as well."
     },
     {
       "paged": "true",
@@ -1509,12 +1669,14 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The comments on one project snippet. Requires the project id and snippet id."
     },
     {
       "paged": "false",
       "name": "Snippet Note",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/notes/{Note ID}"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/notes/{Note ID}",
+      "description": "A single comment on a snippet. Requires the note id as well."
     },
     {
       "paged": "true",
@@ -1527,12 +1689,14 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The comments on one merge request, one row each, with body, author, created_at and updated_at, and whether the note is a system note. Requires the project id and merge request IID. IMPORTANT: system notes -- 'assigned to X', 'marked as draft' -- are mixed in with human comments and are usually the majority; filter on the system flag before counting review discussion."
     },
     {
       "paged": "false",
       "name": "Merge Request Note",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/notes/{Note ID}"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/notes/{Note ID}",
+      "description": "A single comment on a merge request. Requires the note id as well."
     },
     {
       "paged": "true",
@@ -1545,27 +1709,32 @@
           "key": "id",
           "parameterName": "Note ID"
         }
-      ]
+      ],
+      "description": "The comments on one epic, with body, author and timestamps. Requires the group id and epic id. System notes are mixed in with human comments, as on issues and merge requests."
     },
     {
       "paged": "false",
       "name": "Epic Note",
-      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/notes/{Note ID}"
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/notes/{Note ID}",
+      "description": "A single comment on an epic. Requires the note id as well."
     },
     {
       "paged": "false",
       "name": "Notification Settings",
-      "suffix": "/v4/notification_settings"
+      "suffix": "/v4/notification_settings",
+      "description": "The caller's global notification preferences. Configuration."
     },
     {
       "paged": "false",
       "name": "Group Notification Settings",
-      "suffix": "/v4/groups/{Group ID}/notification_settings"
+      "suffix": "/v4/groups/{Group ID}/notification_settings",
+      "description": "The caller's notification preferences for one group. Requires a group id. Configuration."
     },
     {
       "paged": "false",
       "name": "Project Notification Settings",
-      "suffix": "/v4/projects/{Project ID}/notification_settings"
+      "suffix": "/v4/projects/{Project ID}/notification_settings",
+      "description": "The caller's notification preferences for one project. Requires a project id. Configuration."
     },
     {
       "paged": "true",
@@ -1581,37 +1750,44 @@
           "key": "id",
           "parameterName": "Package ID"
         }
-      ]
+      ],
+      "description": "The packages published from one project -- Maven, npm, NuGet, PyPI, Conan and the rest, all types in one list. Requires a project id. Carries name, version, package_type, created_at, status and the pipelines that produced it. The table for what a project ships and how often it releases. By default only packages with status default or deprecated are returned, so anything still being processed or in error is invisible here."
     },
     {
       "paged": "true",
       "name": "Group Packages",
-      "suffix": "/v4/groups/{Group ID}/packages?exclude_subgroups={Exclude Subgroups?:true|false}"
+      "suffix": "/v4/groups/{Group ID}/packages?exclude_subgroups={Exclude Subgroups?:true|false}",
+      "description": "The packages published from every project in one group. Requires a group id. Same fields as Project Packages, with a project_id column to split by project. Subgroups are included unless exclude_subgroups is passed."
     },
     {
       "paged": "false",
       "name": "Project Package",
-      "suffix": "/v4/projects/{Project ID}/packages/{Package ID}"
+      "suffix": "/v4/projects/{Project ID}/packages/{Package ID}",
+      "description": "A single package. Requires the project id and package id."
     },
     {
       "paged": "true",
       "name": "Project Package Files",
-      "suffix": "/v4/projects/{Project ID}/packages/{Package ID}/package_files"
+      "suffix": "/v4/projects/{Project ID}/packages/{Package ID}/package_files",
+      "description": "The individual files that make up one package, with name, size, checksums and created_at. Requires the project id and package id. Package size and storage questions are answered here, not on the package itself."
     },
     {
       "paged": "true",
       "name": "Pages Domains",
-      "suffix": "/v4/pages/domains"
+      "suffix": "/v4/pages/domains",
+      "description": "Every custom GitLab Pages domain on the instance, with its certificate expiry and verification state. Administrator only. Useful for catching certificates about to expire."
     },
     {
       "paged": "true",
       "name": "Project Pages Domains",
-      "suffix": "/v4/projects/{Project ID}/pages/domains"
+      "suffix": "/v4/projects/{Project ID}/pages/domains",
+      "description": "The custom Pages domains of one project, with verification state and certificate expiry. Requires a project id."
     },
     {
       "paged": "false",
       "name": "Project Pages Domain",
-      "suffix": "/v4/projects/{Project ID}/pages/domains/{Domain}"
+      "suffix": "/v4/projects/{Project ID}/pages/domains/{Domain}",
+      "description": "A single Pages domain of a project, by domain name."
     },
     {
       "paged": "true",
@@ -1624,22 +1800,26 @@
           "key": "id",
           "parameterName": "Pipeline Schedule ID"
         }
-      ]
+      ],
+      "description": "The schedules that start pipelines automatically, with cron expression, target ref, owner, whether active, and next_run_at. Requires a project id. Configuration -- the pipelines they produced are in Project Pipelines."
     },
     {
       "paged": "false",
       "name": "Project Pipeline Schedule",
-      "suffix": "/v4/projects/{Project ID}/pipeline_schedules/{Pipeline Schedule ID}"
+      "suffix": "/v4/projects/{Project ID}/pipeline_schedules/{Pipeline Schedule ID}",
+      "description": "A single pipeline schedule. Requires the schedule id as well. Adds the variables and last pipeline of that schedule."
     },
     {
       "paged": "true",
       "name": "Project Triggers",
-      "suffix": "/v4/projects/{Project ID}/triggers"
+      "suffix": "/v4/projects/{Project ID}/triggers",
+      "description": "The trigger tokens that let external systems start pipelines in one project. Requires a project id. Integration configuration, not pipeline data."
     },
     {
       "paged": "false",
       "name": "Project Trigger",
-      "suffix": "/v4/projects/{Project ID}/triggers/{Trigger ID}"
+      "suffix": "/v4/projects/{Project ID}/triggers/{Trigger ID}",
+      "description": "A single trigger token. Requires the trigger id as well."
     },
     {
       "paged": "true",
@@ -1656,42 +1836,50 @@
           "key": "id",
           "parameterName": "Pipeline ID"
         }
-      ]
+      ],
+      "description": "The CI pipelines of one project, one row each. Requires a project id. Carries id, sha, ref, status, source, created_at and updated_at. IMPORTANT: this list is deliberately slim -- it does NOT carry duration, started_at, finished_at, coverage or the user who triggered it. Those exist only on Project Pipeline, one fetch per pipeline. So this table answers how many pipelines ran and how many passed or failed, but 'how long do pipelines take' has to come either from per-pipeline fetches or from summing Pipeline Jobs, which do carry durations. Child pipelines are excluded unless source=parent_pipeline is passed."
     },
     {
       "paged": "false",
       "name": "Project Pipeline",
-      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}"
+      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}",
+      "description": "A single pipeline. Requires the project id and pipeline id. Adds what the list omits: started_at, finished_at, duration and queued_duration in seconds, coverage, the triggering user, committed_at, and yaml_errors. The table for pipeline duration and queue time -- at the cost of one request per pipeline."
     },
     {
       "paged": "true",
       "name": "Pipeline Variables",
-      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}/variables"
+      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}/variables",
+      "description": "The variables one pipeline ran with. Requires the project id and pipeline id. Explains why two pipelines on the same commit behaved differently. Values may be masked."
     },
     {
       "paged": "true",
       "name": "Project Aliases",
-      "suffix": "/v4/project_aliases"
+      "suffix": "/v4/project_aliases",
+      "description": "The alternative names projects can be reached by over git. Administrator only, and used only by instances that were migrated from another system. Usually empty."
     },
     {
       "paged": "false",
       "name": "Project Alias",
-      "suffix": "/v4/project_aliases/{Alias Name}"
+      "suffix": "/v4/project_aliases/{Alias Name}",
+      "description": "A single project alias by name."
     },
     {
       "paged": "false",
       "name": "Export Status",
-      "suffix": "/v4/projects/{Project ID}/export"
+      "suffix": "/v4/projects/{Project ID}/export",
+      "description": "The state of the most recent export of one project, with its progress and, when finished, the download link. Requires a project id. One record, reflecting only the latest export -- there is no export history here. Use it to check whether a migration snapshot is ready."
     },
     {
       "paged": "false",
       "name": "Import Status",
-      "suffix": "/v4/projects/{Project ID}/import"
+      "suffix": "/v4/projects/{Project ID}/import",
+      "description": "The state of the most recent import into one project, with its stage and any failure message. Requires a project id. Use it to see whether a migration finished and what went wrong if it did not."
     },
     {
       "paged": "false",
       "name": "Project Statistics",
-      "suffix": "/v4/projects/{Project ID}/statistics"
+      "suffix": "/v4/projects/{Project ID}/statistics",
+      "description": "The fetch and clone counts of one project for the LAST 30 DAYS ONLY, with a daily breakdown. Requires a project id. A rolling window with no history behind it: it can say how much a repository is being pulled right now, but nothing about any earlier period, and the window cannot be moved. Not to be confused with the repository size statistics that Projects returns with statistics=true."
     },
     {
       "paged": "true",
@@ -1704,12 +1892,14 @@
           "key": "key",
           "parameterName": "Template Key"
         }
-      ]
+      ],
+      "description": "The templates of one type available to a project -- dockerfiles, gitignores, licences, issue or merge request descriptions. Requires the project id and template type. Includes any templates the project or its group defines, which the instance-wide template lists do not."
     },
     {
       "paged": "false",
       "name": "Project Template",
-      "suffix": "/v4/projects/{Project ID}/templates/{Template Type:dockerfiles|gitignore|...}/{Template Key}?project={Project Name?}&fullname={Copyright Holder's Full Name?}"
+      "suffix": "/v4/projects/{Project ID}/templates/{Template Type:dockerfiles|gitignore|...}/{Template Key}?project={Project Name?}&fullname={Copyright Holder's Full Name?}",
+      "description": "One template of a given type for a project, with its text and, for licences, the copyright details interpolated."
     },
     {
       "paged": "true",
@@ -1781,7 +1971,8 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "Every project visible to the caller, one row each -- the top-level dimension almost every other GitLab table joins to. Carries id, name, path_with_namespace, description, default_branch, visibility (public, internal or private), created_at, last_activity_at, the owning namespace, topics, archived, and the running star_count, forks_count and open_issues_count. last_activity_at is the column staleness questions turn on. WARNING about scope: unfiltered this returns every project the caller can see, which on a large instance is enormous -- pass membership, owned or a search term unless an instance-wide inventory is genuinely wanted. Pass statistics=true for repository and storage sizes and commit counts; that requires elevated permission and is silently absent otherwise. simple=true returns a reduced set of columns and is much cheaper."
     },
     {
       "paged": "true",
@@ -1853,7 +2044,8 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "One user's PERSONAL projects. Requires a user id. Group and subgroup projects are not included, so this is not 'the projects this person works on' -- for that use User Memberships. Returns an empty list, not an error, when the profile is private."
     },
     {
       "paged": "true",
@@ -1925,12 +2117,14 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "The projects one user has starred. Requires a user id. An interest signal rather than an involvement one."
     },
     {
       "paged": "false",
       "name": "Project",
-      "suffix": "/v4/projects/{Project ID}?statistics={Statistics?:true|false}&license={License?:true|false}&with_custom_attributes={With Custom Attributes?:true|false}"
+      "suffix": "/v4/projects/{Project ID}?statistics={Statistics?:true|false}&license={License?:true|false}&with_custom_attributes={With Custom Attributes?:true|false}",
+      "description": "A single project by id or by URL-encoded path. Same fields as Projects, plus optional statistics and license information. Use it when the project is already known rather than to scan."
     },
     {
       "paged": "true",
@@ -1964,7 +2158,8 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The users with access to one project, as user records rather than membership records. Requires a project id. Simpler than Project Members -- it does not carry access_level, so use the member tables whenever the permission level matters."
     },
     {
       "paged": "true",
@@ -2036,7 +2231,8 @@
           "key": "id",
           "parameterName": "Project ID"
         }
-      ]
+      ],
+      "description": "The forks made from one project. Requires a project id. Same fields as Projects. Use it to see downstream copies of a codebase."
     },
     {
       "paged": "true",
@@ -2070,127 +2266,152 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The users who starred one project, with when they starred it. Requires a project id. Projects carries only the star_count total; this is who they were."
     },
     {
       "paged": "false",
       "name": "Project Languages",
-      "suffix": "/v4/projects/{Project ID}/languages"
+      "suffix": "/v4/projects/{Project ID}/languages",
+      "description": "The programming languages used in one project, as percentages of the codebase. Requires a project id. A single record of language-to-percentage pairs, NOT one row per language -- it will need reshaping before it can be charted, and the percentages come from file extensions rather than from analysis."
     },
     {
       "paged": "true",
       "name": "Project Hooks",
-      "suffix": "/v4/projects/{Project ID}/hooks"
+      "suffix": "/v4/projects/{Project ID}/hooks",
+      "description": "The webhooks configured on one project: target url, which events fire them, and whether SSL is verified. Requires a project id. Integration inventory, not event data -- deliveries are not recorded here."
     },
     {
       "paged": "false",
       "name": "Project Hook",
-      "suffix": "/v4/projects/{Project ID}/hooks/{Hook ID}"
+      "suffix": "/v4/projects/{Project ID}/hooks/{Hook ID}",
+      "description": "A single project webhook by id. Requires the project id."
     },
     {
       "paged": "false",
       "name": "Project Push Rule",
-      "suffix": "/v4/projects/{Project ID}/push_rule"
+      "suffix": "/v4/projects/{Project ID}/push_rule",
+      "description": "The push restrictions of one project: commit message patterns required or forbidden, author email patterns, file size and name limits, whether committers must be GitLab users, and whether unsigned commits are rejected. Requires a project id. One record. Explains why pushes are being refused, and is the enforcement behind commit-hygiene policy."
     },
     {
       "paged": "true",
       "name": "Protected Branches",
-      "suffix": "/v4/projects/{Project ID}/protected_branches"
+      "suffix": "/v4/projects/{Project ID}/protected_branches",
+      "description": "The branch protection rules of one project: which branches or wildcards are protected, and which access levels may push, merge or force-push to them. Requires a project id. Configuration, but the kind auditors ask for -- it is the evidence that changes to a release branch must go through review, and Repository Branches only carries flags, not who is allowed."
     },
     {
       "paged": "false",
       "name": "Protected Branch",
-      "suffix": "/v4/projects/{Project ID}/protected_branches/{Branch Name}"
+      "suffix": "/v4/projects/{Project ID}/protected_branches/{Branch Name}",
+      "description": "One protection rule by branch name or wildcard. Requires the project id."
     },
     {
       "paged": "true",
       "name": "Protected Tags",
-      "suffix": "/v4/projects/{Project ID}/protected_tags"
+      "suffix": "/v4/projects/{Project ID}/protected_tags",
+      "description": "Which tags or tag patterns are protected in one project, and who may create them. Requires a project id. Release-integrity configuration."
     },
     {
       "paged": "false",
       "name": "Protected Tag",
-      "suffix": "/v4/projects/{Project ID}/protected_tags/{Tag Name}"
+      "suffix": "/v4/projects/{Project ID}/protected_tags/{Tag Name}",
+      "description": "One tag protection rule by name or wildcard. Requires the project id."
     },
     {
       "paged": "true",
       "name": "Releases",
-      "suffix": "/v4/projects/{Project ID}/releases"
+      "suffix": "/v4/projects/{Project ID}/releases",
+      "description": "The releases of one project, one row each, sorted by released_at. Requires a project id. Carries tag_name, name, description, created_at and released_at, the author, the commit it points at, associated milestones, and the assets attached. NOTE released_at may be backdated on creation, so it is the intended release date rather than a record of when the row appeared."
     },
     {
       "paged": "false",
       "name": "Release",
-      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}"
+      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}",
+      "description": "A single release by its TAG NAME, not a numeric id. Requires the project id. Same fields as Releases."
     },
     {
       "paged": "true",
       "name": "Release Links",
-      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}/assets/links"
+      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}/assets/links",
+      "description": "The asset links attached to one release -- binaries, packages, documentation. Requires the project id and tag name."
     },
     {
       "paged": "false",
       "name": "Release Link",
-      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}/assets/links/{Link ID}"
+      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}/assets/links/{Link ID}",
+      "description": "A single release asset link. Requires the link id as well."
     },
     {
       "paged": "true",
       "name": "Repository Tree",
-      "suffix": "/v4/projects/{Project ID}/repository/tree?path={Path?}&ref={Branch or Tag Name?}"
+      "suffix": "/v4/projects/{Project ID}/repository/tree?path={Path?}&ref={Branch or Tag Name?}",
+      "description": "The files and directories of a repository at one path and ref. Requires a project id. Returns names, types and paths, NOT file contents. Use it to inventory what is in a repository; it is not paginated the way data endpoints are and a deep tree needs the recursive option."
     },
     {
       "paged": "false",
       "name": "Compare Branches",
-      "suffix": "/v4/projects/{Project ID}/repository/compare?from={From:commit SHA/branch name}&to={To:commit SHA/branch name}&straight={Straight?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/repository/compare?from={From:commit SHA/branch name}&to={To:commit SHA/branch name}&straight={Straight?:true|false}",
+      "description": "The differences between two branches, tags or commits: the commits between them and the diffs of each file. Requires the project id and both refs. Use it to size what is pending release between a release tag and the default branch."
     },
     {
       "paged": "true",
       "name": "Contributors",
-      "suffix": "/v4/projects/{Project ID}/repository/contributors"
+      "suffix": "/v4/projects/{Project ID}/repository/contributors",
+      "description": "Per-author totals for one repository: name, email, number of commits, and additions and deletions. Requires a project id. A ready-made aggregate, far cheaper than paging every commit -- but it is keyed on the git author email, so it carries the same identity caveat as Repository Commits: one person with two configured addresses appears as two contributors, and these rows do not join to GitLab Users."
     },
     {
       "paged": "false",
       "name": "Merge Base",
-      "suffix": "/v4/projects/{Project ID}/repository/merge_base?refs[]={Refs,:ref1,ref2,...}"
+      "suffix": "/v4/projects/{Project ID}/repository/merge_base?refs[]={Refs,:ref1,ref2,...}",
+      "description": "The common ancestor commit of two or more refs. Requires the project id and the refs. A single record, used as the starting point for a comparison rather than as data in its own right."
     },
     {
       "paged": "false",
       "name": "Repository File",
-      "suffix": "/v4/projects/{Project ID}/repository/files/{File Path}?ref={Ref:name of branch, tag or commit}"
+      "suffix": "/v4/projects/{Project ID}/repository/files/{File Path}?ref={Ref:name of branch, tag or commit}",
+      "description": "One file's metadata and contents at a given ref. Requires the project id, file path and ref. Contents come back Base64 encoded and must be decoded before use. Source text, not tabular data."
     },
     {
       "paged": "true",
       "name": "File Blame",
-      "suffix": "/v4/projects/{Project ID}/repository/files/{File Path}/blame?ref={Ref:name of branch, tag or commit}"
+      "suffix": "/v4/projects/{Project ID}/repository/files/{File Path}/blame?ref={Ref:name of branch, tag or commit}",
+      "description": "Line-by-line authorship of one file: each range of lines with the commit that last changed it. Requires the project id, file path and ref. Use for code ownership questions about a specific file."
     },
     {
       "paged": "true",
       "name": "Project Issue Label Events",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/resource_label_events"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/resource_label_events",
+      "description": "Every time a label was added to or removed from one issue, with the label, the actor and the timestamp. Requires the project id and issue IID. Issues carries only the CURRENT labels; this is the history, and the only way to measure time-in-stage for teams whose workflow states are labels."
     },
     {
       "paged": "false",
       "name": "Project Issue Label Event",
-      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/resource_label_events/{Resource Label Event ID}"
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/resource_label_events/{Resource Label Event ID}",
+      "description": "A single label event on an issue. Requires the event id as well."
     },
     {
       "paged": "true",
       "name": "Group Epic Label Events",
-      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/resource_label_events"
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/resource_label_events",
+      "description": "Every label added to or removed from one epic, with the actor and timestamp. Requires the group id and epic id. The history behind the epic's current labels -- the only source for how long an epic sat in a label-defined stage."
     },
     {
       "paged": "false",
       "name": "Group Epic Label Event",
-      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/resource_label_events/{Resource Label Event ID}"
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/resource_label_events/{Resource Label Event ID}",
+      "description": "A single label event on an epic. Requires the event id as well."
     },
     {
       "paged": "true",
       "name": "Project Merge Request Label Events",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/resource_label_events"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/resource_label_events",
+      "description": "Every time a label was added to or removed from one merge request, with the label, who did it and when. Requires the project id and merge request IID. Merge Requests carries only the labels it holds NOW; this is the history. Where a team uses labels as workflow states, this is the only table that can say how long a change sat in each stage."
     },
     {
       "paged": "false",
       "name": "Project Merge Request Label Event",
-      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/resource_label_events/{Resource Label Event ID}"
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/resource_label_events/{Resource Label Event ID}",
+      "description": "A single label event on a merge request. Requires the event id as well."
     },
     {
       "paged": "true",
@@ -2206,7 +2427,8 @@
           "key": "id",
           "parameterName": "Runner ID"
         }
-      ]
+      ],
+      "description": "The CI runners available to the caller, one row each. Carries id, description, runner_type (instance, group or project), whether it is paused, its online status, ip_address and tag_list. Runner tags decide which jobs a runner may take, so they explain why some jobs queue while runners sit idle. What each runner actually did is in Runner Jobs."
     },
     {
       "paged": "true",
@@ -2222,72 +2444,86 @@
           "key": "id",
           "parameterName": "Runner ID"
         }
-      ]
+      ],
+      "description": "Every runner on the instance, shared and project alike. Administrator or auditor access only. Same fields as Runners; use it for a complete fleet inventory, which the caller-scoped list cannot give."
     },
     {
       "paged": "false",
       "name": "Runner",
-      "suffix": "/v4/runners/{Runner ID}"
+      "suffix": "/v4/runners/{Runner ID}",
+      "description": "A single runner by id, with more detail than the list: its projects, groups, maximum job timeout and last contact time."
     },
     {
       "paged": "true",
       "name": "Runner Jobs",
-      "suffix": "/v4/runners/{Runner ID}/jobs?status={Status?:running|success|failed|canceled}"
+      "suffix": "/v4/runners/{Runner ID}/jobs?status={Status?:running|success|failed|canceled}",
+      "description": "The jobs one runner has processed. Requires a runner id. Same job fields as Project Jobs, sliced by runner rather than by project. Use it for runner utilisation and for whether a particular runner fails more than others. Restricted to projects where the caller has at least the Reporter role, so a count here can be short of the true total."
     },
     {
       "paged": "true",
       "name": "Project Runners",
-      "suffix": "/v4/projects/{Project ID}/runners?type={Type?:instance_type|group_type|project_type}&status={Status?:active|paused|online|offline}&tag_list={Tag List?:tag1,tag2,...}"
+      "suffix": "/v4/projects/{Project ID}/runners?type={Type?:instance_type|group_type|project_type}&status={Status?:active|paused|online|offline}&tag_list={Tag List?:tag1,tag2,...}",
+      "description": "The runners available to one project, including those inherited from ancestor groups and any shared instance runners. Requires a project id. Broader than the runners registered directly to the project."
     },
     {
       "paged": "true",
       "name": "Search",
-      "suffix": "/v4/search?scope={Scope:projects|issues|...}&search={Search Query}"
+      "suffix": "/v4/search?scope={Scope:projects|issues|...}&search={Search Query}",
+      "description": "Searches the whole instance for a term. Requires a scope and a query. IMPORTANT: the columns returned depend entirely on the scope -- projects, issues, merge_requests, milestones, users, snippet_titles, wiki_blobs, commits, blobs and notes each come back with a different shape, so this cannot be treated as one table with fixed columns. Prefer the resource's own endpoint whenever the kind of thing being looked for is already known; this is for when it is not."
     },
     {
       "paged": "true",
       "name": "Group Search",
-      "suffix": "/v4/groups/{Group ID}/search?scope={Scope:projects|issues|...}&search={Search Query}"
+      "suffix": "/v4/groups/{Group ID}/search?scope={Scope:projects|issues|...}&search={Search Query}",
+      "description": "The same search restricted to one group and everything under it. Requires a group id, scope and query. Same scope-dependent shape."
     },
     {
       "paged": "true",
       "name": "Project Search",
-      "suffix": "/v4/projects/{Project ID}/search?scope={Scope:issues|milestones|...}&search={Search Query}&ref={Ref?:branch or tag name}"
+      "suffix": "/v4/projects/{Project ID}/search?scope={Scope:issues|milestones|...}&search={Search Query}&ref={Ref?:branch or tag name}",
+      "description": "The same search restricted to one project. Requires a project id, scope and query. Adds blob and wiki_blob scopes that can be pinned to a ref."
     },
     {
       "paged": "true",
       "name": "Project Services",
-      "suffix": "/v4/projects/{Project ID}/services"
+      "suffix": "/v4/projects/{Project ID}/services",
+      "description": "The third-party integrations currently active on one project -- Jira, Slack, Jenkins and the rest. Requires a project id. Use it to inventory what a project is wired up to; the integrations' own data lives in those systems, not here."
     },
     {
       "paged": "false",
       "name": "Project Service",
-      "suffix": "/v4/projects/{Project ID}/services/{Service Name:asana|bugzilla|...}"
+      "suffix": "/v4/projects/{Project ID}/services/{Service Name:asana|bugzilla|...}",
+      "description": "The settings of one named integration on a project. Requires the project id and the service name."
     },
     {
       "paged": "false",
       "name": "Application Settings",
-      "suffix": "/v4/application/settings"
+      "suffix": "/v4/application/settings",
+      "description": "The instance's global settings -- sign-up restrictions, default visibility, session and password policy, rate limits, storage and CI defaults. Administrator only. One large record of configuration; it explains instance-wide behaviour but contains no activity data."
     },
     {
       "paged": "false",
       "name": "Queue Metrics",
-      "suffix": "/v4/sidekiq/queue_metrics"
+      "suffix": "/v4/sidekiq/queue_metrics",
+      "description": "The current state of the instance's Sidekiq background queues: how many jobs are waiting in each and how long the oldest has been waiting. Administrator only. This is live operational data, not configuration -- a growing backlog here is why imports, exports, mirror updates and webhooks are running late. It is an instantaneous snapshot with no history behind it, so a trend can only be built by sampling it repeatedly."
     },
     {
       "paged": "false",
       "name": "Process Metrics",
-      "suffix": "/v4/sidekiq/process_metrics"
+      "suffix": "/v4/sidekiq/process_metrics",
+      "description": "The Sidekiq worker processes currently running, with the queues each serves, its concurrency and what it is working on. Administrator only. A live snapshot; pair it with Queue Metrics to see whether a backlog is a capacity problem."
     },
     {
       "paged": "false",
       "name": "Job Statistics",
-      "suffix": "/v4/sidekiq/job_stats"
+      "suffix": "/v4/sidekiq/job_stats",
+      "description": "Counts of Sidekiq jobs processed, failed and currently enqueued on the instance. Administrator only. Cumulative counters, so a rate has to be derived from the difference between two readings."
     },
     {
       "paged": "false",
       "name": "Compound Metrics",
-      "suffix": "/v4/sidekiq/compound_metrics"
+      "suffix": "/v4/sidekiq/compound_metrics",
+      "description": "Queue Metrics, Process Metrics and Job Statistics returned together in one call. Administrator only. Prefer it over three separate requests when a full picture of background-job health is wanted."
     },
     {
       "paged": "true",
@@ -2302,12 +2538,14 @@
           "key": "id",
           "parameterName": "Snippet ID"
         }
-      ]
+      ],
+      "description": "The code snippets belonging to the authenticated user, with title, file_name, description, visibility, author and timestamps. Always scoped to the caller."
     },
     {
       "paged": "false",
       "name": "Snippet",
-      "suffix": "/v4/snippets/{Snippet ID}"
+      "suffix": "/v4/snippets/{Snippet ID}",
+      "description": "A single snippet by id. Metadata and the web url; the snippet's raw content is a separate request."
     },
     {
       "paged": "true",
@@ -2322,12 +2560,14 @@
           "key": "id",
           "parameterName": "Snippet ID"
         }
-      ]
+      ],
+      "description": "Every snippet marked public on the instance."
     },
     {
       "paged": "false",
       "name": "Snippet User Agent Details",
-      "suffix": "/v4/snippets/{Snippet ID}/user_agent_detail"
+      "suffix": "/v4/snippets/{Snippet ID}/user_agent_detail",
+      "description": "The browser and IP recorded when one snippet was created. Administrator only, abuse-report metadata, of no analytical use."
     },
     {
       "paged": "true",
@@ -2345,47 +2585,56 @@
           "key": "id",
           "parameterName": "Snippet ID"
         }
-      ]
+      ],
+      "description": "The snippets attached to one project. Requires a project id. Unlike the personal ones these belong to the project and are visible to its members."
     },
     {
       "paged": "false",
       "name": "Project Snippet",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}",
+      "description": "A single project snippet. Requires the project id and snippet id."
     },
     {
       "paged": "false",
       "name": "Project Snippet User Agent Details",
-      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/user_agent_detail"
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/user_agent_detail",
+      "description": "The same abuse-report metadata for a project snippet. Administrator only."
     },
     {
       "paged": "false",
       "name": "Application Statistics",
-      "suffix": "/v4/application/statistics"
+      "suffix": "/v4/application/statistics",
+      "description": "Instance-wide totals for the whole GitLab installation: how many projects, users, groups, issues, merge requests, forks and so on. One record of counts. Administrator only. Use it for a size-of-installation answer without paging any resource table."
     },
     {
       "paged": "true",
       "name": "System Hooks",
-      "suffix": "/v4/hooks"
+      "suffix": "/v4/hooks",
+      "description": "The instance-wide webhooks, fired on events such as project or user creation. Administrator only. Integration configuration."
     },
     {
       "paged": "false",
       "name": "System Hook",
-      "suffix": "/v4/hooks/{Hook ID}"
+      "suffix": "/v4/hooks/{Hook ID}",
+      "description": "A single system hook by id."
     },
     {
       "paged": "true",
       "name": "Project Repository Tags",
-      "suffix": "/v4/projects/{Project ID}/repository/tags?search={Search Query?}"
+      "suffix": "/v4/projects/{Project ID}/repository/tags?search={Search Query?}",
+      "description": "The tags of one project, sorted by update time descending. Requires a project id. Carries the tag name, message, target, the commit it points at, and any release attached. Tags are how most projects mark versions -- pair with Releases, which is the richer record when the project uses it."
     },
     {
       "paged": "false",
       "name": "Project Repository Tag",
-      "suffix": "/v4/projects/{Project ID}/repository/tags/{Tag Name}"
+      "suffix": "/v4/projects/{Project ID}/repository/tags/{Tag Name}",
+      "description": "A single tag by name. Requires the project id. Same fields as Project Repository Tags."
     },
     {
       "paged": "true",
       "name": "Todos",
-      "suffix": "/v4/todos?action={Action?:assigned|mentioned|...}&author_id={Author ID?}&project_id={Project ID?}&group_id={Group ID?}&state={State?:pending|done}&type={Type?:Issue|MergeRequest}"
+      "suffix": "/v4/todos?action={Action?:assigned|mentioned|...}&author_id={Author ID?}&project_id={Project ID?}&group_id={Group ID?}&state={State?:pending|done}&type={Type?:Issue|MergeRequest}",
+      "description": "The caller's pending action items: assignments, mentions, review requests and approvals waiting on them. Carries the action, the target issue or merge request, the project, the author, the state (pending or done) and created_at. ALWAYS scoped to the authenticated user -- it cannot report anyone else's queue, so it is a personal work list rather than a team backlog measure."
     },
     {
       "paged": "true",
@@ -2417,102 +2666,122 @@
           "key": "id",
           "parameterName": "User ID"
         }
-      ]
+      ],
+      "description": "The user accounts of the instance, one row each. Carries id, username, name, state (active or blocked), web_url and avatar_url. IMPORTANT: the columns depend on who is asking. An administrator additionally gets email, created_at, last_sign_in_at, last_activity_on, is_admin, external and two_factor_enabled; an ordinary caller gets none of those, and questions about logins, joining dates or dormant accounts simply cannot be answered without an admin token. Note also that this table does NOT join to the author_email on commits, which comes from local git config rather than from GitLab."
     },
     {
       "paged": "false",
       "name": "User",
-      "suffix": "/v4/users/{User ID}"
+      "suffix": "/v4/users/{User ID}",
+      "description": "A single user by id. Same fields as Users, with the same dependence on the caller's permission."
     },
     {
       "paged": "false",
       "name": "Current User",
-      "suffix": "/v4/user"
+      "suffix": "/v4/user",
+      "description": "The user the credentials belong to. One record, always the caller -- useful for confirming which account a connection is authenticated as, and which permissions therefore apply."
     },
     {
       "paged": "false",
       "name": "Current User Status",
-      "suffix": "/v4/user/status"
+      "suffix": "/v4/user/status",
+      "description": "The caller's status message and emoji, and whether they are marked busy."
     },
     {
       "paged": "false",
       "name": "User Status",
-      "suffix": "/v4/users/{ID or Username}/status"
+      "suffix": "/v4/users/{ID or Username}/status",
+      "description": "One user's status message, emoji and busy flag. Requires a user id or username."
     },
     {
       "paged": "false",
       "name": "User Counts",
-      "suffix": "/v4/user_counts"
+      "suffix": "/v4/user_counts",
+      "description": "The caller's own open counts: assigned open issues, assigned merge requests and pending todos. Three numbers, always scoped to the caller -- not an account-wide workload figure."
     },
     {
       "paged": "true",
       "name": "SSH Keys",
-      "suffix": "/v4/user/keys"
+      "suffix": "/v4/user/keys",
+      "description": "The caller's SSH public keys, with title, fingerprint, created_at and expires_at. Security configuration."
     },
     {
       "paged": "false",
       "name": "SSH Keys for User",
-      "suffix": "/v4/users/{ID or Username}/keys"
+      "suffix": "/v4/users/{ID or Username}/keys",
+      "description": "One user's public SSH keys. Requires a user id or username. Use for key-hygiene review such as keys without an expiry."
     },
     {
       "paged": "false",
       "name": "SSH Key",
-      "suffix": "/v4/user/keys/{Key ID}"
+      "suffix": "/v4/user/keys/{Key ID}",
+      "description": "One of the caller's SSH keys by id."
     },
     {
       "paged": "true",
       "name": "GPG Keys",
-      "suffix": "/v4/user/gpg_keys"
+      "suffix": "/v4/user/gpg_keys",
+      "description": "The caller's GPG keys, used for commit signing."
     },
     {
       "paged": "false",
       "name": "GPG Key",
-      "suffix": "/v4/user/gpg_keys/{Key ID}"
+      "suffix": "/v4/user/gpg_keys/{Key ID}",
+      "description": "One of the caller's GPG keys by id."
     },
     {
       "paged": "true",
       "name": "GPG Keys for User",
-      "suffix": "/v4/users/{User ID}/gpg_keys"
+      "suffix": "/v4/users/{User ID}/gpg_keys",
+      "description": "One user's GPG keys. Requires a user id. Pair with Commit GPG Signature for signing-compliance questions."
     },
     {
       "paged": "false",
       "name": "GPG Key for User",
-      "suffix": "/v4/users/{User ID}/gpg_keys/{Key ID}"
+      "suffix": "/v4/users/{User ID}/gpg_keys/{Key ID}",
+      "description": "One GPG key of one user. Requires the key id as well."
     },
     {
       "paged": "true",
       "name": "Emails",
-      "suffix": "/v4/user/emails"
+      "suffix": "/v4/user/emails",
+      "description": "The caller's secondary email addresses. Relevant because commits authored under a secondary address still belong to the same person -- this is the closest thing to a mapping between git author emails and GitLab users, and even so it covers only addresses the user chose to register."
     },
     {
       "paged": "true",
       "name": "Emails for User",
-      "suffix": "/v4/users/{User ID}/emails"
+      "suffix": "/v4/users/{User ID}/emails",
+      "description": "One user's secondary email addresses. Requires a user id; administrator only."
     },
     {
       "paged": "false",
       "name": "Email",
-      "suffix": "/v4/user/emails/{Email ID}"
+      "suffix": "/v4/user/emails/{Email ID}",
+      "description": "One secondary email of the caller, by id."
     },
     {
       "paged": "true",
       "name": "User Impersonation Tokens",
-      "suffix": "/v4/users/{User ID}/impersonation_tokens?state={State?:all|active|inactive}"
+      "suffix": "/v4/users/{User ID}/impersonation_tokens?state={State?:all|active|inactive}",
+      "description": "The impersonation tokens issued for one user, with scopes, expiry and whether each is active. Requires a user id; administrator only. Security audit material, not activity data."
     },
     {
       "paged": "false",
       "name": "User Impersonation Token",
-      "suffix": "/v4/users/{User ID}/impersonation_tokens/{Impersonation Token ID}"
+      "suffix": "/v4/users/{User ID}/impersonation_tokens/{Impersonation Token ID}",
+      "description": "A single impersonation token. Requires the token id as well."
     },
     {
       "paged": "true",
       "name": "User Activities",
-      "suffix": "/v4/user/activities?from={From?:YYYY-MM-DD}"
+      "suffix": "/v4/user/activities?from={From?:YYYY-MM-DD}",
+      "description": "The last activity date of each user. Administrator only. Use it to find dormant accounts -- which Users cannot answer for a non-admin caller."
     },
     {
       "paged": "true",
       "name": "User Memberships",
-      "suffix": "/v4/users/{User ID}/memberships?type={Type?:Project|Namespace}"
+      "suffix": "/v4/users/{User ID}/memberships?type={Type?:Project|Namespace}",
+      "description": "The projects and groups one user belongs to, with the access level held in each. Requires a user id; administrator only. This is the real answer to what a person has access to, and the only table that gives it per user rather than per project. Filter with type=Project or type=Namespace."
     },
     {
       "paged": "true",
@@ -2525,12 +2794,14 @@
           "key": "key",
           "parameterName": "Variable Key"
         }
-      ]
+      ],
+      "description": "The CI/CD variables defined on one project, with key, environment scope, and whether each is protected or masked. Requires a project id. Values of masked variables are withheld. Configuration -- what a pipeline actually ran with is in Pipeline Variables."
     },
     {
       "paged": "false",
       "name": "Project Variable",
-      "suffix": "/v4/projects/{Project ID}/variables/{Variable Key}"
+      "suffix": "/v4/projects/{Project ID}/variables/{Variable Key}",
+      "description": "A single project variable by key. Requires the project id. Where several variables share a key across environments, an environment_scope filter is needed to pick one."
     },
     {
       "paged": "true",
@@ -2543,32 +2814,38 @@
           "key": "key",
           "parameterName": "Variable Key"
         }
-      ]
+      ],
+      "description": "The CI/CD variables defined at group level, inherited by every project under it. Requires a group id."
     },
     {
       "paged": "false",
       "name": "Group Variable",
-      "suffix": "/v4/groups/{Group ID}/variables/{Variable Key}"
+      "suffix": "/v4/groups/{Group ID}/variables/{Variable Key}",
+      "description": "A single group variable by key. Requires the group id."
     },
     {
       "paged": "false",
       "name": "Version",
-      "suffix": "/v4/version"
+      "suffix": "/v4/version",
+      "description": "The GitLab version and revision the instance is running. One record. Worth checking first when an endpoint behaves unexpectedly, since API behaviour and available fields vary by version. GitLab deprecated this in favour of the Metadata API, but it remains the quickest version check."
     },
     {
       "paged": "true",
       "name": "Project Vulnerability Findings",
-      "suffix": "/v4/projects/{Project ID}/vulnerability_findings?report_type={Report Type?:sast,dast,...}&scope={Scope?:all|dismissed}&severity={Severity?:undefined,info,...}&confidence={Confidence?:undefined,ignore,...}&pipeline_id={Pipeline ID?}"
+      "suffix": "/v4/projects/{Project ID}/vulnerability_findings?report_type={Report Type?:sast,dast,...}&scope={Scope?:all|dismissed}&severity={Severity?:undefined,info,...}&confidence={Confidence?:undefined,ignore,...}&pipeline_id={Pipeline ID?}",
+      "description": "The security findings of one project's scans, one row each -- SAST, DAST, dependency and container scanning alike. Requires a project id. Carries severity, confidence, report type, the scanner, the location in the code, and whether the finding is dismissed. Filter by report_type, severity or pipeline_id. The table for security posture and for whether findings are being resolved or dismissed."
     },
     {
       "paged": "true",
       "name": "Wikis",
-      "suffix": "/v4/projects/{Project ID}/wikis?with_content={With Content?:true|false}"
+      "suffix": "/v4/projects/{Project ID}/wikis?with_content={With Content?:true|false}",
+      "description": "The wiki pages of one project, with slug, title and format. Requires a project id. Content is omitted unless with_content=true is passed, which makes the response much larger. Use it to inventory documentation, or to find pages that exist but are empty."
     },
     {
       "paged": "false",
       "name": "Wiki",
-      "suffix": "/v4/projects/{Project ID}/wikis/{Slug}"
+      "suffix": "/v4/projects/{Project ID}/wikis/{Slug}",
+      "description": "A single wiki page by slug, including its content. Requires the project id."
     }
   ]
 }
