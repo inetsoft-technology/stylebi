@@ -26,11 +26,14 @@ import java.util.List;
  * One lookup relation declared beside an endpoint: the endpoints that can be reached from a value
  * pulled out of this one's response.
  *
- * <p>Two spellings exist in the wild and both must bind. Stripe and Zendesk write
- * {@code "endpoints": ["Disputes", "Refunds"]}; GitHub writes {@code "endpoint": "Issue Event"}.
- * The connector loader reconciles them with a deserializer modifier, which core cannot reuse
- * because it lives in the connector module. Carrying both fields and normalizing in
- * {@link #targets()} is the smaller of the two costs.</p>
+ * <p>Two spellings exist in the wild and this record carries both as written. Stripe and Zendesk
+ * write {@code "endpoints": ["Disputes", "Refunds"]}; GitHub writes
+ * {@code "endpoint": "Issue Event"}. Collapsing them into a single normalized list here would put a
+ * third representation of the same fact on the wire alongside the two raw fields, for the benefit
+ * of no consumer: the one caller that needs a single list,
+ * {@code wiz-services/src/services/tabular/endpointCatalogClient.ts}, already does that
+ * normalization itself and is tested for it. This record's job is to reflect the source document,
+ * not to pre-digest it.</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WizEndpointLookup(
@@ -40,12 +43,4 @@ public record WizEndpointLookup(
    String key,
    String parameterName)
 {
-   /** Both spellings collapsed into one list. Never null. */
-   public List<String> targets() {
-      if(endpoints != null && !endpoints.isEmpty()) {
-         return endpoints;
-      }
-
-      return endpoint == null ? List.of() : List.of(endpoint);
-   }
 }

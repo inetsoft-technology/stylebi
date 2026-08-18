@@ -24,7 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 /**
  * Reads a connector's endpoint catalogue straight off its own classpath resource.
@@ -56,8 +58,27 @@ public class EndpointCatalogReader {
          }
 
          WizEndpointCatalog catalog = MAPPER.readValue(input, WizEndpointCatalog.class);
-         LOG.debug("Read {} endpoint(s) for {}",
-                   catalog.endpoints() == null ? 0 : catalog.endpoints().size(), queryClass);
+
+         // A JSON document whose top-level value is the literal `null` parses without error to a
+         // null catalogue, not to an exception. Left unchecked, the LOG.debug call below throws an
+         // NPE on catalog.endpoints() -- which surfaces as a message-less NPE rather than the
+         // IOException this method promises, and the caller cannot tell "document is null" from
+         // "resource is missing" (the case that legitimately returns null, above).
+         if(catalog == null) {
+            throw new IOException(
+               "endpoints.json for " + queryClass + " parsed to a JSON null document");
+         }
+
+         // An endpoints.json of "{}" is valid JSON with no endpoints array declared, which Jackson
+         // binds to a null list rather than an empty one. Normalizing here -- not by giving
+         // WizEndpointCatalog a compact constructor -- keeps the record an honest reflection of what
+         // it parsed, and confines "missing array means empty" to this reader, which is a reading
+         // policy rather than a fact about the document.
+         if(catalog.endpoints() == null) {
+            catalog = new WizEndpointCatalog(List.of());
+         }
+
+         LOG.debug("Read {} endpoint(s) for {}", catalog.endpoints().size(), queryClass);
          return catalog;
       }
    }
