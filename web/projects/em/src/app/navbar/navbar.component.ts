@@ -285,10 +285,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
    }
 
    private handleHelpLinkError(error: HttpErrorResponse): Observable<HelpLinks> {
-      // A 401/403 here means the session expired or was invalidated (e.g. by a cross-tab
-      // logout) while this request was in flight. InvalidSessionInterceptor already redirects
-      // to the login page for that case, so showing a permission error on top of it is
-      // redundant and misleading.
+      // A 401 here means the session expired or was invalidated (e.g. by a cross-tab logout)
+      // while this request was in flight; InvalidSessionInterceptor already redirects to the
+      // login page for that case. A 403 means EM access was revoked, in which case the help
+      // links are the least of the user's concerns. Either way, showing a permission error on
+      // top of it is redundant and misleading.
       if(error.status !== 401 && error.status !== 403) {
          this.snackBar.open("_#(js:em.helpLinks.error)", null, { duration: Tool.SNACKBAR_DURATION });
       }
