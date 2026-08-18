@@ -39,6 +39,15 @@ public final class ScriptGrammar {
     * <p>{@link ScriptTarget.Kind#CALC_FIELD} is included: {@link ScriptReadService},
     * {@code ScriptEditService}, and {@code ScriptContextService} are now wired to it, so its
     * real {@link ScriptTarget.Location} is actually servable rather than merely present.
+    *
+    * <p>{@link ScriptTarget.Kind#WORKSHEET_EXPRESSION}/{@link ScriptTarget.Kind#WORKSHEET_CONDITION}
+    * (G2 Task 8) are included for the same reason, served by {@code WorksheetScriptService} rather
+    * than the viewsheet-scoped {@code ScriptReadService}/{@code ScriptEditService} — those two
+    * explicitly refuse the worksheet locations (fail loud) rather than serving them.
+    *
+    * <p>{@link ScriptTarget.Kind#WORKSHEET_CONDITION_VALUE} is included for the same reason and
+    * servable by the same {@code WorksheetScriptService}, narrower than
+    * {@code WORKSHEET_CONDITION}: see its javadoc for why the two are not interchangeable.
     */
    public static List<String> supportedKinds() {
       return Arrays.stream(ScriptTarget.Kind.values())

@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @Tag("core")
@@ -54,6 +55,34 @@ class BindingAgentControllerTest {
                       .join(new BindingAgentController.JoinRequest("ABCD2345"), principal()));
    }
 
+   /**
+    * The join response must carry the session's editorContext through -- otherwise a dropped
+    * context doesn't surface as an error, it reads as an ordinary whole-sheet session,
+    * indistinguishable from a legitimate toolbar mint, on the exact route an agent reads.
+    */
+   @Test
+   void joinReturnsTheSessionsEditorContext() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession session = new JoinSession("TOK-1", "Viewsheet/vs-1", "alice~;~host-org",
+         SheetType.VIEWSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED,
+         null, null, ctx);
+
+      SheetJoinService joinService = mock(SheetJoinService.class);
+      Principal agent = principal();
+      when(joinService.join(eq("ABCD2345"), eq(agent))).thenReturn(session);
+
+      BindingAgentController controller = controllerWith(feature, joinService,
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class));
+
+      BindingAgentController.JoinResponse resp =
+         controller.join(new BindingAgentController.JoinRequest("ABCD2345"), agent);
+
+      assertEquals(ctx, resp.editorContext());
+   }
+
    @Test
    void fieldsListsTheDiscoveredTablesForTheSessionRuntime() throws Exception {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
@@ -72,7 +101,15 @@ class BindingAgentControllerTest {
                                                         ViewsheetSessionService sessions,
                                                         BindableFieldsService fields)
    {
-      return new BindingAgentController(feature, mock(SheetJoinService.class),
+      return controllerWith(feature, mock(SheetJoinService.class), sessions, fields);
+   }
+
+   private static BindingAgentController controllerWith(SheetAgentFeature feature,
+                                                        SheetJoinService joinService,
+                                                        ViewsheetSessionService sessions,
+                                                        BindableFieldsService fields)
+   {
+      return new BindingAgentController(feature, joinService,
                                         mock(SheetSessionService.class), sessions, fields,
                                         mock(BindingReadService.class),
                                         mock(ChartBindingService.class),
@@ -84,4 +121,76 @@ class BindingAgentControllerTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   // ---------------------------------------------------------------------------
+   // Whole-branch review finding 1 (CRITICAL) -- a pane-scoped code is not a
+   // whole-sheet write handle
+   // ---------------------------------------------------------------------------
+
+   /**
+    * ~25 mutating endpoints on this controller resolve the same session token -- shelves, chart
+    * type, aesthetics, table binding, calc layout -- and not one of them takes a
+    * {@code ScriptTarget} to check a pane grant against. Before this guard, a code minted from
+    * one chart's Script tab could rebind any assembly on the sheet.
+    *
+    * <p>Driven through a REAL {@link ViewsheetSessionService} over a REAL
+    * {@link SheetSessionService}: the refusal lives inside that service (the single resolution
+    * every endpoint here funnels through), so a mocked one would assert nothing.
+    *
+    * <p>{@code fields} is the endpoint used because it resolves via
+    * {@link ViewsheetSessionService#runtimeId} -- the READ-looking path that hands a runtime id
+    * straight to services that write, and therefore the one where "it's only a read" is least
+    * true.
+    */
+   @Test
+   void aPaneScopedSessionIsRefusedOnThisWholeSheetSurface() {
+      SheetSessionService store = new SheetSessionService();
+      JoinSession pane = store.open("Viewsheet/vs-1", "admin", SheetType.VIEWSHEET, "sock-1",
+                                    "admin",
+                                    new EditorContext("assemblyMain", "Chart1", null, null));
+
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      BindingAgentController controller = controllerWith(feature, realSessions(store), fields);
+
+      PairingException thrown = assertThrows(PairingException.class,
+         () -> controller.fields(pane.sessionToken(), null, principal()));
+
+      assertTrue(thrown.getMessage().contains("scoped to one script location"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Chart1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Connect to Claude"), thrown.getMessage());
+      verifyNoInteractions(fields);
+   }
+
+   /**
+    * The regression that would be worse than the bug: whole-sheet toolbar pairing is in use by
+    * other agents today and must be untouched.
+    */
+   @Test
+   void aWholeSheetToolbarSessionStillReachesTheSameEndpoint() throws Exception {
+      SheetSessionService store = new SheetSessionService();
+      JoinSession toolbar = store.open("Viewsheet/vs-1", "admin", SheetType.VIEWSHEET, "sock-1",
+                                       "admin", null);
+
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("Viewsheet/vs-1"), any(), any(Principal.class))).thenReturn(List.of());
+
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      BindingAgentController controller = controllerWith(feature, realSessions(store), fields);
+
+      assertTrue(controller.fields(toolbar.sessionToken(), null, principal()).isEmpty());
+      verify(fields).list(eq("Viewsheet/vs-1"), any(), any(Principal.class));
+   }
+
+   /** A real {@link ViewsheetSessionService} over {@code store}. */
+   private static ViewsheetSessionService realSessions(SheetSessionService store) {
+      return new ViewsheetSessionService(store, mock(SheetRuntimeAccess.class),
+                                         mock(SheetAgentBroadcastService.class));
+   }
+
 }

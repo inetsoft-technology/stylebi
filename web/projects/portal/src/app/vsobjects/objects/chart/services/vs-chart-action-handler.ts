@@ -209,6 +209,7 @@ export class VSChartActionHandler extends AbstractActionHandler {
          dialog.variableValues = variableValues;
          dialog.openToScript = openToScript;
          dialog.runtimeId = this.viewsheetClient.runtimeId;
+         dialog.socketConnection = this.viewsheetClient;
          dialog.assetId = assetId;
          dialog.assemblyName = model.absoluteName;
          dialog.viewer = this.viewer || model.inEmbeddedViewsheet;

@@ -168,4 +168,165 @@ describe("ConnectToClaudeComponent", () => {
 
       expect(subSpy.unsubscribe).toHaveBeenCalled();
    });
+
+   it("includes editorContext in the mint payload when one is supplied", () => {
+      component.runtimeId = "vs-1";
+      component.sheetType = "VIEWSHEET";
+      component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+      component.requestCode();
+
+      const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
+      expect(sent.editorContext).toEqual({ kind: "assemblyMain", assembly: "Chart1" });
+   });
+
+   it("omits editorContext entirely for a toolbar mint", () => {
+      component.runtimeId = "vs-1";
+      component.sheetType = "VIEWSHEET";
+      component.requestCode();
+
+      const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
+      expect("editorContext" in sent).toBe(false);
+   });
+
+   // JSON.stringify drops keys whose value is `undefined` on its own, so a test that
+   // merely leaves editorContext unset (the previous test) would pass even without the
+   // `if(this.editorContext)` guard in requestCode(). Setting it to `null` explicitly
+   // forces the guard to do the work: without it, `payload.editorContext = null` would
+   // survive JSON.stringify and this assertion would fail.
+   it("omits editorContext when it is explicitly set to null", () => {
+      component.runtimeId = "vs-1";
+      component.sheetType = "VIEWSHEET";
+      component.editorContext = null;
+      component.requestCode();
+
+      const sent = JSON.parse(mockStompConnection.send.mock.calls[0][2]);
+      expect("editorContext" in sent).toBe(false);
+   });
+
+   describe("detach (G2 Task 9)", () => {
+      it("sends a detach message naming this location's editorContext", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+
+         component.detach();
+
+         expect(mockSocketConnection.whenConnected).toHaveBeenCalled();
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/detach",
+            {},
+            JSON.stringify({ editorContext: { kind: "assemblyMain", assembly: "Chart1" } })
+         );
+      });
+
+      it("is a no-op for a whole-sheet (toolbar) mint with no editorContext", () => {
+         component.editorContext = undefined;
+
+         component.detach();
+
+         expect(mockSocketConnection.whenConnected).not.toHaveBeenCalled();
+      });
+
+      it("is a no-op when there is no socket connection", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         component.socketConnection = undefined as any;
+
+         expect(() => component.detach()).not.toThrow();
+      });
+   });
+
+   /*
+    * Whole-branch review finding 2. The existing detach tests above all vary the context
+    * BEFORE minting, or not at all -- which is exactly why this survived a per-task review.
+    * The failure needs the context to change AFTER a code came back.
+    */
+   describe("detach keys on the context the code was minted with", () => {
+      function mintWith(context: any): void {
+         let handler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (_dest: string, h: (msg: any) => void) => {
+               handler = h;
+               return { unsubscribe: vi.fn() };
+            });
+
+         component.runtimeId = "vs-1";
+         component.sheetType = "VIEWSHEET";
+         component.editorContext = context;
+         component.requestCode();
+         handler!({ frame: { body: JSON.stringify({ code: "ABC123" }) } });
+      }
+
+      function lastDetachPayload(): any {
+         const call = mockStompConnection.send.mock.calls
+            .filter((c: any[]) => c[0] === "/events/wiz/pairing/detach")
+            .pop();
+         return call === undefined ? undefined : JSON.parse(call[2]);
+      }
+
+      /*
+       * The reported failure, end to end: pair on Init, click Load to compare, Cancel. The host
+       * (viewsheet-script-pane) derives editorContext from the onInit/onLoad radio, so its getter
+       * now says viewsheetOnLoad -- which matches no session on the server, leaving the
+       * viewsheetOnInit session live for its full 30-minute TTL with the editor gone.
+       */
+      it("detaches the minted context, not the host's current one", () => {
+         mintWith({ kind: "viewsheetOnInit" });
+
+         component.editorContext = { kind: "viewsheetOnLoad" };
+         component.detach();
+
+         expect(lastDetachPayload().editorContext).toEqual({ kind: "viewsheetOnInit" });
+      });
+
+      /* The same shape from the other host: formula-editor-dialog puts the user-editable
+       * formulaName straight into the context. */
+      it("detaches the minted name after the user renames the formula", () => {
+         mintWith({ kind: "calcField", assembly: "Query1", name: "Margin" });
+
+         component.editorContext = { kind: "calcField", assembly: "Query1", name: "Renamed" };
+         component.detach();
+
+         expect(lastDetachPayload().editorContext).toEqual(
+            { kind: "calcField", assembly: "Query1", name: "Margin" });
+      });
+
+      /* The mint payload must be the same single read, so what was sent and what is remembered
+       * cannot disagree even if the getter changes between the send and the response. */
+      it("sends the same context it remembers", () => {
+         mintWith({ kind: "calcField", assembly: "Query1", name: "Margin" });
+
+         const mint = mockStompConnection.send.mock.calls
+            .filter((c: any[]) => c[0] === "/events/wiz/pairing/mint").pop();
+
+         component.detach();
+
+         expect(lastDetachPayload().editorContext)
+            .toEqual(JSON.parse(mint[2]).editorContext);
+      });
+
+      /* No code was ever minted, so there is no session of ours to end -- falling back to the
+       * current value is what the pre-existing detach tests above rely on. */
+      it("falls back to the current context when nothing was ever minted", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+
+         component.detach();
+
+         expect(lastDetachPayload().editorContext)
+            .toEqual({ kind: "assemblyMain", assembly: "Chart1" });
+      });
+
+      /* A new runtime resets the component's pairing state; a remembered context from the old
+       * runtime would name a session that no longer exists. */
+      it("forgets the minted context when the runtimeId changes", () => {
+         mintWith({ kind: "viewsheetOnInit" });
+
+         component.runtimeId = "vs-2";
+         component.ngOnChanges(
+            { runtimeId: { currentValue: "vs-2", previousValue: "vs-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+         component.editorContext = { kind: "viewsheetOnLoad" };
+         component.detach();
+
+         expect(lastDetachPayload().editorContext).toEqual({ kind: "viewsheetOnLoad" });
+      });
+   });
+
 });

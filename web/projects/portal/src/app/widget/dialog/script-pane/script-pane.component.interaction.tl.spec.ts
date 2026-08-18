@@ -24,6 +24,7 @@
  *   Group 2 [Risk 3] - editor change and tree-click output contracts
  *   Group 3 [Risk 2] - keyboard/contextmenu event guards
  *   Group 4 [Risk 2] - tree-root and virtual-scroll input refresh
+ *   Group 5 [Risk 3] - pane-scoped pairing runtime/socket inputs (G2 Task 1)
  *
  * Out of scope this pass: async timer races and display-only branch helpers.
  * Covered in script-pane.component.risk.tl.spec.ts and script-pane.component.display.tl.spec.ts.
@@ -237,5 +238,45 @@ describe("ScriptPane - root setters and virtual scroll refresh [Group 4, Risk 2]
 
       expect(treeSpy).toHaveBeenCalledWith(root);
       expect(comp.needUseVirtualScroll).toBe(false);
+   });
+});
+
+describe("ScriptPane - pane-scoped pairing runtime/socket inputs [Group 5, Risk 3]", () => {
+   it("accepts the sheet runtime and socket needed to mint a pairing code", () => {
+      const { comp } = createScriptPane();
+      const clientServiceStub = {
+         runtimeId: "vs-123",
+         sendEvent: vi.fn(),
+         getCommands: vi.fn()
+      };
+
+      comp.runtimeId = "vs-123";
+      comp.socketConnection = clientServiceStub as any;
+
+      expect(comp.runtimeId).toBe("vs-123");
+      expect(comp.socketConnection).toBe(clientServiceStub);
+   });
+
+   it("detaches its Connect-to-Claude session on ngOnDestroy (G2 Task 9)", () => {
+      const { comp, codeMirror, ternServer } = createScriptPane();
+      (comp as any).codemirrorInstance = codeMirror;
+      (comp as any).ternServer = ternServer;
+      (comp as any).cancelAutocomplete = vi.fn();
+      const connectToClaude = { detach: vi.fn() };
+      (comp as any).connectToClaude = connectToClaude;
+
+      comp.ngOnDestroy();
+
+      expect(connectToClaude.detach).toHaveBeenCalledTimes(1);
+   });
+
+   it("ngOnDestroy tolerates no Connect-to-Claude control being present", () => {
+      const { comp, codeMirror, ternServer } = createScriptPane();
+      (comp as any).codemirrorInstance = codeMirror;
+      (comp as any).ternServer = ternServer;
+      (comp as any).cancelAutocomplete = vi.fn();
+      (comp as any).connectToClaude = undefined;
+
+      expect(() => comp.ngOnDestroy()).not.toThrow();
    });
 });

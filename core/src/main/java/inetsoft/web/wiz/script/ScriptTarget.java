@@ -23,7 +23,9 @@ import inetsoft.web.wiz.pairing.PairingException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parses/formats the {@code target} string the wiz-services proxy (and the MCP script tools)
@@ -33,7 +35,10 @@ import java.util.List;
  * {@code "assembly:<name>:onClick"}.</p>
  */
 public final class ScriptTarget {
-   public enum Location { VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD }
+   public enum Location {
+      VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD,
+      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE
+   }
 
    /**
     * The wire vocabulary. Distinct from {@link Location}, which is the internal dispatch key every
@@ -57,10 +62,47 @@ public final class ScriptTarget {
        */
       CALC_FIELD("calcField", Location.CALC_FIELD),
 
-      // Reserved so the schema does not churn when pane-scoped pairing lands. A session cannot be
-      // scoped to one yet, so ScriptTarget.of refuses them with a scope error.
-      WORKSHEET_EXPRESSION("worksheetExpression", null),
-      WORKSHEET_CONDITION("worksheetCondition", null);
+      /**
+       * A worksheet expression column's formula (G2 Task 8). Addressed the same way as
+       * {@link #CALC_FIELD} and for the same reason: {@code assemblyName()} carries the owning
+       * TABLE, {@code name()} carries the column's own name. Servable only through
+       * {@code WorksheetScriptService}, which routes onto {@code WorksheetAgentController}'s
+       * existing {@code edit_expression} op rather than writing the worksheet directly.
+       */
+      WORKSHEET_EXPRESSION("worksheetExpression", Location.WORKSHEET_EXPRESSION),
+
+      /**
+       * A worksheet column's filter condition (G2 Task 8). Addressed by (table, field) exactly
+       * like {@link #WORKSHEET_EXPRESSION}/{@link #CALC_FIELD} -- see those for the asymmetry
+       * this implies for {@code assemblyName()}/{@code name()}. Servable only through
+       * {@code WorksheetScriptService}, routed onto {@code WorksheetAgentController}'s existing
+       * {@code edit_condition} op.
+       */
+      WORKSHEET_CONDITION("worksheetCondition", Location.WORKSHEET_CONDITION),
+
+      /**
+       * A single-value worksheet condition's VALUE only — never its operator, and never a
+       * multi-value condition's other slots. Addressed the same way as
+       * {@link #WORKSHEET_CONDITION} (table, field); the two are deliberately NOT dialog
+       * siblings (see {@code PaneScopeService#matchesGrant}) because they carry different
+       * authority over the same location.
+       *
+       * <p>Exists because the one live UI caller of {@link #WORKSHEET_CONDITION} —
+       * {@code ExpressionEditor}, which edits a condition's expression-typed VALUE, never the
+       * condition as a whole — does not match what that kind's server-side write does
+       * ({@code WorksheetScriptService.conditionEditRequest} parses the pane's whole text as a
+       * NEW operator+values pair and replaces the entire condition). An agent paired from that
+       * dialog could silently overwrite an operator the user never opened it to change. This
+       * kind is narrower on purpose: {@code WorksheetScriptService} resolves the EXISTING
+       * condition, keeps its operator and every other value untouched, and refuses outright for
+       * an operator with more than one value slot (BETWEEN, ONE_OF/NOT_ONE_OF) or none
+       * (NULL/NOT_NULL) — those have no single "the value" this kind could mean. Reachable only
+       * from {@code FormulaEditorDialog}'s condition branch when the condition it is editing
+       * already uses a single-value operator; {@link #WORKSHEET_CONDITION} itself stays fully
+       * built and tested for whole-sheet sessions and direct worksheet-chat tool calls, which
+       * genuinely do mean "replace the whole condition".
+       */
+      WORKSHEET_CONDITION_VALUE("worksheetConditionValue", Location.WORKSHEET_CONDITION_VALUE);
 
       Kind(String wireName, Location location) {
          this.wireName = wireName;
@@ -74,6 +116,53 @@ public final class ScriptTarget {
       /** The internal dispatch key, or {@code null} for a kind no service can serve yet. */
       public Location location() {
          return location;
+      }
+
+      /**
+       * Whether an action addressed to this kind may run only from a session paired at that
+       * expression's own script pane or formula editor -- never from a whole-sheet ("Connect to
+       * Claude" toolbar) session, regardless of the {@code wiz.agent.script.require-script-pane}
+       * strict posture (see {@link PaneScopeService}, which enforces this).
+       *
+       * <p>Deliberately NOT {@code location() == null}. Before G2 Task 8, {@code WORKSHEET_EXPRESSION}/
+       * {@code WORKSHEET_CONDITION} had no {@code Location} at all and needed this to be
+       * {@code true} anyway; giving them a real {@code Location} (so they become servable, see
+       * {@code WorksheetScriptService}) would have silently flipped this to {@code false} the
+       * moment {@code location()} stopped being null -- exactly the kind of change that reports
+       * success while quietly inverting a security-relevant rule, since a calc field and a
+       * worksheet expression/condition column have no name or identity at the whole-sheet level
+       * regardless of whether a service can dispatch on their location.
+       *
+       * <p>Instead this is an explicit classification of the {@link Location}, in
+       * {@link #isExpressionLevel}, which a new expression-level {@code Location} must be added
+       * to on purpose. Still derived from {@code kind} in one place (not a hand-maintained
+       * parallel list of {@code Kind} constants) -- the derivation just keys on the property that
+       * actually matters ("does this kind address something with sheet-level identity"), not on
+       * whether a service happens to be wired up yet.
+       */
+      public boolean requiresPaneSession() {
+         return location == null || isExpressionLevel(location);
+      }
+
+      /**
+       * Whether {@code location} addresses something with no name or identity outside its own
+       * expression editor.
+       *
+       * <p>Deliberately an exhaustive {@code switch} <b>with no {@code default}</b>: adding a
+       * {@link Location} for a kind the spec already names (highlight / cell / dynamicValue) and
+       * forgetting to classify it is then a COMPILE error, not a silent {@code false} that flips
+       * that kind out of pane-scope enforcement with the whole suite still green. That silent-flip
+       * shape is exactly what the previous {@code EnumSet} membership test permitted -- a set
+       * literal has no way to notice a constant nobody put in it. The companion
+       * {@code PaneScopeServiceTest#everyKindIsClassifiedByExactlyOneGuard} covers the other half
+       * (a new {@link Kind} mapped onto an EXISTING location, which the compiler cannot see).
+       */
+      private static boolean isExpressionLevel(Location location) {
+         return switch(location) {
+            case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION,
+               WORKSHEET_CONDITION_VALUE -> true;
+            case VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK -> false;
+         };
       }
 
       public static Kind fromWire(String wire) throws PairingException {
@@ -172,14 +261,16 @@ public final class ScriptTarget {
             "editor; this session is bound to a whole viewsheet.");
       }
 
-      if(kind == Kind.CALC_FIELD) {
+      if(COLUMN_ADDRESSED_KINDS.contains(kind)) {
          if(assemblyName == null || assemblyName.isBlank()) {
             throw new PairingException(
-               "kind 'calcField' requires the table the field belongs to, in 'assembly'.");
+               "kind '" + kind.wireName() + "' requires the table the field belongs to, in " +
+               "'assembly'.");
          }
 
          if(name == null || name.isBlank()) {
-            throw new PairingException("kind 'calcField' requires the field's 'name'.");
+            throw new PairingException(
+               "kind '" + kind.wireName() + "' requires the field's 'name'.");
          }
 
          return new ScriptTarget(kind, assemblyName, name);
@@ -187,7 +278,9 @@ public final class ScriptTarget {
 
       if(name != null && !name.isBlank()) {
          throw new PairingException(
-            "kind '" + kind.wireName() + "' takes no 'name'; only calcField is addressed by one.");
+            "kind '" + kind.wireName() + "' takes no 'name'; only " +
+            String.join(", ", COLUMN_ADDRESSED_KINDS.stream().map(Kind::wireName).sorted().toList()) +
+            " are addressed by one.");
       }
 
       boolean needsAssembly = kind == Kind.ASSEMBLY_MAIN || kind == Kind.ASSEMBLY_ON_CLICK;
@@ -440,8 +533,24 @@ public final class ScriptTarget {
          // location) -- it must not throw, or every such message breaks instead of reporting
          // the thing it was trying to report.
          case CALC_FIELD -> "calcField:" + assemblyName + ":" + name;
+         // Same reasoning as CALC_FIELD immediately above: no legacy parseable form, display
+         // string only.
+         case WORKSHEET_EXPRESSION -> "worksheetExpression:" + assemblyName + ":" + name;
+         case WORKSHEET_CONDITION -> "worksheetCondition:" + assemblyName + ":" + name;
+         // Same reasoning as CALC_FIELD/WORKSHEET_EXPRESSION/WORKSHEET_CONDITION above: no
+         // legacy parseable form, display string only.
+         case WORKSHEET_CONDITION_VALUE -> "worksheetConditionValue:" + assemblyName + ":" + name;
       };
    }
+
+   /**
+    * Kinds addressed by (table, field) rather than by assembly alone — see {@link Kind#CALC_FIELD}'s
+    * javadoc for why. Centralized so {@link #of} has one place to check membership rather than an
+    * {@code ||} chain that a future column-addressed kind could be added to incompletely.
+    */
+   private static final Set<Kind> COLUMN_ADDRESSED_KINDS =
+      EnumSet.of(Kind.CALC_FIELD, Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION,
+         Kind.WORKSHEET_CONDITION_VALUE);
 
    private final Kind kind;
    private final Location location;

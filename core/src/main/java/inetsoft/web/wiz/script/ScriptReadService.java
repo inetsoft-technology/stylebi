@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.ClickableInputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ClickableOutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.web.wiz.pairing.EditorContext;
+import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
@@ -86,6 +88,44 @@ public class ScriptReadService {
       }
 
       return targets;
+   }
+
+   /**
+    * Enumerates every scriptable target, scoped to {@code session}'s own grant.
+    *
+    * <p>{@code list_script_targets} must not roam: a whole-sheet session ({@code session} is
+    * {@code null} or carries no {@link JoinSession#editorContext()}) sees the same full
+    * enumeration {@link #list(RuntimeViewsheet)} always has, but a pane-scoped session sees only
+    * the target(s) {@link PaneScopeService#matchesGrant} would let it act on — its own location,
+    * plus its dialog sibling (see that method's javadoc), never the whole sheet.
+    *
+    * <p>Deliberately a filter over the full enumeration rather than a variant of
+    * {@link PaneScopeService#check}: {@code check} refuses one caller-supplied target against a
+    * session; here there is no single target to refuse, only a list to narrow. Scoping an
+    * OUTPUT is a different mechanism from refusing an INPUT, even though both read the same
+    * grant, so this reuses {@code matchesGrant} rather than trying to route through {@code check}.
+    */
+   public List<ScriptTargetInfo> list(RuntimeViewsheet rvs, JoinSession session) {
+      List<ScriptTargetInfo> all = list(rvs);
+
+      if(session == null || session.editorContext() == null) {
+         return all;
+      }
+
+      EditorContext grant = session.editorContext();
+      return all.stream().filter(info -> matchesGrant(grant, info)).toList();
+   }
+
+   /** Decodes {@code info}'s own id back into a {@link ScriptTarget} to test it against grant. */
+   private static boolean matchesGrant(EditorContext grant, ScriptTargetInfo info) {
+      try {
+         return PaneScopeService.matchesGrant(grant, ScriptTarget.fromId(info.id()));
+      }
+      catch(PairingException ex) {
+         // A target whose own id fails to decode cannot be addressed anyway; exclude it from a
+         // scoped listing rather than let a malformed id leak past the filter.
+         return false;
+      }
    }
 
    /**
@@ -215,6 +255,14 @@ public class ScriptReadService {
             text = calcFields.read(vs, target.assemblyName(), target.name());
             enabled = true;
          }
+         // A worksheet expression/condition column lives on a RuntimeWorksheet, never a
+         // RuntimeViewsheet -- this method structurally cannot serve it. Named explicitly
+         // (rather than left to the generic default below) so the message says where to go
+         // instead of just "unsupported".
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet-level target; it is not readable " +
+            "through the viewsheet script API. Use worksheet-chat's read_worksheet_model or " +
+            "get_binding instead.");
          default -> throw new PairingException("Unsupported target: " + target);
       }
 

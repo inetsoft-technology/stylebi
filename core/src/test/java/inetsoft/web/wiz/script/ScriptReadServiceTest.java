@@ -24,6 +24,10 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.web.wiz.pairing.EditorContext;
+import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.pairing.SheetType;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
 import org.junit.jupiter.api.Test;
@@ -149,11 +153,13 @@ class ScriptReadServiceTest {
    @Test
    void advertisesOnlyTheKindsThisServerCanActuallyServe() {
       assertEquals(2, ScriptGrammar.VERSION);
+      // G2 Task 8 gave worksheetExpression/worksheetCondition real Locations (served by
+      // WorksheetScriptService), so they now belong in this list alongside calcField.
+      // worksheetConditionValue (stylebi#4654's second review, finding 1) is the same story.
       assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick",
-                           "calcField"),
+                           "calcField", "worksheetExpression", "worksheetCondition",
+                           "worksheetConditionValue"),
                    ScriptGrammar.supportedKinds());
-      assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
-                  "a reserved kind must not be advertised as servable");
    }
 
    private static CalculateRef calc(String name, String expression, boolean sql,
@@ -225,8 +231,22 @@ class ScriptReadServiceTest {
    @Test
    void calcFieldIsAdvertisedAsServableWithoutEditingScriptGrammar() {
       assertTrue(ScriptGrammar.supportedKinds().contains("calcField"));
-      assertFalse(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
-                  "reserved kinds still must not be advertised");
+      assertTrue(ScriptGrammar.supportedKinds().contains("worksheetExpression"),
+                 "worksheetExpression is servable (via WorksheetScriptService) since G2 Task 8");
+   }
+
+   /**
+    * {@link ScriptReadService#read} is scoped to a {@code RuntimeViewsheet} — a worksheet
+    * expression/condition column has no such representation, so this must fail loud (naming
+    * where to go instead) rather than silently matching nothing, the same hazard CALC_FIELD's
+    * addition hit in this package before.
+    */
+   @Test
+   void readRefusesAWorksheetExpressionTargetWithARedirect() {
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.read(runtime(), ScriptTarget.of(
+            ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin")));
+      assertTrue(ex.getMessage().contains("worksheet-level"), ex.getMessage());
    }
 
    /**
@@ -301,5 +321,60 @@ class ScriptReadServiceTest {
       assertTrue(others.stream().allMatch(t -> t.sql() == null), "sql must be absent: " + others);
       assertTrue(others.stream().allMatch(t -> t.baseOnDetail() == null),
                  "baseOnDetail must be absent: " + others);
+   }
+
+   // -----------------------------------------------------------------------------------------
+   // Task 7 — list_script_targets must not roam for a pane-scoped session.
+   // -----------------------------------------------------------------------------------------
+
+   private static JoinSession paneSession(EditorContext ctx) {
+      return new JoinSession("TOK", "Viewsheet/foo", "alice~;~host-org", SheetType.VIEWSHEET, 0L,
+         Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, null, null, ctx);
+   }
+
+   /**
+    * {@code runtime()} carries onInit, onLoad, Chart1's main script (no onClick — charts can't
+    * have one), and Text1's main + onClick scripts: five targets in the unscoped list. A session
+    * paired to Chart1's own script must see exactly that one, not the other four.
+    */
+   @Test
+   void listDoesNotRoamForAPaneScopedSession() {
+      RuntimeViewsheet rvs = runtime();
+      List<ScriptTargetInfo> all = service.list(rvs);
+      assertTrue(all.size() > 1, "fixture must have more than one target to discriminate: " + all);
+
+      JoinSession pane = paneSession(new EditorContext("assemblyMain", "Chart1", null, null));
+      List<ScriptTargetInfo> scoped = service.list(rvs, pane);
+
+      assertEquals(1, scoped.size(), scoped.toString());
+      assertEquals("assemblyMain", scoped.get(0).kind());
+      assertEquals("Chart1", scoped.get(0).assembly());
+   }
+
+   /**
+    * The dialog-sibling ruling, visible through the listing: a session paired to Text1's
+    * {@code assemblyMain} also lists Text1's {@code assemblyOnClick} (same dialog, same
+    * assembly) — but nothing belonging to any other assembly or to the viewsheet itself.
+    */
+   @Test
+   void listIncludesTheDialogSiblingScriptKind() {
+      RuntimeViewsheet rvs = runtime();
+      JoinSession pane = paneSession(new EditorContext("assemblyMain", "Text1", null, null));
+      List<ScriptTargetInfo> scoped = service.list(rvs, pane);
+
+      assertEquals(2, scoped.size(), scoped.toString());
+      assertTrue(scoped.stream().allMatch(t -> "Text1".equals(t.assembly())), scoped.toString());
+      assertTrue(scoped.stream().anyMatch(t -> "assemblyMain".equals(t.kind())), scoped.toString());
+      assertTrue(scoped.stream().anyMatch(t -> "assemblyOnClick".equals(t.kind())),
+                 scoped.toString());
+   }
+
+   /** A whole-sheet ("Connect to Claude" toolbar) session keeps today's enumerate-everything. */
+   @Test
+   void listReturnsEverythingForAWholeSheetSession() {
+      RuntimeViewsheet rvs = runtime();
+      JoinSession wholeSheet = paneSession(null);
+
+      assertEquals(service.list(rvs).size(), service.list(rvs, wholeSheet).size());
    }
 }

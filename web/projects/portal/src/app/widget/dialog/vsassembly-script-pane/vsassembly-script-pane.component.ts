@@ -18,9 +18,11 @@
 import { Component, Input } from "@angular/core";
 import { ScriptTreeNodeData } from "../../formula-editor/script-tree-node-data";
 import { TreeNodeModel } from "../../tree/tree-node-model";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ScriptPaneTreeModel } from "../script-pane/script-pane-tree-model";
 import { ScriptPane } from "../script-pane/script-pane.component";
 import { VSAssemblyScriptPaneModel } from "./vsassembly-script-pane-model";
+import { EditorContext } from "../../../composer/gui/wiz/editor-context";
 import { FormulaEditorDialog } from "../../formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormsModule } from "@angular/forms";
@@ -34,7 +36,16 @@ export class VSAssemblyScriptPane {
    @Input() view: string;
    @Input() model: VSAssemblyScriptPaneModel;
    @Input() scriptTreeModel: ScriptPaneTreeModel;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
+   /** Absolute name of the assembly this main script belongs to, used to
+    *  scope a pane-minted pairing code to this specific assembly. */
+   @Input() assembly?: string;
    cursor: {line: number, ch: number};
+
+   get editorContext(): EditorContext {
+      return { kind: "assemblyMain", assembly: this.assembly };
+   }
 
    private queryPath(root: TreeNodeModel, label: string, end: string): string {
       if(!root || !label || label.length === 0) {

@@ -53,7 +53,7 @@ class ViewsheetSessionServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
                                       SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
-                                      JoinSession.ConnectionMode.PAIRED, null, null);
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
@@ -82,7 +82,7 @@ class ViewsheetSessionServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
                                       SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
-                                      JoinSession.ConnectionMode.PAIRED, null, null);
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);

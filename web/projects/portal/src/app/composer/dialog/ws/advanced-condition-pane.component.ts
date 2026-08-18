@@ -30,6 +30,7 @@ import { DataRef } from "../../../common/data/data-ref";
 import { PrePostConditionItemPaneProvider } from "./pre-post-condition-item-pane-provider";
 import { RankingConditionItemPaneProvider } from "./ranking-condition-item-pane-provider";
 import { ConditionList } from "../../../widget/condition/condition-list.component";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 
 @Component({
     selector: "advanced-condition-pane",
@@ -38,6 +39,7 @@ import { ConditionList } from "../../../widget/condition/condition-list.componen
 })
 export class AdvancedConditionPane implements OnInit, OnChanges {
    @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() assemblyName: string;
    @Input() subqueryTables: SubqueryTable[];
    @Input() preAggregateFields: DataRef[];

@@ -354,6 +354,27 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
       expect(comp.subscriptions).toBeNull();
    });
 
+   // A pane session dies with its editor (G2 Task 9): cancelling/closing this dialog must
+   // not leave a live agent-pairing write handle behind.
+   it("detaches its Connect-to-Claude session on ngOnDestroy", () => {
+      const { comp } = createDialog();
+      comp.ngOnInit();
+      const connectToClaude = { detach: vi.fn() };
+      (comp as any).connectToClaude = connectToClaude;
+
+      comp.ngOnDestroy();
+
+      expect(connectToClaude.detach).toHaveBeenCalledTimes(1);
+   });
+
+   it("ngOnDestroy tolerates no Connect-to-Claude control being present", () => {
+      const { comp } = createDialog();
+      comp.ngOnInit();
+      (comp as any).connectToClaude = undefined;
+
+      expect(() => comp.ngOnDestroy()).not.toThrow();
+   });
+
    it("should run checkValid after view init when formulaType control exists", async () => {
       const { comp } = createDialog();
       comp.resizeable = false;

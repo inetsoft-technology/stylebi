@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.script.PaneScopeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -52,7 +53,41 @@ public class ViewsheetSessionService {
       this.broadcast = broadcast;
    }
 
+   /**
+    * Resolves {@code sessionToken} for whole-sheet work, refusing a pane-scoped session.
+    *
+    * <p>The one resolution every endpoint of {@code ViewsheetAssemblyAgentController} and
+    * {@code BindingAgentController} funnels through -- {@link #resolve}, {@link #runtimeId} and
+    * {@link #mutate} all start here, and so does every binding/property/condition service they
+    * delegate to. Putting the pane-scope refusal here rather than at ~30 endpoints is what makes
+    * it impossible for a NEW endpoint on either controller to be added without it: there is no
+    * other way in.
+    *
+    * <p>Deliberately refuses reads as well as writes. A pane grant names one script location; on
+    * these surfaces there is no target to check it against, so "read-only" is not a narrower
+    * grant, just an unenforced one -- and the read paths here ({@code runtimeId} in particular)
+    * hand the runtime id straight to composer services that write.
+    *
+    * @see PaneScopeService#requireWholeSheetSession
+    */
    public JoinSession requireSession(String sessionToken, Principal agent) throws PairingException {
+      JoinSession session = requireSessionAllowingPaneScope(sessionToken, agent);
+      PaneScopeService.requireWholeSheetSession(session);
+      return session;
+   }
+
+   /**
+    * Resolves {@code sessionToken} WITHOUT the pane-scope refusal {@link #requireSession}
+    * applies.
+    *
+    * <p>Exactly one caller: {@link SheetOpenService}, which must inspect a pane-scoped session in
+    * order to refuse it with a message naming {@code open_base_worksheet} specifically -- see
+    * that class. Anything else that reaches for this instead of {@link #requireSession} is
+    * re-opening the hole: a pane token is not a whole-sheet handle, and the name says so.
+    */
+   public JoinSession requireSessionAllowingPaneScope(String sessionToken, Principal agent)
+      throws PairingException
+   {
       JoinSession session = sessions.resolve(sessionToken, agentKey(agent));
 
       if(session == null) {

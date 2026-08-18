@@ -51,6 +51,7 @@
     @if (condition != null) {
       <condition-item-pane [provider]="provider" [variableNames]="variableNames"
         [subqueryTables]="subqueryTables" [fields]="fields"
+        [table]="table" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
         [condition]="condition" [isVSContext]="isVSContext"
         [showOriginalName]="true"
         (conditionChange)="conditionChange($event)"

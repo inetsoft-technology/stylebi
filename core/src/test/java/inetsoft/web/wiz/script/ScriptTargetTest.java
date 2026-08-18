@@ -98,17 +98,68 @@ class ScriptTargetTest {
                    ScriptTarget.Kind.ASSEMBLY_ON_CLICK.location());
    }
 
+   /**
+    * G2 Task 8 gave both kinds a real {@link ScriptTarget.Location} — they are servable (through
+    * {@code WorksheetScriptService}, not the viewsheet-scoped read/edit services), addressed by
+    * (table, field) exactly like {@link ScriptTarget.Kind#CALC_FIELD}. See
+    * {@code aCalcFieldCarriesATableAndAFieldName} for the analogous calc-field test.
+    */
    @Test
-   void worksheetKindsAreReservedButNotServable() {
-      assertNull(ScriptTarget.Kind.WORKSHEET_EXPRESSION.location());
-      assertNull(ScriptTarget.Kind.WORKSHEET_CONDITION.location());
+   void worksheetKindsAreServableWithTheirOwnLocations() throws PairingException {
+      assertEquals(ScriptTarget.Location.WORKSHEET_EXPRESSION,
+                   ScriptTarget.Kind.WORKSHEET_EXPRESSION.location());
+      assertEquals(ScriptTarget.Location.WORKSHEET_CONDITION,
+                   ScriptTarget.Kind.WORKSHEET_CONDITION.location());
 
+      ScriptTarget t = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+      assertEquals("Query1", t.assemblyName(), "assembly carries the TABLE name for this kind");
+      assertEquals("Margin", t.name());
+   }
+
+   @Test
+   void aWorksheetExpressionWithoutAFieldNameIsRefused() {
       PairingException ex = assertThrows(
          PairingException.class,
-         () -> ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, null));
-      assertTrue(ex.getMessage().contains("paired from that expression's editor"),
-                 "a reserved kind must explain the scope, not read as an unknown kind: " +
-                 ex.getMessage());
+         () -> ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", null));
+      assertTrue(ex.getMessage().contains("name"),
+                 "the refusal must name the missing field: " + ex.getMessage());
+   }
+
+   @Test
+   void aWorksheetConditionCarriesATableAndAFieldName() throws PairingException {
+      ScriptTarget t = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "Price");
+
+      assertEquals("Query1", t.assemblyName());
+      assertEquals("Price", t.name());
+   }
+
+   /**
+    * The narrower sibling of {@code worksheetCondition} (finding 1 on stylebi#4654's second
+    * review): same (table, field) addressing, but never a dialog sibling of
+    * {@code worksheetCondition} -- see {@link ScriptTarget.Kind#WORKSHEET_CONDITION_VALUE}'s
+    * javadoc for why the two must not be interchangeable.
+    */
+   @Test
+   void worksheetConditionValueIsServableWithItsOwnLocation() throws PairingException {
+      assertEquals(ScriptTarget.Location.WORKSHEET_CONDITION_VALUE,
+                   ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE.location());
+      assertEquals("worksheetConditionValue", ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE.wireName());
+
+      ScriptTarget t =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+      assertEquals("Query1", t.assemblyName());
+      assertEquals("Price", t.name());
+   }
+
+   @Test
+   void aWorksheetConditionValueIdRoundTrips() throws PairingException {
+      ScriptTarget t =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+      ScriptTarget back = ScriptTarget.fromId(t.id());
+
+      assertEquals(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, back.kind());
+      assertEquals("Query1", back.assemblyName());
+      assertEquals("Price", back.name());
    }
 
    @Test

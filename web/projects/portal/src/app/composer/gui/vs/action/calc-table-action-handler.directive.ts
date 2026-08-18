@@ -140,6 +140,7 @@ export class CalcTableActionHandlerDirective extends AbstractActionHandler imple
             });
          dialog.model = data;
          dialog.runtimeId = this._viewsheet.runtimeId;
+         dialog.socketConnection = this._viewsheet.socketConnection;
          dialog.variableValues =
             VSUtil.getVariableList(this._viewsheet.vsObjects, this.model.absoluteName);
          dialog.openToScript = openToScript;
