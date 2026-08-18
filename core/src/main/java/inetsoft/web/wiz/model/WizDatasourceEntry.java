@@ -37,8 +37,14 @@ package inetsoft.web.wiz.model;
  * @param nodeType     the raw {@link inetsoft.web.portal.data.PortalDataType} name, untranslated.
  * @param folder       derived from {@code nodeType}; the client's branch between "enter" and
  *                     "select".
- * @param sourceType   {@code XDataSource.getType()}, e.g. {@code "jdbc"} / {@code "Rest"}. Null for
- *                     folders, and null when the data source could not be loaded.
+ * @param sourceType   {@code XDataSource.getType()}, which is the SPECIFIC connector type — {@code
+ *                     "jdbc"} for a database, {@code "Rest.Stripe"} rather than {@code "Rest"} for a
+ *                     REST connector. The coarse family name is {@code getBaseType()}, a different
+ *                     method that {@code AbstractRestDataSource} overrides to return {@code "Rest"};
+ *                     this field never carries it. That distinction is load-bearing: this value is
+ *                     what joins a data source to its endpoint catalogue, which is keyed by the
+ *                     specific type. Null for folders, and null when the data source could not be
+ *                     loaded.
  * @param databaseType {@code JDBCDataSource.getDatabaseTypeString()}, e.g. {@code "MYSQL"}. Null for
  *                     anything that is not a JDBC database.
  * @param annotationClass

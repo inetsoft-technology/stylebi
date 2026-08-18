@@ -20,6 +20,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -348,6 +349,138 @@ public class WizDatabaseController {
       }
 
       return new WizEndpointCatalogResponse(catalogs, notCatalogued, unavailable, unknownType);
+   }
+
+   /**
+    * Every connector type that could be ingested, with the size of its catalogue.
+    *
+    * <p>Exists because the catalogue administration page has to offer a choice before anything has
+    * been ingested, and nothing outside StyleBI knows which connector types this build registers.
+    * {@code /datasources/endpoint-catalog} answers only for types the caller can already name; this
+    * is the enumeration that produces those names.</p>
+    *
+    * <p>The type strings come from {@code Config.getTabularDataSourceTypes()} and are the same
+    * strings {@code XDataSource.getType()} returns, so they join directly against the {@code
+    * sourceType} of {@code /datasources/browser}. Non-tabular types are excluded: only a tabular
+    * connector can ship an {@code endpoints.json}.</p>
+    *
+    * <p>No permission gate, for the same reason as {@code /datasources/endpoint-catalog}: this
+    * describes the software installed on the server, not any customer's data. It names no instance,
+    * no path and no stored value.</p>
+    *
+    * @return one row per registered tabular type, catalogued or not, sorted by type so the page has
+    *         a stable order without doing its own locale-dependent sort.
+    */
+   @GetMapping(value = "/datasources/endpoint-catalog/types",
+               produces = MediaType.APPLICATION_JSON_VALUE)
+   public List<WizEndpointCatalogType> getEndpointCatalogTypes() {
+      List<String> types;
+
+      try {
+         types = uqlConfig.getTabularDataSourceTypes();
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to enumerate the tabular data source types: {}", ex.getMessage());
+         types = List.of();
+      }
+
+      List<WizEndpointCatalogType> result = new ArrayList<>();
+
+      for(String type : types) {
+         if(type == null || type.isBlank()) {
+            continue;
+         }
+
+         result.add(summarizeCatalogue(type));
+      }
+
+      result.sort(Comparator.comparing(WizEndpointCatalogType::type));
+
+      return result;
+   }
+
+   /**
+    * Whether the caller may administer the deployment-wide endpoint catalogue.
+    *
+    * <p>Lives beside the catalogue endpoints rather than in some general identity API because that
+    * is the only question it answers: an ingest writes one catalogue shared by every organization on
+    * the deployment, so it is a site-administrator action, not an organization-scoped one.</p>
+    *
+    * <p>It has to be answered here and cannot be answered by the caller. {@code
+    * OrganizationManager.isSiteAdmin} asks the configured security provider whether any of the
+    * principal's roles — expanded through inheritance by {@code getAllRoles} — is the system
+    * administrator role, and which role that is, is provider configuration. Matching a role name
+    * against a token claim would give a different answer on any deployment that renamed the role,
+    * and would miss every user holding it by inheritance.</p>
+    *
+    * <p>The same call is the gate {@code AdminAiController.requireSiteAdmin} uses. As noted there,
+    * it answers true for the default principal when security is disabled, so a development install
+    * is not locked out and no separate {@code isSecurityEnabled()} branch is needed.</p>
+    *
+    * @param principal the current user.
+    *
+    * @return the verdict. Reported rather than enforced: the caller (wiz-services) owns the action
+    *         being gated, and a page that can ask beforehand can explain the refusal instead of
+    *         showing a bare 403 after the fact.
+    */
+   @GetMapping(value = "/datasources/endpoint-catalog/admin",
+               produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizEndpointCatalogAdmin getEndpointCatalogAdmin(Principal principal) {
+      return new WizEndpointCatalogAdmin(
+         OrganizationManager.getInstance().isSiteAdmin(principal));
+   }
+
+   /**
+    * One type's catalogue reduced to counts, using the same resolution chain as {@code
+    * getEndpointCatalog} so a type cannot be CATALOGUED here and unavailable there.
+    *
+    * <p>{@code unknownType} has no counterpart: these types come out of the registry itself, so
+    * {@code getQueryClass} cannot be absent for one. A null answer would mean the registry changed
+    * underneath this loop, which is reported as UNAVAILABLE — retryable — rather than invented into
+    * a fourth state.</p>
+    */
+   private WizEndpointCatalogType summarizeCatalogue(String type) {
+      Class<?> queryClass;
+
+      try {
+         String className = uqlConfig.getQueryClass(type);
+         queryClass = className == null ? null : uqlConfig.getClass(type, className);
+      }
+      catch(Throwable ex) {
+         LOG.debug("Failed to load the query class for type {}: {}", type, ex.getMessage());
+         queryClass = null;
+      }
+
+      if(queryClass == null) {
+         return new WizEndpointCatalogType(type, WizEndpointCatalogType.UNAVAILABLE, 0, 0);
+      }
+
+      WizEndpointCatalog catalog;
+
+      try {
+         catalog = endpointCatalogReader.read(queryClass);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to read the endpoint catalogue for type {}: {}", type, ex.getMessage());
+         return new WizEndpointCatalogType(type, WizEndpointCatalogType.UNAVAILABLE, 0, 0);
+      }
+
+      if(catalog == null) {
+         return new WizEndpointCatalogType(type, WizEndpointCatalogType.NOT_CATALOGUED, 0, 0);
+      }
+
+      int described = 0;
+
+      for(WizEndpointCatalogEntry entry : catalog.endpoints()) {
+         // Blank counts as absent: a description of whitespace carries no meaning to retrieve by,
+         // and reporting it as described would promise the ingest more than it can index.
+         if(entry != null && entry.description() != null && !entry.description().isBlank()) {
+            described++;
+         }
+      }
+
+      return new WizEndpointCatalogType(type, WizEndpointCatalogType.CATALOGUED,
+                                        catalog.endpoints().size(), described);
    }
 
    /**
