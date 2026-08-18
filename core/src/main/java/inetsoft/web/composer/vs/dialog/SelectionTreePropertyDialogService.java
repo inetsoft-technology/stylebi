@@ -200,6 +200,7 @@ public class SelectionTreePropertyDialogService {
       vsAssemblyScriptPaneModel.expression(selectionTreeAssemblyInfo.getScript() == null ?
                                               "" : selectionTreeAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -304,9 +305,15 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       streeInfo.setScript(vsAssemblyScriptPaneModel.expression());
 
-      this.vsObjectPropertyService.editObjectProperty(
+      boolean applied = this.vsObjectPropertyService.editObjectProperty(
          viewsheet, streeInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
+
+      // A refusal (write conflict, dependency cycle, ...) means the rename never happened --
+      // looking the assembly up by its never-applied new name here would NPE.
+      if(!applied) {
+         return null;
+      }
 
       Viewsheet vs = viewsheet.getViewsheet();
       selectionTreeAssembly =

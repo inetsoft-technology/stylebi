@@ -179,6 +179,7 @@ public class TextPropertyDialogService {
       clickableScriptPaneModel.scriptExpression(script);
       clickableScriptPaneModel.onClickExpression(onClick);
       result.setClickableScriptPaneModel(clickableScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -293,7 +294,7 @@ public class TextPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, textAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
       return null;
    }

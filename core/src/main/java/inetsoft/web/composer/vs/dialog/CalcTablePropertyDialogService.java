@@ -186,6 +186,7 @@ public class CalcTablePropertyDialogService {
       vsAssemblyScriptPaneModel.expression(calcTableAssemblyInfo.getScript() == null ?
                                               "" : calcTableAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -460,7 +461,7 @@ public class CalcTablePropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, calcTableAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
       return null;
    }
 

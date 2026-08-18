@@ -1765,9 +1765,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.navigateToExisting(index);
    }
 
-   public openWorksheet(assetId: string, gettingStarted?: boolean) {
+   public openWorksheet(assetId: string, gettingStarted?: boolean, runtimeId: string = null) {
       this.openSheet({ type: "worksheet", assetId}, false,
-         null, false, gettingStarted);
+         runtimeId, false, gettingStarted);
    }
 
    public openViewsheet(assetId: string, embedded: boolean = false,
@@ -1795,6 +1795,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                ws.localId = sheetCounter++;
                ws.newSheet = newSheet;
                ws.gettingStarted = gettingStarted;
+               ws.runtimeId = runtimeId;
+               ws.closeOnServer = !runtimeId;
 
                index = this.sheets.push(ws) - 1;
                this.openedTabs.push(new ComposerTabModel(ws.type, ws));
@@ -2971,7 +2973,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             }
             else {
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
-               this.openWorksheet(command.assetId);
+               this.openWorksheet(command.assetId, false, command.runtimeId);
             }
          });
       });

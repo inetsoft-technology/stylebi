@@ -703,6 +703,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          dialog.scriptTreeModel = data[1];
          dialog.variableValues = null;
          dialog.runtimeId = this.viewsheetClient.runtimeId;
+         dialog.socketConnection = this.viewsheetClient;
          dialog.assemblyName = this.model.absoluteName;
       });
    }

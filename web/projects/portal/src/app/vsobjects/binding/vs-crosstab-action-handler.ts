@@ -101,6 +101,7 @@ export class VSCrosstabActionHandler extends AbstractActionHandler {
          dialog.variableValues = variableValues;
          dialog.openToScript = openToScript;
          dialog.runtimeId = this.viewsheetClient.runtimeId;
+         dialog.socketConnection = this.viewsheetClient;
          dialog.scriptTreeModel = loadingScriptTreeModel;
          this.modelService.getModel(scriptUri, params).subscribe(res => dialog.scriptTreeModel = res);
       });

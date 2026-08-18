@@ -181,6 +181,7 @@ public class HyperlinkDialogService {
          model.setLinkType(NONE);
          model.setSelf(true);
          model.setSendViewsheetParameters(true);
+         model.setRevision(rvs.getWriteRevision());
 
          return model;
       }
@@ -231,6 +232,7 @@ public class HyperlinkDialogService {
       }
 
       model.setParamList(parameters);
+      model.setRevision(rvs.getWriteRevision());
 
       return model;
    }
@@ -324,7 +326,7 @@ public class HyperlinkDialogService {
          }
 
          this.vsObjectPropertyService.editObjectProperty(
-            rvs, info, objectId, objectId, linkUri, principal, dispatcher);
+            rvs, info, objectId, objectId, linkUri, principal, dispatcher, true, model.getRevision());
       }
       else {
          VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();

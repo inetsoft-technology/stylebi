@@ -103,7 +103,9 @@ class CalendarPropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       CalendarVSAssemblyInfo result = argument.getValue();
       // dropdown stays dropdown, title height changed to 30

@@ -135,6 +135,7 @@ public class OvalPropertyDialogService {
       vsAssemblyScriptPaneModel.expression(ovalAssemblyInfo.getScript() == null ?
                                               "" : ovalAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -209,7 +210,7 @@ public class OvalPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, ovalAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
       return null;
    }

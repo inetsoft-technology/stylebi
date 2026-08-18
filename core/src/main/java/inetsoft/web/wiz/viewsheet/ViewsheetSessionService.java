@@ -1,0 +1,243 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.wiz.viewsheet;
+
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
+import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.script.PaneScopeService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.security.Principal;
+
+/**
+ * Resolves a pairing session to a live viewsheet runtime and runs mutations against it.
+ *
+ * <p>Mirrors {@code ScriptEditService.resolve}, including the socket-session plumbing that
+ * makes broadcasts reach the browser.
+ *
+ * <p>Mutations run under a {@link CapturingCommandDispatcher} rather than a dummy one:
+ * composer services report failure by dispatching a {@code MessageCommand} of
+ * {@code Type.ERROR} and returning normally, so a dispatcher that drops commands turns every
+ * such failure into a silent success.
+ */
+@Service
+public class ViewsheetSessionService {
+   @Autowired
+   public ViewsheetSessionService(SheetSessionService sessions,
+                                  SheetRuntimeAccess runtimeAccess,
+                                  SheetAgentBroadcastService broadcast)
+   {
+      this.sessions = sessions;
+      this.runtimeAccess = runtimeAccess;
+      this.broadcast = broadcast;
+   }
+
+   /**
+    * Resolves {@code sessionToken} for whole-sheet work, refusing a pane-scoped session.
+    *
+    * <p>The one resolution every endpoint of {@code ViewsheetAssemblyAgentController} and
+    * {@code BindingAgentController} funnels through -- {@link #resolve}, {@link #runtimeId} and
+    * {@link #mutate} all start here, and so does every binding/property/condition service they
+    * delegate to. Putting the pane-scope refusal here rather than at ~30 endpoints is what makes
+    * it impossible for a NEW endpoint on either controller to be added without it: there is no
+    * other way in.
+    *
+    * <p>Deliberately refuses reads as well as writes. A pane grant names one script location; on
+    * these surfaces there is no target to check it against, so "read-only" is not a narrower
+    * grant, just an unenforced one -- and the read paths here ({@code runtimeId} in particular)
+    * hand the runtime id straight to composer services that write.
+    *
+    * @see PaneScopeService#requireWholeSheetSession
+    */
+   public JoinSession requireSession(String sessionToken, Principal agent) throws PairingException {
+      JoinSession session = requireSessionAllowingPaneScope(sessionToken, agent);
+      PaneScopeService.requireWholeSheetSession(session);
+      return session;
+   }
+
+   /**
+    * Resolves {@code sessionToken} WITHOUT the pane-scope refusal {@link #requireSession}
+    * applies.
+    *
+    * <p>Exactly one caller: {@link SheetOpenService}, which must inspect a pane-scoped session in
+    * order to refuse it with a message naming {@code open_base_worksheet} specifically -- see
+    * that class. Anything else that reaches for this instead of {@link #requireSession} is
+    * re-opening the hole: a pane token is not a whole-sheet handle, and the name says so.
+    */
+   public JoinSession requireSessionAllowingPaneScope(String sessionToken, Principal agent)
+      throws PairingException
+   {
+      JoinSession session = sessions.resolve(sessionToken, agentKey(agent));
+
+      if(session == null) {
+         throw new PairingException(
+            PairingException.Kind.SESSION_EXPIRED,
+            "Invalid or expired viewsheet session: " + sessionToken +
+            ". Ask the user for a fresh pairing code and run connect_viewsheet again.");
+      }
+
+      return session;
+   }
+
+   public RuntimeViewsheet resolve(String sessionToken, Principal agent) throws PairingException {
+      JoinSession session = requireSession(sessionToken, agent);
+      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
+         SheetType.VIEWSHEET, session.runtimeId(), agent);
+      applySocketSession(rvs, session);
+      return rvs;
+   }
+
+   /**
+    * The runtime id for a paired session.
+    *
+    * <p>Grants the ownership bypass as a side effect, because every caller of this method hands the
+    * id to a <em>composer</em> service, which re-resolves the sheet and enforces ownership against
+    * the agent's principal. Without it those services fail with {@code InvalidUserException} while
+    * the ones that go through {@link #resolve} or {@link #mutate} succeed — an inconsistency with
+    * no visible cause, since both look like ordinary reads from the outside.
+    */
+   public String runtimeId(String sessionToken, Principal agent) throws PairingException {
+      String runtimeId = requireSession(sessionToken, agent).runtimeId();
+      runtimeAccess.grantOwnershipBypass(SheetType.VIEWSHEET, runtimeId, agent);
+      return runtimeId;
+   }
+
+   /**
+    * Resolve, run the mutation under a capturing dispatcher, checkpoint, broadcast.
+    *
+    * <p>One checkpoint per call, matching what a single Composer dialog OK does, so the
+    * human's Ctrl+Z steps back through agent edits one at a time.
+    */
+   public void mutate(String sessionToken, Principal agent, Mutation mutation) throws Exception {
+      JoinSession session = requireSession(sessionToken, agent);
+      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
+         SheetType.VIEWSHEET, session.runtimeId(), agent);
+      applySocketSession(rvs, session);
+
+      // The checkpoint and the broadcast happen even when the mutation fails. A composer service
+      // partially applies before it ERRORs -- that is precisely why it ERRORs rather than throwing
+      // -- so on failure the runtime holds a half-applied edit. Letting the exception escape first
+      // meant no checkpoint and no broadcast: the human's Composer kept rendering pre-edit state
+      // while the runtime had moved, the next agent edit built on that divergence, and Ctrl+Z had
+      // no step for the partial change. The partial edit is real, so it gets an undo step and the
+      // browser is told about it.
+      try {
+         CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+            mutation.run(rvs, session.runtimeId(), dispatcher);
+            return null;
+         });
+      }
+      catch(CommandErrorException e) {
+         throw new CommandErrorException(
+            e.getErrors(),
+            "the edit may be partially applied; the runtime and your Composer have been " +
+            "refreshed to match, and one undo step covers whatever was applied");
+      }
+      finally {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null) {
+            rvs.addCheckpoint(vs.prepareCheckpoint());
+         }
+
+         // Every mutation through this method is a write to the live viewsheet, whether or not
+         // it fully succeeded (see the partial-apply reasoning above the checkpoint call, which
+         // applies identically here) -- and every one of the 20+ Composer dialogs that embed a
+         // script pane, or otherwise commit through VSObjectPropertyService/
+         // VSConditionDialogService/ViewsheetPropertyDialogService, checks this counter before
+         // committing its own stale snapshot. Without this bump, an agent write that lands
+         // through this seam (chart binding, aesthetics, table binding, calc layout -- anything
+         // that does not go through one of those three services directly) is invisible to that
+         // check: a human's dialog, opened before the agent's write and read at a now-stale
+         // revision, would still match on commit and silently overwrite it. See
+         // 2026-08-17-write-coordination-design.md / -implementation.md.
+         rvs.bumpWriteRevision();
+
+         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+      }
+   }
+
+   /**
+    * Resolve and run a <b>read</b> under a capturing dispatcher — no checkpoint, no broadcast.
+    *
+    * <p>Some composer services return their result by <em>dispatching a command</em> rather than
+    * returning a value: {@code VSTableLayoutService.getCellScript} and {@code getNamedGroup} both
+    * do. Reading those needs the capturing dispatcher, which {@link #resolve} does not supply.
+    *
+    * <p>{@link #mutate} would supply one, but it also opens a checkpoint and broadcasts — so
+    * using it for a read would put a stray Ctrl+Z step in the user's history for having
+    * <em>looked</em> at something, and tell their Composer to refresh for a change that never
+    * happened. Hence a third entry point rather than a flag on the second.
+    */
+   public <T> T read(String sessionToken, Principal agent, Read<T> read) throws Exception {
+      JoinSession session = requireSession(sessionToken, agent);
+      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
+         SheetType.VIEWSHEET, session.runtimeId(), agent);
+      applySocketSession(rvs, session);
+
+      return CapturingCommandDispatcher.withCapturingDispatcher(
+         agent, dispatcher -> read.run(rvs, session.runtimeId(), dispatcher));
+   }
+
+   @FunctionalInterface
+   public interface Mutation {
+      void run(RuntimeViewsheet rvs, String runtimeId, CapturingCommandDispatcher dispatcher)
+         throws Exception;
+   }
+
+   /** A read that needs the capturing dispatcher to see a command-delivered result. */
+   @FunctionalInterface
+   public interface Read<T> {
+      T run(RuntimeViewsheet rvs, String runtimeId, CapturingCommandDispatcher dispatcher)
+         throws Exception;
+   }
+
+   /**
+    * Carry the browser's socket session onto the runtime. Without this
+    * {@code SheetAgentBroadcastService} finds no socket session and skips the broadcast, so
+    * the human's Composer never reflects the agent's edits.
+    */
+   private void applySocketSession(RuntimeViewsheet rvs, JoinSession session) {
+      if(session.socketSessionId() != null && rvs.getSocketSessionId() == null) {
+         rvs.setSocketSessionId(session.socketSessionId());
+      }
+
+      if(rvs.getSocketUserName() == null && session.socketUserName() != null) {
+         rvs.setSocketUserName(session.socketUserName());
+      }
+   }
+
+   private String agentKey(Principal agent) {
+      if(agent instanceof XPrincipal p) {
+         IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
+         return id != null ? id.convertToKey() : p.getName();
+      }
+
+      return agent != null ? agent.getName() : null;
+   }
+
+   private final SheetSessionService sessions;
+   private final SheetRuntimeAccess runtimeAccess;
+   private final SheetAgentBroadcastService broadcast;
+}

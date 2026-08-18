@@ -549,6 +549,25 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
     * @param touch <code>true</code> to update the access time and heartbeat.
     * @return the runtime sheet if any.
     */
+   /**
+    * Whether a principal may act on a runtime sheet owned by a different session.
+    *
+    * <p>Two cases, both narrow and both opt-in on the principal itself:
+    * {@code supportLogin} for a support-staff login, and {@code pairedAgent} for an AI agent that
+    * has paired with the runtime. The pairing path sets the latter only after confirming the
+    * runtime's owner is the same logical user (see {@code SheetRuntimeAccess}), so this widens
+    * access to another <em>session</em> of that user, never to another user.
+    *
+    * <p>The agent case is needed because the wiz layer resolves a paired sheet without the owner
+    * check, but then delegates to composer services that re-resolve through this method with the
+    * agent's own principal — which can never be {@code equals} to the browser session's.
+    */
+   private static boolean mayActForOwner(Principal user) {
+      return user instanceof SRPrincipal p &&
+         (Boolean.TRUE.toString().equals(p.getProperty("supportLogin")) ||
+          Boolean.TRUE.toString().equals(p.getProperty("pairedAgent")));
+   }
+
    public final RuntimeSheet getSheet(String id, Principal user, boolean touch) {
       if(!isLocal(id)) {
          LOG.error("Getting sheet from non-owner: {}", id, new Exception("Stack trace"));
@@ -563,9 +582,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       }
 
       if(rs.getUser() != null && user != null && !rs.matches(user)) {
-         if(!(user instanceof SRPrincipal &&
-            Boolean.TRUE.toString().equals(((SRPrincipal) user).getProperty("supportLogin"))))
-         {
+         if(!mayActForOwner(user)) {
             throw new InvalidUserException(
                catalog.getString("common.invalidUser", user, rs.getUser()),
                LogLevel.INFO, false, rs.getUser());
@@ -789,10 +806,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
          boolean isSchedulerSheet = rsheet.getEntry() != null &&
             "true".equals(rsheet.getEntry().getProperty("_scheduler_"));
 
-         if(!isSchedulerSheet &&
-            !(user instanceof SRPrincipal &&
-            Boolean.TRUE.toString().equals(((SRPrincipal) user).getProperty("supportLogin"))))
-         {
+         if(!isSchedulerSheet && !mayActForOwner(user)) {
             throw new InvalidUserException(Catalog.getCatalog().
                getString("common.invalidUser", user, rsheet.getUser()),
                                            rsheet.getUser());

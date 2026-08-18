@@ -73,7 +73,12 @@ public class VSChartPlotResizeService extends VSChartControllerService<VSChartPl
 
             if(heightResized || square) {
                chartInfo.setUnitHeightRatio(sizeRatio);
-               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
+               // Height branch sets the HEIGHT percent. It set the width percent, overwriting the
+               // value the width branch had just computed on a square resize, and leaving the
+               // height percent unset — which matters because VGraphPair recomputes
+               // unitHeightRatio only when getUnitHeightRatioPercent() >= 1, so a height resize
+               // was dropped on the next recompute.
+               chartInfo.setUnitHeightRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
                chartInfo.setHeightResized(true);
             }
          }

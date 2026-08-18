@@ -20,11 +20,15 @@ package inetsoft.web.wiz.pairing;
 /**
  * A reusable session opened after a successful pairing join.
  * Edits reuse this; the code stays single-use.
+ *
+ * @param editorContext the script/formula location this session is scoped to, carried over
+ *                      from the {@link PairingGrant} that opened it, or {@code null} for a
+ *                      whole-sheet ("Connect to Claude" toolbar) session
  */
 public record JoinSession(String sessionToken, String runtimeId, String ownerIdentity,
                           SheetType sheetType, long lastAccess, long ttlMillis,
                           ConnectionMode connectionMode, String socketSessionId,
-                          String socketUserName) {
+                          String socketUserName, EditorContext editorContext) {
    public boolean isExpired(long now) { return now - lastAccess > ttlMillis; }
 
    /** Forward-compat slot: PAIRED = browser owns + agent joins; AGENT_OWNED reserved for future viz. */

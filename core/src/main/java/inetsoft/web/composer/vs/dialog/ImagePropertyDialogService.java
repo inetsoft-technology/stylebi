@@ -165,6 +165,7 @@ public class ImagePropertyDialogService {
          .dataOutputPaneModel(dataOutputPaneModel)
          .imageAdvancedPaneModel(imageAdvancedPaneModel)
          .clickableScriptPaneModel(clickableScriptPaneModel.build())
+         .revision(rvs.getWriteRevision())
          .build();
 
       GeneralPropPaneModel generalPropPaneModel = outputGeneralPaneModel.getGeneralPropPaneModel();
@@ -369,7 +370,7 @@ public class ImagePropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, imageAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.revision());
 
       return null;
    }

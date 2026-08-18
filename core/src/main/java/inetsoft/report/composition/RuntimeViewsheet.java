@@ -2099,6 +2099,41 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Get the current write revision. A Composer dialog captures this when it reads its model and
+    * sends it back on commit; a commit whose revision no longer matches is stale and must be
+    * refused rather than silently applied over whatever changed in between. See
+    * {@code 2026-08-17-write-coordination-design.md} for why this exists and
+    * {@code 2026-08-17-write-coordination-implementation.md} for why it is a dedicated counter
+    * rather than the undo-checkpoint index.
+    */
+   public int getWriteRevision() {
+      return writeRevision;
+   }
+
+   /**
+    * Bump the write revision after a dialog-owning commit lands. Returns the new value so a caller
+    * can report it in the same step.
+    */
+   public int bumpWriteRevision() {
+      return ++writeRevision;
+   }
+
+   /**
+    * For the binding editor's cloned runtime only: the base runtime's write revision at the
+    * moment editing started. {@code finishEdit} compares this against the base runtime's
+    * CURRENT revision before replacing its whole viewsheet, so a concurrent write elsewhere in
+    * the base viewsheet during the binding session is not silently discarded. {@code null} on
+    * every runtime that isn't a binding-editor clone.
+    */
+   public Integer getBaseWriteRevisionAtOpen() {
+      return baseWriteRevisionAtOpen;
+   }
+
+   public void setBaseWriteRevisionAtOpen(Integer baseWriteRevisionAtOpen) {
+      this.baseWriteRevisionAtOpen = baseWriteRevisionAtOpen;
+   }
+
+   /**
     * Get the base worksheet.
     */
    public RuntimeWorksheet getRuntimeWorksheet() {
@@ -2888,6 +2923,12 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private boolean preview; // preview flag
    private boolean needRefresh = false; // force refresh
    private int mode; // viewsheet mode
+   // Bumped by VSObjectPropertyService, VSConditionDialogService, ViewsheetPropertyDialogService,
+   // VSBindingService, and the wiz agent write seams (ViewsheetSessionService.mutate,
+   // ScriptEditService) -- not literally every dialog-owning commit; a dialog service that
+   // routes through a different path does not bump it. See getWriteRevision.
+   private transient int writeRevision;
+   private transient Integer baseWriteRevisionAtOpen; // binding-editor clones only; see accessor
    private ViewsheetSandbox box; // query sandbox
    private AssetRepository rep; // asset repository
    private String execSessionID; // Execution Session ID used for Auditing

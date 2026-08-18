@@ -39,14 +39,23 @@ import java.util.function.Predicate;
 @Service
 public class ScriptEditService {
 
-   @Autowired
    public ScriptEditService(SheetSessionService sessions,
                             SheetRuntimeAccess runtimeAccess,
                             SheetAgentBroadcastService broadcast)
    {
+      this(sessions, runtimeAccess, broadcast, new CalcFieldService());
+   }
+
+   @Autowired
+   public ScriptEditService(SheetSessionService sessions,
+                            SheetRuntimeAccess runtimeAccess,
+                            SheetAgentBroadcastService broadcast,
+                            CalcFieldService calcFields)
+   {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
+      this.calcFields = calcFields;
    }
 
    /**
@@ -134,6 +143,14 @@ public class ScriptEditService {
 
       mutation.accept(rvs);
 
+      // Write coordination: this is a direct live write, not routed through any
+      // XxxPropertyDialogService, so it must bump the shared counter itself -- otherwise a
+      // property dialog with an embedded script pane (Gauge, Chart, ... -- 15 of the 18
+      // registered types) would read this write's revision as unchanged and silently clobber
+      // it on its own later commit. See 2026-08-17-write-coordination-design.md /
+      // -implementation.md.
+      rvs.bumpWriteRevision();
+
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
    }
 
@@ -149,6 +166,18 @@ public class ScriptEditService {
             VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
             ScriptReadService.setOnClick(info, text);
          }
+         case CALC_FIELD -> calcFields.write(vs, target.assemblyName(), target.name(), text);
+         // This is a switch STATEMENT, not an expression -- with no `default`, a Location this
+         // switch does not name would silently fall through and do NOTHING (the dangerous half
+         // of the trap this package has hit before: a no-op that reports success). A worksheet
+         // expression/condition column has no RuntimeViewsheet representation to write to at
+         // all -- it is written via WorksheetScriptService, routed onto
+         // WorksheetAgentController's edit_expression/edit_condition ops -- so this must fail
+         // loud if ever misrouted here, not do nothing.
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet-level target; it cannot be " +
+            "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
+            "edit_expression/edit_condition) instead.");
       }
    }
 
@@ -160,6 +189,16 @@ public class ScriptEditService {
          case VS_INIT, VS_LOAD -> vs.getViewsheetInfo().setScriptEnabled(enabled);
          case ASSEMBLY, ASSEMBLY_ONCLICK ->
             ScriptReadService.requireAssemblyInfo(vs, target.assemblyName()).setScriptEnabled(enabled);
+         // Permanent, unlike write's refusal above: a calculated field has no per-field enable
+         // flag at all, so there is nothing for Task 3 (or anyone) to wire in here later.
+         case CALC_FIELD -> throw new PairingException(
+            "A calculated field has no enable flag; only scripts can be enabled or disabled.");
+         // Same silent-no-op hazard as write() above -- this is a switch STATEMENT with no
+         // default. A worksheet expression/condition column has no enable flag either, and has
+         // no RuntimeViewsheet representation regardless -- fail loud rather than doing nothing.
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet-level target with no enable flag; " +
+            "it cannot be toggled through the viewsheet script API.");
       }
    }
 
@@ -207,4 +246,5 @@ public class ScriptEditService {
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private final CalcFieldService calcFields;
 }

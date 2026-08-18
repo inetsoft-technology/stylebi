@@ -199,6 +199,7 @@ public class GaugePropertyDialogService {
       vsAssemblyScriptPaneModel.expression(gaugeAssemblyInfo.getScript() == null ?
                                               "" : gaugeAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -322,7 +323,7 @@ public class GaugePropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, gaugeAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
       return null;
    }

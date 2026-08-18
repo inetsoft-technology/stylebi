@@ -40,7 +40,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -95,6 +97,75 @@ class VSConditionDialogServiceTest {
       verify(infoSpy).getPreConditionList();
    }
 
+   @Test
+   void readSideAttachesTheCurrentWriteRevision() throws Exception {
+      when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getWriteRevision()).thenReturn(7);
+      when(viewsheet.getAssembly(anyString())).thenReturn(spy(new TextVSAssembly()));
+
+      inetsoft.web.composer.model.vs.VSConditionDialogModel result =
+         service.getModel("Viewsheet1", "TextAssembly", null);
+
+      assertEquals(7, result.getRevision());
+   }
+
+   /**
+    * Write coordination (2026-08-17-write-coordination-design.md / -implementation.md): a stale
+    * commit must be refused before the sandbox is even touched, not silently applied over
+    * whatever changed the viewsheet in between.
+    */
+   @Test
+   void refusesAStaleCommitAndNeverTouchesTheSandbox() throws Exception {
+      when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getWriteRevision()).thenReturn(5);
+
+      inetsoft.web.composer.model.vs.VSConditionDialogModel model =
+         new inetsoft.web.composer.model.vs.VSConditionDialogModel();
+      model.setRevision(4);
+
+      service.setModel("Viewsheet1", "TextAssembly", model, "", null, commandDispatcher);
+
+      verify(rvs, never()).getViewsheetSandbox();
+      verify(vsAssemblyInfoHandler, never()).apply(
+         any(RuntimeViewsheet.class), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(),
+         anyBoolean(), any(), any(), any(), any(), any());
+      verify(commandDispatcher).sendCommand(argThat(cmd ->
+         cmd instanceof inetsoft.web.viewsheet.command.MessageCommand mc &&
+         mc.getType() == inetsoft.web.viewsheet.command.MessageCommand.Type.ERROR &&
+         mc.getMessage().contains("TextAssembly")));
+   }
+
+   @Test
+   void proceedsPastTheCheckWhenTheRevisionMatches() throws Exception {
+      when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getWriteRevision()).thenReturn(5);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      inetsoft.web.composer.model.vs.VSConditionDialogModel model =
+         new inetsoft.web.composer.model.vs.VSConditionDialogModel();
+      model.setRevision(5);
+
+      service.setModel("Viewsheet1", "TextAssembly", model, "", null, commandDispatcher);
+
+      verify(rvs).getViewsheetSandbox();
+      verify(commandDispatcher, never()).sendCommand(any());
+   }
+
+   @Test
+   void proceedsPastTheCheckWhenNoRevisionIsSupplied() throws Exception {
+      when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      inetsoft.web.composer.model.vs.VSConditionDialogModel model =
+         new inetsoft.web.composer.model.vs.VSConditionDialogModel();
+
+      service.setModel("Viewsheet1", "TextAssembly", model, "", null, commandDispatcher);
+
+      verify(rvs).getViewsheetSandbox();
+      verify(commandDispatcher, never()).sendCommand(any());
+   }
+
    @Mock DataRefModelFactoryService dataRefModelFactoryService;
    @Mock VSAssemblyInfoHandler vsAssemblyInfoHandler;
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
@@ -103,5 +174,6 @@ class VSConditionDialogServiceTest {
    @Mock Viewsheet viewsheet;
    @Mock BindingInfo bindingInfo;
    @Mock DataSourceRegistry dataSourceRegistry;
+   @Mock inetsoft.web.viewsheet.service.CommandDispatcher commandDispatcher;
    private VSConditionDialogService service;
 }

@@ -43,11 +43,19 @@ import org.mockito.MockedStatic;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -64,7 +72,7 @@ class WorksheetAgentControllerTest {
    private static JoinSession session(String token) {
       return new JoinSession(token, "Worksheet/ws-1", "alice~;~host-org",
                              SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                             JoinSession.ConnectionMode.PAIRED, null, null);
+                             JoinSession.ConnectionMode.PAIRED, null, null, null);
    }
 
    private static WorksheetAgentController controller(SheetAgentFeature feature,
@@ -130,6 +138,21 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   /**
+    * Builds a {@code delete_table} EditRequest -- a plainly destructive op that routes through
+    * {@code editService}, so a scope guard that failed to fire would show up as a real write
+    * attempt rather than an early return.
+    */
+   private static EditRequest deleteTableRequest(String table) {
+      return new EditRequest(
+         "delete_table", table, null, null, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null
+      );
+   }
+
    /** Builds an {@code edit_sql_query} EditRequest that routes to editSqlQuery(). */
    private static EditRequest editSqlQueryRequest(String table, String expression) {
       return new EditRequest(
@@ -162,6 +185,31 @@ class WorksheetAgentControllerTest {
       assertEquals("TOK-1", resp.sessionToken());
       assertEquals("Worksheet/ws-1", resp.runtimeId());
       assertEquals("alice~;~host-org", resp.ownerIdentity());
+   }
+
+   /**
+    * The join response must carry the session's editorContext through -- otherwise a dropped
+    * context doesn't surface as an error, it reads as an ordinary whole-sheet session,
+    * indistinguishable from a legitimate toolbar mint, on the exact route an agent reads.
+    */
+   @Test
+   void joinReturnsTheSessionsEditorContext() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditorContext ctx = new EditorContext("worksheetExpression", "T", "Calc1", null);
+      JoinSession s = new JoinSession("TOK-EC", "Worksheet/ws-1", "alice~;~host-org",
+         SheetType.WORKSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED,
+         null, null, ctx);
+
+      SheetJoinService joinSvc = mock(SheetJoinService.class);
+      when(joinSvc.join(eq("CODE"), eq(agent))).thenReturn(s);
+
+      WorksheetAgentController ctrl = controller(featureOn(), joinSvc,
+         mock(SheetSessionService.class), mock(WorksheetReadService.class),
+         mock(WorksheetEditService.class), mock(WorksheetService.class));
+
+      WorksheetAgentController.JoinResponse resp = ctrl.join(new WorksheetAgentController.JoinRequest("CODE"), agent);
+
+      assertEquals(ctx, resp.editorContext());
    }
 
    @Test
@@ -1110,4 +1158,235 @@ class WorksheetAgentControllerTest {
                                              eq("*"), eq(ResourceAction.ACCESS));
       verify(dataSourceService).checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent));
    }
+
+   // ---------------------------------------------------------------------------
+   // Whole-branch review finding 1 (CRITICAL) -- a pane-scoped code is not a
+   // whole-sheet write handle
+   // ---------------------------------------------------------------------------
+
+   /**
+    * A pane-scoped session names ONE script location. This controller's {@code edit} op
+    * dispatcher can delete a table, add a join, or rewrite any column's expression, and it
+    * resolves the same session token without ever reading {@code editorContext} -- so before this
+    * guard, a code minted from one chart's Script tab was, in practice, an unscoped write handle
+    * on the whole worksheet.
+    *
+    * <p>Refusal must land BEFORE the edit service is touched: {@code verifyNoInteractions} is the
+    * load-bearing half of this test, since a refusal thrown after a partial mutation would leave
+    * the worksheet changed and still report an error.
+    */
+   @Test
+   void editRefusesAPaneScopedSessionBeforeReachingTheEditService() {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.resolve(eq("tok-pane"), anyString())).thenReturn(paneScopedSession("tok-pane"));
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      WorksheetAgentController controller = controller(
+         featureOn(), mock(SheetJoinService.class), sessions, mock(WorksheetReadService.class),
+         edit, mock(WorksheetService.class));
+
+      PairingException thrown = assertThrows(PairingException.class,
+         () -> controller.edit("tok-pane", deleteTableRequest("Query1"), agent()));
+
+      assertTrue(thrown.getMessage().contains("scoped to one script location"),
+                 thrown.getMessage());
+      // The one action that fixes it. A refusal an agent cannot act on just becomes a retry loop.
+      assertTrue(thrown.getMessage().contains("Connect to Claude"), thrown.getMessage());
+      verifyNoInteractions(edit);
+   }
+
+   /**
+    * The regression that would be worse than the bug: whole-sheet toolbar pairing is in use by
+    * other agents today, and it must be completely unaffected. A session with no
+    * {@code editorContext} passes the same guard untouched and reaches the edit service.
+    */
+   @Test
+   void aWholeSheetToolbarSessionIsUnaffectedByTheGuard() throws Exception {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.resolve(eq("tok-toolbar"), anyString())).thenReturn(session("tok-toolbar"));
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      WorksheetAgentController controller = controller(
+         featureOn(), mock(SheetJoinService.class), sessions, mock(WorksheetReadService.class),
+         edit, mock(WorksheetService.class));
+
+      controller.edit("tok-toolbar", deleteTableRequest("Query1"), agent());
+
+      verify(edit).apply(eq("tok-toolbar"), any(Principal.class), any());
+   }
+
+   /**
+    * An expired/foreign token must still report what is actually wrong with it. Answering "you
+    * are pane-scoped" to a token that never resolved would send the user to re-pair from the
+    * toolbar when the real problem is that this session is gone.
+    */
+   @Test
+   void anUnresolvableTokenStillReportsExpiryNotScope() throws Exception {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.resolve(anyString(), anyString())).thenReturn(null);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      WorksheetAgentController controller = controller(
+         featureOn(), mock(SheetJoinService.class), sessions, mock(WorksheetReadService.class),
+         edit, mock(WorksheetService.class));
+
+      // The guard passes it through untouched; the edit service's own resolution is what
+      // decides, and reports "invalid or expired session" rather than a scope problem.
+      assertDoesNotThrow(() -> controller.edit("gone", deleteTableRequest("Query1"), agent()));
+      verify(edit).apply(eq("gone"), any(Principal.class), any());
+   }
+
+   /** The agent principal these guard tests drive the controller with. */
+   private static Principal agent() {
+      return TestPrincipals.user("alice", "host-org");
+   }
+
+   private static JoinSession paneScopedSession(String token) {
+      return new JoinSession(token, "Worksheet/ws-1", "alice~;~host-org",
+                             SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                             JoinSession.ConnectionMode.PAIRED, "sock-1", "alice",
+                             new EditorContext("worksheetExpression", "Query1", "Margin", null));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Whole-branch review finding 2 (Important) -- the guard is 12 hand calls, not a chokepoint
+   // ---------------------------------------------------------------------------
+
+   /** Methods that must NOT enforce the whole-sheet guard, and why. */
+   private static final Set<String> WHOLE_SHEET_GUARD_EXEMPT = Set.of(
+      // Ending a pane-scoped session is exactly what detach is for -- see its own javadoc.
+      "detach"
+   );
+
+   private static String sessionTokenMappingPath(Method m) {
+      GetMapping get = m.getAnnotation(GetMapping.class);
+
+      if(get != null && get.value().length > 0) {
+         return get.value()[0];
+      }
+
+      PostMapping post = m.getAnnotation(PostMapping.class);
+
+      if(post != null && post.value().length > 0) {
+         return post.value()[0];
+      }
+
+      return null;
+   }
+
+   /**
+    * Synthesizes a dummy argument per parameter. Safe because every guarded endpoint calls
+    * {@code requireWholeSheetSession} as its first or second statement (right after
+    * {@code requireEnabled()}), before any parameter other than {@code sessionToken}/
+    * {@code user} is ever dereferenced -- so a null request body or unused query param never
+    * gets the chance to NPE ahead of the guard.
+    */
+   private static Object[] paneScopeProbeArgs(Method m, Principal agent, String token) {
+      Parameter[] params = m.getParameters();
+      Object[] args = new Object[params.length];
+
+      for(int i = 0; i < params.length; i++) {
+         Parameter p = params[i];
+         Class<?> t = p.getType();
+
+         if(t == Principal.class) {
+            args[i] = agent;
+         }
+         else if(p.isAnnotationPresent(PathVariable.class)) {
+            args[i] = token;
+         }
+         else if(t == int.class) {
+            args[i] = 0;
+         }
+         else if(t == boolean.class) {
+            args[i] = false;
+         }
+         else {
+            args[i] = null;
+         }
+      }
+
+      return args;
+   }
+
+   /**
+    * Mirror of {@code PaneScopeServiceTest#everyKindIsClassifiedByExactlyOneGuard} for THIS
+    * controller. The viewsheet/binding side funnels every endpoint through ONE resolution
+    * ({@code ViewsheetSessionService#requireSession}), so a new endpoint there cannot skip the
+    * pane-scope refusal even by accident. This controller cannot do the same: {@code editOp} is
+    * deliberately shared with the pane-scoped {@code WorksheetScriptService} caller, which has
+    * ALREADY run its own narrow {@code PaneScopeService.check} and must not be refused again by
+    * the broad whole-sheet check -- see {@link WorksheetAgentController#editOp} javadoc. So the
+    * guard here is 12 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
+    * one per endpoint, and nothing before this test failed the build the day one of them went
+    * missing.
+    *
+    * <p>This closes that gap the way the classification guard closes its own: by reflectively
+    * enumerating every {@code @GetMapping}/{@code @PostMapping} method whose path contains
+    * {@code {sessionToken}} and proving each one actually refuses a pane-scoped session, rather
+    * than trusting that the next endpoint's author remembers to add the call. {@code join} never
+    * matches (no {@code {sessionToken}} in its path -- that is where one is minted); {@code
+    * detach} matches but is explicitly exempted above, for the reason its own javadoc gives.
+    * Endpoint 13 fails THIS test the moment it omits the guard.
+    */
+   @Test
+   void everySessionTokenEndpointRefusesAPaneScopedSessionOrIsExplicitlyExempt() {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.resolve(anyString(), anyString())).thenReturn(paneScopedSession("tok-refl"));
+
+      WorksheetAgentController controller = controller(featureOn(), mock(SheetJoinService.class),
+         sessions, mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      Principal agent = agent();
+      List<String> notRefused = new ArrayList<>();
+      int checked = 0;
+
+      for(Method m : WorksheetAgentController.class.getDeclaredMethods()) {
+         if(m.isSynthetic()) {
+            continue;
+         }
+
+         String path = sessionTokenMappingPath(m);
+
+         if(path == null || !path.contains("{sessionToken}") ||
+            WHOLE_SHEET_GUARD_EXEMPT.contains(m.getName()))
+         {
+            continue;
+         }
+
+         checked++;
+         m.setAccessible(true);
+         Object[] args = paneScopeProbeArgs(m, agent, "tok-refl");
+
+         try {
+            m.invoke(controller, args);
+            notRefused.add(m.getName());
+         }
+         catch(InvocationTargetException e) {
+            Throwable cause = e.getCause();
+
+            if(!(cause instanceof PairingException) ||
+               !cause.getMessage().contains("scoped to one script location") ||
+               !cause.getMessage().contains("Connect to Claude"))
+            {
+               throw new AssertionError("Endpoint '" + m.getName() + "' rejected the pane-" +
+                  "scoped session, but not with the whole-sheet-guard reason -- got: " + cause,
+                  cause);
+            }
+         }
+         catch(IllegalAccessException e) {
+            throw new AssertionError("Could not invoke '" + m.getName() + "' reflectively", e);
+         }
+      }
+
+      assertTrue(checked >= 12, "Expected at least the 12 known session-scoped endpoints to " +
+         "be enumerated, found " + checked + " -- did WorksheetAgentController's mapping " +
+         "annotations change shape?");
+      assertTrue(notRefused.isEmpty(), "Endpoint(s) mapped with {sessionToken} did not refuse " +
+         "a pane-scoped session: " + notRefused + ". Add requireWholeSheetSession(sessionToken," +
+         " user) as their first call (right after requireEnabled()), or add them to " +
+         "WHOLE_SHEET_GUARD_EXEMPT above with a reason like detach's.");
+   }
+
 }

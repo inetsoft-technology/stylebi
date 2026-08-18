@@ -118,4 +118,25 @@ describe("vs condition dialog component", () => {
       }
    });
 
+   // Write coordination: OK carries the revision the dialog was read at so a concurrent write
+   // is detected; Apply must not, since the dialog's held model is never refreshed after a
+   // commit and echoing the revision back would make Apply conflict with its own prior Apply.
+   it("sends revision on commit but not on apply", async () => {
+      fixture.detectChanges();
+      vsConditionDialog.checkTrap = null;
+      vsConditionDialog.model.revision = 7;
+
+      let committed: VSConditionDialogModel;
+      vsConditionDialog.onCommit.subscribe((m: VSConditionDialogModel) => committed = m);
+      vsConditionDialog.ok();
+      await Promise.resolve();
+      expect(committed.revision).toBe(7);
+
+      let applied: any;
+      vsConditionDialog.onApply.subscribe((p: any) => applied = p);
+      vsConditionDialog.apply(false);
+      await Promise.resolve();
+      expect(applied.result.revision).toBeUndefined();
+   });
+
 });

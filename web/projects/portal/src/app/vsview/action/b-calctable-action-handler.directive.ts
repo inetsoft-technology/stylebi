@@ -197,6 +197,8 @@ export class BCalcTableActionHandlerDirective extends AbstractActionHandler impl
             });
 
          dialog.model = data;
+         dialog.runtimeId = this.clientService.runtimeId;
+         dialog.socketConnection = this.clientService;
          dialog.variableValues = VSUtil.getVariableList(vsObjects,
             this.vsObject.absoluteName);
          dialog.openToScript = false;

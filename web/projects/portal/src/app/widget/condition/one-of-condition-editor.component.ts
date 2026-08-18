@@ -40,6 +40,7 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { ConditionValuePipe } from "./condition-value.pipe";
 
 import { ConditionEditor } from "./condition-editor.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 @Component({
     selector: "one-of-condition-editor",
@@ -62,6 +63,8 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
    @Input() grayedOutFields: DataRef[];
    @Input() field: DataRef;
    @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() showUseList: boolean;
    @Input() values: ConditionValue[];
    @Input() source: SourceInfo;

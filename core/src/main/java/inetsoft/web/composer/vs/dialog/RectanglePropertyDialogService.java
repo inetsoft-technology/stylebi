@@ -134,6 +134,7 @@ public class RectanglePropertyDialogService {
       vsAssemblyScriptPaneModel.expression(rectangleAssemblyInfo.getScript() == null ?
                                               "" : rectangleAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -214,7 +215,7 @@ public class RectanglePropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, rectangleAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
-         commandDispatcher);
+         commandDispatcher, true, value.getRevision());
 
       return null;
    }

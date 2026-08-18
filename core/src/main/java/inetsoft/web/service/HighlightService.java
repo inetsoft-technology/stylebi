@@ -222,6 +222,15 @@ public class HighlightService {
       TableHighlightAttr hattr, List<HighlightModel> highlightModelList, HighlightDialogModel model,
       TableDataPath dataPath, String tableName, DataRefModel[] fields)
    {
+      // A table with no bound data has no cell at (0,0), so VSTableLens.getTableDataPath returns
+      // null and there is no row path to derive. Callers that reach the dialog through the UI
+      // always have a real cell; an agent asking for a whole-assembly view of a not-yet-bound
+      // table does not, and dereferencing here surfaced as a raw HTTP 500 with an unhandled NPE
+      // rather than an empty highlight list. No data path means no row highlights to report.
+      if(dataPath == null) {
+         return;
+      }
+
       TableDataPath rowPath = new TableDataPath(dataPath.getLevel(), dataPath.getType());
       HighlightGroup rows = hattr.getHighlight(rowPath);
 

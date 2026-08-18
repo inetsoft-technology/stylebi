@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -42,7 +45,7 @@ class ScriptEditServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
                                       SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
-                                      JoinSession.ConnectionMode.PAIRED, null, null);
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
@@ -64,7 +67,7 @@ class ScriptEditServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
                                       SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
-                                      JoinSession.ConnectionMode.PAIRED, null, null);
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
@@ -76,6 +79,35 @@ class ScriptEditServiceTest {
       verifyNoInteractions(broadcast);
    }
 
+   /**
+    * Write coordination (2026-08-17-write-coordination-design.md / -implementation.md): a script
+    * write is a direct live write, not routed through any XxxPropertyDialogService, so it must
+    * bump the shared write revision itself. Without this, a property dialog with an embedded
+    * script pane (15 of the 18 registered types) would read this write's revision as unchanged
+    * and silently clobber it on its own later commit -- exactly the defect this whole effort
+    * exists to close.
+    */
+   @Test
+   void applyBumpsTheWriteRevisionSoAConcurrentDialogDetectsIt() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ScriptEditService svc = new ScriptEditService(sessions, runtimeAccess, broadcast);
+      svc.apply("TOK", agent, r -> {});
+
+      verify(rvs).bumpWriteRevision();
+   }
+
    @Test
    void applyOnRuntimeIfChangedRejectsInvalidSession() {
       SheetSessionService sessions = mock(SheetSessionService.class);
@@ -85,5 +117,48 @@ class ScriptEditServiceTest {
 
       assertThrows(PairingException.class, () -> svc.applyOnRuntimeIfChanged(
          "BAD", TestPrincipals.user("alice", "host-org"), r -> "x", r -> true));
+   }
+
+   /**
+    * write() now delegates a CALC_FIELD target to {@link CalcFieldService} for real, replacing
+    * the Task-3-placeholder throw. Verifies the wiring, not {@code CalcFieldService}'s own
+    * behavior (that is Task 2's coverage) -- the expression on the live {@link ExpressionRef}
+    * must actually change.
+    */
+   @Test
+   void writeDelegatesACalcFieldTargetToCalcFieldService() throws Exception {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName("Margin");
+      inner.setExpression("field['PRICE'] - field['COST']");
+      CalculateRef calc = new CalculateRef(true);
+      calc.setDataRef(inner);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcFields("Query1")).thenReturn(new CalculateRef[]{ calc });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+
+      svc.write(rvs, target, "field['PRICE'] * 2");
+
+      assertEquals("field['PRICE'] * 2", inner.getExpression());
+   }
+
+   /** setEnabled's refusal is PERMANENT -- a calc field has no per-field enable flag at all. */
+   @Test
+   void setEnabledRefusesACalcFieldTargetPermanently() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(new Viewsheet());
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.setEnabled(rvs, target, true));
+      assertTrue(ex.getMessage().contains("enable flag"),
+                 "must explain there is nothing to enable, not just refuse: " + ex.getMessage());
    }
 }

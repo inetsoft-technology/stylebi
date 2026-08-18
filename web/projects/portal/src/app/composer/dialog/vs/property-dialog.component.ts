@@ -17,6 +17,7 @@
  */
 import { Directive, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { Subscription } from "rxjs";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { VSTrapService } from "../../../vsobjects/util/vs-trap.service";
@@ -26,6 +27,11 @@ export class PropertyDialog implements OnInit, OnDestroy {
    @Input() variableValues: string[];
    @Input() layoutObject: boolean = false;
    @Input() runtimeId: string;
+   /** Socket connection for the runtime sheet, used to mint a pane-scoped
+    *  agent pairing code from this dialog's script pane. Not yet populated by
+    *  any caller (see G2 Task 1 report) — declared here so subclasses can
+    *  thread it through to their script pane once a caller supplies it. */
+   @Input() socketConnection: ViewsheetClientService;
    @Input() assetId: string;
    @Input() openToScript: boolean = false;
    @Input() assemblyName: string;

@@ -20,7 +20,9 @@
     <div #itemPane class="col-10">
       <condition-item-pane [provider]="provider" [subqueryTables]="subqueryTables"
         [availableFields]="availableFields" [isVSContext]="isVSContext"
-        [fields]="fields" [table]="table" [addNoneItem]="false"
+        [fields]="fields" [table]="table"
+        [runtimeId]="runtimeId" [socketConnection]="socketConnection"
+        [addNoneItem]="false"
         [(condition)]="condition" [showExpression]="showExpression"
         [showOriginalName]="showOriginalName" [vsId]="vsId"
         (expressionRenamed)="expressionRenamed($event)"

@@ -50,7 +50,32 @@ public class WorksheetEventService {
                                boolean gettingStartedCreateQuery,
                                CommandDispatcher commandDispatcher) throws Exception
    {
-      String runtimeId = engine.openWorksheet(entry, user);
+      return openWorksheet(user, entry, openAutoSaved, gettingStartedCreateQuery, null,
+                           commandDispatcher);
+   }
+
+   /**
+    * Open the worksheet, or attach to a runtime that is already open.
+    *
+    * <p>{@code existingRuntimeId} is set when the server opened the runtime itself and told the
+    * browser to attach to it — the {@code open_base_worksheet} agent flow. Opening a second
+    * runtime of the same asset there is the defect this parameter exists to prevent: the agent
+    * edits one runtime while the user watches the other, both ends report success, and nothing
+    * surfaces until one save clobbers the other.
+    *
+    * <p>Everything after the runtime exists is identical either way — socket identifiers, the
+    * {@code OpenWorksheetCommand}, the refresh — so only the creation step is skipped. An id
+    * naming a runtime that does not exist, or one owned by another user, fails inside
+    * {@code engine.getWorksheet} on the proxy call rather than quietly opening a fresh one.
+    *
+    * @param existingRuntimeId a runtime to attach to, or {@code null} to open a new one
+    */
+   public String openWorksheet(Principal user, AssetEntry entry, boolean openAutoSaved,
+                               boolean gettingStartedCreateQuery, String existingRuntimeId,
+                               CommandDispatcher commandDispatcher) throws Exception
+   {
+      String runtimeId = existingRuntimeId != null
+         ? existingRuntimeId : engine.openWorksheet(entry, user);
       WorksheetEventServiceProxy p = proxy.getIfAvailable();
 
       if(p != null) {

@@ -1824,6 +1824,7 @@ public class VSBindingService {
          }
 
          nrvs.setOriginalID(vsId);
+         nrvs.setBaseWriteRevisionAtOpen(rvs.getWriteRevision());
          nrvs.setViewsheet(vs);
          nrvs.setVSTemporaryInfo(wizardTemporaryInfoService.getVSTemporaryInfo(rvs));
          engine.flushRuntimeSheet(id);
@@ -1894,47 +1895,73 @@ public class VSBindingService {
             obox.get().getVariableTable().addAll(nbox.get().getVariableTable());
          }
 
-         updateVSAssemblyBoundAssemblies(nrvs, orvs, assemblyName);
-         Viewsheet nvs = nrvs.getViewsheet().clone();
-         VSAssembly assembly = nvs.getAssembly(assemblyName);
-         AssemblyInfo info = assembly.getInfo();
-         // In any case to clear wizard object editing flag.
-         assembly.setWizardEditing(false);
+         // Write coordination: the binding editor edits a CLONE (createRuntimeSheet) and
+         // replaces the base runtime's ENTIRE viewsheet on finish, not just the assembly
+         // being bound -- the largest blast radius of any write path in the Composer. Refuse
+         // rather than silently discard whatever changed in the base viewsheet (any assembly,
+         // via any other write tool) while this binding session was open. See
+         // 2026-08-17-write-coordination-design.md / -implementation.md.
+         //
+         // The refusal must still tear the clone runtime down (clear orvs's bindingID, flush,
+         // close nid) -- those calls used to sit after this check, so a conflict left the base
+         // believing a binding session was still open and the clone runtime never closed. Every
+         // retry re-threw at the same point with no way to recover. So the apply-to-orvs step is
+         // skipped on conflict, but the teardown below always runs, and the throw moves to the
+         // end.
+         Integer expectedRevision = nrvs.getBaseWriteRevisionAtOpen();
+         boolean conflict = expectedRevision != null && expectedRevision != orvs.getWriteRevision();
+         Viewsheet nvs = null;
 
-         if(info instanceof ChartVSAssemblyInfo) {
-            ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) info;
-            chartInfo.setMaxSize(null);
-            chartInfo.setSummarySortCol(-1);
-            chartInfo.setSummarySortVal(0);
+         if(!conflict) {
+            updateVSAssemblyBoundAssemblies(nrvs, orvs, assemblyName);
+            nvs = nrvs.getViewsheet().clone();
+            VSAssembly assembly = nvs.getAssembly(assemblyName);
+            AssemblyInfo info = assembly.getInfo();
+            // In any case to clear wizard object editing flag.
+            assembly.setWizardEditing(false);
+
+            if(info instanceof ChartVSAssemblyInfo) {
+               ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) info;
+               chartInfo.setMaxSize(null);
+               chartInfo.setSummarySortCol(-1);
+               chartInfo.setSummarySortVal(0);
+            }
+
+            if(nbox.isPresent() && VSUtil.isVSAssemblyBinding(assembly) && assembly instanceof CalcTableVSAssembly) {
+               String source = VSUtil.getVSAssemblyBinding(assembly.getTableName());
+               nbox.get().resetDataMap(source);
+            }
+
+            if(info instanceof DataVSAssemblyInfo && !VSWizardEditModes.VIEWSHEET_PANE.equals(editMode)) {
+               //once in binding, click finish, the editedByWizard is false
+               ((DataVSAssemblyInfo) info).setEditedByWizard(false);
+            }
+
+            orvs.setViewsheet(nvs);
+            orvs.bumpWriteRevision();
+            // setViewsheet() triggers resetRuntime() which clears parametersApplied.
+            // Mark parameters as already applied so that applyParameterToInput() does
+            // not overwrite input-assembly selections with stale variable-table entries
+            // on the next reset(initing=true) cycle (e.g. combobox selection change).
+            // Same pattern as the undo/redo fix in RuntimeViewsheet.restoreCheckpoint0().
+            orvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::markParametersApplied);
+
+            orvs.getViewsheet().setMaxMode(false);
          }
 
-         if(nbox.isPresent() && VSUtil.isVSAssemblyBinding(assembly) && assembly instanceof CalcTableVSAssembly) {
-            String source = VSUtil.getVSAssemblyBinding(assembly.getTableName());
-            nbox.get().resetDataMap(source);
-         }
+         orvs.setBindingID(null);
 
-         if(info instanceof DataVSAssemblyInfo && !VSWizardEditModes.VIEWSHEET_PANE.equals(editMode)) {
-            //once in binding, click finish, the editedByWizard is false
-            ((DataVSAssemblyInfo) info).setEditedByWizard(false);
-         }
-
-      orvs.setViewsheet(nvs);
-      // setViewsheet() triggers resetRuntime() which clears parametersApplied.
-      // Mark parameters as already applied so that applyParameterToInput() does
-      // not overwrite input-assembly selections with stale variable-table entries
-      // on the next reset(initing=true) cycle (e.g. combobox selection change).
-      // Same pattern as the undo/redo fix in RuntimeViewsheet.restoreCheckpoint0().
-      orvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::markParametersApplied);
-
-      orvs.setBindingID(null);
-      orvs.getViewsheet().setMaxMode(false);
-
-         if(!VSWizardEditModes.WIZARD_DASHBOARD.equals(originalMode)) {
+         if(!conflict && !VSWizardEditModes.WIZARD_DASHBOARD.equals(originalMode)) {
             orvs.addCheckpoint(nvs.prepareCheckpoint());
          }
 
          engine.flushRuntimeSheet(oid == null ? nid : oid);
          engine.closeViewsheet(nid, principal);
+
+         if(conflict) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.writeConflict", "the viewsheet"));
+         }
 
          return oid;
       }

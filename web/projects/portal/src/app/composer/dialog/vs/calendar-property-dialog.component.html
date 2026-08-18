@@ -57,7 +57,7 @@
       </ng-container>
       <ng-container [ngbNavItem]="scriptTab">
         <a ngbNavLink>_#(Script)</a>
-        <ng-template ngbNavContent><vsassembly-script-pane [model]="model.vsAssemblyScriptPaneModel" [scriptTreeModel]="scriptTreeModel"></vsassembly-script-pane></ng-template>
+        <ng-template ngbNavContent><vsassembly-script-pane [model]="model.vsAssemblyScriptPaneModel" [scriptTreeModel]="scriptTreeModel" [runtimeId]="runtimeId" [socketConnection]="socketConnection" [assembly]="assemblyName"></vsassembly-script-pane></ng-template>
       </ng-container>
     </ul>
     <div [ngbNavOutlet]="nav"></div>

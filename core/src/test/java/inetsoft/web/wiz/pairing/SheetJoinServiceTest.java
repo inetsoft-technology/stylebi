@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,6 +47,7 @@ import static org.mockito.Mockito.when;
  *                   throws PairingException with Kind.RATE_LIMITED
  * [differentKeys]   lockout of one caller does not affect a different caller
  * [resetOnSuccess]  a successful join resets the failure counter for that caller
+ * [editorContext]   a pane-scoped grant's editorContext is carried through to the JoinSession
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -75,7 +80,7 @@ class SheetJoinServiceTest {
    @Test
    void validCodeSameLogicalUserGrantsSession() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Worksheet/foo-7", ALICE_KEY, "sock-1", null, SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-7", ALICE_KEY, "sock-1", null, SheetType.WORKSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       JoinSession session = svc.join(code, alice);
@@ -100,9 +105,9 @@ class SheetJoinServiceTest {
    // 3. differentLogicalUserIsRejected
    // ---------------------------------------------------------------------------
    @Test
-   void differentLogicalUserIsRejected() {
+   void differentLogicalUserIsRejected() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Worksheet/foo-8", ALICE_KEY, "sock-2", null, SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-8", ALICE_KEY, "sock-2", null, SheetType.WORKSHEET, null);
       Principal bob = TestPrincipals.user("bob", "host-org");
 
       assertThrows(PairingException.class, () -> svc.join(code, bob));
@@ -114,7 +119,7 @@ class SheetJoinServiceTest {
    @Test
    void codeIsConsumedAfterSuccessfulJoin() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Worksheet/foo-9", ALICE_KEY, "sock-3", null, SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-9", ALICE_KEY, "sock-3", null, SheetType.WORKSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       svc.join(code, alice);
@@ -127,9 +132,9 @@ class SheetJoinServiceTest {
    // 5. featureFlagOffRejectsJoinAndDoesNotConsumeCode
    // ---------------------------------------------------------------------------
    @Test
-   void featureFlagOffRejectsJoinAndDoesNotConsumeCode() {
+   void featureFlagOffRejectsJoinAndDoesNotConsumeCode() throws PairingException {
       when(feature.isEnabled()).thenReturn(false);
-      String code = pairing.mint("Worksheet/foo-10", ALICE_KEY, "sock-4", null, SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-10", ALICE_KEY, "sock-4", null, SheetType.WORKSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       assertThrows(PairingException.class, () -> svc.join(code, alice));
@@ -144,7 +149,7 @@ class SheetJoinServiceTest {
    @Test
    void viewsheetCodeGrantsSession() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", null, SheetType.VIEWSHEET);
+      String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", null, SheetType.VIEWSHEET, null);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       JoinSession session = svc.join(code, alice);
@@ -158,9 +163,9 @@ class SheetJoinServiceTest {
    // 6b. differentLogicalUserIsRejectedForViewsheet
    // ---------------------------------------------------------------------------
    @Test
-   void differentLogicalUserIsRejectedForViewsheet() {
+   void differentLogicalUserIsRejectedForViewsheet() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Viewsheet/bar-2", ALICE_KEY, "sock-6", null, SheetType.VIEWSHEET);
+      String code = pairing.mint("Viewsheet/bar-2", ALICE_KEY, "sock-6", null, SheetType.VIEWSHEET, null);
       Principal bob = TestPrincipals.user("bob", "host-org");
 
       assertThrows(PairingException.class, () -> svc.join(code, bob));
@@ -170,7 +175,7 @@ class SheetJoinServiceTest {
    // 7. lockoutAfterThresholdBlocksSubsequentValidJoin
    // ---------------------------------------------------------------------------
    @Test
-   void lockoutAfterThresholdBlocksSubsequentValidJoin() {
+   void lockoutAfterThresholdBlocksSubsequentValidJoin() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
@@ -182,7 +187,7 @@ class SheetJoinServiceTest {
       // The 9th call is rejected as rate-limited even though the code is valid — the lockout
       // blocks all attempts, not just repeats of the same failure.
       String code = pairing.mint("Worksheet/lockout-1", ALICE_KEY, "sock-lockout-1", null,
-                                  SheetType.WORKSHEET);
+                                  SheetType.WORKSHEET, null);
 
       PairingException ex = assertThrows(PairingException.class, () -> svc.join(code, alice));
       assertEquals(PairingException.Kind.RATE_LIMITED, ex.getKind());
@@ -203,14 +208,14 @@ class SheetJoinServiceTest {
       }
 
       String aliceCode = pairing.mint("Worksheet/lockout-2a", ALICE_KEY, "sock-lockout-2a", null,
-                                       SheetType.WORKSHEET);
+                                       SheetType.WORKSHEET, null);
       PairingException ex = assertThrows(PairingException.class, () -> svc.join(aliceCode, alice));
       assertEquals(PairingException.Kind.RATE_LIMITED, ex.getKind());
 
       // bob is a different throttle key (no HTTP request bound in this unit test, so the key
       // falls back to "user:" + agent name) and must be unaffected by alice's lockout.
       String bobCode = pairing.mint("Worksheet/lockout-2b", BOB_KEY, "sock-lockout-2b", null,
-                                     SheetType.WORKSHEET);
+                                     SheetType.WORKSHEET, null);
       JoinSession session = svc.join(bobCode, bob);
 
       assertNotNull(session);
@@ -230,7 +235,7 @@ class SheetJoinServiceTest {
       }
 
       String code = pairing.mint("Worksheet/reset-1", ALICE_KEY, "sock-reset-1", null,
-                                  SheetType.WORKSHEET);
+                                  SheetType.WORKSHEET, null);
       JoinSession session = svc.join(code, alice);
       assertNotNull(session);
 
@@ -242,7 +247,7 @@ class SheetJoinServiceTest {
       }
 
       String code2 = pairing.mint("Worksheet/reset-2", ALICE_KEY, "sock-reset-2", null,
-                                   SheetType.WORKSHEET);
+                                   SheetType.WORKSHEET, null);
       JoinSession session2 = svc.join(code2, alice);
 
       assertNotNull(session2);
@@ -257,11 +262,11 @@ class SheetJoinServiceTest {
    // runtime's real owner is a different logical user.
    // ---------------------------------------------------------------------------
    @Test
-   void runtimeOwnedByAnotherUserIsRejected() {
+   void runtimeOwnedByAnotherUserIsRejected() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
       // Attacker (alice) mints a code for carol's runtime — grant.ownerIdentity == ALICE_KEY.
       String code = pairing.mint("Worksheet/victim-1", ALICE_KEY, "sock-idor", null,
-                                 SheetType.WORKSHEET);
+                                 SheetType.WORKSHEET, null);
       when(runtimeAccess.getRuntimeOwner(SheetType.WORKSHEET, "Worksheet/victim-1"))
          .thenReturn(TestPrincipals.user("carol", "host-org"));
       Principal alice = TestPrincipals.user("alice", "host-org");
@@ -283,7 +288,7 @@ class SheetJoinServiceTest {
    void runtimeOwnedBySameUserIsAllowed() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
       String code = pairing.mint("Worksheet/mine-1", ALICE_KEY, "sock-mine", null,
-                                 SheetType.WORKSHEET);
+                                 SheetType.WORKSHEET, null);
       // A distinct Principal object with the same logical identity (name+org) as the agent.
       when(runtimeAccess.getRuntimeOwner(SheetType.WORKSHEET, "Worksheet/mine-1"))
          .thenReturn(TestPrincipals.user("alice", "host-org"));
@@ -293,5 +298,41 @@ class SheetJoinServiceTest {
 
       assertNotNull(session);
       assertEquals("Worksheet/mine-1", session.runtimeId());
+   }
+
+   // ---------------------------------------------------------------------------
+   // 12. carriesTheEditorContextFromGrantToSession
+   //
+   // Task 5: the editorContext recorded on the PairingGrant at mint time must survive onto the
+   // JoinSession that join() opens -- this is what lets every one of the four JoinResponse
+   // records (script/binding/viewsheet/worksheet) report it back to the agent. Minted through
+   // SheetPairingService directly rather than through REST: the REST mint endpoint
+   // (SheetPairingController#mint) still hardcodes a null editorContext and only the STOMP
+   // production path forwards a real one, so a pane-scoped grant can only be constructed here
+   // via the service.
+   // ---------------------------------------------------------------------------
+   @Test
+   void carriesTheEditorContextFromGrantToSession() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(mock(VSAssembly.class));
+      // A pairing service whose VIEWSHEET runtime lookup resolves "vs-1" to rvs, so mint's
+      // editorContext validation (added in Task 4) accepts the assembly it names.
+      SheetPairingService paneScopedPairing = new SheetPairingService(
+         () -> FIXED_NOW, runtimeId -> null, runtimeId -> "vs-1".equals(runtimeId) ? rvs : null);
+      SheetJoinService paneScopedSvc =
+         new SheetJoinService(paneScopedPairing, sessions, feature, runtimeAccess);
+
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      String code = paneScopedPairing.mint("vs-1", ALICE_KEY, "sock-pane-1", null,
+                                           SheetType.VIEWSHEET, ctx);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      JoinSession session = paneScopedSvc.join(code, alice);
+
+      assertEquals(ctx, session.editorContext());
    }
 }

@@ -32,11 +32,11 @@ import static org.mockito.Mockito.*;
 class SheetPairingControllerTest {
 
    @Test
-   void restMintBindsOpenRuntimeToOwnerAndSocketSession() {
+   void restMintBindsOpenRuntimeToOwnerAndSocketSession() throws PairingException {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, feature, true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       String code = c.mint("Worksheet/foo-7", "stomp-1", SheetType.WORKSHEET, owner).code();
@@ -54,7 +54,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
-      SheetPairingController c = new SheetPairingController(pairing, feature, true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       assertThrows(ResponseStatusException.class,
@@ -66,7 +66,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, feature, true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, true);
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> c.mint("Worksheet/foo-7", "stomp-1", SheetType.WORKSHEET, null));
@@ -78,7 +78,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, feature, true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       // Build a SimpMessageHeaderAccessor with a known session id
@@ -86,7 +86,7 @@ class SheetPairingControllerTest {
       accessor.setSessionId("derived-stomp-9");
 
       SheetPairingController.MintRequest req =
-         new SheetPairingController.MintRequest("Worksheet/foo-7", SheetType.WORKSHEET);
+         new SheetPairingController.MintRequest("Worksheet/foo-7", SheetType.WORKSHEET, null);
       String code = c.mintViaSocket(req, owner, accessor).code();
 
       assertEquals("derived-stomp-9", pairing.peek(code).socketSessionId());
@@ -97,15 +97,54 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
-      SheetPairingController c = new SheetPairingController(pairing, feature, true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-x");
 
       SheetPairingController.MintResponse resp =
-         c.mintViaSocket(new SheetPairingController.MintRequest("WS/1", SheetType.WORKSHEET),
+         c.mintViaSocket(new SheetPairingController.MintRequest("WS/1", SheetType.WORKSHEET, null),
                          owner, accessor);
       assertNull(resp.code(), "code should be null when feature is off");
       assertNotNull(resp.error(), "error should be non-null when feature is off");
+   }
+
+   @Test
+   void detachEndsThePaneScopedSessionBoundToTheCallersSocket() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, true);
+
+      EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-9", "alice", ctx);
+
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.detachViaSocket(new SheetPairingController.DetachRequest(ctx), accessor);
+
+      assertNull(sessions.resolve(pane.sessionToken(), "alice~;~host-org"),
+                 "detach should end the pane-scoped session bound to this socket + editorContext");
+   }
+
+   @Test
+   void detachIgnoresARequestWithNoEditorContext() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, true);
+
+      JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                        "stomp-9", "alice", null);
+
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.detachViaSocket(new SheetPairingController.DetachRequest(null), accessor);
+
+      assertNotNull(sessions.resolve(sheet.sessionToken(), "alice~;~host-org"),
+                    "a whole-sheet session must never be reachable from the detach endpoint");
    }
 }

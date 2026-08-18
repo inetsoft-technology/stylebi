@@ -48,6 +48,7 @@ import { FieldEditor } from "./field-editor.component";
 import { ExpressionEditor } from "./expression-editor.component";
 import { VariableEditor } from "./variable-editor.component";
 import { TopNEditor } from "./top-n-editor.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 
 @Component({
@@ -75,6 +76,10 @@ export class ConditionEditor implements OnChanges {
    @Input() grayedOutFields: DataRef[];
    @Input() field: DataRef;
    @Input() table: string;
+   /** Pane-scoped pairing transport, threaded through to the EXPRESSION-value editor's
+    *  FormulaEditorDialog -- see ExpressionEditor's runtimeId/socketConnection. */
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() value: ConditionValue;
    @Input() values: ConditionValue[] = [];
    @Input() isOneOf: boolean = false;

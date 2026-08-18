@@ -20,9 +20,18 @@ export class OpenWorksheetEvent {
    private openAutoSavedFile: boolean = false;
    private gettingStartedWs: boolean = false;
    private createQuery: boolean = false;
+   /**
+    * A runtime the server already opened, which this browser attaches to instead of opening one
+    * of its own. Left null in the normal flow. Mirrors OpenViewsheetEvent.runtimeViewsheetId.
+    */
+   private runtimeId: string = null;
 
    public setId(id: string) {
       this.id = id;
+   }
+
+   public setRuntimeId(runtimeId: string) {
+      this.runtimeId = runtimeId;
    }
 
    public setOpenAutoSavedFile(openAutoSavedFile: boolean) {

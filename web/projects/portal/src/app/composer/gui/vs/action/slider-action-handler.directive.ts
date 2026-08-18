@@ -111,6 +111,7 @@ export class SliderActionHandlerDirective extends AbstractActionHandler implemen
          dialog.variableValues =
             VSUtil.getVariableList(this.vsInfo.vsObjects, this.model.absoluteName);
          dialog.runtimeId = this.vsInfo.runtimeId;
+         dialog.socketConnection = this.vsInfo.socketConnection;
          dialog.openToScript = openToScript;
          dialog.scriptTreeModel = loadingScriptTreeModel;
          this.modelService.getModel(scriptUri, params).subscribe(res => dialog.scriptTreeModel = res);

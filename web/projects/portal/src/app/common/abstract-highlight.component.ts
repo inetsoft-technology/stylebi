@@ -102,10 +102,17 @@ export class AbstractHighlight {
       }
    }
 
-   // remove fields that are not used on the server side to reduce the transmission size
-   getServerAppliedModel(): HighlightDialogModel {
+   // remove fields that are not used on the server side to reduce the transmission size.
+   // Only a final commit (OK) carries the revision it was read at -- Apply leaves the dialog
+   // open with its held model never refreshed, so echoing it back on Apply would make the
+   // dialog conflict with its own prior Apply. See 2026-08-17-write-coordination-design.md.
+   getServerAppliedModel(includeRevision: boolean = true): HighlightDialogModel {
       let model = Tool.shallowClone(this._model);
       model.fields = [];
+
+      if(!includeRevision) {
+         delete model.revision;
+      }
 
       if(model.highlights) {
          model.highlights = Tool.shallowClone(model.highlights);

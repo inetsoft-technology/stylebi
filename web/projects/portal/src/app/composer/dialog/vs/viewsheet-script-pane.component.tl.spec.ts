@@ -184,12 +184,14 @@ describe("ViewsheetScriptPane — ngOnInit initScriptVisible", () => {
       uiContextServiceMock.getDefaultTab.mockReturnValue("true");
       const { comp } = await renderComponent({ onInit: "", onLoad: "" });
       expect(comp.initScriptVisible).toBe(true);
+      expect(comp.editorContext.kind).toBe("viewsheetOnInit");
    });
 
    it("should set initScriptVisible=false when getDefaultTab returns 'false' and both scripts are empty", async () => {
       uiContextServiceMock.getDefaultTab.mockReturnValue("false");
       const { comp } = await renderComponent({ onInit: "", onLoad: "" });
       expect(comp.initScriptVisible).toBe(false);
+      expect(comp.editorContext.kind).toBe("viewsheetOnLoad");
    });
 
    it("should set initScriptVisible=false when only onLoad is set (second if fires; else does not run)", async () => {
@@ -230,6 +232,7 @@ describe("ViewsheetScriptPane — onInitClicked / onRefreshClicked", () => {
       comp.initScriptVisible = false;
       comp.onInitClicked();
       expect(comp.initScriptVisible).toBe(true);
+      expect(comp.editorContext.kind).toBe("viewsheetOnInit");
    });
 
    it("should call setDefaultTab('vs.onInit', 'true') when onInitClicked", async () => {
@@ -243,6 +246,7 @@ describe("ViewsheetScriptPane — onInitClicked / onRefreshClicked", () => {
       comp.initScriptVisible = true;
       comp.onRefreshClicked();
       expect(comp.initScriptVisible).toBe(false);
+      expect(comp.editorContext.kind).toBe("viewsheetOnLoad");
    });
 
    it("should call setDefaultTab('vs.onInit', 'false') when onRefreshClicked", async () => {

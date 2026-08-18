@@ -32,6 +32,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { AggregateRef } from "../../common/data/aggregate-ref";
 import { AttributeRef } from "../../common/data/attribute-ref";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
 import { ExpressionType } from "../../common/data/condition/expression-type";
 import { DataRef } from "../../common/data/data-ref";
 import { FormulaType } from "../../common/data/formula-type";
@@ -60,6 +61,9 @@ import { InputTrimDirective } from "../directive/input-trim.directive";
 
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { EditorContext } from "../../composer/gui/wiz/editor-context";
+import { ConnectToClaudeComponent } from "../../composer/gui/wiz/connect-to-claude.component";
 
 const DATE_PARTS: any[] = [
    { label: "_#(js:Year)", data: "year" },
@@ -87,7 +91,7 @@ const DATE_TIME_PARTS: any[] = [
     selector: "formula-editor-dialog",
     templateUrl: "formula-editor-dialog.component.html",
     styleUrls: ["formula-editor-dialog.component.scss"],
-    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, ScriptPane, NewAggrDialog]
+    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, ScriptPane, NewAggrDialog, ConnectToClaudeComponent]
 })
 export class FormulaEditorDialog extends BaseResizeableDialogComponent implements
    OnInit, OnDestroy, AfterViewInit
@@ -114,6 +118,22 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() isHighlight: boolean = false;
    @Input() isCalcTable: boolean = false;
 
+   /** Runtime identifier of the sheet hosting the expression this dialog is
+    *  editing. Scopes an agent pairing session to this expression's sheet
+    *  instance rather than the whole sheet. */
+   @Input() runtimeId: string;
+   /** Socket connection for the runtime sheet, used to mint a pane-scoped
+    *  pairing code. */
+   @Input() socketConnection: ViewsheetClientService;
+   /** The table this expression belongs to, for editorContext's `assembly` field only.
+    *  A separate input from `assemblyName` on purpose: `assemblyName` already feeds
+    *  populateColumnTree/populateScriptDefinitions HTTP calls (see below), and several
+    *  callers of this dialog (e.g. editing a worksheet column's formula, or creating a
+    *  viewsheet calc field) know the owning table but never set `assemblyName` today —
+    *  repurposing it would change those existing HTTP call parameters. editorContext
+    *  prefers this field and falls back to `assemblyName` when it is absent. */
+   @Input() contextTable?: string;
+
    @Input() availableFields: DataRef[];
    @Input() availableCells: string[];
    @Input() columns: DataRef[] = [];
@@ -127,6 +147,16 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() columnTreeEnabled: boolean = true;
    @Input() functionTreeEnabled: boolean = true;
    @Input() isCondition: boolean = false;
+   /** The condition's own comparison operator, for `editorContext` only -- this dialog
+    *  otherwise never needs to know it. Distinguishes `worksheetConditionValue` (single-value
+    *  operators, where this pane genuinely edits "the value") from every other operator, which
+    *  has no single value slot this pane could safely mean -- see
+    *  `ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE`'s javadoc. Negation/equal-inclusive
+    *  (`!=` vs `=`, `<=` vs `<`) don't change the value COUNT, so the raw `ConditionOperation`
+    *  enum is enough to classify this without needing the resolved symbol string the server
+    *  uses. Absent (e.g. a viewsheet condition, which addresses by assembly alone) simply means
+    *  the single-value check never applies. */
+   @Input() conditionOperation?: ConditionOperation;
 
    @Input() grayedOutFields: DataRef[];
    @Input() userAggNames: string[] = [];
@@ -168,6 +198,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Output() aggregateDelete: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild("newAggrDialog") newAggrDialog: TemplateRef<any>;
    @ViewChild("formElement") formElementRef: ElementRef<HTMLFormElement>;
+   /** Present only while [canPair] is true (see the template's guarding @if) -- absent
+    *  otherwise, e.g. this dialog has no runtime/socket to pair against. */
+   @ViewChild(ConnectToClaudeComponent) connectToClaude?: ConnectToClaudeComponent;
    private _scriptDefinitions: any = null;
    _aggregates: DataRef[] = [];
    public static DATE_PART_COLUMN: string = "date_part_column";
@@ -181,6 +214,105 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
    get aggregateOnly(): boolean {
       return this.calcType == "aggregate";
+   }
+
+   /**
+    * Whether to offer the Connect Agent button at all.
+    *
+    * Also requires that the location this dialog would mint is ADDRESSABLE -- see
+    * `isAddressable`. Suppressing beats minting a code that cannot be joined usefully, which is
+    * the precedent `script-edit-pane` already sets, and it is the browser half of the whole-branch
+    * review's finding 3: the server now refuses such a mint, and a button whose only outcome is a
+    * server error is worse than no button.
+    */
+   get canPair(): boolean {
+      return this.hasPairingTransport &&
+         FormulaEditorDialog.isAddressable(this.deriveEditorContext());
+   }
+
+   /** A runtime and a socket to mint against. Necessary for pairing, not sufficient -- see
+    *  `canPair`, which also requires the location to be addressable. */
+   private get hasPairingTransport(): boolean {
+      return !!this.runtimeId && !!this.socketConnection;
+   }
+
+   /** Derives the script location this dialog is editing from its own inputs
+    *  so a pairing code minted from here scopes the agent session to just
+    *  this expression rather than the whole sheet. A viewsheet-hosted
+    *  condition (isVSContext) binds to the assembly's main script context;
+    *  a worksheet-hosted condition binds to the worksheet condition itself. */
+   get editorContext(): EditorContext | null {
+      // Gated on the transport, NOT on canPair: this getter answers "which location is this
+      // dialog editing", which is still a fact when the location happens not to be addressable.
+      // canPair answers the separate question of whether a code minted for it could be joined,
+      // and it is canPair that the template's @if uses -- so an unaddressable location never
+      // reaches this binding in practice.
+      return this.hasPairingTransport ? this.deriveEditorContext() : null;
+   }
+
+   /** The derivation itself, without `canPair`'s own guard -- `canPair` calls this, so the two
+    *  cannot be mutually recursive. */
+   private deriveEditorContext(): EditorContext {
+      // contextTable, when the caller supplied it, over assemblyName -- see contextTable's
+      // doc comment for why they're not the same field.
+      const assembly = this.contextTable ?? this.assemblyName;
+
+      if(this.isCalc) {
+         return { kind: "calcField", assembly, name: this.formulaName };
+      }
+
+      if(this.isCondition) {
+         // A viewsheet-hosted condition binds to the assembly's main script context, which is
+         // addressed by assembly alone -- `name` would be rejected there.
+         if(this.isVSContext) {
+            return { kind: "assemblyMain", assembly };
+         }
+
+         // A worksheet-hosted condition: this dialog is ExpressionEditor's, which edits a
+         // condition's VALUE only, never its operator -- so it mints `worksheetConditionValue`,
+         // not `worksheetCondition` (whole-condition replace; see that Kind's javadoc for why
+         // the two are not interchangeable). Only a single-value operator has one value slot
+         // this pane could mean; every other operator (BETWEEN/ONE_OF/NOT_ONE_OF/NULL/NOT_NULL,
+         // or one this dialog was never told about) omits `name`, which `isAddressable` below
+         // already refuses -- suppressing Connect Agent rather than minting a code the server
+         // would reject.
+         return FormulaEditorDialog.SINGLE_VALUE_OPERATIONS.indexOf(this.conditionOperation) >= 0
+            ? { kind: "worksheetConditionValue", assembly, name: this.formulaName }
+            : { kind: "worksheetConditionValue", assembly };
+      }
+
+      return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
+               assembly, name: this.formulaName };
+   }
+
+   /**
+    * Kinds addressed by (table, field) rather than by assembly alone. A grant of one of these
+    * carrying no `name` matches NO target -- the server compares the grant's null name against
+    * every target's real one -- so pairing appears to succeed and then refuses every edit.
+    *
+    * The reachable case is "new expression column"/"new calculated field": the formula editor
+    * opens with an empty `formulaName`, because the user has not named the thing yet.
+    */
+   private static readonly COLUMN_ADDRESSED_KINDS =
+      ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue"];
+
+   /**
+    * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may
+    * address. Mirrors `WorksheetScriptService.SINGLE_VALUE_OPERATORS` on the server (which
+    * enforces the same check independently, against the resolved symbol, at write time; this
+    * list only decides whether to offer Connect Agent at all, never the authority itself).
+    */
+   private static readonly SINGLE_VALUE_OPERATIONS = [
+      ConditionOperation.EQUAL_TO, ConditionOperation.LESS_THAN, ConditionOperation.GREATER_THAN,
+      ConditionOperation.STARTING_WITH, ConditionOperation.CONTAINS, ConditionOperation.LIKE
+   ];
+
+   private static isAddressable(context: EditorContext): boolean {
+      if(FormulaEditorDialog.COLUMN_ADDRESSED_KINDS.indexOf(context.kind) < 0) {
+         return true;
+      }
+
+      return !!context.assembly && !!context.name;
    }
 
    @Input()
@@ -223,6 +355,12 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    }
 
    ngOnDestroy(): void {
+      // A pane session dies with its editor: ends any agent-pairing session paired from this
+      // dialog's exact editorContext, so cancelling/closing it doesn't leave a live write
+      // handle behind. No-op when this dialog never showed a Connect-to-Claude control, or when
+      // it did but editorContext is a whole-sheet (null) mint.
+      this.connectToClaude?.detach();
+
       if(!!this.subscriptions) {
          this.subscriptions.unsubscribe();
          this.subscriptions = null;

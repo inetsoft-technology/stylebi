@@ -29,6 +29,7 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { SourceInfo } from "../../binding/data/source-info";
 import { ConditionEditor } from "./condition-editor.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 @Component({
     selector: "binary-condition-editor",
@@ -55,6 +56,8 @@ export class BinaryConditionEditor {
    @Input() source: SourceInfo;
    @Input() enableBrowseData: boolean = true;
    @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() isVSContext = true;
    @Input() showOriginalName: boolean = false;
    @Output() valuesChange: EventEmitter<ConditionValue[]> = new EventEmitter<ConditionValue[]>();

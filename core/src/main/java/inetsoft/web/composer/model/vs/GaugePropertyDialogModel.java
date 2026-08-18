@@ -71,6 +71,20 @@ public class GaugePropertyDialogModel implements Serializable {
       this.vsAssemblyScriptPaneModel = vsAssemblyScriptPaneModel;
    }
 
+   /**
+    * The write revision this model was read at (see {@link inetsoft.report.composition.
+    * RuntimeViewsheet#getWriteRevision()}). Sent back unchanged on commit so the server can refuse
+    * a stale write instead of silently applying it. {@code null} until the client is updated to
+    * round-trip it -- see 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
    @Override
    public String toString() {
       return "GaugePropertyDialogModel{" +
@@ -85,4 +99,5 @@ public class GaugePropertyDialogModel implements Serializable {
    private DataOutputPaneModel dataOutputPaneModel;
    private GaugeAdvancedPaneModel gaugeAdvancedPaneModel;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private Integer revision;
 }

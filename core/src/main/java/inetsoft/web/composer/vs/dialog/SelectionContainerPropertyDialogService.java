@@ -103,6 +103,7 @@ public class SelectionContainerPropertyDialogService {
          selectionContainerAssemblyInfo.getScript() == null ?
             "" : selectionContainerAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -161,7 +162,7 @@ public class SelectionContainerPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, selectionContainerAssemblyInfo, objectId, basicGeneralPaneModel.getName(),
-         linkUri, principal, commandDispatcher);
+         linkUri, principal, commandDispatcher, true, value.getRevision());
 
       return null;
    }

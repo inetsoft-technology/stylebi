@@ -59,6 +59,7 @@ import { OneOfConditionEditor } from "./one-of-condition-editor.component";
 
 import { FormsModule } from "@angular/forms";
 import { ConditionFieldComboComponent } from "./condition-field-combo.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 @Component({
     selector: "condition-item-pane",
@@ -80,6 +81,8 @@ export class ConditionItemPane implements OnInit, OnChanges {
    @Input() showExpression: boolean = true;
    @Input() isHighlight: boolean = false;
    @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() vsId: string;
    @Input() addNoneItem = true;
    @Input() showOriginalName: boolean = false;

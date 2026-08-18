@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.pairing;
 
 import inetsoft.report.composition.*;
+import inetsoft.uql.XPrincipal;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -115,6 +116,114 @@ class SheetRuntimeAccessTest {
       assertThrows(PairingException.class,
          () -> access(wsMock, vsMock)
             .getSheetForPairing(SheetType.VIEWSHEET, "VS/GONE", ALICE));
+   }
+
+   // ------------------------------------------------------- paired-agent ownership bypass
+
+   /**
+    * A paired agent must be able to MUTATE the runtime, not only read it.
+    *
+    * <p>The pairing path resolves the sheet here, bypassing the owner check deliberately. But a
+    * wiz service that delegates to a composer service hands it {@code runtimeId} + the agent
+    * principal, and that service re-resolves through {@code WorksheetEngine.getSheet}, which
+    * enforces {@code rs.matches(user)} — full {@code Principal} equality, session id included. The
+    * agent principal is rebuilt from the JWT and the owner is the browser-session principal, so
+    * they are never equal objects and every write failed with {@code InvalidUserException} while
+    * every read succeeded.
+    *
+    * <p>Marking the principal here — after confirming the runtime's owner is the same logical
+    * user — lets {@code getSheet} accept it, mirroring the {@code supportLogin} hatch. Found live
+    * on local-1193, not by unit test.
+    */
+   @Test
+   void marksTheAgentPrincipalWhenTheRuntimeOwnerIsTheSameLogicalUser() throws Exception {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      // a DIFFERENT principal object for the same logical user — the browser session
+      when(rvs.getUser()).thenReturn(TestPrincipals.user("alice", "org"));
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+      access(wsMock, vsMock).getSheetForPairing(SheetType.VIEWSHEET, "VS/456", agent);
+
+      assertEquals("true", ((XPrincipal) agent).getProperty("pairedAgent"),
+                   "a paired agent must be allowed to mutate a runtime its own login opened " +
+                   "in another session");
+   }
+
+   /** The bypass is granted only to the owner's own logical user — never to anyone else. */
+   @Test
+   void refusesToMarkWhenTheRuntimeBelongsToADifferentUser() {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getUser()).thenReturn(TestPrincipals.user("bob", "org"));
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+
+      assertThrows(PairingException.class,
+         () -> access(wsMock, vsMock).getSheetForPairing(SheetType.VIEWSHEET, "VS/456", agent));
+      assertNull(((XPrincipal) agent).getProperty("pairedAgent"),
+                 "a rejected agent must not carry the bypass flag");
+   }
+
+   /**
+    * A null owner cannot be verified, so no bypass is granted. Harmless: {@code getSheet} only
+    * enforces ownership when {@code rs.getUser() != null}, so there is nothing to bypass.
+    */
+   @Test
+   void doesNotMarkWhenTheRuntimeHasNoOwner() throws Exception {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getUser()).thenReturn(null);
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+      access(wsMock, vsMock).getSheetForPairing(SheetType.VIEWSHEET, "VS/456", agent);
+
+      assertNull(((XPrincipal) agent).getProperty("pairedAgent"));
+   }
+
+   /**
+    * Some wiz services never resolve the sheet — they take {@code runtimeId} from the session and
+    * hand it straight to a composer service, which re-resolves it and enforces ownership. Those
+    * paths need the same bypass, so it must be grantable from the id alone.
+    *
+    * <p>Missed by the first version of this fix, which only marked inside
+    * {@code getSheetForPairing}: chart region properties then still failed while chart aesthetics
+    * worked, because only the latter resolves the sheet. Found live on local-1195.
+    */
+   @Test
+   void grantsTheBypassFromARuntimeIdAloneWithoutResolvingTheSheet() throws Exception {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getUser()).thenReturn(TestPrincipals.user("alice", "org"));
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+      access(wsMock, vsMock).grantOwnershipBypass(SheetType.VIEWSHEET, "VS/456", agent);
+
+      assertEquals("true", ((XPrincipal) agent).getProperty("pairedAgent"));
+   }
+
+   @Test
+   void refusesToGrantFromARuntimeIdOwnedByADifferentUser() {
+      SheetDirectAccessor wsMock = mock(SheetDirectAccessor.class);
+      SheetDirectAccessor vsMock = mock(SheetDirectAccessor.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getUser()).thenReturn(TestPrincipals.user("bob", "org"));
+      when(vsMock.getSheetDirect("VS/456")).thenReturn(rvs);
+
+      Principal agent = TestPrincipals.user("alice", "org");
+
+      assertThrows(PairingException.class,
+         () -> access(wsMock, vsMock)
+            .grantOwnershipBypass(SheetType.VIEWSHEET, "VS/456", agent));
+      assertNull(((XPrincipal) agent).getProperty("pairedAgent"));
    }
 
    @Test

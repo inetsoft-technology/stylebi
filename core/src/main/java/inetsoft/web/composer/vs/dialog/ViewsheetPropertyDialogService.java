@@ -253,6 +253,7 @@ public class ViewsheetPropertyDialogService {
       vsScriptPane.enableAutocomplete(true);
       vsScriptPane.enableScript(info.isScriptEnabled());
       vsModel.vsScriptPane(vsScriptPane.build());
+      vsModel.revision(rvs.getWriteRevision());
 
       return vsModel.build();
    }
@@ -265,6 +266,22 @@ public class ViewsheetPropertyDialogService {
    {
       String updatedName = null;
       RuntimeViewsheet rvs = this.viewsheetService.getViewsheet(runtimeId, principal);
+
+      // Write coordination: refuse a stale commit rather than silently applying it over
+      // whatever changed since this dialog's model was read. This dialog has no defensive
+      // clone at all -- it mutates ViewsheetInfo live -- so the check matters even more here
+      // than in the dialogs that at least clone before patching. See
+      // 2026-08-17-write-coordination-design.md / -implementation.md.
+      Integer expectedRevision = value.revision();
+
+      if(expectedRevision != null && expectedRevision != rvs.getWriteRevision()) {
+         MessageCommand command = new MessageCommand();
+         command.setMessage(Catalog.getCatalog().getString("common.writeConflict", "Viewsheet"));
+         command.setType(MessageCommand.Type.ERROR);
+         commandDispatcher.sendCommand(command);
+         return null;
+      }
+
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
       VSOptionsPaneModel vsOptionsPaneModel = value.vsOptionsPane();
@@ -455,11 +472,15 @@ public class ViewsheetPropertyDialogService {
 
       LocalizationPaneModel localizationPane = value.localizationPane();
 
-      for(String component: info.getLocalComponents()) {
-         info.removeLocalID(component, true);
-      }
-
+      // A null pane means "not supplied", not "clear everything". getViewsheetInfo populates it
+      // only for a site admin (or when security is off / single-tenant), so on any other principal
+      // a plain read-modify-write round trip arrived here with null -- and wiping first removed
+      // every localized text id on the sheet as a side effect of setting something unrelated.
       if(localizationPane != null) {
+         for(String component: info.getLocalComponents()) {
+            info.removeLocalID(component, true);
+         }
+
          for(LocalizationComponent component: localizationPane.getLocalized()) {
             info.setLocalID(component.getName(), component.getTextId());
          }
@@ -497,6 +518,8 @@ public class ViewsheetPropertyDialogService {
             throw e;
          }
       }
+
+      rvs.bumpWriteRevision();
 
       return updatedName;
    }

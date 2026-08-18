@@ -180,3 +180,12 @@ describe("VSAssemblyScriptPane — onExpressionChange — other branches [Group 
       expect(comp.model.expression).toBe("");
    });
 });
+
+describe("VSAssemblyScriptPane — editorContext", () => {
+   it("should report assemblyMain with the bound assembly name", () => {
+      const comp = createPane();
+      comp.assembly = "Chart1";
+
+      expect(comp.editorContext).toEqual({ kind: "assemblyMain", assembly: "Chart1" });
+   });
+});

@@ -27,6 +27,7 @@ import { Tool } from "../../../../../shared/util/tool";
 import { JunctionOperatorPipe } from "./junction-operator.pipe";
 import { ConditionPipe } from "./condition.pipe";
 import { ConditionItemPane } from "./condition-item-pane.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 
 @Component({
@@ -39,6 +40,9 @@ export class SimpleConditionPane implements OnInit {
    public ConditionOperation = ConditionOperation;
    @Input() subqueryTables: SubqueryTable[];
    @Input() fields: DataRef[];
+   @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() provider: ConditionItemPaneProvider;
    @Input() isVSContext = true;
    @Input() variableNames: string[];

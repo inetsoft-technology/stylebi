@@ -30,23 +30,27 @@
   <legend>_#(Append Records Matching Pre-aggregate Conditions)</legend>
   <condition-list [subqueryTables]="subqueryTables" [provider]="appendProvider"
                   [fields]="model.preAggregateFields" [isVSContext]="false"
+                  [table]="assemblyName" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
                   [(conditionList)]="model.appendPreAggregateConditionList"></condition-list>
 </fieldset>
 <fieldset>
   <legend>_#(Append Records Matching Post-aggregate Conditions)</legend>
   <condition-list [subqueryTables]="subqueryTables" [provider]="appendProvider"
                   [fields]="model.postAggregateFields" [isVSContext]="false"
+                  [table]="assemblyName" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
                   [(conditionList)]="model.appendPostAggregateConditionList"></condition-list>
 </fieldset>
 <fieldset>
   <legend>_#(Delete Records Matching Pre-aggregate Conditions)</legend>
   <condition-list [subqueryTables]="subqueryTables" [provider]="deleteProvider"
                   [fields]="model.preAggregateFields" [isVSContext]="false"
+                  [table]="assemblyName" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
                   [(conditionList)]="model.deletePreAggregateConditionList"></condition-list>
 </fieldset>
 <fieldset>
   <legend>_#(Delete Records Matching Post-aggregate Conditions)</legend>
   <condition-list [subqueryTables]="subqueryTables" [provider]="deleteProvider"
                   [fields]="model.postAggregateFields" [isVSContext]="false"
+                  [table]="assemblyName" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
                   [(conditionList)]="model.deletePostAggregateConditionList"></condition-list>
 </fieldset>

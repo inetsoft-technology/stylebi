@@ -105,7 +105,9 @@ class SelectionListPropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       SelectionListVSAssemblyInfo result = argument.getValue();
       // switching from dropdown to list: titleHeight(20) + listHeight(6) * cellHeight(20) = 140
@@ -160,7 +162,9 @@ class SelectionListPropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       SelectionListVSAssemblyInfo result = argument.getValue();
       // switching from list to dropdown: size.height = titleHeight = 20
@@ -218,7 +222,9 @@ class SelectionListPropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       SelectionListVSAssemblyInfo result = argument.getValue();
       // dropdown stays dropdown, title height changed to 30

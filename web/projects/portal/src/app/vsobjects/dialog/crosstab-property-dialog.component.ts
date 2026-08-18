@@ -120,14 +120,18 @@ export class CrosstabPropertyDialog extends PropertyDialog implements OnInit {
       };
 
       const payload = {collapse: collapse, result: model};
+      // Only a final commit (OK) carries the revision it was read at -- Apply leaves the
+      // dialog open with its held model never refreshed, so echoing this back on Apply would
+      // make the dialog conflict with its own prior Apply on the next one.
+      const commitModel = {...model, revision: this.model.revision};
       const trapInfo = new TrapInfo(CHECK_TRAP_URI,
          this.model.tableViewGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.name,
          this.runtimeId, model);
 
       this.trapService.checkTrap(trapInfo,
-         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(model),
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(commitModel),
          () => {},
-         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(model)
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(commitModel)
       );
    }
 }

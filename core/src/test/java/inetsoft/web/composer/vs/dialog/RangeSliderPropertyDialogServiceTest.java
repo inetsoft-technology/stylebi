@@ -93,7 +93,9 @@ class RangeSliderPropertyDialogServiceTest {
                                                          any(String.class),
                                                          any(String.class),
                                                          nullable(Principal.class),
-                                                         any(CommandDispatcher.class));
+                                                         any(CommandDispatcher.class),
+                                                         eq(true),
+                                                         nullable(Integer.class));
 
       assertTrue(argument.getValue().getLogScaleValue());
    }

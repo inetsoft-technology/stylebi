@@ -62,7 +62,21 @@ public class CalcTablePropertyDialogModel implements Serializable {
       this.calcTableAdvancedPaneModel = calcTableAdvancedPaneModel;
    }
 
+   /**
+    * The write revision this model was read at. See
+    * {@link inetsoft.report.composition.RuntimeViewsheet#getWriteRevision()} and
+    * 2026-08-17-write-coordination-implementation.md.
+    */
+   public Integer getRevision() {
+      return revision;
+   }
+
+   public void setRevision(Integer revision) {
+      this.revision = revision;
+   }
+
    TableViewGeneralPaneModel tableViewGeneralPaneModel;
    CalcTableAdvancedPaneModel calcTableAdvancedPaneModel;
    VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private Integer revision;
 }

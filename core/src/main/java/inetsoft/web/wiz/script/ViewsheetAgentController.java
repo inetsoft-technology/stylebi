@@ -19,6 +19,7 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
@@ -28,7 +29,7 @@ import inetsoft.web.wiz.script.model.FunctionSignature;
 import inetsoft.web.wiz.script.model.ScriptContext;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
-import inetsoft.web.wiz.script.model.ScriptTargetInfo;
+import inetsoft.web.wiz.script.model.ScriptTargetsResponse;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -40,7 +41,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -95,33 +95,60 @@ public class ViewsheetAgentController {
    public JoinResponse join(@RequestParam String code, Principal user) throws PairingException {
       requireEnabled();
       JoinSession session = joinService.join(code, user);
-      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity());
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase(), session.editorContext());
    }
 
-   public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity) {}
+   /**
+    * @param sheetType     the runtime's own type, {@code viewsheet} or {@code worksheet} — NOT the
+    *                      plugin that asked. Binding and script both drive a viewsheet runtime, and
+    *                      without this the client had to label the session from its own name, which is
+    *                      how one open viewsheet came to hold several unrelated sessions.
+    * @param editorContext the script/formula location this session is scoped to, or {@code null}
+    *                      for a whole-sheet ("Connect to Claude" toolbar) session
+    */
+   public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
+                              String sheetType, EditorContext editorContext) {}
 
-   /** Enumerates every scriptable target on the joined viewsheet. */
+   /**
+    * Enumerates every scriptable target on the joined viewsheet, with the grammar it speaks.
+    *
+    * <p>Not excluded from pane scoping just because it takes no single {@code target} to check —
+    * a pane-scoped session's listing is narrowed to its own grant (see
+    * {@link ScriptReadService#list(RuntimeViewsheet, JoinSession)}), so {@code list_script_targets}
+    * cannot be used to discover locations the session could not act on anyway.
+    */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/targets")
-   public List<ScriptTargetInfo> targets(@PathVariable String sessionToken, Principal user)
+   public ScriptTargetsResponse targets(@PathVariable String sessionToken, Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return readService.list(rvs);
+      JoinSession session = resolveSession(sessionToken, user);
+      return new ScriptTargetsResponse(ScriptGrammar.VERSION, ScriptGrammar.supportedKinds(),
+                                       readService.list(rvs, session));
    }
 
    /** Reads the current text + enabled-state of {@code target}. */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/script")
    public ScriptInfo readScript(@PathVariable String sessionToken,
-                                @RequestParam String target, Principal user)
+                                @RequestParam(required = false) String target,
+                                @RequestParam(required = false) String id,
+                                @RequestParam(required = false) String kind,
+                                @RequestParam(required = false) String assembly,
+                                @RequestParam(required = false) String name,
+                                Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return readService.read(rvs, ScriptTarget.parse(target));
+      ScriptTarget t = target(rvs, id, kind, assembly, name, target);
+      requirePaneScope(sessionToken, user, t);
+      return readService.read(rvs, t);
    }
 
-   public record WriteScriptRequest(String target, String text) {}
+   public record WriteScriptRequest(String target, String id, String kind, String assembly,
+                                    String name, String text) {}
 
    /** Overwrites the script text at {@code target} and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/script")
@@ -130,11 +157,15 @@ public class ViewsheetAgentController {
       throws Exception
    {
       requireEnabled();
-      ScriptTarget target = ScriptTarget.parse(req.target());
-      editService.apply(sessionToken, user, rvs -> editService.write(rvs, target, req.text()));
+      editService.apply(sessionToken, user, rvs -> {
+         ScriptTarget t = target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
+         requirePaneScope(sessionToken, user, t);
+         editService.write(rvs, t, req.text());
+      });
    }
 
-   public record SetEnabledRequest(String target, boolean enabled) {}
+   public record SetEnabledRequest(String target, String id, String kind, String assembly,
+                                   String name, boolean enabled) {}
 
    /** Toggles whether the script at {@code target} is enabled and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/enable")
@@ -143,11 +174,15 @@ public class ViewsheetAgentController {
       throws Exception
    {
       requireEnabled();
-      ScriptTarget target = ScriptTarget.parse(req.target());
-      editService.apply(sessionToken, user, rvs -> editService.setEnabled(rvs, target, req.enabled()));
+      editService.apply(sessionToken, user, rvs -> {
+         ScriptTarget t = target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
+         requirePaneScope(sessionToken, user, t);
+         editService.setEnabled(rvs, t, req.enabled());
+      });
    }
 
-   public record ExecuteRequest(String target) {}
+   public record ExecuteRequest(String target, String id, String kind, String assembly,
+                                String name) {}
 
    /**
     * Dry-runs the script currently saved at {@code target} (see {@link ScriptExecuteService}).
@@ -163,13 +198,18 @@ public class ViewsheetAgentController {
       throws Exception
    {
       requireEnabled();
-      ScriptTarget target = ScriptTarget.parse(req.target());
       return editService.applyOnRuntimeIfChanged(sessionToken, user,
-         rvs -> executeService.dryRun(rvs, target),
+         rvs -> {
+            ScriptTarget t =
+               target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
+            requirePaneScope(sessionToken, user, t);
+            return executeService.dryRun(rvs, t);
+         },
          result -> result.changed() != null && !result.changed().isEmpty());
    }
 
-   public record ExecuteLiveRequest(String target, boolean confirmed) {}
+   public record ExecuteLiveRequest(String target, String id, String kind, String assembly,
+                                    String name, boolean confirmed) {}
 
    /** Runs the script currently saved at {@code target} live and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/execute-live")
@@ -178,19 +218,40 @@ public class ViewsheetAgentController {
       throws Exception
    {
       requireEnabled();
-      ScriptTarget target = ScriptTarget.parse(req.target());
       return editService.applyOnRuntime(sessionToken, user,
-         rvs -> executeService.runLive(rvs, target, req.confirmed()));
+         rvs -> {
+            ScriptTarget t =
+               target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
+            requirePaneScope(sessionToken, user, t);
+            return executeService.runLive(rvs, t, req.confirmed());
+         });
    }
 
-   /** Live introspection of the joined viewsheet's scriptable surface. */
+   /** Live introspection of the joined viewsheet's scriptable surface, scoped to a target. */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/context")
-   public ScriptContext context(@PathVariable String sessionToken, Principal user)
+   public ScriptContext context(@PathVariable String sessionToken,
+                                @RequestParam(required = false) String target,
+                                @RequestParam(required = false) String id,
+                                @RequestParam(required = false) String kind,
+                                @RequestParam(required = false) String assembly,
+                                @RequestParam(required = false) String name,
+                                Principal user)
       throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return contextService.context(rvs);
+      // CONTROLLER RULING 5 — note the `&& isBlank(assembly)`, which this brief originally omitted.
+      // Without it, `?assembly=Chart1` with no `kind` is treated as "no target at all" and silently
+      // returns the whole-viewsheet context instead of erroring on an incomplete dialect. Including
+      // it routes that case to resolve(), which throws the error naming all three dialects.
+      boolean noTarget = isBlank(target) && isBlank(id) && isBlank(kind) && isBlank(assembly);
+      ScriptTarget t = noTarget ? null : target(rvs, id, kind, assembly, name, target);
+
+      if(t != null) {
+         requirePaneScope(sessionToken, user, t);
+      }
+
+      return contextService.context(rvs, t);
    }
 
    /**
@@ -213,6 +274,10 @@ public class ViewsheetAgentController {
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/image")
    public ChartImageResponse image(@PathVariable String sessionToken,
                                    @RequestParam(required = false) String target,
+                                   @RequestParam(required = false) String id,
+                                   @RequestParam(required = false) String kind,
+                                   @RequestParam(required = false) String assembly,
+                                   @RequestParam(required = false) String name,
                                    @RequestParam(required = false) Integer width,
                                    @RequestParam(required = false) Integer height,
                                    Principal user)
@@ -220,17 +285,20 @@ public class ViewsheetAgentController {
    {
       requireEnabled();
       RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
+      boolean noTarget = isBlank(target) && isBlank(id) && isBlank(kind) && isBlank(assembly);
       ScriptImageService.ChartImage img;
 
-      if(target == null || target.isBlank()) {
+      if(noTarget) {
          img = imageService.getViewsheetImage(rvs, width, height, user);
       }
       else {
-         ScriptTarget t = ScriptTarget.parse(target);
+         ScriptTarget t = target(rvs, id, kind, assembly, name, target);
+         requirePaneScope(sessionToken, user, t);
 
          if(t.location() != ScriptTarget.Location.ASSEMBLY) {
-            throw new PairingException("image only supports assembly targets (or no target, " +
-                                       "for the whole viewsheet), not \"" + target + "\"");
+            throw new PairingException(
+               "image renders an assembly (kind 'assemblyMain'), or the whole viewsheet when no " +
+               "target is given. '" + t.kind().wireName() + "' is not visual.");
          }
 
          img = imageService.getAssemblyImage(rvs, t.assemblyName(), width, height, user);
@@ -239,6 +307,10 @@ public class ViewsheetAgentController {
       String base64 = Base64.getEncoder().encodeToString(img.pngBytes());
       return new ChartImageResponse(base64, img.isPng() ? "png" : "svg", img.width(), img.height(),
                                     img.note());
+   }
+
+   private static boolean isBlank(String s) {
+      return s == null || s.isBlank();
    }
 
    /**
@@ -306,6 +378,47 @@ public class ViewsheetAgentController {
          throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                            "Sheet agent pairing is disabled");
       }
+   }
+
+   /**
+    * Enforces {@link PaneScopeService} for {@code target} against the joined session.
+    *
+    * <p>Reads {@code wiz.agent.script.require-script-pane} fresh from {@code SreeEnv} on every
+    * call (never cached) so the strict posture can be toggled by an administrator without a
+    * restart, mirroring {@link #requireEnabled}'s own {@link SheetAgentFeature#isEnabled} call.
+    */
+   private void requirePaneScope(String sessionToken, Principal user, ScriptTarget target)
+      throws PairingException
+   {
+      JoinSession session = resolveSession(sessionToken, user);
+      boolean strict = SreeEnv.getBooleanProperty(PaneScopeService.STRICT_FLAG);
+      new PaneScopeService(strict).check(session, target);
+   }
+
+   /**
+    * Resolves the joined session itself, not just its runtime — for callers that need
+    * {@link JoinSession#editorContext()}: {@link #requirePaneScope} and {@link #targets}.
+    */
+   private JoinSession resolveSession(String sessionToken, Principal user)
+      throws PairingException
+   {
+      JoinSession session = sessionService.resolve(sessionToken, agentKey(user));
+
+      if(session == null) {
+         throw new PairingException(
+            PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
+      }
+
+      return session;
+   }
+
+   /** Resolves a target against the joined viewsheet, so the exact-name fix applies everywhere. */
+   private ScriptTarget target(RuntimeViewsheet rvs, String id, String kind, String assembly,
+                               String name, String legacyTarget)
+      throws PairingException
+   {
+      return ScriptTarget.resolve(rvs == null ? null : rvs.getViewsheet(), id, kind, assembly,
+                                  name, legacyTarget);
    }
 
    private static String agentKey(Principal agent) {

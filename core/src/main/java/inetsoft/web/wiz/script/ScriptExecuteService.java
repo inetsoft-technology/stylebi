@@ -120,6 +120,20 @@ public class ScriptExecuteService {
       String assemblyName = switch(target.location()) {
          case VS_INIT, VS_LOAD -> null;
          case ASSEMBLY, ASSEMBLY_ONCLICK -> target.assemblyName();
+         // Permanent, not a placeholder: a calculated field is an expression evaluated per row,
+         // not a runnable script, so there is no "wire it up later" for this case the way there
+         // is for write/setEnabled elsewhere.
+         case CALC_FIELD -> throw new PairingException(
+            "A calculated field is an expression evaluated per row, not a runnable script. " +
+            "Use read_script/update_script on it instead.");
+         // Unreachable in practice -- readService.read(rvs, target) above already throws for
+         // these two (ScriptReadService only serves RuntimeViewsheet locations; a worksheet
+         // expression/condition column is read/written through WorksheetScriptService instead).
+         // Handled explicitly anyway: this is a switch EXPRESSION, so the compiler -- not just
+         // this method's runtime behavior -- must stay exhaustive over every Location.
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
+            "A worksheet expression/condition column is not a runnable viewsheet script. " +
+            "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
       };
 
       try {

@@ -114,6 +114,15 @@ export abstract class Sheet {
          this.savePoint = sheet.savePoint;
          this.loading = sheet.loading;
          this.annotationChanged = sheet.annotationChanged;
+         // Must travel with runtimeId, which is copied above. closeOnServer is false only for a
+         // sheet whose runtime the SERVER opened; a copy that keeps the runtime but drops the
+         // flag claims the right to close a runtime it does not own. These copies are made
+         // constantly -- processUpdateUndoStateCommand builds one on every UpdateUndoStateCommand,
+         // which an agent broadcasts after every edit it makes -- so the flag would be right when
+         // the tab opens and wrong from the first edit on, and closing the tab would then destroy
+         // the runtime the agent is paired to.
+         this.closeOnServer = sheet.closeOnServer;
+         this.closedOnServer = sheet.closedOnServer;
       }
    }
 

@@ -112,6 +112,49 @@ public class ViewsheetPropertyDialogServiceTest {
       assertNotNull(viewsheetLayout.getVSAssemblyLayout("Bar001"));
    }
 
+   /**
+    * Write coordination (2026-08-17-write-coordination-design.md / -implementation.md): this
+    * dialog has no defensive clone at all -- it mutates ViewsheetInfo live -- so the revision
+    * check matters even more here than in dialogs that at least clone before patching. A stale
+    * commit must be refused before the live ViewsheetInfo is even read.
+    */
+   @Test
+   public void refusesAStaleCommitBeforeTouchingTheLiveInfo() throws Exception {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getWriteRevision()).thenReturn(5);
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().revision(4).build();
+
+      String result = service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null);
+
+      org.junit.jupiter.api.Assertions.assertNull(result);
+      org.mockito.Mockito.verify(rvs, org.mockito.Mockito.never()).getViewsheet();
+      org.mockito.Mockito.verify(commandDispatcher).sendCommand(
+         org.mockito.ArgumentMatchers.argThat(cmd ->
+            cmd instanceof inetsoft.web.viewsheet.command.MessageCommand mc &&
+            mc.getType() == inetsoft.web.viewsheet.command.MessageCommand.Type.ERROR));
+   }
+
+   @Test
+   public void readSideAttachesTheCurrentWriteRevision() throws Exception {
+      ViewsheetPropertyDialogService readService = new ViewsheetPropertyDialogService(
+         coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getWriteRevision()).thenReturn(7);
+      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+      when(viewsheet.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+      when(viewsheetService.getAssetRepository()).thenReturn(assetRepository);
+      when(deviceRegistry.getDevices()).thenReturn(new DeviceInfo[0]);
+
+      ViewsheetPropertyDialogModel result = readService.getViewsheetInfo("Viewsheet1", null);
+
+      assertEquals(7, result.revision());
+   }
+
    @Mock ViewsheetService viewsheetService;
    @Mock ViewsheetSettingsService viewsheetSettingsService;
    @Mock CoreLifecycleService coreLifecycleService;
@@ -121,5 +164,8 @@ public class ViewsheetPropertyDialogServiceTest {
    @Mock ViewsheetSandbox viewsheetSandbox;
    @Mock CommandDispatcher commandDispatcher;
    @Mock VSAssemblyInfoHandler vsAssemblyInfoHandler;
+   @Mock inetsoft.sree.security.SecurityEngine securityEngine;
+   @Mock DeviceRegistry deviceRegistry;
+   @Mock inetsoft.uql.asset.AssetRepository assetRepository;
    private ViewsheetPropertyDialogService service;
 }

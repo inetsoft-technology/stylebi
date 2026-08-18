@@ -16,6 +16,16 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div [class.flex-col-container]="fullContainer">
+  @if (runtimeId && socketConnection) {
+    <div class="row justify-content-end">
+      <div class="col-auto">
+        <wiz-connect-to-claude
+          [runtimeId]="runtimeId" sheetType="VIEWSHEET"
+          [socketConnection]="socketConnection" [editorContext]="editorContext">
+        </wiz-connect-to-claude>
+      </div>
+    </div>
+  }
   <div class="container-fluid" [class.flex-col-container]="fullContainer">
     <div class="row form-row-float-label">
       @if (columnTreeRoot && columnTreeEnabled) {

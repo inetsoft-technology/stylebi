@@ -103,6 +103,7 @@ export class CalendarActionHandlerDirective extends AbstractActionHandler implem
             });
          dialog.model = data;
          dialog.runtimeId = runtimeId;
+         dialog.socketConnection = this.vsInfo.socketConnection;
          dialog.variableValues =
             VSUtil.getVariableList(this.vsInfo.vsObjects, this.model.absoluteName);
          dialog.openToScript = openToScript;

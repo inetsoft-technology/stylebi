@@ -39,6 +39,7 @@ import { SimpleConditionPane } from "./simple-condition-pane.component";
 import { ConditionPane as ConditionPane_1 } from "./condition-pane.component";
 
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 
 @Component({
     selector: "condition-dialog",
@@ -54,6 +55,9 @@ export class ConditionDialog extends BaseResizeableDialogComponent implements Af
    @Input() provider: ConditionItemPaneProvider;
    @Input() subqueryTables: SubqueryTable[];
    @Input() fields: DataRef[];
+   @Input() table: string;
+   @Input() runtimeId: string;
+   @Input() socketConnection: ViewsheetClientService;
    @Input() isVSContext = true;
    @Input() showOriginalName: boolean = false;
    @Output() conditionListUpdated: EventEmitter<any[]> = new EventEmitter<any[]>();

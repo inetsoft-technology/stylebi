@@ -144,7 +144,7 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
             if(!!this.checkTrap) {
                this.checkTrap(() => {
                   if(commit) {
-                     this.onCommit.emit(this.getServerAppliedModel());
+                     this.onCommit.emit(this.getServerAppliedModel(true));
                   }
                   else {
                      this.onApply.emit({collapse: collapse, result: this.getServerAppliedModel()});
@@ -152,7 +152,7 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
                }, this.model);
             }
             else if(commit) {
-               this.onCommit.emit(this.getServerAppliedModel());
+               this.onCommit.emit(this.getServerAppliedModel(true));
             }
             else {
                this.onApply.emit({collapse: collapse, result: this.getServerAppliedModel()});
@@ -283,12 +283,16 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
       return Array.from(fieldSet);
    }
 
-   // remove fields that are not used on the server side to reduce the transmission size
-   getServerAppliedModel(): VSConditionDialogModel {
+   // remove fields that are not used on the server side to reduce the transmission size.
+   // Only a final commit (OK) carries the revision it was read at -- Apply leaves the dialog
+   // open with its held model never refreshed, so echoing it back on Apply would make the
+   // dialog conflict with its own prior Apply. See 2026-08-17-write-coordination-design.md.
+   getServerAppliedModel(includeRevision: boolean = false): VSConditionDialogModel {
       return {
          tableName: this.model.tableName,
          fields: [],
-         conditionList: this.model.conditionList
+         conditionList: this.model.conditionList,
+         ...(includeRevision ? { revision: this.model.revision } : {})
       };
    }
 }

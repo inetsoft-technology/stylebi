@@ -20,6 +20,7 @@
   <condition-list [subqueryTables]="subqueryTables" [provider]="prePostProvider"
                   [fields]="preAggregateFields" [conditionList]="preAggregateConditionList"
                   [isVSContext]="false"
+                  [table]="assemblyName" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
                   [showOriginalName]="true"
                   (conditionListChange)="preAggregateConditionListChange.emit($event)">
   </condition-list>
@@ -29,6 +30,7 @@
   <condition-list [subqueryTables]="subqueryTables" [provider]="prePostProvider"
                   [fields]="postAggregateFields" [conditionList]="postAggregateConditionList"
                   [isVSContext]="false"
+                  [table]="assemblyName" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
                   [showOriginalName]="true"
                   (conditionListChange)="postAggregateConditionListChange.emit($event)">
   </condition-list>

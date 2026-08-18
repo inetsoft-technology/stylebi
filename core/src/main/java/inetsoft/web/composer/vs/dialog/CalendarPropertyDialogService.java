@@ -147,6 +147,7 @@ public class CalendarPropertyDialogService {
          calendarAssemblyInfo.getScript() == null ?
             "" : calendarAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+      result.setRevision(rvs.getWriteRevision());
 
       return result;
    }
@@ -326,7 +327,7 @@ public class CalendarPropertyDialogService {
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, info, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+         principal, commandDispatcher, true, value.getRevision());
 
       return null;
    }
