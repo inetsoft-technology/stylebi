@@ -94,7 +94,7 @@ public class ViewsheetSessionService {
          throw new PairingException(
             PairingException.Kind.SESSION_EXPIRED,
             "Invalid or expired viewsheet session: " + sessionToken +
-            ". Ask the user for a fresh pairing code and run connect_viewsheet again.");
+            ". Ask the user for a fresh pairing code and run connect_sheet again.");
       }
 
       return session;
