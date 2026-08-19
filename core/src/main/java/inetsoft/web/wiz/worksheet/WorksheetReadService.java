@@ -25,6 +25,7 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XValueNode;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
+import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -72,6 +73,32 @@ public class WorksheetReadService {
       return new WorksheetModel(tables, variables, namedGroups);
    }
 
+   /**
+    * Reads the worksheet's own properties -- the four fields behind the Composer's
+    * Worksheet Property dialog.
+    *
+    * <p>The alias and description fallbacks are copied deliberately from
+    * {@code WorksheetOptionPaneModel(RuntimeWorksheet)}: the {@link WorksheetInfo} value wins and
+    * the {@link AssetEntry} is only consulted when it is {@code null}. Reading them any other way
+    * would let this endpoint disagree with what the dialog shows the user for the same sheet.
+    * The properties POST writes {@link WorksheetInfo}, i.e. the side that wins here, so a value
+    * set through the agent is the value the dialog displays.</p>
+    *
+    * @param rws the live runtime worksheet; must not be {@code null}
+    * @return the sheet's name, alias, description and data-source flag
+    */
+   public WorksheetPropertiesModel readProperties(RuntimeWorksheet rws) {
+      WorksheetInfo winfo = rws.getWorksheet().getWorksheetInfo();
+      AssetEntry entry = rws.getEntry();
+
+      String alias = winfo.getAlias() != null ? winfo.getAlias() : entry.getAlias();
+      String description = winfo.getDescription() != null
+         ? winfo.getDescription() : entry.getProperty("description");
+
+      return new WorksheetPropertiesModel(
+         entry.getName(), alias, description, entry.isReportDataSource());
+   }
+
    // -------------------------------------------------------------------------
    // Table
    // -------------------------------------------------------------------------
@@ -97,7 +124,14 @@ public class WorksheetReadService {
    }
 
    private String tableType(TableAssembly t) {
-      if(t instanceof EmbeddedTableAssembly) {
+      // The snapshot check MUST stay ahead of the EmbeddedTableAssembly branch:
+      // SnapshotEmbeddedTableAssembly extends it, so reordering these two silently
+      // collapses the distinction again and an agent can no longer tell, before a
+      // write, that it is looking at a table whose cell/row edits are refused.
+      if(t instanceof SnapshotEmbeddedTableAssembly) {
+         return "EMBEDDED_SNAPSHOT";
+      }
+      else if(t instanceof EmbeddedTableAssembly) {
          return "EMBEDDED";
       }
       else if(t instanceof AbstractJoinTableAssembly) {

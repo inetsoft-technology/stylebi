@@ -37,6 +37,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
+import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -153,6 +154,17 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   /** Builds an {@code insert_column} EditRequest that routes to insertColumn(). */
+   private static EditRequest insertColumnRequest(String table) {
+      return new EditRequest(
+         "insert_column", table, null, null, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null
+      );
+   }
+
    /** Builds an {@code edit_sql_query} EditRequest that routes to editSqlQuery(). */
    private static EditRequest editSqlQueryRequest(String table, String expression) {
       return new EditRequest(
@@ -256,6 +268,68 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // properties — read
+   // ---------------------------------------------------------------------------
+
+   /**
+    * The read counterpart of the properties POST. Without it an agent could set a worksheet's
+    * alias or description but never read it back, and /model carries neither field.
+    */
+   @Test
+   void getPropertiesReturnsTheSheetsOwnProperties() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      ws.getWorksheetInfo().setAlias("Quarterly revenue");
+      ws.getWorksheetInfo().setDescription("Set by the agent");
+
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "Folder/ws-1", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getEntry()).thenReturn(entry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         new WorksheetReadService(), editSvc, mock(WorksheetService.class));
+
+      WorksheetPropertiesModel props = ctrl.getProperties("TOK", agent);
+
+      assertEquals("ws-1", props.name());
+      assertEquals("Quarterly revenue", props.alias());
+      assertEquals("Set by the agent", props.description());
+      assertTrue(props.dataSource(),
+         "AssetEntry.isReportDataSource() reads true unless the property is explicitly \"false\", "
+            + "so an untouched entry is a data source -- the same value the Composer dialog shows");
+   }
+
+   /**
+    * Pinned to the exact 403 {@code requireEnabled()} throws, the way {@code joinRejectsFlagOff}
+    * is. A bare {@code assertThrows(Exception.class, ...)} would not test the flag at all: with
+    * both collaborators mocked, dropping {@code requireEnabled()} leaves the endpoint throwing
+    * anyway -- {@code requireWholeSheetSession} passes an unresolvable token straight through by
+    * design, so {@code editService.resolve} returns {@code null} and {@code readProperties}
+    * NPEs. Asserting the status is what tells those two outcomes apart.
+    */
+   @Test
+   void getPropertiesIsRefusedWhenTheFeatureIsOff() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetAgentController ctrl = controller(featureOff(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         new WorksheetReadService(), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.getProperties("TOK", agent));
+      assertEquals(403, ex.getStatusCode().value());
+   }
+
+   // ---------------------------------------------------------------------------
    // edit — dispatch
    // ---------------------------------------------------------------------------
 
@@ -299,6 +373,49 @@ class WorksheetAgentControllerTest {
                  "column 'x' should have been removed");
       assertNotNull(t.getColumnSelection(false).getAttribute("y"),
                     "column 'y' should still be present");
+   }
+
+   /**
+    * The snapshot guard for {@code insert_column}, pinned here rather than in
+    * {@code WorksheetEditServiceMutatorsTest} because this op is the one that does not live in
+    * the {@code Editor}: it manipulates {@link inetsoft.uql.util.XEmbeddedTable} directly from
+    * the controller. That is exactly why it was missed when the sibling column ops were first
+    * swept, so it is the guard most likely to be dropped again -- and the only one no test
+    * covered.
+    */
+   @Test
+   void editInsertColumnRefusesSnapshotEmbeddedTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t =
+         TestWorksheets.snapshotTableWithColumns(ws, "S", "a", "b");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-IC"), any())).thenReturn(session("TOK-IC"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-IC", insertColumnRequest("S"), agent));
+
+      assertTrue(ex.getMessage().startsWith("insert_column"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("EMBEDDED_SNAPSHOT"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("add_expression_column"),
+         "the refusal must name the column kind that does work here: " + ex.getMessage());
+      assertEquals(2, t.getColumnSelection(false).getAttributeCount(),
+         "nothing may be added to the selection when the data cannot follow");
    }
 
    @Test
@@ -1317,7 +1434,7 @@ class WorksheetAgentControllerTest {
     * deliberately shared with the pane-scoped {@code WorksheetScriptService} caller, which has
     * ALREADY run its own narrow {@code PaneScopeService.check} and must not be refused again by
     * the broad whole-sheet check -- see {@link WorksheetAgentController#editOp} javadoc. So the
-    * guard here is 12 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
+    * guard here is 13 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
     * one per endpoint, and nothing before this test failed the build the day one of them went
     * missing.
     *
@@ -1327,7 +1444,7 @@ class WorksheetAgentControllerTest {
     * than trusting that the next endpoint's author remembers to add the call. {@code join} never
     * matches (no {@code {sessionToken}} in its path -- that is where one is minted); {@code
     * detach} matches but is explicitly exempted above, for the reason its own javadoc gives.
-    * Endpoint 13 fails THIS test the moment it omits the guard.
+    * Endpoint 14 fails THIS test the moment it omits the guard.
     */
    @Test
    void everySessionTokenEndpointRefusesAPaneScopedSessionOrIsExplicitlyExempt() {
@@ -1380,7 +1497,7 @@ class WorksheetAgentControllerTest {
          }
       }
 
-      assertTrue(checked >= 12, "Expected at least the 12 known session-scoped endpoints to " +
+      assertTrue(checked >= 13, "Expected at least the 13 known session-scoped endpoints to " +
          "be enumerated, found " + checked + " -- did WorksheetAgentController's mapping " +
          "annotations change shape?");
       assertTrue(notRefused.isEmpty(), "Endpoint(s) mapped with {sessionToken} did not refuse " +
