@@ -470,7 +470,18 @@ public class Mailer {
       }
    }
 
-   private static String getAccessToken(SMTPAuthType authType) {
+   /**
+    * Gets the SMTP OAuth flags. The flags are stored as a plain text property, so they must be
+    * read with getProperty() and not getPassword(). Earlier versions read the flags from the
+    * misspelled "mail.smtp.outhFlags" property, so that name is still honored if the correctly
+    * spelled property is not set.
+    */
+   public static String getSmtpOAuthFlags() {
+      String flags = SreeEnv.getProperty("mail.smtp.oauthFlags");
+      return Tool.isEmptyString(flags) ? SreeEnv.getProperty("mail.smtp.outhFlags") : flags;
+   }
+
+   static String getAccessToken(SMTPAuthType authType) {
       String expiration = SreeEnv.getProperty("mail.smtp.tokenExpiration");
       String accessToken = SreeEnv.getPassword("mail.smtp.accessToken");
 
@@ -481,7 +492,15 @@ public class Mailer {
       Tokens tokens;
 
       try {
+         // the flags are only configurable for SASL XOAUTH2. the google auth settings are fixed
+         // and any flags left over from a previous SASL XOAUTH2 configuration must not be applied
+         // to a google token refresh.
          final Set<String> flagsSet = new HashSet<>();
+         final String flags = authType == SMTPAuthType.SASL_XOAUTH2 ? getSmtpOAuthFlags() : null;
+
+         if(!StringUtils.isBlank(flags)) {
+            flagsSet.addAll(Arrays.asList(flags.trim().split("\\s+")));
+         }
 
          final String refreshToken = SreeEnv.getPassword("mail.smtp.refreshToken");
          final String clientId = SreeEnv.getProperty("mail.smtp.clientId");
