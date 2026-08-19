@@ -281,6 +281,79 @@ class SVGAnimationDOMInjectorTest {
                  "hover CSS must contain ready-gated cross-tile dim rule for A1 types");
    }
 
+   /**
+    * Redmine #75871: a multi-style chart binds a chart type per measure, so one SVG holds a bar
+    * measure's groups next to a point measure's.  Every other dim rule has the same class in its
+    * trigger and its target, so hovering either style left the other fully lit.
+    */
+   @Test
+   void hoverCssMultiStyleCrossTypeDimRulesPresent() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT, Map.of("row", "0", "col", "1"),
+                    50, 50, 6, 6);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-bar.inetsoft-active) " +
+                      ".inetsoft-point:not(.inetsoft-active)"),
+         "an active bar must dim a multi-style chart's point measure");
+      assertTrue(
+         css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) " +
+                      ".inetsoft-bar:not(.inetsoft-active)"),
+         "an active point must dim a multi-style chart's bar measure");
+   }
+
+   /**
+    * A plain bar chart has no point measure to dim, so the cross-type rules must not be emitted
+    * (and vice versa for a plain point chart).
+    */
+   @Test
+   void hoverCssMultiStyleCrossTypeDimSkippedForSingleStyleCharts() throws Exception {
+      Document barOnly = newDocument();
+      addAnnotGroup(barOnly, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      SVGAnimationDOMInjector.injectAnimation(barOnly.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+      assertFalse(
+         allStyleContent(barOnly.getDocumentElement())
+            .contains("svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point"),
+         "a plain bar chart must not get the cross-type dim rule");
+
+      Document pointOnly = newDocument();
+      addAnnotGroup(pointOnly, SVGSupport.ANNOTATION_POINT, Map.of("row", "0", "col", "0"),
+                    50, 50, 6, 6);
+      SVGAnimationDOMInjector.injectAnimation(pointOnly.getDocumentElement(), SVGSupport.ANIMATION_POINT);
+      assertFalse(
+         allStyleContent(pointOnly.getDocumentElement())
+            .contains("svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar"),
+         "a plain point chart must not get the cross-type dim rule");
+   }
+
+   /**
+    * Gantt charts draw interval bars plus one {@code PointElement} milestone per bar.  A milestone
+    * marks the end of its own bar, so hovering the bar must not fade it — the cross-type rules are
+    * suppressed for the gantt hint even though both annotation classes are present.
+    */
+   @Test
+   void hoverCssMultiStyleCrossTypeDimSkippedForGantt() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 60, 20);
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT, Map.of("row", "0", "col", "0"),
+                    70, 12, 6, 6);
+      SVGAnimationDOMInjector.injectAnimation(
+         doc.getDocumentElement(),
+         SVGSupport.ANIMATION_GROW + ":" + SVGSupport.ANIMATION_FLAG_GANTT);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertFalse(css.contains("svg.ready:has(.inetsoft-bar.inetsoft-active) .inetsoft-point"),
+                  "a gantt bar hover must not fade its own milestone");
+      assertFalse(css.contains("svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-bar"),
+                  "a gantt milestone hover must not fade the bars");
+   }
+
    @Test
    void hoverCssTransitionIsUniform() throws Exception {
       Document doc = newDocument();
@@ -1136,6 +1209,173 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
+    * A multi-style chart binds a chart type per measure, so hasBarVO wins the animation hint and
+    * the bar branch runs.  That branch animated bars, combo lines and point measures but never
+    * touched AreaVO fill polygons, so an area measure's fill popped in at full opacity while its
+    * own border line drew on around it.
+    */
+   @Test
+   void multiStyleAreaMeasureFillIsAnimated() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      Element areaAnnot = addLineAreaPair(doc, svg, "10,20,30",
+                                          "M0 100 L50 60 L100 80 L100 100 L0 100 Z",
+                                          "M0 100 L50 60 L100 80");
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_GROW);
+
+      Element fillPath = firstDescendantPathOf(areaAnnot);
+      assertNotNull(fillPath, "area annotation must still hold its fill path");
+      String style = fillPath.getAttribute("style");
+      assertTrue(style.contains("inetsoft-line-wipe"),
+                 "a multi-style chart area fill must wipe in, but style was: " + style);
+
+      // The wipe keyframes must be defined, or the animation name resolves to nothing.
+      assertTrue(allStyleContent(svg).contains("@keyframes inetsoft-line-wipe"),
+                 "the wipe keyframes must be emitted for a multi-style area measure");
+   }
+
+   /**
+    * Bar + area + an independent line measure — three measures, three chart types.  The border
+    * lines are staggered by a rank over every combo line, which counts that third measure, while
+    * the fills were staggered by a rank built from the area groups alone, which does not.  The
+    * extra line shifted the border line's index without shifting its fill's, and since
+    * staggerDelay multiplies the index by the window, sharing the denominator did not save them:
+    * an area's fill wiped in while its own outline was still waiting to draw.
+    */
+   @Test
+   void multiStyleAreaFillStaysInStepWithItsBorderLineWhenALineMeasureIsBound() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      // DOM order: area A + its border, the independent line measure, then area B + its border.
+      // The interleaved line is what pushes area B's border line rank past its fill's.
+      Element areaA = addLineAreaPair(doc, svg, "10,20,30", "0",
+                                      "M0 100 L50 60 L100 80 L100 100 L0 100 Z",
+                                      "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      Element areaB = addLineAreaPair(doc, svg, "40,50,60", "1",
+                                      "M0 60 L50 30 L100 50 L100 100 L0 100 Z",
+                                      "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_GROW);
+
+      for(Element area : List.of(areaA, areaB)) {
+         String color      = area.getAttribute("data-color");
+         Element fillPath  = firstDescendantPathOf(area);
+         Element borderPath = firstDescendantPathOf(borderLineOf(svg, color));
+         assertNotNull(fillPath, "area " + color + " must still hold its fill path");
+         assertNotNull(borderPath, "area " + color + " must still hold its border line path");
+
+         double fillDelay   = animationDelayOf(fillPath.getAttribute("style"));
+         double borderDelay = animationDelayOf(borderPath.getAttribute("style"));
+         assertEquals(borderDelay, fillDelay, 0.001,
+                      "area " + color + " fill must wipe in at the same moment its own border " +
+                      "line draws, but fill was " + fillDelay + "s and border " + borderDelay + "s");
+      }
+   }
+
+   /**
+    * Area fills are reshaped into non-overlapping bands by pairing annotAreas[i] with
+    * annotLines[i] positionally.  An independent line measure lands in the same combo-line list,
+    * so it shifted that pairing: the color-equality guard then found no matching border line and
+    * the band reshaping was silently skipped, leaving stacked fills overlapping.
+    */
+   @Test
+   void multiStyleStackedAreaFillsAreStillReshapedWhenALineMeasureIsBound() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      String fillA = "M0 100 L50 60 L100 80 L100 100 L0 100 Z";
+      String fillB = "M0 60 L50 30 L100 50 L100 100 L0 100 Z";
+      Element areaA = addLineAreaPair(doc, svg, "10,20,30", "0", fillA, "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      Element areaB = addLineAreaPair(doc, svg, "40,50,60", "1", fillB, "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_GROW);
+
+      String newA = firstDescendantPathOf(areaA).getAttribute("d");
+      String newB = firstDescendantPathOf(areaB).getAttribute("d");
+      assertTrue(!fillA.equals(newA) || !fillB.equals(newB),
+                 "one of two overlapping area fills must be rewritten into a band polygon, but " +
+                 "both kept their original d (A=" + newA + ", B=" + newB + ")");
+   }
+
+   /**
+    * The ANIMATION_LINE hint is not limited to a pure area chart: VGraphPair.hasLineVO is true for
+    * an AreaVO as well as a LineVO, so an area measure bound beside an independent line measure with
+    * no bar ("area + trend line") lands here too.  Every line was then ranked through the area
+    * colour rank, which the independent line's colour is absent from — it fell back to 0 and drew on
+    * the first area's timeline instead of taking a slot of its own.
+    */
+   @Test
+   void areaChartIndependentLineMeasureGetsItsOwnStaggerSlot() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      addLineAreaPair(doc, svg, "10,20,30", "0", "M0 100 L50 60 L100 80 L100 100 L0 100 Z",
+                      "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      addLineAreaPair(doc, svg, "40,50,60", "1", "M0 60 L50 30 L100 50 L100 100 L0 100 Z",
+                      "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      double areaADelay = animationDelayOf(
+         firstDescendantPathOf(borderLineOf(svg, "10,20,30")).getAttribute("style"));
+      double lineDelay = animationDelayOf(
+         firstDescendantPathOf(borderLineOf(svg, "200,10,10")).getAttribute("style"));
+
+      // Two areas plus the line measure — three slots, so the line ranks last at the full window.
+      assertEquals(2.0, lineDelay, 0.001,
+                   "an independent line measure must stagger after both area series");
+      assertNotEquals(areaADelay, lineDelay,
+                      "an independent line measure must not share the first area's delay");
+   }
+
+   /**
+    * Band reshaping pairs annotAreas[i] with annotLines[i] positionally, so the ANIMATION_LINE call
+    * site needs the areas' own border lines alone — exactly like the multi-style branch.  An
+    * interleaved independent line measure shifted the pairing and the colour-equality guard then
+    * silently skipped the reshaping, leaving stacked fills overlapping.
+    */
+   @Test
+   void areaChartStackedFillsAreStillReshapedWhenALineMeasureIsBound() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+      String fillA = "M0 100 L50 60 L100 80 L100 100 L0 100 Z";
+      String fillB = "M0 60 L50 30 L100 50 L100 100 L0 100 Z";
+      Element areaA = addLineAreaPair(doc, svg, "10,20,30", "0", fillA, "M0 100 L50 60 L100 80");
+      addLineGroup(doc, svg, "200,10,10", "2", "M0 90 L50 40 L100 70");
+      Element areaB = addLineAreaPair(doc, svg, "40,50,60", "1", fillB, "M0 60 L50 30 L100 50");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      String newA = firstDescendantPathOf(areaA).getAttribute("d");
+      String newB = firstDescendantPathOf(areaB).getAttribute("d");
+      assertTrue(!fillA.equals(newA) || !fillB.equals(newB),
+                 "one of two overlapping area fills must be rewritten into a band polygon, but " +
+                 "both kept their original d (A=" + newA + ", B=" + newB + ")");
+   }
+
+   /** A plain bar chart references no line/area keyframes, so none may be emitted. */
+   @Test
+   void plainBarChartGetsNoLineOrWipeKeyframes() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR, Map.of("row", "0", "col", "0"),
+                    10, 10, 20, 100);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_GROW);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertFalse(css.contains("@keyframes inetsoft-line-wipe"),
+                  "a plain bar chart must not carry the line wipe keyframes");
+      assertFalse(css.contains("@keyframes inetsoft-line-draw"),
+                  "a plain bar chart must not carry the line draw keyframes");
+   }
+
+   /**
     * Adds a matched {@code inetsoft-area} / {@code inetsoft-line} pair to the SVG root, with
     * the area fill wrapped in a Batik-style inner {@code <g text-rendering="geometricPrecision">}
     * (matching the actual SVG structure produced by Batik for step-area charts).
@@ -1145,11 +1385,21 @@ class SVGAnimationDOMInjectorTest {
    private static Element addLineAreaPair(Document doc, Element svg,
                                            String color, String fillD, String lineD)
    {
+      return addLineAreaPair(doc, svg, color, "0", fillD, lineD);
+   }
+
+   /**
+    * As {@link #addLineAreaPair(Document, Element, String, String, String)}, with an explicit
+    * {@code data-series} index so a chart can hold more than one area measure.
+    */
+   private static Element addLineAreaPair(Document doc, Element svg, String color, String series,
+                                           String fillD, String lineD)
+   {
       // Area annotation group: outer g → inner Batik style g → clip g → path
       Element areaAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       areaAnnot.setAttribute("class", SVGSupport.ANNOTATION_AREA);
       areaAnnot.setAttribute("data-color", color);
-      areaAnnot.setAttribute("data-series", "0");
+      areaAnnot.setAttribute("data-series", series);
 
       Element batikStyleG = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       batikStyleG.setAttribute("text-rendering", "geometricPrecision");
@@ -1162,11 +1412,22 @@ class SVGAnimationDOMInjectorTest {
       areaAnnot.appendChild(batikStyleG);
       svg.appendChild(areaAnnot);
 
-      // Line annotation group: outer g → inner g → path
+      addLineGroup(doc, svg, color, series, lineD);
+
+      return areaAnnot;
+   }
+
+   /**
+    * Adds a standalone {@code inetsoft-line} annotation group (outer g → inner g → path) to the
+    * SVG root — an area measure's border line, or a line measure of its own.
+    */
+   private static Element addLineGroup(Document doc, Element svg, String color, String series,
+                                       String lineD)
+   {
       Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
       lineAnnot.setAttribute("data-color", color);
-      lineAnnot.setAttribute("data-series", "0");
+      lineAnnot.setAttribute("data-series", series);
 
       Element lineInner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
@@ -1177,7 +1438,33 @@ class SVGAnimationDOMInjectorTest {
       lineAnnot.appendChild(lineInner);
       svg.appendChild(lineAnnot);
 
-      return areaAnnot;
+      return lineAnnot;
+   }
+
+   /** The {@code inetsoft-line} group carrying the given {@code data-color}. */
+   private static Element borderLineOf(Element svg, String color) {
+      NodeList children = svg.getChildNodes();
+
+      for(int i = 0; i < children.getLength(); i++) {
+         if(children.item(i) instanceof Element c
+            && SVGSupport.ANNOTATION_LINE.equals(c.getAttribute("class"))
+            && color.equals(c.getAttribute("data-color")))
+         {
+            return c;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * The {@code animation-delay} of an {@code animation:} shorthand, in seconds — the injector
+    * always emits it as the last {@code Ns} token before the fill mode.
+    */
+   private static double animationDelayOf(String style) {
+      Matcher m = Pattern.compile("animation:[^;]*?([0-9]+\\.[0-9]+)s both").matcher(style);
+      assertTrue(m.find(), "no animation delay found in style: " + style);
+      return Double.parseDouble(m.group(1));
    }
 
    /** DFS traversal to find the first {@code <path>} descendant of the given element. */
