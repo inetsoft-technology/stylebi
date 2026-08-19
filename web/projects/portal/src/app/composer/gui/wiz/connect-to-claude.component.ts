@@ -108,6 +108,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       this.code = null;
       this.error = null;
       this.copied = false;
+      this.connected = false;
 
       // Read ONCE, here, and carry this exact value through to the response handler: the getters
       // that supply it are live, so re-reading it later (in detach, or even in this same

@@ -222,7 +222,11 @@ describe("ConnectToClaudeComponent", () => {
 
          component.detach();
 
-         expect(mockSocketConnection.whenConnected).not.toHaveBeenCalled();
+         // Asserts the behaviour directly rather than via "no socket was opened": ngOnInit now
+         // opens one for the join-notice subscription, so the old proxy assertion measured the
+         // component's startup instead of detach(). What matters is that no detach was sent.
+         expect(mockStompConnection.send).not.toHaveBeenCalledWith(
+            "/events/wiz/pairing/detach", expect.anything(), expect.anything());
       });
 
       it("is a no-op when there is no socket connection", () => {
@@ -415,6 +419,21 @@ describe("ConnectToClaudeComponent", () => {
          component.ngOnChanges(
             { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
                            firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(component.connected).toBe(false);
+      });
+
+      /*
+       * The template renders the code with `*ngIf="code && !connected"`, so a stale connected flag
+       * hides the next code completely. One sheet can be paired by more than one agent, so
+       * re-pairing is an ordinary flow rather than an edge case.
+       */
+      it("clears the indicator when a new code is requested", () => {
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         expect(component.connected).toBe(true);
+
+         component.requestCode();
 
          expect(component.connected).toBe(false);
       });
