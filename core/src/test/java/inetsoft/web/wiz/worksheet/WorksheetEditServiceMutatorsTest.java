@@ -30,6 +30,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
@@ -1828,6 +1829,190 @@ class WorksheetEditServiceMutatorsTest {
          "an ambiguous bare-name collision must not silently drop a column");
       assertTrue(reordered.containsAttribute(customerId), "Customers.ID must survive reordering");
       assertTrue(reordered.containsAttribute(orderId), "Orders.ID must survive reordering");
+   }
+
+   // =========================================================================
+   // Cell/row edits: snapshot write protection
+   // =========================================================================
+
+   /**
+    * An embedded table carrying real data, so the cell/row ops reach their actual write and a
+    * failure to write shows up as an unchanged value rather than as an exception.
+    *
+    * <p>Row 0 of an {@link XEmbeddedTable} is the header row, which is where
+    * {@code setEmbeddedData} derives the column selection from.
+    */
+   private EmbeddedTableAssembly embeddedWithData(Worksheet ws, String name) {
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.STRING },
+         new Object[][] { { "a", "b" }, { "x1", "y1" }, { "x2", "y2" } }));
+      return t;
+   }
+
+   @Test
+   void editCellWritesToAPlainEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.editCell("T", 0, 0, "changed"));
+
+      assertEquals("changed", t.getEmbeddedData().getObject(1, 0),
+         "a plain embedded table must still accept edit_cell -- the snapshot guard must not "
+            + "widen into this path");
+   }
+
+   @Test
+   void editCellRefusesSnapshotEmbeddedTableInsteadOfDiscardingTheWrite() throws Exception {
+      // The defect this guards: SnapshotEmbeddedTableAssembly.getEmbeddedData() returns a freshly
+      // built wrapper on every call, and every XEmbeddedTable mutator is copy-and-swap rather than
+      // in-place, so the write landed on a throwaway object. The op reported success and changed
+      // nothing.
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editCell("S", 0, 0, "changed")));
+
+      assertTrue(ex.getMessage().contains("snapshot"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("EMBEDDED_SNAPSHOT"),
+         "the refusal must name the type an agent can check beforehand: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("import_csv_table"),
+         "the refusal must name the one workaround that actually exists: " + ex.getMessage());
+   }
+
+   @Test
+   void insertRowRefusesSnapshotEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.insertRow("S", 0)));
+
+      assertTrue(ex.getMessage().startsWith("insert_row"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("snapshot"), ex.getMessage());
+   }
+
+   @Test
+   void deleteRowRefusesSnapshotEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteRow("S", 0)));
+
+      assertTrue(ex.getMessage().startsWith("delete_row"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("snapshot"), ex.getMessage());
+   }
+
+   @Test
+   void cellEditsKeepTheirOriginalNonEmbeddedRefusalWording() throws Exception {
+      // Pinned verbatim on purpose: the consolidated Composer plugin test plan cites this exact
+      // string as the live evidence for its L2 Finding 1 re-verification. Rewording it silently
+      // invalidates that record.
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.nonEmbeddedTableWithColumns(ws, "B", "a"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editCell("B", 0, 0, "v")));
+
+      assertEquals("edit_cell only works on embedded tables: B", ex.getMessage());
+   }
+
+   // =========================================================================
+   // Column ops: snapshot write protection
+   // =========================================================================
+
+   @Test
+   void addColumnRefusesSnapshotEmbeddedTable() throws Exception {
+      // Same missing write-back as the cell/row ops: data.insertCol() lands on a throwaway
+      // wrapper, so the ColumnSelection would gain a column the data does not have.
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addColumn("S", "newcol", "string")));
+
+      assertTrue(ex.getMessage().startsWith("add_column"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("EMBEDDED_SNAPSHOT"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("add_expression_column"),
+         "the refusal must name the column kind that does work here: " + ex.getMessage());
+      assertNull(t.getColumnSelection(false).getAttribute("newcol"),
+         "nothing may be added to the selection when the data cannot follow");
+   }
+
+   @Test
+   void addColumnStillWorksOnAPlainEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addColumn("T", "newcol", "string"));
+
+      assertNotNull(t.getColumnSelection(false).getAttribute("newcol"),
+         "the snapshot guard must not widen into the plain embedded path");
+   }
+
+   @Test
+   void removeColumnRefusesASnapshotsDataColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("S", "a")));
+
+      assertTrue(ex.getMessage().startsWith("remove_column"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("data column"), ex.getMessage());
+      assertNotNull(t.getColumnSelection(false).getAttribute("a"),
+         "the column must survive the refusal");
+   }
+
+   /**
+    * The carve-out, and the reason this could not be Finding 5's flat guard: an expression column
+    * exists only in the ColumnSelection, never in the data, so removing it strands nothing. The
+    * Composer allows exactly this and no more.
+    */
+   @Test
+   void removeColumnAllowsASnapshotsExpressionColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("S", "calc", "1 + 1", XSchema.INTEGER, false));
+      assertNotNull(t.getColumnSelection(false).getAttribute("calc"),
+         "precondition: an expression column can be added to a snapshot");
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("S", "calc"));
+
+      assertNull(t.getColumnSelection(false).getAttribute("calc"),
+         "an expression column has no data behind it, so removing it from a snapshot is safe");
+      assertNotNull(t.getColumnSelection(false).getAttribute("a"),
+         "the data column is untouched");
    }
 
    // =========================================================================

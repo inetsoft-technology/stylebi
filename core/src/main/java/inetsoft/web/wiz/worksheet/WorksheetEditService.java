@@ -308,8 +308,17 @@ public class WorksheetEditService {
          DataRef toRemove = cs.getAttribute(col);
 
          if(toRemove != null) {
-            // For embedded tables, also remove the data column from XEmbeddedTable
-            if(t instanceof EmbeddedTableAssembly embedded) {
+            WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
+
+            // For embedded tables, also remove the data column from XEmbeddedTable.
+            // Snapshots are excluded, and not just as an optimization: the guard above lets
+            // only an expression column through, an expression column has no data column, so
+            // findColumn could never match. What it WOULD do is call getEmbeddedData(), which
+            // on a snapshot goes through getTable() -> initTable() and can fault the whole
+            // swapped-out data file back in to answer a question already known to be "no".
+            if(t instanceof EmbeddedTableAssembly embedded &&
+               !(t instanceof SnapshotEmbeddedTableAssembly))
+            {
                XEmbeddedTable data = embedded.getEmbeddedData();
                int index = AssetUtil.findColumn(data, toRemove);
 
@@ -345,6 +354,7 @@ public class WorksheetEditService {
        */
       public void addColumn(String table, String name, String type) throws PairingException {
          TableAssembly t = requireTable(table);
+         WorksheetMutationSupport.assertSnapshotAllowsColumnAdd(t, table, "add_column");
          ColumnSelection cs = t.getColumnSelection();
 
          if(name == null || name.isBlank()) {
@@ -1338,30 +1348,72 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
+       * Resolves a table that the cell/row edit ops are allowed to write to.
+       *
+       * <p>Two refusals, and the difference between them matters. A non-embedded table simply
+       * has no embedded data to edit. A <i>snapshot</i> embedded table does have data -- but
+       * every {@link XEmbeddedTable} mutator is copy-and-swap rather than in-place, and
+       * {@link SnapshotEmbeddedTableAssembly#getEmbeddedData()} hands out a freshly built
+       * wrapper on every call, so the swap lands on a throwaway object and the write is
+       * discarded. Before this check the three ops returned success and changed nothing.
+       *
+       * <p>Refusing is the right answer rather than adding a {@code setEmbeddedData} write-back:
+       * the Composer does not offer cell editing on a snapshot either (its
+       * {@code snapshot-embedded-table-assembly.ts} overrides {@code isEditable()} to false, so
+       * such a table never enters edit mode), and refusing is what makes the agent path agree
+       * with the UI. Filtering already refuses a snapshot the same way -- see the
+       * {@code composer.ws.filter-snapshopt} catalog string.
+       *
+       * @param table the assembly name
+       * @param op    the op name to quote back to the caller, e.g. {@code "edit_cell"}
+       * @return the embedded table assembly, safe to mutate
+       * @throws PairingException if the table is not embedded, or is a snapshot
+       */
+      private EmbeddedTableAssembly requireEditableEmbedded(String table, String op)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+
+         if(t instanceof SnapshotEmbeddedTableAssembly) {
+            throw new PairingException(
+               op + " is not supported on a snapshot embedded table: " + table +
+               ". Every table imported through the Composer's own file-import wizard is a " +
+               "snapshot; its data lives in a swapped-out data file that the cell and row edit " +
+               "ops cannot write to. The Composer does not offer cell editing on a snapshot " +
+               "either, so there is no workaround in the UI. read_worksheet_model reports these " +
+               "tables as type \"EMBEDDED_SNAPSHOT\" - check that before editing. To get an " +
+               "editable copy of the data, re-import the source file with import_csv_table or " +
+               "import_excel_table: those build a plain embedded table, which does accept " +
+               "edit_cell, insert_row and delete_row.");
+         }
+
+         if(!(t instanceof EmbeddedTableAssembly embedded)) {
+            throw new PairingException(op + " only works on embedded tables: " + table);
+         }
+
+         return embedded;
+      }
+
+      /**
        * Edits a single cell in an embedded table.
        *
-       * @param table the assembly name (must be an embedded table)
+       * @param table the assembly name (must be an embedded table, and not a snapshot)
        * @param row   the 0-based data row index
        * @param col   the 0-based column index
        * @param value the new cell value as a string (parsed according to column type)
-       * @throws PairingException if the table is not embedded or indices are out of range
+       * @throws PairingException if the table is not editable or indices are out of range
        */
       public void editCell(String table, int row, int col, String value)
          throws Exception
       {
-         TableAssembly t = requireTable(table);
-
-         if(!(t instanceof EmbeddedTableAssembly embedded)) {
-            throw new PairingException("edit_cell only works on embedded tables: " + table);
-         }
-
+         EmbeddedTableAssembly embedded = requireEditableEmbedded(table, "edit_cell");
          XEmbeddedTable data = embedded.getEmbeddedData();
 
          if(data == null) {
             throw new PairingException("Table has no data: " + table);
          }
 
-         ColumnSelection cs = t.getColumnSelection(false);
+         ColumnSelection cs = embedded.getColumnSelection(false);
 
          if(col < 0 || col >= cs.getAttributeCount()) {
             throw new PairingException("Column index out of range: " + col);
@@ -1389,17 +1441,12 @@ public class WorksheetEditService {
       /**
        * Inserts a new empty row into an embedded table.
        *
-       * @param table the assembly name (must be an embedded table)
+       * @param table the assembly name (must be an embedded table, and not a snapshot)
        * @param index the 0-based data row index at which to insert
-       * @throws PairingException if the table is not embedded
+       * @throws PairingException if the table is not editable
        */
       public void insertRow(String table, int index) throws PairingException {
-         TableAssembly t = requireTable(table);
-
-         if(!(t instanceof EmbeddedTableAssembly embedded)) {
-            throw new PairingException("insert_row only works on embedded tables: " + table);
-         }
-
+         EmbeddedTableAssembly embedded = requireEditableEmbedded(table, "insert_row");
          XEmbeddedTable data = embedded.getEmbeddedData();
 
          if(data == null) {
@@ -1422,17 +1469,12 @@ public class WorksheetEditService {
       /**
        * Deletes a row from an embedded table.
        *
-       * @param table the assembly name (must be an embedded table)
+       * @param table the assembly name (must be an embedded table, and not a snapshot)
        * @param index the 0-based data row index to delete
-       * @throws PairingException if the table is not embedded or the index is out of range
+       * @throws PairingException if the table is not editable or the index is out of range
        */
       public void deleteRow(String table, int index) throws PairingException {
-         TableAssembly t = requireTable(table);
-
-         if(!(t instanceof EmbeddedTableAssembly embedded)) {
-            throw new PairingException("delete_row only works on embedded tables: " + table);
-         }
-
+         EmbeddedTableAssembly embedded = requireEditableEmbedded(table, "delete_row");
          XEmbeddedTable data = embedded.getEmbeddedData();
 
          if(data == null) {
