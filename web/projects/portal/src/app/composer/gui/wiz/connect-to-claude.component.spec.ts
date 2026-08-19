@@ -222,7 +222,11 @@ describe("ConnectToClaudeComponent", () => {
 
          component.detach();
 
-         expect(mockSocketConnection.whenConnected).not.toHaveBeenCalled();
+         // Asserts the behaviour directly rather than via "no socket was opened": ngOnInit now
+         // opens one for the join-notice subscription, so the old proxy assertion measured the
+         // component's startup instead of detach(). What matters is that no detach was sent.
+         expect(mockStompConnection.send).not.toHaveBeenCalledWith(
+            "/events/wiz/pairing/detach", expect.anything(), expect.anything());
       });
 
       it("is a no-op when there is no socket connection", () => {
@@ -326,6 +330,248 @@ describe("ConnectToClaudeComponent", () => {
          component.detach();
 
          expect(lastDetachPayload().editorContext).toEqual({ kind: "viewsheetOnLoad" });
+      });
+   });
+
+   describe("connected indicator", () => {
+      /** Captures the handler for a given destination, since the component now holds two. */
+      function handlerFor(dest: string): (msg: any) => void {
+         const call = mockStompConnection.subscribe.mock.calls
+            .filter((c: any[]) => c[0] === dest).pop();
+         expect(call).toBeTruthy();
+         return call[1];
+      }
+
+      function notice(body: any): any {
+         return { frame: { body: JSON.stringify(body) } };
+      }
+
+      /**
+       * Performs a real toolbar mint (no editorContext) so `hasMinted` is set, mirroring what a
+       * user does before a notice can legitimately reach this instance. Also leaves
+       * `component.code` populated the way a real mint would, for tests that assert it gets
+       * cleared.
+       */
+      function mintFromToolbar(): void {
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") {
+                  mintHandler = h;
+               }
+
+               return { unsubscribe: vi.fn() };
+            });
+
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+      }
+
+      it("subscribes to the joined destination on init", () => {
+         expect(mockStompConnection.subscribe).toHaveBeenCalledWith(
+            "/user/commands/wiz/pairing/joined",
+            expect.any(Function)
+         );
+      });
+
+      it("shows connected and drops the consumed code for a matching notice", () => {
+         mintFromToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         fixture.detectChanges();
+
+         expect(component.connected).toBe(true);
+         expect(component.code).toBeNull();
+         expect(fixture.nativeElement.querySelector(".wiz-connect-connected")).toBeTruthy();
+         expect(fixture.nativeElement.querySelector(".wiz-connect-code")).toBeNull();
+      });
+
+      it("ignores a notice for another runtime", () => {
+         mintFromToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-other", sheetType: "WORKSHEET", editorContext: null }));
+
+         expect(component.connected).toBe(false);
+      });
+
+      /*
+       * The failure this filter exists for: the destination is per-user, so a pane pairing is
+       * delivered to the toolbar instance too. Without the editorContext check the toolbar would
+       * claim an agent joined it, which is a false statement rather than a missing feature.
+       */
+      it("ignores a pane notice on a toolbar instance", () => {
+         mintFromToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                     editorContext: { kind: "calcField", assembly: "Query1", name: "Margin" } }));
+
+         expect(component.connected).toBe(false);
+      });
+
+      /*
+       * Jackson serializes a Java record's absent components as explicit nulls, while the browser
+       * never sent those keys at all. Comparing them naively (JSON.stringify, or === on each key)
+       * makes every pane notice a mismatch and the indicator never appears.
+       */
+      it("matches a pane notice whose absent fields arrive as explicit nulls", () => {
+         let handler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") { handler = h; }
+               return { unsubscribe: vi.fn() };
+            });
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         component.requestCode();
+         handler!(notice({ code: "ABC123" }));
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                     editorContext: { kind: "assemblyMain", assembly: "Chart1",
+                                      name: null, table: null } }));
+
+         expect(component.connected).toBe(true);
+      });
+
+      it("clears the indicator when the runtimeId changes", () => {
+         mintFromToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         expect(component.connected).toBe(true);
+
+         component.runtimeId = "rt-2";
+         component.ngOnChanges(
+            { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(component.connected).toBe(false);
+      });
+
+      /*
+       * The template renders the code with `*ngIf="code && !connected"`, so a stale connected flag
+       * hides the next code completely. One sheet can be paired by more than one agent, so
+       * re-pairing is an ordinary flow rather than an edge case.
+       */
+      it("clears the indicator when a new code is requested", () => {
+         mintFromToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         expect(component.connected).toBe(true);
+
+         component.requestCode();
+
+         expect(component.connected).toBe(false);
+      });
+
+      it("releases the joined subscription on destroy", () => {
+         const subs: Array<{ unsubscribe: ReturnType<typeof vi.fn> }> = [];
+         mockStompConnection.subscribe.mockImplementation(() => {
+            const s = { unsubscribe: vi.fn() };
+            subs.push(s);
+            return s;
+         });
+
+         const f = TestBed.createComponent(ConnectToClaudeComponent);
+         f.componentInstance.runtimeId = "rt-1";
+         f.componentInstance.sheetType = "WORKSHEET";
+         f.componentInstance.socketConnection = mockSocketConnection;
+         f.detectChanges();
+         f.destroy();
+
+         expect(subs.some(s => s.unsubscribe.mock.calls.length > 0)).toBe(true);
+      });
+
+      /*
+       * The distinction the context filter turns on. detach() shipped a real bug by reading the
+       * live input instead of the minted one, which is why mintedEditorContext exists at all;
+       * without these two cases, onJoined could regress to the live value and stay green.
+       */
+      describe("keys on the context the code was minted with", () => {
+         /** Mints with one context, then leaves the live input pointing at another. */
+         function mintThenDrift(minted: any, drifted: any): void {
+            let mintHandler: ((msg: any) => void) | null = null;
+            mockStompConnection.subscribe.mockImplementation(
+               (dest: string, h: (msg: any) => void) => {
+                  if(dest === "/user/commands/wiz/pairing/mint") {
+                     mintHandler = h;
+                  }
+
+                  return { unsubscribe: vi.fn() };
+               });
+
+            component.editorContext = minted;
+            component.requestCode();
+            mintHandler!(notice({ code: "ABC123" }));
+            component.editorContext = drifted;
+         }
+
+         it("accepts a notice for the minted context after the live input drifted", () => {
+            mintThenDrift({ kind: "viewsheetOnInit" }, { kind: "viewsheetOnLoad" });
+
+            handlerFor("/user/commands/wiz/pairing/joined")(
+               notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                        editorContext: { kind: "viewsheetOnInit", assembly: null,
+                                         name: null, table: null } }));
+
+            expect(component.connected).toBe(true);
+         });
+
+         it("rejects a notice matching the drifted live context but not the minted one", () => {
+            mintThenDrift({ kind: "viewsheetOnInit" }, { kind: "viewsheetOnLoad" });
+
+            handlerFor("/user/commands/wiz/pairing/joined")(
+               notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                        editorContext: { kind: "viewsheetOnLoad", assembly: null,
+                                         name: null, table: null } }));
+
+            expect(component.connected).toBe(false);
+         });
+      });
+
+      /*
+       * The joined destination is per-user, not per-runtime, so a runtimeId change must reset the
+       * filter input and nothing else. Releasing the subscription here would leave the component
+       * permanently deaf with no error anywhere.
+       */
+      it("keeps the joined subscription across a runtimeId change", () => {
+         const byDest = new Map<string, { unsubscribe: ReturnType<typeof vi.fn> }>();
+         mockStompConnection.subscribe.mockImplementation((dest: string) => {
+            const sub = { unsubscribe: vi.fn() };
+            byDest.set(dest, sub);
+            return sub;
+         });
+
+         const f = TestBed.createComponent(ConnectToClaudeComponent);
+         f.componentInstance.runtimeId = "rt-1";
+         f.componentInstance.sheetType = "WORKSHEET";
+         f.componentInstance.socketConnection = mockSocketConnection;
+         f.detectChanges();
+
+         const joined = byDest.get("/user/commands/wiz/pairing/joined");
+         expect(joined).toBeTruthy();
+
+         f.componentInstance.runtimeId = "rt-2";
+         f.componentInstance.ngOnChanges(
+            { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(joined!.unsubscribe).not.toHaveBeenCalled();
+      });
+
+      /*
+       * The ambiguity hasMinted resolves. A formula editor opened while a toolbar code was still
+       * outstanding has mintedEditorContext === null, and a toolbar notice carries
+       * editorContext: null -- so without the flag it would light up for someone else's pairing.
+       */
+      it("ignores a toolbar notice on an instance that never minted", () => {
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+
+         expect(component.connected).toBe(false);
       });
    });
 

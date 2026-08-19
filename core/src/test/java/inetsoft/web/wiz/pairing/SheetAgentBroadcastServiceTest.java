@@ -89,6 +89,56 @@ class SheetAgentBroadcastServiceTest {
       verifyNoInteractions(dispatcher);
    }
 
+   /*
+    * The destination string and the destination user are the entire contract of this method, and
+    * each is one word away from a silent failure: this class's own javadoc records that a wrong
+    * topic is delivered to a destination with no handler and dropped while every call up the stack
+    * still reports success, and the adjacent sendToComposer genuinely does pass socketSessionId as
+    * the user. Asserting the LITERAL strings is what makes either swap fail here — asserting
+    * PAIRING_JOINED_TOPIC against itself would test nothing at all.
+    */
+   @Test
+   void pairingJoinedNoticeAddressesTheMintingBrowser() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
+      EditorContext context = new EditorContext("assemblyMain", "Chart1", null, null);
+      JoinSession session = new JoinSession("tok-1", "vs-9", "alice~;~host-org",
+                                            SheetType.VIEWSHEET, 0L, 0L,
+                                            JoinSession.ConnectionMode.PAIRED,
+                                            "stomp-1", "alice-dest", context);
+
+      svc.sendPairingJoined(session);
+
+      ArgumentCaptor<MessageHeaders> headersCap = ArgumentCaptor.forClass(MessageHeaders.class);
+      ArgumentCaptor<Object> payloadCap = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("alice-dest"), eq("/commands/wiz/pairing/joined"), payloadCap.capture(),
+         headersCap.capture());
+
+      assertEquals("stomp-1", SimpMessageHeaderAccessor.getSessionId(headersCap.getValue()));
+      assertEquals(new PairingJoinedNotice("vs-9", SheetType.VIEWSHEET, context),
+                   payloadCap.getValue());
+   }
+
+   /*
+    * A null destination user reaches Spring's Assert.notNull, which the caller logs as "notifying
+    * the browser failed" — misleading, since nothing failed to send and there was nobody to send
+    * to. Mirrors nullSocketSessionSkipsBroadcast above.
+    */
+   @Test
+   void pairingJoinedNoticeSkippedWithoutADestinationUser() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
+      JoinSession session = new JoinSession("tok-1", "vs-9", "alice~;~host-org",
+                                            SheetType.VIEWSHEET, 0L, 0L,
+                                            JoinSession.ConnectionMode.PAIRED,
+                                            "stomp-1", null, null);
+
+      svc.sendPairingJoined(session);
+
+      verifyNoInteractions(dispatcher);
+   }
+
    @Test
    void viewsheetBroadcastSendsOneRefreshVSObjectCommandPerVisibleAssembly() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
