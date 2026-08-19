@@ -1405,7 +1405,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                      // resolved modern title background/foreground onto a private object-format copy
                      // (the chart body format is untouched); gated + defaults-only, gate-off is
                      // byte-identical
-                     VizContext ctx = VizContext.ofGate();
+                     VizContext ctx = VizContext.of(info);
 
                      if(ctx.modern) {
                         VSCompositeFormat titleFmt = VSTitleChromeDefaults.applyModernDefaults(
@@ -1801,7 +1801,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       if(vinfo instanceof TitledVSAssemblyInfo && vinfo.getFormatInfo() != null) {
          VSTitleChromeDefaults.applyModernDefaultsInPlace(
-            vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH), VizContext.ofGate());
+            vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH), VizContext.of(vinfo));
       }
    }
 
@@ -1888,7 +1888,7 @@ public abstract class AbstractVSExporter implements VSExporter {
     * Get the text format, including highlight.
     */
    protected VSCompositeFormat getTextFormat(VSAssemblyInfo info) {
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = VizContext.of(info);
       VSCompositeFormat chartTitleFormat = null;
       FormatInfo formatInfo = info.getFormatInfo();
 
@@ -2691,7 +2691,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          VSCompositeFormat oformat = finfo.getFormat(
             new TableDataPath(-1, TableDataPath.OBJECT));
          format = VSTitleChromeDefaults.applyModernDefaults(finfo.getFormat(
-            new TableDataPath(-1, TableDataPath.TITLE)), VizContext.ofGate());
+            new TableDataPath(-1, TableDataPath.TITLE)), VizContext.of(info));
          Insets oborder = oformat.getBorders();
          BorderColors ocolor = oformat.getBorderColors();
          Insets border = format.getBorders();

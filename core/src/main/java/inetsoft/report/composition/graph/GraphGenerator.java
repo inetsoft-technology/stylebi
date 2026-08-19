@@ -220,6 +220,7 @@ public abstract class GraphGenerator {
    {
       super();
 
+      this.vizContext = VizContext.of(chart);
       this.graphSize = size;
       this.bconds = chart.getBrushConditionList(null, false);
       this.zconds = chart.getZoomConditionList(null);
@@ -435,6 +436,7 @@ public abstract class GraphGenerator {
    {
       super();
 
+      this.vizContext = VizContext.LEGACY;
       this.graphSize = size;
       adata = getFixedDataSet(info, adata, true);
       data = getFixedDataSet(info, data, false);
@@ -2342,7 +2344,7 @@ public abstract class GraphGenerator {
 
                // axis color can't be controlled by user. use the x axis.
                if(xdesc != null) {
-                  VizContext ctx = VizContext.ofGate();
+                  VizContext ctx = vizContext;
                   yscale.getAxisSpec().setLineColor(
                      VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor(), ctx));
                   yscale.getAxisSpec().setLineVisible(xdesc.isLineVisible());
@@ -2567,7 +2569,7 @@ public abstract class GraphGenerator {
    protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary,
                                 boolean linear)
    {
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = vizContext;
       CompositeTextFormat format = getAxisLabelFormat(axisD, flds, secondary);
       // should only use the first field's default format (e.g. date comparison %change&value)
       String fld = flds.length > 0 ? flds[0] : null;
@@ -7478,6 +7480,13 @@ public abstract class GraphGenerator {
    protected ChartInfo info; // chart info stores data info
    protected final ChartDescriptor desc; // chart descriptor stores view info
    protected final ChartDescriptor desc0; // original (non-runtime) chart descriptor
+
+   /**
+    * The context this graph resolves modern chrome against, fixed at construction because the
+    * methods that need it see only descriptors and scales. The viewsheet constructor knows the
+    * assembly; the report constructor knows there is none.
+    */
+   protected final VizContext vizContext;
    protected EGraph graph; // element graph
    protected DataSet adata; // all data if brushing exists, null otherwise
    protected DataSet odata; // normal data

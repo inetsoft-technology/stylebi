@@ -130,7 +130,7 @@ public abstract class DataVSAQuery extends VSAQuery {
                // overlay the modern structure palette onto the cloned Default Style so it acts as a
                // default the user cell/column/row format still overrides; non-default styles untouched.
                // sname is the canonical (non-localized) style name, so the constant match is locale-safe
-               VizContext ctx = VizContext.ofGate();
+               VizContext ctx = VizContext.of(((VSAssembly) getAssembly()).getVSAssemblyInfo());
 
                if(style instanceof XTableStyle &&
                   TableDataVSAssemblyInfo.DEFAULT_STYLE.equals(sname) &&

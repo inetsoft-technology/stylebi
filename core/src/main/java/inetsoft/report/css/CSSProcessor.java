@@ -300,7 +300,7 @@ public class CSSProcessor {
 
       applyCSS(chartDesc, cssDict, parentParams);
       applyCSS(elem.getChartInfo(), cssDict, parentParams);
-      CSSChartStyles.apply(chartDesc, elem.getChartInfo(), cssDict, parentParams);
+      CSSChartStyles.apply(chartDesc, elem.getChartInfo(), cssDict, parentParams, VizContext.LEGACY);
    }
 
    public void applyCSS(ChartDescriptor chartDesc, CSSDictionary cssDict,
@@ -471,7 +471,7 @@ public class CSSProcessor {
                   getVisualFrame();
                ccf.setCSSDictionary(cssDict);
                ccf.setParentParams(parentParams);
-               VSChartPaletteDefaults.applyModernPalette(ccf, VizContext.ofGate());
+               VSChartPaletteDefaults.applyModernPalette(ccf, VizContext.LEGACY);
             }
             else if(ref.getVisualFrame() instanceof GradientColorFrame) {
                GradientColorFrame gcf = (GradientColorFrame) ref.

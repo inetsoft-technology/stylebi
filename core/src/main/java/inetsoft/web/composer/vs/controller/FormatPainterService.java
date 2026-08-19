@@ -214,7 +214,7 @@ public class FormatPainterService {
       // modern chrome defaults so the picker matches the rendered value (design-time WYSIWYG); the
       // apply-back change-detection against the echoed origFormat keeps an unchanged panel from
       // persisting it, so gate-off stays byte-identical
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = VizContext.of(info);
 
       if(dataPath != null && dataPath.getType() == TableDataPath.TITLE) {
          VSTitleChromeDefaults.applyModernDefaultsInPlace(format, ctx);

@@ -43,7 +43,7 @@ public class VSSliderModel extends VSNumericRangeModel<SliderVSAssembly> {
 
       // dark mode: the tick/value labels use the object foreground (default black) -> dark-on-dark.
       // Lift it to the light neutral unless the user/CSS set a foreground. Server-side so export agrees.
-      String darkForeground = VSObjectChromeDefaults.textForegroundCss(VizContext.ofGate());
+      String darkForeground = VSObjectChromeDefaults.textForegroundCss(VizContext.of(assemblyInfo));
 
       if(darkForeground != null) {
          VSCompositeFormat objFmt = assemblyInfo.getFormat();

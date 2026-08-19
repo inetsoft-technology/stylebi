@@ -24,6 +24,7 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.*;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.graph.model.dialog.AxisPropertyDialogModel;
@@ -262,7 +263,7 @@ public class ChartRegionHandler {
 
    public AxisPropertyDialogModel createAxisPropertyDialogModel(
       ChartInfo info, ChartArea chartArea, String axisType, int axisIdx, String field,
-      boolean isFacetGrid, boolean maxMode) throws Exception
+      boolean isFacetGrid, boolean maxMode, VizContext ctx) throws Exception
    {
       String columnName = field;
       boolean isOuter = false;
@@ -303,7 +304,7 @@ public class ChartRegionHandler {
       }
 
       return new AxisPropertyDialogModel(info, axisDesc, isFacetGrid, chartArea, columnName,
-                                         isOuter, isLinear.get(), axisType, maxMode);
+                                         isOuter, isLinear.get(), axisType, maxMode, ctx);
    }
 
    public String getAxisColumnName(ChartInfo info, ChartArea chartArea,
@@ -339,7 +340,7 @@ public class ChartRegionHandler {
 
    public void updateAxisPropertyDialogModel(AxisPropertyDialogModel model, ChartInfo info,
                                              ChartArea chartArea, String axisType, int index,
-                                             String field, boolean maxMode) throws Exception
+                                             String field, boolean maxMode, VizContext ctx) throws Exception
    {
       String columnName = field;
 
@@ -348,11 +349,11 @@ public class ChartRegionHandler {
       }
 
       AxisDescriptor axisDesc = getAxisDescriptor(info, columnName, axisType, new AtomicBoolean());
-      model.updateAxisPropertyDialogModel(axisDesc, columnName, axisType, maxMode);
+      model.updateAxisPropertyDialogModel(axisDesc, columnName, axisType, maxMode, ctx);
    }
 
    public LegendFormatDialogModel createLegendFormatDialogModel(ChartInfo info,
-      ChartArea chartArea, ChartDescriptor descriptor, int legendIdx)
+      ChartArea chartArea, ChartDescriptor descriptor, int legendIdx, VizContext ctx)
    {
       LegendsArea legendsArea = chartArea.getLegendsArea();
       LegendArea legendArea = legendsArea.getLegendAreas()[legendIdx];
@@ -369,11 +370,12 @@ public class ChartRegionHandler {
          field, targetFields, aestheticType, isNode);
 
       return new LegendFormatDialogModel(info, legendsDesc, legendDesc, chartArea,
-         targetFields, aestheticType, field, titleName, isDimension, isTime, isNode);
+         targetFields, aestheticType, field, titleName, isDimension, isTime, isNode, ctx);
    }
 
    public void updateLegendFormatDialogModel(LegendFormatDialogModel model,
-      ChartInfo info, ChartArea chartArea, ChartDescriptor descriptor, int legendIdx)
+      ChartInfo info, ChartArea chartArea, ChartDescriptor descriptor, int legendIdx,
+      VizContext ctx)
    {
       LegendsArea legendsArea = chartArea.getLegendsArea();
       LegendArea legendArea = legendsArea.getLegendAreas()[legendIdx];
@@ -384,26 +386,27 @@ public class ChartRegionHandler {
       String field = legendArea.getField();
       LegendsDescriptor legendsDesc = descriptor.getLegendsDescriptor();
       updateLegendProperties(model, info, legendsDesc, field, targetFields, aestheticType,
-                             titleName, model.isNode());
+                             titleName, model.isNode(), ctx);
 
       // if node and line binds same field on color, the legend is shared so any change
       // should be applied to both. (61630)
       if(info instanceof RelationChartInfo) {
          updateLegendProperties(model, info, legendsDesc, field, targetFields, aestheticType,
-                                titleName, !model.isNode());
+                                titleName, !model.isNode(), ctx);
       }
    }
 
    private static void updateLegendProperties(LegendFormatDialogModel model, ChartInfo info,
                                               LegendsDescriptor legendsDesc, String field,
                                               List<String> targetFields, String aestheticType,
-                                              String titleName, boolean nodeAesthetics)
+                                              String titleName, boolean nodeAesthetics,
+                                              VizContext ctx)
    {
       LegendDescriptor legendDesc = GraphUtil.getLegendDescriptor(
          info, legendsDesc, field, targetFields, aestheticType, nodeAesthetics);
 
       if(legendDesc != null) {
-         model.updateLegendFormatDialogModel(info, legendsDesc, legendDesc, titleName);
+         model.updateLegendFormatDialogModel(info, legendsDesc, legendDesc, titleName, ctx);
       }
    }
 
