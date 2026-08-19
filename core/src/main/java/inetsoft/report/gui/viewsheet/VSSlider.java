@@ -64,7 +64,7 @@ public class VSSlider extends VSFloatable {
          cg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                              RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-         VizContext ctx = VizContext.ofGate();
+         VizContext ctx = VizContext.of(info);
          VSCompositeFormat format =
             VSObjectChromeDefaults.applyDarkForeground(info.getFormat(), ctx);
          format = format == null ? new VSCompositeFormat() : format;

@@ -201,7 +201,7 @@ public class ChangeChartTypeService {
          plotDesc.setValuesVisible(false);
       }
 
-      applySmoothLinesTransition(oldType, newType, plotDesc, VizContext.ofGate().modern);
+      applySmoothLinesTransition(oldType, newType, plotDesc, VizContext.of(ninfo).modern);
       // drop the runtime clone so the next render sees the design-time mutations above
       ninfo.setRTChartDescriptor(null);
 

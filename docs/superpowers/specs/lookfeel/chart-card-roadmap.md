@@ -1,11 +1,14 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-18 (sixth revision — the seed mark's P3 is built: the enumeration point and Modernize; the
-fifth revision's P2 note and the fourth revision's rebase note are both retained below)
-**Verified against:** community `viz-updates` @ `a38cb6957`, which is `HEAD`, plus P3's uncommitted working
-tree. A commit-approval gate denied every one of P3's nine tasks its own commit, so `a38cb6957` — the doc
-commit that corrected P3's design and planned the phase, the last thing committed after P2 shipped — is still
-`HEAD`, and every P3 code citation below was checked directly against files on disk rather than against a
+**Date:** 2026-08-18 (seventh revision — the seed mark's P4 is built: server reads follow the mark, and P5,
+the browser half, is startable; the sixth revision's P3 note, the fifth revision's P2 note and the fourth
+revision's rebase note are all retained below)
+**Verified against:** community `viz-updates` @ `cd06da9b1`, which is `HEAD`, plus P4's uncommitted working
+tree. A commit-approval gate denied every one of P3's nine tasks its own commit while P3 was in progress, so
+this file's sixth revision verified against `a38cb6957` with P3 only on disk — but `cd06da9b1` (**"feat(viewsheet):
+seed modern chrome from one hook, and modernize on request"**) has since landed on top of it, carrying P3 in
+full, committed outside the session that built it. P4's own tasks hit the same gate and remain uncommitted at
+this revision, so P4's code citations below were checked directly against files on disk rather than against a
 commit. `8f75872a6` shipped the seed mark's P1 and `119bfdaac` its P2;
 `be0e3c664` carries the P1 null-guard that P2's suite run exposed. `380705bc1` shipped the density gating;
 `1d26dbefb`/`d4d0d5d48` the userTitleHeight flag. Every code claim below was re-checked, against `HEAD` where
@@ -55,16 +58,16 @@ rather than repairing it — the whole of its content is one reading of the two 
   N. userTitleHeight flag ──┐
      SHIPPED 1d26dbefb      │
      d4d0d5d48              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
-                            │    DESIGN ANSWERED, NOT BUILT      DECIDED 2026-08-13
+                            │    DESIGN ANSWERED, STARTABLE       DECIDED 2026-08-13
   M-P4. Read paths ─────────┘    20/26/30 · titleHeight() exists  MUST NOT PRECEDE L'
-        (not P1)                 but is uncalled                  replaces L's density test
-                                 SCHEDULED AFTER M-P4
+        BUILT, uncommitted       resolver reads the mark now      replaces L's density test
 
      N answers "did the author choose this height" · the MARK answers "is this assembly modern"
      The row needs both. On the flag alone it resizes every dashboard ever saved.
-     P1 and P2 landing do NOT free it: the row must READ the mark, and nothing reads it until P4.
+     P1 and P2 landing did NOT free it: the row must READ the mark, and P4 is what makes that read exist.
+     L' is unblocked now, not "when P5 lands" — its read path is a server read, P4's subject, not P5's.
 
-  M. Seed mark — five phases. P1 + P2 + P3 BUILT (P3 uncommitted); P4–P5 remain.
+  M. Seed mark — five phases. P1 + P2 + P3 + P4 BUILT (P3 shipped cd06da9b1; P4 uncommitted); P5 remains.
      design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–12
      ALSO THE RELEASE GATE (needs the revert sweep, out of the forward half's scope)
 
@@ -72,18 +75,19 @@ rather than repairing it — the whole of its content is one reading of the two 
       │
      P2  VizContext threaded, 71 files, ofGate()        SHIPPED 119bfdaac
       │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
-     P3  decision 11's enumeration point + Modernize    BUILT, uncommitted (commit-approval gate)
+     P3  decision 11's enumeration point + Modernize    SHIPPED cd06da9b1
       │  the only route in for old content              eleven manual checks still outstanding
-     P4  server reads follow the mark                   STARTABLE · THE BEHAVIOUR REVERSAL
-      │                                                 unblocks L' above · one ofGate() site to flip
-     P5  browser reads follow the mark
+     P4  server reads follow the mark                   BUILT, uncommitted · THE BEHAVIOUR REVERSAL
+      │  43 read sites + the creation site              unblocks L' now · nine manual checks outstanding
+     P5  browser reads follow the mark                  STARTABLE
       └──┬──→ Card radius 12→6, retire resolveSeededCorner()
          ├──→ §07 derived selection, retire the teal family
          │         └──→ Range slider — painter half
          └──→ Outlined text conversion (also behind G)
 
-     Only P5 unblocks the six items. P1, P2 and P3 unblocked none of them, by design — P3 unblocks P4's
-     testability instead.
+     P4 unblocks the first of the six — L' — directly, ahead of P5. P5 still gates the other five. P1 and
+     P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
+     is the first phase whose landing moves one.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
@@ -131,32 +135,35 @@ Four corrections this picture carries against the external set, all recorded in
 ## What to pick up next
 
 **Re-derived 2026-08-18, from the dependency picture above rather than by editing the 2026-08-15 ranking in
-place — this file's own instructions say to re-derive rather than repair, and P3 landing changes what is
+place — this file's own instructions say to re-derive rather than repair, and P4 landing changes what is
 first.** This is a reading of the picture, not a new decision; it goes stale as things land.
 Effort is relative to this track, not absolute.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **M-P4 — server reads follow the mark** | **the behaviour reversal** | **M–L**, cheaper than the 2026-08-15 estimate — see below | L', and half of the six | legacy dashboards stop looking modern; export-affecting, manual pass needed |
-| 2 | **M-P5 — browser reads follow the mark** | closes the forward half | **M** | the six items | modifies shipped slices 1–3; body class becomes per-assembly |
+| 1 | **L′ — the title lane height row** | the highest-value visible item, and now startable | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
+| 2 | **M-P5 — browser reads follow the mark** | closes the forward half | **M** | the remaining five items | modifies shipped slices 1–3; body class becomes per-assembly |
 | 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**M-P3 dropped off this table because it is built, not because it is done.** It sits in the working tree,
-uncommitted — see "the seed mark" section below — and its eleven manual checks are outstanding. Committing it
-and running that pass are real prerequisites for anyone continuing this track, even though neither is a
+**M-P3 and M-P4 both dropped off this table because they are built, not because they are done.** P3 shipped
+in `cd06da9b1`, committed outside the session that built it, so its own row is settled; what remains of it
+is the eleven manual checks, still outstanding. P4 sits in the working tree, uncommitted — see "the seed
+mark" section below — with its own nine manual checks outstanding on top of P3's eleven. Running both
+passes and committing P4 are real prerequisites for anyone continuing this track, even though neither is a
 ranked item in the sense the table above means: there is no design work or code left to write for either.
 
-**M-P4 is cheaper than the 2026-08-15 estimate for two reasons P3 leaves behind it.** First, P3 collapsed the
-four creation-path `VizContext.ofGate()` calls the P2-era design counted into one — a single call inside
-`VSAssemblyInfo.setDefaultFormat` — so the read-side flip P4 makes at the creation seeds is a one-site change,
-not four. Second, the chart-pipeline threading question this section already answered below (`GraphGenerator`'s
-two constructors, and the `ChartColorPaletteController` decision) still stands and does not need re-answering;
-P4 inherits it as read, not as new work.
+**L′ is first because P4 is what was missing, and P4 is now built.** The row needed a read path that
+consults the mark at the title-height resolver, and nothing supplied one until this phase — see "the seed
+mark" section below for the 43 sites and the creation-site flip. `userTitleHeight` has been sitting shipped
+since `1d26dbefb`/`d4d0d5d48` with nothing to pair it with; that pairing exists now. P5, by contrast, still
+only unblocks other things rather than shipping one of the six itself.
 
-**The seed mark is no longer one XL item, and three of its five phases are now behind us.** P1 shipped the
-field; P2 shipped the carrier; P3 built the only route existing content has to modern chrome. All three
-deliberately unblocked **nothing** for the six items downstream — P3 unblocks P4's testability instead — so
-what used to be "M, XL, six items" is two remaining phases, and only the last of them frees the six.
+**The seed mark is no longer one XL item, and four of its five phases are now behind us.** P1 shipped the
+field; P2 shipped the carrier; P3 built the only route existing content has to modern chrome; P4 flipped the
+reads. The first three deliberately unblocked **nothing** for the six items downstream — P3 unblocked P4's
+testability instead — but P4 is different: it is the phase that turns the mark from a fact nothing consults
+into one L′ can read, so it unblocks the first of the six directly. What used to be "M, XL, six items" is one
+remaining phase, P5, and it frees the other five.
 
 **P3's design was re-checked against the code on 2026-08-18 and carries five corrections, and P3 has since
 shipped to exactly that shape.** They are in the forward-half design's §4, and none of them changes the shape:
@@ -183,7 +190,7 @@ private predicates on `VSAssemblyInfo` (`bypassesBaseChrome()`, `installsOwnTitl
 hook itself for the same reason `isCornerSeedTarget()` already lives there rather than in a caller. Full
 citations are in the forward-half design's §4.
 
-**P3 built 2026-08-18, in the working tree, not yet committed — see "the seed mark" section below for the
+**P3 built 2026-08-18, and shipped in `cd06da9b1` — see "the seed mark" section below for the
 detail.** `seedChromeDefaults(VizContext)` on `VSAssemblyInfo`, three overrides, `VizModernizeUtil`'s
 enumeration and stamp-then-seed loop, the composer endpoint and its `@ClusterProxy` service, the
 `modernizable` flag on `SetViewsheetInfoCommand`, and the dismissable bar with its permanent menu entry. The
@@ -201,45 +208,49 @@ previously recorded an audited 115, and the landed change is **71 files** (56 pr
 count that matters is files touched per class, not raw call sites, because a single method often holds
 several.
 
-**P2 answered both of the design's open plumbing questions, and the answers shape P4.**
+**P2 answered both of the design's open plumbing questions, and P4 has since settled both the way it
+described as most likely.**
 
-- **The three composer dialog models have no route to an assembly** — `ChartLinePaneModel`,
+- **The three composer dialog models had no route to an assembly** — `ChartLinePaneModel`,
   `AxisPropertyDialogModel`, `LegendFormatDialogModel` see only `ChartInfo`, `PlotDescriptor`,
-  `AxisDescriptor` or `ChartArea`. But `ChartPropertyDialogService` and `RegionPropertyDialogService` each
-  hold a `ChartVSAssemblyInfo` one or two call-hops up and simply do not forward it. So P4 chooses: thread it
-  down, or accept `ofGate()` for dialog previews and document that a dialog shows org-gate chrome rather than
-  the assembly's own.
+  `AxisDescriptor` or `ChartArea`. `ChartPropertyDialogService` and `RegionPropertyDialogService` each held a
+  `ChartVSAssemblyInfo` one or two call-hops up without forwarding it. **P4 threaded it down** rather than
+  falling back to `ofGate()`: both services now resolve the dialog's own chart by object id and pass its
+  context through four widened `ChartRegionHandler` methods, so a property dialog opened on an unmarked
+  chart previews legacy chrome and agrees with the canvas behind it.
 - **`CSSProcessor.applyCSS` has no route structurally, not merely today.** Every hop back from it stays inside
   the legacy report / `ReportSheet` / `ChartElementDef` model, which never carries a `VSAssembly` — and
-  `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules. It is report-path
-  only, so P4 most likely wants `VizContext.LEGACY` there rather than a threaded context.
-- **The dialog models are not the whole of the threading problem** — added 2026-08-18. Five chart-pipeline
-  sites see a `ChartInfo` or a descriptor and never a `VSAssemblyInfo`: `GraphGenerator:2345,2570`,
-  `CSSChartStyles.apply` (called from `VGraphPair:1353`, `CSSProcessor:303` and `VSChartDndService:224`) and
-  `ChangeChartProcessor:1893`. `GraphGenerator` gives the pattern for all of them — it has two constructors,
-  `:218` taking a `ChartVSAssemblyInfo` and `:433` taking a `ChartInfo`, so a `VizContext` field set at
-  construction is `of(chart)` on the viewsheet path and `LEGACY` on the report path, which also gives the
-  LEGACY-identity axis a real home instead of a convention two tests defend. `CSSChartStyles.apply` then takes
-  a context parameter: `of(info)` from its two viewsheet callers, `LEGACY` from `CSSProcessor`. Easier than the
-  roadmap implied elsewhere: `VGraphPair.fixChartFormat` already receives a `ChartVSAssemblyInfo`, and all nine
-  `web/viewsheet/model/*` sites are in constructors that already hold the info, so each is a one-word change.
-  One site has no assembly at all — `ChartColorPaletteController.getChartColorPalette()`, a bootstrap fetch
-  with no parameters — so the colour picker's swatch list cannot become per-assembly without a new endpoint.
-  Decide it in P4: keep it org-gated, or move it.
+  `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules. **P4 confirmed there
+  is no route to thread and passed `VizContext.LEGACY`** at `CSSProcessor.java:474` and at its own `ofGate()`
+  site, exactly as this paragraph predicted.
+- **The dialog models were not the whole of the threading problem** — added 2026-08-18, closed by P4. Five
+  chart-pipeline sites see a `ChartInfo` or a descriptor and never a `VSAssemblyInfo`: `GraphGenerator`,
+  `CSSChartStyles.apply` (called from `VGraphPair`, `CSSProcessor` and `VSChartDndService`) and
+  `ChangeChartProcessor`. **P4 gave `GraphGenerator` a `VizContext` field set at construction** — `of(chart)`
+  on the constructor taking a `ChartVSAssemblyInfo`, `LEGACY` on the one taking a bare `ChartInfo` — which
+  also gives the LEGACY-identity axis a real home instead of a convention two tests defend.
+  `CSSChartStyles.apply` takes the context as a parameter, `of(info)` from its viewsheet callers and `LEGACY`
+  from `CSSProcessor`. One site had no assembly at all — `ChartColorPaletteController.getChartColorPalette()`,
+  a bootstrap fetch with no parameters — and **P4 decided it stays org-gated**, with a comment on the one
+  surviving `ofGate()` call explaining why: a global swatch list is not per-assembly chrome, and a
+  per-assembly endpoint would put a client change and an uncacheable fetch inside a server-only phase.
 
-**One thing P2 introduced that P4 must not trip over.** `VizContext` now carries an implicit fourth axis —
-*is this a viewsheet chart at all* — encoded as **identity** against `VizContext.LEGACY`. Seven chart
-descriptors' font lines read `ctx != VizContext.LEGACY`, which is what the old bare `vs` boolean meant, and
-identity is the only faithful encoding: with the gate off, `ofGate()` returns a context *value-equal* to
-`LEGACY` that must still count as a viewsheet chart. No factory may return the `LEGACY` instance, and two
-tests hold that line. P4 should either add an explicit `viewsheet` field or write the contract into the
-design. Related: the design says the context is each method's **first** parameter; all 44 landed signatures
-take it **trailing**, which is the better shape and what the plan's own snippets did.
+**One thing P2 introduced that P4 had to carry rather than resolve.** `VizContext` still carries an implicit
+fourth axis — *is this a viewsheet chart at all* — encoded as **identity** against `VizContext.LEGACY`. Seven
+chart descriptors' font lines read `ctx != VizContext.LEGACY`, which is what the old bare `vs` boolean meant,
+and identity is the only faithful encoding: with the gate off, `ofGate()` returns a context *value-equal* to
+`LEGACY` that must still count as a viewsheet chart. No factory may return the `LEGACY` instance, and P4's
+own `GraphGenerator` field is built on that identity rather than replacing it with an explicit `viewsheet`
+field — the convention became a fact rather than being retired. Related: the design says the context is
+each method's **first** parameter; landed signatures across P2 and P4 alike take it **trailing**, which is
+the better shape and what the plans' own snippets did.
 
-**L' is still the highest-value visible item, and P1 did not free it.** `VSDensityDefaults.titleHeight()`
-resolves defh/26/30 and is still uncalled, and `userTitleHeight` now tells an author's height from a default
-one. That is one half of what the row needs. The other half is *reading* the mark at the title-height
-resolver — which is P4, not P1. A mark that exists but is never consulted moves nothing.
+**L' is still the highest-value visible item, and P4 is what frees it.** `VSDensityDefaults.titleHeight()`
+resolves defh/26/30 and is still uncalled by the resolver itself, and `userTitleHeight` has told an author's
+height from a default one since `1d26dbefb`/`d4d0d5d48`. That is one half of what the row needs. The other
+half was *reading* the mark at the title-height resolver — not there yet at P1, not there yet at P3, and
+supplied now that P4's 43 sites and its creation-site flip exist. A mark that exists but is never consulted
+moves nothing; P4 is what makes it consulted.
 
 **The other half is the seed mark, and it is the correction this ranking previously got wrong.** An
 earlier revision called the flag a cheaper alternative to the mark. They answer different questions:
@@ -250,11 +261,13 @@ off the mark, and decision 2 protects unmarked content from every automatic beha
 on the flag alone would resize fifteen years of saved dashboards on next open.**
 
 **Decided 2026-08-13: L' waits for M** ([strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md)
-decision 8). Shipping it dormant looks like free parallelism and is not — nothing would be marked, so the
-manual export pass could not run, the checkbox would ship doing nothing observable, and the only question
-a dormant build answers early is the cheapest part of the work. The cost is accepted: the title lane keeps
-its legacy 20px everywhere until the mark lands, the anchored strip's density approximation
-(`380705bc1`) stays in place longer, and L'' stays behind L'.
+decision 8) **— and the wait is over now that M-P4 is built.** Shipping it dormant would have looked like
+free parallelism and would not have been — nothing would have been marked, so the manual export pass could
+not have run, the checkbox would have shipped doing nothing observable, and the only question a dormant
+build answers early is the cheapest part of the work. That cost no longer needs accepting: the mark exists,
+P4 reads it, and Modernize gives existing content a route onto it, so L' can be picked up as a live resolver
+change rather than a dormant one. The anchored strip's density approximation (`380705bc1`) still stands in
+for L'' until the row itself lands.
 
 ### The four L' design questions — answered 2026-08-13
 
@@ -347,13 +360,14 @@ Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
 
 ## The long pole: the seed mark
 
-**The forward half is designed and its P1, P2 and P3 are built — P3 uncommitted — see
+**The forward half is designed and its P1, P2, P3 and P4 are built — P3 shipped in `cd06da9b1`, P4
+uncommitted — see
 [2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md).** The design
 covers the mark, the re-keying of every read path onto it, the per-assembly browser scope and the Modernize
 action, in six phases. It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms
-and the card radius out of scope — so it unblocks the six items behind M but does **not** clear the release
-gate. It also pulls Modernize forward out of the reverse half, because without it no existing dashboard has
-any route to modern and the flip is untestable.
+and the card radius out of scope — so even with P4 built it unblocks only the first of the six items behind
+M (L′) and does **not** clear the release gate. It also pulls Modernize forward out of the reverse half,
+because without it no existing dashboard has any route to modern and the flip is untestable.
 
 **P1 shipped in `8f75872a6`.** `VizMark` (`modern-light`/`modern-dark`, absent meaning unmarked) on
 `VSAssemblyInfo`, persisted as one attribute and **cleared unconditionally on parse when absent**; a sheet
@@ -399,8 +413,10 @@ Four things P2 established that the later phases should read before starting:
   displayed row from two `getRowHeights` loops and once per selection value. P2 removed the redundant
   double gate read this exposed; anything P4 adds to the factories pays that multiplier.
 
-**P3 built 2026-08-18, in the working tree, not committed.** A commit-approval gate denied every one of its
-nine tasks' commits, so there is no commit range to cite — the code exists only on disk. It extracted
+**P3 built 2026-08-18, and shipped in `cd06da9b1`** — "feat(viewsheet): seed modern chrome from one hook,
+and modernize on request." A commit-approval gate denied every one of its nine tasks' own commits while it
+was in progress, so the code sat on disk only until a human partner committed it directly, outside the
+session that built it. It extracted
 `seedChromeDefaults(VizContext)` from `VSAssemblyInfo.setDefaultFormat` and the three subclass overrides that
 used to compute the gate-dependent seeds inline, built `VizModernizeUtil` to stamp and re-seed a dashboard's
 unmarked content, and wired a composer-only Modernize action behind a dismissable bar and a permanent menu
@@ -434,6 +450,38 @@ Four things P3 established that P4 and P5 should read before starting:
 **Outstanding: the eleven manual checks the plan calls for, plus a twelfth added while building.** None has
 run — they need a built server, a browser and a legacy dashboard. See the design document's P3 section for
 the full list, including the added check on what an empty undo checkpoint does to Ctrl+Z.
+
+**P4 built 2026-08-18, in the working tree, not yet committed.** `VizContext.ofGate()` → `of(info)` across
+the 43 read-path sites the design's "shape P4 takes" table lays out — model layer, export and painter, chart
+pipeline, dialog models, services and controllers, query and lens, report-only and the one info-local site —
+plus the creation-path flip decided the same day: `VSAssemblyInfo.java:1235` now seeds from `of(this)` rather
+than `ofGate()`, so a new assembly's persisted seeds and its mark agree by construction instead of by
+coincidence. One call survives on the org gate, `ChartColorPaletteController.java:45`, documented in place
+for the reason the design's §4 already gives — a parameterless bootstrap fetch with no assembly to resolve a
+mark from. A literal sweep (`grep -rnF "VizContext.ofGate()" --include=*.java core/src/main`) confirms exactly
+that one line, and the persisted guard, `VizContextReadFlipTest.exactlyOneDocumentedSiteStillReadsTheOrgGate`,
+asserts it tree-wide by filename rather than by package, closing four packages a set of per-package
+assertions had left uncovered. The full `core` suite passed at 4899 run, 0 failures, 0 errors, 67 skipped, on
+the first run to exercise every one of the 43 sites together.
+
+Two things P4 established that P5 should read before starting:
+
+- **The two open plumbing questions P2 left behind resolved the way P2 guessed they would.** The three
+  composer dialog models are threaded rather than left on `ofGate()` — `ChartPropertyDialogService` and
+  `RegionPropertyDialogService` each resolve the dialog's own chart by object id and pass its context through
+  four widened `ChartRegionHandler` methods — and `CSSProcessor.applyCSS` takes `VizContext.LEGACY`, since the
+  report-path model it operates on has no route to an assembly at all. Neither answer required inventing a
+  third option.
+- **The sweep's own planning had a regex bug worth naming, because it is the kind of mistake a future sweep
+  could repeat.** An early `grep -rn "VizContext.ofGate()"` (no `-F`) matched `VizContext.java`'s own
+  `public static VizContext ofGate() {` on the strength of an unescaped `.` matching a space, and was read as
+  a second surviving call site rather than a definition. A literal match resolves it; the persisted guard
+  above is what makes the distinction durable.
+
+**Outstanding: the nine manual checks the plan calls for.** None has run — they need a built server, a
+browser, a dashboard saved before the mark existed, and exported PDF, PNG and Excel files. See the design
+document's P4 section for the full list, including the check that could not have passed before this phase:
+a legacy dashboard under an open gate rendering legacy chrome.
 
 **Superseded by a product decision set, 2026-08-12. Read
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
@@ -540,13 +588,14 @@ title suppresses the strip. The paragraph below records why the first attempt wa
 `userDataRowHeight` pattern is the mechanism it was missing. That mechanism now exists — `userTitleHeight`
 shipped in `1d26dbefb`/`d4d0d5d48`.
 
-**But the row is still gated, and this paragraph has now been wrong twice in the same way.** An earlier
-revision said the row "needs no server change"; the third revision replaced that with "no longer gated on the
-seed mark or on anything else." Both were wrong, and for the same reason: the row needs to *read* whether an
-assembly is modern. `userTitleHeight` answers a different question — whether an author chose the height — and
-P1's mark, though it now exists and persists, is read by nothing. The row is gated on **P4**, when the read
-paths start consulting the mark. Its four design questions are answered; its blocker is a phase, not a
-decision.
+**The row was gated twice more after that, and both gates are now clear.** An earlier revision said the row
+"needs no server change"; the third revision replaced that with "no longer gated on the seed mark or on
+anything else." Both were wrong, and for the same reason: the row needs to *read* whether an assembly is
+modern. `userTitleHeight` answers a different question — whether an author chose the height — and P1's
+mark, though it existed and persisted from that point on, was read by nothing until P4. The row was gated on
+**P4**, when the read paths would start consulting the mark; P4 is now built, so that gate is clear too. Its
+four design questions are answered and its blocking phase has landed — what is left is scheduling it, not
+waiting on it.
 
 Specified at 20/26/30 in widget spec §04 and §08 step 3. Attempted and
 abandoned. All five `getTitleHeight()` overrides are the identical line `return titleInfo.getTitleHeight();`
@@ -637,6 +686,7 @@ older copy of this file recognise what moved — **none of those hashes is reach
 | **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | `119bfdaac` | postdates the third revision |
 | M-P1's null-guard — a mocked host viewsheet with no assembly info | `be0e3c664` | postdates the third revision |
 | **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the fifth revision |
+| **M-P4 — the 43 read-path sites and the creation site flipped from `ofGate()` to the mark, one documented survivor left** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the sixth revision |
 
 **Why P2 landed as two commits.** `be0e3c664` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
 regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole
@@ -662,20 +712,20 @@ carry the roadmap, the open-item decisions and the design sets.
   demo instance has one of the four keys set to `"false"` in a `sree.properties`, that instance changes
   appearance on upgrade. The argument that this is impossible rests on `viz-updates` never having shipped,
   which cannot be verified from the repo.
-- ~~**`CSSProcessor.applyCSS`'s context.**~~ **Answered in P2: no route, structurally.** Every hop back from
-  it stays inside the legacy report / `ReportSheet` / `ChartElementDef` model, which never carries a
-  `VSAssembly`, and `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules.
-  It is report-path only, so P4 most likely wants `VizContext.LEGACY` rather than a threaded context. P2
-  passes `ofGate()`, which is behaviour-identical today.
-- **How the three composer dialog models reach an assembly** — new, surfaced by P2. `ChartLinePaneModel`,
-  `AxisPropertyDialogModel` and `LegendFormatDialogModel` have no route, but `ChartPropertyDialogService` and
-  `RegionPropertyDialogService` hold a `ChartVSAssemblyInfo` one or two hops up without forwarding it. Thread
-  it down, or accept that a dialog preview shows org-gate chrome rather than the assembly's own. Settle it
-  while planning P4.
-- **Whether `VizContext` gains an explicit `viewsheet` field** — also surfaced by P2, which encodes that axis
-  as identity against `LEGACY`. See the seed-mark section.
-- ~~**The four L' decisions**~~ — answered 2026-08-13; see the L' section. What blocks L' now is P4, not a
-  decision.
+- ~~**`CSSProcessor.applyCSS`'s context.**~~ **Answered in P2, confirmed in P4: no route, structurally.**
+  Every hop back from it stays inside the legacy report / `ReportSheet` / `ChartElementDef` model, which
+  never carries a `VSAssembly`, and `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the
+  enterprise modules. It is report-path only: P4 passes `VizContext.LEGACY` at `CSSProcessor.java:474`.
+- ~~**How the three composer dialog models reach an assembly.**~~ **Answered and shipped in P4: threaded
+  down.** `ChartPropertyDialogService` and `RegionPropertyDialogService` each resolve the dialog's own chart
+  by object id and forward its context through four widened `ChartRegionHandler` methods, so a property
+  dialog opened on an unmarked chart previews legacy chrome rather than org-gate chrome.
+- ~~**Whether `VizContext` gains an explicit `viewsheet` field.**~~ **Settled by P4 without adding one.** The
+  identity-against-`LEGACY` convention P2 surfaced became a fact rather than a field: `GraphGenerator`'s
+  `VizContext` member is set once at construction from whichever of its two constructors ran, so the
+  LEGACY-identity axis has a real home without a new field on `VizContext` itself.
+- ~~**The four L' decisions**~~ — answered 2026-08-13; see the L' section. Nothing blocks L' now: P4 shipped
+  the read path the row needed, so what is left is scheduling the work, not a decision or a phase.
 - ~~**Dense: hover overlay, or no chrome at all?**~~ Answered 2026-08-12 and now shipped in `380705bc1`:
   no chrome at all. [Decisions](./chart-card-open-item-decisions.md) §4. What remains open from it is
   dense-plus-touch, below.

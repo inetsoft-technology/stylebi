@@ -724,6 +724,190 @@ export agrees with view for both; the gate off reverts read-time chrome on marke
 longer strands anything, which closes decision 9's reproducible defect. A manual export spot-check across
 PDF, PNG and Excel — the chrome colours move even though no geometry does.
 
+**Three things P4 will trip over, found by the whole-branch review of P3 on 2026-08-18.** None of them is
+caused by P3; all three were latent and became visible once the seeds and the mark existed side by side.
+They are recorded here rather than left to be rediscovered, because each one changes what P4 has to decide
+before it writes any code.
+
+**1 · The seeds and the mark already disagree at creation, so "unmarked" does not mean "looks legacy".**
+`AbstractVSAssembly`'s two-arg constructor gives a new assembly the host's *stored* mark, absence included
+(`:135-136`), while `setDefaultFormat` seeds from `VizContext.ofGate()`. An assembly added to a legacy,
+unmarked dashboard under an open gate therefore persists the full modern set — border colour, card radius,
+card background, and all four `PlotDescriptor` seeds — while carrying no mark at all. When P4 flips the
+read to `of(info)`, that assembly reads legacy over modern persisted values: a chart that looks modern today
+visibly un-modernizes on the flip, and the persisted seeds stay behind as orphans. Two consequences P4 must
+choose between: either the flip accepts that cohort as collateral (they are dev-branch content, and the
+pre-mark write-off already covers content created before the mark), or creation stops seeding what it cannot
+mark, which means `setDefaultFormat`'s single remaining `ofGate()` call becomes `of(this)` and a gate-on
+assembly on an unmarked host seeds nothing. **Decided 2026-08-18: creation flips too.** It is a one-line
+change at the site P3 deliberately reduced to one, and it makes the seeds and the reads agree by
+construction rather than by coincidence. New dashboards are untouched — the sheet stamps itself, its
+assemblies inherit that mark, and they still seed modern; after Modernize the sheet is marked, so later
+additions seed modern again. Only assemblies added to an unmarked host change, and they change to match
+what they will render. It is still a behaviour change to creation, so it carries its own test rather than
+riding on the read-flip tests.
+
+**2 · One reader cannot be flipped at all.** `VSObjectChromeDefaults.resolveSeededCorner` (`:68-70`) reads
+the master gate directly, and its own comment says why: it is called from a `VSFormat` getter with no
+context to hand. The tab carve-out in `VSCompositeFormat` has the same shape. So after P4 these stay
+org-scoped while every neighbouring reader is mark-scoped, and on a mixed dashboard a seeded 12px radius
+resolves by the org gate while the border colour beside it resolves by the assembly's mark. **Decided
+2026-08-18: document the carve-out, do not thread it.** Threading a context into the `VSFormat` getters
+reaches every caller of those getters across render, export, model and dialog layers — a wider exercise than
+P4's own 43 sites, inside the phase most likely to regress rendering. The population that renders
+inconsistently is assemblies carrying a seeded radius without a mark, which is dev content the pre-mark
+write-off already covers and which creation stops producing once the change above lands. So this stays
+org-scoped, and is retired by the card-radius change from 12px to 6px that the roadmap already sequences
+behind the mark and the sweep — but it is not, as an earlier version of this document claimed, *the last*
+org-scoped reader. The whole-branch review that flipped P4's 43 read sites also surveyed the readers P4
+never touched, and found four more still org-scoped, plus one that is a P5, not a P4, fix:
+
+- `VSObjectChromeDefaults.java:70`, and `VSCompositeFormat.java:336` reaching it — the corner-radius
+  carve-out just described.
+- `PlotDescriptor.java:1319` (`getBarCornerRadius`) **and `:635` (`isSmoothLines`)** — the same shape, one
+  getter this document already named and a second the phase's own text had left out.
+- `AbstractChartInfo.java:3745` — `getTooltipStyle` resolving `AUTO` to `CARD` or `DEFAULT`.
+- `VSChartInteractionDefaults.java:48` — whether the plot area is delivered as inline SVG.
+- `CoreLifecycleService.java:304-311` — the client-facing flags (`inlineSvg`, `modernVisualization`,
+  `vizDensity`, `darkMode`) the browser reads directly rather than through any per-assembly context.
+
+Four of these retire on the schedule already named above: getters with no context to hand, carrying dev-only
+inconsistency that the pre-mark write-off covers. `getTooltipStyle` does not, and for a different reason: it
+is **deferred to P5 rather than fixed in P4**. Threading it means changing the `ChartInfo` interface getter
+(`ChartInfo:889`, plus its default methods at `:901` and `:915`) and rippling into `TipCustomizeDialogModel`,
+`ChartPropertyDialogService`, `GraphBuilder` and `VSChartModel`; and its most visible consumer,
+`GraphBuilder:148`, ships `tooltipStyle` to the browser on the chart model, where the client still reads
+org-gated flags until P5. So an unmarked chart on this branch renders legacy chrome with a modern card
+tooltip, and fixing only the server half would buy nothing a user could see.
+
+**P4 and P5 landing back-to-back is therefore a hard condition, not a preference.** Between them, an
+unmarked dashboard has legacy server chrome under a modern body class, inline-SVG plots, and card tooltips.
+
+**3 · P3 closed the dark re-stamp door, and it is cheap to reopen only until dashboards carry marks.**
+`VizMark.fromGate()` stamps `MODERN_DARK` or `MODERN_LIGHT` from the org's dark setting *at the moment of
+stamping*, and `VizContext.of(mark)` derives `dark` from the mark alone. `VizModernizeUtil.hasUnmarked`
+looks only for a null mark and `modernize` skips anything already marked. So a dashboard modernized while
+the org was in light mode, in an org that later turns dark mode on, reads light chrome on a dark page for
+ever: it is fully marked, so nothing offers to restamp it, and no read path consults the org's dark setting
+any more once P4 lands. The fix while it is cheap is a re-stamp branch — content whose mark disagrees with
+the current gate becomes eligible again, which is a predicate change in `hasUnmarked` and a second mode for
+`modernize`. **Decided 2026-08-18: its own small phase after P5 and before release, tracked as a release
+condition — not bundled into P4.** It is Modernize-side work, not read-side, so folding it in would add a
+second concern to the phase already carrying 43 sites and a manual export pass, and would widen what that
+export pass has to cover. Nothing decays while it waits: the write-off means only dev content carries marks
+until the branch ships, so the migration this would become never materialises provided the phase lands
+before release.
+
+### The shape P4 takes — decided 2026-08-18
+
+The flip is 43 sites across 33 files, and they do not all resolve the same way. The plan takes one task per
+group below, because the pattern and the risk differ per group; a single sweeping task would hide the two
+groups that need judgement inside forty edits that do not.
+
+| Group | Sites | How it resolves |
+|---|---|---|
+| Model layer | 9 in 9 files | The constructors already hold the info, so `of(info)`. Mechanical, and this is the group the browser renders |
+| Export and painter | 11 in 7 files | `AbstractVSExporter` (4), `VSTableDataHelper`, `VSSelectionListHelper`, `VSSelectionTreeHelper`, `ExportUtil`, `VSCalendar` (2), `VSSlider`. The assembly is available at the prepare/paint seam. This is the export-affecting group |
+| Chart pipeline | 6 in 5 files | A `VizContext` field set at construction: `GraphGenerator:218` takes a `ChartVSAssemblyInfo` so `of(chart)`, `:433` takes a `ChartInfo` so `LEGACY`. `CSSChartStyles.apply` gains a context parameter — `of(info)` from `VGraphPair:1353` and `VSChartDndService:224`, `LEGACY` from `CSSProcessor:303` |
+| Dialog models | 6 in 3 files | Forward the info that `ChartPropertyDialogService` and `RegionPropertyDialogService` already hold |
+| Services and controllers | 5 in 4 files | `BaseTableService` (2), `FormatPainterService` and `ChangeChartTypeService` hold assemblies; `ChartColorPaletteController` keeps `ofGate()` |
+| Query and lens | 2 | `DataVSAQuery`, `VSTableLens` |
+| Report-only | 3 | `CSSProcessor` takes `LEGACY`; `VsToReportConverter`'s two sites take the source assembly's info |
+| Info-local | 1 | `SelectionBaseVSAssemblyInfo.getEffectiveCellHeight()` takes `of(this)` |
+
+The chart-pipeline field settles something P2 left as a convention. `VizContext` encodes "is this a
+viewsheet chart at all" as identity against `LEGACY`, defended today by two tests and a comment; a field set
+from the constructor that knows the answer replaces the convention with a fact.
+
+**The dialog decision, and its limit.** Threading the two services means a property dialog opened on an
+unmarked chart previews legacy chrome and agrees with the canvas behind it — which matters precisely because
+this phase's purpose is that unmarked content looks legacy. `ChartColorPaletteController` cannot join them:
+its endpoint is a parameterless bootstrap GET with no assembly in scope, cached once per client. It keeps
+the org gate with a comment saying why, on the grounds that a global swatch list is not per-assembly chrome.
+Replacing it with a per-assembly endpoint would put a client change and an uncacheable fetch inside a
+server-only phase.
+
+**Not in P4.** `resolveSeededCorner` and the `VSCompositeFormat` tab carve-out stay org-scoped, per the
+decision above. The dark re-stamp is its own later phase. The browser reads are P5. The revert sweep belongs
+to the reverse half and the release gate.
+
+**Verification.** Per group, a unit test that a marked info reads modern and an unmarked one reads legacy —
+the assertion the whole phase exists to make true. The 23-test characterization net from P3 continues to
+guard creation, and the creation flip adds its own. Then the full `core` suite. Then a manual pass heavier
+than P3's: an unmarked dashboard renders legacy; a Modernized copy of it renders modern; **export agrees
+with view for both, across PDF, PNG and Excel**; the gate off reverts read-time chrome on marked assemblies;
+dark off strands nothing. The export half cannot be settled by any test in the suite, which is why it is
+called out separately rather than folded into the list.
+
+**What P5 will revisit, carried per task so it is not rediscovered.** The body class becomes a per-assembly
+scope, which modifies the behaviour of shipped toolbar slices 1–3. `VSObjectModel` gains the mark field, and
+Jackson serialises `VizMark` by `name()` rather than `value()`, so the wire form needs deciding before the
+browser keys off it. Seventeen `GuiTool` call sites read the class back off the body today.
+
+**Built 2026-08-18, on `viz-updates`, uncommitted.** All 43 read sites plus the creation-path flip landed as
+the shape above specifies, one task per group. `VSAssemblyInfo.java:1235` now reads
+`seedChromeDefaults(VizContext.of(this));`, replacing the single creation-path `ofGate()` call P3 had
+already reduced the four original creation sites to; the "decided 2026-08-18: creation flips too" paragraph
+above is no longer a decision awaiting code. The only call to `VizContext.ofGate()` left anywhere in
+`core/src/main` is `ChartColorPaletteController.java:45`, carrying the comment this section specifies,
+confirmed by `grep -rnF "VizContext.ofGate()" --include=*.java core/src/main`.
+
+**The plan's own sweep instruction expected two survivors and was wrong about why.** It read `VizContext.java`'s
+factory definition, `ofGate() {`, as a second hit alongside `ChartColorPaletteController`. It is not a call:
+an unescaped `.` in an earlier `grep -rn` pattern matches the space in `public static VizContext ofGate() {`
+(`VizContext.java:48`), which is why the pattern-only sweep and the literal one (`grep -F`) disagree. The
+literal sweep, and the persisted guard built to replace it,
+`VizContextReadFlipTest.exactlyOneDocumentedSiteStillReadsTheOrgGate`, both return exactly one name,
+`ChartColorPaletteController.java`. That test walks every `.java` file under `core/src/main/java/inetsoft`
+rather than checking a package list, closing four packages a set of per-package assertions had left
+uncovered — `FormatPainterService` (`web/composer/vs/controller`), `ChangeChartTypeService`
+(`web/binding/controller`), `VsToReportConverter`'s two sites and `SelectionBaseVSAssemblyInfo` (both
+`uql/viewsheet/internal`), and `CSSProcessor` (`report/css`) — any one of which could have grown a stray
+`ofGate()` call with nothing in the suite noticing. The guard was watched fail before it was trusted: a
+temporary `ofGate()` call was added to `SelectionBaseVSAssemblyInfo`, the assertion failed and named that
+file in its message, and the injection was reverted.
+
+Recording `VizContext.of(` for the same reason the sweep records `ofGate()`:
+`grep -rncF "VizContext.of(" --include=*.java core/src/main` sums to 43, not "43 plus the creation site" as
+a first pass estimated. The literal count includes the creation site itself and
+`VizModernizeUtil.java:60`'s own `of(mark)` for the Modernize action, both outside the 43-site read table
+above, while the export group's flip moved `ExportUtil.getBackGroundColor`'s `VizContext` read from one call
+inside `ExportUtil` (`ExportUtil.java:108-109`, widened to take the context as a parameter) out to its two
+callers (`PDFVSExporter.java:653`, `SVGVSExporter.java:374`), each computing `VizContext.of(info)`
+independently — a site moved outward, not added. The raw total does not reconcile to the table's group sums
+plus one by simple arithmetic; what the sweep exists to confirm, that nothing outside the documented
+survivor still reads the gate, holds regardless.
+
+**The full `core` suite passed clean at 4899 run, 0 failures, 0 errors, 67 skipped, `BUILD SUCCESS`.** No
+fixture needed a mark added for this phase's own flips: the eight tests across
+`ChartVSAssemblyInfoBarRoundingTest` and `VSObjectChromeDefaultsTest` that encoded "gate on means modern" for
+an unmarked info were already repaired, fixture by fixture, during the creation flip's own fix round, before
+any read site moved — so this run is the first time the full suite has exercised all 43 read-flip sites
+together rather than each group's targeted subset. The arithmetic reconciles: 4887 at the P3 baseline, plus
+2 for the creation flip's own tests, plus the 10 tests now in `VizContextReadFlipTest` (4 at its
+introduction, 6 added one or two at a time as each group's flip landed its own assertion), is 4899.
+
+**The nine manual checks below are outstanding. Nobody has run them, and nothing in this document should be
+read as though they had.** They need a built and running server, a browser, a dashboard saved before the
+mark existed, and exported PDF, PNG and Excel files, none of which this pass had.
+
+1. **The reversal, and the check that could not have passed before this phase.** Gate on, on a dashboard
+   saved before the mark existed: it renders legacy chrome — titles, fonts, axis colours and table banding
+   all back to their pre-gate appearance. P3 could not make this true, because nothing yet read the mark;
+   this phase's whole purpose is that the check now passes, and until it is run that purpose is asserted
+   rather than demonstrated.
+2. Press Modernize on it: it renders modern.
+3. A dashboard created new under the gate renders modern without any action.
+4. Export agrees with view, for both. Export the unmarked dashboard and the modernized one to PDF, PNG and
+   Excel and compare each against its canvas. Chrome colours move; geometry does not.
+5. Turn the gate off: the marked dashboard reverts to legacy read-time chrome.
+6. Turn dark mode off with the gate on: nothing is stranded — no dark card backgrounds under light chart
+   chrome.
+7. Open a chart property dialog on the unmarked dashboard: the preview shows legacy chrome, matching the
+   canvas.
+8. A mixed dashboard — one Modernized assembly beside unmarked ones — renders both correctly side by side.
+9. Scheduled export of the unmarked dashboard matches its interactive export.
+
 ### P5 — flip the browser reads to the mark
 
 `VSObjectModel` field; per-assembly `viz-modern`/`viz-dark` on `.vs-object-parent-container`; the body class
@@ -832,11 +1016,17 @@ Small enough to answer in the plan rather than before it.
 
 ## What this unblocks
 
-When P5 lands: **L′** the title lane height row (which needs both the mark and `userTitleHeight` — the mark
-says *is this assembly modern*, the flag says *did an author choose this height*), **L″** behind it, §07
-derived selection and the retirement of the teal family, the range slider's painter half, and the outlined
-text conversion. The card radius 12px → 6px additionally needs the sweep, because retiring
-`resolveSeededCorner` without it leaves no reversal path.
+**Corrected 2026-08-18, now that P4 is built: L′ does not wait for P5.** This section previously read "when
+P5 lands: L′…", written before either phase existed in code. `VSDensityDefaults.titleHeight()` is read by
+the Java painters, not by the browser's per-assembly CSS scope, so the read path L′ needs is a server read —
+P4's subject. **L′**, the title lane height row, needs both `userTitleHeight` (shipped in
+`1d26dbefb`/`d4d0d5d48` — *did an author choose this height*) and a read path that consults the mark at the
+title-height resolver (*is this assembly modern*) — the second half is what P4 supplies, so L′ is startable
+now rather than at P5.
+
+When P5 lands: **L″** behind L′, §07 derived selection and the retirement of the teal family, the range
+slider's painter half, and the outlined text conversion. The card radius 12px → 6px additionally needs the
+sweep, because retiring `resolveSeededCorner` without it leaves no reversal path.
 
 What it does **not** clear is the release gate. That needs the sweep, the bookmark path and the deletion of
 the four old mechanisms.

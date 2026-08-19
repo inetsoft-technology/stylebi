@@ -36,7 +36,8 @@ public abstract class VSCompositeModel<T extends VSAssembly> extends VSObjectMod
 
       title = assemblyInfo.getTitle();
       titleFormat = new VSFormatModel(VSTitleChromeDefaults.applyModernDefaults(
-                                         finfo.getFormat(VSAssemblyInfo.TITLEPATH, false), VizContext.ofGate()),
+                                         finfo.getFormat(VSAssemblyInfo.TITLEPATH, false),
+                                         VizContext.of((VSAssemblyInfo) assemblyInfo)),
                                       (VSAssemblyInfo) assemblyInfo);
       Dimension size = new Dimension((int) getObjectFormat().getWidth(),
                                      assemblyInfo.getTitleHeight());

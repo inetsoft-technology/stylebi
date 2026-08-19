@@ -1776,7 +1776,7 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
       int densityHeaderRowHeight = 0;
 
       // match the live model's org density default so export and view agree; user-set and CSS win
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = VizContext.of(info);
 
       if(ctx.modern) {
          if(cssDataRowHeight <= 0 && !tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {

@@ -82,6 +82,7 @@ class VSObjectChromeDefaultsTest {
    void chartBorderSeedModernUnderGate() {
       withGate("true", () -> {
          ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+         info.setVizMark(VizMark.fromGate());
          info.initDefaultFormat();
          BorderColors b = info.getFormat().getDefaultFormat().getBorderColors();
          assertEquals(0xD9D5CC, rgb(b.topColor), "new chart under the gate seeds the modern border");
@@ -138,6 +139,7 @@ class VSObjectChromeDefaultsTest {
    void chartCardSeedDark() {
       withDark(() -> {
          ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+         info.setVizMark(VizMark.fromGate());
          info.initDefaultFormat();
          assertEquals(0x252428, rgb(info.getFormat().getDefaultFormat().getBackground()),
                       "new chart under dark seeds the dark card background");
@@ -229,6 +231,7 @@ class VSObjectChromeDefaultsTest {
    }
 
    private int seededRadius(VSAssemblyInfo info) {
+      info.setVizMark(VizMark.fromGate());
       info.initDefaultFormat();
       return info.getFormat().getRoundCorner();
    }
@@ -283,7 +286,10 @@ class VSObjectChromeDefaultsTest {
    @Test
    void cardCornerSeedRevertsWhenGateTurnedOff() {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
-      withGate("true", () -> info.initDefaultFormat());
+      withGate("true", () -> {
+         info.setVizMark(VizMark.fromGate());
+         info.initDefaultFormat();
+      });
       withGate("true", () -> assertEquals(12, info.getFormat().getRoundCorner(), "rounded while on"));
       withGate("false", () -> assertEquals(0, info.getFormat().getRoundCorner(), "square once off"));
    }
