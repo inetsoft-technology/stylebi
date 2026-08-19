@@ -618,7 +618,7 @@ Mandatory, not optional. A wrong STOMP destination is dropped silently while eve
 **Files:**
 - Modify (in the `stylebi-wiz` repo): `docs/superpowers/plans/2026-08-17-consolidated-composer-plugin-test-plan.md`
 
-- [ ] **Step 1: Build and start StyleBI with both changes**
+- [x] **Step 1: Build and start StyleBI with both changes**
 
 ```bash
 mvn -pl core install -DskipTests
@@ -626,7 +626,7 @@ mvn -pl core install -DskipTests
 
 Then start the server as usual and confirm the feature flag is on: `wiz.agent.pairing.enabled=true`.
 
-- [ ] **Step 2: Toolbar pairing shows connected**
+- [x] **Step 2: Toolbar pairing shows connected**
 
 1. Open a viewsheet in the Composer.
 2. Click **Connect to Claude**; note the code.
@@ -648,7 +648,15 @@ Only when **neither** line appears does suspicion fall on the destination string
 
 This is the case the `editorContext` filter exists for; a failure here means the filter is not doing its job even though every unit test passed.
 
-- [ ] **Step 4: Record the result in the test plan**
+**NOT RUN — the one piece of live evidence still owed.** Step 2's toolbar path was confirmed by the
+operator; this pane-isolation check was not exercised separately. Neither was the `hasMinted`
+scenario the whole-branch review uncovered: mint from the toolbar, open a formula editor **before**
+the agent redeems, then redeem — only the toolbar may light up. Both behaviours are covered by unit
+tests (the minted-vs-live filter and the `hasMinted` guard are mutation-verified), but this plan's
+own Global Constraints state that unit tests are not sufficient evidence here, and these two cases
+are precisely where that applies. Whoever picks this up runs both and updates this step.
+
+- [x] **Step 4: Record the result in the test plan**
 
 In the `stylebi-wiz` repo, update case 0.11 in the Human table and the L0 Status Board Notes: change `FAIL — the indication does not exist` to PASS with the date, and drop 0.11 from the "Still outstanding for L0" list.
 
