@@ -1073,7 +1073,7 @@ public class WizVsService {
     * caller, whereas a miss here silently falls back to EVERY ref — reproducing the very bug this method
     * exists to fix. Leniency is the safer default when the penalty for a miss is a wrong render rather
     * than an error. A genuinely mis-cased request is still caught: the condition fields are resolved
-    * case-sensitively against the chart columns by rebindChartConditionFields, which throws first.
+    * case-sensitively against the chart columns by rebindConditionFieldsToViewColumns, which throws first.
     *
     * The plain form is ambiguous when a chart binds two aggregates over the same column (e.g. both
     * {@code Sum(Sales)} and {@code Avg(Sales)}, each of whose {@code getName()} is "Sales"): a rule using
@@ -1201,7 +1201,8 @@ public class WizVsService {
     * BASE column, and no such header exists at render time. The second match arm is what turns that into
     * the header the data actually carries.
     */
-   private Set<String> rebindConditionFieldsToViewColumns(ConditionList conds, ColumnSelection viewCols) {
+   // Package-private for unit testing (WizVsServiceHighlightRebindTest).
+   Set<String> rebindConditionFieldsToViewColumns(ConditionList conds, ColumnSelection viewCols) {
       // LinkedHashSet: dedup while preserving first-seen order, so the same bad field name appearing in
       // several condition leaves (e.g. "Profit > 5 AND Profit < 100") is listed once in the error message.
       Set<String> unresolved = new LinkedHashSet<>();
@@ -1280,21 +1281,54 @@ public class WizVsService {
     * The header an aggregate condition names, composed from the formula the caller gave: an
     * AggregateRef(SALES, Average) -> "Average(SALES)". Null when the ref carries no formula.
     *
+    * Covers all three arities AggregateRef.toView() composes, since the result is compared against a
+    * header that method produced: one column ("Average(SALES)"), two for a two-column formula
+    * ("Correlation(SALES, PROFIT)"), and a column plus N for an N-parameter one ("NthLargest(SALES, 3)").
+    *
     * Exists because a column can be bound MORE THAN ONCE under different aggregates — "Sum(SALES)" and
     * "Average(SALES)" side by side in the same crosstab or chart. The base name alone cannot say which of
     * them was meant, so the loose scan in findAggregatedColumn answers with whichever the view lists
     * first: an Average condition silently lands on the Sum column, and the highlight colors cells chosen
     * by a number nobody asked about.
     */
-   private static String aggregateHeaderOf(DataRef ref) {
+   // Package-private for unit testing (WizVsServiceHighlightRebindTest).
+   static String aggregateHeaderOf(DataRef ref) {
       if(!(ref instanceof AggregateRef aggregateRef) || aggregateRef.getFormula() == null) {
          return null;
       }
 
       String base = ref.getName();
 
-      return base == null || base.isEmpty()
-         ? null : aggregateRef.getFormula().getFormulaName() + "(" + base + ")";
+      if(base == null || base.isEmpty()) {
+         return null;
+      }
+
+      AggregateFormula formula = aggregateRef.getFormula();
+      String name = formula.getFormulaName();
+
+      // Mirrors AggregateRef.toView(), which is what composes the header at render time — including its
+      // two extra arities, both of which a wiz condition can carry (buildConditionItem sets secondaryRef
+      // for isTwoColumns and N for hasN). Composed with the SAME argument order and separator, because
+      // this string is compared for EQUALITY against a header the view already produced: a one-argument
+      // "Correlation(SALES)" never matches the real "Correlation(SALES, PROFIT)", the lookup falls back to
+      // the loose base-name scan, and the ambiguity this preferred name exists to remove comes back for
+      // exactly these formulas.
+      if(formula.isTwoColumns()) {
+         DataRef secondary = aggregateRef.getSecondaryColumn();
+         String secondaryName = secondary != null ? secondary.getName() : null;
+
+         // No secondary column to name: toView() falls through to the one-argument form here too, so the
+         // header composed below still matches it.
+         return secondaryName == null || secondaryName.isEmpty()
+            ? name + "(" + base + ")"
+            : name + "(" + base + ", " + secondaryName + ")";
+      }
+
+      if(formula.hasN()) {
+         return name + "(" + base + ", " + aggregateRef.getN() + ")";
+      }
+
+      return name + "(" + base + ")";
    }
 
    /**
