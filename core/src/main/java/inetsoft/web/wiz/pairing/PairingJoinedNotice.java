@@ -25,7 +25,7 @@ package inetsoft.web.wiz.pairing;
  * displayed was ever used, and the only evidence pairing worked is the agent saying so.
  *
  * <p>Carries exactly the three fields the client needs to decide whether a notice is addressed to
- * it. The destination is per-user, not per-sheet and not per-pane, while
+ * it. The destination is per socket session — not per sheet and not per pane — while
  * {@code ConnectToClaudeComponent} is reused by the composer toolbar, the viewsheet script pane and
  * the formula editor dialog — several instances can be alive at once on one page. Both
  * {@code runtimeId} and {@code editorContext} are therefore load-bearing filters, not diagnostics.

@@ -633,7 +633,12 @@ Then start the server as usual and confirm the feature flag is on: `wiz.agent.pa
 3. Redeem it from a Claude Code session: `connect_sheet` with that code.
 4. Expected: the button area now shows **✓ Agent connected**, and the pairing code is gone.
 
-If nothing appears, check the server log for `Pairing joined, but notifying the browser failed`. If that line is absent, the push succeeded and was dropped at the destination — re-check `PAIRING_JOINED_TOPIC` against the client's subscription string, which is the silent-failure mode the spec warns about.
+If nothing appears, grep the server log for **both** of these before concluding anything:
+
+- `Pairing joined, but notifying the browser failed` — the push itself threw; the stack trace names why.
+- `session not found, message dropped` — `CommandDispatcherService.convertAndSendToUser` logs this and **returns without throwing** when the STOMP session is no longer registered, which a browser reconnect between mint and join produces. The destination is fine in this case; re-pair and retry.
+
+Only when **neither** line appears does suspicion fall on the destination string — then re-check `PAIRING_JOINED_TOPIC` against the client's subscription, which is the silent-failure mode the spec warns about. Checking for the first line alone gives a false "the destination must be wrong" on every reconnect.
 
 - [ ] **Step 3: A pane pairing must not light the toolbar**
 

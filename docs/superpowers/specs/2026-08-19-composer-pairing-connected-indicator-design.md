@@ -110,9 +110,9 @@ Three mechanics this implies, none of which the component does today:
 - **The component has no `ngOnInit`** — it implements only `OnChanges` and `OnDestroy`. Add
   `OnInit` and open the subscription there, via the same
   `socketConnection.whenConnected().pipe(take(1))` handshake `requestCode()` already uses.
-- **Do not tear the subscription down on a `runtimeId` change.** The destination is per-user, not
-  per-runtime, so the existing `ngOnChanges` reset should clear `connected` and leave the
-  subscription alone. Only the *filter input* changed, not the channel.
+- **Do not tear the subscription down on a `runtimeId` change.** The destination is per socket
+  session, not per runtime, so the existing `ngOnChanges` reset should clear `connected` and leave
+  the subscription alone. Only the *filter input* changed, not the channel.
 - **`ngOnDestroy` must release it.** Today it only unsubscribes `mintSubscription`; a standing
   subscription that outlives its component is a leak, and this component is created and destroyed
   repeatedly by the formula-editor dialog.
