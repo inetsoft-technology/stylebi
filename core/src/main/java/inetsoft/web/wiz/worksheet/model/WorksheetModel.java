@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.worksheet.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 /**
@@ -25,7 +27,16 @@ import java.util.List;
  * <p>All fields are plain Java records — no Spring / JPA dependencies — so the
  * class can be constructed anywhere (tests, service, controller) without a
  * container.</p>
+ *
+ * <p>Every record here omits its null fields, matching the sibling DTOs under
+ * {@code inetsoft.web.wiz.model}. This payload is read by an LLM, and a field that is absent says
+ * exactly what a field that is {@code null} says while costing nothing —
+ * {@code "concatType": null, "concatCompatible": null, "autoUpdate": null} on every plain table
+ * adds up. {@code NON_NULL} and deliberately not {@code NON_EMPTY}: an empty {@code sources} or
+ * {@code joins} list is a meaningful answer ("built on nothing", "no predicates") and must stay on
+ * the wire.</p>
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record WorksheetModel(List<TableModel> tables, List<VariableModel> variables,
                              List<NamedGroupModel> namedGroups) {
 
@@ -76,6 +87,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param sorts              sort directives; empty when none
     * @param primary            {@code true} if this is the worksheet's primary assembly
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
       String name,
       String type,
@@ -112,6 +124,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    than take the list length, and anything comparing the model against real
     *                    rows has to expect hidden columns to be missing from the data.
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record ColumnModel(String name, String type, String alias, String expression,
                              String description, boolean visible) {}
 
@@ -124,6 +137,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param rightKey   attribute name from the right table
     * @param op         join operator name (e.g. {@code "INNER_JOIN"}, {@code "LEFT_JOIN"})
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record JoinModel(
       String leftTable,
       String leftKey,
@@ -147,6 +161,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param junction  {@code "AND"} or {@code "OR"} — the junction that precedes
     *                  this condition in the list (may be {@code null} for the first item)
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record FilterModel(
       String field,
       String operation,
@@ -160,6 +175,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param groups     group-by dimensions
     * @param aggregates measure aggregate definitions
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record AggregateModel(List<GroupModel> groups, List<AggregateRefModel> aggregates) {
 
       /**
@@ -171,6 +187,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        *                  {@code dateLevel} / add_date_range_column's {@code dateOption};
        *                  {@code null} for a plain (non-date-bucketed) group
        */
+      @JsonInclude(JsonInclude.Include.NON_NULL)
       public record GroupModel(String field, String dateLevel) {}
 
       /**
@@ -180,6 +197,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        * @param formula formula name (e.g. {@code "Sum"}, {@code "Count"})
        * @param alias   output alias; may be {@code null}
        */
+      @JsonInclude(JsonInclude.Include.NON_NULL)
       public record AggregateRefModel(String column, String formula, String alias) {}
    }
 
@@ -189,6 +207,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param field column name
     * @param order {@code "ASC"} or {@code "DESC"}
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record SortModel(String field, String order) {}
 
    /**
@@ -199,6 +218,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param type         XSchema data-type string; may be {@code null}
     * @param defaultValue stringified default value; may be {@code null}
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record VariableModel(String name, String label, String type, String defaultValue) {}
 
    /**
@@ -210,6 +230,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param groupMappings list of group name to values mappings
     * @param groupOthers   {@code true} if unmapped values are grouped as "Others"
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record NamedGroupModel(
       String name,
       String table,
@@ -224,5 +245,6 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param groupName the name of the group
     * @param values    the values assigned to this group
     */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    public record GroupMappingModel(String groupName, List<String> values) {}
 }

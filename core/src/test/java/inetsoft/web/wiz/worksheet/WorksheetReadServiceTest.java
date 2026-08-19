@@ -250,6 +250,28 @@ class WorksheetReadServiceTest {
    }
 
    /**
+    * What the agent actually receives on the wire. A {@code null} field tells an LLM nothing that an
+    * absent field does not, and there are three of them on every plain table; an <em>empty list</em>
+    * is a real answer ("built on nothing", "no predicates") and has to survive, which is why the
+    * model asks for {@code NON_NULL} and not {@code NON_EMPTY}.
+    */
+   @Test
+   void serializedModelOmitsNullFieldsButKeepsEmptyLists() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "T", "col"));
+
+      String json = new com.fasterxml.jackson.databind.ObjectMapper()
+         .writeValueAsString(read(ws));
+
+      assertFalse(json.contains("concatType"), json);
+      assertFalse(json.contains("concatCompatible"), json);
+      assertFalse(json.contains("autoUpdate"), json);
+      assertFalse(json.contains("aggregates"), json);
+      assertTrue(json.contains("\"sources\":[]"), json);
+      assertTrue(json.contains("\"joins\":[]"), json);
+   }
+
+   /**
     * A rotate has exactly one source but is <em>not</em> a {@code CompositeTableAssembly} — it
     * extends {@code ComposedTableAssembly} directly, as does an unpivot. A source lookup written
     * against composites and mirrors alone reports both as having no sources at all, which is the

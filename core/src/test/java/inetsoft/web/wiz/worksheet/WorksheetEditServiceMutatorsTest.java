@@ -1912,6 +1912,40 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * With three sources the mismatch is between the third and the first, which pins down that the
+    * loop keeps checking past the first pair and names the offending source rather than whichever
+    * one happened to come second.
+    *
+    * <p>It does not distinguish anchoring on {@code sources[0]} from anchoring on the predecessor,
+    * and no test can: {@code isMergeable} is an equivalence relation over disjoint type classes, so
+    * a third source that clashes with the first necessarily clashes with the second as well.</p>
+    */
+   @Test
+   void addConcatenationChecksEverySourceNotJustTheFirstPair() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly c =
+         table(ws, "C", col("id", XSchema.INTEGER), col("amount", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addConcatenation("U", List.of("A", "B", "C"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"C\""),
+                 "the third source is the one that clashes and has to be named: " + ex.getMessage());
+      assertNull(ws.getAssembly("U"));
+   }
+
+   /**
     * The counts come from the PUBLIC column selection — visible columns only — while the read
     * model's column list includes hidden ones. Saying "visible" keeps the number in the refusal
     * reconcilable with the number a caller counts in the model it just read.
