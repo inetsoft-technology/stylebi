@@ -919,7 +919,9 @@ public class WorksheetEditService {
        * @param tables    the source table assembly names (at least two)
        * @param opType    one of {@code "UNION"}, {@code "INTERSECT"}, {@code "MINUS"}
        *                  (case-insensitive; defaults to {@code "UNION"})
-       * @throws PairingException if fewer than two tables are given or a source is not found
+       * @throws PairingException if fewer than two tables are given, a source is not found, or the
+       *                          sources do not line up — same number of visible columns, and
+       *                          position-by-position mergeable types
        */
       public void addConcatenation(String name, List<String> tables, String opType)
          throws PairingException
@@ -939,17 +941,62 @@ public class WorksheetEditService {
             sources[i] = requireTable(tables.get(i));
          }
 
-         // Validate that all tables have the same number of columns.
-         int colCount = sources[0].getColumnSelection(true).getAttributeCount();
+         // Validate that all tables line up: same column count, and column i of each table
+         // mergeable with column i of the first. Sources are concatenated BY POSITION, not by
+         // name, so a pair that does not line up produces a column carrying two unrelated kinds
+         // of value — which renders as an ordinary column and reports no error anywhere. The
+         // Composer runs the same check (ConcatenatedTableAssembly.tableAssembliesAreCompatible,
+         // surfaced as concatenationWarning); this path previously checked only the count.
+         //
+         // Comparing every table against the first rather than against its predecessor (which is
+         // what ConcatenatedTableAssembly.areCompatible does) is equivalent, since isMergeable
+         // partitions types into disjoint classes — string {string, char}, number {float, double,
+         // byte, short, integer, long}, date {date, timeInstant}, identity otherwise — and is
+         // therefore transitive. Anchoring on the first also matches getDefaultColumnSelection,
+         // which takes the resulting column list from subtables[0].
+         //
+         // Both counts and positions come from the PUBLIC column selection, so hidden columns are
+         // excluded — exactly what the server itself concatenates.
+         ColumnSelection firstColumns = sources[0].getColumnSelection(true);
+         int colCount = firstColumns.getAttributeCount();
 
          for(int i = 1; i < sources.length; i++) {
-            int otherCount = sources[i].getColumnSelection(true).getAttributeCount();
+            ColumnSelection otherColumns = sources[i].getColumnSelection(true);
+            int otherCount = otherColumns.getAttributeCount();
 
             if(otherCount != colCount) {
                throw new PairingException(
                   "Data blocks that do not have the same number of columns cannot be " +
                   "concatenated. \"" + sources[0].getName() + "\" has " + colCount +
-                  " columns but \"" + sources[i].getName() + "\" has " + otherCount + ".");
+                  " visible column" + (colCount == 1 ? "" : "s") + " but \"" +
+                  sources[i].getName() + "\" has " + otherCount + " visible column" +
+                  (otherCount == 1 ? "" : "s") + ".");
+            }
+
+            for(int c = 0; c < colCount; c++) {
+               // Read the type off DataRef rather than narrowing to ColumnRef: skipping a position
+               // whose ref is some other kind would silently leave it unchecked, which is the very
+               // failure this validation exists to prevent.
+               DataRef first = firstColumns.getAttribute(c);
+               DataRef other = otherColumns.getAttribute(c);
+               String ftype = first.getDataType();
+               String otype = other.getDataType();
+
+               // isMergeable dereferences both arguments; a ref with no type at all is not
+               // something this check can speak to, so leave it to the server.
+               if(ftype == null || otype == null) {
+                  continue;
+               }
+
+               if(!AssetUtil.isMergeable(ftype, otype)) {
+                  throw new PairingException(
+                     "Columns are concatenated by position, and position " + (c + 1) +
+                     " does not line up: \"" + sources[0].getName() + "\" has \"" +
+                     first.getAttribute() + "\" (" + ftype + ") while \"" + sources[i].getName() +
+                     "\" has \"" + other.getAttribute() + "\" (" + otype + "), and those types " +
+                     "cannot be merged. Reorder the columns so matching ones share a position, " +
+                     "or change one column's type with change_column_type.");
+               }
             }
          }
 
@@ -1833,9 +1880,17 @@ public class WorksheetEditService {
       /**
        * Toggles the auto-update flag on a mirror table assembly.
        *
+       * <p>Only an <em>outer</em> mirror — one of an asset in another worksheet — actually carries
+       * the flag: {@code MirrorAssemblyImpl.setAutoUpdate} returns early for anything else, and
+       * {@code isAutoUpdate} then answers {@code true} regardless. Since
+       * {@link #addMirror(String, String)} builds inner mirrors, that is the normal case for an
+       * agent, and accepting a write that is silently discarded would leave the caller believing a
+       * setting took when it never did — so the write is verified and refused instead.</p>
+       *
        * @param table      the mirror assembly name
        * @param autoUpdate {@code true} to enable auto-update, {@code false} to disable
-       * @throws PairingException if the assembly is not a mirror table
+       * @throws PairingException if the assembly is not a mirror table, or is a mirror that cannot
+       *                          carry the flag
        */
       public void setMirrorAutoUpdate(String table, boolean autoUpdate)
          throws PairingException
@@ -1847,6 +1902,13 @@ public class WorksheetEditService {
          }
 
          mirror.setAutoUpdate(autoUpdate);
+
+         if(mirror.isAutoUpdate() != autoUpdate) {
+            throw new PairingException(
+               "autoUpdate cannot be set to " + autoUpdate + " on \"" + table + "\": its source " +
+               "is in this worksheet, and such a mirror always tracks its source. Only a mirror " +
+               "of an asset in another worksheet carries the flag.");
+         }
       }
 
       // -----------------------------------------------------------------------

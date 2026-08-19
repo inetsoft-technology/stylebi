@@ -119,8 +119,140 @@ public class WorksheetReadService {
 
       return new WorksheetModel.TableModel(
          name, type, columns, joins,
+         readSources(t), readConcatType(t), readConcatCompatible(t), readAutoUpdate(t),
          preConditions, postConditions, rankingConditions,
          aggregates, sorts, primary);
+   }
+
+   // -------------------------------------------------------------------------
+   // Composition — which assemblies a table is built from
+   // -------------------------------------------------------------------------
+
+   /**
+    * The assemblies this table is built from, in order.
+    *
+    * <p>Order is not cosmetic. A concatenation takes its entire column list from its first
+    * subtable alone — {@link ConcatenatedTableAssembly#getDefaultColumnSelection} walks
+    * {@code subtables[0]}'s columns and consults the rest only to merge numeric types, by
+    * position — so the first entry is what decides the shape, and for a MINUS the order decides
+    * which table is subtracted from which. Reporting the names without their order would be
+    * useless for both.</p>
+    *
+    * <p>Covers every kind of table built on another: {@link ComposedTableAssembly} declares
+    * {@code getTableNames()} and joins, concatenations, mirrors, rotates and unpivots all implement
+    * it. Branching on {@link CompositeTableAssembly} instead would miss rotates and unpivots, which
+    * extend {@code ComposedTableAssembly} directly and would then be reported as having no sources
+    * at all. It matters most for cross and merge joins, which carry no join predicates and therefore
+    * report an empty {@code joins} list — nothing else in the model distinguishes those from a table
+    * with no sources.</p>
+    *
+    * <p>Empty for a table whose source has since been deleted: {@code getTableNames()} resolves the
+    * name against the worksheet, so a dangling reference reports nothing rather than a name that no
+    * longer exists.</p>
+    */
+   private List<String> readSources(TableAssembly t) {
+      if(!(t instanceof ComposedTableAssembly composed)) {
+         return List.of();
+      }
+
+      String[] names = composed.getTableNames();
+
+      if(names == null) {
+         return List.of();
+      }
+
+      // MirrorTableAssembly.getTableNames() wraps its source name without checking it, so a
+      // half-initialized mirror can produce a null entry — and List.of rejects those outright.
+      return Arrays.stream(names).filter(Objects::nonNull).toList();
+   }
+
+   /**
+    * {@code UNION}, {@code INTERSECT} or {@code MINUS} for a concatenation, {@code "MIXED"} when its
+    * pairs do not all use the same operation, {@code null} for anything else.
+    *
+    * <p>The three behave very differently — adding a source to a UNION can add rows while adding
+    * one to an INTERSECT can only remove them — so a caller reasoning about a concatenation needs
+    * to know which it is looking at.</p>
+    *
+    * <p>One operation is held per <em>adjacent pair</em> of subtables, and Composer sets it per
+    * connection, so {@code A UNION B MINUS C} is a legal assembly. Reporting the first pair's
+    * operation as though it described the whole thing would hand the caller a confidently wrong
+    * answer, which is worse than none — hence {@code "MIXED"}. The individual per-pair operations
+    * are deliberately not exposed: no agent tool can set them separately
+    * ({@code add_concatenation} applies one operation to every pair), so naming which pair is which
+    * would not let a caller act on it.</p>
+    */
+   private String readConcatType(TableAssembly t) {
+      if(!(t instanceof ConcatenatedTableAssembly concat)) {
+         return null;
+      }
+
+      Set<String> operations = new LinkedHashSet<>();
+
+      for(int i = 0; i < concat.getOperatorCount(); i++) {
+         operations.add(concatOperation(concat.getOperator(i)));
+      }
+
+      if(operations.isEmpty()) {
+         return null;
+      }
+
+      // One operation, and it was recognized — otherwise the pairs disagree, or the single
+      // operation is not a concatenation at all and reports nothing rather than a guess.
+      return operations.size() == 1 ? operations.iterator().next() : "MIXED";
+   }
+
+   /**
+    * The concatenation operation a single pair uses, or {@code null} if it is not one of the three.
+    */
+   private String concatOperation(TableAssemblyOperator operator) {
+      if(operator == null) {
+         return null;
+      }
+
+      // getKeyOperator() never returns null: with no operator marked as the key one it synthesizes
+      // a JOIN, which falls through to null below.
+      return switch(operator.getKeyOperator().getOperation()) {
+         case TableAssemblyOperator.UNION -> "UNION";
+         case TableAssemblyOperator.INTERSECT -> "INTERSECT";
+         case TableAssemblyOperator.MINUS -> "MINUS";
+         default -> null;
+      };
+   }
+
+   /**
+    * For a concatenation, whether its sources line up by type as well as by count; {@code null} for
+    * anything else.
+    *
+    * <p>Sources are combined by position, so a pair that lines up numerically but not by type
+    * produces a column carrying two unrelated kinds of value — and it renders as an ordinary column
+    * and reports no error anywhere. Composer computes this same predicate and draws it as a warning
+    * on the connection ({@code ConcatenatedTableAssemblyModel.concatenationWarning}), and
+    * {@code add_concatenation} now refuses to build one, so reading it here is the only way an agent
+    * can see the problem in a concatenation it did not create.</p>
+    */
+   private Boolean readConcatCompatible(TableAssembly t) {
+      if(!(t instanceof ConcatenatedTableAssembly concat)) {
+         return null;
+      }
+
+      // getTableAssemblies() returns null once any subtable has gone missing from the worksheet,
+      // and tableAssembliesAreCompatible() would then throw. Reading one dangling concatenation
+      // must not fail the read for the whole worksheet.
+      return concat.getTableAssemblies() == null ? null : concat.tableAssembliesAreCompatible();
+   }
+
+   /**
+    * A mirror's <b>effective</b> auto-update flag, or {@code null} for anything that is not a
+    * mirror.
+    *
+    * <p>Effective, not stored: {@code MirrorAssemblyImpl} answers {@code auto || !isOuterMirror()},
+    * so a mirror whose source lives in the same worksheet always reports {@code true} however the
+    * flag was set. Settable through the agent API but, until now, not readable through it — so a
+    * caller had no way to tell whether a mirror it did not create is tracking its source.</p>
+    */
+   private Boolean readAutoUpdate(TableAssembly t) {
+      return t instanceof MirrorTableAssembly mirror ? mirror.isAutoUpdate() : null;
    }
 
    private String tableType(TableAssembly t) {
@@ -194,7 +326,8 @@ public class WorksheetReadService {
          expression = exprRef.getExpression();
       }
 
-      return new WorksheetModel.ColumnModel(name, type, alias, expression, description);
+      return new WorksheetModel.ColumnModel(name, type, alias, expression, description,
+                                            ref.isVisible());
    }
 
    // -------------------------------------------------------------------------

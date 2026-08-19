@@ -2014,4 +2014,211 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(t.getColumnSelection(false).getAttribute("a"),
          "the data column is untouched");
    }
+
+   // =========================================================================
+   // Concatenation tests
+   // =========================================================================
+
+   private static ColumnRef col(String name, String dataType) {
+      return col(name, dataType, true);
+   }
+
+   private static ColumnRef col(String name, String dataType, boolean visible) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, name));
+      ref.setDataType(dataType);
+      ref.setVisible(visible);
+      return ref;
+   }
+
+   /**
+    * Builds a table from already-configured columns. The types and visibility have to be set
+    * <em>before</em> the private selection is installed: {@code setColumnSelection} regenerates the
+    * public selection from clones of the visible private columns, and it is the public selection
+    * the concatenation checks read — so a type set on a private column afterwards never reaches
+    * them.
+    */
+   private static EmbeddedTableAssembly table(Worksheet ws, String name, ColumnRef... cols) {
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
+      ColumnSelection cs = new ColumnSelection();
+
+      for(ColumnRef c : cols) {
+         cs.addAttribute(c);
+      }
+
+      t.setColumnSelection(cs, false);
+      return t;
+   }
+
+   /**
+    * Different types are not automatically a mismatch: {@code AssetUtil.isMergeable} — and
+    * therefore Composer — treats all the number types as interchangeable, and likewise the string
+    * types. Refusing these would block concatenations the product itself considers valid.
+    */
+   @Test
+   void addConcatenationAcceptsColumnTypesThatMerge() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("n", XSchema.INTEGER), col("s", XSchema.STRING));
+      EmbeddedTableAssembly b = table(ws, "B", col("n", XSchema.DOUBLE), col("s", XSchema.CHAR));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      assertTrue(ws.getAssembly("U") instanceof ConcatenatedTableAssembly);
+   }
+
+   /**
+    * Sources are combined BY POSITION, so a pair that lines up numerically but not by type produces
+    * a column carrying two unrelated kinds of value — which renders as an ordinary column and
+    * reports no error anywhere. The message has to name the position and both sides, since that is
+    * what tells the caller which column to reorder or retype.
+    */
+   @Test
+   void addConcatenationRejectsColumnsThatDoNotLineUpByType() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("amount", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("name"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("amount"), ex.getMessage());
+      assertNull(ws.getAssembly("U"), "nothing may be added when the sources do not line up");
+   }
+
+   /**
+    * With three sources the mismatch is between the third and the first, which pins down that the
+    * loop keeps checking past the first pair and names the offending source rather than whichever
+    * one happened to come second.
+    *
+    * <p>It does not distinguish anchoring on {@code sources[0]} from anchoring on the predecessor,
+    * and no test can: {@code isMergeable} is an equivalence relation over disjoint type classes, so
+    * a third source that clashes with the first necessarily clashes with the second as well.</p>
+    */
+   @Test
+   void addConcatenationChecksEverySourceNotJustTheFirstPair() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      EmbeddedTableAssembly c =
+         table(ws, "C", col("id", XSchema.INTEGER), col("amount", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addConcatenation("U", List.of("A", "B", "C"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"C\""),
+                 "the third source is the one that clashes and has to be named: " + ex.getMessage());
+      assertNull(ws.getAssembly("U"));
+   }
+
+   /**
+    * The counts come from the PUBLIC column selection — visible columns only — while the read
+    * model's column list includes hidden ones. Saying "visible" keeps the number in the refusal
+    * reconcilable with the number a caller counts in the model it just read.
+    */
+   @Test
+   void addConcatenationRejectsDifferentColumnCountsAndSaysTheyAreVisibleCounts() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id", "name");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("2 visible columns"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("1 visible column"), ex.getMessage());
+      assertNull(ws.getAssembly("U"));
+   }
+
+   /**
+    * Hidden columns are excluded from the public selection, so hiding one really does change which
+    * columns line up: {@code A(id, hidden:integer, name)} concatenates with {@code B(id, name)}
+    * because the hidden column is not there as far as the server is concerned. A check reading the
+    * private selection instead would see three columns against two and refuse it.
+    */
+   @Test
+   void addConcatenationLinesUpVisibleColumnsOnly() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER),
+                                     col("hidden", XSchema.INTEGER, false),
+                                     col("name", XSchema.STRING));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("name", XSchema.STRING));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      assertTrue(ws.getAssembly("U") instanceof ConcatenatedTableAssembly);
+   }
+
+   // =========================================================================
+   // Mirror auto-update tests
+   // =========================================================================
+
+   /**
+    * {@code MirrorAssemblyImpl.setAutoUpdate} returns early for anything that is not an outer
+    * mirror, and {@code isAutoUpdate} then answers {@code true} regardless — so the write is
+    * accepted and discarded without a word. Every mirror {@code add_mirror} creates is an inner
+    * mirror ({@code MirrorTableAssembly(ws, name, assembly)} passes {@code outer = false}), so this
+    * is the normal case for an agent, not an edge case.
+    */
+   @Test
+   void setMirrorAutoUpdateRefusesAMirrorThatCannotHonourIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly base = TestWorksheets.tableWithColumns(ws, "BASE", "col");
+      ws.addAssembly(base);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", base);
+      ws.addAssembly(mirror);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setMirrorAutoUpdate("M", false)));
+
+      assertTrue(ex.getMessage().contains("autoUpdate"), ex.getMessage());
+      assertTrue(mirror.isAutoUpdate(), "the flag was never actually changed");
+   }
+
+   @Test
+   void setMirrorAutoUpdateStillWorksOnAnOuterMirror() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly base = TestWorksheets.tableWithColumns(ws, "BASE", "col");
+      ws.addAssembly(base);
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "/other-ws", null);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", entry, true, base);
+      ws.addAssembly(mirror);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMirrorAutoUpdate("M", false));
+
+      assertFalse(mirror.isAutoUpdate());
+   }
 }
