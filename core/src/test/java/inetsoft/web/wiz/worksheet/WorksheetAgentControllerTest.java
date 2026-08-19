@@ -1370,7 +1370,7 @@ class WorksheetAgentControllerTest {
     * deliberately shared with the pane-scoped {@code WorksheetScriptService} caller, which has
     * ALREADY run its own narrow {@code PaneScopeService.check} and must not be refused again by
     * the broad whole-sheet check -- see {@link WorksheetAgentController#editOp} javadoc. So the
-    * guard here is 12 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
+    * guard here is 13 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
     * one per endpoint, and nothing before this test failed the build the day one of them went
     * missing.
     *
@@ -1380,7 +1380,7 @@ class WorksheetAgentControllerTest {
     * than trusting that the next endpoint's author remembers to add the call. {@code join} never
     * matches (no {@code {sessionToken}} in its path -- that is where one is minted); {@code
     * detach} matches but is explicitly exempted above, for the reason its own javadoc gives.
-    * Endpoint 13 fails THIS test the moment it omits the guard.
+    * Endpoint 14 fails THIS test the moment it omits the guard.
     */
    @Test
    void everySessionTokenEndpointRefusesAPaneScopedSessionOrIsExplicitlyExempt() {
@@ -1433,7 +1433,7 @@ class WorksheetAgentControllerTest {
          }
       }
 
-      assertTrue(checked >= 12, "Expected at least the 12 known session-scoped endpoints to " +
+      assertTrue(checked >= 13, "Expected at least the 13 known session-scoped endpoints to " +
          "be enumerated, found " + checked + " -- did WorksheetAgentController's mapping " +
          "annotations change shape?");
       assertTrue(notRefused.isEmpty(), "Endpoint(s) mapped with {sessionToken} did not refuse " +
