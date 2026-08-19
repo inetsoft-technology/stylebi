@@ -59,11 +59,13 @@ public class SheetJoinService {
    public SheetJoinService(SheetPairingService pairing,
                            SheetSessionService sessions,
                            SheetAgentFeature feature,
-                           SheetRuntimeAccess runtimeAccess) {
+                           SheetRuntimeAccess runtimeAccess,
+                           SheetAgentBroadcastService broadcast) {
       this.pairing = pairing;
       this.sessions = sessions;
       this.feature = feature;
       this.runtimeAccess = runtimeAccess;
+      this.broadcast = broadcast;
    }
 
    /**
@@ -129,6 +131,19 @@ public class SheetJoinService {
                                           grant.sheetType(), grant.socketSessionId(),
                                           grant.socketUserName(), grant.editorContext());
       failedAttempts.remove(throttleKey);
+
+      // Close the loop back to the browser that minted this code — it has no other way to learn
+      // the code was redeemed, since the join arrived over HTTP from the agent. Best-effort by
+      // design: the session above is already open and valid, so a lost notice degrades the
+      // Composer's indicator and must never turn a successful pairing into a failed one.
+      try {
+         broadcast.sendPairingJoined(session);
+      }
+      catch(Exception ex) {
+         LOG.warn("Pairing joined, but notifying the browser failed (runtimeId={})",
+                  grant.runtimeId(), ex);
+      }
+
       LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
                grant.runtimeId(), grant.sheetType(), agentUser.getName());
       return session;
@@ -211,5 +226,6 @@ public class SheetJoinService {
    private final SheetSessionService sessions;
    private final SheetAgentFeature feature;
    private final SheetRuntimeAccess runtimeAccess;
+   private final SheetAgentBroadcastService broadcast;
    private final ConcurrentHashMap<String, AttemptWindow> failedAttempts = new ConcurrentHashMap<>();
 }

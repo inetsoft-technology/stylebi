@@ -53,6 +53,17 @@ import java.util.List;
 public class SheetAgentBroadcastService {
    private static final Logger LOG = LoggerFactory.getLogger(SheetAgentBroadcastService.class);
 
+   /**
+    * Where a paired browser learns that an agent joined. The client subscribes to this prefixed
+    * with {@code /user}, exactly as it does for mint's {@code @SendToUser} destination.
+    *
+    * <p>Deliberately neither {@code CommandDispatcher.COMMANDS_TOPIC} nor
+    * {@code ComposerClientService.COMMANDS_TOPIC} — see {@link #sendToComposer}'s javadoc for why
+    * confusing those two is a silent failure. This is a pairing-domain destination with its own
+    * client handler.
+    */
+   static final String PAIRING_JOINED_TOPIC = "/commands/wiz/pairing/joined";
+
    @Autowired
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
                                      VSObjectModelFactoryService vsObjectModelFactoryService)
@@ -236,6 +247,29 @@ public class SheetAgentBroadcastService {
 
       commandDispatcherService.convertAndSendToUser(
          socketSessionId, ComposerClientService.COMMANDS_TOPIC, command,
+         headers.getMessageHeaders());
+   }
+
+   /**
+    * Tell the browser that minted the code that an agent has now joined with it.
+    *
+    * <p>Addresses {@code socketUserName} — the destination user resolved at mint time, the same
+    * value mint's {@code @SendToUser} resolved to — and sets the session id header as the other
+    * senders here do.
+    *
+    * <p>Callers must treat this as best-effort. By the time it runs the agent's session is open and
+    * valid, so a failure here costs the browser's indicator and nothing more.
+    */
+   public void sendPairingJoined(JoinSession session) {
+      SimpMessageHeaderAccessor headers =
+         SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+      headers.setSessionId(session.socketSessionId());
+      headers.setLeaveMutable(true);
+
+      commandDispatcherService.convertAndSendToUser(
+         session.socketUserName(), PAIRING_JOINED_TOPIC,
+         new PairingJoinedNotice(session.runtimeId(), session.sheetType(),
+                                 session.editorContext()),
          headers.getMessageHeaders());
    }
 

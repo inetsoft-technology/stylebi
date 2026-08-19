@@ -25,13 +25,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -48,6 +52,9 @@ import static org.mockito.Mockito.when;
  * [differentKeys]   lockout of one caller does not affect a different caller
  * [resetOnSuccess]  a successful join resets the failure counter for that caller
  * [editorContext]   a pane-scoped grant's editorContext is carried through to the JoinSession
+ * [notifiesBrowser] a successful join pushes a PairingJoinedNotice to the minting browser
+ * [toolbarNotice]   a whole-sheet grant notifies with a null editorContext
+ * [notifyFailure]   a throwing broadcast does not fail the join
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +70,9 @@ class SheetJoinServiceTest {
    @Mock
    private SheetRuntimeAccess runtimeAccess;
 
+   @Mock
+   private SheetAgentBroadcastService broadcast;
+
    private SheetPairingService pairing;
    private SheetSessionService sessions;
    private SheetJoinService svc;
@@ -71,7 +81,7 @@ class SheetJoinServiceTest {
    void setUp() {
       pairing  = new SheetPairingService(() -> FIXED_NOW);
       sessions = new SheetSessionService(() -> FIXED_NOW);
-      svc      = new SheetJoinService(pairing, sessions, feature, runtimeAccess);
+      svc      = new SheetJoinService(pairing, sessions, feature, runtimeAccess, broadcast);
    }
 
    // ---------------------------------------------------------------------------
@@ -324,7 +334,7 @@ class SheetJoinServiceTest {
       SheetPairingService paneScopedPairing = new SheetPairingService(
          () -> FIXED_NOW, runtimeId -> null, runtimeId -> "vs-1".equals(runtimeId) ? rvs : null);
       SheetJoinService paneScopedSvc =
-         new SheetJoinService(paneScopedPairing, sessions, feature, runtimeAccess);
+         new SheetJoinService(paneScopedPairing, sessions, feature, runtimeAccess, broadcast);
 
       EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
       String code = paneScopedPairing.mint("vs-1", ALICE_KEY, "sock-pane-1", null,
@@ -334,5 +344,78 @@ class SheetJoinServiceTest {
       JoinSession session = paneScopedSvc.join(code, alice);
 
       assertEquals(ctx, session.editorContext());
+   }
+
+   // ---------------------------------------------------------------------------
+   // notifiesBrowserOnJoin
+   //
+   // Minted with a VIEWSHEET editorContext, so mint()'s own validation (added for pane-scoped
+   // grants) requires a real runtime lookup that resolves the named assembly -- the shared
+   // `pairing` field's accessors always return null, so this uses a locally-scoped pairing
+   // service configured the same way carriesTheEditorContextFromGrantToSession is.
+   // ---------------------------------------------------------------------------
+   @Test
+   void notifiesBrowserOnJoin() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(mock(VSAssembly.class));
+      SheetPairingService paneScopedPairing = new SheetPairingService(
+         () -> FIXED_NOW, runtimeId -> null, runtimeId -> "vs-9".equals(runtimeId) ? rvs : null);
+      SheetJoinService paneScopedSvc =
+         new SheetJoinService(paneScopedPairing, sessions, feature, runtimeAccess, broadcast);
+
+      EditorContext context = new EditorContext("assemblyMain", "Chart1", null, null);
+      String code = paneScopedPairing.mint("vs-9", ALICE_KEY, "sock-1", "alice-dest",
+                                           SheetType.VIEWSHEET, context);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      paneScopedSvc.join(code, alice);
+
+      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
+      verify(broadcast).sendPairingJoined(sent.capture());
+      assertEquals("vs-9", sent.getValue().runtimeId());
+      assertEquals(SheetType.VIEWSHEET, sent.getValue().sheetType());
+      assertEquals(context, sent.getValue().editorContext());
+      assertEquals("sock-1", sent.getValue().socketSessionId());
+      assertEquals("alice-dest", sent.getValue().socketUserName());
+   }
+
+   // ---------------------------------------------------------------------------
+   // toolbarJoinNotifiesWithNoEditorContext
+   // ---------------------------------------------------------------------------
+   @Test
+   void toolbarJoinNotifiesWithNoEditorContext() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Worksheet/foo-7", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      svc.join(code, alice);
+
+      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
+      verify(broadcast).sendPairingJoined(sent.capture());
+      assertNull(sent.getValue().editorContext());
+   }
+
+   // ---------------------------------------------------------------------------
+   // notifyFailureDoesNotFailTheJoin
+   //
+   // The session is already open and valid by the time the notice is sent, so a broken
+   // notification must cost the indicator and nothing else.
+   // ---------------------------------------------------------------------------
+   @Test
+   void notifyFailureDoesNotFailTheJoin() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      doThrow(new RuntimeException("socket gone")).when(broadcast).sendPairingJoined(any());
+      String code = pairing.mint("vs-9", ALICE_KEY, "sock-1", "alice-dest",
+                                 SheetType.VIEWSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      JoinSession session = svc.join(code, alice);
+
+      assertNotNull(session);
+      assertEquals("vs-9", session.runtimeId());
    }
 }
