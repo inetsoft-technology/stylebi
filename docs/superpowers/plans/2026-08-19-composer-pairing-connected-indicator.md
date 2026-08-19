@@ -640,7 +640,7 @@ If nothing appears, grep the server log for **both** of these before concluding 
 
 Only when **neither** line appears does suspicion fall on the destination string — then re-check `PAIRING_JOINED_TOPIC` against the client's subscription, which is the silent-failure mode the spec warns about. Checking for the first line alone gives a false "the destination must be wrong" on every reconnect.
 
-- [ ] **Step 3: A pane pairing must not light the toolbar**
+- [x] **Step 3: A pane pairing must not light the toolbar**
 
 1. On the same viewsheet, open a calculated field's formula editor and click **Connect Agent** there.
 2. Redeem that code with `connect_sheet`.
@@ -648,13 +648,14 @@ Only when **neither** line appears does suspicion fall on the destination string
 
 This is the case the `editorContext` filter exists for; a failure here means the filter is not doing its job even though every unit test passed.
 
-**NOT RUN — the one piece of live evidence still owed.** Step 2's toolbar path was confirmed by the
-operator; this pane-isolation check was not exercised separately. Neither was the `hasMinted`
-scenario the whole-branch review uncovered: mint from the toolbar, open a formula editor **before**
-the agent redeems, then redeem — only the toolbar may light up. Both behaviours are covered by unit
-tests (the minted-vs-live filter and the `hasMinted` guard are mutation-verified), but this plan's
-own Global Constraints state that unit tests are not sufficient evidence here, and these two cases
-are precisely where that applies. Whoever picks this up runs both and updates this step.
+**PASS — verified live by the operator 2026-08-19, case by case in the UI.** Pairing from a formula
+editor lights that editor and leaves the toolbar unchanged, and the `hasMinted` case the whole-branch
+review uncovered also holds: a formula editor opened while a toolbar code was still outstanding stays
+dark when the agent redeems, and only the toolbar lights up.
+
+These two are the entire reason the `editorContext` filter and the `hasMinted` guard exist, and they
+are the part no unit test can settle — a wrong destination or a too-loose filter fails silently while
+every layer reports success. This is the evidence the Global Constraints ask for, and it is now in.
 
 - [x] **Step 4: Record the result in the test plan**
 
