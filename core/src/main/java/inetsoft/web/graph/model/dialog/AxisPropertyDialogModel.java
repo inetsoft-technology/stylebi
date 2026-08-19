@@ -40,7 +40,7 @@ public class AxisPropertyDialogModel implements Serializable {
 
    public AxisPropertyDialogModel(ChartInfo cInfo, AxisDescriptor axisDesc,
       boolean isFacetGrid, ChartArea area, String columnName, boolean outer,
-      boolean linear, String axisType, boolean maxMode)
+      boolean linear, String axisType, boolean maxMode, VizContext ctx)
    {
       this.linear = linear;
       this.outer = outer;
@@ -78,7 +78,7 @@ public class AxisPropertyDialogModel implements Serializable {
       if(axisDesc.getLineColor() != null) {
          axisLinePaneModel.setLineColor(
             "#" + Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveAxisLineColor(axisDesc.getLineColor(), VizContext.ofGate())));
+               VSChartChromeDefaults.resolveAxisLineColor(axisDesc.getLineColor(), ctx)));
       }
 
       if(!linear) {
@@ -233,7 +233,7 @@ public class AxisPropertyDialogModel implements Serializable {
    }
 
    public void updateAxisPropertyDialogModel(AxisDescriptor axisDesc, String columnName,
-                                             String axisType, boolean maxMode)
+                                             String axisType, boolean maxMode, VizContext ctx)
    {
       CompositeTextFormat cfmt = null;
 
@@ -260,7 +260,7 @@ public class AxisPropertyDialogModel implements Serializable {
 
       // WYSIWYG: the panel shows the modern-resolved line color; skip persisting an unchanged
       // (modern-display) value so gate-off stays byte-identical and no descriptor is dirtied
-      if(!Tool.equals(color, VSChartChromeDefaults.resolveAxisLineColor(axisDesc.getLineColor(), VizContext.ofGate()))) {
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveAxisLineColor(axisDesc.getLineColor(), ctx))) {
          axisDesc.setLineColor(color);
       }
       axisDesc.setTicksVisible(axisLinePaneModel.isShowTicks());

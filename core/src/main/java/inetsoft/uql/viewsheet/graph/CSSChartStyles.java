@@ -88,7 +88,7 @@ import java.util.Map;
  */
 public class CSSChartStyles {
    public static void apply(ChartDescriptor desc, ChartInfo info, CSSDictionary cssDictionary,
-                            List<CSSParameter> parentParams)
+                            List<CSSParameter> parentParams, VizContext ctx)
    {
       if(desc == null || info == null) {
          return;
@@ -98,19 +98,18 @@ public class CSSChartStyles {
          cssDictionary = CSSDictionary.getDictionary();
       }
 
-      // Modern in-graph chrome baseline: when the org gate is on, seed the CSS tier of the
-      // gridline/legend-border CompositeValues with the modern neutral before the format.css block
-      // below overrides it. Precedence is USER > CSS > DEFAULT, so a customer's format.css chrome and
-      // a user picker both still win; gate off skips this, leaving the GDefaults default. The CSS tier
-      // is not serialized, so this is a default that never dirties saved charts.
-      VizContext ctx = VizContext.ofGate();
-
       ChartType chartType = getChartType(info);
       LegendsDescriptor legendsDesc = desc.getLegendsDescriptor();
 
       if(legendsDesc != null) {
          legendsDesc.resetCompositeValues(CompositeValue.Type.CSS);
 
+         // Modern in-graph chrome baseline: when ctx resolves modern for this assembly, seed the CSS
+         // tier of the legend-border CompositeValue with the modern neutral before the format.css
+         // block below overrides it. Precedence is USER > CSS > DEFAULT, so a customer's format.css
+         // chrome and a user picker both still win; a legacy ctx skips this, leaving the GDefaults
+         // default. The CSS tier is not serialized, so this is a default that never dirties saved
+         // charts.
          if(ctx.modern) {
             legendsDesc.setBorderColor(VSChartChromeDefaults.legendBorderColor(ctx),
                                        CompositeValue.Type.CSS);

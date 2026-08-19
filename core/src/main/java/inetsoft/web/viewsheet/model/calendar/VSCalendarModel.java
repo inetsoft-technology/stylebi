@@ -42,7 +42,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
       CalendarVSAssemblyInfo assemblyInfo =
         (CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo();
       FormatInfo fmtInfo = assemblyInfo.getFormatInfo();
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = VizContext.of(assemblyInfo);
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.TITLE);
       VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(
          fmtInfo.getFormat(dataPath, false), ctx);

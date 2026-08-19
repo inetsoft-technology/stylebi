@@ -38,7 +38,7 @@ public class LegendFormatDialogModel implements Serializable {
    public LegendFormatDialogModel(ChartInfo info, LegendsDescriptor legendsDesc,
       LegendDescriptor legendDesc, ChartArea area, List<String> targetFields,
       String aestheticType, String field, String titleName, boolean dimension, boolean time,
-      boolean node)
+      boolean node, VizContext ctx)
    {
       // Create LegendFormatGeneralPaneModel.
       generalPaneModel = new LegendFormatGeneralPaneModel();
@@ -65,7 +65,7 @@ public class LegendFormatDialogModel implements Serializable {
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
             "#" + Tool.colorToHTMLString(
-               VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), VizContext.ofGate())));
+               VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), ctx)));
       }
 
       if(legendsDesc.getLayout() >= 1) {
@@ -110,7 +110,8 @@ public class LegendFormatDialogModel implements Serializable {
    }
 
    public void updateLegendFormatDialogModel(ChartInfo cinfo, LegendsDescriptor legendsDesc,
-                                             LegendDescriptor legendDesc, String titleName)
+                                             LegendDescriptor legendDesc, String titleName,
+                                             VizContext ctx)
    {
       final String title = generalPaneModel.getTitleValue();
 
@@ -125,7 +126,7 @@ public class LegendFormatDialogModel implements Serializable {
       legendsDesc.setBorder(generalPaneModel.getStyle(), false);
       Color color = Tool.getColorFromHexString(generalPaneModel.getFillColor());
 
-      if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), VizContext.ofGate()))) {
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), ctx))) {
          legendsDesc.setBorderColor(color, false);
       }
       legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);

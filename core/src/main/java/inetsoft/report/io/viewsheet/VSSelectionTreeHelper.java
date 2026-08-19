@@ -265,7 +265,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
    protected void writeTitle(SelectionTreeVSAssemblyInfo info) {
       FormatInfo finfo = info.getFormatInfo();
       VSCompositeFormat format = VSTitleChromeDefaults.applyModernDefaults(
-         finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.ofGate());
+         finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false), VizContext.of(info));
       Rectangle2D bounds = (Rectangle2D) boundsList.get(0);
       writeText(bounds, format, Tool.localize(info.getTitle()), info.getFormat(),
                 info.getTitlePadding());

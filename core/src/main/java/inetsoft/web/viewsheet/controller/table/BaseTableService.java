@@ -459,7 +459,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       int dataRowHeight = tinfo.getDataRowHeight(lens.getHeaderRowCount());
 
       // org density default applies only to still-default heights; user-set and CSS heights win
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = VizContext.of(assembly.getVSAssemblyInfo());
 
       if(ctx.modern) {
          if(!tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
@@ -1160,7 +1160,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       if(lens != null && tinfo != null) {
          model.setRowCount(lens.getRowCount());
          int dataRowHeight = tinfo.getDataRowHeight();
-         VizContext ctx = VizContext.ofGate();
+         VizContext ctx = VizContext.of(tinfo);
 
          if(ctx.modern && !tinfo.isUserDataRowHeight() &&
             dataRowHeight == AssetUtil.defh)

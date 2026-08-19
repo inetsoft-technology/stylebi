@@ -167,7 +167,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
     * Set coordinate properties.
     */
    private void fixParallelCoord(AbstractParallelCoord coord) {
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = vizContext;
       AxisDescriptor xdesc = null;
       AxisSpec spec = new AxisSpec();
       final Scale scale = coord.getAxisLabelScale();

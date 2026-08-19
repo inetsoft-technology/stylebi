@@ -1018,7 +1018,7 @@ public class VGraphPair {
 
       ArrayList<CSSParameter> parentParams = info.getCssParentParameters();
       ChartDescriptor desc = info.getChartDescriptor();
-      VizContext ctx = VizContext.ofGate();
+      VizContext ctx = VizContext.of(info);
 
       if(desc != null) {
          LegendsDescriptor legendsDesc = desc.getLegendsDescriptor();
@@ -1350,7 +1350,7 @@ public class VGraphPair {
          }
       }
 
-      CSSChartStyles.apply(info.getChartDescriptor(), info.getVSChartInfo(), null, parentParams);
+      CSSChartStyles.apply(info.getChartDescriptor(), info.getVSChartInfo(), null, parentParams, VizContext.of(info));
    }
 
    private void copyDefaultFormat(VSCompositeFormat objFmt, ArrayList<CSSParameter> parentParams,

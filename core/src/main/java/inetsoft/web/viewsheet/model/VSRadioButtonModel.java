@@ -35,7 +35,7 @@ public class VSRadioButtonModel extends ListInputModel<RadioButtonVSAssembly> {
       FormatInfo fmtInfo = assemblyInfo.getFormatInfo();
       TableDataPath titlepath = new TableDataPath(-1, TableDataPath.TITLE);
       VSCompositeFormat compositeTitleFormat = VSTitleChromeDefaults.applyModernDefaults(
-         fmtInfo.getFormat(titlepath, false), VizContext.ofGate());
+         fmtInfo.getFormat(titlepath, false), VizContext.of(assemblyInfo));
       TableDataPath datapath = new TableDataPath(-1, TableDataPath.DETAIL);
       VSCompositeFormat compositeDetailFormat = fmtInfo.getFormat(datapath, false);
 

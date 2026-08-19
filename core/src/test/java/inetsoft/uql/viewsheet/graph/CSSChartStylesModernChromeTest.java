@@ -63,7 +63,7 @@ class CSSChartStylesModernChromeTest {
          VSChartInfo info = new VSChartInfo();
          ChartDescriptor desc = new ChartDescriptor();
 
-         CSSChartStyles.apply(desc, info, null, null);
+         CSSChartStyles.apply(desc, info, null, null, VizContext.ofGate());
 
          assertEquals(GDefaults.DEFAULT_GRIDLINE_COLOR, desc.getPlotDescriptor().getXGridColor(),
                       "gate off keeps the legacy gridline color");
@@ -84,7 +84,7 @@ class CSSChartStylesModernChromeTest {
          VSChartInfo info = new VSChartInfo();
          ChartDescriptor desc = new ChartDescriptor();
 
-         CSSChartStyles.apply(desc, info, null, null);
+         CSSChartStyles.apply(desc, info, null, null, VizContext.ofGate());
 
          Color modern = VSChartChromeDefaults.gridlineColor(VizContext.ofGate());
          assertEquals(modern, desc.getPlotDescriptor().getXGridColor());
@@ -115,7 +115,7 @@ class CSSChartStylesModernChromeTest {
          when(plotStyle.getCustomProperties()).thenReturn(Map.of("line_x_color", "#FF0000"));
          when(dict.getStyle(any(CSSParameter[].class))).thenReturn(plotStyle);
 
-         CSSChartStyles.apply(desc, info, dict, null);
+         CSSChartStyles.apply(desc, info, dict, null, VizContext.ofGate());
 
          assertEquals(Color.RED, desc.getPlotDescriptor().getXGridColor(),
                       "customer format.css line_x_color overrides the modern baseline");
@@ -138,7 +138,7 @@ class CSSChartStylesModernChromeTest {
          // a user-set grid color (USER tier) must survive the modern CSS-tier baseline
          desc.getPlotDescriptor().setXGridColor(Color.RED, CompositeValue.Type.USER);
 
-         CSSChartStyles.apply(desc, info, null, null);
+         CSSChartStyles.apply(desc, info, null, null, VizContext.ofGate());
 
          assertEquals(Color.RED, desc.getPlotDescriptor().getXGridColor(),
                       "an explicit user grid color beats the modern default");

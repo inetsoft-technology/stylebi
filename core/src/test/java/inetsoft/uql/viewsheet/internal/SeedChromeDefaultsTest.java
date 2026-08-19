@@ -428,4 +428,41 @@ class SeedChromeDefaultsTest {
                    objectDefault(info).getBorderColorsValue().topColor);
       assertEquals(0, objectDefault(info).getRoundCornerValue());
    }
+
+   // ---- creation seeds from the assembly's own mark, not the org gate -------------------------
+
+   @Test
+   void creationOnAnUnmarkedHostSeedsNothingModern() {
+      // the host is what decides: AbstractVSAssembly hands a new assembly the host's stored mark,
+      // so an assembly added to a legacy dashboard must seed the values it will actually read
+      gateOff();
+      Viewsheet legacy = new Viewsheet();
+      assertNull(legacy.getVSAssemblyInfo().getVizMark(), "gate off at construction: unmarked sheet");
+
+      gateOn();
+      TableVSAssembly table = new TableVSAssembly(legacy, "Table1");
+      table.getVSAssemblyInfo().initDefaultFormat();
+      VSFormat fmt = objectDefault(table.getVSAssemblyInfo());
+
+      assertNull(table.getVSAssemblyInfo().getVizMark(), "it inherits the host's absent mark");
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColorsValue().topColor,
+                   "so it seeds the legacy border, matching what it will read");
+      assertEquals(0, fmt.getRoundCornerValue(), "and no card radius");
+   }
+
+   @Test
+   void creationOnAMarkedHostStillSeedsModern() {
+      gateOn();
+      Viewsheet modern = new Viewsheet();
+      assertEquals(VizMark.MODERN_LIGHT, modern.getVSAssemblyInfo().getVizMark());
+
+      TableVSAssembly table = new TableVSAssembly(modern, "Table1");
+      table.getVSAssemblyInfo().initDefaultFormat();
+      VSFormat fmt = objectDefault(table.getVSAssemblyInfo());
+      VizContext ctx = VizContext.ofGate();
+
+      assertEquals(VizMark.MODERN_LIGHT, table.getVSAssemblyInfo().getVizMark());
+      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx), fmt.getBorderColorsValue().topColor);
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(), fmt.getRoundCornerValue());
+   }
 }

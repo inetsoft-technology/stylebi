@@ -21,9 +21,9 @@ package inetsoft.uql.viewsheet.internal;
  * The resolved modern-visualization state a value resolver should answer against. Immutable, and
  * built in one of four ways so that the SreeEnv reads live here rather than in every resolver.
  *
- * During the forward half every caller passes ofGate(), which reads exactly what the resolvers used
- * to read themselves - so threading it changes nothing. of(VSAssemblyInfo) and of(VizMark) exist for
- * the phase that makes reads follow the assembly's mark; nothing calls them yet.
+ * of(VSAssemblyInfo) and of(VizMark) are now the primary factories: render-time reads resolve their
+ * context from the assembly's own provenance mark, not from the org gate. ofGate() remains only for
+ * the sites that have no assembly in scope to resolve a mark from.
  *
  * Never null: callers must pass one of the factories' results, never a null reference.
  */

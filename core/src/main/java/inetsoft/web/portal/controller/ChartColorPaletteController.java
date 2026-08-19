@@ -39,6 +39,9 @@ public class ChartColorPaletteController {
     */
    @GetMapping("/api/portal/chart-color-palette")
    public String[] getChartColorPalette() {
+      // stays on the org gate by decision: this is a parameterless bootstrap fetch with no assembly in
+      // scope, and the swatch list it returns is a global palette rather than per-assembly chrome.
+      // A per-assembly endpoint would make it uncacheable for the sake of a picker.
       Color[] colors = VSChartPaletteDefaults.pickerPalette(VizContext.ofGate());
 
       // pickerPalette() does not cap length - a customer format.css can declare a palette past
