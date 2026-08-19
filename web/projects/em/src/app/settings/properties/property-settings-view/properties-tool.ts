@@ -40,7 +40,7 @@ export namespace PropertiesTool {
       "olap.table.originalContent", "output.null.to.zero", "pdf.compress.image",
       "pdf.compress.text", "pdf.embed.cmap", "pdf.embed.font", "pdf.generate.links",
       "pdf.map.symbols", "pdf.open.bookmark", "pdf.open.thumbnail", "pdf.output.ascii",
-      "pdf.text.avoidoverlap", "portal.history.bar", "query.aggregate.merge",
+      "pdf.text.avoidoverlap", "portal.history.bar",
       "query.cache.data", "query.variable.unique", "remove.outerJoin.only", "replet.cache.clean",
       "dashboard.mydashboard.disabled", "replet.optimize.network", "replet.streaming",
       "report.stringwidth.fontmetrics", "repository.audit.enabled",
