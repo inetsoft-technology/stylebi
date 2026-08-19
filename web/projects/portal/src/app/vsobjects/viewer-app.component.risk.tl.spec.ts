@@ -637,6 +637,45 @@ describe("ViewerAppComponent — processRemoveVSObjectCommand()", () => {
       expect(comp.selectedActions).toBe(actions);
    });
 
+   // 🔁 Regression-sensitive (Bug #76036): processAddVSObjectCommand recreates the actions
+   // object for EVERY assembly, not just the updated one, and the assembly components
+   // re-subscribe to their new instance. If selectedActions is not re-pointed at the new
+   // instance, the mobile toolbar keeps firing events on an orphaned emitter and its
+   // buttons silently do nothing.
+   it("should re-point selectedActions after an update to a DIFFERENT assembly", async () => {
+      const { comp } = await renderComponent();
+      const chart = makeObj("Chart1");
+      const text = makeObj("Text1");
+      const staleChartActions: any = { getModel: () => ({ absoluteName: "Chart1" }) };
+      comp.vsObjects = [chart, text];
+      comp.vsObjectActions = [staleChartActions, {} as any];
+      comp.selectedActions = staleChartActions;
+
+      const freshChartActions: any = { getModel: () => ({ absoluteName: "Chart1" }) };
+      ASSEMBLY_ACTION_FACTORY_MOCK.createActions.mockImplementation((model: any) =>
+         model?.absoluteName === "Chart1" ? freshChartActions : {});
+
+      comp.processAddVSObjectCommand(
+         { name: "Text1", model: { ...text, genTime: 1 } } as any);
+
+      expect(comp.vsObjectActions[0]).toBe(freshChartActions);
+      expect(comp.selectedActions).toBe(freshChartActions);
+   });
+
+   it("should leave selectedActions alone when the selected assembly is gone", async () => {
+      const { comp } = await renderComponent();
+      const text = makeObj("Text1");
+      const orphaned: any = { getModel: () => ({ absoluteName: "Chart1" }) };
+      comp.vsObjects = [text];
+      comp.vsObjectActions = [{} as any];
+      comp.selectedActions = orphaned;
+
+      comp.processAddVSObjectCommand(
+         { name: "Text1", model: { ...text, genTime: 1 } } as any);
+
+      expect(comp.selectedActions).toBe(orphaned);
+   });
+
    it("should emit onLoadingStateChanged(false) when globalLoadingIndicator=true", async () => {
       const { comp } = await renderComponent();
       comp.vsObjects = [makeObj("Chart1")];

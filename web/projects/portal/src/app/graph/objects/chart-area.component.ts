@@ -142,6 +142,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    private clearCanvasSubscription: Subscription;
    private scrollTopSubscription: Subscription;
    private scrollLeftSubscription: Subscription;
+   private pagingControlTimeout: number = null;
    private flyoverApplied = false;
 
    @Input() set model(model: ChartModel) {
@@ -228,7 +229,18 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       this._selected = selected;
 
       if(selected) {
-         this.showPagingControl();
+         // this setter runs while the parent view is being checked, and showPagingControl()
+         // writes the model that viewer-app reads for its paging-control bindings. Writing it
+         // synchronously changes an already-checked parent expression (NG0100), so publish it
+         // after the current change detection pass instead. (Bug #76036)
+         clearTimeout(this.pagingControlTimeout);
+         this.pagingControlTimeout = window.setTimeout(() => {
+            this.pagingControlTimeout = null;
+
+            if(this._selected) {
+               this.showPagingControl();
+            }
+         });
       }
    }
 
@@ -400,6 +412,11 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       if(this.scrollLeftSubscription) {
          this.scrollLeftSubscription.unsubscribe();
+      }
+
+      if(this.pagingControlTimeout != null) {
+         clearTimeout(this.pagingControlTimeout);
+         this.pagingControlTimeout = null;
       }
    }
 
