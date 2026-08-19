@@ -1709,6 +1709,19 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          calendar.add(calendarPeriodLevel, -(quarterCalendar ? 3 : 1));
       }
 
+      // The iteration below walks backwards from this calendar, so it has to start at the
+      // end of the last period. Otherwise the intervals of the last period that fall after
+      // the end day get no condition at all (e.g. Q3/Q4 missing when the end day is in Q2).
+      setDateToEndOfPeriod(calendar, periodLevel);
+
+      // ...but never past the end day itself. When the last period is the in-progress one
+      // (inclusive), its period end is in the future and would produce empty intervals. (75152)
+      Date runtimeEndDay = standardPeriods.getRuntimeEndDay();
+
+      if(runtimeEndDay != null && calendar.getTime().after(runtimeEndDay)) {
+         calendar.setTime(runtimeEndDay);
+      }
+
       setDateToLevelStart(calendar, dcInterval.getContextLevel());
       appendRangeToDateConditions(endDateCalendar, calendar, dcInterval.getContextLevel(),
                                   toDate, conditionList, ref);
