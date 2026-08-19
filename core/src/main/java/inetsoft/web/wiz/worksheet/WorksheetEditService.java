@@ -929,17 +929,46 @@ public class WorksheetEditService {
             sources[i] = requireTable(tables.get(i));
          }
 
-         // Validate that all tables have the same number of columns.
-         int colCount = sources[0].getColumnSelection(true).getAttributeCount();
+         // Validate that all tables line up: same column count, and column i of each table
+         // mergeable with column i of the first. Sources are concatenated BY POSITION, not by
+         // name, so a pair that does not line up produces a column carrying two unrelated kinds
+         // of value — which renders as an ordinary column and reports no error anywhere. The
+         // Composer runs the same check (ConcatenatedTableAssembly.tableAssembliesAreCompatible,
+         // surfaced as concatenationWarning); this path previously checked only the count.
+         ColumnSelection firstColumns = sources[0].getColumnSelection(true);
+         int colCount = firstColumns.getAttributeCount();
 
          for(int i = 1; i < sources.length; i++) {
-            int otherCount = sources[i].getColumnSelection(true).getAttributeCount();
+            ColumnSelection otherColumns = sources[i].getColumnSelection(true);
+            int otherCount = otherColumns.getAttributeCount();
 
             if(otherCount != colCount) {
                throw new PairingException(
                   "Data blocks that do not have the same number of columns cannot be " +
                   "concatenated. \"" + sources[0].getName() + "\" has " + colCount +
                   " columns but \"" + sources[i].getName() + "\" has " + otherCount + ".");
+            }
+
+            for(int c = 0; c < colCount; c++) {
+               DataRef first = firstColumns.getAttribute(c);
+               DataRef other = otherColumns.getAttribute(c);
+
+               if(!(first instanceof ColumnRef fcol) || !(other instanceof ColumnRef ocol)) {
+                  continue;
+               }
+
+               String ftype = fcol.getDataType();
+               String otype = ocol.getDataType();
+
+               if(!AssetUtil.isMergeable(ftype, otype)) {
+                  throw new PairingException(
+                     "Columns are concatenated by position, and position " + (c + 1) +
+                     " does not line up: \"" + sources[0].getName() + "\" has \"" +
+                     fcol.getAttribute() + "\" (" + ftype + ") while \"" + sources[i].getName() +
+                     "\" has \"" + ocol.getAttribute() + "\" (" + otype + "), and those types " +
+                     "cannot be merged. Reorder the columns so matching ones share a position, " +
+                     "or change one column's type with change_column_type.");
+               }
             }
          }
 

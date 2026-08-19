@@ -92,8 +92,80 @@ public class WorksheetReadService {
 
       return new WorksheetModel.TableModel(
          name, type, columns, joins,
+         readSources(t), readConcatType(t), readAutoUpdate(t),
          preConditions, postConditions, rankingConditions,
          aggregates, sorts, primary);
+   }
+
+   // -------------------------------------------------------------------------
+   // Composition — which assemblies a table is built from
+   // -------------------------------------------------------------------------
+
+   /**
+    * The assemblies this table is built from, in order.
+    *
+    * <p>Order is not cosmetic. A concatenation takes its entire column list from its first
+    * subtable alone — {@link ConcatenatedTableAssembly#getDefaultColumnSelection} walks
+    * {@code subtables[0]}'s columns and consults the rest only to merge numeric types, by
+    * position — so the first entry is what decides the shape, and for a MINUS the order decides
+    * which table is subtracted from which. Reporting the names without their order would be
+    * useless for both.</p>
+    *
+    * <p>Covers joins as well as concatenations: both extend {@link CompositeTableAssembly}. That
+    * matters most for cross and merge joins, which carry no join predicates and therefore report
+    * an empty {@code joins} list — before this, nothing in the model distinguished those from a
+    * table with no sources at all. A mirror reaches its single source by a different route, since
+    * it extends {@code ComposedTableAssembly} rather than {@code CompositeTableAssembly}.</p>
+    */
+   private List<String> readSources(TableAssembly t) {
+      if(t instanceof CompositeTableAssembly composite) {
+         String[] names = composite.getTableNames();
+         return names == null ? List.of() : List.of(names);
+      }
+
+      if(t instanceof MirrorTableAssembly mirror) {
+         String source = mirror.getAssemblyName();
+         return source == null ? List.of() : List.of(source);
+      }
+
+      return List.of();
+   }
+
+   /**
+    * {@code UNION}, {@code INTERSECT} or {@code MINUS} for a concatenation, {@code null} otherwise.
+    *
+    * <p>The three behave very differently — adding a source to a UNION can add rows while adding
+    * one to an INTERSECT can only remove them — so a caller reasoning about a concatenation needs
+    * to know which it is looking at.</p>
+    */
+   private String readConcatType(TableAssembly t) {
+      if(!(t instanceof ConcatenatedTableAssembly concat) || concat.getOperatorCount() == 0) {
+         return null;
+      }
+
+      TableAssemblyOperator operator = concat.getOperator(0);
+
+      if(operator == null || operator.getKeyOperator() == null) {
+         return null;
+      }
+
+      return switch(operator.getKeyOperator().getOperation()) {
+         case TableAssemblyOperator.UNION -> "UNION";
+         case TableAssemblyOperator.INTERSECT -> "INTERSECT";
+         case TableAssemblyOperator.MINUS -> "MINUS";
+         default -> null;
+      };
+   }
+
+   /**
+    * A mirror's auto-update flag, or {@code null} for anything that is not a mirror.
+    *
+    * <p>Settable through the agent API but, until now, not readable through it — so a caller had
+    * no way to confirm the setting took, or to tell whether a mirror it did not create is
+    * tracking its source.</p>
+    */
+   private Boolean readAutoUpdate(TableAssembly t) {
+      return t instanceof MirrorTableAssembly mirror ? mirror.isAutoUpdate() : null;
    }
 
    private String tableType(TableAssembly t) {
@@ -160,7 +232,8 @@ public class WorksheetReadService {
          expression = exprRef.getExpression();
       }
 
-      return new WorksheetModel.ColumnModel(name, type, alias, expression, description);
+      return new WorksheetModel.ColumnModel(name, type, alias, expression, description,
+                                            ref.isVisible());
    }
 
    // -------------------------------------------------------------------------

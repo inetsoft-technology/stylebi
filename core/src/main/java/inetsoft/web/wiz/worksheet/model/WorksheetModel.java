@@ -38,6 +38,23 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                           {@code "ROTATED"}, {@code "TABLE"}
     * @param columns            visible (public) columns
     * @param joins              join predicates; non-null, empty for non-join tables
+    * @param sources            the assemblies this one is built from, <b>in order</b>; empty for a
+    *                           table with no sources. Order carries meaning: for a
+    *                           {@code CONCAT} the first entry supplies the whole column list (see
+    *                           {@code ConcatenatedTableAssembly.getDefaultColumnSelection}) and,
+    *                           for a MINUS, decides which table is subtracted from which. Without
+    *                           this an agent cannot tell which tables a concatenation combines,
+    *                           cannot supply the full subtable list that reordering requires, and
+    *                           cannot tell that editing a table will reshape a concatenation
+    *                           downstream. A cross or merge join also reports its sources here,
+    *                           since those carry no join predicates and so leave {@code joins}
+    *                           empty — an empty {@code joins} means "no predicates", never "no
+    *                           sources".
+    * @param concatType         {@code "UNION"}, {@code "INTERSECT"} or {@code "MINUS"} for a
+    *                           {@code CONCAT}; {@code null} otherwise
+    * @param autoUpdate         a mirror's auto-update flag; {@code null} for anything else. Only
+    *                           readable here — settable through the agent API but previously
+    *                           impossible to read back, so no caller could confirm it.
     * @param preConditions      pre-aggregate filter conditions
     * @param postConditions     post-aggregate filter conditions
     * @param rankingConditions  ranking / top-N conditions
@@ -50,6 +67,9 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String type,
       List<ColumnModel> columns,
       List<JoinModel> joins,
+      List<String> sources,
+      String concatType,
+      Boolean autoUpdate,
       List<FilterModel> preConditions,
       List<FilterModel> postConditions,
       List<FilterModel> rankingConditions,
@@ -59,7 +79,10 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
    ) {}
 
    /**
-    * A single visible column in a table.
+    * A single column in a table.
+    *
+    * <p>Hidden columns are included: the list is read from the private column selection, not the
+    * public one, which is why {@code visible} is needed to tell them apart.</p>
     *
     * @param name        attribute (column) name
     * @param type        XSchema data-type string (e.g. {@code "string"}, {@code "integer"})
@@ -67,9 +90,15 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param expression  script expression when the column is an expression column;
     *                    {@code null} for plain attribute columns
     * @param description user-defined column description; may be {@code null}
+    * @param visible     {@code false} once a column is hidden. A hidden column stays in this list
+    *                    but drops out of the assembly's data, and is excluded from the public
+    *                    column selection that a concatenation counts when it checks its sources
+    *                    match — so anything comparing column counts has to filter on this rather
+    *                    than take the list length, and anything comparing the model against real
+    *                    rows has to expect hidden columns to be missing from the data.
     */
    public record ColumnModel(String name, String type, String alias, String expression,
-                             String description) {}
+                             String description, boolean visible) {}
 
    /**
     * A join predicate between two tables.
