@@ -805,6 +805,33 @@ public class WizVsService {
          String name = uniqueName(rule.getName(), usedNames);
          Highlight hl = buildHighlight(rule, name, condCols, false);
 
+         // A crosstab evaluates its highlight condition against the cell's own headers — aggregates named
+         // by their FULL name ("DistinctCount(ORDER_ID)"), never the base column. So a caller naming the
+         // base column plus an aggregateFormula, the shape a HAVING filter takes, produces an AggregateRef
+         // whose name is "ORDER_ID"; no such header exists here, the condition resolves to nothing at
+         // render time, and the rule is stored on the right cell and colors nothing. The apply returns 200
+         // with no error, so neither the caller nor the user can tell it from a rule that worked.
+         //
+         // The chart path has always rebound-then-verified for exactly this reason; the crosstab path
+         // passed the columns to buildHighlight for value COERCION only and never checked the field
+         // resolved. Same treatment here: rebind what is unambiguous, fail loud on the rest.
+         //
+         // Crosstab only. A plain table's condition is evaluated against its base columns — the very
+         // selection already passed in — so there is nothing to rebind and no aggregated form to fall
+         // back to.
+         if(crosstab) {
+            Set<String> unresolved =
+               rebindConditionFieldsToViewColumns(hl.getConditionGroup(), condCols);
+
+            if(!unresolved.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "highlight '" + name + "' references field(s) not available at the target cell: " +
+                  String.join(", ", unresolved) + ". Name a crosstab dimension by its header (e.g. " +
+                  "\"COMPANY_NAME\") or a measure by its aggregated form (e.g. " +
+                  "\"DistinctCount(ORDER_ID)\"). Available fields: " + columnNames(condCols) + ".");
+            }
+         }
+
          // A regular table can style the whole row (a row-level path keyed by level+type); a crosstab
          // has no row data path, so it always styles the measure's cells.
          TableDataPath key = !crosstab && rule.isApplyRow()
@@ -982,7 +1009,7 @@ public class WizVsService {
       ConditionList conditionGroup = buildConditionList(cm, columns, null);
 
       if(chartRebind) {
-         Set<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
+         Set<String> unresolved = rebindConditionFieldsToViewColumns(conditionGroup, columns);
 
          // A chart highlight condition is matched against the aggregated chart DataSet, whose headers are
          // the fields' full names (a dimension like "State", a measure like "Sum(Sales)"). A condition
@@ -1162,18 +1189,24 @@ public class WizVsService {
    }
 
    /**
-    * Rebinds each condition item's field to the matching chart column (by name) so the highlight
-    * resolves against the aggregated chart DataSet. Match order: exact full-name ("Sum(Sales)"), then
-    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Returns the
-    * names of any condition fields that matched NEITHER form, so the caller can fail loud rather than
-    * apply a highlight whose condition can never resolve against the chart DataSet (a silent no-op).
+    * Rebinds each condition item's field to the matching VIEW column (by name) so the highlight resolves
+    * against the aggregated data the assembly actually renders. Match order: exact full-name
+    * ("Sum(Sales)"), then a view column that aggregates the requested base column ("Sales" ->
+    * "Sum(Sales)"). Returns the names of any condition fields that matched NEITHER form, so the caller
+    * can fail loud rather than apply a highlight whose condition can never resolve (a silent no-op).
+    *
+    * Used by the chart AND crosstab paths, which share the problem: both evaluate a highlight condition
+    * POST-aggregation, against headers named by the fields' full names. A caller naming the base column
+    * plus an aggregate — the shape a HAVING filter takes — yields an AggregateRef whose getName() is the
+    * BASE column, and no such header exists at render time. The second match arm is what turns that into
+    * the header the data actually carries.
     */
-   private Set<String> rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+   private Set<String> rebindConditionFieldsToViewColumns(ConditionList conds, ColumnSelection viewCols) {
       // LinkedHashSet: dedup while preserving first-seen order, so the same bad field name appearing in
       // several condition leaves (e.g. "Profit > 5 AND Profit < 100") is listed once in the error message.
       Set<String> unresolved = new LinkedHashSet<>();
 
-      if(conds == null || chartCols == null) {
+      if(conds == null || viewCols == null) {
          return unresolved;
       }
 
@@ -1189,10 +1222,10 @@ public class WizVsService {
             continue;
          }
 
-         DataRef match = chartCols.getAttribute(attr.getName());
+         DataRef match = viewCols.getAttribute(attr.getName());
 
          if(match == null) {
-            match = findAggregatedColumn(chartCols, attr.getName());
+            match = findAggregatedColumn(viewCols, attr.getName());
          }
 
          if(match != null) {
@@ -1243,14 +1276,14 @@ public class WizVsService {
       return sb.length() > 0 ? sb.toString() : "none";
    }
 
-   /** Find a chart column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
-   private DataRef findAggregatedColumn(ColumnSelection chartCols, String baseName) {
+   /** Find a view column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
+   private DataRef findAggregatedColumn(ColumnSelection viewCols, String baseName) {
       if(baseName == null) {
          return null;
       }
 
-      for(int i = 0; i < chartCols.getAttributeCount(); i++) {
-         DataRef ref = chartCols.getAttribute(i);
+      for(int i = 0; i < viewCols.getAttributeCount(); i++) {
+         DataRef ref = viewCols.getAttribute(i);
          String full = ref.getName();
          int open = full.indexOf('(');
          int close = full.lastIndexOf(')');
