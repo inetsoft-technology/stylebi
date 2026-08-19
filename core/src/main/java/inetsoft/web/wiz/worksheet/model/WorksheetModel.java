@@ -36,7 +36,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param type               one of {@code "EMBEDDED"}, {@code "JOIN"}, {@code "CONCAT"},
     *                           {@code "MIRROR"}, {@code "UNPIVOT"},
     *                           {@code "ROTATED"}, {@code "TABLE"}
-    * @param columns            visible (public) columns
+    * @param columns            the table's columns, hidden ones included — see
+    *                           {@link ColumnModel#visible()}
     * @param joins              join predicates; non-null, empty for non-join tables
     * @param sources            the assemblies this one is built from, <b>in order</b>; empty for a
     *                           table with no sources. Order carries meaning: for a
@@ -49,12 +50,25 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                           downstream. A cross or merge join also reports its sources here,
     *                           since those carry no join predicates and so leave {@code joins}
     *                           empty — an empty {@code joins} means "no predicates", never "no
-    *                           sources".
+    *                           sources". A {@code MIRROR}, {@code ROTATED} or {@code UNPIVOT}
+    *                           reports the single table it is built on.
     * @param concatType         {@code "UNION"}, {@code "INTERSECT"} or {@code "MINUS"} for a
-    *                           {@code CONCAT}; {@code null} otherwise
-    * @param autoUpdate         a mirror's auto-update flag; {@code null} for anything else. Only
-    *                           readable here — settable through the agent API but previously
-    *                           impossible to read back, so no caller could confirm it.
+    *                           {@code CONCAT}; {@code null} otherwise. A concatenation carries one
+    *                           operation per adjacent pair of {@code sources} and they need not
+    *                           agree, so {@code "MIXED"} is reported when they differ (the
+    *                           per-pair operations are not exposed).
+    * @param concatCompatible   for a {@code CONCAT}, whether its sources line up by type as well as
+    *                           by count; {@code null} otherwise. Sources are combined by position,
+    *                           so a pair that lines up numerically but not by type produces a
+    *                           column carrying two unrelated kinds of value. {@code false} is what
+    *                           Composer draws as a warning on the connection, and it is the only
+    *                           way to see the problem in a concatenation the agent did not build —
+    *                           {@code add_concatenation} refuses to create one.
+    * @param autoUpdate         a mirror's <b>effective</b> auto-update flag; {@code null} for
+    *                           anything that is not a mirror. Effective, not stored: a mirror whose
+    *                           source is in the same worksheet always reports {@code true} however
+    *                           the flag was set, since {@code MirrorAssemblyImpl} answers
+    *                           {@code auto || !isOuterMirror()}.
     * @param preConditions      pre-aggregate filter conditions
     * @param postConditions     post-aggregate filter conditions
     * @param rankingConditions  ranking / top-N conditions
@@ -69,6 +83,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<JoinModel> joins,
       List<String> sources,
       String concatType,
+      Boolean concatCompatible,
       Boolean autoUpdate,
       List<FilterModel> preConditions,
       List<FilterModel> postConditions,

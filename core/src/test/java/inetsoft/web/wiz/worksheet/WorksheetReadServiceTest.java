@@ -120,12 +120,25 @@ class WorksheetReadServiceTest {
    private static ConcatenatedTableAssembly concat(Worksheet ws, String name, int operation,
                                                    TableAssembly... sources)
    {
+      int[] operations = new int[sources.length - 1];
+
+      for(int i = 0; i < operations.length; i++) {
+         operations[i] = operation;
+      }
+
+      return concat(ws, name, operations, sources);
+   }
+
+   /** One operation per adjacent pair, so a mixed concatenation can be built. */
+   private static ConcatenatedTableAssembly concat(Worksheet ws, String name, int[] operations,
+                                                   TableAssembly... sources)
+   {
       TableAssemblyOperator[] operators = new TableAssemblyOperator[sources.length - 1];
 
       for(int i = 0; i < operators.length; i++) {
          TableAssemblyOperator top = new TableAssemblyOperator();
          TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
-         op.setOperation(operation);
+         op.setOperation(operations[i]);
          top.addOperator(op);
          operators[i] = top;
       }
@@ -232,6 +245,98 @@ class WorksheetReadServiceTest {
 
       assertTrue(t.sources().isEmpty());
       assertNull(t.concatType());
+      assertNull(t.concatCompatible());
       assertNull(t.autoUpdate());
+   }
+
+   /**
+    * A rotate has exactly one source but is <em>not</em> a {@code CompositeTableAssembly} — it
+    * extends {@code ComposedTableAssembly} directly, as does an unpivot. A source lookup written
+    * against composites and mirrors alone reports both as having no sources at all, which is the
+    * ambiguity this field exists to remove, on table types {@code add_rotate} / {@code add_unpivot}
+    * let an agent create.
+    */
+   @Test
+   void rotatedTableReportsItsSource() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly base = TestWorksheets.tableWithColumns(ws, "BASE", "col");
+      ws.addAssembly(base);
+      ws.addAssembly(new RotatedTableAssembly(ws, "R", base));
+
+      WorksheetModel.TableModel r = tableNamed(read(ws), "R");
+
+      assertEquals("ROTATED", r.type());
+      assertEquals(List.of("BASE"), r.sources());
+      assertNull(r.autoUpdate());
+   }
+
+   @Test
+   void unpivotTableReportsItsSource() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly base = TestWorksheets.tableWithColumns(ws, "BASE", "a", "b");
+      ws.addAssembly(base);
+      ws.addAssembly(new UnpivotTableAssembly(ws, "P", base));
+
+      WorksheetModel.TableModel p = tableNamed(read(ws), "P");
+
+      assertEquals("UNPIVOT", p.type());
+      assertEquals(List.of("BASE"), p.sources());
+      assertNull(p.autoUpdate());
+   }
+
+   /**
+    * A concatenation holds one operator per adjacent pair and Composer sets the operation per
+    * connection, so {@code A UNION B MINUS C} is a legal worksheet. Reporting the first pair's
+    * operation as though it described the whole assembly hands the caller a confidently wrong
+    * answer about row semantics — worse than reporting nothing, since the caller cannot tell it is
+    * wrong.
+    */
+   @Test
+   void concatenationWithDifferentOperationPerPairReportsMixed() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concat(ws, "X",
+         new int[]{ TableAssemblyOperator.UNION, TableAssemblyOperator.MINUS }, a, b, c));
+
+      WorksheetModel.TableModel x = tableNamed(read(ws), "X");
+
+      assertEquals(List.of("A", "B", "C"), x.sources());
+      assertEquals("MIXED", x.concatType());
+   }
+
+   /**
+    * Sources are combined by position, so a pair that lines up numerically but not by type produces
+    * a column carrying two unrelated kinds of value. Composer computes exactly this predicate into
+    * a non-blocking warning ({@code ConcatenatedTableAssemblyModel.concatenationWarning}); without
+    * it on the read model, an agent cannot see the problem in a concatenation it did not create,
+    * since {@code add_concatenation} now refuses to build one.
+    */
+   @Test
+   void concatenationReportsWhetherItsSourcesLineUpByType() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ((ColumnRef) c.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.INTEGER);
+      // The public selection holds clones taken when the private one was installed, and it is the
+      // public selection the compatibility check reads — so it has to be regenerated for the new
+      // type to reach it.
+      c.setColumnSelection(c.getColumnSelection(false), false);
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concat(ws, "OK", TableAssemblyOperator.UNION, a, b));
+      ws.addAssembly(concat(ws, "BAD", TableAssemblyOperator.UNION, a, c));
+
+      WorksheetModel m = read(ws);
+
+      assertEquals(Boolean.TRUE, tableNamed(m, "OK").concatCompatible());
+      assertEquals(Boolean.FALSE, tableNamed(m, "BAD").concatCompatible());
    }
 }
