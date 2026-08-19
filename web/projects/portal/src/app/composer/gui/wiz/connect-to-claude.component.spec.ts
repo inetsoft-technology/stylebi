@@ -455,6 +455,83 @@ describe("ConnectToClaudeComponent", () => {
 
          expect(subs.some(s => s.unsubscribe.mock.calls.length > 0)).toBe(true);
       });
+
+      /*
+       * The distinction the context filter turns on. detach() shipped a real bug by reading the
+       * live input instead of the minted one, which is why mintedEditorContext exists at all;
+       * without these two cases, onJoined could regress to the live value and stay green.
+       */
+      describe("keys on the context the code was minted with", () => {
+         /** Mints with one context, then leaves the live input pointing at another. */
+         function mintThenDrift(minted: any, drifted: any): void {
+            let mintHandler: ((msg: any) => void) | null = null;
+            mockStompConnection.subscribe.mockImplementation(
+               (dest: string, h: (msg: any) => void) => {
+                  if(dest === "/user/commands/wiz/pairing/mint") {
+                     mintHandler = h;
+                  }
+
+                  return { unsubscribe: vi.fn() };
+               });
+
+            component.editorContext = minted;
+            component.requestCode();
+            mintHandler!(notice({ code: "ABC123" }));
+            component.editorContext = drifted;
+         }
+
+         it("accepts a notice for the minted context after the live input drifted", () => {
+            mintThenDrift({ kind: "viewsheetOnInit" }, { kind: "viewsheetOnLoad" });
+
+            handlerFor("/user/commands/wiz/pairing/joined")(
+               notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                        editorContext: { kind: "viewsheetOnInit", assembly: null,
+                                         name: null, table: null } }));
+
+            expect(component.connected).toBe(true);
+         });
+
+         it("rejects a notice matching the drifted live context but not the minted one", () => {
+            mintThenDrift({ kind: "viewsheetOnInit" }, { kind: "viewsheetOnLoad" });
+
+            handlerFor("/user/commands/wiz/pairing/joined")(
+               notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                        editorContext: { kind: "viewsheetOnLoad", assembly: null,
+                                         name: null, table: null } }));
+
+            expect(component.connected).toBe(false);
+         });
+      });
+
+      /*
+       * The joined destination is per-user, not per-runtime, so a runtimeId change must reset the
+       * filter input and nothing else. Releasing the subscription here would leave the component
+       * permanently deaf with no error anywhere.
+       */
+      it("keeps the joined subscription across a runtimeId change", () => {
+         const byDest = new Map<string, { unsubscribe: ReturnType<typeof vi.fn> }>();
+         mockStompConnection.subscribe.mockImplementation((dest: string) => {
+            const sub = { unsubscribe: vi.fn() };
+            byDest.set(dest, sub);
+            return sub;
+         });
+
+         const f = TestBed.createComponent(ConnectToClaudeComponent);
+         f.componentInstance.runtimeId = "rt-1";
+         f.componentInstance.sheetType = "WORKSHEET";
+         f.componentInstance.socketConnection = mockSocketConnection;
+         f.detectChanges();
+
+         const joined = byDest.get("/user/commands/wiz/pairing/joined");
+         expect(joined).toBeTruthy();
+
+         f.componentInstance.runtimeId = "rt-2";
+         f.componentInstance.ngOnChanges(
+            { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(joined!.unsubscribe).not.toHaveBeenCalled();
+      });
    });
 
 });
