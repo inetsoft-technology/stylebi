@@ -56,6 +56,13 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    private mintSubscription: Subscription | null = null;
    private joinedSubscription: Subscription | null = null;
    /**
+    * The outer `whenConnected()` subscription that `ngOnInit` uses to obtain the STOMP
+    * connection. `take(1)` normally completes it on its own, but a component created before the
+    * socket connects and destroyed before it does would otherwise leave this callback pending --
+    * it would later open `joinedSubscription` on behalf of a component that no longer exists.
+    */
+   private connectSubscription: Subscription | null = null;
+   /**
     * The `editorContext` that was actually SENT with the mint that produced `code` -- captured
     * when the code comes back, and what `detach()` sends.
     *
@@ -72,6 +79,17 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     */
    private mintedEditorContext: EditorContext | null = null;
 
+   /**
+    * Whether this instance has an outstanding mint of its own.
+    *
+    * `mintedEditorContext === null` cannot answer that: it means both "I minted a whole-sheet
+    * code" and "I never minted anything". Since a toolbar notice carries `editorContext: null`,
+    * without this flag any instance that never minted -- a formula editor opened while a toolbar
+    * code was still outstanding -- would match that notice and claim a pairing that was not its
+    * own.
+    */
+   private hasMinted = false;
+
    constructor(private zone: NgZone) {}
 
    /**
@@ -81,7 +99,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     * displayed, long after the mint round-trip has completed and unsubscribed itself.
     */
    ngOnInit(): void {
-      this.socketConnection.whenConnected().pipe(take(1)).subscribe(
+      if(!this.socketConnection) {
+         return;
+      }
+
+      this.connectSubscription = this.socketConnection.whenConnected().pipe(take(1)).subscribe(
          (conn: StompClientConnection) => {
             this.joinedSubscription = conn.subscribe(
                "/user/commands/wiz/pairing/joined", (msg: any) => this.onJoined(msg));
@@ -96,6 +118,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          this.copied = false;
          this.connected = false;
          this.mintedEditorContext = null;
+         this.hasMinted = false;
          if(this.mintSubscription) {
             this.mintSubscription.unsubscribe();
             this.mintSubscription = null;
@@ -109,6 +132,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       this.error = null;
       this.copied = false;
       this.connected = false;
+      this.hasMinted = false;
 
       // Read ONCE, here, and carry this exact value through to the response handler: the getters
       // that supply it are live, so re-reading it later (in detach, or even in this same
@@ -128,6 +152,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
                   if(body.code) {
                      this.code = body.code;
                      this.mintedEditorContext = requestedContext ?? null;
+                     this.hasMinted = true;
                   }
                   else {
                      this.error = body.error ?? "Failed to generate pairing code";
@@ -151,13 +176,15 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    /**
-    * Accepts a join notice only when it is for this sheet AND this location.
+    * Accepts a join notice only when this instance minted the code AND it is for this sheet AND
+    * this location.
     *
-    * The destination is per-user, so every instance on the page receives every notice. This
-    * component is reused by the composer toolbar, the viewsheet script pane and the formula editor
-    * dialog, so more than one instance is routinely alive at once. Dropping either filter makes an
-    * instance announce a pairing that did not happen to it — a false statement, which is worse
-    * than the missing indicator this whole change exists to fix.
+    * The destination is per socket session, not per sheet and not per pane, so every instance on
+    * the page receives every notice. This component is reused by the composer toolbar, the
+    * viewsheet script pane and the formula editor dialog, so more than one instance is routinely
+    * alive at once. Dropping any of these filters makes an instance announce a pairing that did
+    * not happen to it — a false statement, which is worse than the missing indicator this whole
+    * change exists to fix.
     */
    private onJoined(msg: any): void {
       let body: any;
@@ -169,7 +196,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          return;
       }
 
-      if(body.runtimeId !== this.runtimeId ||
+      if(!this.hasMinted || body.runtimeId !== this.runtimeId ||
          !this.sameEditorContext(body.editorContext, this.mintedEditorContext))
       {
          return;
@@ -250,6 +277,14 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       if(this.mintSubscription) {
          this.mintSubscription.unsubscribe();
          this.mintSubscription = null;
+      }
+
+      // Releases the outer whenConnected() wait itself, not just what it produces -- otherwise a
+      // component destroyed before the socket connects still has its callback fire later and open
+      // joinedSubscription on behalf of a component that is already gone.
+      if(this.connectSubscription) {
+         this.connectSubscription.unsubscribe();
+         this.connectSubscription = null;
       }
 
       // The formula editor dialog creates and destroys this component repeatedly; a standing

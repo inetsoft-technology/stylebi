@@ -261,6 +261,16 @@ public class SheetAgentBroadcastService {
     * valid, so a failure here costs the browser's indicator and nothing more.
     */
    public void sendPairingJoined(JoinSession session) {
+      // Nothing to notify. The REST mint path can record a null destination user (a null
+      // principal), and Spring answers that with Assert.notNull — a stack trace the caller then
+      // logs as "notifying the browser failed", which is misleading: nothing failed to send, there
+      // was simply nobody to send to. broadcastRefresh guards its own null user for the same reason.
+      if(session.socketUserName() == null) {
+         LOG.debug("Pairing joined notice skipped — no destination user recorded (runtimeId={})",
+                   session.runtimeId());
+         return;
+      }
+
       SimpMessageHeaderAccessor headers =
          SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
       headers.setSessionId(session.socketSessionId());

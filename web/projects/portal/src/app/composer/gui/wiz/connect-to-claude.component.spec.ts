@@ -346,6 +346,27 @@ describe("ConnectToClaudeComponent", () => {
          return { frame: { body: JSON.stringify(body) } };
       }
 
+      /**
+       * Performs a real toolbar mint (no editorContext) so `hasMinted` is set, mirroring what a
+       * user does before a notice can legitimately reach this instance. Also leaves
+       * `component.code` populated the way a real mint would, for tests that assert it gets
+       * cleared.
+       */
+      function mintFromToolbar(): void {
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") {
+                  mintHandler = h;
+               }
+
+               return { unsubscribe: vi.fn() };
+            });
+
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+      }
+
       it("subscribes to the joined destination on init", () => {
          expect(mockStompConnection.subscribe).toHaveBeenCalledWith(
             "/user/commands/wiz/pairing/joined",
@@ -354,7 +375,7 @@ describe("ConnectToClaudeComponent", () => {
       });
 
       it("shows connected and drops the consumed code for a matching notice", () => {
-         component.code = "ABC123";
+         mintFromToolbar();
 
          handlerFor("/user/commands/wiz/pairing/joined")(
             notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
@@ -367,6 +388,8 @@ describe("ConnectToClaudeComponent", () => {
       });
 
       it("ignores a notice for another runtime", () => {
+         mintFromToolbar();
+
          handlerFor("/user/commands/wiz/pairing/joined")(
             notice({ runtimeId: "rt-other", sheetType: "WORKSHEET", editorContext: null }));
 
@@ -379,6 +402,8 @@ describe("ConnectToClaudeComponent", () => {
        * claim an agent joined it, which is a false statement rather than a missing feature.
        */
       it("ignores a pane notice on a toolbar instance", () => {
+         mintFromToolbar();
+
          handlerFor("/user/commands/wiz/pairing/joined")(
             notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
                      editorContext: { kind: "calcField", assembly: "Query1", name: "Margin" } }));
@@ -411,6 +436,8 @@ describe("ConnectToClaudeComponent", () => {
       });
 
       it("clears the indicator when the runtimeId changes", () => {
+         mintFromToolbar();
+
          handlerFor("/user/commands/wiz/pairing/joined")(
             notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
          expect(component.connected).toBe(true);
@@ -429,6 +456,8 @@ describe("ConnectToClaudeComponent", () => {
        * re-pairing is an ordinary flow rather than an edge case.
        */
       it("clears the indicator when a new code is requested", () => {
+         mintFromToolbar();
+
          handlerFor("/user/commands/wiz/pairing/joined")(
             notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
          expect(component.connected).toBe(true);
@@ -531,6 +560,18 @@ describe("ConnectToClaudeComponent", () => {
                            firstChange: false, isFirstChange: () => false } } as any);
 
          expect(joined!.unsubscribe).not.toHaveBeenCalled();
+      });
+
+      /*
+       * The ambiguity hasMinted resolves. A formula editor opened while a toolbar code was still
+       * outstanding has mintedEditorContext === null, and a toolbar notice carries
+       * editorContext: null -- so without the flag it would light up for someone else's pairing.
+       */
+      it("ignores a toolbar notice on an instance that never minted", () => {
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+
+         expect(component.connected).toBe(false);
       });
    });
 
