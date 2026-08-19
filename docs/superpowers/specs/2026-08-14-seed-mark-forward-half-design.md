@@ -1,8 +1,10 @@
 # Seed Mark — Forward Half — Design
 
-**Date:** 2026-08-14
-**Verified against:** community `viz-updates` @ `952614aa7`, which is `HEAD`. Every file and line cited below was
-read at that commit.
+**Date:** 2026-08-14; amended 2026-08-19 (decision 13 — the revert sweep is overruled; this document gains a
+sixth phase, P6, and its title is now half a misnomer, kept for continuity)
+**Verified against:** community `viz-updates` @ `952614aa7` for the original; the 2026-08-19 amendments
+against `8ef511e45`, which is `HEAD` and carries P4. Every file and line cited below was read at one of those
+two commits.
 **Covers:** item M in [chart-card-roadmap.md](./lookfeel/chart-card-roadmap.md) — the per-assembly provenance
 mark, the re-keying of the modern read paths onto it, the per-assembly browser scope, and the Modernize
 action. This is the half of M that unblocks the six items behind it.
@@ -21,11 +23,28 @@ here by decision, not by oversight.
 every modern read path consults it instead of the org gate. Existing dashboards have one route in: a manual
 Modernize action.
 
-**Out of scope, deliberately, and still gating the release:** the org-wide revert sweep (decisions 6 and 7)
+~~**Out of scope, deliberately, and still gating the release:** the org-wide revert sweep (decisions 6 and 7)
 with its restore point, scheduler blocking and composer-session blocking; bookmark resolve-on-restore
 (decision 10); deleting the four old reversibility mechanisms (decision 12); and the card radius 12px → 6px.
 None of those gate the six downstream items. All of them gate release, because the decisions file's write-off
-of the pre-mark cohort holds only while `viz-updates` is unreleased.
+of the pre-mark cohort holds only while `viz-updates` is unreleased.~~
+
+**Rewritten 2026-08-19. The sweep is overruled by decision 13**, and what replaced it is small enough to
+belong in this document rather than in a reverse-half one that no longer needs to exist.
+
+**Now in scope: P6 — Revert**, the per-dashboard mirror of Modernize, together with the deletion of the
+`gate &&` term and of the two `PlotDescriptor` seed booleans that must go with it. See §5's P6.
+
+**Still out of scope, and still gating the release:** bookmark resolve-on-restore (decision 10); the
+remaining two of decision 12's four mechanisms (`resolveSeededCorner` and its tab carve-out); and the card
+radius 12px → 6px, which needs P6 rather than the sweep. None of those gate the six downstream items. All of
+them gate release, because the decisions file's write-off of the pre-mark cohort holds only while
+`viz-updates` is unreleased.
+
+**What stopped gating the release entirely:** the async sweep engine, its restore point and documented
+restore procedure, scheduler cancellation and blocking, composer-session blocking with a force override, and
+resumability across a partial run. Decision 7 is retained in the decisions file as the record of what that
+would have cost.
 
 **The premise this rests on, stated because it is easy to mistake for technical debt.** Older assets have no
 mark and never will. Decision 2 makes *unmarked = never touched by any automatic behaviour, forever* — it is
@@ -46,8 +65,11 @@ backfill phase in the product.
 4. **Unmarked content renders exactly as it does today**, under every gate setting.
 5. **Modernize** is the only way an existing dashboard becomes modern: composer-only, per-dashboard,
    gate-on only, write permission required, one undo step, no bulk path.
-6. **During the forward half only**, the read predicate carries an extra `gate &&` term, so an admin turning
-   the gate off still gets legacy read-time chrome back. The revert sweep deletes that term.
+6. **Until P6**, the read predicate carries an extra `gate &&` term, so an admin turning the gate off still
+   gets legacy read-time chrome back. ~~The revert sweep deletes that term.~~ **P6 deletes it** — amended
+   2026-08-19, when decision 13 overruled the sweep. After P6 the gate is read at creation and nowhere else.
+7. **Revert** is Modernize's mirror: same shape, same authority, same undo, acting on marked assemblies
+   instead of unmarked ones. Added 2026-08-19 by decision 13.
 
 ---
 
@@ -80,8 +102,10 @@ viewsheet**, before parse overwrites the format from XML.
 
 Any stamp reachable from that path would therefore be written on load and, finding no `vizMark` attribute in
 the file, survive parse — silently retro-marking every dashboard ever saved. That is exactly the failure
-decision 2 exists to prevent, and it would be invisible until the first gate-off sweep reverted content
-nobody had opted in.
+decision 2 exists to prevent, and it would be invisible until content nobody had opted in was reverted
+underneath them. (Written when decision 6's gate-off sweep would have been what exposed it; under decision
+13 the exposure is a press of Revert instead. The failure is identical either way, which is the point — the
+rule below is what prevents it.)
 
 **Rule: `parseAttributes` clears the mark when the attribute is absent, unconditionally.** Not a
 derive-on-parse like `userTitleHeight` — the opposite. Absent means unmarked and there is nothing to infer it
@@ -189,6 +213,11 @@ ambiguously and this is the reading.
 
 ### The interim term
 
+**Read the 2026-08-19 amendment at the end of this subsection first.** The body below says the sweep deletes
+this term and fixes the persisted colour seeds. Decision 13 overruled the sweep: **P6** deletes the term, and
+nothing fixes the colour seeds because under decision 13 they are not broken. The body is retained because
+its account of what the term does and does not buy is still exact.
+
 `of(info)` computes `modern = gate && mark != null`.
 
 That `gate &&` is the whole of the forward half's reversibility story, and deleting it is a one-line change
@@ -205,6 +234,29 @@ sweep fixes it.
 
 The end state after the term is deleted is coherent: **the gate becomes purely a creation-time switch plus
 the sweep trigger**, which is already how decision 9 describes the dark toggle.
+
+**Amended 2026-08-19 — the end state is now simpler than that sentence, and the term's owner changed.**
+Decision 13 overruled the sweep, so there is no sweep trigger: the gate becomes purely a creation-time
+switch, full stop, and matches decision 9's dark toggle exactly rather than approximately. **P6 deletes the
+term**, and the phrase "during the forward half only" above should be read as "until P6."
+
+Two things this amendment adds that the paragraph above could not have known, both verified at `8ef511e45`:
+
+- **After P4, the term is no longer the only gate-keyed reversal.** `PlotDescriptor.isSmoothLines()`
+  (`:635`) and `getBarCornerRadius()` (`:1319`) still test `VSDensityDefaults.isModern()` directly — P2 left
+  them alone on purpose, as interim mechanisms, and P4 did not touch them. They and this term are the whole
+  of what reverses on gate-off today. They therefore have to be deleted **in the same phase** as the term:
+  delete the term alone and a marked chart in a gate-off org keeps modern chrome everywhere except its bar
+  corners and line smoothing, which is a worse state than either end.
+- **`ChartVSAssemblyInfo.seedChromeDefaults` is forward-only** (`:106-112`) because those two booleans did
+  the reversing. P6 gives it the `else` branch, which is also what makes Revert complete for charts.
+
+What the term still does not buy is unchanged: the three persisted colour seeds are read straight off the
+DEFAULT tier with no predicate in front of them, so a marked assembly in a gate-off product keeps its modern
+border and card colour either way. Under decisions 6 and 7 the sweep fixed that; **under decision 13 nothing
+fixes it automatically and nothing needs to** — a marked assembly is *supposed* to stay modern when the gate
+closes. The mismatch the paragraph above was worried about only existed because gate-off was meant to mean
+legacy.
 
 `resolveSeededCorner` (`VSObjectChromeDefaults.java:79-81`), its tab carve-out
 (`VSCompositeFormat.java:334-337`) and both `PlotDescriptor` seed booleans stay untouched. Decision 12
@@ -231,8 +283,9 @@ classes that read them, and one of them — `modernTableStructure` — has no te
 
 **What the deletion buys, beyond a simpler type.** With the sub-gates gone, "marked but unseeded" becomes
 unreachable: a marked assembly is always seeded, because master-on-facet-off no longer exists. P3's
-Modernize, P4's read flip and the revert sweep can all rely on that, and several later-phase claims already
-did.
+Modernize, P4's read flip and P6's Revert can all rely on that, and several later-phase claims already did.
+(This read "the revert sweep" until 2026-08-19; decision 13 changed which phase inherits the guarantee, not
+the guarantee.)
 
 **The mechanics, and why they cost P2 nothing extra.** All six `isModern()` methods are structurally
 identical, differing only in which property they read, so stripping the sub-gate term makes all six literally
@@ -338,6 +391,17 @@ wrapper, so they take the class explicitly from their source assembly's model; `
 **A serialization note for P5.** Jackson serializes `VizMark` by `name()` (`MODERN_LIGHT`), not `value()`
 (`modern-light`); the browser needs to key off whichever one actually reaches it, or the enum needs
 `@JsonValue` on `value()` — not added here, untested in P1.
+
+**Amended 2026-08-19 — send the resolved context, not the raw mark, and the serialization note above stops
+mattering.** Decision 13 leaves the `gate &&` term alive until P6, so between P5 and P6 a raw mark on the
+model would have the browser call an assembly modern while the server calls it legacy, in exactly the
+gate-off case an admin is most likely to try. Populating the field from `VizContext.of(info)` — the two
+booleans the server has already resolved — is correct before P6 and after it, needs no edit when the term
+dies, and keeps one predicate in one place instead of teaching the client what the org gate is. The
+alternative, shipping the gate to the client and re-evaluating `gate && mark != null` there, is a second copy
+of the rule in a second language; `SetViewsheetInfoCommand` already carries `modernVisualization` in its
+infoMap, so it is available, which is precisely the trap. **P5 carries resolved `modern`/`dark`; the mark
+itself never needs to leave the server.**
 
 **A correction to the roadmap.** It records that "M does not gate F" — true, the toolbar rollout persists
 nothing. But decision 4 turns the toolbar's *gate* test into a *mark* test, so shipped slices 1–3 are
@@ -599,9 +663,12 @@ menu item.
 
 ## 5 · Phases
 
-Six phases. The ordering principle is that **the mechanical cost and the behaviour change never land in the
-same commit** — that is what makes each phase reviewable and each phase's verification a claim that can
-actually be checked.
+Seven phases, P0 through P6 — six until 2026-08-19, when decision 13 collapsed the reverse half into P6 and
+brought it here. P0 through P4 have landed. The ordering principle is that **the mechanical cost and the
+behaviour change never land in the same commit** — that is what makes each phase reviewable and each phase's
+verification a claim that can actually be checked. P6 is the one place that principle bends, and knowingly:
+its three deletions are mechanical but must land together with the behaviour change, because separating them
+strands charts halfway. See P6.
 
 ### P0 — discard the pre-mark cohort
 
@@ -757,8 +824,9 @@ reaches every caller of those getters across render, export, model and dialog la
 P4's own 43 sites, inside the phase most likely to regress rendering. The population that renders
 inconsistently is assemblies carrying a seeded radius without a mark, which is dev content the pre-mark
 write-off already covers and which creation stops producing once the change above lands. So this stays
-org-scoped, and is retired by the card-radius change from 12px to 6px that the roadmap already sequences
-behind the mark and the sweep — but it is not, as an earlier version of this document claimed, *the last*
+org-scoped, and is retired by the card-radius change from 12px to 6px that the roadmap sequences behind the
+mark and, since 2026-08-19, behind P6 rather than the sweep — but it is not, as an earlier version of this
+document claimed, *the last*
 org-scoped reader. The whole-branch review that flipped P4's 43 read sites also surveyed the readers P4
 never touched, and found four more still org-scoped, plus one that is a P5, not a P4, fix:
 
@@ -828,8 +896,10 @@ Replacing it with a per-assembly endpoint would put a client change and an uncac
 server-only phase.
 
 **Not in P4.** `resolveSeededCorner` and the `VSCompositeFormat` tab carve-out stay org-scoped, per the
-decision above. The dark re-stamp is its own later phase. The browser reads are P5. The revert sweep belongs
-to the reverse half and the release gate.
+decision above. The dark re-stamp is its own later phase. The browser reads are P5. ~~The revert sweep
+belongs to the reverse half and the release gate.~~ **Amended 2026-08-19:** there is no reverse half. Revert
+is P6, in this document, and the two `PlotDescriptor` seed booleans go with it — so `resolveSeededCorner` and
+the tab carve-out are the only two of decision 12's four mechanisms left outside these phases.
 
 **Verification.** Per group, a unit test that a marked info reads modern and an unmarked one reads legacy —
 the assertion the whole phase exists to make true. The 23-test characterization net from P3 continues to
@@ -913,9 +983,21 @@ mark existed, and exported PDF, PNG and Excel files, none of which this pass had
 `VSObjectModel` field; per-assembly `viz-modern`/`viz-dark` on `.vs-object-parent-container`; the body class
 renamed for the org-level surfaces; the 17 `GuiTool` sites take the model's mark.
 
+**Plus one server-side reader P4 deferred here, added 2026-08-19 from `8ef511e45`'s commit message.**
+`AbstractChartInfo.getTooltipStyle` resolves AUTO to CARD from the org gate. It was left out of P4 because
+threading it changes the `ChartInfo` interface getter and ripples through four more classes, and because its
+most visible consumer ships `tooltipStyle` to the browser — which still reads org-gated flags until this
+phase, so fixing the server half alone would have bought nothing a user could see. It belongs here for the
+same reason it was deferred: both halves land together or the mismatch inverts.
+
 *Verification:* the same two dashboards are consistent end to end; a marked assembly pasted into an unmarked
 sheet renders modern beside legacy siblings (decision 3's mixed dashboard); shipped toolbar slices 1–3
 behave per-assembly rather than per-org.
+
+*Added 2026-08-19:* the model field carries the resolved `modern`/`dark` from `VizContext.of(info)`, not the
+raw `VizMark` — see §3's amendment. Verify with the gate off and a marked sheet open: browser and server must
+agree, which they only do if the client is reading the resolved value while the `gate &&` term is still
+alive.
 
 ### The one interim state worth declaring
 
@@ -924,6 +1006,58 @@ dashboard under gate-on has legacy server chrome under modern browser CSS. That 
 the same class of mismatch the branch carries today — but it is a real intermediate state and eliding it in
 review would be dishonest. Splitting them is still right: 115 server edits and ~50 browser edits in one commit
 is not reviewable. Server first, so the last commit is the one that makes it coherent.
+
+### P6 — Revert, and the end of the gate's read-time life
+
+**Added 2026-08-19 by decision 13**, which overruled the org-wide sweep this document had left out of scope.
+What replaced the sweep is one composer action, so it belongs here beside its mirror rather than in a
+reverse-half document that no longer has enough in it to exist.
+
+Four pieces, and pieces 1–3 must land in the same commit:
+
+1. **`VizModernizeUtil.revert(Viewsheet)`** — the mirror of `modernize()` (`VizModernizeUtil.java:52-69`).
+   Same enumeration with the predicate inverted: the sheet's own **marked** infos, including the sheet's own
+   `ViewsheetVSAssemblyInfo` and the second non-recursive pass for embedded-viewsheet containers that
+   `unmarked()` already gets right. Clear the mark, then call `seedChromeDefaults(VizContext.of(info))` —
+   which now resolves unmarked and therefore writes the legacy branch of every ternary. **No reverser is
+   authored; it is the creation call**, which is what decision 12's "revert calls the legacy creation path"
+   was asking for and what decision 11's enumeration point makes free.
+2. **`ChartVSAssemblyInfo.seedChromeDefaults` gains its `else` branch** (`:106-112`), and
+   `PlotDescriptor.modernCornerSeed` and `modernSmoothSeed` are deleted with their fields, XML
+   read/write attributes, `equals` terms and self-clearing setters. Non-negotiably this phase — see §2's
+   amendment for what stranding them would look like.
+3. **The `gate &&` term goes** from `VizContext.of(VizMark)` (`VizContext.java:66`), leaving
+   `modern = mark != null`. `ofGate()` survives, for `ChartColorPaletteController` and for stamping at
+   creation; the persisted guard `VizContextReadFlipTest.exactlyOneDocumentedSiteStillReadsTheOrgGate` keeps
+   holding unchanged.
+4. **The wiring**, mirroring P3's exactly: a `RevertViewsheetController`/`Service` pair beside
+   `ModernizeViewsheetController`/`Service` (58 and 90 lines respectively), a `revertable` flag beside
+   `modernizable` (`CoreLifecycleService.java:314`), a menu entry, and a **confirmation dialog**.
+
+**Three places it deliberately differs from Modernize.**
+
+- **No gate floor.** `modernize()` returns 0 when the gate is closed, because modernizing into a closed gate
+  produces content that changes appearance the moment the gate opens. Clearing a mark has no such hazard, so
+  `revertable` is "this sheet has marked content" with **no gate term** — decision 13 offers Revert under
+  both gate states on purpose.
+- **No bar.** P3's dismissable bar exists because Modernize is an offer the product makes. Revert is a
+  request the author makes, so it lives in the menu only.
+- **A confirmation.** Modernize needs none: it adds chrome, and undo is one step away. Revert discards chrome
+  an author may have been working against for months, and the undo step is just as available but far less
+  likely to be reached for calmly.
+
+**The one interaction to settle in the plan.** `modernizable` is recomputed on every refresh, so a sheet
+reverted with the gate open qualifies again immediately and the Modernize bar returns, offering to undo what
+was just done. The bar is dismissable per composer session, so the floor is one dismissal; decide whether a
+sheet reverted in this session suppresses the offer for the rest of it.
+
+*Verification:* a dashboard modernized and then reverted is byte-comparable, in the properties this hook
+touches, with one that was never modernized — the check decision 12's creation-path routing exists to make
+possible; a marked chart in a **gate-off** org renders fully modern including bar corners and smooth lines,
+which could not have passed before this phase and is the clearest single signal that the term and the
+booleans went together; undo after Revert restores modern chrome in one step; a mixed sheet reverts its
+marked assemblies and leaves its unmarked ones untouched; an embedded viewsheet's own assemblies are not
+reverted by reverting its host.
 
 ---
 
@@ -947,11 +1081,20 @@ preference read from `SreeEnv`; the mark decides whether an assembly honours it.
 **The pre-mark cohort is written off**, per the decisions file, and P0 disposes of it rather than inheriting
 it. The write-off holds only while `viz-updates` is unreleased.
 
-**The three persisted colour seeds stay modern in a gate-off product.** Pre-existing, unchanged by this
-design, fixed by the sweep. See §2.
+~~**The three persisted colour seeds stay modern in a gate-off product.** Pre-existing, unchanged by this
+design, fixed by the sweep. See §2.~~ **Reframed 2026-08-19: this stopped being a cost and became the
+specification.** Under decision 13 a marked assembly is *meant* to stay modern when the gate closes, colours
+included. Nothing fixes it because nothing is broken.
 
-**The gate-off state is only partly reverted until the sweep lands.** Read-time chrome reverts via the
-`gate &&` term; the persisted seeds do not. This is the status quo, not a regression.
+~~**The gate-off state is only partly reverted until the sweep lands.** Read-time chrome reverts via the
+`gate &&` term; the persisted seeds do not. This is the status quo, not a regression.~~ **Superseded
+2026-08-19.** Gate-off reverts nothing at all after P6, by design. The partial reversion above is now a
+description of the P1–P5 window rather than of the end state.
+
+**New 2026-08-19, and the real cost of decision 13: there is no org-wide off switch.** Backing an estate out
+of modern is a per-dashboard job. Stated in full in the decisions file's decision 13, including the two
+things that soften it — a scripted bulk revert and "revisit if customers ask" — and neither is committed
+work.
 
 **A press that finds nothing left to modernize still takes an undo checkpoint.** `@Undoable` is implemented as
 `@AfterReturning("@annotation(Undoable) && within(inetsoft.web..*)")` (`EventAspect.java:103-122`), which fires
@@ -1025,11 +1168,18 @@ title-height resolver (*is this assembly modern*) — the second half is what P4
 now rather than at P5.
 
 When P5 lands: **L″** behind L′, §07 derived selection and the retirement of the teal family, the range
-slider's painter half, and the outlined text conversion. The card radius 12px → 6px additionally needs the
-sweep, because retiring `resolveSeededCorner` without it leaves no reversal path.
+slider's painter half, and the outlined text conversion. ~~The card radius 12px → 6px additionally needs the
+sweep, because retiring `resolveSeededCorner` without it leaves no reversal path.~~ **Amended 2026-08-19:**
+it needs **P6**, not the sweep. The requirement was never the sweep specifically — it was *a* reversal path
+for `resolveSeededCorner`'s retirement to fall back on, and Revert is one. So the radius unblocks a phase
+earlier and behind something an order of magnitude cheaper.
 
-What it does **not** clear is the release gate. That needs the sweep, the bookmark path and the deletion of
-the four old mechanisms.
+~~What it does **not** clear is the release gate. That needs the sweep, the bookmark path and the deletion of
+the four old mechanisms.~~ **Rewritten 2026-08-19.** With P6 in scope, this document now clears most of the
+release gate. What remains outside it: bookmark resolve-on-restore (decision 10), and the two of decision
+12's mechanisms P6 does not take (`resolveSeededCorner` and its `VSCompositeFormat` tab carve-out). The
+sweep, its restore point, its scheduler blocking and its composer-session blocking are gone from the gate
+entirely rather than moved within it.
 
 ---
 
