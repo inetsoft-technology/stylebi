@@ -1,10 +1,13 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-18 (seventh revision — the seed mark's P4 is built: server reads follow the mark, and P5,
-the browser half, is startable; the sixth revision's P3 note, the fifth revision's P2 note and the fourth
-revision's rebase note are all retained below)
-**Verified against:** community `viz-updates` @ `cd06da9b1`, which is `HEAD`, plus P4's uncommitted working
-tree. A commit-approval gate denied every one of P3's nine tasks its own commit while P3 was in progress, so
+**Date:** 2026-08-19 (eighth revision — **P4 has committed as `8ef511e45`**, and a product decision taken
+this day, **decision 13, overrules the org-wide revert sweep**: disabling the gate now reverts nothing, and a
+per-dashboard Revert action mirrors Modernize. That collapses most of the release gate into one phase, P6.
+The seventh revision's P4 note, the sixth's P3 note, the fifth's P2 note and the fourth's rebase note are all
+retained below)
+**Verified against:** community `viz-updates` @ `8ef511e45`, which is `HEAD` and carries P4. The seventh
+revision verified against `cd06da9b1` plus P4's then-uncommitted working tree; that has since committed
+unchanged. A commit-approval gate denied every one of P3's nine tasks its own commit while P3 was in progress, so
 this file's sixth revision verified against `a38cb6957` with P3 only on disk — but `cd06da9b1` (**"feat(viewsheet):
 seed modern chrome from one hook, and modernize on request"**) has since landed on top of it, carrying P3 in
 full, committed outside the session that built it. P4's own tasks hit the same gate and remain uncommitted at
@@ -67,9 +70,11 @@ rather than repairing it — the whole of its content is one reading of the two 
      P1 and P2 landing did NOT free it: the row must READ the mark, and P4 is what makes that read exist.
      L' is unblocked now, not "when P5 lands" — its read path is a server read, P4's subject, not P5's.
 
-  M. Seed mark — five phases. P1 + P2 + P3 + P4 BUILT (P3 shipped cd06da9b1; P4 uncommitted); P5 remains.
-     design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–12
-     ALSO THE RELEASE GATE (needs the revert sweep, out of the forward half's scope)
+  M. Seed mark — SIX phases now. P1–P4 SHIPPED; P5 and P6 remain.
+     design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–13
+     ALSO THE RELEASE GATE — and the gate SHRANK on 2026-08-19: decision 13 overruled the
+     sweep (decisions 6+7), so release needs P6 + bookmarks, not an async org-wide sweep
+     with a restore point, scheduler blocking and composer-session blocking
 
      P1  the field, persisted, stamped at creation      SHIPPED 8f75872a6 — nothing reads it
       │
@@ -77,17 +82,27 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
      P3  decision 11's enumeration point + Modernize    SHIPPED cd06da9b1
       │  the only route in for old content              eleven manual checks still outstanding
-     P4  server reads follow the mark                   BUILT, uncommitted · THE BEHAVIOUR REVERSAL
-      │  43 read sites + the creation site              unblocks L' now · nine manual checks outstanding
+     P4  server reads follow the mark                   SHIPPED 8ef511e45 · THE BEHAVIOUR REVERSAL
+      │  43 read sites + the creation site              unblocks L' now · nine manual checks PASSED
      P5  browser reads follow the mark                  STARTABLE
-      └──┬──→ Card radius 12→6, retire resolveSeededCorner()
-         ├──→ §07 derived selection, retire the teal family
-         │         └──→ Range slider — painter half
-         └──→ Outlined text conversion (also behind G)
+      │  resolved modern/dark on the model, not         P4's interim state is LIVE on the branch
+      │  the raw mark (design §3, amended 08-19)        right now — P5 closes it. Also carries
+      │  + AbstractChartInfo.getTooltipStyle             the one reader P4 deferred to it
+      ├──┬──→ §07 derived selection, retire the teal family
+      │  │         └──→ Range slider — painter half
+      │  └──→ Outlined text conversion (also behind G)
+      │
+     P6  Revert — the per-dashboard mirror of         NEW 2026-08-19 · decision 13
+         Modernize; deletes the gate && term and      replaces the sweep entirely
+         both PlotDescriptor seed booleans            ~P3's weight, not the sweep's
+      └──→ Card radius 12→6, retire resolveSeededCorner()
 
-     P4 unblocks the first of the six — L' — directly, ahead of P5. P5 still gates the other five. P1 and
+     P4 unblocks the first of the six — L' — directly, ahead of P5. P5 gates four of the other five. P1 and
      P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
      is the first phase whose landing moves one.
+
+     The card radius moved off P5 and onto P6 on 2026-08-19. It never needed the sweep specifically — it
+     needed A reversal path for resolveSeededCorner's retirement to fall back on, and Revert is one.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
@@ -134,23 +149,38 @@ Four corrections this picture carries against the external set, all recorded in
 
 ## What to pick up next
 
-**Re-derived 2026-08-18, from the dependency picture above rather than by editing the 2026-08-15 ranking in
-place — this file's own instructions say to re-derive rather than repair, and P4 landing changes what is
-first.** This is a reading of the picture, not a new decision; it goes stale as things land.
-Effort is relative to this track, not absolute.
+**Re-derived 2026-08-19, from the dependency picture above rather than by editing the 2026-08-18 ranking in
+place — this file's own instructions say to re-derive rather than repair. Two things changed: P4 committed,
+and decision 13 turned the release gate's largest unbuilt item into a phase small enough to rank.** This is a
+reading of the picture, not a new decision; it goes stale as things land. Effort is relative to this track,
+not absolute.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **L′ — the title lane height row** | the highest-value visible item, and now startable | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
-| 2 | **M-P5 — browser reads follow the mark** | closes the forward half | **M** | the remaining five items | modifies shipped slices 1–3; body class becomes per-assembly |
-| 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | **L′ — the title lane height row** | the highest-value visible item, and startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
+| 2 | **M-P5 — browser reads follow the mark** | closes the browser half | **M** | four of the six | modifies shipped slices 1–3; body class becomes per-assembly |
+| 3 | **M-P6 — Revert** | clears most of what is left of the release gate | **S–M** — P3's wiring mirrored, plus three deletions | card radius 12→6 | deletes the `gate &&` term and both `PlotDescriptor` seed booleans together; splitting them strands charts |
+| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**M-P3 and M-P4 both dropped off this table because they are built, not because they are done.** P3 shipped
-in `cd06da9b1`, committed outside the session that built it, so its own row is settled; what remains of it
-is the eleven manual checks, still outstanding. P4 sits in the working tree, uncommitted — see "the seed
-mark" section below — with its own nine manual checks outstanding on top of P3's eleven. Running both
-passes and committing P4 are real prerequisites for anyone continuing this track, even though neither is a
-ranked item in the sense the table above means: there is no design work or code left to write for either.
+**P6 goes after P5, and the reason is the same one that ordered P4 before P5.** P6 makes gate-off mean
+"marked content stays modern" on the server, while the browser's `viz-modern` body class is still toggled
+from the org gate until P5 lands — so P6-before-P5 would put legacy CSS over modern server chrome for every
+gate-off org. Nothing else couples them: P6 is server plus composer wiring and touches none of P5's files.
+
+**M-P3 and M-P4 are off this table because they are built.** P3 shipped in `cd06da9b1` and P4 in
+`8ef511e45`, both committed outside the sessions that built them. **P4's nine manual checks all passed on
+2026-08-19**, per its commit message: an unmarked dashboard rendering legacy chrome under an open gate, a
+Modernized copy rendering modern, export agreeing with view across PDF, PNG and Excel for both, a property
+dialog on a legacy chart previewing legacy chrome, and a mixed dashboard rendering each assembly by its own
+mark. **P3's eleven have not**, and nothing in P4's pass substitutes for them. They need a built server, a
+browser and a legacy dashboard. Running them is a real prerequisite for anyone continuing this track, even
+though it is not a ranked item in the sense the table means: there is no design work or code left to write.
+
+**P5 also inherits one server-side reader P4 deferred.** `AbstractChartInfo.getTooltipStyle` resolves AUTO to
+CARD from the org gate; threading it changes the `ChartInfo` interface getter and ripples through four
+classes, and its most visible consumer ships `tooltipStyle` to a browser that still reads org-gated flags
+until P5. Fixing the server half alone would have bought nothing visible. Recorded in P4's commit message and
+in the design's P4 section.
 
 **L′ is first because P4 is what was missing, and P4 is now built.** The row needed a read path that
 consults the mark at the title-height resolver, and nothing supplied one until this phase — see "the seed
@@ -309,10 +339,16 @@ PDF, PNG, Excel and scheduled output and shifts everything below the title. This
 [the decisions](./seeded-value-reversibility-decisions.md) note the pre-mark cohort write-off holds *only
 while the branch is unreleased*. But decision 4 alone is called the largest single piece of work in that
 set — all five read-time resolvers, the export painters, and `viz-dark` moving from one body class
-(`viewer-app.component.ts:2798`) to a per-assembly scope — and decisions 6 and 7 add a resumable org-wide
-async sweep with a restore point, composer-session blocking and scheduler interaction. It wants its own
+(`viewer-app.component.ts:2798`) to a per-assembly scope — ~~and decisions 6 and 7 add a resumable org-wide
+async sweep with a restore point, composer-session blocking and scheduler interaction.~~ It wants its own
 plan and its own branch. **If a release date is set, M's schedule is the thing to work backwards from**,
 because after release the cohort is customer data and the write-off is no longer available.
+
+**Amended 2026-08-19, and the second half of that sentence is gone.** Decision 13 overruled decisions 6 and
+7: there is no org-wide sweep, so no restore point, no composer-session blocking and no scheduler
+interaction. What replaced them is P6, a per-dashboard Revert action of roughly P3's weight. The rest of the
+paragraph stands — decision 4 is still the largest single piece of work in the set, and the write-off still
+expires at release.
 
 **The interaction to know before taking #5.** The dark browser-surfaces plan declares its four tokens in
 the existing `.viz-dark` block at `_viz-tokens.scss:143-159`. Seeded-value decision 4 turns `viz-dark`
@@ -360,14 +396,18 @@ Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
 
 ## The long pole: the seed mark
 
-**The forward half is designed and its P1, P2, P3 and P4 are built — P3 shipped in `cd06da9b1`, P4
-uncommitted — see
-[2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md).** The design
-covers the mark, the re-keying of every read path onto it, the per-assembly browser scope and the Modernize
-action, in six phases. It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms
-and the card radius out of scope — so even with P4 built it unblocks only the first of the six items behind
-M (L′) and does **not** clear the release gate. It also pulls Modernize forward out of the reverse half,
-because without it no existing dashboard has any route to modern and the flip is untestable.
+**P1 through P4 have shipped — P3 in `cd06da9b1`, P4 in `8ef511e45` — and the design document
+[2026-08-14-seed-mark-forward-half-design.md](../2026-08-14-seed-mark-forward-half-design.md) now covers a
+sixth phase.** It covers the mark, the re-keying of every read path onto it, the per-assembly browser scope,
+the Modernize action and, since 2026-08-19, Revert. With P4 in it unblocks the first of the six items behind
+M (L′). It pulled Modernize forward out of what used to be the reverse half, because without it no existing
+dashboard has any route to modern and the flip is untestable — and on 2026-08-19 it absorbed the rest of that
+reverse half too, because decision 13 shrank it to one phase.
+
+~~It leaves the revert sweep, the bookmark path, the deletion of the four old mechanisms and the card radius
+out of scope, and does **not** clear the release gate.~~ **Amended 2026-08-19.** The sweep is overruled; the
+design now carries P6 in its place. What still sits outside it: the bookmark path (decision 10) and two of
+decision 12's four mechanisms. The card radius moved inside, behind P6.
 
 **P1 shipped in `8f75872a6`.** `VizMark` (`modern-light`/`modern-dark`, absent meaning unmarked) on
 `VSAssemblyInfo`, persisted as one attribute and **cleared unconditionally on parse when absent**; a sheet
@@ -399,14 +439,16 @@ Four things P2 established that the later phases should read before starting:
   `modern = VSDensityDefaults.isModern() && mark != null`, with `dark` gated behind `modern` so the
   never-dark-without-modern invariant holds structurally. The P2 plan had dropped that term and a test had
   pinned the omission; the design's §2 "interim term" paragraph is authoritative and was restored. Deleting it
-  is still the one-line change the revert sweep makes.
+  is still the one-line change ~~the revert sweep~~ **P6** makes — reassigned 2026-08-19 by decision 13,
+  which overruled the sweep. Still one line, still the same line.
 - **`VizContext.LEGACY` is a sentinel whose identity is load-bearing.** See the note in "What to pick up next"
   — seven descriptor font lines compare against it to mean *is a viewsheet chart*, and no factory may return
   it.
 - **Two methods still read the gate directly, on purpose and commented.**
   `VSObjectChromeDefaults.resolveSeededCorner` is called from a `VSCompositeFormat` getter with no route to a
-  context, and `PlotDescriptor`'s two seed-boolean getters are the interim reversal mechanisms the sweep
-  deletes. A third, `AbstractChartInfo`'s tooltip-style resolution, is now commented the same way — so the
+  context, and `PlotDescriptor`'s two seed-boolean getters are the interim reversal mechanisms ~~the sweep~~
+  **P6** deletes — and, since decision 13, deletes in the *same commit* as the `gate &&` term, because after
+  P4 those two getters are the only reads left that still test the org gate. A third, `AbstractChartInfo`'s tooltip-style resolution, is now commented the same way — so the
   claim "no resolver reads `SreeEnv` for the gate" is true of the eight `VS*Defaults` classes, not of every
   read path.
 - **`ofGate()` is called per-row.** `SelectionBaseVSAssemblyInfo.getEffectiveCellHeight()` runs once per
@@ -451,7 +493,9 @@ Four things P3 established that P4 and P5 should read before starting:
 run — they need a built server, a browser and a legacy dashboard. See the design document's P3 section for
 the full list, including the added check on what an empty undo checkpoint does to Ctrl+Z.
 
-**P4 built 2026-08-18, in the working tree, not yet committed.** `VizContext.ofGate()` → `of(info)` across
+**P4 built 2026-08-18; committed unchanged as `8ef511e45`, "feat(viewsheet): render from the assembly's
+mark, not the org gate" — confirmed an ancestor of `HEAD` on 2026-08-19 with `git merge-base
+--is-ancestor`.** `VizContext.ofGate()` → `of(info)` across
 the 43 read-path sites the design's "shape P4 takes" table lays out — model layer, export and painter, chart
 pipeline, dialog models, services and controllers, query and lens, report-only and the one info-local site —
 plus the creation-path flip decided the same day: `VSAssemblyInfo.java:1235` now seeds from `of(this)` rather
@@ -478,17 +522,64 @@ Two things P4 established that P5 should read before starting:
   a second surviving call site rather than a definition. A literal match resolves it; the persisted guard
   above is what makes the distinction durable.
 
-**Outstanding: the nine manual checks the plan calls for.** None has run — they need a built server, a
-browser, a dashboard saved before the mark existed, and exported PDF, PNG and Excel files. See the design
-document's P4 section for the full list, including the check that could not have passed before this phase:
-a legacy dashboard under an open gate rendering legacy chrome.
+**The nine manual checks the plan calls for have all run, and all passed, 2026-08-19** — recorded in
+`8ef511e45`'s commit message. They needed a built server, a browser, a dashboard saved before the mark
+existed, and exported PDF, PNG and Excel files. Included is the check that could not have passed before this
+phase: a legacy dashboard under an open gate rendering legacy chrome. Alongside them, 4899 core tests green,
+a clean cross-module build, and exactly one documented gate reader still guarded by name. **P3's eleven
+remain outstanding and are not covered by any of these.**
+
+**The reverse half was overruled on 2026-08-19, and this is the largest change to M since it was written.**
+Decisions 6 and 7 had unchecking the org gate sweep every marked assembly in the org: persisted, wholesale
+across the DEFAULT and USER tiers, asynchronous, behind an automatic restore point, with scheduled tasks
+cancelled and blocked and open composer sessions blocking the flip unless the admin forced it, and the whole
+thing resumable and idempotent because a forced or failed run leaves a half-and-half estate.
+**Decision 13 replaces all of it with a per-dashboard Revert action — the exact mirror of Modernize.**
+Disabling the gate now reverts nothing at all: the gate decides what new content is stamped with and whether
+Modernize is offered, and the mark decides how an assembly renders.
+
+**Why the decision was taken — four arguments, all from decisions already in the set.** It is the rule
+decisions 2 and 5 already chose, applied in the other direction: nothing automatic touches a saved asset, and
+decision 6 was the last place anything did. Decision 6 had named its own worst property — "the admin flipping
+the switch is usually not the person whose work is being replaced" — which is why it needed a restore point;
+a per-dashboard action puts the decision in front of the person who owns the work and makes the restore point
+an ordinary undo step. Decision 5's argument against a bulk *forward* path (modernizing changes geometry, so
+bulk produces hundreds of dashboards needing hand repair) applies unchanged to a bulk *backward* path, and
+had never been applied there. And it makes the gate's two axes consistent: decision 9 already said unchecking
+dark mode changes nothing that exists, and needed its own justification only because the modern axis behaved
+differently.
+
+**What it buys this roadmap.** The release gate loses the async sweep engine, the restore point and its
+documented procedure, scheduler cancellation and blocking, composer-session blocking with a force override,
+and resumability across a partial run — replaced by one composer action of roughly P3's weight. Both of the
+decisions file's open items, Quartz misfire policy and guaranteed scheduler resume, close by obsolescence.
+Two accepted costs — "revert is not recoverable" and "half-and-half estates during a flip" — go with them.
+The card radius 12→6 unblocks a phase earlier, because it never needed the sweep specifically, only *a*
+reversal path for `resolveSeededCorner`'s retirement.
+
+**What it costs, and it is not softened anywhere: there is no org-wide off switch with teeth.** A customer
+who adopts modern across three hundred dashboards and then reverses course visits three hundred dashboards.
+A scripted bulk revert (shell DSL or deploy API, over an explicit list) would need none of the sweep's
+machinery because it is a deliberate operation rather than the side effect of a checkbox — but it is not
+committed work, and decision 5's "revisit if customers ask" is the standing disposition. A second, smaller
+cost: the EM property's label outlives its meaning, since "Modern Visualization: off" no longer makes
+anything look legacy. It wants a rewritten description or a rename.
+
+**What P6 must not split.** The `gate &&` term in `VizContext.of(VizMark)` (`VizContext.java:66`) and both
+`PlotDescriptor` seed booleans (`isSmoothLines()` `:635`, `getBarCornerRadius()` `:1319`) are deleted in the
+same commit. After P4 those two getters are the only reads left that still test the org gate, so deleting the
+term alone leaves a marked chart in a gate-off org modern everywhere except its bar corners and line
+smoothing. Deleting the booleans in turn requires the `else` branch in `ChartVSAssemblyInfo.seedChromeDefaults`
+(`:106-112`), which is forward-only today precisely because those booleans did the reversing.
 
 **Superseded by a product decision set, 2026-08-12. Read
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
 anything in this section or in widget spec §03.** That file departs from §03 on three points: reversal is a
 **persisted wholesale revert** rather than a recompute onto a clone, there is **no automatic forward
 re-seed** (modernization is opt-in via a button), and `gate-off` is **not a stored state** — the mark is
-`unmarked` / `modern-light` / `modern-dark`. The analysis below is retained because its code citations hold
+`unmarked` / `modern-light` / `modern-dark`. **A fourth was added 2026-08-19 by decision 13, and it is the
+largest: the gate reverts nothing in either direction.** Reversal is still persisted — but it is triggered by
+a person pressing Revert on one dashboard, never by the gate. The analysis below is retained because its code citations hold
 and because it is the record of how the questions were framed; where it and the decisions file disagree, the
 decisions file is current.
 
@@ -555,7 +646,9 @@ before the mark rather than after.
 **It gates five things and the release.** The four branches above plus the range slider's painter half at
 one remove. The spec argues the mark can sequence behind work with users waiting, but is decisive that it
 must land **before release**, because the cohort needing migration is empty today and stays empty only until
-the branch ships.
+the branch ships. **Still true on 2026-08-19, and the release half got cheaper without getting less
+mandatory:** decision 13 shrank what release needs from a sweep to P6, but the pre-mark cohort write-off
+still expires the day the branch ships, and P6 is still on the near side of that date.
 
 **Open questions — all four now answered; kept as the record of what was asked.**
 
@@ -568,8 +661,11 @@ the branch ships.
    tracks already touch. Decision 4 is the largest piece and reverses shipped `viz-updates` behaviour.
 4. ~~**Does the Modernize bar ship with it?**~~ Yes, and its behaviour is decided rather than inherited from
    §03: manual, per-dashboard, gate-on only, write permission required, one composer undo step, **no bulk
-   path**. Decision 5. §03's "applies live with no confirmation dialog" does not survive — decision 6's
-   revert is destructive and needs a confirmation and an automatic restore point.
+   path**. Decision 5. §03's "applies live with no confirmation dialog" does not survive — ~~decision 6's
+   revert is destructive and needs a confirmation and an automatic restore point.~~ **Restated 2026-08-19:**
+   Revert still takes a confirmation, because it discards chrome an author may have been working against for
+   months; the automatic restore point is gone with decision 6, replaced by the same one composer undo step
+   Modernize takes. Modernize itself still needs no confirmation — it adds chrome, and undo is one step away.
 
 **Two things §03 does not account for, found while deciding.** Bookmarks carry formats —
 `TableVSAssembly` the whole `FormatInfo` (`:157-163`), `ChartVSAssembly` the `ChartDescriptor` and a
