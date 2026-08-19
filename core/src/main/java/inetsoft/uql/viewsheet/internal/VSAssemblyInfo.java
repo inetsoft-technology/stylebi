@@ -1229,9 +1229,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       setCSSDefaults();
-      // last, so subclass seeds that run after super() see a fully built format, and so the
-      // stylesheet resize in setCSSDefaults() is never re-run by Modernize
-      seedChromeDefaults(VizContext.ofGate());
+      // the assembly's own provenance, not the org's: an assembly on an unmarked host seeds the
+      // values it will read. The stamp precedes this call (AbstractVSAssembly's two-arg constructor
+      // and ViewsheetVSAssemblyInfo's), so `this` already carries whatever mark it will keep.
+      seedChromeDefaults(VizContext.of(this));
    }
 
    /**

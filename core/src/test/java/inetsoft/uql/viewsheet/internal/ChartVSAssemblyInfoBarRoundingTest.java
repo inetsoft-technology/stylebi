@@ -55,6 +55,7 @@ class ChartVSAssemblyInfoBarRoundingTest {
 
    private PlotDescriptor newChartPlot() {
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVizMark(VizMark.fromGate());
       info.initDefaultFormat();
       return info.getChartDescriptor().getPlotDescriptor();
    }

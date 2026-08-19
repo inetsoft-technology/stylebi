@@ -33,8 +33,7 @@ public class ChartLinePaneModel implements Serializable {
    public ChartLinePaneModel() {
    }
 
-   public ChartLinePaneModel(ChartInfo info, PlotDescriptor plotDesc) {
-      VizContext ctx = VizContext.ofGate();
+   public ChartLinePaneModel(ChartInfo info, PlotDescriptor plotDesc, VizContext ctx) {
       initPlotComVisible(info);
       getPlotXYGird(info, plotDesc, ctx);
       getPlotQuadrantGrid(plotDesc);
@@ -53,8 +52,7 @@ public class ChartLinePaneModel implements Serializable {
          info.getChartType() != GraphTypes.CHART_GANTT;
    }
 
-   public void updateChartLinePaneModel(ChartInfo cinfo, PlotDescriptor plotDesc) {
-      VizContext ctx = VizContext.ofGate();
+   public void updateChartLinePaneModel(ChartInfo cinfo, PlotDescriptor plotDesc, VizContext ctx) {
       Color color;
       updatePlotXYGird(cinfo, plotDesc, ctx);
       updatePlotTrendLineGrid(plotDesc);

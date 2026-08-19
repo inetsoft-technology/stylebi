@@ -222,7 +222,7 @@ public class VSChartDndService {
          ChangeChartAestheticController.syncWorldCloudColor(
             clone.getVSChartInfo(), event.getDropTarget());
          CSSChartStyles.apply(clone.getChartDescriptor(), clone.getVSChartInfo(),
-                              null, clone.getCssParentParameters());
+                              null, clone.getCssParentParameters(), VizContext.of(clone));
       }
 
       final BindingModel binding = bfactory.createModel(assembly);

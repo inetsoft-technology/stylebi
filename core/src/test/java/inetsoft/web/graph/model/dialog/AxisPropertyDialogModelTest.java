@@ -20,6 +20,7 @@ package inetsoft.web.graph.model.dialog;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,7 +61,8 @@ class AxisPropertyDialogModelTest {
    @Test
    void canHaveNullIncrements() throws Exception {
       AxisDescriptor axisDescriptor = new AxisDescriptor();
-      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, "", "", false);
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, "", "", false,
+                                                            VizContext.ofGate());
 
       assertNull(axisDescriptor.getMinimum());
       assertNull(axisDescriptor.getMaximum());
@@ -71,10 +73,12 @@ class AxisPropertyDialogModelTest {
    @Test
    void getCorrectFormat() throws Exception {
       AxisDescriptor axisDescriptor = spy(new AxisDescriptor());
-      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, null, "", false);
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, null, "", false,
+                                                            VizContext.ofGate());
       verify(axisDescriptor, times(2)).getAxisLabelTextFormat();
 
-      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, "column1", "", false);
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, "column1", "", false,
+                                                            VizContext.ofGate());
       verify(axisDescriptor, times(2)).getColumnLabelTextFormat("column1");
    }
 
@@ -87,7 +91,8 @@ class AxisPropertyDialogModelTest {
       axisDescriptor.setColumnLabelTextFormat(columnName, cfmt);
 
       axisPropertyDialogModel.getAxisLabelPaneModel().getRotationRadioGroupModel().setRotation("auto");
-      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, columnName, "", false);
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, columnName, "", false,
+                                                            VizContext.ofGate());
       assertNull(axisDescriptor.getColumnLabelTextFormat(columnName).getUserDefinedFormat().getRotation());
    }
 
