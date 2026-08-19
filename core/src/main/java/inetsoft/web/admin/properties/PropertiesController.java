@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 @RestController
 public class PropertiesController {
@@ -138,7 +139,7 @@ public class PropertiesController {
       Properties properties = SreeEnv.getProperties();
 
       if(!LicenseManager.isEnterprise()) {
-         removeUnuseProperties(properties);
+         properties = removeUnuseProperties(properties);
       }
 
       return properties;
@@ -156,24 +157,60 @@ public class PropertiesController {
       Properties properties = SreeEnv.getDefaultProperties();
 
       if(!LicenseManager.isEnterprise()) {
-         removeUnuseProperties(properties);
+         properties = removeUnuseProperties(properties);
       }
 
       return properties;
    }
 
-   private void removeUnuseProperties(Properties properties) {
-      properties.remove("log.fluentd.host");
-      properties.remove("log.fluentd.orgadminaccess");
-      properties.remove("log.fluentd.port");
-      properties.remove("log.fluentd.security.userauthenticationenabled");
-      properties.remove("log.fluentd.connecttimeout");
-      properties.remove("log.fluentd.securityenabled");
-      properties.remove("log.fluentd.tlsenabled");
-      properties.remove("log.level.intesoft.storage.aws.com.amazonaws");
-      properties.remove("log.level.inetsoft.storage.aws.org.apache");
-      properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
-      properties.remove("log.level.inetsoft_audit");
+   /**
+    * Returns a copy of the given properties with the settings that have no effect on a community
+    * build omitted.
+    *
+    * The input must not be modified: getProperties() hands back the live internalProperties map
+    * and getDefaultProperties() hands back a JVM-wide cached instance, so removing keys in place
+    * would delete an admin's real configuration from the running server -- and once a removed key
+    * is in PropertiesEngine.changedProps, saveToStorage() would persist that deletion.
+    */
+   private Properties removeUnuseProperties(Properties properties) {
+      Properties filtered = new Properties();
+
+      // stringPropertyNames() is the same view that serializes to the client (DefaultProperties
+      // delegates keySet()/entrySet()/stringPropertyNames() to its main layer alike), so filtering
+      // over it cannot list a key it fails to filter.
+      for(String name : properties.stringPropertyNames()) {
+         if(isEnterpriseOnlyProperty(name)) {
+            continue;
+         }
+
+         String value = properties.getProperty(name);
+
+         if(value != null) {
+            filtered.setProperty(name, value);
+         }
+      }
+
+      return filtered;
+   }
+
+   /**
+    * Determines whether a property has no effect on a community build and should be hidden.
+    */
+   private boolean isEnterpriseOnlyProperty(String name) {
+      // The Fluent Bit/Fluentd forwarder is enterprise-only: the appender and the reset hook are
+      // both loaded reflectively from inetsoft.enterprise.log.fluentd (see LogbackUtil), so none
+      // of the log.fluentd.* settings can take effect here. Match the whole family by prefix
+      // rather than enumerating it -- an enumerated list drifts, and previously only 7 of the 12
+      // keys were listed, leaving the shared key, password, username, CA certificate path and log
+      // view URL visible without the host, port and flags that gate them. A key added to the
+      // family later is now hidden automatically instead of landing on the wrong side.
+      // Property names are stored lower-cased (PropertiesEngine.computePropertyNameCase), but the
+      // comparison is case-insensitive so an un-normalized defaults spelling is caught too.
+      if(name.regionMatches(true, 0, FLUENTD_PREFIX, 0, FLUENTD_PREFIX.length())) {
+         return true;
+      }
+
+      return UNUSED_LOG_LEVELS.contains(name);
    }
 
    private void removeLogLevel(String property) {
@@ -213,6 +250,15 @@ public class PropertiesController {
          logManager.setContextLevel(logContext, name, null);
       }
    }
+
+   private static final String FLUENTD_PREFIX = "log.fluentd.";
+   private static final Set<String> UNUSED_LOG_LEVELS = Set.of(
+      // NOTE: "intesoft" is a pre-existing typo in this key, corrected separately in bug-76047 /
+      // PR #4662. Left as-is here so this change stays scoped to the log.fluentd.* family.
+      "log.level.intesoft.storage.aws.com.amazonaws",
+      "log.level.inetsoft.storage.aws.org.apache",
+      "log.level.inetsoft.web.portal.controller.ControllerErrorHandler",
+      "log.level.inetsoft_audit");
 
    private final AssetRepository assetRepository;
    private final LogManager logManager;
