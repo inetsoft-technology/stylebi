@@ -129,7 +129,7 @@ public class SheetOpenService {
       if(vsSession.socketSessionId() == null) {
          throw new IllegalArgumentException(
             "The connected viewsheet session has no active browser connection to open the " +
-            "worksheet in; ask the user to re-pair (run connect_viewsheet again) before calling " +
+            "worksheet in; ask the user to re-pair (run connect_sheet again) before calling " +
             "open_base_worksheet.");
       }
 
