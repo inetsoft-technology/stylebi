@@ -33,9 +33,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * A single table assembly inside the worksheet.
     *
     * @param name               assembly name
-    * @param type               one of {@code "EMBEDDED"}, {@code "JOIN"}, {@code "CONCAT"},
-    *                           {@code "MIRROR"}, {@code "UNPIVOT"},
-    *                           {@code "ROTATED"}, {@code "TABLE"}
+    * @param type               one of {@code "EMBEDDED"}, {@code "EMBEDDED_SNAPSHOT"},
+    *                           {@code "JOIN"}, {@code "CONCAT"}, {@code "MIRROR"},
+    *                           {@code "UNPIVOT"}, {@code "ROTATED"}, {@code "TABLE"}.
+    *                           {@code "EMBEDDED_SNAPSHOT"} is a table imported through the
+    *                           Composer's file-import wizard: its data is read-only, and
+    *                           {@code edit_cell}/{@code insert_row}/{@code delete_row} refuse it
     * @param columns            visible (public) columns
     * @param joins              join predicates; non-null, empty for non-join tables
     * @param preConditions      pre-aggregate filter conditions

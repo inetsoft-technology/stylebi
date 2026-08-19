@@ -37,6 +37,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
+import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -253,6 +254,58 @@ class WorksheetAgentControllerTest {
       assertNotNull(model);
       assertFalse(model.tables().isEmpty());
       assertEquals("T", model.tables().get(0).name());
+   }
+
+   // ---------------------------------------------------------------------------
+   // properties — read
+   // ---------------------------------------------------------------------------
+
+   /**
+    * The read counterpart of the properties POST. Without it an agent could set a worksheet's
+    * alias or description but never read it back, and /model carries neither field.
+    */
+   @Test
+   void getPropertiesReturnsTheSheetsOwnProperties() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      ws.getWorksheetInfo().setAlias("Quarterly revenue");
+      ws.getWorksheetInfo().setDescription("Set by the agent");
+
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "Folder/ws-1", null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getEntry()).thenReturn(entry);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         new WorksheetReadService(), editSvc, mock(WorksheetService.class));
+
+      WorksheetPropertiesModel props = ctrl.getProperties("TOK", agent);
+
+      assertEquals("ws-1", props.name());
+      assertEquals("Quarterly revenue", props.alias());
+      assertEquals("Set by the agent", props.description());
+      assertTrue(props.dataSource(),
+         "AssetEntry.isReportDataSource() reads true unless the property is explicitly \"false\", "
+            + "so an untouched entry is a data source -- the same value the Composer dialog shows");
+   }
+
+   @Test
+   void getPropertiesIsRefusedWhenTheFeatureIsOff() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetAgentController ctrl = controller(featureOff(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         new WorksheetReadService(), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      assertThrows(Exception.class, () -> ctrl.getProperties("TOK", agent));
    }
 
    // ---------------------------------------------------------------------------

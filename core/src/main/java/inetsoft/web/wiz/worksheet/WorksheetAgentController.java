@@ -52,6 +52,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
+import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1842,6 +1843,28 @@ public class WorksheetAgentController {
    // ---------------------------------------------------------------------------
 
    public record WorksheetPropertiesRequest(String alias, String description) {}
+
+   /**
+    * Read worksheet-level properties.
+    *
+    * <p>The read counterpart of {@link #setProperties}. Without it an agent could set a
+    * worksheet's display name or description but never read, verify or report the current value,
+    * only overwrite it blindly -- and {@code /model} carries none of these fields.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param user         the authenticated agent principal
+    * @return the sheet's name, alias, description and data-source flag
+    * @throws PairingException if the session is invalid/expired or the runtime is not found
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/properties")
+   public WorksheetPropertiesModel getProperties(@PathVariable String sessionToken, Principal user)
+      throws PairingException
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      return readService.readProperties(rws);
+   }
 
    /**
     * Update worksheet-level properties (alias and description).
