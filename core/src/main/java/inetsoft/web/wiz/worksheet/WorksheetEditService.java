@@ -310,8 +310,15 @@ public class WorksheetEditService {
          if(toRemove != null) {
             WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
 
-            // For embedded tables, also remove the data column from XEmbeddedTable
-            if(t instanceof EmbeddedTableAssembly embedded) {
+            // For embedded tables, also remove the data column from XEmbeddedTable.
+            // Snapshots are excluded, and not just as an optimization: the guard above lets
+            // only an expression column through, an expression column has no data column, so
+            // findColumn could never match. What it WOULD do is call getEmbeddedData(), which
+            // on a snapshot goes through getTable() -> initTable() and can fault the whole
+            // swapped-out data file back in to answer a question already known to be "no".
+            if(t instanceof EmbeddedTableAssembly embedded &&
+               !(t instanceof SnapshotEmbeddedTableAssembly))
+            {
                XEmbeddedTable data = embedded.getEmbeddedData();
                int index = AssetUtil.findColumn(data, toRemove);
 

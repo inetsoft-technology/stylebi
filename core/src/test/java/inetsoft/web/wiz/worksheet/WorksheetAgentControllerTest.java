@@ -154,6 +154,17 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   /** Builds an {@code insert_column} EditRequest that routes to insertColumn(). */
+   private static EditRequest insertColumnRequest(String table) {
+      return new EditRequest(
+         "insert_column", table, null, null, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null
+      );
+   }
+
    /** Builds an {@code edit_sql_query} EditRequest that routes to editSqlQuery(). */
    private static EditRequest editSqlQueryRequest(String table, String expression) {
       return new EditRequest(
@@ -296,6 +307,14 @@ class WorksheetAgentControllerTest {
             + "so an untouched entry is a data source -- the same value the Composer dialog shows");
    }
 
+   /**
+    * Pinned to the exact 403 {@code requireEnabled()} throws, the way {@code joinRejectsFlagOff}
+    * is. A bare {@code assertThrows(Exception.class, ...)} would not test the flag at all: with
+    * both collaborators mocked, dropping {@code requireEnabled()} leaves the endpoint throwing
+    * anyway -- {@code requireWholeSheetSession} passes an unresolvable token straight through by
+    * design, so {@code editService.resolve} returns {@code null} and {@code readProperties}
+    * NPEs. Asserting the status is what tells those two outcomes apart.
+    */
    @Test
    void getPropertiesIsRefusedWhenTheFeatureIsOff() {
       Principal agent = TestPrincipals.user("alice", "host-org");
@@ -305,7 +324,9 @@ class WorksheetAgentControllerTest {
          new WorksheetReadService(), mock(WorksheetEditService.class),
          mock(WorksheetService.class));
 
-      assertThrows(Exception.class, () -> ctrl.getProperties("TOK", agent));
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.getProperties("TOK", agent));
+      assertEquals(403, ex.getStatusCode().value());
    }
 
    // ---------------------------------------------------------------------------
@@ -352,6 +373,49 @@ class WorksheetAgentControllerTest {
                  "column 'x' should have been removed");
       assertNotNull(t.getColumnSelection(false).getAttribute("y"),
                     "column 'y' should still be present");
+   }
+
+   /**
+    * The snapshot guard for {@code insert_column}, pinned here rather than in
+    * {@code WorksheetEditServiceMutatorsTest} because this op is the one that does not live in
+    * the {@code Editor}: it manipulates {@link inetsoft.uql.util.XEmbeddedTable} directly from
+    * the controller. That is exactly why it was missed when the sibling column ops were first
+    * swept, so it is the guard most likely to be dropped again -- and the only one no test
+    * covered.
+    */
+   @Test
+   void editInsertColumnRefusesSnapshotEmbeddedTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t =
+         TestWorksheets.snapshotTableWithColumns(ws, "S", "a", "b");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-IC"), any())).thenReturn(session("TOK-IC"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-IC", insertColumnRequest("S"), agent));
+
+      assertTrue(ex.getMessage().startsWith("insert_column"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("EMBEDDED_SNAPSHOT"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("add_expression_column"),
+         "the refusal must name the column kind that does work here: " + ex.getMessage());
+      assertEquals(2, t.getColumnSelection(false).getAttributeCount(),
+         "nothing may be added to the selection when the data cannot follow");
    }
 
    @Test
