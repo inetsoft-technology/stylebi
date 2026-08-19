@@ -329,4 +329,113 @@ describe("ConnectToClaudeComponent", () => {
       });
    });
 
+   describe("connected indicator", () => {
+      /** Captures the handler for a given destination, since the component now holds two. */
+      function handlerFor(dest: string): (msg: any) => void {
+         const call = mockStompConnection.subscribe.mock.calls
+            .filter((c: any[]) => c[0] === dest).pop();
+         expect(call).toBeTruthy();
+         return call[1];
+      }
+
+      function notice(body: any): any {
+         return { frame: { body: JSON.stringify(body) } };
+      }
+
+      it("subscribes to the joined destination on init", () => {
+         expect(mockStompConnection.subscribe).toHaveBeenCalledWith(
+            "/user/commands/wiz/pairing/joined",
+            expect.any(Function)
+         );
+      });
+
+      it("shows connected and drops the consumed code for a matching notice", () => {
+         component.code = "ABC123";
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         fixture.detectChanges();
+
+         expect(component.connected).toBe(true);
+         expect(component.code).toBeNull();
+         expect(fixture.nativeElement.querySelector(".wiz-connect-connected")).toBeTruthy();
+         expect(fixture.nativeElement.querySelector(".wiz-connect-code")).toBeNull();
+      });
+
+      it("ignores a notice for another runtime", () => {
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-other", sheetType: "WORKSHEET", editorContext: null }));
+
+         expect(component.connected).toBe(false);
+      });
+
+      /*
+       * The failure this filter exists for: the destination is per-user, so a pane pairing is
+       * delivered to the toolbar instance too. Without the editorContext check the toolbar would
+       * claim an agent joined it, which is a false statement rather than a missing feature.
+       */
+      it("ignores a pane notice on a toolbar instance", () => {
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                     editorContext: { kind: "calcField", assembly: "Query1", name: "Margin" } }));
+
+         expect(component.connected).toBe(false);
+      });
+
+      /*
+       * Jackson serializes a Java record's absent components as explicit nulls, while the browser
+       * never sent those keys at all. Comparing them naively (JSON.stringify, or === on each key)
+       * makes every pane notice a mismatch and the indicator never appears.
+       */
+      it("matches a pane notice whose absent fields arrive as explicit nulls", () => {
+         let handler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") { handler = h; }
+               return { unsubscribe: vi.fn() };
+            });
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         component.requestCode();
+         handler!(notice({ code: "ABC123" }));
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                     editorContext: { kind: "assemblyMain", assembly: "Chart1",
+                                      name: null, table: null } }));
+
+         expect(component.connected).toBe(true);
+      });
+
+      it("clears the indicator when the runtimeId changes", () => {
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         expect(component.connected).toBe(true);
+
+         component.runtimeId = "rt-2";
+         component.ngOnChanges(
+            { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(component.connected).toBe(false);
+      });
+
+      it("releases the joined subscription on destroy", () => {
+         const subs: Array<{ unsubscribe: ReturnType<typeof vi.fn> }> = [];
+         mockStompConnection.subscribe.mockImplementation(() => {
+            const s = { unsubscribe: vi.fn() };
+            subs.push(s);
+            return s;
+         });
+
+         const f = TestBed.createComponent(ConnectToClaudeComponent);
+         f.componentInstance.runtimeId = "rt-1";
+         f.componentInstance.sheetType = "WORKSHEET";
+         f.componentInstance.socketConnection = mockSocketConnection;
+         f.detectChanges();
+         f.destroy();
+
+         expect(subs.some(s => s.unsubscribe.mock.calls.length > 0)).toBe(true);
+      });
+   });
+
 });
