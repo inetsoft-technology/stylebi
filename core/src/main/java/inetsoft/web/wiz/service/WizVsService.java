@@ -1225,7 +1225,7 @@ public class WizVsService {
          DataRef match = viewCols.getAttribute(attr.getName());
 
          if(match == null) {
-            match = findAggregatedColumn(viewCols, attr.getName());
+            match = findAggregatedColumn(viewCols, attr.getName(), aggregateHeaderOf(attr));
          }
 
          if(match != null) {
@@ -1276,10 +1276,48 @@ public class WizVsService {
       return sb.length() > 0 ? sb.toString() : "none";
    }
 
-   /** Find a view column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
-   private DataRef findAggregatedColumn(ColumnSelection viewCols, String baseName) {
+   /**
+    * The header an aggregate condition names, composed from the formula the caller gave: an
+    * AggregateRef(SALES, Average) -> "Average(SALES)". Null when the ref carries no formula.
+    *
+    * Exists because a column can be bound MORE THAN ONCE under different aggregates — "Sum(SALES)" and
+    * "Average(SALES)" side by side in the same crosstab or chart. The base name alone cannot say which of
+    * them was meant, so the loose scan in findAggregatedColumn answers with whichever the view lists
+    * first: an Average condition silently lands on the Sum column, and the highlight colors cells chosen
+    * by a number nobody asked about.
+    */
+   private static String aggregateHeaderOf(DataRef ref) {
+      if(!(ref instanceof AggregateRef aggregateRef) || aggregateRef.getFormula() == null) {
+         return null;
+      }
+
+      String base = ref.getName();
+
+      return base == null || base.isEmpty()
+         ? null : aggregateRef.getFormula().getFormulaName() + "(" + base + ")";
+   }
+
+   /**
+    * Find a view column that carries the given base column under an aggregate, e.g. "Sales" ->
+    * "Sum(Sales)".
+    *
+    * {@code preferredFullName} — the formula-qualified header the condition itself named — is tried
+    * first and is the only answer that can be trusted when the base column is bound more than once; the
+    * scan below is the fallback for a condition that named no formula at all.
+    */
+   private DataRef findAggregatedColumn(ColumnSelection viewCols, String baseName,
+                                        String preferredFullName)
+   {
       if(baseName == null) {
          return null;
+      }
+
+      if(preferredFullName != null) {
+         DataRef exact = viewCols.getAttribute(preferredFullName);
+
+         if(exact != null) {
+            return exact;
+         }
       }
 
       for(int i = 0; i < viewCols.getAttributeCount(); i++) {
