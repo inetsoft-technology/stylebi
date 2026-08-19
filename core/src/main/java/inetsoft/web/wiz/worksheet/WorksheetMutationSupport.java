@@ -795,6 +795,92 @@ public final class WorksheetMutationSupport {
    }
 
    // =========================================================================
+   // Snapshot column guards
+   // =========================================================================
+
+   /**
+    * Refuses adding a data column to a snapshot embedded table.
+    *
+    * <p>Shared by {@code add_column} and {@code insert_column}, which live in different classes
+    * but strand a snapshot the same way -- see {@link #snapshotColumnMessage}.
+    *
+    * @param t     the target table
+    * @param table the assembly name, for the message
+    * @param op    the op name to quote back, e.g. {@code "add_column"}
+    * @throws inetsoft.web.wiz.pairing.PairingException if {@code t} is a snapshot
+    */
+   public static void assertSnapshotAllowsColumnAdd(TableAssembly t, String table, String op)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
+      if(!(t instanceof SnapshotEmbeddedTableAssembly)) {
+         return;
+      }
+
+      throw new inetsoft.web.wiz.pairing.PairingException(
+         snapshotColumnMessage(op, table) +
+         " An expression column is the exception, because it lives only in the column selection " +
+         "and never in the data: add_expression_column works on a snapshot. For a column that " +
+         "has to hold data, re-import the source file with import_csv_table or " +
+         "import_excel_table, which builds a plain embedded table.");
+   }
+
+   /**
+    * Refuses removing a snapshot embedded table's data column, while allowing an expression one.
+    *
+    * <p>The carve-out is not arbitrary. An expression column exists only in the
+    * {@link ColumnSelection}, never in the data, so removing it touches nothing that could be
+    * lost. That is also exactly where the Composer draws the line: its
+    * {@code updateCanRemoveSelectedHeaders()} permits removal on a snapshot only when every
+    * selected column is an expression.
+    *
+    * @param t      the target table
+    * @param table  the assembly name, for the message
+    * @param column the column name, for the message
+    * @param target the column being removed; {@code null} is treated as not an expression
+    * @throws inetsoft.web.wiz.pairing.PairingException if the column is a snapshot's data column
+    */
+   public static void assertSnapshotAllowsColumnRemove(TableAssembly t, String table,
+                                                       String column, DataRef target)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
+      if(!(t instanceof SnapshotEmbeddedTableAssembly) || isExpressionColumn(target)) {
+         return;
+      }
+
+      throw new inetsoft.web.wiz.pairing.PairingException(
+         snapshotColumnMessage("remove_column", table) +
+         " Only an expression column can be removed from a snapshot -- \"" + column + "\" is a " +
+         "data column, and the Composer refuses this the same way. To drop a data column, " +
+         "re-import the source file with import_csv_table or import_excel_table, which builds a " +
+         "plain embedded table.");
+   }
+
+   /**
+    * Whether {@code ref} is an expression column, i.e. one with no backing data column.
+    */
+   private static boolean isExpressionColumn(DataRef ref) {
+      return ref instanceof ColumnRef cr && cr.isExpression();
+   }
+
+   /**
+    * The half of a snapshot column refusal that is the same whichever op asked.
+    *
+    * <p>Says what the caller cannot see: the op would half-apply. A snapshot's data lives in a
+    * swapped-out data file, every {@link inetsoft.uql.util.XEmbeddedTable} mutator is
+    * copy-and-swap, and {@link SnapshotEmbeddedTableAssembly#getEmbeddedData()} returns a fresh
+    * wrapper on each call -- so the column-selection change would persist while the data-layer
+    * change was discarded, leaving the table one column out of step with its own data and no
+    * error to show for it.
+    */
+   private static String snapshotColumnMessage(String op, String table) {
+      return op + " is not supported on a snapshot embedded table: " + table +
+         ". Every table imported through the Composer's own file-import wizard is a snapshot, and " +
+         "its data cannot be restructured in place -- the column would change while the data " +
+         "behind it did not. read_worksheet_model reports these tables as type " +
+         "\"EMBEDDED_SNAPSHOT\".";
+   }
+
+   // =========================================================================
    // Expression column helpers
    // =========================================================================
 

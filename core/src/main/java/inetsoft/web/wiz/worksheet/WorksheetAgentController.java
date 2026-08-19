@@ -1518,6 +1518,9 @@ public class WorksheetAgentController {
             throw new PairingException("Not an embedded table: " + req.table());
          }
 
+         WorksheetMutationSupport.assertSnapshotAllowsColumnAdd(
+            assembly, req.table(), "insert_column");
+
          XEmbeddedTable data = assembly.getEmbeddedData();
          ColumnSelection columns = assembly.getColumnSelection();
          boolean insertBefore = req.insert() == null || req.insert();

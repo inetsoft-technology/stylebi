@@ -308,6 +308,8 @@ public class WorksheetEditService {
          DataRef toRemove = cs.getAttribute(col);
 
          if(toRemove != null) {
+            WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
+
             // For embedded tables, also remove the data column from XEmbeddedTable
             if(t instanceof EmbeddedTableAssembly embedded) {
                XEmbeddedTable data = embedded.getEmbeddedData();
@@ -345,6 +347,7 @@ public class WorksheetEditService {
        */
       public void addColumn(String table, String name, String type) throws PairingException {
          TableAssembly t = requireTable(table);
+         WorksheetMutationSupport.assertSnapshotAllowsColumnAdd(t, table, "add_column");
          ColumnSelection cs = t.getColumnSelection();
 
          if(name == null || name.isBlank()) {

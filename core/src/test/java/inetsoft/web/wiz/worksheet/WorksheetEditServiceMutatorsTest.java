@@ -1932,4 +1932,86 @@ class WorksheetEditServiceMutatorsTest {
 
       assertEquals("edit_cell only works on embedded tables: B", ex.getMessage());
    }
+
+   // =========================================================================
+   // Column ops: snapshot write protection
+   // =========================================================================
+
+   @Test
+   void addColumnRefusesSnapshotEmbeddedTable() throws Exception {
+      // Same missing write-back as the cell/row ops: data.insertCol() lands on a throwaway
+      // wrapper, so the ColumnSelection would gain a column the data does not have.
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addColumn("S", "newcol", "string")));
+
+      assertTrue(ex.getMessage().startsWith("add_column"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("EMBEDDED_SNAPSHOT"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("add_expression_column"),
+         "the refusal must name the column kind that does work here: " + ex.getMessage());
+      assertNull(t.getColumnSelection(false).getAttribute("newcol"),
+         "nothing may be added to the selection when the data cannot follow");
+   }
+
+   @Test
+   void addColumnStillWorksOnAPlainEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addColumn("T", "newcol", "string"));
+
+      assertNotNull(t.getColumnSelection(false).getAttribute("newcol"),
+         "the snapshot guard must not widen into the plain embedded path");
+   }
+
+   @Test
+   void removeColumnRefusesASnapshotsDataColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("S", "a")));
+
+      assertTrue(ex.getMessage().startsWith("remove_column"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("data column"), ex.getMessage());
+      assertNotNull(t.getColumnSelection(false).getAttribute("a"),
+         "the column must survive the refusal");
+   }
+
+   /**
+    * The carve-out, and the reason this could not be Finding 5's flat guard: an expression column
+    * exists only in the ColumnSelection, never in the data, so removing it strands nothing. The
+    * Composer allows exactly this and no more.
+    */
+   @Test
+   void removeColumnAllowsASnapshotsExpressionColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t = TestWorksheets.snapshotTableWithColumns(ws, "S", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("S", "calc", "1 + 1", XSchema.INTEGER, false));
+      assertNotNull(t.getColumnSelection(false).getAttribute("calc"),
+         "precondition: an expression column can be added to a snapshot");
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("S", "calc"));
+
+      assertNull(t.getColumnSelection(false).getAttribute("calc"),
+         "an expression column has no data behind it, so removing it from a snapshot is safe");
+      assertNotNull(t.getColumnSelection(false).getAttribute("a"),
+         "the data column is untouched");
+   }
 }
