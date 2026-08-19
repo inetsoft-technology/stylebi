@@ -113,9 +113,19 @@ final class WizFieldInfoFactory {
       return info;
    }
 
+   /**
+    * A crosstab addresses an aggregated cell by the aggregate's FULL name ("DistinctCount(ORDER_ID)"),
+    * never by the base column, so that name has to travel out with the field the way
+    * {@link #createChartMeasureFieldInfo} has always sent it. Without it a consumer holding only
+    * {@code field} + {@code aggregateFormula} cannot address the cell — it cannot compose the name
+    * itself either, since {@code VSAggregateRef#getFullName()} also folds in a two-column formula's
+    * secondary field, an N-parameter one's N and any calculator prefix. A reference that misses lands on
+    * no header at all: the request applies, reports success and changes nothing visible.
+    */
    static MeasureFieldInfo createCrosstabMeasureFieldInfo(VSAggregateRef agg) {
       MeasureFieldInfo info = new MeasureFieldInfo();
       info.setField(agg.getColumnValue());
+      info.setFullName(agg.getFullName());
       info.setAggregateFormula(agg.getFormula() != null ? agg.getFormula().getFormulaName() : null);
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
       info.setPercentage(percentageName(agg.getPercentageOption()));
