@@ -37,6 +37,7 @@ import { DataRef } from "../../../common/data/data-ref";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { EditorContext } from "../../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../../composer/gui/wiz/connect-to-claude.component";
+import { FollowFocusService } from "../../../composer/gui/wiz/services/follow-focus.service";
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 import { HelpUrlService } from "../../help-link/help-url.service";
 import { TreeNodeModel } from "../../tree/tree-node-model";
@@ -114,6 +115,11 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    private cursorTop: boolean = false;
    helpURL = "";
    needUseVirtualScroll: boolean = true;
+   /** Whether this pane's own `pushFocus` call actually took effect (Follow Focus was enabled
+    *  for this runtime at the time this pane opened). Only set when true so `ngOnDestroy` knows
+    *  it owes a matching `popFocus` -- a pane that never pushed, because Follow Focus was off
+    *  when it opened, must not send a spurious pop when it closes. */
+   private followFocusPushed = false;
 
    @Input()
    set expression(value: string) {
@@ -226,7 +232,8 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                private analyzerService: FormulaFunctionAnalyzerService,
                private helpService: HelpUrlService,
                private scriptSettingsService: ScriptSettingsService,
-               private renderer: Renderer2, private host: ElementRef)
+               private renderer: Renderer2, private host: ElementRef,
+               private followFocusService: FollowFocusService)
    {
    }
 
@@ -241,6 +248,15 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          this.cursorTopLoaded = true;
          this.applyCursorPosition();
       });
+
+      // Follow Focus (separate from, and in addition to, the ConnectToClaudeComponent#detach()
+      // call in ngOnDestroy below): if the human has opted in, this pane opening pushes an
+      // already-live session's target here for the duration this pane is open. A no-op when
+      // Follow Focus is off, or when this pane has no runtime/socket/location to push to.
+      if(this.runtimeId && this.socketConnection && this.editorContext) {
+         this.followFocusPushed = this.followFocusService.pushFocus(
+            this.runtimeId, this.socketConnection, this.editorContext);
+      }
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -288,6 +304,15 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       // handle behind. No-op when this pane never showed a Connect-to-Claude control, or when
       // it did but editorContext is a whole-sheet (null) mint.
       this.connectToClaude?.detach();
+
+      // Follow Focus's pop is a distinct signal from detach() above, not a replacement for it:
+      // detach ends a session THIS pane itself minted; pop restores an already-live session's
+      // target to whatever enclosing scope it had before this pane pushed it here. Only fires
+      // when ngOnInit's pushFocus actually took effect -- a pane that opened with Follow Focus
+      // off owes no pop.
+      if(this.followFocusPushed) {
+         this.followFocusService.popFocus(this.runtimeId, this.socketConnection, this.editorContext);
+      }
    }
 
    private isEditorElementDisplayed(): boolean {

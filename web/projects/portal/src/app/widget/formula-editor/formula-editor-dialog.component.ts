@@ -64,6 +64,7 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { EditorContext } from "../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../composer/gui/wiz/connect-to-claude.component";
+import { FollowFocusService } from "../../composer/gui/wiz/services/follow-focus.service";
 
 const DATE_PARTS: any[] = [
    { label: "_#(js:Year)", data: "year" },
@@ -206,6 +207,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    public static DATE_PART_COLUMN: string = "date_part_column";
    subscriptions: Subscription = new Subscription();
    private init: boolean = false;
+   /** Whether this dialog's own `pushFocus` call actually took effect (Follow Focus was enabled
+    *  for this runtime when this dialog opened). Only set when true so `ngOnDestroy` knows it
+    *  owes a matching `popFocus` -- see `ScriptPane`'s identical field for the full rationale. */
+   private followFocusPushed = false;
 
    get title(): string {
       return this.isCube ? "_#(js:Create Measure)" : this.isCalc ? "_#(js:Edit Calculated Field)" :
@@ -341,7 +346,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                private modalService: NgbModal,
                protected renderer: Renderer2,
                protected element: ElementRef,
-               private dropdownService: FixedDropdownService)
+               private dropdownService: FixedDropdownService,
+               private followFocusService: FollowFocusService)
    {
       super(renderer, element);
    }
@@ -352,6 +358,18 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       this.oname = this.formulaName;
       this.returnTypes = FormulaEditorService.returnTypes;
       this.init = true;
+
+      // Follow Focus (separate from, and in addition to, the ConnectToClaudeComponent#detach()
+      // call in ngOnDestroy below): if the human has opted in, this dialog opening pushes an
+      // already-live session's target here for as long as it stays open. Gated on `canPair`,
+      // not just `editorContext` being truthy -- `editorContext` answers "which location is
+      // this dialog editing" even when that location is not addressable (see its own getter's
+      // doc comment); pushing an unaddressable context would retarget the session to a place no
+      // tool call could ever resolve against.
+      if(this.canPair) {
+         this.followFocusPushed = this.followFocusService.pushFocus(
+            this.runtimeId, this.socketConnection, this.editorContext);
+      }
    }
 
    ngOnDestroy(): void {
@@ -360,6 +378,13 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       // handle behind. No-op when this dialog never showed a Connect-to-Claude control, or when
       // it did but editorContext is a whole-sheet (null) mint.
       this.connectToClaude?.detach();
+
+      // Follow Focus's pop is a distinct signal from detach() above, not a replacement for it --
+      // see ScriptPane.ngOnDestroy for the same distinction. Only fires when ngOnInit's
+      // pushFocus actually took effect.
+      if(this.followFocusPushed) {
+         this.followFocusService.popFocus(this.runtimeId, this.socketConnection, this.editorContext);
+      }
 
       if(!!this.subscriptions) {
          this.subscriptions.unsubscribe();
