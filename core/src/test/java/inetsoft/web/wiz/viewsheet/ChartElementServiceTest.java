@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.viewsheet.controller.chart.*;
 import inetsoft.web.viewsheet.event.chart.*;
 import org.junit.jupiter.api.Tag;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -298,7 +300,134 @@ class ChartElementServiceTest {
    void vocabularyNamesTheTitleTargets() {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      assertTrue(String.valueOf(h.service.vocabulary().get("titleTargets")).contains("y2"));
+      assertTrue(String.valueOf(h.service.vocabulary().get("titleTargets")).contains("y2"),
+                 "without an assembly this is the flat what-can-this-tool-address answer");
+   }
+
+   /**
+    * <b>Why the assembly form exists.</b> The flat vocabulary offered {@code y2} on every chart
+    * in the product, and nothing downstream checked — which is how a caller was talked into
+    * reading and then writing an axis that is not there. Named a chart, it answers about that
+    * chart.
+    */
+   @Test
+   void vocabularyFiltersTitleTargetsToTheAxesTheChartActuallyHas() throws Exception {
+      Harness h = harness(boundChart(false));
+
+      Map<String, Object> out = h.service.vocabulary("tok", principal(), "Chart1");
+
+      assertEquals(java.util.List.of("x", "y"), out.get("axes"));
+      assertEquals(java.util.List.of("x", "y", "chart"), out.get("titleTargets"),
+                   "no y2 on the chart means no y2 in the vocabulary - and the chart title, " +
+                   "which is not an axis title, stays");
+   }
+
+   @Test
+   void vocabularyKeepsY2WhenAMeasureActuallyUsesTheSecondaryAxis() throws Exception {
+      Harness h = harness(boundChart(true));
+
+      Map<String, Object> out = h.service.vocabulary("tok", principal(), "Chart1");
+
+      assertEquals(java.util.List.of("x", "y", "y2"), out.get("axes"),
+                   "filtering must not amount to always hiding y2");
+   }
+
+   /**
+    * An inference is not a measurement. Reporting the basis is what lets a caller weigh the
+    * answer instead of trusting it, which is the difference between this and the phantom it
+    * replaces.
+    */
+   @Test
+   void vocabularySaysWhetherTheAxesWereMeasuredOrInferred() throws Exception {
+      Harness h = harness(boundChart(false));
+
+      Map<String, Object> out = h.service.vocabulary("tok", principal(), "Chart1");
+
+      assertEquals(false, out.get("axesMeasured"), "a mocked runtime has no laid-out graph");
+      assertTrue(String.valueOf(out.get("axesBasis")).contains("binding"));
+   }
+
+   @Test
+   void readingTheVocabularyForOneChartSpendsNoUndoCheckpoint() throws Exception {
+      Harness h = harness(boundChart(false));
+
+      h.service.vocabulary("tok", principal(), "Chart1");
+
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   // ── plot sizing: the read ─────────────────────────────────────────────────
+
+   /**
+    * <b>The point of this method.</b> A plot resize had no observable of any kind — the ratio
+    * scales the plot's minimum size, which the browser shows as scrollbars, while the agent's
+    * render is fitted to the assembly box — so the ratio and its resized flag have to come back
+    * verbatim for the write to be checkable at all.
+    */
+   @Test
+   void readsBackTheRatioAndTheFlagThatGatesIt() throws Exception {
+      Harness h = harness(chart(3d, true));
+
+      Map<String, Object> result = h.service.readPlotSize("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> height = (Map<String, Object>) result.get("height");
+      assertEquals(3d, height.get("ratio"));
+      assertEquals(true, height.get("resized"), "a ratio with this false is stored but inert");
+      assertEquals(false, result.get("default"));
+      assertEquals("Chart1", result.get("assembly"));
+   }
+
+   @Test
+   void reportsAnUnresizedChartAsDefault() throws Exception {
+      Harness h = harness(chart(1d, false));
+
+      Map<String, Object> result = h.service.readPlotSize("tok", principal(), "Chart1");
+
+      assertEquals(true, result.get("default"));
+   }
+
+   /**
+    * Reading must go through {@code read}, not {@code mutate}. {@code mutate} opens a checkpoint
+    * and broadcasts, so reading through it would put a stray Ctrl+Z step in the user's own
+    * history for having <em>looked</em> at the plot size, and tell their Composer to refresh for
+    * a change that never happened.
+    */
+   @Test
+   void readingSpendsNoUndoCheckpoint() throws Exception {
+      Harness h = harness(chart(1d, false));
+
+      h.service.readPlotSize("tok", principal(), "Chart1");
+
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verify(h.sessions, times(1)).read(anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * Geometry needs a laid-out graph. Saying so beats returning zeroes, which would read as a
+    * plot that had collapsed to nothing.
+    */
+   @Test
+   void saysWhyGeometryIsMissingRatherThanReturningZeroes() throws Exception {
+      Harness h = harness(chart(1d, false));
+
+      Map<String, Object> result = h.service.readPlotSize("tok", principal(), "Chart1");
+
+      assertTrue(result.containsKey("geometryUnavailable"),
+                 "no sandbox means no laid-out graph, and that has to be stated");
+      assertFalse(result.containsKey("plot"), "a missing plot must not be reported as 0x0");
+      assertTrue(result.containsKey("width"),
+                 "the ratios are still readable without geometry, and are the write's read-back");
+   }
+
+   @Test
+   void refusesToReadPlotSizeOfANonChart() {
+      Harness h = harness(mock(TextVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         Exception.class, () -> h.service.readPlotSize("tok", principal(), "Text1"));
+
+      assertTrue(thrown.getMessage().contains("Text1"));
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
@@ -336,6 +465,16 @@ class ChartElementServiceTest {
          throw new IllegalStateException(e);
       }
 
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Read<?> read = invocation.getArgument(2);
+            return read.run(rvs, "rt1", null);
+         }).when(sessions).read(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
       VSChartAxesVisibilityService axes = mock(VSChartAxesVisibilityService.class);
       VSChartLegendsVisibilityService legends = mock(VSChartLegendsVisibilityService.class);
       VSChartTitlesVisibilityService titles = mock(VSChartTitlesVisibilityService.class);
@@ -344,6 +483,39 @@ class ChartElementServiceTest {
       return new Harness(new ChartElementService(sessions, new ObjectMapper(), axes,
                                                 legends, titles, plot),
                          sessions, axes, legends, titles, plot);
+   }
+
+   /** A chart bound with a dimension on x and one or two measures on y. */
+   private static ChartVSAssembly boundChart(boolean secondaryAxis) {
+      // Built before any stubbing: mocking inside a when(...) argument is nested stubbing.
+      VSChartAggregateRef primary = mock(VSChartAggregateRef.class);
+      when(primary.isSecondaryY()).thenReturn(false);
+      ChartRef[] y = new ChartRef[] { primary };
+
+      if(secondaryAxis) {
+         VSChartAggregateRef secondary = mock(VSChartAggregateRef.class);
+         when(secondary.isSecondaryY()).thenReturn(true);
+         y = new ChartRef[] { primary, secondary };
+      }
+
+      ChartRef[] x = new ChartRef[] { mock(VSChartDimensionRef.class) };
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(x);
+      when(info.getYFields()).thenReturn(y);
+      when(info.isInvertedGraph()).thenReturn(false);
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(info);
+      return assembly;
+   }
+
+   /** A chart whose info carries one height ratio, which is what the read has to hand back. */
+   private static ChartVSAssembly chart(double heightRatio, boolean heightResized) {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getUnitHeightRatio()).thenReturn(heightRatio);
+      when(info.isHeightResized()).thenReturn(heightResized);
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(info);
+      return assembly;
    }
 
    private static Principal principal() {

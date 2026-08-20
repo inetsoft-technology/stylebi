@@ -315,12 +315,20 @@ public class ViewsheetAssemblyAgentController {
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/elements")
    public Map<String, Object> chartElementVocabulary(@PathVariable String sessionToken,
+                                                     @RequestParam(required = false)
+                                                     String assembly,
                                                      Principal user)
       throws Exception
    {
       requireEnabled();
-      sessions.resolve(sessionToken, user);
-      return chartElementService.vocabulary();
+
+      // With an assembly the service resolves the runtime itself, to read that chart's real axes.
+      if(assembly == null || assembly.isBlank()) {
+         sessions.resolve(sessionToken, user);
+         return chartElementService.vocabulary();
+      }
+
+      return chartElementService.vocabulary(sessionToken, user, assembly);
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/regions")
@@ -511,6 +519,21 @@ public class ViewsheetAssemblyAgentController {
       chartElementService.resizePlot(sessionToken, user, request.assembly(), request.ratio(),
                                      Boolean.TRUE.equals(request.vertical()),
                                      Boolean.TRUE.equals(request.reset()), linkUri);
+   }
+
+   /**
+    * The read half of the plot-size pair. It exists because the write above had no observable at
+    * all: the ratio scales the plot's minimum size, which shows up as scrollbars in the browser,
+    * and the agent's own render is fitted to the assembly box so it cannot show them.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/plot-size")
+   public Map<String, Object> getChartPlotSize(@PathVariable String sessionToken,
+                                               @RequestParam String assembly,
+                                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return chartElementService.readPlotSize(sessionToken, user, assembly);
    }
 
    /**

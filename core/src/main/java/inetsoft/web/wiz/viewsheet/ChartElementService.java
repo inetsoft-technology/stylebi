@@ -21,11 +21,19 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.graph.VGraph;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.RelationCoord;
+import inetsoft.graph.internal.GTool;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.*;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.viewsheet.controller.chart.*;
 import inetsoft.web.viewsheet.event.chart.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.awt.geom.Rectangle2D;
 import java.security.Principal;
 import java.util.*;
 
@@ -166,6 +174,208 @@ public class ChartElementService {
       });
    }
 
+   /**
+    * Reads the plot's current sizing, so a {@link #resizePlot} call can be verified at all.
+    *
+    * <p>This exists because the write had <em>no</em> observable. The ratio scales the plot's
+    * <em>minimum</em> size, which a browser expresses as scrollbars inside a fixed-size assembly,
+    * while the agent-facing render asks for a graph fitted to the requested box
+    * ({@code ScriptImageService} passes the target box as both size and max size) - so an
+    * enlarged plot and a default one produce byte-identical images. Plot size is also absent from
+    * the chart's property dialog model and from its scriptable API, so before this method a plot
+    * resize could not be confirmed through any channel the agent has.
+    *
+    * <p>Two groups come back and they answer different questions.
+    *
+    * <p>The <b>ratios</b> are the stored intent: {@code ratio} is what {@link #resizePlot} wrote,
+    * {@code resized} is the flag that gates it in {@code VGraphPair} (a ratio stored with this
+    * false is inert), and {@code percent} is what {@code VGraphPair} re-applies the ratio from -
+    * it only does so while that value is {@code >= 1}, which is what decides whether a resize
+    * survives the next layout.
+    *
+    * <p>The <b>geometry</b> is what the last layout produced, and it is weaker evidence than the
+    * first version of this javadoc claimed. Verified live: a resize does not itself relayout, so
+    * {@code getVGraphPair} hands back a cached pair and {@code plot}/{@code expandedPlot}/
+    * {@code minPlot} did not move even with {@code percent} at 1.48. An expanded plot larger than
+    * the real-size one does prove an enlargement is live; equal sizes prove only that this graph
+    * has not been rebuilt with it.
+    *
+    * <p>Also verified live, and the reason {@code percent} is the field to compare:
+    * {@code ratio} and {@code initialRatio} are recomputed from whatever box was laid out last
+    * ({@code VGraphPair} does {@code setUnitHeightRatio(initialHeightRatio * percent)}), so a
+    * written 8 read back as 26.86 after one full-size render while {@code percent} stayed 1.48.
+    * And {@code resizePlot}'s reset clears the ratios and flags but <b>not</b> the percents, so a
+    * reset chart still reports the old ratio and re-derives it on the next layout - judge a reset
+    * by {@code resized}/{@code default}.
+    *
+    * <p>{@code scrollable}/{@code vScrollable}/{@code hScrollable} are the same
+    * {@code GraphUtil} calls the Composer uses to decide whether to draw scrollbars. They are
+    * reported because they are the user-visible effect, but they are <b>not</b> an independent
+    * check: for an ordinary chart {@code isVScrollable} falls through to
+    * {@code info.isHeightResized()}, so it largely restates the flag. The geometry is the
+    * stronger oracle.
+    *
+    * <p>Geometry needs a laid-out graph, which a chart with no data or no sandbox does not have.
+    * That case returns the ratios plus {@code geometryUnavailable} naming why, rather than nulls
+    * that would read as zero-sized.
+    */
+   public Map<String, Object> readPlotSize(String sessionToken, Principal user,
+                                           String assemblyName)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         VSChartInfo info = chart.getVSChartInfo();
+         Map<String, Object> result = new LinkedHashMap<>();
+
+         result.put("assembly", assemblyName);
+         result.put("default", !info.isWidthResized() && !info.isHeightResized());
+         result.put("width", ratios(info.getUnitWidthRatio(), info.getUnitWidthRatioPercent(),
+                                    info.getInitialWidthRatio(), info.getEffectiveWidthRatio(),
+                                    info.isWidthResized()));
+         result.put("height", ratios(info.getUnitHeightRatio(), info.getUnitHeightRatioPercent(),
+                                     info.getInitialHeightRatio(),
+                                     info.getEffectiveHeightRatio(), info.isHeightResized()));
+         result.put("toolMaxRatio", MAX_PLOT_RATIO);
+
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+         if(box == null) {
+            result.put("geometryUnavailable",
+                       "the viewsheet has no sandbox, so no graph has been laid out");
+            return result;
+         }
+
+         VGraphPair pair;
+
+         box.lockRead();
+
+         try {
+            pair = box.getVGraphPair(chart.getAbsoluteName());
+         }
+         finally {
+            box.unlockRead();
+         }
+
+         VGraph real = pair == null ? null : pair.getRealSizeVGraph();
+
+         if(real == null) {
+            result.put("geometryUnavailable", pair == null
+               ? "no graph pair exists for this chart yet"
+               : "the chart has no laid-out graph - it is unbound, empty, or still computing");
+            return result;
+         }
+
+         VGraph expanded = pair.getExpandedVGraph();
+
+         result.put("plot", size(real.getPlotBounds()));
+         result.put("graph", size(real.getBounds()));
+         result.put("expandedPlot", size(expanded.getPlotBounds()));
+         result.put("expanded", expanded != real);
+         result.put("minPlot", Map.of("width", round(real.getMinPlotWidth()),
+                                      "height", round(real.getMinPlotHeight())));
+         result.put("scrollable", GraphUtil.isScrollable(real, info));
+         result.put("vScrollable", GraphUtil.isVScrollable(real, info));
+         result.put("hScrollable", GraphUtil.isHScrollable(real, info));
+         result.putAll(maxRatios(real, info));
+
+         return result;
+      });
+   }
+
+   /** One axis' worth of ratio state, in the order a reader needs it. */
+   private static Map<String, Object> ratios(double ratio, double percent, double initial,
+                                             double effective, boolean resized)
+   {
+      Map<String, Object> map = new LinkedHashMap<>();
+      map.put("ratio", round(ratio));
+      map.put("resized", resized);
+      map.put("percent", round(percent));
+      map.put("initialRatio", round(initial));
+      map.put("effectiveRatio", round(effective));
+      return map;
+   }
+
+   /**
+    * How far the plot can legitimately be enlarged, by the same formula the Composer's own
+    * chart-areas command sends to the browser - so a caller is not left guessing against this
+    * class' blunt {@link #MAX_PLOT_RATIO} cap, which is a typo guard rather than a real limit.
+    */
+   private static Map<String, Object> maxRatios(VGraph graph, VSChartInfo info) {
+      Coordinate coord = graph.getCoordinate();
+      double maxWidth;
+      double maxHeight;
+
+      if(coord instanceof RelationCoord || GraphTypeUtil.isWordCloud(info) ||
+         GraphTypeUtil.isDotPlot(info))
+      {
+         // these scale both directions together, and the Composer caps them at 5
+         maxWidth = maxHeight = 5;
+      }
+      else if(coord != null) {
+         maxWidth = info.getInitialWidthRatio() *
+            GTool.getUnitCount(coord, Coordinate.BOTTOM_AXIS, false);
+         maxHeight = info.getInitialHeightRatio() *
+            GTool.getUnitCount(coord, Coordinate.LEFT_AXIS, false);
+      }
+      else {
+         return Map.of();
+      }
+
+      return Map.of("maxWidthRatio", round(maxWidth), "maxHeightRatio", round(maxHeight));
+   }
+
+   private static Map<String, Object> size(Rectangle2D bounds) {
+      if(bounds == null) {
+         return Map.of();
+      }
+
+      return Map.of("width", round(bounds.getWidth()), "height", round(bounds.getHeight()));
+   }
+
+   /** Pixel and ratio values carry no meaning past 2 decimals, and full doubles read as noise. */
+   private static double round(double value) {
+      return Math.round(value * 100d) / 100d;
+   }
+
+   /**
+    * The vocabulary, narrowed to one chart's real axes when an assembly is named.
+    *
+    * <p>Without an assembly this is the flat vocabulary it always was — every element and every
+    * title target, the same for every chart in the product. That is kept because it is a valid
+    * question ("what can this tool address at all") and because it needs no runtime.
+    *
+    * <p>With an assembly, the title targets are filtered to the axes the chart actually has and
+    * {@code axes} names them, so the caller is no longer offered a {@code y2} on a chart with one
+    * measure. {@code axesBasis} says whether that came from the laid-out graph or was inferred
+    * from the binding, because the two are not equally trustworthy and hiding the difference is
+    * how a plausible-but-wrong answer gets believed.
+    */
+   public Map<String, Object> vocabulary(String sessionToken, Principal user, String assembly)
+      throws Exception
+   {
+      if(assembly == null || assembly.isBlank()) {
+         return vocabulary();
+      }
+
+      ChartRegionResolver.Axes axes = sessions.read(
+         sessionToken, user,
+         (rvs, runtimeId, dispatcher) ->
+            ChartRegionResolver.resolve(rvs, ChartRegionResolver.requireChart(rvs, assembly)));
+
+      Map<String, Object> out = new LinkedHashMap<>(vocabulary());
+      List<String> titleTargets = new ArrayList<>(axes.ordered());
+      // The chart title is not an axis title and does not depend on any axis existing.
+      titleTargets.add("chart");
+
+      out.put("assembly", assembly);
+      out.put("axes", axes.ordered());
+      out.put("titleTargets", titleTargets);
+      out.put("axesBasis", axes.basis());
+      out.put("axesMeasured", axes.measured());
+      return out;
+   }
+
    public Map<String, Object> vocabulary() {
       return Map.of(
          "elements", List.of("axis", "legend", "title"),
@@ -261,21 +471,11 @@ public class ChartElementService {
       return kind;
    }
 
-   private static void requireChart(inetsoft.report.composition.RuntimeViewsheet rvs,
-                                    String assemblyName)
+   /** Shared with {@link ChartRegionPropertyService} so both refuse a non-chart identically. */
+   private static ChartVSAssembly requireChart(
+      inetsoft.report.composition.RuntimeViewsheet rvs, String assemblyName)
    {
-      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
-      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
-
-      if(assembly == null) {
-         throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
-      }
-
-      if(!(assembly instanceof ChartVSAssembly)) {
-         throw new IllegalArgumentException(
-            "'" + assemblyName + "' is a " + assembly.getClass().getSimpleName() +
-            ", not a chart. Axes, legends and titles only exist on charts.");
-      }
+      return ChartRegionResolver.requireChart(rvs, assemblyName);
    }
 
    private final ViewsheetSessionService sessions;

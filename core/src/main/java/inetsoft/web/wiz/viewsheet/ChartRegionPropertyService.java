@@ -55,9 +55,13 @@ public class ChartRegionPropertyService {
       return Map.of(
          "regions", List.of("axis", "legend", "title"),
          "target", Map.of(
-            "axis", "the axis type — y, y2, x, x2 — as reported by list_chart_elements",
+            "axis", "the axis type — y, y2, x, x2 — but only the ones this chart has; pass " +
+               "the assembly to list_chart_elements to see which, since a y2 or x2 exists only " +
+               "when a measure uses the secondary axis",
             "legend", "the legend's 0-based index",
-            "title", "which title — x, x2, y, y2 or chart"),
+            "title", "which axis title — x, x2, y, y2, and only ones this chart has. NOT the " +
+               "chart's own title: that lives on the assembly, as set_assembly_properties " +
+               "'title' and 'titleVisible'"),
          "note", "An axis may also need 'field' when a chart has more than one axis of a type.");
    }
 
@@ -68,6 +72,7 @@ public class ChartRegionPropertyService {
    {
       String name = requireRegion(region);
       String key = requireTarget(target, name);
+      requireExistingTarget(sessionToken, user, assembly, name, key);
       Object model = readModel(sessionToken, user, assembly, name, key, field);
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
@@ -101,6 +106,7 @@ public class ChartRegionPropertyService {
    {
       String name = requireRegion(region);
       String key = requireTarget(target, name);
+      requireExistingTarget(sessionToken, user, assembly, name, key);
 
       if(properties == null || properties.isEmpty()) {
          throw new IllegalArgumentException(
@@ -145,8 +151,8 @@ public class ChartRegionPropertyService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          switch(name) {
          case "axis" -> regions.setAxisPropertyDialogModel(
-            runtimeId, assembly, key, 0, field, (AxisPropertyDialogModel) written, linkUri, user,
-            dispatcher);
+            runtimeId, assembly, axisType(key), 0, field, (AxisPropertyDialogModel) written,
+            linkUri, user, dispatcher);
          case "legend" -> regions.setLegendFormatDialogModel(
             runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) written, linkUri, user,
             dispatcher);
@@ -156,6 +162,59 @@ public class ChartRegionPropertyService {
       });
    }
 
+   /**
+    * Refuses an axis, or an axis title, that this chart does not have.
+    *
+    * <p>{@link #requireTarget} already rejects a target that names <em>no</em> axis type. This is
+    * the other half: a target that names a real type the <em>chart</em> does not have.
+    * {@code ChartRegionHandler.getAxisArea} maps {@code y2} onto an axis area {@code ChartArea}
+    * builds unconditionally, so a chart with one measure returned the full y1 property list for
+    * y2, accepted a write against it, and read the write straight back. Read and write are both
+    * guarded here rather than only the write, because the read is what talked the caller into the
+    * write.
+    *
+    * <p>Legends are not checked here — their target is an index, bounded by a different question,
+    * and an out-of-range one has its own defect to fix.
+    */
+   private void requireExistingTarget(String sessionToken, Principal user, String assembly,
+                                      String region, String target)
+      throws Exception
+   {
+      if("legend".equals(region)) {
+         ChartRegionResolver.Legends legends = sessions.read(
+            sessionToken, user,
+            (rvs, runtimeId, dispatcher) ->
+               ChartRegionResolver.legendCount(
+                  rvs, ChartRegionResolver.requireChart(rvs, assembly)));
+
+         ChartRegionResolver.requireLegend(legends, indexOf(target));
+         return;
+      }
+
+      if(!"axis".equals(region) && !"title".equals(region)) {
+         return;
+      }
+
+      // The chart title is not a region title at all, and asking for it here was a raw HTTP 500.
+      // TitlesDescriptor only holds x/x2/y/y2 descriptors, so ChartRegionHandler.getTitleDescriptor
+      // and getTitleArea both return null for "chart" and RegionPropertyDialogService then
+      // dereferences the null area. The chart title lives on the assembly instead.
+      if("title".equals(region) && "chart".equals(ChartRegionResolver.canonical(target))) {
+         throw new IllegalArgumentException(
+            "The chart title is not a chart region — only the axis titles (x, x2, y, y2) are. " +
+            "It lives on the assembly: set its text with set_assembly_properties 'title', and " +
+            "show or hide it with 'titleVisible' or with " +
+            "set_chart_element_visibility {element: 'title', target: 'chart'}.");
+      }
+
+      ChartRegionResolver.Axes axes = sessions.read(
+         sessionToken, user,
+         (rvs, runtimeId, dispatcher) ->
+            ChartRegionResolver.resolve(rvs, ChartRegionResolver.requireChart(rvs, assembly)));
+
+      ChartRegionResolver.requireAxis(axes, region, target);
+   }
+
    private Object readModel(String sessionToken, Principal user, String assembly, String region,
                             String target, String field)
       throws Exception
@@ -163,10 +222,41 @@ public class ChartRegionPropertyService {
       String runtimeId = sessions.runtimeId(sessionToken, user);
 
       return switch(region) {
-         case "axis" -> regions.getAxisPropertyDialogModel(runtimeId, assembly, target, "0", field,
-                                                           "", user);
+         case "axis" -> regions.getAxisPropertyDialogModel(runtimeId, assembly, axisType(target),
+                                                           "0", field, "", user);
          case "legend" -> regions.getLegendFormatDialogModel(runtimeId, assembly, target, "", user);
          default -> regions.getTitleFormatDialogModel(runtimeId, assembly, target, "", user);
+      };
+   }
+
+   /**
+    * Translates a secondary axis target to the <b>long</b> area form before it reaches StyleBI.
+    *
+    * <p><b>Found live 2026-08-20, image-confirmed.</b> Writing {@code showAxisLabel: false} to
+    * {@code y2} on a dual-axis chart hid the <em>primary</em> axis' labels instead, reported
+    * success naming y2, and reading {@code y} back afterwards showed the value there. Passing
+    * {@code field} did not help.
+    *
+    * <p>The cause is an asymmetry in {@code ChartRegionHandler}: {@code getAxisArea} accepts both
+    * the short forms ({@code Y2_TITLE = "y2"}) and the long ones
+    * ({@code RIGHT_Y_AXIS = "right_y_axis"}), so the <em>area</em> resolves either way and the read
+    * looks healthy — but {@code getChartRef} (which every {@code getAxisDescriptor} overload
+    * funnels through) knows {@code left_y_axis}, {@code right_y_axis}, {@code bottom_x_axis},
+    * {@code top_x_axis}, {@code "y"} and {@code "x"}, and <b>not</b> {@code "y2"} or {@code "x2"}.
+    * So the ref came back null, the descriptor chain fell through to its last branch —
+    * {@code info.getAxisDescriptor()}, the descriptor shared with the primary axis — and the
+    * secondary branch that exists for exactly this case
+    * ({@code isSecondaryY() -> info.getAxisDescriptor2()}) was never reached.
+    *
+    * <p>Only the secondary forms are translated. {@code "y"} and {@code "x"} are handled by
+    * {@code getChartRef} already, and mapping them to the long forms would change which shelf
+    * {@code findDataRef} searches on a scatter matrix — a real behaviour change for no gain.
+    */
+   private static String axisType(String target) {
+      return switch(ChartRegionResolver.canonical(target)) {
+         case "y2" -> "right_y_axis";
+         case "x2" -> "top_x_axis";
+         default -> target;
       };
    }
 
@@ -199,7 +289,8 @@ public class ChartRegionPropertyService {
             switch(region) {
                case "axis" -> "the axis type, such as y or x.";
                case "legend" -> "the legend's 0-based index.";
-               default -> "which title: x, x2, y, y2 or chart.";
+               default -> "which axis title: x, x2, y, y2. The chart's own title is not a " +
+                  "region — it is set_assembly_properties 'title'.";
             });
       }
 
