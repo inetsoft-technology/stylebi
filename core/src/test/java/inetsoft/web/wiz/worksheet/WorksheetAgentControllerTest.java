@@ -1009,6 +1009,63 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getReason().contains("NOT-A-CHARSET"), ex.getReason());
    }
 
+   /**
+    * A name that is not merely unrecognized but syntactically illegal takes a different route out
+    * of {@code Charset}: it throws {@code IllegalCharsetNameException} instead of answering false.
+    * Unguarded that escapes as a 500; the caller made the same mistake either way, so it has to
+    * land on the same 400 as {@code importCsvRejectsAnUnsupportedEncoding}.
+    */
+   @Test
+   void importCsvRejectsAMalformedEncodingNameRatherThanThrowing() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-BADENC");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsvFile("TOK-BADENC",
+            new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
+            "Bad", "not a charset", null, null, null, null, null, null, null,
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("not a charset"), ex.getReason());
+   }
+
+   /**
+    * The JSON route cannot honour an encoding at all -- its text was decoded before the request
+    * existed. Refusing says so; silently ignoring it would leave a caller with mojibake and no
+    * indication of why their setting did nothing.
+    */
+   @Test
+   void importCsvRejectsANonUtf8EncodingOnTheJsonRoute() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-JSONENC");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-JSONENC",
+            csvRequest("X", "a,b\n1,2", "ISO-8859-1", null, null, null, null, null, null, null),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("import-csv-file"),
+         "the refusal should point at the route that can honour it: " + ex.getReason());
+   }
+
+   /**
+    * UTF-8 spelled any of the ways the JDK accepts is what this route already does, so it is not a
+    * setting being ignored and must not be refused.
+    */
+   @Test
+   void importCsvAcceptsUtf8SpelledAsAnAliasOnTheJsonRoute() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-UTF8");
+
+      ctrl.importCsv("TOK-UTF8",
+         csvRequest("Utf8", "a,b\n1,2", "utf8", null, null, null, null, null, null, null),
+         TestPrincipals.user("alice", "host-org"));
+
+      importedTable(ws, "Utf8");
+   }
+
    @Test
    void importCsvRejectsAMultiCharacterDelimiter() throws Exception {
       Worksheet ws = new Worksheet();

@@ -48,6 +48,7 @@ import inetsoft.uql.util.filereader.ExcelFileInfo;
 import inetsoft.uql.util.filereader.ExcelFileReader;
 import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.util.Catalog;
+import inetsoft.util.FileSystemService;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
@@ -70,7 +71,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.util.*;
@@ -636,6 +639,37 @@ public class WorksheetAgentController {
                               int headerCols) {}
 
    /**
+    * Whether a charset name can be used to decode with.
+    *
+    * <p>{@link Charset#isSupported} answers {@code false} only for a name that is well formed but
+    * unrecognized; a malformed one -- a name with a space in it, say -- throws
+    * {@link IllegalCharsetNameException} instead. Both are the same mistake from the caller's side,
+    * so both become the same 400 rather than one of them escaping as a 500.
+    */
+   private static boolean isSupportedCharset(String name) {
+      try {
+         return Charset.isSupported(name);
+      }
+      catch(IllegalCharsetNameException | UnsupportedCharsetException e) {
+         return false;
+      }
+   }
+
+   /**
+    * Whether a charset name names UTF-8, by resolving it rather than by comparing strings, so the
+    * aliases ("utf8", "UTF-8", "unicode-1-1-utf-8") all count. A name that resolves to nothing is
+    * not UTF-8 either, which is the answer the JSON route wants for it.
+    */
+   private static boolean isUtf8(String name) {
+      try {
+         return StandardCharsets.UTF_8.equals(Charset.forName(name));
+      }
+      catch(IllegalCharsetNameException | UnsupportedCharsetException e) {
+         return false;
+      }
+   }
+
+   /**
     * Resolves the dialog's settings, defaulting to what the previous hand-rolled parser did so an
     * existing caller that passes none sees no change: comma-separated, types detected, line 1 as
     * the header, quotes left alone, no unpivot.
@@ -646,7 +680,7 @@ public class WorksheetAgentController {
    {
       String encode = encoding == null || encoding.isBlank() ? "UTF-8" : encoding.trim();
 
-      if(!Charset.isSupported(encode)) {
+      if(!isSupportedCharset(encode)) {
          throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST, "Unsupported encoding: " + encode);
       }
@@ -689,9 +723,10 @@ public class WorksheetAgentController {
    /**
     * Import CSV supplied inline as text.
     *
-    * <p>{@code encoding} is accepted but cannot mean anything on this route: the text arrived
-    * already decoded as part of a JSON body, so any mis-decoding happened before the request was
-    * built. Send the file's bytes to the multipart route when the charset matters.
+    * <p>{@code encoding} cannot mean anything on this route: the text arrived already decoded as
+    * part of a JSON body, so any mis-decoding happened before the request was built. Anything but
+    * UTF-8 is refused rather than quietly ignored -- a caller who set it has a file to re-send to
+    * the multipart route, not a setting to drop.
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/import-csv")
    public ImportCsvResponse importCsv(@PathVariable String sessionToken,
@@ -705,12 +740,26 @@ public class WorksheetAgentController {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "csv is required");
       }
 
+      if(body.encoding() != null && !body.encoding().isBlank() &&
+         !isUtf8(body.encoding().trim()))
+      {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "encoding cannot be honoured here: the csv text was already decoded before this " +
+            "request was built. Post the file's bytes to import-csv-file with encoding=" +
+            body.encoding().trim() + " instead.");
+      }
+
       CsvSettings settings = csvSettings(
          "UTF-8", body.delimiter(), body.delimiterTab(), body.detectType(),
          body.firstRowAsHeader(), body.removeQuotes(), body.unpivot(), body.headerCols());
 
-      return importCsvBytes(sessionToken, user, body.name(),
-                            body.csv().getBytes(StandardCharsets.UTF_8), settings);
+      // The same guard the multipart route gets: a JSON body's csv string is no less capable of
+      // driving an unbounded temp-file write and loader scan than an uploaded file is.
+      byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
+      checkImportFileSize(bytes.length, "CSV");
+
+      return importCsvBytes(sessionToken, user, body.name(), bytes, settings);
    }
 
    /**
@@ -771,7 +820,16 @@ public class WorksheetAgentController {
                                             byte[] bytes, CsvSettings settings)
       throws Exception
    {
-      File temp = File.createTempFile("wiz-agent-import", ".csv");
+      // The product's cache directory rather than java.io.tmpdir: the bytes are the caller's data,
+      // and the system temp dir is shared with whatever else runs on the host, at whatever
+      // permissions the umask gives. This is the same convention the import dialog's own file
+      // handling follows.
+      File temp = FileSystemService.getInstance().getCacheTempFile("wiz-agent-import", "csv");
+
+      if(temp == null) {
+         throw new ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR, "Unable to create a temporary file for the import");
+      }
 
       try {
          Files.write(temp.toPath(), bytes);
@@ -788,6 +846,12 @@ public class WorksheetAgentController {
             Util.getOrganizationMaxColumn(), new DateParseInfo());
 
          if(loaded == null || loaded.getRowCount() < 2) {
+            if(loaded != null) {
+               // XSwappableTable can have spilled to disk even this small; every other exit from
+               // this method disposes, so this one does too.
+               loaded.dispose();
+            }
+
             throw new ResponseStatusException(
                HttpStatus.BAD_REQUEST,
                "CSV must have a header row and at least one data row" +
