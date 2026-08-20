@@ -805,6 +805,33 @@ public class WizVsService {
          String name = uniqueName(rule.getName(), usedNames);
          Highlight hl = buildHighlight(rule, name, condCols, false);
 
+         // A crosstab evaluates its highlight condition against the cell's own headers — aggregates named
+         // by their FULL name ("DistinctCount(ORDER_ID)"), never the base column. So a caller naming the
+         // base column plus an aggregateFormula, the shape a HAVING filter takes, produces an AggregateRef
+         // whose name is "ORDER_ID"; no such header exists here, the condition resolves to nothing at
+         // render time, and the rule is stored on the right cell and colors nothing. The apply returns 200
+         // with no error, so neither the caller nor the user can tell it from a rule that worked.
+         //
+         // The chart path has always rebound-then-verified for exactly this reason; the crosstab path
+         // passed the columns to buildHighlight for value COERCION only and never checked the field
+         // resolved. Same treatment here: rebind what is unambiguous, fail loud on the rest.
+         //
+         // Crosstab only. A plain table's condition is evaluated against its base columns — the very
+         // selection already passed in — so there is nothing to rebind and no aggregated form to fall
+         // back to.
+         if(crosstab) {
+            Set<String> unresolved =
+               rebindConditionFieldsToViewColumns(hl.getConditionGroup(), condCols);
+
+            if(!unresolved.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "highlight '" + name + "' references field(s) not available at the target cell: " +
+                  String.join(", ", unresolved) + ". Name a crosstab dimension by its header (e.g. " +
+                  "\"COMPANY_NAME\") or a measure by its aggregated form (e.g. " +
+                  "\"DistinctCount(ORDER_ID)\"). Available fields: " + columnNames(condCols) + ".");
+            }
+         }
+
          // A regular table can style the whole row (a row-level path keyed by level+type); a crosstab
          // has no row data path, so it always styles the measure's cells.
          TableDataPath key = !crosstab && rule.isApplyRow()
@@ -982,7 +1009,7 @@ public class WizVsService {
       ConditionList conditionGroup = buildConditionList(cm, columns, null);
 
       if(chartRebind) {
-         Set<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
+         Set<String> unresolved = rebindConditionFieldsToViewColumns(conditionGroup, columns);
 
          // A chart highlight condition is matched against the aggregated chart DataSet, whose headers are
          // the fields' full names (a dimension like "State", a measure like "Sum(Sales)"). A condition
@@ -1046,7 +1073,7 @@ public class WizVsService {
     * caller, whereas a miss here silently falls back to EVERY ref — reproducing the very bug this method
     * exists to fix. Leniency is the safer default when the penalty for a miss is a wrong render rather
     * than an error. A genuinely mis-cased request is still caught: the condition fields are resolved
-    * case-sensitively against the chart columns by rebindChartConditionFields, which throws first.
+    * case-sensitively against the chart columns by rebindConditionFieldsToViewColumns, which throws first.
     *
     * The plain form is ambiguous when a chart binds two aggregates over the same column (e.g. both
     * {@code Sum(Sales)} and {@code Avg(Sales)}, each of whose {@code getName()} is "Sales"): a rule using
@@ -1162,18 +1189,25 @@ public class WizVsService {
    }
 
    /**
-    * Rebinds each condition item's field to the matching chart column (by name) so the highlight
-    * resolves against the aggregated chart DataSet. Match order: exact full-name ("Sum(Sales)"), then
-    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Returns the
-    * names of any condition fields that matched NEITHER form, so the caller can fail loud rather than
-    * apply a highlight whose condition can never resolve against the chart DataSet (a silent no-op).
+    * Rebinds each condition item's field to the matching VIEW column (by name) so the highlight resolves
+    * against the aggregated data the assembly actually renders. Match order: exact full-name
+    * ("Sum(Sales)"), then a view column that aggregates the requested base column ("Sales" ->
+    * "Sum(Sales)"). Returns the names of any condition fields that matched NEITHER form, so the caller
+    * can fail loud rather than apply a highlight whose condition can never resolve (a silent no-op).
+    *
+    * Used by the chart AND crosstab paths, which share the problem: both evaluate a highlight condition
+    * POST-aggregation, against headers named by the fields' full names. A caller naming the base column
+    * plus an aggregate — the shape a HAVING filter takes — yields an AggregateRef whose getName() is the
+    * BASE column, and no such header exists at render time. The second match arm is what turns that into
+    * the header the data actually carries.
     */
-   private Set<String> rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+   // Package-private for unit testing (WizVsServiceHighlightRebindTest).
+   Set<String> rebindConditionFieldsToViewColumns(ConditionList conds, ColumnSelection viewCols) {
       // LinkedHashSet: dedup while preserving first-seen order, so the same bad field name appearing in
       // several condition leaves (e.g. "Profit > 5 AND Profit < 100") is listed once in the error message.
       Set<String> unresolved = new LinkedHashSet<>();
 
-      if(conds == null || chartCols == null) {
+      if(conds == null || viewCols == null) {
          return unresolved;
       }
 
@@ -1189,10 +1223,10 @@ public class WizVsService {
             continue;
          }
 
-         DataRef match = chartCols.getAttribute(attr.getName());
+         DataRef match = viewCols.getAttribute(attr.getName());
 
          if(match == null) {
-            match = findAggregatedColumn(chartCols, attr.getName());
+            match = findAggregatedColumn(viewCols, attr.getName(), aggregateHeaderOf(attr));
          }
 
          if(match != null) {
@@ -1243,14 +1277,96 @@ public class WizVsService {
       return sb.length() > 0 ? sb.toString() : "none";
    }
 
-   /** Find a chart column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
-   private DataRef findAggregatedColumn(ColumnSelection chartCols, String baseName) {
+   /**
+    * The header an aggregate condition names, composed from the formula the caller gave: an
+    * AggregateRef(SALES, Average) -> "Average(SALES)". Null when the ref carries no formula.
+    *
+    * Composed by {@link #buildVSAggregateRefFullName}, i.e. by VSAggregateRef.getFullName — the very
+    * method that produced the header this string is compared against (buildChartHighlightColumns reads
+    * VSDataRef.getFullName, and a crosstab cell's available fields carry the same name). Going through it
+    * rather than concatenating here means every arity a wiz condition can carry — a second column for
+    * isTwoColumns, an N for hasN, both set by buildConditionItem — is spelled with the argument order,
+    * separator and defaults the view already used, instead of a copy that has to be kept in step with it.
+    *
+    * Exists because a column can be bound MORE THAN ONCE under different aggregates — "Sum(SALES)" and
+    * "Average(SALES)" side by side in the same crosstab or chart. The base name alone cannot say which of
+    * them was meant, so the loose scan in findAggregatedColumn answers with whichever the view lists
+    * first: an Average condition silently lands on the Sum column, and the highlight colors cells chosen
+    * by a number nobody asked about.
+    *
+    * Answers null — no preferred name — whenever the condition does not carry enough to name a header the
+    * view could have produced: no formula at all, a two-column formula with no secondary column, or an
+    * N-parameter formula whose N is 0. For the latter two that means the field ends up REPORTED as
+    * unresolved and the caller fails loud, because findAggregatedColumn's fallback scan compares the
+    * whole parenthesised text to the base name and so cannot match "Correlation(SALES, PROFIT)" or
+    * "NthLargest(SALES, 3)" either. That is the honest answer: the condition never said which of those
+    * columns it meant, and an error naming the available headers is worth more than a highlight quietly
+    * keyed to the wrong one.
+    */
+   // Package-private for unit testing (WizVsServiceHighlightRebindTest).
+   static String aggregateHeaderOf(DataRef ref) {
+      if(!(ref instanceof AggregateRef aggregateRef) || aggregateRef.getFormula() == null) {
+         return null;
+      }
+
+      String base = ref.getName();
+
+      if(base == null || base.isEmpty()) {
+         return null;
+      }
+
+      AggregateFormula formula = aggregateRef.getFormula();
+      DataRef secondary = aggregateRef.getSecondaryColumn();
+      String secondaryName = secondary != null ? secondary.getName() : null;
+
+      // A two-column formula with no secondary column names no header any view produced: getFullName
+      // composes the missing half as "Correlation(SALES, null)", and nothing binds a Correlation without
+      // its second column in the first place. Composing the one-argument "Correlation(SALES)" instead
+      // only invents a third spelling that matches neither, so answer none.
+      if(formula.isTwoColumns() && (secondaryName == null || secondaryName.isEmpty())) {
+         return null;
+      }
+
+      // Same for an N-parameter formula whose N is 0. An AggregateRef stores N as a bare primitive, so 0
+      // is both "the caller named none" and "the caller named zero" — and for PthPercentile the latter is
+      // a real P the view can carry. Composing either reading picks a header the condition may not have
+      // meant: "NthLargest(SALES, 0)" is one no view produces (VSAggregateRef's nValue defaults to "1"),
+      // and substituting that 1 would spell a P=0 condition as P=1. Neither guess is safe, so answer none
+      // the same way the missing secondary column above does.
+      int n = aggregateRef.getN();
+
+      if(formula.hasN() && n <= 0) {
+         return null;
+      }
+
+      return buildVSAggregateRefFullName(base, formula.getFormulaName(), secondaryName, n);
+   }
+
+   /**
+    * Find a view column that carries the given base column under an aggregate, e.g. "Sales" ->
+    * "Sum(Sales)".
+    *
+    * {@code preferredFullName} — the formula-qualified header the condition itself named — is tried
+    * first and is the only answer that can be trusted when the base column is bound more than once; the
+    * scan below is the fallback for a condition that named no formula at all.
+    */
+   private DataRef findAggregatedColumn(ColumnSelection viewCols, String baseName,
+                                        String preferredFullName)
+   {
       if(baseName == null) {
          return null;
       }
 
-      for(int i = 0; i < chartCols.getAttributeCount(); i++) {
-         DataRef ref = chartCols.getAttribute(i);
+      if(preferredFullName != null) {
+         DataRef exact = viewCols.getAttribute(preferredFullName);
+
+         if(exact != null) {
+            return exact;
+         }
+      }
+
+      for(int i = 0; i < viewCols.getAttributeCount(); i++) {
+         DataRef ref = viewCols.getAttribute(i);
          String full = ref.getName();
          int open = full.indexOf('(');
          int close = full.lastIndexOf(')');
@@ -4627,8 +4743,8 @@ public class WizVsService {
     *
     * @return the computed fullName from VSAggregateRef
     */
-   private String buildVSAggregateRefFullName(String columnValue, String formulaValue,
-                                              String secondaryField, Integer nOrP)
+   private static String buildVSAggregateRefFullName(String columnValue, String formulaValue,
+                                                    String secondaryField, Integer nOrP)
    {
       VSAggregateRef ref = new VSAggregateRef();
       ref.setColumnValue(columnValue);
