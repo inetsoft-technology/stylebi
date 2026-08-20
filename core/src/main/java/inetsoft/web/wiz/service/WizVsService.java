@@ -1294,11 +1294,14 @@ public class WizVsService {
     * first: an Average condition silently lands on the Sum column, and the highlight colors cells chosen
     * by a number nobody asked about.
     *
-    * Answers null — no preferred name, leaving that scan to decide — whenever the condition does not
-    * carry enough to name a header the view could have produced: no formula at all, a two-column formula
-    * with no secondary column, or an N-parameter formula whose N is 0. Those are the cases where the
-    * remaining ambiguity is real rather than something a spelling can resolve, so this returns nothing
-    * instead of inventing a header and matching the wrong column with confidence.
+    * Answers null — no preferred name — whenever the condition does not carry enough to name a header the
+    * view could have produced: no formula at all, a two-column formula with no secondary column, or an
+    * N-parameter formula whose N is 0. For the latter two that means the field ends up REPORTED as
+    * unresolved and the caller fails loud, because findAggregatedColumn's fallback scan compares the
+    * whole parenthesised text to the base name and so cannot match "Correlation(SALES, PROFIT)" or
+    * "NthLargest(SALES, 3)" either. That is the honest answer: the condition never said which of those
+    * columns it meant, and an error naming the available headers is worth more than a highlight quietly
+    * keyed to the wrong one.
     */
    // Package-private for unit testing (WizVsServiceHighlightRebindTest).
    static String aggregateHeaderOf(DataRef ref) {
@@ -1318,10 +1321,8 @@ public class WizVsService {
 
       // A two-column formula with no secondary column names no header any view produced: getFullName
       // composes the missing half as "Correlation(SALES, null)", and nothing binds a Correlation without
-      // its second column in the first place. There is no preferred name to be had, so answer none and
-      // let findAggregatedColumn fall back to its base-name scan — what it did before a preferred name
-      // existed. Composing a one-argument "Correlation(SALES)" here would only invent a third spelling
-      // that matches neither.
+      // its second column in the first place. Composing the one-argument "Correlation(SALES)" instead
+      // only invents a third spelling that matches neither, so answer none.
       if(formula.isTwoColumns() && (secondaryName == null || secondaryName.isEmpty())) {
          return null;
       }
@@ -1331,7 +1332,7 @@ public class WizVsService {
       // a real P the view can carry. Composing either reading picks a header the condition may not have
       // meant: "NthLargest(SALES, 0)" is one no view produces (VSAggregateRef's nValue defaults to "1"),
       // and substituting that 1 would spell a P=0 condition as P=1. Neither guess is safe, so answer none
-      // and let the base-name scan decide, the same way the missing secondary column above does.
+      // the same way the missing secondary column above does.
       int n = aggregateRef.getN();
 
       if(formula.hasN() && n <= 0) {

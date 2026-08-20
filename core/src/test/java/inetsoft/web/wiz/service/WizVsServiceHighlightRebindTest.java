@@ -180,9 +180,9 @@ class WizVsServiceHighlightRebindTest {
 
    // ── header composition ─────────────────────────────────────────────────────
    //
-   // Each arity AggregateRef.toView() composes, because the preferred name is compared for EQUALITY
-   // against a header that method produced. A missed match is not an error — it degrades to the loose
-   // base-name scan — which is exactly why it has to be pinned: the degradation is invisible.
+   // Each arity VSAggregateRef.getFullName composes, because the preferred name is compared for EQUALITY
+   // against a header that method produced. A missed match raises nothing on its own — it degrades to the
+   // loose base-name scan — which is exactly why it has to be pinned: the degradation is invisible.
 
    @Test
    void composesAOneColumnHeader() {
@@ -214,6 +214,57 @@ class WizVsServiceHighlightRebindTest {
       ref.setN(3);
 
       assertEquals("NthLargest(SALES, 3)", WizVsService.aggregateHeaderOf(ref));
+   }
+
+   @Test
+   void composesNoHeaderForAnNParameterFormulaWhoseNIsUnset() {
+      // AggregateRef leaves N at 0 when the caller named none, and no view carries "NthLargest(SALES, 0)"
+      // — a VSAggregateRef defaults its N to 1. Substituting that 1 would be a guess at which of the
+      // view's N columns was meant, so no name is offered.
+      assertEquals(null, WizVsService.aggregateHeaderOf(new AggregateRef(
+         new ColumnRef(new AttributeRef(null, "SALES")), null, AggregateFormula.NTH_LARGEST)));
+   }
+
+   @Test
+   void composesNoHeaderForAPercentileWhoseNIsZero() {
+      // The other reading of that same 0, and why it cannot simply be replaced by the default: for
+      // PthPercentile a P of 0 is a real percentile a view can carry, so spelling it as 1 would name a
+      // DIFFERENT column with full confidence. N is a bare primitive here, so the two readings cannot be
+      // told apart and neither is guessed.
+      AggregateRef ref = new AggregateRef(
+         new ColumnRef(new AttributeRef(null, "SALES")), null, AggregateFormula.PTH_PERCENTILE);
+      ref.setN(0);
+
+      assertEquals(null, WizVsService.aggregateHeaderOf(ref));
+   }
+
+   @Test
+   void resolvesAnNParameterFormulaAgainstItsRealHeader() {
+      // The same end the two-column case below serves: two N-parameter aggregates over the SAME base
+      // column are separated only by N, so the preferred name is the only thing that can tell them apart.
+      AggregateRef ref = new AggregateRef(
+         new ColumnRef(new AttributeRef(null, "SALES")), null, AggregateFormula.NTH_LARGEST);
+      ref.setN(3);
+
+      ConditionList conds = aggregateCondition(ref);
+      Set<String> unresolved = service.rebindConditionFieldsToViewColumns(
+         conds, viewColumns("NthLargest(SALES, 1)", "NthLargest(SALES, 3)"));
+
+      assertTrue(unresolved.isEmpty());
+      assertEquals("NthLargest(SALES, 3)", fieldOf(conds));
+   }
+
+   @Test
+   void reportsAnNParameterFormulaWhoseNWasNeverNamed() {
+      // Withholding the preferred name is not a silent degradation here: the fallback scan compares the
+      // whole parenthesised text to the base name, so it cannot match "NthLargest(SALES, 5)" either and
+      // the field is REPORTED. The caller turns that into an error naming the available headers, which is
+      // the honest answer to a condition that never said which N it meant.
+      ConditionList conds = aggregateCondition("SALES", AggregateFormula.NTH_LARGEST);
+      Set<String> unresolved =
+         service.rebindConditionFieldsToViewColumns(conds, viewColumns("STATE", "NthLargest(SALES, 5)"));
+
+      assertEquals(Set.of("SALES"), unresolved);
    }
 
    @Test
