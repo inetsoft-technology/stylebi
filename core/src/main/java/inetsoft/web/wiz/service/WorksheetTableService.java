@@ -755,23 +755,24 @@ public class WorksheetTableService {
       }
 
       // Verify READ permission on the datasource before resolving/using it. physicalSource covers
-      // physical table and sql query table; tabularSource covers tabular table, and it is read
-      // here rather than inside the builder for the same reason the other one is — the check must
-      // precede every use of the path, including the one that dials a remote endpoint.
-      // Mirror/join tables only reference already-in-worksheet assemblies, so there is no new
-      // datasource to check for them.
+      // physical table and sql query table bind one through physicalSource; tabular table binds one
+      // through tabularSource. Read here rather than inside each builder for the same reason the
+      // physical check always was — it must precede every use of the path, including the one that
+      // dials a remote endpoint. Mirror/join tables only reference already-in-worksheet assemblies,
+      // so there is no new datasource to check for them.
       // Mirrors WorksheetAgentController.addLogicalModelTable's usage of DataSourceService.
+      //
+      // KEYED ON tableType, NEVER ON WHICH FIELD HAPPENS TO BE SET. tableType is what selects the
+      // builder below, so it is the only thing that can say which path will actually be used. Picking
+      // by field presence let a tabular request carrying BOTH fields be checked against its
+      // physicalSource — a path no tabular code path ever reads — and then reach the connector on its
+      // unchecked tabularSource path. buildTabularTable rejects the mismatched pair outright as well;
+      // this line is what makes the check itself correct.
       WorksheetTable.PhysicalSource src = request.getPhysicalSource();
-      String datasourcePath = null;
-
-      if(src != null && src.getDatasourcePath() != null) {
-         datasourcePath = src.getDatasourcePath();
-      }
-      else if(request.getTabularSource() != null &&
-              request.getTabularSource().getDatasourcePath() != null)
-      {
-         datasourcePath = request.getTabularSource().getDatasourcePath();
-      }
+      WorksheetTable.TabularSource tabularSrc = request.getTabularSource();
+      String datasourcePath = "tabular table".equals(tableType)
+         ? (tabularSrc != null ? tabularSrc.getDatasourcePath() : null)
+         : (src != null ? src.getDatasourcePath() : null);
 
       if(datasourcePath != null &&
          !dataSourceService.checkPermission(datasourcePath, ResourceAction.READ, user))
@@ -992,6 +993,17 @@ public class WorksheetTableService {
          throw new IllegalArgumentException("tabularSource.endpoint is required for tabular table");
       }
 
+      // Meaningless in every direction: nothing on this path reads physicalSource, so a request
+      // carrying both names two sources and gets one of them silently ignored. It is also the shape
+      // that made the READ gate checkable against the wrong path when the gate keyed on field
+      // presence, so it is refused rather than tolerated.
+      if(request.getPhysicalSource() != null) {
+         throw new IllegalArgumentException(
+            "a tabular table cannot carry physicalSource — it is bound through tabularSource. " +
+            "Remove physicalSource, or use tableType \"physical table\" if a database table is what " +
+            "was meant.");
+      }
+
       // Rejected rather than ignored, and checked before anything is dialed: a tabular table's
       // columns are discovered by the request below, so a caller cannot know them beforehand, and
       // silently dropping the list would answer a request nobody made.
@@ -1028,8 +1040,15 @@ public class WorksheetTableService {
          throw new IllegalArgumentException("Data source not found: " + dsName);
       }
 
+      // Not UnsupportedDatasourceException: its message is hard-coded to "Annotations are currently
+      // not supported for ... datasources", which is true where it was introduced and nonsense here.
+      // The type buys nothing on this path either — createTables catches per table and keeps only
+      // rootMessage(e), so it never reaches the handler that gives the type meaning.
       if(!(dataSource instanceof TabularDataSource)) {
-         throw new UnsupportedDatasourceException(dsName, dataSource.getType());
+         throw new IllegalArgumentException(
+            "'" + dsName + "' is a " + dataSource.getType() + " data source, not a tabular/REST one, " +
+            "so it has no endpoints to call. Use tableType \"physical table\" or \"sql query table\" " +
+            "for a database.");
       }
 
       // createQuery logs and returns null on every failure — a missing connector plugin, an
@@ -1055,6 +1074,9 @@ public class WorksheetTableService {
       // on a paginated metered API means paging to the end of the customer's data every time.
       if(src.getMaxRows() != null && src.getMaxRows() > 0) {
          query.setMaxRows(src.getMaxRows());
+      }
+      else {
+         requireRowCapWhenPaged(query, src.getEndpoint(), dsName);
       }
 
       TabularTableAssembly table = new TabularTableAssembly(worksheet, request.getTableName());
@@ -1221,6 +1243,44 @@ public class WorksheetTableService {
       }
 
       return s;
+   }
+
+   /**
+    * Refuse an unbounded row limit on an endpoint that paginates.
+    *
+    * <p>{@code XQuery.rowlimit} defaults to 0, meaning unlimited, and on a paginated connector that
+    * is not "read a lot" — it is "keep requesting pages until the service runs out", on every render
+    * of the table, against an API that bills per call. Neither obvious remedy is right: requiring a
+    * cap unconditionally makes a caller invent a number for an endpoint like {@code /v1/balance} that
+    * issues one request and returns one object, and defaulting silently trades a slow answer for a
+    * wrong one — a table that quietly returns 100 of 5000 rows answers "how many are there"
+    * incorrectly, with nothing in the response saying so.</p>
+    *
+    * <p>So the condition checked is the one that actually matters, and it is accurate by now:
+    * {@code setEndpoint} ran the connector's {@code updatePagination}, which is what establishes the
+    * pagination spec. {@code isPaged()} is public but not a {@code @Property}, so it is reached by
+    * name — the same reflection {@link #assertKnownEndpoint} uses for {@code getEndpoints}. A
+    * connector that does not answer it is left alone rather than blocked: this check exists to stop a
+    * known-unbounded query, not to reject an unfamiliar one.</p>
+    */
+   private void requireRowCapWhenPaged(TabularQuery query, String endpoint, String dsName) {
+      boolean paged;
+
+      try {
+         paged = (Boolean) query.getClass().getMethod("isPaged").invoke(query);
+      }
+      catch(Exception ex) {
+         LOG.debug("Could not determine whether endpoint '{}' of '{}' paginates; not requiring a " +
+                   "row cap", endpoint, dsName, ex);
+         return;
+      }
+
+      if(paged) {
+         throw new IllegalArgumentException(
+            "Endpoint '" + endpoint + "' of '" + dsName + "' is paginated, so tabularSource.maxRows " +
+            "is required: without it every render of this table requests pages until the service runs " +
+            "out of data. Choose a row cap for the question being asked.");
+      }
    }
 
    /** Set a property only when a value was supplied, leaving the connector's default otherwise. */
