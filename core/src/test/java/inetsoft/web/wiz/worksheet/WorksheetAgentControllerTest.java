@@ -25,6 +25,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
@@ -858,6 +859,252 @@ class WorksheetAgentControllerTest {
       assertNotNull(ws.getAssembly("Imported"));
    }
 
+   /**
+    * The import settings the Composer's Import Data File dialog exposes, now reachable through the
+    * agent too. Before this, the CSV route had its own hand-rolled parser that could honour none of
+    * them -- the origin of a cluster of L2 findings. These assert the settings actually reach
+    * {@code CSVLoader}, the loader the dialog itself uses.
+    */
+   private static WorksheetAgentController.ImportCsvRequest csvRequest(
+      String name, String csv, String encoding, String delimiter, Boolean tab, Boolean detectType,
+      Boolean firstRow, Boolean removeQuotes, Boolean unpivot, Integer headerCols)
+   {
+      return new WorksheetAgentController.ImportCsvRequest(
+         name, csv, encoding, delimiter, tab, detectType, firstRow, removeQuotes, unpivot,
+         headerCols);
+   }
+
+   private static EmbeddedTableAssembly importedTable(Worksheet ws, String name) {
+      Assembly a = ws.getAssembly(name);
+      assertNotNull(a, "expected an imported table named " + name);
+      assertInstanceOf(EmbeddedTableAssembly.class, a);
+      return (EmbeddedTableAssembly) a;
+   }
+
+   private static WorksheetAgentController importCtrl(Worksheet ws, String token) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+      return importController(token, rws);
+   }
+
+   /**
+    * The guard the owner asked for explicitly: an agent-imported table must stay a plain
+    * {@link EmbeddedTableAssembly}. The dialog builds a {@link SnapshotEmbeddedTableAssembly} from
+    * the same loader, and re-importing through this route is the documented way to get an editable
+    * copy of snapshot data -- so copying the dialog's choice here would quietly delete the only
+    * workaround L2 Finding 5 has.
+    */
+   @Test
+   void importCsvStaysAPlainEmbeddedTableRatherThanASnapshot() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-PLAIN");
+
+      ctrl.importCsv("TOK-PLAIN",
+         new WorksheetAgentController.ImportCsvRequest("Plain", "a,b\n1,x"),
+         TestPrincipals.user("alice", "host-org"));
+
+      EmbeddedTableAssembly t = importedTable(ws, "Plain");
+      assertFalse(t instanceof SnapshotEmbeddedTableAssembly,
+         "an agent import must remain editable; a snapshot refuses edit_cell/insert_row/delete_row");
+   }
+
+   @Test
+   void importCsvDetectTypeFalseMakesEveryColumnString() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-DT");
+
+      // The same file twice, differing only in detectType. With detection on, "$499.99" cannot be
+      // coerced to a number; with it off the column is text and the value survives intact -- which
+      // is the answer L2 Finding 8 was missing.
+      ctrl.importCsv("TOK-DT", csvRequest("Typed", "price\n299.99\n$499.99",
+                                          null, null, null, true, null, null, null, null),
+                     TestPrincipals.user("alice", "host-org"));
+      ctrl.importCsv("TOK-DT", csvRequest("AsText", "price\n299.99\n$499.99",
+                                          null, null, null, false, null, null, null, null),
+                     TestPrincipals.user("alice", "host-org"));
+
+      ColumnSelection typed = importedTable(ws, "Typed").getColumnSelection(false);
+      ColumnSelection text = importedTable(ws, "AsText").getColumnSelection(false);
+
+      assertEquals(XSchema.STRING, ((ColumnRef) text.getAttribute(0)).getDataType(),
+         "detectType=false must leave the column as string");
+      assertNotEquals(XSchema.STRING, ((ColumnRef) typed.getAttribute(0)).getDataType(),
+         "detectType=true must still detect a numeric column");
+   }
+
+   @Test
+   void importCsvFirstRowAsHeaderFalseGeneratesColumnNamesAndKeepsLineOne() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-FR");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
+         "TOK-FR", csvRequest("NoHeader", "a,b\n1,x", null, null, null, null, false, null, null,
+                              null),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(2, resp.rows(), "line 1 counts as data when it is not the header");
+      ColumnSelection cs = importedTable(ws, "NoHeader").getColumnSelection(false);
+      assertNotNull(cs.getAttribute("col0"), "generated names replace the missing header");
+      assertNotNull(cs.getAttribute("col1"));
+   }
+
+   @Test
+   void importCsvHonoursAnAlternateDelimiter() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-DELIM");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
+         "TOK-DELIM", csvRequest("Semi", "a;b;c\n1;2;3", null, ";", null, null, null, null, null,
+                                 null),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(3, resp.columns(), "a semicolon file is three columns, not one");
+      assertNotNull(importedTable(ws, "Semi").getColumnSelection(false).getAttribute("a"));
+   }
+
+   @Test
+   void importCsvHonoursTabAsTheDelimiter() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-TAB");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
+         "TOK-TAB", csvRequest("Tabbed", "a\tb\n1\t2", null, null, true, null, null, null, null,
+                               null),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(2, resp.columns());
+   }
+
+   @Test
+   void importCsvUnpivotReshapesCrosstabInput() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-UP");
+
+      // A crosstab: one identifier column plus two measure columns. Unpivoting with one header
+      // column turns each measure cell into its own row.
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
+         "TOK-UP", csvRequest("Unpivoted", "region,q1,q2\nEast,1,2\nWest,3,4",
+                              null, null, null, null, null, null, true, 1),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(3, resp.columns(),
+         "unpivot yields the header column plus a name/value pair");
+      assertEquals(4, resp.rows(), "two rows times two measures");
+      importedTable(ws, "Unpivoted");
+   }
+
+   @Test
+   void importCsvRejectsAnUnsupportedEncoding() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-ENC");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsvFile("TOK-ENC",
+            new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
+            "Bad", "NOT-A-CHARSET", null, null, null, null, null, null, null,
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("NOT-A-CHARSET"), ex.getReason());
+   }
+
+   /**
+    * A name that is not merely unrecognized but syntactically illegal takes a different route out
+    * of {@code Charset}: it throws {@code IllegalCharsetNameException} instead of answering false.
+    * Unguarded that escapes as a 500; the caller made the same mistake either way, so it has to
+    * land on the same 400 as {@code importCsvRejectsAnUnsupportedEncoding}.
+    */
+   @Test
+   void importCsvRejectsAMalformedEncodingNameRatherThanThrowing() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-BADENC");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsvFile("TOK-BADENC",
+            new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
+            "Bad", "not a charset", null, null, null, null, null, null, null,
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("not a charset"), ex.getReason());
+   }
+
+   /**
+    * The JSON route cannot honour an encoding at all -- its text was decoded before the request
+    * existed. Refusing says so; silently ignoring it would leave a caller with mojibake and no
+    * indication of why their setting did nothing.
+    */
+   @Test
+   void importCsvRejectsANonUtf8EncodingOnTheJsonRoute() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-JSONENC");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-JSONENC",
+            csvRequest("X", "a,b\n1,2", "ISO-8859-1", null, null, null, null, null, null, null),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("import-csv-file"),
+         "the refusal should point at the route that can honour it: " + ex.getReason());
+   }
+
+   /**
+    * UTF-8 spelled any of the ways the JDK accepts is what this route already does, so it is not a
+    * setting being ignored and must not be refused.
+    */
+   @Test
+   void importCsvAcceptsUtf8SpelledAsAnAliasOnTheJsonRoute() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-UTF8");
+
+      ctrl.importCsv("TOK-UTF8",
+         csvRequest("Utf8", "a,b\n1,2", "utf8", null, null, null, null, null, null, null),
+         TestPrincipals.user("alice", "host-org"));
+
+      importedTable(ws, "Utf8");
+   }
+
+   @Test
+   void importCsvRejectsAMultiCharacterDelimiter() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-BADDELIM");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-BADDELIM",
+            csvRequest("X", "a,b\n1,2", null, "\\t", null, null, null, null, null, null),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("delimiterTab"),
+         "the refusal should point at the flag that does what the caller meant: " + ex.getReason());
+   }
+
+   /**
+    * The whole reason the multipart route exists: text handed over as JSON has already been
+    * decoded, so a non-UTF-8 file can only survive if its bytes make the trip. This is L2
+    * Finding 13.
+    */
+   @Test
+   void importCsvFileDecodesTheBytesWithTheGivenEncoding() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-GBK");
+      // Built from code points so this source file stays ASCII: two CJK ideographs, which no
+      // single-byte charset can represent, so a wrong decode cannot round-trip by accident.
+      String header = new String(new char[] { 0x4ef7, 0x683c });
+      byte[] utf16 = (header + ",b\n1,2").getBytes(java.nio.charset.StandardCharsets.UTF_16LE);
+
+      ctrl.importCsvFile("TOK-GBK",
+         new MockMultipartFile("file", "d.csv", "text/csv", utf16),
+         "Encoded", "UTF-16LE", null, null, null, null, null, null, null,
+         TestPrincipals.user("alice", "host-org"));
+
+      ColumnSelection cs = importedTable(ws, "Encoded").getColumnSelection(false);
+      assertNotNull(cs.getAttribute(header),
+         "the header should decode back to its original characters");
+   }
+
    @Test
    void importCsvRejectsBlankCsv() {
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -1434,7 +1681,7 @@ class WorksheetAgentControllerTest {
     * deliberately shared with the pane-scoped {@code WorksheetScriptService} caller, which has
     * ALREADY run its own narrow {@code PaneScopeService.check} and must not be refused again by
     * the broad whole-sheet check -- see {@link WorksheetAgentController#editOp} javadoc. So the
-    * guard here is 13 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
+    * guard here is 14 hand-written {@code requireWholeSheetSession(sessionToken, user)} calls,
     * one per endpoint, and nothing before this test failed the build the day one of them went
     * missing.
     *
@@ -1444,7 +1691,7 @@ class WorksheetAgentControllerTest {
     * than trusting that the next endpoint's author remembers to add the call. {@code join} never
     * matches (no {@code {sessionToken}} in its path -- that is where one is minted); {@code
     * detach} matches but is explicitly exempted above, for the reason its own javadoc gives.
-    * Endpoint 14 fails THIS test the moment it omits the guard.
+    * Endpoint 15 fails THIS test the moment it omits the guard.
     */
    @Test
    void everySessionTokenEndpointRefusesAPaneScopedSessionOrIsExplicitlyExempt() {
@@ -1497,7 +1744,7 @@ class WorksheetAgentControllerTest {
          }
       }
 
-      assertTrue(checked >= 13, "Expected at least the 13 known session-scoped endpoints to " +
+      assertTrue(checked >= 14, "Expected at least the 14 known session-scoped endpoints to " +
          "be enumerated, found " + checked + " -- did WorksheetAgentController's mapping " +
          "annotations change shape?");
       assertTrue(notRefused.isEmpty(), "Endpoint(s) mapped with {sessionToken} did not refuse " +

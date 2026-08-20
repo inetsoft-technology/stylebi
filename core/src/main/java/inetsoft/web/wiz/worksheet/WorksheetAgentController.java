@@ -41,10 +41,14 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.table.XSwappableTable;
+import inetsoft.uql.util.filereader.CSVLoader;
+import inetsoft.uql.util.filereader.DateParseInfo;
 import inetsoft.uql.util.filereader.ExcelFileInfo;
 import inetsoft.uql.util.filereader.ExcelFileReader;
 import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.util.Catalog;
+import inetsoft.util.FileSystemService;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
@@ -66,6 +70,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.StandardCharsets;
+import java.nio.charset.UnsupportedCharsetException;
+import java.nio.file.Files;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
@@ -596,9 +605,129 @@ public class WorksheetAgentController {
     * @param body         name (optional) and csv string
     * @param user         the authenticated agent principal
     */
-   public record ImportCsvRequest(String name, String csv) {}
+   public record ImportCsvRequest(String name, String csv, String encoding, String delimiter,
+                                  Boolean delimiterTab, Boolean detectType,
+                                  Boolean firstRowAsHeader, Boolean removeQuotes,
+                                  Boolean unpivot, Integer headerCols)
+   {
+      /**
+       * The common case: text plus an optional name, every setting left to its default. Spelling
+       * out eight nulls at each call site would bury which ones a caller actually meant to set.
+       */
+      public ImportCsvRequest(String name, String csv) {
+         this(name, csv, null, null, null, null, null, null, null, null);
+      }
+   }
    public record ImportCsvResponse(String tableName, int rows, int columns) {}
 
+   /**
+    * The import settings the Composer's own Import Data File dialog exposes.
+    *
+    * <p>Normalized once, here, so both transports agree: the JSON endpoint below and the
+    * multipart one that follows it hand this to the same loader.
+    *
+    * @param encoding        charset name to decode the bytes with
+    * @param delimiter       the field separator, already resolved from the Tab checkbox
+    * @param detectType      convert values to a detected type; when false every column is string
+    * @param firstRowAsHeader take column names from line 1; when false they become col0, col1, ...
+    * @param removeQuotes    strip a value's surrounding quotes, treating them as escaping only
+    * @param unpivot         reshape crosstab-shaped input into a tabular table
+    * @param headerCols      with unpivot, how many leading columns stay as row identifiers
+    */
+   private record CsvSettings(String encoding, String delimiter, boolean detectType,
+                              boolean firstRowAsHeader, boolean removeQuotes, boolean unpivot,
+                              int headerCols) {}
+
+   /**
+    * Whether a charset name can be used to decode with.
+    *
+    * <p>{@link Charset#isSupported} answers {@code false} only for a name that is well formed but
+    * unrecognized; a malformed one -- a name with a space in it, say -- throws
+    * {@link IllegalCharsetNameException} instead. Both are the same mistake from the caller's side,
+    * so both become the same 400 rather than one of them escaping as a 500.
+    */
+   private static boolean isSupportedCharset(String name) {
+      try {
+         return Charset.isSupported(name);
+      }
+      catch(IllegalCharsetNameException | UnsupportedCharsetException e) {
+         return false;
+      }
+   }
+
+   /**
+    * Whether a charset name names UTF-8, by resolving it rather than by comparing strings, so the
+    * aliases ("utf8", "UTF-8", "unicode-1-1-utf-8") all count. A name that resolves to nothing is
+    * not UTF-8 either, which is the answer the JSON route wants for it.
+    */
+   private static boolean isUtf8(String name) {
+      try {
+         return StandardCharsets.UTF_8.equals(Charset.forName(name));
+      }
+      catch(IllegalCharsetNameException | UnsupportedCharsetException e) {
+         return false;
+      }
+   }
+
+   /**
+    * Resolves the dialog's settings, defaulting to what the previous hand-rolled parser did so an
+    * existing caller that passes none sees no change: comma-separated, types detected, line 1 as
+    * the header, quotes left alone, no unpivot.
+    */
+   private CsvSettings csvSettings(String encoding, String delimiter, Boolean delimiterTab,
+                                   Boolean detectType, Boolean firstRowAsHeader,
+                                   Boolean removeQuotes, Boolean unpivot, Integer headerCols)
+   {
+      String encode = encoding == null || encoding.isBlank() ? "UTF-8" : encoding.trim();
+
+      if(!isSupportedCharset(encode)) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "Unsupported encoding: " + encode);
+      }
+
+      String delim;
+
+      if(Boolean.TRUE.equals(delimiterTab)) {
+         delim = "\t";
+      }
+      else if(delimiter == null || delimiter.isEmpty()) {
+         delim = ",";
+      }
+      else if(delimiter.length() > 1) {
+         // The dialog's own input is maxlength=1; a multi-character separator would be silently
+         // truncated by the loader's splitter rather than honoured.
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "delimiter must be a single character (got \"" + delimiter + "\"). " +
+            "For a tab, set delimiterTab instead of passing an escape sequence.");
+      }
+      else {
+         delim = delimiter;
+      }
+
+      boolean pivot = Boolean.TRUE.equals(unpivot);
+      int hcol = headerCols == null ? 1 : headerCols;
+
+      if(hcol < 0) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "headerCols cannot be negative (got " + hcol + ")");
+      }
+
+      return new CsvSettings(encode, delim,
+                             detectType == null || detectType,
+                             firstRowAsHeader == null || firstRowAsHeader,
+                             Boolean.TRUE.equals(removeQuotes),
+                             pivot, hcol);
+   }
+
+   /**
+    * Import CSV supplied inline as text.
+    *
+    * <p>{@code encoding} cannot mean anything on this route: the text arrived already decoded as
+    * part of a JSON body, so any mis-decoding happened before the request was built. Anything but
+    * UTF-8 is refused rather than quietly ignored -- a caller who set it has a file to re-send to
+    * the multipart route, not a setting to drop.
+    */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/import-csv")
    public ImportCsvResponse importCsv(@PathVariable String sessionToken,
                                       @RequestBody ImportCsvRequest body,
@@ -611,33 +740,157 @@ public class WorksheetAgentController {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "csv is required");
       }
 
-      List<String[]> rows = parseCsv(body.csv());
-
-      if(rows.size() < 2) {
-         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                           "CSV must have a header row and at least one data row");
+      if(body.encoding() != null && !body.encoding().isBlank() &&
+         !isUtf8(body.encoding().trim()))
+      {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "encoding cannot be honoured here: the csv text was already decoded before this " +
+            "request was built. Post the file's bytes to import-csv-file with encoding=" +
+            body.encoding().trim() + " instead.");
       }
 
-      String[] headers = rows.get(0);
-      int ncols = headers.length;
-      int nrows = rows.size();
+      CsvSettings settings = csvSettings(
+         "UTF-8", body.delimiter(), body.delimiterTab(), body.detectType(),
+         body.firstRowAsHeader(), body.removeQuotes(), body.unpivot(), body.headerCols());
 
-      String[] types = new String[ncols];
-      for(int c = 0; c < ncols; c++) {
-         types[c] = inferType(rows, c);
+      // The same guard the multipart route gets: a JSON body's csv string is no less capable of
+      // driving an unbounded temp-file write and loader scan than an uploaded file is.
+      byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
+      checkImportFileSize(bytes.length, "CSV");
+
+      return importCsvBytes(sessionToken, user, body.name(), bytes, settings);
+   }
+
+   /**
+    * Import CSV supplied as raw file bytes.
+    *
+    * <p>Separate from the JSON route rather than a flag on it, because the two differ in what they
+    * can honour rather than only in shape: bytes are decoded here with the caller's {@code
+    * encoding}, which is the only way a non-UTF-8 file survives the trip at all. Mirrors how
+    * {@code import-excel} already takes its file.
+    */
+   @PostMapping(value = "/api/wiz/v1/agent/worksheet/{sessionToken}/import-csv-file",
+                consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+   public ImportCsvResponse importCsvFile(@PathVariable String sessionToken,
+                                          @RequestPart(value = "file", required = false)
+                                          MultipartFile file,
+                                          @RequestParam(required = false) String name,
+                                          @RequestParam(required = false) String encoding,
+                                          @RequestParam(required = false) String delimiter,
+                                          @RequestParam(required = false) Boolean delimiterTab,
+                                          @RequestParam(required = false) Boolean detectType,
+                                          @RequestParam(required = false) Boolean firstRowAsHeader,
+                                          @RequestParam(required = false) Boolean removeQuotes,
+                                          @RequestParam(required = false) Boolean unpivot,
+                                          @RequestParam(required = false) Integer headerCols,
+                                          Principal user) throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+
+      if(file == null || file.isEmpty()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
       }
 
-      Object[][] data = new Object[nrows][ncols];
-      for(int r = 0; r < nrows; r++) {
-         String[] srcRow = rows.get(r);
-         for(int c = 0; c < ncols; c++) {
-            String cell = c < srcRow.length ? srcRow[c] : "";
-            data[r][c] = r == 0 ? cell : convertCell(cell, types[c]);
+      checkImportFileSize(file.getSize(), "CSV");
+
+      CsvSettings settings = csvSettings(encoding, delimiter, delimiterTab, detectType,
+                                         firstRowAsHeader, removeQuotes, unpivot, headerCols);
+
+      return importCsvBytes(sessionToken, user, name, file.getBytes(), settings);
+   }
+
+   /**
+    * The one CSV import path, shared by both transports.
+    *
+    * <p>Delegates to {@link CSVLoader#readCSV}, the same loader the Composer's own import dialog
+    * uses, rather than parsing here. The hand-rolled parser this replaced was the origin of a
+    * cluster of findings in the L2 test lane -- it could not honour an encoding, a delimiter, a
+    * quote-stripping choice or a "first row is data" file at all, and its own type coercion
+    * dropped values the loader keeps. A second implementation of a format this fiddly earns
+    * nothing.
+    *
+    * <p>The result is deliberately a plain {@link EmbeddedTableAssembly} and **not** the
+    * {@link SnapshotEmbeddedTableAssembly} the dialog builds. An agent-imported table has to stay
+    * editable: it is the documented way to get an editable copy of data that arrived as a
+    * snapshot, so turning this into a snapshot would quietly remove the only workaround there is.
+    */
+   private ImportCsvResponse importCsvBytes(String sessionToken, Principal user, String name,
+                                            byte[] bytes, CsvSettings settings)
+      throws Exception
+   {
+      // The product's cache directory rather than java.io.tmpdir: the bytes are the caller's data,
+      // and the system temp dir is shared with whatever else runs on the host, at whatever
+      // permissions the umask gives. This is the same convention the import dialog's own file
+      // handling follows.
+      File temp = FileSystemService.getInstance().getCacheTempFile("wiz-agent-import", "csv");
+
+      if(temp == null) {
+         throw new ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR, "Unable to create a temporary file for the import");
+      }
+
+      try {
+         Files.write(temp.toPath(), bytes);
+
+         List<String> types = new ArrayList<>();
+         // oldTypes carries the column types of a table being re-imported over. A fresh import has
+         // none -- but the loader reads and writes through this map, so it must be an empty mutable
+         // map rather than null.
+         Map<Object, String> oldTypes = new HashMap<>();
+         XSwappableTable loaded = CSVLoader.readCSV(
+            temp, settings.encoding(), settings.removeQuotes(), settings.delimiter(),
+            settings.firstRowAsHeader(), settings.unpivot(), oldTypes, types,
+            settings.detectType(), null, CSV_TYPE_SCAN_ROWS, 0,
+            Util.getOrganizationMaxColumn(), new DateParseInfo());
+
+         if(loaded == null || loaded.getRowCount() < 2) {
+            if(loaded != null) {
+               // XSwappableTable can have spilled to disk even this small; every other exit from
+               // this method disposes, so this one does too.
+               loaded.dispose();
+            }
+
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST,
+               "CSV must have a header row and at least one data row" +
+               (settings.firstRowAsHeader()
+                  ? "" : " (firstRowAsHeader is false, so line 1 counts as data)"));
+         }
+
+         XEmbeddedTable table;
+
+         if(settings.unpivot()) {
+            XSwappableTable pivoted = AssetUtil.unpivot(loaded, settings.headerCols());
+
+            if(pivoted != loaded) {
+               loaded.dispose();
+            }
+
+            // Unpivoting reshapes the columns, so the type list readCSV produced describes a
+            // table that no longer exists. Let XEmbeddedTable derive types from the new shape.
+            table = new XEmbeddedTable(pivoted);
+         }
+         else {
+            table = new XEmbeddedTable(types.toArray(new String[0]), loaded);
+         }
+
+         return createEmbeddedTable(sessionToken, user, name, table,
+                                    table.getRowCount(), table.getColCount());
+      }
+      finally {
+         if(!temp.delete()) {
+            temp.deleteOnExit();
          }
       }
-
-      return createEmbeddedTable(sessionToken, user, body.name(), types, data, nrows, ncols);
    }
+
+   /**
+    * How many rows {@link CSVLoader#readCSV} may scan while settling a column's type, matching
+    * what the Composer's dialog passes for a full import.
+    */
+   private static final int CSV_TYPE_SCAN_ROWS = 50000;
 
    /**
     * Import an Excel file (.xls/.xlsx) as a new embedded table assembly in the worksheet.
@@ -683,7 +936,7 @@ public class WorksheetAgentController {
                                            "fileType must be either \"XLS\" or \"XLSX\"");
       }
 
-      checkExcelFileSize(file.getSize());
+      checkImportFileSize(file.getSize(), "Excel");
 
       byte[] bytes = file.getBytes();
 
@@ -783,7 +1036,7 @@ public class WorksheetAgentController {
       return createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
    }
 
-   private void checkExcelFileSize(long size) {
+   private void checkImportFileSize(long size, String what) {
       String excelImportMax = SreeEnv.getProperty("excel.import.max");
       String max = excelImportMax != null ? excelImportMax : SreeEnv.getProperty("csv.import.max");
 
@@ -806,7 +1059,8 @@ public class WorksheetAgentController {
          long sizeM = sizeK / 1024;
          String sizeStr = sizeM > 0 ? sizeM + "M" : sizeK + "K";
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                           "Excel file exceeds the maximum allowed size (" + sizeStr + ")");
+                                           what + " file exceeds the maximum allowed size (" +
+                                              sizeStr + ")");
       }
    }
 
@@ -819,8 +1073,19 @@ public class WorksheetAgentController {
     * {@link EmbeddedTableAssembly} from already-typed header+data rows and adds it to the
     * worksheet.
     */
+   /**
+    * The Excel route's shape: a type array plus a rectangular value block, row 0 being the header.
+    */
    private ImportCsvResponse createEmbeddedTable(String sessionToken, Principal user, String name,
                                                  String[] types, Object[][] data, int nrows, int ncols)
+      throws Exception
+   {
+      return createEmbeddedTable(sessionToken, user, name, new XEmbeddedTable(types, data),
+                                 nrows, ncols);
+   }
+
+   private ImportCsvResponse createEmbeddedTable(String sessionToken, Principal user, String name,
+                                                 XEmbeddedTable table, int nrows, int ncols)
       throws Exception
    {
       return editService.applyOnRuntime(sessionToken, user, rws -> {
@@ -848,7 +1113,6 @@ public class WorksheetAgentController {
          assembly.setPixelOffset(new Point(10, maxY + 10));
          assembly.setPixelSize(new Dimension(AssetUtil.defw, nrows + 1));
 
-         XEmbeddedTable table = new XEmbeddedTable(types, data);
          assembly.setEmbeddedData(table);
          ws.addAssembly(assembly);
 
@@ -861,88 +1125,6 @@ public class WorksheetAgentController {
 
          return new ImportCsvResponse(tableName, nrows - 1, ncols);
       });
-   }
-
-   /**
-    * Parse a CSV string into a list of string arrays (one per row).
-    * Handles quoted fields and escaped double-quotes per RFC 4180.
-    *
-    * <p><strong>Limitation:</strong> embedded newlines inside quoted fields are not
-    * supported — the parser reads line-by-line, so a newline inside a quoted value
-    * will be treated as a row boundary.  Callers should ensure cell values do not
-    * contain newlines.</p>
-    */
-   private static List<String[]> parseCsv(String csv) {
-      List<String[]> result = new ArrayList<>();
-      try(BufferedReader reader = new BufferedReader(new StringReader(csv))) {
-         String line;
-         while((line = reader.readLine()) != null) {
-            if(line.isBlank()) continue;
-            result.add(parseCsvLine(line));
-         }
-      }
-      catch(IOException e) {
-         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to parse CSV: " + e.getMessage());
-      }
-      return result;
-   }
-
-   private static String[] parseCsvLine(String line) {
-      List<String> fields = new ArrayList<>();
-      StringBuilder sb = new StringBuilder();
-      boolean inQuotes = false;
-      for(int i = 0; i < line.length(); i++) {
-         char c = line.charAt(i);
-         if(c == '"') {
-            if(inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-               sb.append('"');
-               i++;
-            }
-            else {
-               inQuotes = !inQuotes;
-            }
-         }
-         else if(c == ',' && !inQuotes) {
-            fields.add(sb.toString());
-            sb.setLength(0);
-         }
-         else {
-            sb.append(c);
-         }
-      }
-      fields.add(sb.toString());
-      return fields.toArray(new String[0]);
-   }
-
-   /**
-    * Infer XSchema type for a column by scanning data rows (row 0 is header, skip it).
-    *
-    * <p>Known limitation: only DOUBLE and STRING are returned. Integer columns become DOUBLE
-    * (acceptable for most comparisons but loses integer-precision semantics), and
-    * date/boolean columns become STRING (may affect sort order and aggregate operations).
-    * This is sufficient for CSV import but is not a general type-inference solution.</p>
-    */
-   private static String inferType(List<String[]> rows, int col) {
-      boolean allNumeric = true;
-      for(int r = 1; r < rows.size(); r++) {
-         String[] row = rows.get(r);
-         String cell = col < row.length ? row[col].trim() : "";
-         if(cell.isEmpty()) continue;
-         try { Double.parseDouble(cell); }
-         catch(NumberFormatException e) { allNumeric = false; break; }
-      }
-      return allNumeric ? XSchema.DOUBLE : XSchema.STRING;
-   }
-
-   private static Object convertCell(String cell, String type) {
-      if(cell == null || cell.isBlank()) return null;
-      if(XSchema.DOUBLE.equals(type) || XSchema.FLOAT.equals(type) ||
-         XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type))
-      {
-         try { return Double.parseDouble(cell.trim()); }
-         catch(NumberFormatException e) { return cell; }
-      }
-      return cell;
    }
 
    /**
