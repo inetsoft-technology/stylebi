@@ -1,8 +1,9 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-19 (ninth revision — **P5 is built**, in the working tree and uncommitted, with all three
-automated gates green; a new section below, "What P5 left behind", carries the six items it deferred or
-uncovered. The eighth revision's notes follow: **P4 committed as `8ef511e45`**, and a product decision taken
+**Date:** 2026-08-20 (tenth revision — **P5 has shipped as `4c237a7dd`**, 61 files, with all three automated
+gates green and **every manual check passed, including P3's eleven**, which had never been run before. The
+section below, "What P5 left behind", carries what it deferred; two of the six items it originally listed
+were withdrawn after testing. The eighth revision's notes follow: **P4 committed as `8ef511e45`**, and a product decision taken
 that day, **decision 13, overrules the org-wide revert sweep**: disabling the gate now reverts nothing, and a
 per-dashboard Revert action mirrors Modernize. That collapses most of the release gate into one phase, P6.
 The seventh revision's P4 note, the sixth's P3 note, the fifth's P2 note and the fourth's rebase note are all
@@ -86,11 +87,11 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  the only route in for old content              eleven manual checks still outstanding
      P4  server reads follow the mark                   SHIPPED 8ef511e45 · THE BEHAVIOUR REVERSAL
       │  43 read sites + the creation site              unblocks L' now · nine manual checks PASSED
-     P5  browser reads follow the mark                  BUILT, uncommitted · gates green
-      │  resolved modern/dark on the model · 8 of 15    4905 core / 1316+356 portal / full
-      │  bindings across 8 templates · body class       cross-module build. 24 manual checks
-      │  renamed viz-shell · isVizModern() deleted      OUTSTANDING — see manual-checks.md
-      │  ✗ getTooltipStyle NOT done — deferred, R20     P4's interim state is now closed
+     P5  browser reads follow the mark                  SHIPPED 4c237a7dd · 61 files
+      │  resolved modern/dark on the model · 15         4905 core / 1316+356 portal / full
+      │  bindings across 7 templates · body class       cross-module build · ALL manual
+      │  renamed viz-shell · isVizModern() deleted      checks passed, incl. P3's eleven
+      │  ✗ getTooltipStyle NOT done — deferred, R20     P4's interim state is closed
       ├──┬──→ §07 derived selection, retire the teal family
       │  │         └──→ Range slider — painter half
       │  └──→ Outlined text conversion (also behind G)
@@ -158,17 +159,17 @@ and decision 13 turned the release gate's largest unbuilt item into a phase smal
 reading of the picture, not a new decision; it goes stale as things land. Effort is relative to this track,
 not absolute.
 
-**Re-derived 2026-08-19 after P5 was built**, from the picture above rather than by editing the previous
-ranking — this file's own instruction. P5 dropped off because it is built; what replaced it at the top is
-running its manual checks, because nothing else in this track can be trusted until they have.
+**Re-derived 2026-08-20, after P5 shipped and its manual checks passed** — from the picture above rather
+than by editing the previous ranking, per this file's own instruction. The previous revision put P5's manual
+checks at the top because nothing in the track could be trusted until they ran. They have, and they passed,
+so the item is gone rather than demoted.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **P5's 24 manual checks** | the only verification behind most of P5's visible behaviour | **S** — one browser session | confidence in everything below | R9/R10/R11 left Tasks 2–4 with no automated tests, and four templates have no spec file at all |
-| 2 | **L′ — the title lane height row** | the highest-value visible item, and startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
-| 3 | **M-P6 — Revert** | clears most of what is left of the release gate | **S–M** — P3's wiring mirrored, plus three deletions | card radius 12→6 | deletes the `gate &&` term and both `PlotDescriptor` seed booleans together; splitting them strands charts. **Also must drop the `if(modern)` guard on the density body class** — see below |
-| 4 | **The binding-pane dead buttons** | a broken affordance users will click | **XS** — two predicates | nothing | none; pre-existing, not P5's |
-| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | **L′ — the title lane height row** | the highest-value visible item, startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
+| 2 | **M-P6 — Revert** | clears most of what is left of the release gate | **S–M** — P3's wiring mirrored, plus three deletions | card radius 12→6 | deletes the `gate &&` term and both `PlotDescriptor` seed booleans together; splitting them strands charts. **Also must drop the `if(modern)` guard on the density body class** — see "What P5 left behind" |
+| 3 | **The binding-pane dead buttons** | a broken affordance users will click | **XS** — two predicates | nothing | none; pre-existing, not P5's |
+| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
 **P6's ordering constraint is satisfied — P5 is built, so P6 is unblocked.** The reasoning is retained
 because it explains why the order mattered: P6 makes gate-off mean
@@ -689,13 +690,15 @@ leaves persisted dark card backgrounds under read-time light chart chrome (decis
 **Added 2026-08-19, after P5 was built.** P5 is "browser reads follow the mark": the server's resolved
 answer reaches the client on `VSObjectModel`, fifteen bindings across eight templates carry
 `viz-modern`/`viz-dark` per assembly, the body class became `viz-shell`/`viz-shell-dark`, and
-`GuiTool.isVizModern()` is gone. Automated gates: core 4905/0 failures, portal 1316+356 passing, full
-`-Pcommunity,enterprise` build clean. **Uncommitted, and its 24 manual checks have not run** — see
-`.superpowers/sdd/2026-08-19-seed-mark-p5-browser-reads/manual-checks.md`, and the ledger beside it for
-every ruling (search `Ruling:`).
+`GuiTool.isVizModern()` is gone. **Shipped as `4c237a7dd`**, 61 files. Automated gates: core 4905/0
+failures, portal 1316+356 passing, full `-Pcommunity,enterprise` build clean. **Every manual check passed**
+— the viewer, composer, layout pane, wizard, binding pane and embed, plus P3's eleven, which had never been
+run before this pass.
 
-Six items came out of the phase. Two are new findings about pre-existing behaviour; four are things P5
-deliberately did not do.
+Six items came out of the phase and **two were withdrawn after testing** — they are kept below with the
+reasoning that produced them, because both were code-reading findings that reasoned one step past what they
+had verified, and that is worth not repeating. Of the four that stand, two are new findings about
+pre-existing behaviour and two are things P5 deliberately did not do.
 
 ### 1. Binding-pane chart toolbar shows two dead buttons — pre-existing, XS fix
 
