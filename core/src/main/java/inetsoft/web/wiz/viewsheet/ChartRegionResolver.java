@@ -160,13 +160,18 @@ final class ChartRegionResolver {
          return;
       }
 
+      String range = legends.count() == 0
+         ? "This chart has no legends"
+         : legends.count() == 1
+            ? "This chart has 1 legend, so the only valid index is 0"
+            : "This chart has " + legends.count() + " legends, so the valid indexes are 0 to " +
+              (legends.count() - 1);
+
+      // No dash before the offending index: "valid indexes are 0 - '7'" reads as a range, which
+      // is the opposite of what it says. Seen in live output.
       throw new IllegalArgumentException(
-         "This chart has " + (legends.count() == 0 ? "no legends"
-            : legends.count() + (legends.count() == 1 ? " legend" : " legends") +
-              ", so the valid indexes are 0" +
-              (legends.count() > 1 ? " to " + (legends.count() - 1) : "")) +
-         " - '" + index + "' is out of range. A legend exists per aesthetic field bound to the " +
-         "chart; get_chart_aesthetics shows which.");
+         range + "; '" + index + "' is out of range. A legend exists per aesthetic field bound " +
+         "to the chart; get_chart_aesthetics shows which.");
    }
 
    /**

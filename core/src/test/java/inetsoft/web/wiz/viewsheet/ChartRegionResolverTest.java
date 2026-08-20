@@ -175,6 +175,9 @@ class ChartRegionResolverTest {
       assertTrue(thrown.getMessage().contains("7"), "and what was asked for");
       assertTrue(thrown.getMessage().contains("get_chart_aesthetics"),
                  "and where to look it up");
+      // "the valid indexes are 0 - '7'" read as a range in live output. A dash between the bound
+      // and the offending index is exactly the wrong punctuation here.
+      assertFalse(thrown.getMessage().contains("0 - "), "the bound must not read as a range");
    }
 
    @Test
@@ -182,6 +185,15 @@ class ChartRegionResolverTest {
       assertThrows(
          IllegalArgumentException.class,
          () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(2, true), -1));
+   }
+
+   @Test
+   void spellsOutARangeWhenThereIsMoreThanOneLegend() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(3, true), 9));
+
+      assertTrue(thrown.getMessage().contains("0 to 2"), "a real range, spelled out");
    }
 
    @Test
