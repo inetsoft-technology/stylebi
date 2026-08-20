@@ -131,6 +131,35 @@ Google SSO 的整条 filter 链（`StyleBIGoogleSSOFilter`/`OpenIDFilterBaseFilt
 | `identityID` 不存在（新落地的 SELF 或 host-org 身份）+ `security.selfSignUp.enabled=false` | 拒绝（forward 到 `GOOGLE_USER_SIGN_UP_DENIED` 错误页） | `[M9]` `allowLogIn_newIdentity_selfSignUpDisabled_deniesAndForwardsToErrorPage` |
 | `identityID` 不存在 + `security.selfSignUp.enabled=true` | 放行 | `[M9]` `allowLogIn_newIdentity_selfSignUpEnabled_allows` |
 
+**`getSSODefaultRole()` / SSO 默认角色的 org 归属：**
+
+> 一处已确认的越权（已修复）：`StyleBIGoogleSSOFilter.getSSODefaultRole()` 是整个仓库里 `AbstractSecurityFilter.getSSODefaultRole()` 的**唯一** override，而它去掉了基类的 `SUtil.isMultiTenant()` 守卫。这个"去掉"本身是有意的——Google 登录是 self-service 注册路径，且 `StyleBIGoogleOpenIDConfig.getRoleClaim()` 返回 `null`，导致 `OpenIDFilterBaseFilter` 里那段按 org 过滤的默认角色逻辑（只在 `roleClaim != null` 时才跑）对 Google 永远不生效，所以 `styleBI.google.sso.default.roles` 是新租户用户拿到起始角色的唯一来源。
+>
+> 真正的缺陷在基类的 org 归属：原先 `createSSOSession()` 内联地把每个名字都盖上 `Organization.getDefaultOrganizationID()`，并把字面量 `"Administrator"` 映射成 `IdentityID("Administrator", null)`——**全局** sysadmin 角色。这段硬编码是按"多租户永远走不到这里"写的（见 community commit `fceb855f7`），而 Google 的 override 让它走到了。后果：多租户下 Google 用户会拿到属于 default org 的角色（跨租户），列表里写 `Administrator` 则直接拿到服务器级管理员（`DefaultCheckPermissionStrategy` 里解析出 sysadmin 角色会让 `checkPermission` 对所有 org 的所有资源短路成 `true`）。
+>
+> 修复方式是把 org 归属从 `createSSOSession()` 抽成 `AbstractSecurityFilter.getSSODefaultRoleID(role, principal)`：非多租户保持原样（单租户下内置 Administrator **只**以 null-org 全局角色存在，那个特例是必需的，不能删），多租户改为盖上 `principal.getOrgId()` 并拒绝管理员角色。管理员判断走 `SecurityProvider.isSystemAdministratorRole()` / `isOrgAdministratorRole()` 而不是字符串字面量，但**必须问对身份**：`AuthenticationChain` 的 override 是 `stream().filter(p -> p.getRole(roleId) != null).findFirst()...`，即精确的 `name@org` 键查找（`FileAuthenticationProvider.getRole` → `roleStorage.get(id.convertToKey())`）。而两个内置管理员角色是**无 org** 播种的（`IdentityID("Administrator", null)` / `IdentityID("Organization Administrator", null)`），所以拿 org 作用域的形式去问永远查不到、恒返回 `false`，守卫等于空转。因此这里问的是**全局（null-org）形式的名字**来挡这两个内置角色，另外再用 org 作用域形式检查 sysAdmin 标记。（这一点第一版改错过，见下表两个 `despiteBeingSeededOrgLess` 用例——它们在错误实现下会失败。）不匹配任何真实角色的名字按原基类语义原样放过（进得了 `getAllRoles()`，但 `getRole()` 返回 null，不带任何权限）。
+
+| 分层 | 场景 | 核心断言 | 测试方法 |
+|---|---|---|---|
+| enterprise（`StyleBIGoogleSSOFilterTest`）——守卫的缺失是有意的 | 属性未设置 | 返回空数组，不 NPE | `[M9]` `ssoDefaultRole_propertyUnset_returnsEmpty` |
+| | 多租户 + 属性有值 | 照样返回名字（基类会返回空数组，Google 有意不这样） | `[M9]` `ssoDefaultRole_multiTenant_guardIsDeliberatelyAbsent` |
+| | 非多租户 + 属性有值 | 同上，结果与租户模式无关 | `[M9]` `ssoDefaultRole_singleTenant_guardAbsenceIsNotTenancyConditional` |
+| | 同时设置 `sso.default.roles` 和 `styleBI.google.sso.default.roles` | 只读自己那个属性 | `[M9]` `ssoDefaultRole_readsItsOwnPropertyNotTheBaseOne` |
+| community（`AbstractSecurityFilterTest`）——org 归属矩阵 | 单租户 + 普通角色名 | `IdentityID(name, host-org)`（原行为不变） | `[M9]` `singleTenant_ordinaryRole_stampedWithDefaultOrg` |
+| | 单租户 + `Administrator` | `IdentityID("Administrator", null)`——**回归护栏**，单租户"让所有 SSO 用户当管理员"的既有配置必须继续可用 | `[M9]` `singleTenant_administrator_stampedWithNullOrg` |
+| | 单租户任意角色 | 不查 `SecurityProvider`（保持纯映射，不会在安全未初始化的环境里开始报错） | `[M9]` `singleTenant_neverConsultsSecurityProvider` |
+| | 多租户 + 普通角色名 | `IdentityID(name, principal.getOrgId())`，**不是** default org | `[M9]` `multiTenant_ordinaryRole_scopedToSigningInOrg_notDefaultOrg` |
+| | 多租户 + 用户落地 SELF（Google self-signup 的实际情形） | 角色跟着落到 SELF | `[M9]` `multiTenant_selfSignupOrg_scopedToSelfOrg` |
+| | 多租户 + 内置 `Administrator`（无 org 播种） | 丢弃（返回 `null`），并记 WARN——靠查全局形式命中 | `[M9]` `multiTenant_builtInAdministrator_isDropped_despiteBeingSeededOrgLess` |
+| | 多租户 + 内置 `Organization Administrator`（无 org 播种） | 丢弃 | `[M9]` `multiTenant_builtInOrganizationAdministrator_isDropped_despiteBeingSeededOrgLess` |
+| | 多租户 + org 作用域的角色但带 sysAdmin 标记 | 丢弃——`DefaultCheckPermissionStrategy` 对任何解析出的 sysadmin 角色短路，这种角色会绕过**所有** org 的权限检查 | `[M9]` `multiTenant_orgScopedSysAdminRole_isDropped` |
+| | 多租户 + org 作用域的角色带 orgAdmin 标记 | **放行**——有意的策略：只在用户自己 org 内生效，正是 self-signup 新组织第一个用户需要的；只有无 org 的内置那个才拒 | `[M9]` `multiTenant_orgScopedOrgAdminRole_isAllowed` |
+| | 多租户 + 不存在的角色名 | 原样放过为 `IdentityID(name, 登录 org)`——不是错误，也不带权限 | `[M9]` `multiTenant_unknownRole_passedThroughUnresolved` |
+| | 多租户 + principal 没有 org（`getOrgId()` 为 null） | 丢弃——两个可选值都不安全：null org 是全局作用域，default org 又是最高权限租户，所以宁可不授（Google 路径实际总有 org，这是防御性分支） | `[M9]` `multiTenant_principalWithNoOrg_isDropped` |
+| | 多租户 + `getSecurityProvider()` 返回 null | 跳过管理员检查，但 org 归属照旧生效 | `[M9]` `multiTenant_noSecurityProvider_stillScopesToSigningInOrg` |
+
+> 补充：这些角色只存在于 session（`createSSOSession()` 从不写 `EditableAuthenticationProvider`）。新 Google 用户持久化的默认角色来自另一条路径——filter 的 postprocessor 调 `UserSignupService.createUser()`，它选的是 provider 里 `isDefaultRole()` 且 org 等于 `userID.orgID` 的角色。两条路径不要混淆。
+
 ---
 
 ## 区四：特殊组织默认行为（host-org / SELF）

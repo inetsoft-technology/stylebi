@@ -20,10 +20,15 @@ package inetsoft.web.admin.general;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.general.model.*;
+import inetsoft.web.admin.general.model.model.*;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 
+import java.util.*;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @Tag("core")
@@ -82,5 +87,73 @@ class EmailSettingsServiceTest {
    @Test
    void getModelReturnsNullOAuthFlagsWhenNotConfigured() {
       assertNull(service.getModel().smtpOAuthFlags());
+   }
+
+   // the flags are a distinct parameter of the authorization request, so they must not be
+   // folded into the requested scopes
+   @Test
+   void getOAuthParamsSendsFlagsAsFlags() {
+      OAuthParams params = service.getOAuthParams(oauthParamsRequest("scope1 scope2", "flag1 flag2"));
+
+      assertEquals(Set.of("flag1", "flag2"), params.flags());
+      assertEquals(List.of("scope1", "scope2"), params.scope());
+   }
+
+   @Test
+   void getOAuthParamsIgnoresExtraWhitespaceInFlags() {
+      OAuthParams params = service.getOAuthParams(oauthParamsRequest("scope1", "  flag1   flag2  "));
+
+      assertEquals(Set.of("flag1", "flag2"), params.flags());
+   }
+
+   // a blank value must not turn into a single empty flag
+   @Test
+   void getOAuthParamsSendsNoFlagsWhenNotConfigured() {
+      assertNull(service.getOAuthParams(oauthParamsRequest("scope1", null)).flags());
+      assertNull(service.getOAuthParams(oauthParamsRequest("scope1", "")).flags());
+      assertNull(service.getOAuthParams(oauthParamsRequest("scope1", "   ")).flags());
+   }
+
+   // the misspelled property is a read-only fallback, so saving must not leave it behind to
+   // shadow flags that were cleared in the EM
+   @Test
+   void setModelClearsLegacyOAuthFlagsProperty() throws Exception {
+      service.setModel(emailSettingsModel(SMTPAuthType.SASL_XOAUTH2, "flag1"), null);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("mail.smtp.oauthFlags", "flag1"));
+      sreeEnvStatic.verify(() -> SreeEnv.remove("mail.smtp.outhFlags"));
+   }
+
+   @Test
+   void setModelLeavesOAuthFlagsAloneForGoogleAuth() throws Exception {
+      service.setModel(emailSettingsModel(SMTPAuthType.GOOGLE_AUTH, null), null);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(eq("mail.smtp.oauthFlags"), any()), never());
+      sreeEnvStatic.verify(() -> SreeEnv.remove("mail.smtp.outhFlags"), never());
+   }
+
+   private EmailSettingsModel emailSettingsModel(SMTPAuthType authType, String flags) {
+      return EmailSettingsModel.builder()
+         .smtpAuthentication(authType)
+         .smtpHost("smtp.example.com")
+         .fromAddress("noreply@example.com")
+         .ssl(false)
+         .tls(false)
+         .smtpOAuthFlags(flags)
+         .build();
+   }
+
+   private OAuthParamsRequest oauthParamsRequest(String scope, String flags) {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("license.key")).thenReturn("LICENSE-KEY,OTHER");
+
+      return OAuthParamsRequest.builder()
+         .user("user@example.com")
+         .clientId("client-id")
+         .clientSecret("client-secret")
+         .authorizationUri("https://example.com/authorize")
+         .tokenUri("https://example.com/token")
+         .scope(scope)
+         .flags(flags)
+         .build();
    }
 }

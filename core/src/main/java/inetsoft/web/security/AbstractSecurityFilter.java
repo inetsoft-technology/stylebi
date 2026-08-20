@@ -166,6 +166,81 @@ public abstract class AbstractSecurityFilter
    }
 
    /**
+    * Resolves a role name from an SSO default-role property into a role identity.
+    *
+    * <p>On a single tenant install every role lives in the default organization, except the
+    * built-in Administrator, which is the global (org-less) system administrator role.
+    *
+    * <p>On a multi tenant install the role is scoped to the organization the user is signing in
+    * to; stamping it with the default organization would grant a role owned by another tenant.
+    * Names that would confer administrator rights beyond that organization are ignored -- see
+    * {@link #isAssignableSSODefaultRole}.
+    *
+    * @param role      the role name from the property.
+    * @param principal the principal being logged in.
+    *
+    * @return the role identity, or {@code null} if the name must not be granted.
+    */
+   protected IdentityID getSSODefaultRoleID(String role, SRPrincipal principal) {
+      if(!SUtil.isMultiTenant()) {
+         return "Administrator".equals(role) ? new IdentityID(role, null) :
+            new IdentityID(role, Organization.getDefaultOrganizationID());
+      }
+
+      String orgID = principal.getOrgId();
+
+      if(orgID == null) {
+         // neither guess is safe: a null org is the global scope, and the default organization is
+         // the most privileged tenant. Drop the name rather than grant either.
+         LOG.warn("Ignoring role \"{}\" in the SSO default roles: the organization being signed " +
+                     "in to is unknown.", role);
+         return null;
+      }
+
+      IdentityID roleID = new IdentityID(role, orgID);
+      SecurityProvider provider = getSecurityProvider();
+
+      if(provider != null && !isAssignableSSODefaultRole(provider, roleID)) {
+         LOG.warn("Ignoring administrator role \"{}\" in the SSO default roles: administrator " +
+                     "roles cannot be granted to organization {}.", role, orgID);
+         return null;
+      }
+
+      return roleID;
+   }
+
+   /**
+    * Determines whether a role may be granted through an SSO default-role property.
+    *
+    * @param provider the security provider.
+    * @param roleID   the org-scoped role identity.
+    *
+    * @return {@code false} if granting the role would confer administrator rights.
+    */
+   private boolean isAssignableSSODefaultRole(SecurityProvider provider, IdentityID roleID) {
+      // the built-in Administrator and Organization Administrator roles are seeded org-less, so an
+      // org-scoped key never resolves to them (AuthenticationChain only consults a provider that
+      // returns non-null from getRole(), which is an exact name+org lookup). Test the global form
+      // by name so those two names are refused whatever organization is signing in.
+      IdentityID globalID = new IdentityID(roleID.name, null);
+
+      if(provider.isSystemAdministratorRole(globalID) ||
+         provider.isOrgAdministratorRole(globalID))
+      {
+         return false;
+      }
+
+      // an org-scoped role flagged as system administrator bypasses permission checks in EVERY
+      // organization, because DefaultCheckPermissionStrategy short-circuits on any resolved
+      // sysadmin role, so it is not assignable either.
+      //
+      // An org-scoped ORGANIZATION administrator role is deliberately still allowed: it confers
+      // admin rights only inside the user's own organization, which is what a self-service signup
+      // flow wants for the first user of a new organization.
+      return !provider.isSystemAdministratorRole(roleID);
+   }
+
+   /**
     * Create a session and add an audit login record when logging in with SSO
     */
    protected SRPrincipal createSSOSession(HttpServletRequest request,
@@ -174,9 +249,10 @@ public abstract class AbstractSecurityFilter
       final IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       final IdentityID[] currentRoles = principal.getRoles();
       final String[] roles = getSSODefaultRole();
+      final SRPrincipal ssoPrincipal = principal;
       IdentityID[] defRoles = Arrays.stream(roles)
-         .map(role -> "Administrator".equals(role) ? new IdentityID(role, null)
-            : new IdentityID(role, Organization.getDefaultOrganizationID()))
+         .map(role -> getSSODefaultRoleID(role, ssoPrincipal))
+         .filter(Objects::nonNull)
          .toArray(IdentityID[]::new);
       final IdentityID[] newRoles =
          Stream.concat(Arrays.stream(defRoles), Arrays.stream(currentRoles)).toArray(IdentityID[]::new);
