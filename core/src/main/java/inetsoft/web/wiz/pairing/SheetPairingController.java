@@ -53,11 +53,13 @@ public class SheetPairingController {
    @Autowired
    public SheetPairingController(SheetPairingService pairing, SheetSessionService sessions,
                                  SheetAgentFeature feature,
+                                 SheetAgentBroadcastService broadcast,
                                  @Value("${wiz.agent.rest-mint.enabled:false}") boolean restMintEnabled)
    {
       this.pairing = pairing;
       this.sessions = sessions;
       this.feature = feature;
+      this.broadcast = broadcast;
       this.restMintEnabled = restMintEnabled;
    }
 
@@ -233,7 +235,9 @@ public class SheetPairingController {
       }
 
       try {
-         sessions.retarget(accessor.getSessionId(), req.runtimeId(), req.editorContext());
+         JoinSession retargeted =
+            sessions.retarget(accessor.getSessionId(), req.runtimeId(), req.editorContext());
+         broadcast.sendFocusChanged(retargeted);
          return RetargetResponse.success();
       }
       catch(PairingException e) {
@@ -262,7 +266,11 @@ public class SheetPairingController {
          return;
       }
 
-      sessions.popFocus(accessor.getSessionId(), req.runtimeId());
+      JoinSession restored = sessions.popFocus(accessor.getSessionId(), req.runtimeId());
+
+      if(restored != null) {
+         broadcast.sendFocusChanged(restored);
+      }
    }
 
    @ExceptionHandler(PairingException.class)
@@ -309,6 +317,7 @@ public class SheetPairingController {
    private final SheetPairingService pairing;
    private final SheetSessionService sessions;
    private final SheetAgentFeature feature;
+   private final SheetAgentBroadcastService broadcast;
    private final boolean restMintEnabled;
 
    private static final Logger LOG = LoggerFactory.getLogger(SheetPairingController.class);

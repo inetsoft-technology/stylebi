@@ -121,6 +121,32 @@ class SheetAgentBroadcastServiceTest {
    }
 
    /*
+    * sendFocusChanged reuses sendPairingJoined's exact topic/addressing (Follow Focus's design
+    * plan: "reusing the same broadcast channel #4669 already wired rather than inventing a second
+    * one"), distinguished only by PairingJoinedNotice.focusChanged() -- the client-side signal
+    * that this is an already-connected session's target moving, not a fresh join.
+    */
+   @Test
+   void focusChangedNoticeReusesTheJoinedTopicWithTheFlagSet() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
+      EditorContext context = new EditorContext("viewsheetOnInit", null, null, null);
+      JoinSession session = new JoinSession("tok-1", "vs-9", "alice~;~host-org",
+                                            SheetType.VIEWSHEET, 0L, 0L,
+                                            JoinSession.ConnectionMode.PAIRED,
+                                            "stomp-1", "alice-dest", context);
+
+      svc.sendFocusChanged(session);
+
+      ArgumentCaptor<Object> payloadCap = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("alice-dest"), eq("/commands/wiz/pairing/joined"), payloadCap.capture(), any());
+
+      assertEquals(new PairingJoinedNotice("vs-9", SheetType.VIEWSHEET, context, true),
+                   payloadCap.getValue());
+   }
+
+   /*
     * A null destination user reaches Spring's Assert.notNull, which the caller logs as "notifying
     * the browser failed" — misleading, since nothing failed to send and there was nobody to send
     * to. Mirrors nullSocketSessionSkipsBroadcast above.

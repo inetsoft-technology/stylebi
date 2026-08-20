@@ -32,7 +32,26 @@ package inetsoft.web.wiz.pairing;
  *
  * @param editorContext the paired location, or {@code null} for a whole-sheet ("Connect to Claude"
  *                      toolbar) pairing. {@code null} is the normal case, never an error.
+ * @param focusChanged  {@code false} for the original "an agent just joined" event this record
+ *                      was created for; {@code true} when a session already known to be joined
+ *                      had its target MOVED by Follow Focus ({@code SheetSessionService.retarget}/
+ *                      {@code popFocus}), not by a fresh mint-and-join. The client's connected
+ *                      indicator uses this to tell "someone else's pane just got paired" (which
+ *                      must not light up an unrelated toolbar instance -- see
+ *                      {@code ConnectToClaudeComponent}'s exact-editorContext-match filter) apart
+ *                      from "my own already-connected session's live target changed" (which the
+ *                      toolbar instance DOES want to track, by {@code runtimeId} alone, regardless
+ *                      of what the new {@code editorContext} is).
  */
 public record PairingJoinedNotice(String runtimeId, SheetType sheetType,
-                                  EditorContext editorContext) {
+                                  EditorContext editorContext, boolean focusChanged) {
+
+   /**
+    * Back-compat constructor predating {@code focusChanged} (Follow Focus) -- defaults it to
+    * {@code false}, i.e. the original "an agent joined" event shape every existing caller and
+    * test constructs.
+    */
+   public PairingJoinedNotice(String runtimeId, SheetType sheetType, EditorContext editorContext) {
+      this(runtimeId, sheetType, editorContext, false);
+   }
 }
