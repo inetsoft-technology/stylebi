@@ -26,6 +26,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.pairing.PairingException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -166,6 +167,32 @@ public class LayoutSessionService {
 
       if(active != null) {
          viewsheetService.flushRuntimeSheet(active.cloneRuntimeId());
+      }
+   }
+
+   /**
+    * Sweeps {@link #clones} for entries whose owning session is no longer live, and disposes
+    * them.
+    *
+    * <p>{@link #disposeAll} alone only covers the explicit {@code detach_sheet} path. A session
+    * that instead goes idle past {@code SheetSessionService.TTL_MILLIS} -- an agent that finishes
+    * its task and simply stops, or crashes, without ever calling {@code detach_sheet} -- is
+    * reaped by {@code SheetSessionService.evictExpired()}'s own scheduled sweep, which has no
+    * knowledge of this class's {@link #clones} map at all (different package, no dependency
+    * either way -- and deliberately so: the pairing layer should not need to know this plugin
+    * family exists). Without this sweep, that path leaves a <b>live {@code RuntimeViewsheet}
+    * runtime</b> cached under a token nothing will ever resolve again -- a real resource leak,
+    * heavier than a small map entry, for the remaining life of the process. Same cadence as
+    * {@code SheetSessionService.evictExpired()} (10 minutes) for consistency, though the two are
+    * not required to run in lockstep -- this sweep simply finds nothing to do until that one has
+    * already run.
+    */
+   @Scheduled(fixedDelay = 10 * 60_000)
+   void evictOrphanedClones() {
+      for(String token : clones.keySet()) {
+         if(!viewsheetSessions.isSessionLive(token)) {
+            disposeAll(token);
+         }
       }
    }
 

@@ -187,6 +187,43 @@ class LayoutSessionServiceTest {
    }
 
    /**
+    * {@code disposeAll} alone only fires on an explicit {@code detach_sheet} call. A session that
+    * instead goes idle past its TTL -- an agent that finishes and simply stops, or crashes --
+    * is reaped by {@code SheetSessionService.evictExpired()}, which has no knowledge of this
+    * class's own {@code clones} map. Without {@code evictOrphanedClones}, that path would leave a
+    * live {@code RuntimeViewsheet} runtime cached forever under a token nothing will ever resolve
+    * again -- a real leak, heavier than a small map entry.
+    */
+   @Test
+   void evictOrphanedClonesFlushesACloneWhoseOwningSessionIsNoLongerLive() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      fx.service.mutateLayout("tok1", AGENT, PRINT_LAYOUT, (clone, master, cloneRuntimeId, dispatcher) -> {});
+      String cloneId = fx.lastMintedCloneId();
+      when(fx.viewsheetSessions.isSessionLive("tok1")).thenReturn(false);
+
+      fx.service.evictOrphanedClones();
+
+      verify(fx.viewsheetService).flushRuntimeSheet(cloneId);
+   }
+
+   /** The sweep must not flush a clone whose owning session is still alive and well. */
+   @Test
+   void evictOrphanedClonesLeavesALiveSessionsCloneAlone() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      fx.service.mutateLayout("tok1", AGENT, PRINT_LAYOUT, (clone, master, cloneRuntimeId, dispatcher) -> {});
+      String cloneId = fx.lastMintedCloneId();
+      when(fx.viewsheetSessions.isSessionLive("tok1")).thenReturn(true);
+
+      fx.service.evictOrphanedClones();
+
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(cloneId);
+   }
+
+   /**
     * A read-triggered switch (the shape {@code LayoutReadService.get} produces via
     * {@link LayoutSessionService#resolveForRead}) must reset the master's layout undo/redo stack
     * just as a mutation-triggered switch does -- otherwise a later {@code layout_undo}/

@@ -92,6 +92,25 @@ class SheetSessionServiceTest {
       assertNull(svcLater.resolve(token, "alice~;~org"));
    }
 
+   /**
+    * {@code isLive} is a pure presence+non-expiry check with NO owner match -- unlike
+    * {@code resolve}, it exists for internal cleanup callers (e.g. a sibling service's own
+    * scheduled sweep) that have no {@code Principal} to check against and no need for one.
+    */
+   @Test
+   void isLiveIgnoresOwnerButRespectsPresenceAndExpiry() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("rt-live", "alice~;~org", SheetType.WORKSHEET, null, null, null);
+      String token = session.sessionToken();
+
+      assertTrue(svc.isLive(token), "a fresh session must be live");
+      assertFalse(svc.isLive("NONEXISTENT_TOKEN"), "an unknown token is never live");
+
+      SheetSessionService svcLater = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
+      assertFalse(svcLater.isLive(token), "isLive must respect expiry just like resolve does");
+   }
+
    @Test
    void resolveRefreshesTtl() {
       long[] clock = { FIXED_NOW };
