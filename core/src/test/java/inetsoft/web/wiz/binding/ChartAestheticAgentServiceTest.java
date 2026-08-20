@@ -62,7 +62,7 @@ class ChartAestheticAgentServiceTest {
 
       harness(existing, aesthetics)
          .setField("tok", principal(), "Chart1", "color",
-                   new FieldRef("Region", "dimension", null, null, null), "");
+                   new FieldRef("Region", "dimension", null, null, null), null, "");
 
       ChangeChartRefEvent event = captureEvent(aesthetics);
       assertEquals(42, event.getModel().getChartType(),
@@ -81,7 +81,7 @@ class ChartAestheticAgentServiceTest {
 
       harness(new ChartBindingModel(), aesthetics)
          .setField("tok", principal(), "Chart1", "color",
-                   new FieldRef("Region", "dimension", null, null, null), "");
+                   new FieldRef("Region", "dimension", null, null, null), null, "");
 
       assertEquals("color", captureEvent(aesthetics).getFieldType());
    }
@@ -96,7 +96,7 @@ class ChartAestheticAgentServiceTest {
 
       harness(existing, aesthetics)
          .setField("tok", principal(), "Chart1", "color",
-                   new FieldRef("Category", "dimension", null, null, null), "");
+                   new FieldRef("Category", "dimension", null, null, null), null, "");
 
       assertSame(shelfBefore, captureEvent(aesthetics).getModel().getXFields(),
                  "an aesthetic write must not disturb the shelves spec 2b owns");
@@ -146,7 +146,7 @@ class ChartAestheticAgentServiceTest {
                                                   mock(ChangeChartAestheticService.class));
 
       service.setField("tok", principal(), "Chart1", "color",
-                       new FieldRef("Region", "dimension", null, null, null), "");
+                       new FieldRef("Region", "dimension", null, null, null), null, "");
 
       verify(sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
@@ -177,7 +177,7 @@ class ChartAestheticAgentServiceTest {
       Exception thrown = assertThrows(
          Exception.class,
          () -> service.setField("tok", principal(), "Text1", "color",
-                                new FieldRef("Region", "dimension", null, null, null), ""));
+                                new FieldRef("Region", "dimension", null, null, null), null, ""));
       assertTrue(thrown.getMessage().contains("Text1"));
    }
 
@@ -190,7 +190,7 @@ class ChartAestheticAgentServiceTest {
       assertThrows(Exception.class,
                    () -> service.setField("tok", principal(), "Chart1", "colour",
                                           new FieldRef("Region", "dimension", null, null, null),
-                                          ""));
+                                          null, ""));
    }
 
    // ── node channels (spec 2c Phase 3) ───────────────────────────────────────
@@ -204,7 +204,7 @@ class ChartAestheticAgentServiceTest {
       Exception thrown = assertThrows(
          Exception.class,
          () -> service.setField("tok", principal(), "Chart1", "node-color",
-                                new FieldRef("Region", "dimension", null, null, null), ""));
+                                new FieldRef("Region", "dimension", null, null, null), null, ""));
       assertTrue(thrown.getMessage().contains("relation"));
    }
 
@@ -215,7 +215,7 @@ class ChartAestheticAgentServiceTest {
 
       serviceWith(sessionsFor(relationChart), new ChartBindingModel(), aesthetics)
          .setField("tok", principal(), "Chart1", "node-color",
-                  new FieldRef("Region", "dimension", null, null, null), "");
+                  new FieldRef("Region", "dimension", null, null, null), null, "");
 
       assertEquals("Region", captureEvent(aesthetics).getModel().getNodeColorField().getFullName());
    }

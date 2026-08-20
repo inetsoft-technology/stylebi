@@ -30,6 +30,8 @@ import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -38,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +61,7 @@ class ChartBindingServiceTest {
       harness(existing, refs, mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
               mock(ChangeSeparateStatusService.class))
          .setShelf("tok", principal(), "Chart1", "x",
-                   List.of(new FieldRef("Region", "dimension", null, null, null)), "");
+                   List.of(new FieldRef("Region", "dimension", null, null, null)), null, "");
 
       ArgumentCaptor<ChangeChartRefEvent> captor =
          ArgumentCaptor.forClass(ChangeChartRefEvent.class);
@@ -79,7 +82,7 @@ class ChartBindingServiceTest {
       harness(existing, refs, mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
               mock(ChangeSeparateStatusService.class))
          .setShelf("tok", principal(), "Chart1", "y",
-                   List.of(new FieldRef("Sales", "measure", "Sum", null, null)), "");
+                   List.of(new FieldRef("Sales", "measure", "Sum", null, null)), null, "");
 
       ArgumentCaptor<ChangeChartRefEvent> captor =
          ArgumentCaptor.forClass(ChangeChartRefEvent.class);
@@ -209,6 +212,265 @@ class ChartBindingServiceTest {
          Exception.class,
          () -> service.swapAxes("tok", principal(), "Text1", ""));
       assertTrue(thrown.getMessage().contains("Text1"));
+   }
+
+   // ── set_chart_source ──────────────────────────────────────────────────────
+   //
+   // A chart added in the Composer starts with no source. Its shelves can be populated —
+   // set_chart_shelf reports success, get_binding reads the fields back correctly — and it renders
+   // nothing at all, because shelves with no source have nothing to query. The Composer assigns one
+   // as a side effect of the drag (VSChartDndService takes it from the drag event's table); the
+   // agent's FieldRef carries no table, so nothing on this path could assign one.
+
+   @Test
+   void setSourceAssignsAnAssetSourceByName() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDERS1", false, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      ChartBindingModel posted = captor.getValue().getModel();
+      assertNotNull(posted.getSource(), "the model must carry a source after the write");
+      assertEquals("ORDERS1", posted.getSource().getSource());
+      assertEquals(inetsoft.uql.asset.SourceInfo.ASSET, posted.getSource().getType(),
+                   "worksheet tables bind as ASSET — the form the DnD path uses too");
+   }
+
+   @Test
+   void setSourceRefusesATableTheChartCannotSee() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "NOPE", false, ""));
+
+      assertTrue(thrown.getMessage().contains("NOPE"));
+      assertTrue(thrown.getMessage().contains("ORDERS1"), "list what it can bind to");
+   }
+
+   /**
+    * Repointing discards the bound fields, because they belong to the old source — the Composer
+    * does exactly that, via {@code validateChartColumns}. Doing it silently on one call is the
+    * failure this plugin family exists to avoid, so it takes {@code force}.
+    */
+   @Test
+   void setSourceRefusesToDiscardBoundFieldsUnlessForced() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"), "name the way through");
+   }
+
+   /**
+    * The chart-specific half of that check: fields live in <b>thirteen</b> places, not three.
+    *
+    * <p>A candlestick's whole binding is on the single-field shelves and its x/y are empty, so a
+    * check that counted only x/y/group would report "nothing bound" and repoint without asking —
+    * discarding the entire binding of exactly the charts whose binding is hardest to rebuild.
+    */
+   @Test
+   void setSourceCountsTheSingleFieldShelvesNotJustXYAndGroup() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setCloseField(new ChartAggregateRefModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"));
+   }
+
+   /**
+    * The aesthetic half: a chart can be bound entirely through a channel, with every shelf empty.
+    *
+    * <p>A word cloud is nothing but a text channel. {@code validateAestheticFields} clears exactly
+    * these on a repoint, so a check that read only the shelves would report "nothing bound" for a
+    * fully bound chart and discard its one binding without asking.
+    */
+   @Test
+   void setSourceCountsTheAestheticChannelsNotJustTheShelves() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"), "name the way through");
+      assertTrue(thrown.getMessage().contains("text"), "name which channel would be lost");
+   }
+
+   /**
+    * A relation chart's node channels are the same story on a second pair of properties, and
+    * {@code validateAestheticFields} clears them too.
+    */
+   @Test
+   void setSourceCountsARelationChartsNodeChannels() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "node-color",
+                                     new FieldRef("Region", "dimension", null, null, null), true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"));
+      assertTrue(thrown.getMessage().contains("node-color"));
+   }
+
+   /**
+    * A map keeps its geography on {@code geoFields}, which is no shelf and no channel —
+    * {@code validateChartColumns} removes those on a repoint alongside everything else.
+    */
+   @Test
+   void setSourceCountsAMapsGeoFields() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setGeoFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"));
+      assertTrue(thrown.getMessage().contains("geo"));
+   }
+
+   /** An aesthetic-only binding is discardable on the same terms as a shelf one: with force. */
+   @Test
+   void setSourceProceedsWhenForcedOverAnAestheticOnlyBinding() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      ChartBindingModel posted = captor.getValue().getModel();
+      assertEquals("ORDER_DETAILS1", posted.getSource().getSource());
+      assertNotNull(posted.getTextField(),
+                    "the repoint must not clear the channel itself — validateChartColumns " +
+                    "decides what survives, this write only moves the source");
+   }
+
+   /**
+    * A chart with no binding at all still repoints without {@code force} — the check must not
+    * become "anything non-null anywhere", or the very case {@code set_chart_source} exists for
+    * (a fresh chart that has no source yet) would be refused.
+    */
+   @Test
+   void setSourceOnAnUnboundChartNeedsNoForce() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, "");
+
+      verify(refs).changeChartRef(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void setSourceProceedsWhenForced() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      assertEquals("ORDER_DETAILS1", captor.getValue().getModel().getSource().getSource());
+   }
+
+   /**
+    * Re-stating the source a chart already has discards nothing, so it must not demand
+    * {@code force}. Without this an agent that re-reads and re-applies its own intended state —
+    * the read-first habit this plugin asks for — gets refused for making no change.
+    */
+   @Test
+   void setSourceToTheSameTableDoesNotDemandForce() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDERS1", false, "");
+
+      verify(refs).changeChartRef(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   private static inetsoft.web.binding.model.SourceInfo assetSource(String table) {
+      inetsoft.web.binding.model.SourceInfo source = new inetsoft.web.binding.model.SourceInfo();
+      source.setType(inetsoft.uql.asset.SourceInfo.ASSET);
+      source.setSource(table);
+      source.setView(table);
+
+      return source;
+   }
+
+   private static ChartBindingModel chartWithTables(String... names) {
+      ChartBindingModel model = new ChartBindingModel();
+      List<inetsoft.web.binding.model.BindingModel.SourceTable> tables = new ArrayList<>();
+
+      for(String name : names) {
+         inetsoft.web.binding.model.BindingModel.SourceTable table =
+            new inetsoft.web.binding.model.BindingModel.SourceTable();
+         table.setName(name);
+         tables.add(table);
+      }
+
+      model.setTables(tables);
+
+      return model;
    }
 
    private static ChartBindingService harness(ChartBindingModel model,

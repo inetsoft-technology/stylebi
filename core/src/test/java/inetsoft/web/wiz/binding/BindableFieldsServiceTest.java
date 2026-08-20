@@ -20,6 +20,8 @@ package inetsoft.web.wiz.binding;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -258,6 +260,204 @@ class BindableFieldsServiceTest {
 
       assertTrue(tables.isEmpty(),
                  "an empty table must report no fields, not a fabricated column named after it");
+   }
+
+   /**
+    * A childless Dimensions/Measures folder must yield nothing, not a field named after itself.
+    *
+    * <p>{@code VSTreeHandler} adds <em>both</em> grouping folders to every table unconditionally
+    * (it checks only that the table has at least one ref of either kind), so a table whose columns
+    * are all measures carries an <b>empty</b> Dimensions folder. Childless, and not a table, it
+    * satisfied {@link BindableFieldsService#isColumn} and its own label was fabricated into
+    * {@code {column: "Dimensions", dataType: null, role: null}}. Observed live on
+    * {@code ORDER_DETAILS1}, whose three columns are all integers, and reproduced on two separate
+    * viewsheets — but only through a scoped call, since the unscoped tree has no such folders.
+    *
+    * <p>This is the third instance of the class {@code isColumn}'s own Javadoc records fixing
+    * twice. Both previous fixes keyed on what the node <em>is</em> — a WORKSHEET container, then a
+    * table — and a folder is neither, so it kept slipping through.
+    */
+   @Test
+   void anEmptyDimensionsFolderYieldsNoFieldRatherThanFabricatingOneFromItsLabel()
+      throws Exception
+   {
+      TreeNodeModel qty = TreeNodeModel.builder().label("QUANTITY").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "QUANTITY", "integer", AssetEntry.MEASURES)).build();
+      // Empty, exactly as VSTreeHandler leaves it for a table with no dimension refs.
+      TreeNodeModel dimensions = TreeNodeModel.builder().label("Dimensions")
+         .data(entry(AssetEntry.Type.FOLDER, "Dimensions", null)).build();
+      TreeNodeModel measures = TreeNodeModel.builder().label("Measures")
+         .data(entry(AssetEntry.Type.FOLDER, "Measures", null)).addChildren(qty).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("ORDER_DETAILS1").data(entry(AssetEntry.Type.TABLE, "ORDER_DETAILS1", null))
+         .addChildren(dimensions).addChildren(measures).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(table).build();
+
+      List<BindableField> fields = serviceReturning(root).list("rt1", null, principal())
+         .get(0).fields();
+
+      assertEquals(List.of("QUANTITY"), fields.stream().map(BindableField::column).toList(),
+                   "an empty grouping folder must not appear as a bindable column");
+   }
+
+   /**
+    * The mirror case, for a table with only dimensions and no measures.
+    *
+    * <p>Stated plainly: this passed the moment the fix above landed, so it drove nothing. It is
+    * here as a guard, because the tempting narrow fix is to special-case the literal label
+    * {@code "Dimensions"} — which is what the live reproduction happened to show — and that fix
+    * would leave the identical hole open on the other folder. Only the live case was ever
+    * observed; this one is derived from {@code VSTreeHandler} adding both folders unconditionally.
+    */
+   @Test
+   void anEmptyMeasuresFolderIsExcludedToo() throws Exception {
+      TreeNodeModel city = TreeNodeModel.builder().label("City").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "City", "string", AssetEntry.DIMENSIONS)).build();
+      TreeNodeModel dimensions = TreeNodeModel.builder().label("Dimensions")
+         .data(entry(AssetEntry.Type.FOLDER, "Dimensions", null)).addChildren(city).build();
+      TreeNodeModel measures = TreeNodeModel.builder().label("Measures")
+         .data(entry(AssetEntry.Type.FOLDER, "Measures", null)).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("REGIONS").data(entry(AssetEntry.Type.TABLE, "REGIONS", null))
+         .addChildren(dimensions).addChildren(measures).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(table).build();
+
+      List<BindableField> fields = serviceReturning(root).list("rt1", null, principal())
+         .get(0).fields();
+
+      assertEquals(List.of("City"), fields.stream().map(BindableField::column).toList());
+   }
+
+   /**
+    * A table under a folder still reports its columns — the exclusion must not stop the walk.
+    *
+    * <p>{@link BindableFieldsService#collect} recurses into anything that is not a column, so
+    * excluding folders from {@code isColumn} only changes what becomes a <em>field</em>, never
+    * what gets descended into. This pins that down, because the obvious wrong way to write the
+    * fix — returning early for folders in {@code collect}/{@code gather} — would silently drop
+    * every column beneath the Dimensions and Measures folders and make the tool return nothing
+    * at all for a scoped call.
+    */
+   @Test
+   void aFolderWithChildrenIsStillWalkedIntoRatherThanSkipped() throws Exception {
+      TreeNodeModel qty = TreeNodeModel.builder().label("QUANTITY").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "QUANTITY", "integer", AssetEntry.MEASURES)).build();
+      TreeNodeModel measures = TreeNodeModel.builder().label("Measures")
+         .data(entry(AssetEntry.Type.FOLDER, "Measures", null)).addChildren(qty).build();
+      TreeNodeModel table = TreeNodeModel.builder()
+         .label("ORDER_DETAILS1").data(entry(AssetEntry.Type.FOLDER, "grouping", null))
+         .addChildren(TreeNodeModel.builder()
+                         .label("ORDER_DETAILS1")
+                         .data(entry(AssetEntry.Type.TABLE, "ORDER_DETAILS1", null))
+                         .addChildren(measures).build())
+         .build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root").addChildren(table).build();
+
+      List<BindableTable> tables = serviceReturning(root).list("rt1", null, principal());
+
+      assertEquals(1, tables.size());
+      assertEquals("ORDER_DETAILS1", tables.get(0).name());
+      assertEquals(List.of("QUANTITY"),
+                   tables.get(0).fields().stream().map(BindableField::column).toList());
+   }
+
+   // ── which table the assembly is actually bound to ─────────────────────────
+
+   /**
+    * A scoped call marks the assembly's current source, because every field on a chart's shelves
+    * must come from that one table.
+    *
+    * <p>The constraint is enforced hard by the Composer and invisible here: dropping a column from
+    * a second table calls {@code VSAssemblyInfoHandler.changeSource} and then
+    * {@code validateChartColumns}, which <em>deletes</em> every bound field absent from the new
+    * source. So a chart holds fields from exactly one table, ever. The agent write path
+    * ({@code changeChartRef}) never calls {@code validateBinding} at all, so an off-source column
+    * lands there as a ref that resolves to nothing.
+    *
+    * <p>Listing every table is still right — a chart may be repointed to any of them — so the fix
+    * is not to narrow the list but to say which one is live. Otherwise the rule can only be obeyed
+    * by cross-referencing a second call to {@code get_binding}, and nothing tells a caller to make
+    * it: three tables come back, all of them look equally bindable, and the wrong choice is
+    * accepted silently.
+    */
+   @Test
+   void marksTheTableTheAssemblyIsCurrentlyBoundTo() throws Exception {
+      TreeNodeModel root = twoTableTree();
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "ORDERS1"));
+
+      List<BindableTable> tables = serviceFor(root, "Chart1", chart).list("rt1", "Chart1",
+                                                                         principal());
+
+      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
+      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(),
+                   "a table the assembly is not bound to must say so, not stay silent");
+   }
+
+   /**
+    * An unscoped call leaves it unset rather than saying {@code false} everywhere.
+    *
+    * <p>There is no assembly to be current *for*, so {@code false} would be an assertion the call
+    * is in no position to make — and the reading that matters ("none of these is the live one") is
+    * exactly wrong.
+    */
+   @Test
+   void leavesCurrentUnsetWhenNoAssemblyWasNamed() throws Exception {
+      List<BindableTable> tables = serviceReturning(twoTableTree()).list("rt1", null, principal());
+
+      assertNull(byName(tables, "ORDERS1").current());
+      assertNull(byName(tables, "ORDER_DETAILS1").current());
+   }
+
+   /** An assembly with no source yet — nothing is current, and nothing pretends to be. */
+   @Test
+   void marksNothingCurrentWhenTheAssemblyHasNoSourceYet() throws Exception {
+      TreeNodeModel root = twoTableTree();
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getSourceInfo()).thenReturn(null);
+
+      List<BindableTable> tables = serviceFor(root, "Chart1", chart).list("rt1", "Chart1",
+                                                                         principal());
+
+      assertEquals(Boolean.FALSE, byName(tables, "ORDERS1").current());
+      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+   }
+
+   private static BindableTable byName(List<BindableTable> tables, String name) {
+      return tables.stream().filter(t -> name.equals(t.name())).findFirst().orElseThrow();
+   }
+
+   private static TreeNodeModel twoTableTree() {
+      TreeNodeModel paid = TreeNodeModel.builder().label("PAID").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "PAID", "integer", AssetEntry.MEASURES)).build();
+      TreeNodeModel orders = TreeNodeModel.builder()
+         .label("ORDERS1").data(entry(AssetEntry.Type.TABLE, "ORDERS1", null))
+         .addChildren(paid).build();
+      TreeNodeModel qty = TreeNodeModel.builder().label("QUANTITY").leaf(true)
+         .data(entry(AssetEntry.Type.COLUMN, "QUANTITY", "integer", AssetEntry.MEASURES)).build();
+      TreeNodeModel details = TreeNodeModel.builder()
+         .label("ORDER_DETAILS1").data(entry(AssetEntry.Type.TABLE, "ORDER_DETAILS1", null))
+         .addChildren(qty).build();
+
+      return TreeNodeModel.builder().label("root")
+         .addChildren(orders).addChildren(details).build();
+   }
+
+   private static BindableFieldsService serviceFor(TreeNodeModel root, String name,
+                                                   inetsoft.uql.viewsheet.VSAssembly assembly)
+      throws Exception
+   {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(name)).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class))).thenReturn(root);
+
+      return new BindableFieldsService(tree, engine);
    }
 
    // ── unknown assembly name (the D4 regression) ────────────────────────────

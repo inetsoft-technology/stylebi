@@ -31,6 +31,7 @@ import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -38,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -69,12 +71,19 @@ public class ChartBindingService {
       this.separateStatusService = separateStatusService;
    }
 
+   /**
+    * @param sourceTable the table to point the chart at as part of this write, or {@code null} to
+    *                    leave its source alone. A chart with no source renders nothing however
+    *                    correctly its shelves are filled in, and the Composer avoids that by taking
+    *                    the source from the drag; this is the same thing, one call rather than two.
+    */
    public void setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
-                        List<FieldRef> fields, String linkUri) throws Exception
+                        List<FieldRef> fields, String sourceTable, String linkUri) throws Exception
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         applySource(model, sourceTable);
          ChartBindingMutator.setShelf(model, shelf, fields);
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
@@ -86,6 +95,126 @@ public class ChartBindingService {
    }
 
    /**
+    * Establishes the source, if one was worked out and the chart has none.
+    *
+    * <p>Guarded on the chart already being sourceless rather than trusting the caller: a repoint
+    * deletes bound fields, so it stays behind {@code set_chart_source}'s explicit {@code force} and
+    * can never happen as a side effect of binding a field.
+    */
+   static void applySource(ChartBindingModel model, String sourceTable) {
+      if(sourceTable != null && model != null && model.getSource() == null) {
+         model.setSource(BindingSources.assetSource(sourceTable));
+      }
+   }
+
+   /**
+    * Points a chart at a source table.
+    *
+    * <p>A chart added in the Composer starts with no source, and nothing on the agent path could
+    * assign one. Its shelves can be populated — {@code set_chart_shelf} reports success and
+    * {@code get_binding} reads the fields straight back — and it renders nothing at all, because
+    * shelves with no source have nothing to query. The Composer assigns one as a side effect of the
+    * drag ({@code VSChartDndService} takes it from the drag event's table); the agent's
+    * {@code FieldRef} carries no table, so the request has nothing to derive it from.
+    * {@code VSBindingService.updateSourceInfo} only ever <em>propagates</em> a source that is
+    * already there — it is a no-op when the model's source is null — which is preservation, not the
+    * ability to set one.
+    *
+    * <p>Repointing a bound chart invalidates its fields, since the columns belong to the old
+    * source; the Composer handles that by <em>deleting</em> the ones the new source does not have
+    * ({@code VSAssemblyInfoHandler.validateChartColumns}). So it is refused unless {@code force},
+    * rather than done silently on one call.
+    */
+   public void setSource(String sessionToken, Principal user, String assemblyName, String table,
+                         boolean force, String linkUri) throws Exception
+   {
+      if(table == null || table.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_chart_source requires 'table' — the source table's name. " +
+            "list_bindable_fields reports what this chart can bind to.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         String resolved = BindingSources.resolve(model, table, assemblyName);
+
+         if(!force && !BindingSources.alreadyPointedAt(model.getSource(), resolved)) {
+            requireNoBoundFields(model, assemblyName, resolved);
+         }
+
+         model.setSource(BindingSources.assetSource(resolved));
+
+         ChangeChartRefEvent event = new ChangeChartRefEvent();
+         event.setName(assemblyName);
+         // No fieldType: this changes no shelf, and changeChartRef never reads it.
+         event.setModel(model);
+         refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
+   /**
+    * Refuses to discard bound fields.
+    *
+    * <p>Counts <b>every</b> place a chart keeps a field, not just x/y/group: the three list
+    * shelves, the ten single-field shelves, the six aesthetic channels, and a map's geo fields.
+    * Each of those is a binding {@code VSAssemblyInfoHandler.validateChartColumns} deletes when a
+    * chart is repointed — it clears the shelves, then {@code validateAestheticFields} clears
+    * colour/shape/size/text and a relation chart's node channels, and {@code VSMapInfo}'s geo
+    * fields alongside them. A check that read fewer of them would report "nothing bound" for a
+    * chart that is fully bound and repoint without asking:
+    *
+    * <ul>
+    *   <li>A candlestick's entire binding lives on the single-field shelves, x and y empty.</li>
+    *   <li>A word cloud is nothing but a text channel — every shelf empty.</li>
+    *   <li>A map keeps its geography on {@code geoFields}, which is no shelf at all.</li>
+    * </ul>
+    *
+    * <p>Those are the chart types whose binding is hardest to rebuild, so they are the worst ones
+    * to discard silently.
+    */
+   private static void requireNoBoundFields(ChartBindingModel model, String assemblyName,
+                                            String table)
+   {
+      List<String> populated = new ArrayList<>();
+
+      for(String shelf : ChartBindingMutator.SHELVES) {
+         int count = ChartBindingMutator.readShelf(model, shelf).size();
+
+         if(count > 0) {
+            populated.add(count + " on " + shelf);
+         }
+      }
+
+      for(String shelf : ChartBindingMutator.SINGLE_SHELVES) {
+         if(ChartBindingMutator.readSingleShelf(model, shelf) != null) {
+            populated.add(shelf);
+         }
+      }
+
+      // Named as channels rather than shelves because that is the vocabulary the caller binds
+      // them with: set_aesthetic_field takes a channel, so a refusal reporting "color" tells it
+      // which call to undo.
+      for(String channel : ChartAestheticMutator.boundFieldChannels(model)) {
+         populated.add(channel + " channel");
+      }
+
+      List<ChartRefModel> geoFields = model.getGeoFields();
+
+      if(geoFields != null && !geoFields.isEmpty()) {
+         populated.add(geoFields.size() + " on geo");
+      }
+
+      if(!populated.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' already has fields bound (" + String.join(", ", populated) +
+            ") and they belong to its current source, so repointing it to '" + table +
+            "' discards them. Pass force: true to do that deliberately, or bind the fields you " +
+            "want after the source is set.");
+      }
+   }
+
+   /**
     * Binds one of the single-field shelves — open/high/low/close, path, source/target,
     * start/end/milestone. A null {@code field} clears it.
     *
@@ -93,11 +222,13 @@ public class ChartBindingService {
     * snapshotted aesthetic fields are preserved identically.
     */
    public void setSingleShelf(String sessionToken, Principal user, String assemblyName,
-                              String shelf, FieldRef field, String linkUri) throws Exception
+                              String shelf, FieldRef field, String sourceTable, String linkUri)
+      throws Exception
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         applySource(model, sourceTable);
          ChartBindingMutator.setSingleShelf(model, shelf, field);
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();

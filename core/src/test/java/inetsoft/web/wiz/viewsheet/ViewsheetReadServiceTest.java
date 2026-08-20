@@ -21,6 +21,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -80,5 +82,47 @@ class ViewsheetReadServiceTest {
       when(rvs.getViewsheet()).thenReturn(new Viewsheet());
 
       assertTrue(new ViewsheetReadService().read(rvs).assemblies().isEmpty());
+   }
+
+   /**
+    * The sheet's name comes from its asset entry, not from {@code Viewsheet.getName()}.
+    *
+    * <p>{@code Viewsheet.getName()} is the <em>assembly</em> name — it is set only by
+    * {@code createVSAssembly(name)}, i.e. when a viewsheet is embedded inside another viewsheet as
+    * an assembly. For a top-level sheet nobody ever sets it, so it is legitimately null and was
+    * never the right field to answer "what is this viewsheet called".
+    *
+    * <p>Reading it was also actively misleading, because null does not survive a save/reload:
+    * {@code AssemblyInfo.writeAttributes} emits {@code "<name><![CDATA[" + name + "]]></name>"},
+    * and Java string concatenation turns a null into the four characters {@code null}. So a
+    * reopened sheet reports the <b>string</b> {@code "null"} — worse than a JSON null, since a
+    * caller writing {@code if(name)} gets a truthy value and renders "null" to a user. Observed
+    * live: an unsaved viewsheet reported {@code null}, and the saved {@code TestVS_L3} reported
+    * {@code "null"}. The sibling field already carries a hand-patch for the identical flaw
+    * ({@code VSAssemblyInfo} normalizes {@code "null"} back to null when parsing
+    * {@code absoluteName2}), which is left alone here: repairing the shared serialization would
+    * change the written XML for every assembly of every sheet, far beyond what this read needs.
+    */
+   @Test
+   void namesTheSheetFromItsAssetEntryRatherThanTheAssemblyName() {
+      Viewsheet vs = new Viewsheet();
+      // What a reopened top-level sheet actually holds, per the serialization above.
+      vs.createVSAssembly("null");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getEntry()).thenReturn(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Test/TestVS_L3", null));
+
+      assertEquals("TestVS_L3", new ViewsheetReadService().read(rvs).name());
+   }
+
+   /** A sheet with no entry at all — never saved — reports no name rather than a fabricated one. */
+   @Test
+   void reportsNoNameWhenTheSheetHasNoAssetEntry() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(new Viewsheet());
+      when(rvs.getEntry()).thenReturn(null);
+
+      assertNull(new ViewsheetReadService().read(rvs).name());
    }
 }

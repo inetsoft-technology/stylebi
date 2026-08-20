@@ -20,7 +20,10 @@ package inetsoft.web.wiz.binding;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -63,16 +66,21 @@ public class BindableFieldsService {
    public List<BindableTable> list(String runtimeId, String assembly, Principal user)
       throws Exception
    {
+      String source = null;
+
       if(assembly != null) {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
          Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly target = vs == null ? null : vs.getAssembly(assembly);
 
-         if(vs == null || vs.getAssembly(assembly) == null) {
+         if(target == null) {
             throw new IllegalArgumentException(
                "'" + assembly + "' is not an assembly on this viewsheet. Omit 'assembly' to list " +
                "every table the viewsheet offers, or call read_viewsheet_model to see what " +
                "assemblies exist.");
          }
+
+         source = sourceNameOf(target);
       }
 
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
@@ -82,7 +90,39 @@ public class BindableFieldsService {
          collect(root, tables, null);
       }
 
-      return tables;
+      return assembly == null ? tables : marked(tables, source);
+   }
+
+   /** The table an assembly is bound to right now, or {@code null} if it has none yet. */
+   private static String sourceNameOf(VSAssembly assembly) {
+      if(!(assembly instanceof DataVSAssembly data)) {
+         return null;
+      }
+
+      SourceInfo source = data.getSourceInfo();
+
+      return source == null || source.isEmpty() ? null : source.getSource();
+   }
+
+   /**
+    * Flags the one live table, so the single-source rule can be followed from this call alone.
+    *
+    * <p>Only for a scoped call: unscoped, {@code current} stays null, because there is no assembly
+    * to be current for and {@code false} everywhere would read as "none of these is live" — the
+    * opposite of the truth. An assembly with no source yet does get {@code false} everywhere, which
+    * is accurate: nothing is live, and that is exactly the state where a shelf write would be
+    * accepted and render nothing.
+    */
+   private static List<BindableTable> marked(List<BindableTable> tables, String source) {
+      List<BindableTable> out = new ArrayList<>(tables.size());
+
+      for(BindableTable table : tables) {
+         // equalsIgnoreCase is null-safe on its argument, so a sourceless assembly yields false.
+         out.add(new BindableTable(table.name(), table.name().equalsIgnoreCase(source),
+                                   table.fields()));
+      }
+
+      return out;
    }
 
    /**
@@ -104,7 +144,7 @@ public class BindableFieldsService {
          gather(node, fields);
 
          if(!fields.isEmpty()) {
-            tables.add(new BindableTable(node.label(), fields));
+            tables.add(new BindableTable(node.label(), null, fields));
          }
 
          return;
@@ -126,7 +166,7 @@ public class BindableFieldsService {
       // group called "Dimensions". It survives only as a floor for tree shapes this does not
       // anticipate, where a wrong-but-present name beats a blank one.
       if(!direct.isEmpty()) {
-         tables.add(new BindableTable(sourceName != null ? sourceName : node.label(), direct));
+         tables.add(new BindableTable(sourceName != null ? sourceName : node.label(), null, direct));
       }
    }
 
@@ -168,9 +208,30 @@ public class BindableFieldsService {
     * instead of correctly reporting no fields for it. {@code isTable} was already the answer to
     * "is this a table" everywhere else in this class; the childlessness check must defer to it
     * rather than deciding leaf-ness on its own.
+    *
+    * <p>An empty grouping <em>folder</em> is the same trap a third time, and the reason each
+    * exclusion has to be stated rather than inferred: {@code VSTreeHandler} adds both a Dimensions
+    * and a Measures folder to every table as long as it has at least one ref of <em>either</em>
+    * kind, so a table whose columns are all measures carries an empty Dimensions folder. Childless
+    * and not a table, it satisfied everything above and turned into
+    * {@code {column: "Dimensions", dataType: null, role: null}} — a column no caller can bind,
+    * sitting first in the list where it is most likely to be picked.
     */
    private boolean isColumn(TreeNodeModel node) {
-      return node.children().isEmpty() && !isTable(node);
+      return node.children().isEmpty() && !isTable(node) && !isFolder(node);
+   }
+
+   /**
+    * Whether this node is a grouping folder rather than something bindable.
+    *
+    * <p>Keyed on the entry <em>type</em>, the way {@link #isTable} already decides, and not on
+    * whether the node carries a {@code dtype}: this class deliberately supports columns whose data
+    * type is absent — {@link #roleOf} has a whole fallback path for them — so treating a missing
+    * type as "not a column" would drop real columns to fix a fake one.
+    */
+   private boolean isFolder(TreeNodeModel node) {
+      return node.data() instanceof AssetEntry entry &&
+         entry.getType() == AssetEntry.Type.FOLDER;
    }
 
    private BindableField fieldOf(TreeNodeModel node) {

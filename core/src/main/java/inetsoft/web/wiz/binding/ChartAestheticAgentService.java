@@ -60,8 +60,14 @@ public class ChartAestheticAgentService {
       this.aestheticService = aestheticService;
    }
 
+   /**
+    * @param sourceTable the table to point the chart at as part of this write, or {@code null} to
+    *                    leave its source alone. Binding an aesthetic channel is the one way a chart
+    *                    can acquire its first field — a word cloud is nothing but a text channel —
+    *                    so it establishes a source on the same terms the shelf writes do.
+    */
    public void setField(String sessionToken, Principal user, String assemblyName, String channel,
-                        FieldRef field, String linkUri) throws Exception
+                        FieldRef field, String sourceTable, String linkUri) throws Exception
    {
       // Validated before the runtime is touched, so a bad channel costs nothing and does not
       // open a checkpoint the caller then has to undo. This still needs the chart itself — node
@@ -69,8 +75,10 @@ public class ChartAestheticAgentService {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
-      apply(sessionToken, user, assemblyName, name, linkUri,
-            model -> ChartAestheticMutator.setField(model, name, field, relationChart));
+      apply(sessionToken, user, assemblyName, name, linkUri, model -> {
+         ChartBindingService.applySource(model, sourceTable);
+         ChartAestheticMutator.setField(model, name, field, relationChart);
+      });
    }
 
    public void clearField(String sessionToken, Principal user, String assemblyName,

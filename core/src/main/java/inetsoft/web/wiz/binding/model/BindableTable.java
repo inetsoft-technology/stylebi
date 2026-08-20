@@ -19,5 +19,16 @@ package inetsoft.web.wiz.binding.model;
 
 import java.util.List;
 
-/** One source table and the columns it offers. */
-public record BindableTable(String name, List<BindableField> fields) {}
+/**
+ * One source table and the columns it offers.
+ *
+ * @param current whether this is the table the scoped assembly is bound to right now, or
+ *                {@code null} when no assembly was named. Every field on an assembly's shelves has
+ *                to come from its single source — the Composer enforces that by deleting any bound
+ *                field absent from a newly chosen source — and listing all the tables is still
+ *                correct, since an assembly may be repointed to any of them. So the flag is what
+ *                makes the constraint followable without a second call to read the binding.
+ *                {@code null} rather than {@code false} for an unscoped call: there is no assembly
+ *                to be current for, and {@code false} would assert the opposite of the truth.
+ */
+public record BindableTable(String name, Boolean current, List<BindableField> fields) {}
