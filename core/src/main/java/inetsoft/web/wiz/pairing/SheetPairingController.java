@@ -167,6 +167,104 @@ public class SheetPairingController {
       sessions.detach(accessor.getSessionId(), req.editorContext());
    }
 
+   /**
+    * Payload for the STOMP Follow Focus toggle.
+    *
+    * @param runtimeId the sheet the toggle applies to -- matched against the caller's own
+    *                  socket-bound session, same as {@link #retargetViaSocket}
+    * @param enabled   the new opt-in state
+    */
+   public record FollowFocusRequest(String runtimeId, boolean enabled) {}
+
+   /**
+    * STOMP Follow Focus toggle -- turns the opt-in on or off for the caller's own session on
+    * {@code runtimeId}. Mirrors {@link #detachViaSocket}'s fire-and-forget shape: no reply is
+    * sent, since there is nothing to report back for a toggle (unlike {@link #retargetViaSocket},
+    * which can be refused for reasons the browser needs to show a human). {@code socketSessionId}
+    * is derived from the accessor, never trusted from the client, same as every other STOMP
+    * endpoint in this controller.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/follow-focus}
+    */
+   @MessageMapping("/wiz/pairing/follow-focus")
+   public void followFocusViaSocket(@Payload FollowFocusRequest req, SimpMessageHeaderAccessor accessor) {
+      if(req == null || req.runtimeId() == null) {
+         return;
+      }
+
+      sessions.setFollowFocus(accessor.getSessionId(), req.runtimeId(), req.enabled());
+   }
+
+   /**
+    * Payload for the STOMP retarget push -- mirrors {@link MintRequest}'s shape.
+    *
+    * @param runtimeId    the sheet whose session should be retargeted
+    * @param editorContext the script/formula location to push the session's target to
+    */
+   public record RetargetRequest(String runtimeId, EditorContext editorContext) {}
+
+   /** Response DTO for the STOMP retarget push. {@code error} is non-null on failure. */
+   public record RetargetResponse(boolean ok, String error) {
+      // Named success()/failure(), not ok()/err(), because ok() would collide with this
+      // record's own generated accessor for the `ok` component (same clash MintResponse avoids
+      // by not naming a component `code` the same as its factory).
+      public static RetargetResponse success()      { return new RetargetResponse(true, null); }
+      public static RetargetResponse failure(String msg) { return new RetargetResponse(false, msg); }
+   }
+
+   /**
+    * STOMP retarget -- the client-asserted "a pane-eligible editor opened" signal Follow Focus
+    * sends on the caller's behalf once they have opted in ({@link #followFocusViaSocket}), in
+    * place of the human clicking "Connect Agent" inside that pane. Unlike {@link #detachViaSocket}
+    * this DOES reply: a retarget can be refused (not opted in, no matching session, or
+    * {@code editorContext} names a location the runtime does not have) for reasons the browser
+    * needs to surface to a human, not just log.
+    *
+    * <p>{@code socketSessionId} is derived from the accessor, never trusted from the client.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/retarget}<br>
+    * Reply arrives on: {@code /user/queue/wiz/pairing/retarget}
+    */
+   @MessageMapping("/wiz/pairing/retarget")
+   @SendToUser("/commands/wiz/pairing/retarget")
+   public RetargetResponse retargetViaSocket(@Payload RetargetRequest req, SimpMessageHeaderAccessor accessor) {
+      if(req == null || req.runtimeId() == null || req.editorContext() == null) {
+         return RetargetResponse.failure("runtimeId and editorContext are required");
+      }
+
+      try {
+         sessions.retarget(accessor.getSessionId(), req.runtimeId(), req.editorContext());
+         return RetargetResponse.success();
+      }
+      catch(PairingException e) {
+         return RetargetResponse.failure(e.getMessage());
+      }
+   }
+
+   /**
+    * Payload for the STOMP pop-focus. The {@code editorContext} being popped TO is
+    * server-determined, not client-asserted -- the browser doesn't need to know it, only that
+    * the operation is "leave the pane I'm currently in", so only {@code runtimeId} is sent.
+    */
+   public record PopFocusRequest(String runtimeId) {}
+
+   /**
+    * STOMP pop-focus -- the client-asserted "a pane-eligible editor closed" signal, popping the
+    * caller's session back to whatever preceded its most recent {@link #retargetViaSocket}. No
+    * reply is sent -- like {@link #detachViaSocket}, popping past an empty stack is defined as a
+    * harmless no-op, not a failure mode the browser needs reported.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/pop-focus}
+    */
+   @MessageMapping("/wiz/pairing/pop-focus")
+   public void popFocusViaSocket(@Payload PopFocusRequest req, SimpMessageHeaderAccessor accessor) {
+      if(req == null || req.runtimeId() == null) {
+         return;
+      }
+
+      sessions.popFocus(accessor.getSessionId(), req.runtimeId());
+   }
+
    @ExceptionHandler(PairingException.class)
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {

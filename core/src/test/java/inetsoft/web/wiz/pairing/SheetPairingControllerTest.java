@@ -147,4 +147,75 @@ class SheetPairingControllerTest {
       assertNotNull(sessions.resolve(sheet.sessionToken(), "alice~;~host-org"),
                     "a whole-sheet session must never be reachable from the detach endpoint");
    }
+
+   // ---- Follow Focus: follow-focus / retarget / pop-focus STOMP endpoints --------------------
+
+   @Test
+   void followFocusViaSocketTogglesTheCallersOwnSocketBoundSession() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, true);
+
+      JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                        "stomp-9", "alice", null);
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.followFocusViaSocket(new SheetPairingController.FollowFocusRequest("Viewsheet/vs-1", true),
+                             accessor);
+
+      assertTrue(sessions.resolve(sheet.sessionToken(), "alice~;~host-org").followFocusEnabled());
+   }
+
+   @Test
+   void retargetViaSocketRefusesWhenTheSessionNeverOptedIn() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, true);
+
+      JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                        "stomp-9", "alice", null);
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+      SheetPairingController.RetargetResponse resp = c.retargetViaSocket(
+         new SheetPairingController.RetargetRequest("Viewsheet/vs-1", pane), accessor);
+
+      assertFalse(resp.ok());
+      assertNotNull(resp.error());
+      assertNull(sessions.resolve(sheet.sessionToken(), "alice~;~host-org").editorContext(),
+                "a refused retarget must never move the session's target");
+   }
+
+   @Test
+   void retargetViaSocketMovesAnOptedInSessionAndPopFocusRestoresIt() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, true);
+
+      JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                        "stomp-9", "alice", null);
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.followFocusViaSocket(new SheetPairingController.FollowFocusRequest("Viewsheet/vs-1", true),
+                             accessor);
+
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+      SheetPairingController.RetargetResponse resp = c.retargetViaSocket(
+         new SheetPairingController.RetargetRequest("Viewsheet/vs-1", pane), accessor);
+
+      assertTrue(resp.ok());
+      assertNull(resp.error());
+      assertEquals(pane, sessions.resolve(sheet.sessionToken(), "alice~;~host-org").editorContext());
+
+      c.popFocusViaSocket(new SheetPairingController.PopFocusRequest("Viewsheet/vs-1"), accessor);
+
+      assertNull(sessions.resolve(sheet.sessionToken(), "alice~;~host-org").editorContext(),
+                "pop-focus must restore the session's original (whole-sheet) target");
+   }
 }

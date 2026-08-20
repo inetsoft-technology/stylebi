@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.web.wiz.script.PaneScopeService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +36,26 @@ import static org.junit.jupiter.api.Assertions.*;
  * [Socket close: pane]    socketClosed expires a pane-scoped session on that socket
  * [Socket close: toolbar] socketClosed leaves a whole-sheet session's TTL behaviour alone
  * [Detach]                detach ends the one session matching socket + editorContext
+ *
+ * Follow Focus (retarget/popFocus/setFollowFocus):
+ * [Follow focus: default off]     a freshly opened session has followFocusEnabled == false
+ * [Follow focus: toggle]          setFollowFocus flips the flag; resolve reflects it and does
+ *                                 not reset it back to false on its own TTL-refresh reconstruct
+ * [Retarget: opt-in required]     retarget refuses a session that never opted in, named, and
+ *                                 leaves the session untouched
+ * [Retarget: happy path]          retarget on an opted-in session moves editorContext, visible
+ *                                 through a fresh resolve(); popFocus recovers the prior value
+ * [Retarget: nesting]             two sequential retargets push twice; two pops restore in
+ *                                 reverse order, ending at the session's original editorContext
+ * [Retarget: unknown session]     retarget naming a (socketSessionId, runtimeId) pair with no
+ *                                 matching live session refuses, named, and touches nothing
+ * [Retarget: invalid target]      retarget with an editorContext validateEditorContext rejects
+ *                                 refuses before mutating anything
+ * [PopFocus: empty stack]         popFocus past the bottom of an empty stack is a no-op, not an
+ *                                 error, leaving the session at its original scope
+ * [Exit criterion]                after a successful retarget, PaneScopeService.requireWholeSheetSession
+ *                                 against a FRESH resolve() of the same token reflects the new
+ *                                 pane-scoped target -- proving enforcement needed no code change
  */
 @Tag("core")
 class SheetSessionServiceTest {
@@ -223,5 +244,168 @@ class SheetSessionServiceTest {
          () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
       assertNull(svcLater.findOpen("frank~;~org", SheetType.WORKSHEET),
                  "an expired session must not be reported as held");
+   }
+
+   // ---- Follow Focus: retarget / popFocus / setFollowFocus -----------------------------------
+
+   @Test
+   void freshlyOpenedSessionHasFollowFocusDisabledByDefault() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      assertFalse(session.followFocusEnabled());
+   }
+
+   @Test
+   void setFollowFocusFlipsTheFlagAndSurvivesAResolveRefresh() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+
+      JoinSession updated = svc.setFollowFocus("sock-1", "vs-1", true);
+      assertNotNull(updated);
+      assertTrue(updated.followFocusEnabled());
+
+      // resolve() reconstructs the session to refresh lastAccess -- it must carry
+      // followFocusEnabled through, not silently reset it to the record's default.
+      JoinSession resolved = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertTrue(resolved.followFocusEnabled(),
+                 "resolve()'s TTL-refresh reconstruct must not un-opt-in a session");
+   }
+
+   @Test
+   void retargetRefusesASessionThatNeverOptedIn() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.retarget("sock-1", "vs-1", pane));
+      assertNotNull(ex.getMessage());
+      assertTrue(ex.getMessage().toLowerCase().contains("follow focus"),
+                "refusal must name the real reason (Follow Focus not enabled), not a generic error");
+
+      JoinSession stillUnchanged = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertNull(stillUnchanged.editorContext(), "a refused retarget must leave the session untouched");
+      assertFalse(stillUnchanged.followFocusEnabled());
+   }
+
+   @Test
+   void retargetMovesAnOptedInSessionsTargetAndPopFocusRecoversThePrior() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+
+      svc.retarget("sock-1", "vs-1", pane);
+
+      JoinSession afterRetarget = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertEquals(pane, afterRetarget.editorContext());
+
+      svc.popFocus("sock-1", "vs-1");
+
+      JoinSession afterPop = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertNull(afterPop.editorContext(), "popFocus must restore the session's original scope");
+   }
+
+   @Test
+   void twoSequentialRetargetsNestAndTwoPopsUnwindInReverseOrder() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      EditorContext outer = new EditorContext("viewsheetOnInit", null, null, null);
+      EditorContext inner = new EditorContext("viewsheetOnLoad", null, null, null);
+
+      svc.retarget("sock-1", "vs-1", outer);
+      svc.retarget("sock-1", "vs-1", inner);
+
+      JoinSession atInner = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertEquals(inner, atInner.editorContext());
+
+      svc.popFocus("sock-1", "vs-1");
+      JoinSession backToOuter = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertEquals(outer, backToOuter.editorContext(),
+                  "first pop must restore the ENCLOSING target, not jump straight to whole-sheet");
+
+      svc.popFocus("sock-1", "vs-1");
+      JoinSession backToOriginal = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertNull(backToOriginal.editorContext(),
+                "second pop must restore the session's original (whole-sheet) scope");
+   }
+
+   @Test
+   void retargetWithNoMatchingSessionRefusesAndTouchesNothing() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.retarget("wrong-socket", "vs-1", pane));
+      assertNotNull(ex.getMessage());
+   }
+
+   @Test
+   void retargetRefusesAnEditorContextTheRuntimeDoesNotHave() {
+      // The back-compat SheetPairingService validates against no configured runtime accessor --
+      // any editorContext naming a non-blank assembly therefore fails validateEditorContext's
+      // "does the runtime actually have this" check, exactly like an unconfigured mint would.
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      EditorContext ghost = new EditorContext("assemblyMain", "GhostChart", null, null);
+
+      assertThrows(PairingException.class, () -> svc.retarget("sock-1", "vs-1", ghost));
+
+      JoinSession stillUnchanged = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertNull(stillUnchanged.editorContext(),
+                "a retarget refused by validateEditorContext must leave the session untouched");
+   }
+
+   @Test
+   void popFocusPastAnEmptyStackIsANoOpAtOriginalScope() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+
+      svc.popFocus("sock-1", "vs-1");
+
+      JoinSession stillOriginal = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertNull(stillOriginal.editorContext());
+      assertFalse(stillOriginal.followFocusEnabled(), "popFocus must not itself flip followFocusEnabled");
+   }
+
+   /**
+    * The Phase-1-row-4 exit criterion, written as a test: after a successful retarget, a call
+    * through PaneScopeService.requireWholeSheetSession against a FRESH resolve() of the same
+    * token reflects the new scope -- proving enforcement needed no code change because it never
+    * caches. If this ever surprises us by failing, that is a real caching bug to fix, not a
+    * reason to add a parallel enforcement path.
+    */
+   @Test
+   void retargetIsVisibleToPaneScopeServiceThroughAFreshResolveWithNoEnforcementChange()
+      throws PairingException
+   {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+
+      // Before retargeting: a whole-sheet session must pass requireWholeSheetSession.
+      JoinSession beforeResolved = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertDoesNotThrow(() -> PaneScopeService.requireWholeSheetSession(beforeResolved));
+
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+      svc.retarget("sock-1", "vs-1", pane);
+
+      // After retargeting: the SAME token, freshly resolved, must now be refused as a
+      // whole-sheet session by PaneScopeService -- with zero changes to that class.
+      JoinSession afterResolved = svc.resolve(session.sessionToken(), "owner~;~org");
+      assertThrows(PairingException.class,
+                  () -> PaneScopeService.requireWholeSheetSession(afterResolved),
+                  "a fresh resolve() after retarget must reflect the new pane-scoped target");
    }
 }
