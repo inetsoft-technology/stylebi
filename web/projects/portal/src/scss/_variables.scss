@@ -79,6 +79,32 @@ $shell-info: #3E7FC4;
 $shell-info-soft: #E4EFFA;
 $shell-info-text: #1F548A;
 
+// Composer authoring-state families
+$composer-context-bg: #FAEDD5;
+$composer-context-border: #ECD5AF;
+$composer-context-text: #8C5510;
+$composer-selected-bg: #DDF1F5;
+$composer-selected-border: #BFDDE5;
+$composer-selected-text: #123C44;
+// Deliberately a separate token from $composer-selected-text even though the
+// value matches today: outline and text contrast may diverge later.
+$composer-selected-outline: #123C44;
+// Focus-only ring; must never be used to indicate selection itself (that's
+// bg + border), only :focus-visible keyboard navigation.
+$composer-focus-ring: rgba(167, 215, 227, 0.35);
+$composer-dimmed-bg: #FBFAF7;
+$composer-dimmed-border: #E6E2D9;
+$composer-dimmed-text: #B8B3AA;
+
+// Worksheet extension retuning
+$graph-connection-color: #5E5D57;
+$graph-connection-warning-color: #EEA555;
+$ws-connection-schema: #8E8A82;
+$ws-schema-highlight-bg: #F7F3EA;
+$ws-connection-muted: #B8B3AA;
+$ws-row-selected-bg: #EAF6F8;
+$ws-row-hover-bg: #F7F3EA;
+
 // Raw utility/effect primitives
 $navbar-hover-overlay: rgba(255, 255, 255, 0.2);
 $inverse-text-color: #FFFFFF;
@@ -145,8 +171,8 @@ $top-bar-hover-gray: $inet-gray3;
 $drag-drop-highlight: $shell-success;
 $navbar-bg: $shell-chrome-dark;
 $link-hover-color: $shell-primary-hover;
-$worksheet-row-odd-bg: $shell-surface-default;
-$worksheet-row-even-bg: $shell-surface-subtle;
+$worksheet-row-odd-bg: #FFFFFF;
+$worksheet-row-even-bg: #F7F6F2;
 $dropdown-toggle-color: $shell-text-strong;
 $graph-assembly-error-text-color: $shell-danger;
 $inet-drop-highlight: $drag-drop-highlight;
@@ -280,7 +306,7 @@ $sqrt2: 1.41421356;
   --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, var(--inet-shell-surface-subtle));
 
   --inet-composer-main-panel-bg-color: var(--inet-main-panel-bg-color);
-  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, var(--inet-shell-surface-subtle));
+  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, var(--inet-toolbar-bg-color));
 
   // hover
   --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
@@ -309,7 +335,7 @@ $sqrt2: 1.41421356;
   --inet-composer-navbar-text-color: var(--inet-navbar-text-color);
   --inet-composer-navbar-bg-color: var(--inet-navbar-bg-color);
   --inet-composer-navbar-hover-text-color: var(--inet-navbar-hover-text-color, var(--inet-composer-navbar-text-color));
-  --inet-composer-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, var(--inet-secondary-color));
+  --inet-composer-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, #{$navbar-hover-overlay});
 
   --inet-nav-tabs-text-color: var(--inet-text-color);
   --inet-nav-tabs-bg-color: var(--inet-shell-surface-subtle);
@@ -320,23 +346,54 @@ $sqrt2: 1.41421356;
   --inet-vs-toolbar-bg-color: var(--inet-toolbar-bg-color);
   --inet-repository-tree-toolbar-bg-color: var(--inet-portal-side-panel-bg-color);
 
+  // composer authoring states
+  --inet-composer-context-bg: #{$composer-context-bg};
+  --inet-composer-context-border: #{$composer-context-border};
+  --inet-composer-context-text: #{$composer-context-text};
+  --inet-composer-selected-bg: #{$composer-selected-bg};
+  --inet-composer-selected-border: #{$composer-selected-border};
+  --inet-composer-selected-text: #{$composer-selected-text};
+  --inet-composer-selected-outline: #{$composer-selected-outline};
+  --inet-composer-focus-ring: #{$composer-focus-ring};
+  // aliases of shell primary, not independent values, so they track shell primary
+  // overrides automatically instead of needing a separate customer edit
+  --inet-composer-primary-accent: var(--inet-primary-color);
+  --inet-composer-primary-hover: var(--inet-primary-color-dark);
+  --inet-composer-primary-text: var(--inet-primary-text-color);
+  --inet-composer-primary-soft: var(--inet-primary-soft-color);
+  --inet-composer-dimmed-bg: #{$composer-dimmed-bg};
+  --inet-composer-dimmed-border: #{$composer-dimmed-border};
+  --inet-composer-dimmed-text: #{$composer-dimmed-text};
+
   // worksheet
-  --inet-graph-assembly-bg-color: #{$inet-offwhite1};
+  --inet-graph-assembly-bg-color: var(--inet-shell-surface-default, #{$inet-offwhite1});
   --inet-graph-assembly-text-color: var(--inet-text-color);
   --inet-graph-assembly-header-text-color: var(--inet-text-color);
-  --inet-graph-assembly-header-selected-text-color: var(--inet-selected-item-text-color);
-  --inet-graph-assembly-header-selected-bg-color: var(--inet-selected-item-bg-color);
+  --inet-graph-assembly-header-selected-text-color: var(--inet-composer-selected-text);
+  --inet-graph-assembly-header-selected-bg-color: var(--inet-composer-selected-bg);
   --inet-graph-assembly-error-text-color: #{$graph-assembly-error-text-color};
-  --inet-graph-connection-color: #{$inet-gray4};
-  --inet-graph-connection-warning-color: #{$primary-light};
-  --inet-schema-connection-color: #{$inet-gray2};
-  --inet-schema-column-connected-bg-color: var(--inet-fourth-color);
-  --inet-schema-column-compatible-bg-color: var(--inet-secondary-color-light);
-  --inet-schema-column-incompatible-bg-color: #{$primary-light};
-  --inet-ws-header-primary-bg-color: var(--inet-third-color);
-  --inet-ws-header-secondary-bg-color: var(--inet-third-color-light);
+  --inet-graph-connection-color: #{$graph-connection-color};
+  --inet-graph-connection-warning-color: #{$graph-connection-warning-color};
+  // worksheet schema/connection aliases: composer owns the meaning, these are
+  // the worksheet-scoped names the schema editor consumes
+  --inet-ws-schema-connected-bg: var(--inet-composer-context-bg);
+  --inet-ws-schema-compatible-bg: var(--inet-success-color-light);
+  --inet-ws-schema-incompatible-bg: var(--inet-danger-color-light);
+  --inet-ws-connection-schema: #{$ws-connection-schema};
+  --inet-schema-connection-color: var(--inet-ws-connection-schema);
+  --inet-schema-column-connected-bg-color: var(--inet-ws-schema-connected-bg);
+  --inet-schema-column-compatible-bg-color: var(--inet-ws-schema-compatible-bg);
+  --inet-schema-column-incompatible-bg-color: var(--inet-ws-schema-incompatible-bg);
+  // detail pane header shares the selected block's tone so it reads as an
+  // extension of the assembly it belongs to, not a separate accent family
+  --inet-ws-header-primary-bg-color: var(--inet-composer-selected-bg);
+  --inet-ws-header-secondary-bg-color: var(--inet-composer-selected-bg);
   --inet-ws-table-odd-row-bg-color: #{$worksheet-row-odd-bg};
   --inet-ws-table-even-row-bg-color: #{$worksheet-row-even-bg};
+  --inet-ws-schema-highlight-bg: #{$ws-schema-highlight-bg};
+  --inet-ws-connection-muted: #{$ws-connection-muted};
+  --inet-ws-row-selected-bg: #{$ws-row-selected-bg};
+  --inet-ws-row-hover-bg: #{$ws-row-hover-bg};
 
   // other
   --inet-default-border-color: var(--inet-shell-border-default);

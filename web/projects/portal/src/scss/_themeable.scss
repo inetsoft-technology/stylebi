@@ -622,10 +622,20 @@ div.disable-link, a.disable-link {
   }
 }
 
-.ws-assembly-graph-element--selection-adjacent .ws-graph-thumbnail__title,
-.schema-table-title
-{
+.ws-assembly-graph-element--selection-adjacent .ws-graph-thumbnail__title {
+  background-color: var(--inet-composer-context-bg);
+  border-color: var(--inet-composer-context-border);
+  color: var(--inet-composer-context-text);
+}
+
+.schema-table-title {
   background-color: var(--inet-ws-header-secondary-bg-color);
+}
+
+.ws-assembly-graph-element--dimmed .ws-graph-thumbnail__title {
+  background-color: var(--inet-composer-dimmed-bg);
+  border-color: var(--inet-composer-dimmed-border);
+  color: var(--inet-composer-dimmed-text);
 }
 
 .ws-assembly-graph-element--primary .ws-assembly-thumbnail-image {
@@ -679,6 +689,19 @@ div.disable-link, a.disable-link {
 .ws-assembly-connector-arrow--composition-warning {
   fill: var(--inet-graph-connection-warning-color);
   stroke: var(--inet-graph-connection-warning-color);
+}
+
+// jsPlumb applies this type to endpoints and connections touching a dimmed
+// assembly (see TYPE_DIMMED in jsplumb-graph-main.config.ts) as an additional
+// class on the same connector/endpoint element, layered on top of its base type.
+.ws-assembly-connector-endpoint.ws-assembly-graph-element--dimmed {
+  fill: var(--inet-ws-connection-muted);
+}
+
+.ws-assembly-connection.ws-assembly-graph-element--dimmed,
+.ws-assembly-connector-arrow.ws-assembly-graph-element--dimmed {
+  fill: var(--inet-ws-connection-muted);
+  stroke: var(--inet-ws-connection-muted);
 }
 
 .ws-assembly-connection--concatenation-warning {
@@ -761,6 +784,7 @@ schema-column, edit-join-table-column {
   }
 
   &.schema-column-highlight {
+    background-color: var(--inet-ws-schema-highlight-bg);
     box-shadow: var(--inet-shadow-divider);
   }
 }
@@ -827,11 +851,11 @@ schema-column, edit-join-table-column {
 }
 
 .table-data__row:hover {
-  background-color: var(--inet-hover-primary-bg-color);
+  background-color: var(--inet-ws-row-hover-bg);
 }
 
 .table-data__row.highlighted {
-  background-color: var(--inet-primary-color);
+  background-color: var(--inet-ws-row-selected-bg);
 }
 
 /***********************************************************************************************
@@ -1235,6 +1259,14 @@ binding-editor {
   background-color: var(--inet-shell-selected-bg-color);
 }
 
+// wizard-binding-tree is the field-selection tree in the visualization
+// recommender; scope the Composer selected family to it specifically so the
+// shared tree-node component's shell selection tone stays unaffected elsewhere.
+wizard-binding-tree .bg-node-selected {
+  background-color: var(--inet-composer-selected-bg);
+  color: var(--inet-composer-selected-text);
+}
+
 .bg-portal-node-selected {
   background-color: var(--inet-shell-selected-bg-color);
 
@@ -1316,6 +1348,12 @@ binding-editor {
 .composer-btn-toolbar {
   color: var(--inet-composer-navbar-text-color);
   background-color: var(--inet-composer-navbar-bg-color);
+  box-shadow: inset 0 -1px 0 0 var(--inet-border-strong-color);
+  // Buttons only carry pb-1/ps-1/pe-1 utility padding (no pt-1), so content sits
+  // flush against the toolbar's top edge; add it once here instead of touching
+  // every button template. The composer-header/composer-body fixed-height split
+  // in composer-main.component.scss was widened by the same amount to match.
+  padding-top: var(--inet-space-2);
 
   .composer-btn {
     transition: none;
@@ -1331,6 +1369,13 @@ binding-editor {
 
       color: var(--inet-composer-navbar-hover-text-color);
       background-color: var(--inet-composer-navbar-hover-bg-color);
+    }
+
+    // Bootstrap's default disabled opacity (0.3) reads as nearly invisible against
+    // this toolbar's light warm surface; boost it to the same level already used
+    // for disabled form controls (--inet-input-disabled-opacity).
+    &:disabled, &.disabled {
+      opacity: var(--inet-input-disabled-opacity);
     }
   }
 
@@ -1467,7 +1512,7 @@ binding-editor {
   }
 
   .assets-icon, .viewsheet-icon, .editor-breadcrumb-1 {
-    color: var(--inet-navbar-home-icon-color);
+    color: var(--inet-composer-navbar-text-color);
   }
 
   .composer-breadcrumb-1, .editor-breadcrumb-1 {
