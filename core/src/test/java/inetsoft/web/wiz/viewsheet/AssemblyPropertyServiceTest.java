@@ -18,11 +18,24 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.web.composer.model.vs.ChartAdvancedPaneModel;
+import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
@@ -32,6 +45,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Constructing a real {@code VSChartInfo}/{@code PlotDescriptor} for the pointLine tests below
+ * runs code that reads {@code SreeEnv} and therefore needs a Spring context — hence the harness
+ * annotations, which mirror {@code ViewsheetReadServiceTest} in this same package.
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome()
 @Tag("core")
 class AssemblyPropertyServiceTest {
    /**
@@ -192,6 +215,133 @@ class AssemblyPropertyServiceTest {
       assertNull(model.getGaugeGeneralPaneModel() == null
                     ? null : model.getGaugeGeneralPaneModel().getNumberRangePaneModel().getMax(),
                  "the valid key must not have been written before the bad one was found");
+   }
+
+   // ── pointLine: a genuine three-level alias, refused when the chart type can't show it ─────
+
+   /**
+    * The alias resolves and writes through — this is the case
+    * {@code PropertyAliases.chart()}'s prior comment wrongly claimed was impossible.
+    */
+   @Test
+   void setsPointLineOnALineChart() throws Exception {
+      ChartPropertyDialogModel model = chartModelFor(GraphTypes.CHART_LINE);
+      ChartPropertyDialogService chartService = mock(ChartPropertyDialogService.class);
+      when(chartService.getChartPropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+      AssemblyPropertyService service = chartServiceWith(chartService);
+
+      service.set("tok", principal(), "Chart1", Map.of("pointLine", true), "");
+
+      assertTrue(model.getChartAdvancedPaneModel().getChartPlotOptionsPaneModel().isShowPoints());
+      verify(chartService).setChartPropertyModel(any(), any(), any(), any(), any(), any());
+   }
+
+   /**
+    * {@code PlotDescriptor.setPointLine} is applied unconditionally by
+    * {@code ChartPlotOptionsPaneModel.updateChartPlotOptionsPaneModel} regardless of chart type
+    * — without {@code requireApplicable}, this would report success with no visible effect on a
+    * bar chart, the canonical CLAUDE.md robustness defect.
+    */
+   @Test
+   void refusesPointLineOnABarChartWithACallerLegibleMessage() {
+      ChartPropertyDialogModel model = chartModelFor(GraphTypes.CHART_BAR);
+      ChartPropertyDialogService chartService = mock(ChartPropertyDialogService.class);
+
+      try {
+         when(chartService.getChartPropertyDialogModel(
+            anyString(), anyString(), any(Principal.class))).thenReturn(model);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      AssemblyPropertyService service = chartServiceWith(chartService);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", Map.of("pointLine", true), ""));
+
+      assertTrue(thrown.getMessage().contains("pointLine"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Chart1"), thrown.getMessage());
+   }
+
+   /** The refusal must fire before any write — a bar chart must come back completely untouched. */
+   @Test
+   void writesNothingWhenPointLineIsRefused() throws Exception {
+      ChartPropertyDialogModel model = chartModelFor(GraphTypes.CHART_BAR);
+      ChartPropertyDialogService chartService = mock(ChartPropertyDialogService.class);
+      when(chartService.getChartPropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+      AssemblyPropertyService service = chartServiceWith(chartService);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", Map.of("pointLine", true), ""));
+
+      assertFalse(model.getChartAdvancedPaneModel().getChartPlotOptionsPaneModel().isShowPoints());
+      verify(chartService, never()).setChartPropertyModel(any(), any(), any(), any(), any(), any());
+   }
+
+   /** A patch that never mentions pointLine must not trip the guard on an inapplicable chart. */
+   @Test
+   void aBarChartPatchNotTouchingPointLineIsUnaffectedByTheGuard() throws Exception {
+      ChartPropertyDialogModel model = chartModelFor(GraphTypes.CHART_BAR);
+      ChartPropertyDialogService chartService = mock(ChartPropertyDialogService.class);
+      when(chartService.getChartPropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+      AssemblyPropertyService service = chartServiceWith(chartService);
+
+      assertDoesNotThrow(
+         () -> service.set("tok", principal(), "Chart1", Map.of("glossyEffect", true), ""));
+   }
+
+   private static ChartPropertyDialogModel chartModelFor(int chartType) {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(chartType);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      ChartPlotOptionsPaneModel plotOptions = new ChartPlotOptionsPaneModel(info, plotDesc);
+
+      ChartAdvancedPaneModel advanced = new ChartAdvancedPaneModel();
+      advanced.setChartPlotOptionsPaneModel(plotOptions);
+
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      model.setChartAdvancedPaneModel(advanced);
+      return model;
+   }
+
+   private static AssemblyPropertyService chartServiceWith(ChartPropertyDialogService chartService) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(mock(ChartVSAssembly.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getID()).thenReturn("rt1");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new AssemblyPropertyService(
+         sessions, mock(GaugePropertyDialogService.class), mock(ImagePropertyDialogService.class),
+         mock(TextPropertyDialogService.class), chartService,
+         mock(TableViewPropertyDialogService.class), mock(CrosstabPropertyDialogService.class),
+         mock(SelectionListPropertyDialogService.class),
+         mock(SelectionTreePropertyDialogService.class),
+         mock(inetsoft.web.viewsheet.service.VSInputService.class),
+         mock(RangeSliderPropertyDialogService.class), mock(CalendarPropertyDialogService.class),
+         mock(TabPropertyDialogService.class), mock(CalcTablePropertyDialogService.class),
+         mock(GroupContainerPropertyDialogService.class), mock(LinePropertyDialogService.class),
+         mock(OvalPropertyDialogService.class), mock(RectanglePropertyDialogService.class),
+         mock(SelectionContainerPropertyDialogService.class),
+         mock(SubmitPropertyDialogService.class));
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

@@ -237,6 +237,8 @@ public class AssemblyPropertyService {
             resolved.put(key, PropertyAliases.resolveForWrite(type, key));
          }
 
+         requireApplicable(type, model, resolved.keySet(), assemblyName);
+
          // PropertyPath.set returns the root the caller must keep using: if a future alias
          // ever targets a direct top-level field of an Immutables dialog model (no nested pane
          // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
@@ -287,6 +289,36 @@ public class AssemblyPropertyService {
          throw new IllegalArgumentException(
             "Setting " + type + " properties of '" + assemblyName + "' failed: " +
             rootMessage(e), e);
+      }
+   }
+
+   /**
+    * Refuses a property whose OWN dialog model says it does not apply to the assembly's CURRENT
+    * state — checked against the model just read, so it reflects this exact write, not a stale
+    * assumption. {@code pointLine} is the only alias this applies to today:
+    * {@code ChartPlotOptionsPaneModel.updateChartPlotOptionsPaneModel} calls
+    * {@code plotDesc.setPointLine(...)} unconditionally, regardless of chart type — the Composer
+    * UI hides the checkbox behind {@code isShowPointsVisible()} instead of the write path
+    * enforcing it, the same "menu precondition, not a server guard" shape found elsewhere in this
+    * plugin family (E3's selection-container guards). Without this, {@code set_assembly_properties}
+    * would report success for {@code pointLine} on, say, a bar chart, with no visible effect.
+    */
+   private static void requireApplicable(String type, Object model, Set<String> keys,
+                                         String assemblyName)
+   {
+      if(!"chart".equals(type) || !keys.contains("pointLine")) {
+         return;
+      }
+
+      Object visible = PropertyPath.get(
+         model, "chartAdvancedPaneModel.chartPlotOptionsPaneModel.showPointsVisible");
+
+      if(!Boolean.TRUE.equals(visible)) {
+         throw new IllegalArgumentException(
+            "'pointLine' only applies to a line, point, or radar chart type; '" + assemblyName +
+            "' does not support it right now, so this call would report success with no visible " +
+            "effect. Change the chart type first (set_chart_type) if points or connecting lines " +
+            "should show.");
       }
    }
 

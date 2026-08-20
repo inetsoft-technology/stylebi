@@ -189,9 +189,10 @@ class PropertyAliasesTest {
     * user means by "add a trend line", and they live one pane below the general/advanced panes
     * the first pass covered.
     *
-    * <p>Note what is deliberately absent: {@code pointLine} and the word-cloud font scale are
-    * {@code PlotDescriptor} fields that the chart property dialog never surfaces, so there is no
-    * path to alias. They are not reachable through this engine at all.
+    * <p>Note what is deliberately absent: the word-cloud font scale is a {@code PlotDescriptor}
+    * field that the chart property dialog never surfaces, so there is no path to alias. It is not
+    * reachable through this engine at all. {@code pointLine} used to be listed here too — see
+    * {@link #resolvesThePointLineAliasThreeLevelsDeep()} for why that was wrong.
     */
    @Test
    void coversTheChartLinePaneProperties() {
@@ -203,6 +204,20 @@ class PropertyAliasesTest {
          assertTrue(PropertyAliases.forType("chart").aliases().containsKey(alias),
                     "chart should expose '" + alias + "'");
       }
+   }
+
+   /**
+    * {@code pointLine} was flagged unreachable ("ChartPropertyDialogModel never surfaces this")
+    * without checking that {@link PropertyPath} already resolves a dotted path of ANY depth, not
+    * just the two segments every other chart alias happens to use. It is a real, three-segment
+    * path, and {@link #everyDeclaredAliasResolvesOnItsDialogModel()} already proves it resolves
+    * on the model — this pins the exact path so a future refactor of the alias notices if it
+    * silently starts pointing somewhere else.
+    */
+   @Test
+   void resolvesThePointLineAliasThreeLevelsDeep() {
+      assertEquals("chartAdvancedPaneModel.chartPlotOptionsPaneModel.showPoints",
+                   PropertyAliases.resolve("chart", "pointLine"));
    }
 
    @Test

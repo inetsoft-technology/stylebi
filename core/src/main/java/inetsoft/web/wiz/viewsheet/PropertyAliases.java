@@ -383,11 +383,25 @@ public final class PropertyAliases {
       aliases.put("glossyEffect", "chartAdvancedPaneModel.glossyEffect");
       aliases.put("sparkline", "chartAdvancedPaneModel.sparkline");
 
+      // PlotDescriptor.isPointLine()/setPointLine() — nested one level deeper than every other
+      // entry in this method (chartAdvancedPaneModel.chartPlotOptionsPaneModel.*, not
+      // chartAdvancedPaneModel.* directly). PropertyPath resolves a dotted path of any depth, so
+      // this needed only the alias itself, not new plumbing — a prior pass here concluded
+      // "ChartPropertyDialogModel never surfaces this" without checking that claim against
+      // PropertyPath's actual reach. The model's own field is named `showPoints` (the dialog's
+      // checkbox reads "Show Points" or "Show Lines" depending on chart type — see
+      // ChartPlotOptionsPaneModel.showPointsLabel); aliased as `pointLine` to match
+      // PlotDescriptor's own name and the term this capability is referred to by everywhere else
+      // (spec, roadmap). AssemblyPropertyService.set() separately refuses this alias when
+      // isShowPointsVisible() is false, since PlotDescriptor.setPointLine is applied
+      // unconditionally regardless of whether the current chart type can show it.
+      aliases.put("pointLine", "chartAdvancedPaneModel.chartPlotOptionsPaneModel.showPoints");
+
       // The line pane — trend lines, grid lines, facet grid. What a user means by "add a trend
       // line" lives here, one pane below the general/advanced panes.
       //
-      // Deliberately absent: pointLine and the word-cloud font scale are PlotDescriptor fields
-      // that ChartPropertyDialogModel never surfaces, so there is no path to alias. They are not
+      // Deliberately absent: the word-cloud font scale is a PlotDescriptor field that
+      // ChartPropertyDialogModel never surfaces, so there is no path to alias. It is not
       // reachable through this engine, and claiming otherwise would be worse than the gap.
       aliases.put("gridLineVisible", "chartLinePaneModel.gridLineVisible");
       aliases.put("innerLineVisible", "chartLinePaneModel.innerLineVisible");
