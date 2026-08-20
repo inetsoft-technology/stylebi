@@ -199,9 +199,10 @@ class WizVsServiceHighlightRebindTest {
    }
 
    @Test
-   void composesAOneColumnHeaderForATwoColumnFormulaMissingItsSecondaryField() {
-      // toView() falls through to the one-argument form here too, so this must match it.
-      assertEquals("Correlation(SALES)", WizVsService.aggregateHeaderOf(
+   void composesNoHeaderForATwoColumnFormulaMissingItsSecondaryField() {
+      // No view binds a two-column formula without its second column, so there is no header to prefer;
+      // the caller falls back to the base-name scan rather than matching an invented spelling.
+      assertEquals(null, WizVsService.aggregateHeaderOf(
          new AggregateRef(new ColumnRef(new AttributeRef(null, "SALES")), null,
                           AggregateFormula.CORRELATION)));
    }

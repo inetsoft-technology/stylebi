@@ -1281,9 +1281,12 @@ public class WizVsService {
     * The header an aggregate condition names, composed from the formula the caller gave: an
     * AggregateRef(SALES, Average) -> "Average(SALES)". Null when the ref carries no formula.
     *
-    * Covers all three arities AggregateRef.toView() composes, since the result is compared against a
-    * header that method produced: one column ("Average(SALES)"), two for a two-column formula
-    * ("Correlation(SALES, PROFIT)"), and a column plus N for an N-parameter one ("NthLargest(SALES, 3)").
+    * Composed by {@link #buildVSAggregateRefFullName}, i.e. by VSAggregateRef.getFullName — the very
+    * method that produced the header this string is compared against (buildChartHighlightColumns reads
+    * VSDataRef.getFullName, and a crosstab cell's available fields carry the same name). Going through it
+    * rather than concatenating here means every arity a wiz condition can carry — a second column for
+    * isTwoColumns, an N for hasN, both set by buildConditionItem — is spelled with the argument order,
+    * separator and defaults the view already used, instead of a copy that has to be kept in step with it.
     *
     * Exists because a column can be bound MORE THAN ONCE under different aggregates — "Sum(SALES)" and
     * "Average(SALES)" side by side in the same crosstab or chart. The base name alone cannot say which of
@@ -1304,31 +1307,27 @@ public class WizVsService {
       }
 
       AggregateFormula formula = aggregateRef.getFormula();
-      String name = formula.getFormulaName();
+      DataRef secondary = aggregateRef.getSecondaryColumn();
+      String secondaryName = secondary != null ? secondary.getName() : null;
 
-      // Mirrors AggregateRef.toView(), which is what composes the header at render time — including its
-      // two extra arities, both of which a wiz condition can carry (buildConditionItem sets secondaryRef
-      // for isTwoColumns and N for hasN). Composed with the SAME argument order and separator, because
-      // this string is compared for EQUALITY against a header the view already produced: a one-argument
-      // "Correlation(SALES)" never matches the real "Correlation(SALES, PROFIT)", the lookup falls back to
-      // the loose base-name scan, and the ambiguity this preferred name exists to remove comes back for
-      // exactly these formulas.
-      if(formula.isTwoColumns()) {
-         DataRef secondary = aggregateRef.getSecondaryColumn();
-         String secondaryName = secondary != null ? secondary.getName() : null;
-
-         // No secondary column to name: toView() falls through to the one-argument form here too, so the
-         // header composed below still matches it.
-         return secondaryName == null || secondaryName.isEmpty()
-            ? name + "(" + base + ")"
-            : name + "(" + base + ", " + secondaryName + ")";
+      // A two-column formula with no secondary column names no header any view produced: getFullName
+      // composes the missing half as "Correlation(SALES, null)", and nothing binds a Correlation without
+      // its second column in the first place. There is no preferred name to be had, so answer none and
+      // let findAggregatedColumn fall back to its base-name scan — what it did before a preferred name
+      // existed. Composing a one-argument "Correlation(SALES)" here would only invent a third spelling
+      // that matches neither.
+      if(formula.isTwoColumns() && (secondaryName == null || secondaryName.isEmpty())) {
+         return null;
       }
 
-      if(formula.hasN()) {
-         return name + "(" + base + ", " + aggregateRef.getN() + ")";
-      }
+      // An AggregateRef stores N as a primitive and leaves it 0 when the caller named none, but the view
+      // side is a VSAggregateRef whose nValue defaults to "1" — so an unset N must be passed as null to
+      // reach that same default. Passing the 0 through composes "NthLargest(SALES, 0)", a header no view
+      // ever produces, and the lookup falls back to the loose base-name scan for every such condition.
+      int n = aggregateRef.getN();
 
-      return name + "(" + base + ")";
+      return buildVSAggregateRefFullName(base, formula.getFormulaName(), secondaryName,
+                                         n > 0 ? n : null);
    }
 
    /**
@@ -4732,8 +4731,8 @@ public class WizVsService {
     *
     * @return the computed fullName from VSAggregateRef
     */
-   private String buildVSAggregateRefFullName(String columnValue, String formulaValue,
-                                              String secondaryField, Integer nOrP)
+   private static String buildVSAggregateRefFullName(String columnValue, String formulaValue,
+                                                    String secondaryField, Integer nOrP)
    {
       VSAggregateRef ref = new VSAggregateRef();
       ref.setColumnValue(columnValue);
