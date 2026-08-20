@@ -106,6 +106,22 @@ class WorksheetTableServiceShouldProbeTest {
    }
 
    @Test
+   void tabularTableIsNotProbed() throws Exception {
+      // Creating a tabular table ALREADY sends one metered request: a tabular query has no columns
+      // until a response has been parsed, so loadColumnSelection runs it under HINT_PREVIEW to
+      // discover them. Probing would send a second request to answer a question the non-empty
+      // column assertion in buildTabularTable already answers, against an API that bills per call.
+      WorksheetTable req = request("""
+         {
+           "tableName": "t", "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "endpoint": "Charges" }
+         }
+         """);
+
+      assertFalse(service().shouldProbe(req));
+   }
+
+   @Test
    void emptyWindowColumnsListIsNotProbed() throws Exception {
       WorksheetTable req = request("""
          { "tableName": "t", "tableType": "mirror table", "windowColumns": [] }

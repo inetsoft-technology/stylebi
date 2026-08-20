@@ -60,7 +60,8 @@ import static org.mockito.Mockito.when;
  *   <li>{@code checkWorksheetActionPermission} — the "Visual Composer -> Data Worksheet" action-level
  *       gate checked at the top of {@code createTables} and {@code deleteTables}.</li>
  *   <li>The datasource READ check inside {@code createTables}'s {@code buildTable} step, gating
- *       physical/sql-query tables bound to a {@code physicalSource.datasourcePath}.</li>
+ *       physical/sql-query tables bound to a {@code physicalSource.datasourcePath} and
+ *       tabular tables bound to a {@code tabularSource.datasourcePath}.</li>
  * </ul>
  *
  * <p>These tests only assert on the gate itself. The action-level WORKSHEET/ACCESS gate is checked
@@ -244,6 +245,73 @@ class WorksheetTableServicePermissionTest {
       verify(deps.dataSourceService).checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER));
    }
 
+   // ─── createTable -> buildTable: tabular table datasource READ gate ────────
+
+   /**
+    * The same gate, reached through {@code tabularSource} instead of {@code physicalSource}.
+    *
+    * <p>Worth its own pair rather than trusting the physical-table pair: the gate reads the path off
+    * whichever of the two fields carries one, and a tabular table supplies it in the other field. An
+    * earlier shape of this check looked only at {@code physicalSource}, which let a tabular table
+    * reach the connector — and dial its remote endpoint — with no READ check at all.</p>
+    */
+   @Test
+   void createTableTabularTableFailsWhenDatasourceReadDenied() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(false);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "endpoint": "Charges" }
+         }
+         """);
+
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("no READ permission on datasource myds"),
+                 "error should name the denied datasource, got: " + table.getErrorMessage());
+
+      // Denial short-circuits before the data source is even resolved, so nothing can reach the
+      // connector. This is the assertion that matters: past this point the next step dials a
+      // remote, metered endpoint.
+      verifyNoInteractions(deps.xrepository);
+   }
+
+   @Test
+   void createTableTabularTableProceedsWhenDatasourceReadGranted() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "endpoint": "Charges" }
+         }
+         """);
+
+      // xrepository is an unstubbed mock, so getDataSource returns null and the table fails with
+      // "Data source not found" — proof execution proceeded past the datasource gate into
+      // buildTabularTable. Asserted on the message rather than on success, because a mock
+      // repository can never produce a real connector.
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("Data source not found"),
+                 "should fail past the gate, got: " + table.getErrorMessage());
+
+      verify(deps.xrepository).getDataSource(eq("myds"));
+      verify(deps.dataSourceService).checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER));
+   }
    // ─── createTable -> buildTable: sql query table FREE_FORM_SQL gate ─────────
 
    @Test

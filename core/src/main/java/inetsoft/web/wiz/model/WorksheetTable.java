@@ -21,6 +21,7 @@ package inetsoft.web.wiz.model;
 import com.fasterxml.jackson.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * One table definition within a POST /api/wiz/ws/table batch request.
@@ -63,6 +64,20 @@ public class WorksheetTable {
     */
    private String sqlExpression;
 
+   // ─── Tabular-table field ──────────────────────────────────────────────────
+
+   /**
+    * Source of a {@code tableType == "tabular table"}: one endpoint of a SaaS/REST connector,
+    * plus the values for that endpoint's parameters.
+    *
+    * <p>Separate from {@link PhysicalSource} rather than an overload of it, because the two name
+    * different things. A physical source names a table that already exists with a known column
+    * list; a tabular source names an API CALL, and its column list does not exist until the call
+    * has been made — which is why {@code columns} is not honored for this table type, and why the
+    * response's column list is the first time anyone learns what the table holds.</p>
+    */
+   private TabularSource tabularSource;
+
    // ─── Mirror / join base tables ────────────────────────────────────────────
 
    /** Names of already-created tables in this worksheet to use as bases. */
@@ -100,6 +115,9 @@ public class WorksheetTable {
 
    public PhysicalSource getPhysicalSource() { return physicalSource; }
    public void setPhysicalSource(PhysicalSource physicalSource) { this.physicalSource = physicalSource; }
+
+   public TabularSource getTabularSource() { return tabularSource; }
+   public void setTabularSource(TabularSource tabularSource) { this.tabularSource = tabularSource; }
 
    public List<ColumnInfo> getColumns() { return columns; }
    public void setColumns(List<ColumnInfo> columns) { this.columns = columns; }
@@ -151,6 +169,58 @@ public class WorksheetTable {
       public void setTableName(String tableName) { this.tableName = tableName; }
       public String getCatalog() { return catalog; }
       public void setCatalog(String catalog) { this.catalog = catalog; }
+   }
+
+   // ─── Nested: tabular source ───────────────────────────────────────────────
+
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class TabularSource {
+      private String datasourcePath;
+      private String endpoint;
+      private Map<String, String> parameters;
+      private String jsonPath;
+      private Boolean expanded;
+      private String expandedPath;
+      private Integer maxRows;
+
+      /** Full repository path of the connector INSTANCE, e.g. "SaaS/Stripe Prod". */
+      public String getDatasourcePath() { return datasourcePath; }
+      public void setDatasourcePath(String datasourcePath) { this.datasourcePath = datasourcePath; }
+
+      /**
+       * The connector's own name for the endpoint, e.g. "Charges". Matched exactly against the
+       * connector's endpoint map, which is keyed by that name and rejects duplicates
+       * ({@code EndpointJsonQuery.Endpoints.toMap}).
+       */
+      public String getEndpoint() { return endpoint; }
+      public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+
+      /**
+       * Values by parameter NAME — the name part of a <code>{...}</code> token in the endpoint's URL
+       * suffix template, which is what {@code RestParameter.getName()} answers. A name this endpoint
+       * does not declare is rejected rather than ignored: silently dropping it would run a request
+       * narrower than the one that was asked for and report success.
+       */
+      public Map<String, String> getParameters() { return parameters; }
+      public void setParameters(Map<String, String> parameters) { this.parameters = parameters; }
+
+      /** JSON path to the row array, e.g. "$.data[*]". Null keeps the connector's default. */
+      public String getJsonPath() { return jsonPath; }
+      public void setJsonPath(String jsonPath) { this.jsonPath = jsonPath; }
+
+      public Boolean getExpanded() { return expanded; }
+      public void setExpanded(Boolean expanded) { this.expanded = expanded; }
+      public String getExpandedPath() { return expandedPath; }
+      public void setExpandedPath(String expandedPath) { this.expandedPath = expandedPath; }
+
+      /**
+       * Row cap for this query, persisted ON THE QUERY so EVERY later execution is bounded — not
+       * just the column-discovery one. Required in practice: {@code createTables} sets
+       * {@code designMaxRows = 0} (unlimited) for wiz analytics, which on a paginated metered API
+       * means paging to the end of the customer's data on every render.
+       */
+      public Integer getMaxRows() { return maxRows; }
+      public void setMaxRows(Integer maxRows) { this.maxRows = maxRows; }
    }
 
    // ─── Nested: column info ─────────────────────────────────────────────────

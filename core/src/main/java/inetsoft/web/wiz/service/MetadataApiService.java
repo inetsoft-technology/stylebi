@@ -875,6 +875,14 @@ public class MetadataApiService {
       if(tableAssembly instanceof PhysicalBoundTableAssembly) {
          return "physical table";
       }
+      // TabularTableAssembly extends BoundTableAssembly, not PhysicalBoundTableAssembly, so the
+      // position of this branch is free; it is here to read in the same order as
+      // WorksheetTableService's switch. Without it a tabular table falls through to the
+      // getSimpleName() default and this endpoint answers "TabularTableAssembly", a type name
+      // no caller of the construction endpoint knows.
+      else if(tableAssembly instanceof TabularTableAssembly) {
+         return "tabular table";
+      }
       else if(tableAssembly instanceof MirrorTableAssembly) {
          return "mirror table";
       }

@@ -30,6 +30,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
@@ -39,6 +40,12 @@ import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.tabular.PropertyMeta;
+import inetsoft.uql.tabular.RestParameter;
+import inetsoft.uql.tabular.RestParameters;
+import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import inetsoft.util.Catalog;
@@ -54,6 +61,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static inetsoft.web.wiz.service.GenerateWsService.WORKSHEET_ROOT_FOLDER_PATH;
 import static inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel;
@@ -746,17 +754,30 @@ public class WorksheetTableService {
          throw new IllegalArgumentException("tableType is required");
       }
 
-      // Verify READ permission on the datasource before resolving/using it (physical table and
-      // sql query table both bind to one via physicalSource; mirror/join tables only reference
-      // already-in-worksheet assemblies, so there is no new datasource to check for them).
+      // Verify READ permission on the datasource before resolving/using it. physicalSource covers
+      // physical table and sql query table; tabularSource covers tabular table, and it is read
+      // here rather than inside the builder for the same reason the other one is — the check must
+      // precede every use of the path, including the one that dials a remote endpoint.
+      // Mirror/join tables only reference already-in-worksheet assemblies, so there is no new
+      // datasource to check for them.
       // Mirrors WorksheetAgentController.addLogicalModelTable's usage of DataSourceService.
       WorksheetTable.PhysicalSource src = request.getPhysicalSource();
+      String datasourcePath = null;
 
-      if(src != null && src.getDatasourcePath() != null &&
-         !dataSourceService.checkPermission(src.getDatasourcePath(), ResourceAction.READ, user))
+      if(src != null && src.getDatasourcePath() != null) {
+         datasourcePath = src.getDatasourcePath();
+      }
+      else if(request.getTabularSource() != null &&
+              request.getTabularSource().getDatasourcePath() != null)
+      {
+         datasourcePath = request.getTabularSource().getDatasourcePath();
+      }
+
+      if(datasourcePath != null &&
+         !dataSourceService.checkPermission(datasourcePath, ResourceAction.READ, user))
       {
          throw new IllegalArgumentException(
-            "Access denied: no READ permission on datasource " + src.getDatasourcePath());
+            "Access denied: no READ permission on datasource " + datasourcePath);
       }
 
       // Free-Form SQL action gate ("Visual Composer -> Free Form SQL"): a raw sql query table
@@ -776,6 +797,7 @@ public class WorksheetTableService {
          case "mirror table"          -> buildMirrorTable(worksheet, request);
          case "relational join table" -> buildJoinTable(worksheet, request);
          case "sql query table"       -> buildSqlTable(worksheet, request);
+         case "tabular table"         -> buildTabularTable(worksheet, request);
          default -> throw new IllegalArgumentException("Unknown tableType: " + tableType);
       };
 
@@ -936,6 +958,307 @@ public class WorksheetTableService {
 
       worksheet.addAssembly(table);
       return table;
+   }
+
+   /**
+    * Build a {@link TabularTableAssembly} bound to ONE endpoint of a SaaS/REST connector.
+    *
+    * <p>Follows the six steps {@code TabularQueryDialogService.setUpTable} takes, with the dialog's
+    * {@code TabularView} round trip left out. The dialog needs a view because a human drives it; the
+    * two things a caller supplies here — which endpoint, and what its parameters are — are plain
+    * annotated bean properties, so {@link TabularUtil#getPropertyMap} reaches them directly. That
+    * also keeps {@code TabularUtil.callButtonMethods} out of the path, which is the only reader of
+    * the {@code TabularUtil.sessionId} ThreadLocal — so unlike {@code WizTabularController}, this
+    * path needs no connector session bound around it.</p>
+    *
+    * <p>THIS METHOD SENDS A REAL REQUEST. {@code loadColumnSelection} is how the column list comes
+    * into existence — a tabular query has none until one response has been parsed
+    * ({@code TabularQuery.loadOutputColumns} runs it under {@code HINT_PREVIEW} at 100 rows). So the
+    * request is metered, and a failure there is a failure of the whole table. It is also why this
+    * type is left out of {@link #shouldProbe}: the probe would send a second request to answer a
+    * question the non-empty column check below already answers.</p>
+    */
+   private AbstractTableAssembly buildTabularTable(Worksheet worksheet, WorksheetTable request)
+      throws Exception
+   {
+      WorksheetTable.TabularSource src = request.getTabularSource();
+
+      if(src == null || src.getDatasourcePath() == null || src.getDatasourcePath().isBlank()) {
+         throw new IllegalArgumentException(
+            "tabularSource.datasourcePath is required for tabular table");
+      }
+
+      if(src.getEndpoint() == null || src.getEndpoint().isBlank()) {
+         throw new IllegalArgumentException("tabularSource.endpoint is required for tabular table");
+      }
+
+      // Rejected rather than ignored, and checked before anything is dialed: a tabular table's
+      // columns are discovered by the request below, so a caller cannot know them beforehand, and
+      // silently dropping the list would answer a request nobody made.
+      if(request.getColumns() != null && !request.getColumns().isEmpty()) {
+         throw new IllegalArgumentException(
+            "'columns' is not supported for tableType \"tabular table\" — an endpoint has no column " +
+            "list until its request has run. Create the tabular table first, read the columns from " +
+            "the response, then select or rename them on a mirror table over it.");
+      }
+
+      String dsName = src.getDatasourcePath();
+
+      // Answered before createQuery rather than inferred from its failure. Pointed at a JDBC
+      // database, createQuery resolves that type's query class and hands back a JDBCQuery — the
+      // property map below then simply has no "endpoint", and the caller is told the connector is
+      // not endpoint-based when the real answer is that this is not a tabular data source at all.
+      XDataSource dataSource = xrepository.getDataSource(dsName);
+
+      if(dataSource == null) {
+         throw new IllegalArgumentException("Data source not found: " + dsName);
+      }
+
+      if(!(dataSource instanceof TabularDataSource)) {
+         throw new UnsupportedDatasourceException(dsName, dataSource.getType());
+      }
+
+      // createQuery logs and returns null on every failure — a missing connector plugin, an
+      // unregistered type, an inaccessible query class all arrive as the same null. Absent this
+      // guard the NPE lands two frames down with no mention of the data source.
+      TabularQuery query = TabularUtil.createQuery(dsName);
+
+      if(query == null) {
+         throw new IllegalArgumentException(
+            "Could not create a query for data source '" + dsName + "' (type '" +
+            dataSource.getType() + "') — its connector plugin may not be loaded.");
+      }
+
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      // Fills endpoint + parameters + parsing options, and returns the fully built URL suffix as
+      // proof that all of it landed. Throws with every problem named; see the method.
+      String suffix = applyEndpointContract(query, pmap, src);
+
+      // Persisted on the query (XQuery.rowlimit, written as <maxrows>) rather than passed as a
+      // HINT_MAX_ROWS hint: a hint bounds one execution, and what has to stay bounded is every
+      // future render of this table. createTables sets designMaxRows to 0 for wiz analytics, which
+      // on a paginated metered API means paging to the end of the customer's data every time.
+      if(src.getMaxRows() != null && src.getMaxRows() > 0) {
+         query.setMaxRows(src.getMaxRows());
+      }
+
+      TabularTableAssembly table = new TabularTableAssembly(worksheet, request.getTableName());
+      TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) table.getTableInfo();
+      info.setQuery(query);
+
+      // Prefix and source are both the data source path, which is what the composer dialog writes
+      // too. The endpoint is NOT in the SourceInfo — it lives inside the query bean — so nothing
+      // reading only SourceInfo (notably MetadataApiService.extractStructureSource) can say which
+      // endpoint a tabular table came from.
+      info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, dsName, dsName));
+
+      // A fresh VariableTable and a null QueryManager, matching what
+      // TabularTableAssembly.dependencyChanged passes and what buildSqlTable uses for its own column
+      // resolution. Taking an AssetQuerySandbox instead would mean either disposing it — leaving the
+      // "queryManager" property pointing at a dead object on a query that outlives it — or leaking
+      // it. The cost is that this one column-discovery request cannot be cancelled, and that
+      // user-entered query variables are unavailable; the parameter values here are literals,
+      // already substituted into the suffix above.
+      table.loadColumnSelection(new VariableTable(), true, null);
+
+      // loadColumnSelection reports a failed request with LOG.warn and returns normally. Without
+      // this check the assembly is persisted with zero columns and /ws/table answers success=true
+      // with an empty column list — an error that first becomes visible when a chart is bound to
+      // the table and renders nothing.
+      ColumnSelection columns = table.getColumnSelection(false);
+
+      if(columns == null || columns.getAttributeCount() == 0) {
+         throw new IllegalArgumentException(
+            "The request to endpoint '" + src.getEndpoint() + "' of '" + dsName +
+            "' returned no columns. URL suffix sent: " + suffix +
+            ". Check the parameter values and that the data source's credentials are valid; the " +
+            "underlying cause is in the server log for this request.");
+      }
+
+      worksheet.addAssembly(table);
+      return table;
+   }
+
+   /**
+    * Set the endpoint and its parameter values on a tabular query, and return the URL suffix that
+    * results.
+    *
+    * <p>ORDER IS NOT INTERCHANGEABLE. {@code getParameters()} derives the contract from the endpoint
+    * currently set on the bean ({@code EndpointQueryDelegate.createParameters} scans that endpoint's
+    * suffix template with {@code RestParameter.fromToken}), so setting the endpoint has to come
+    * first — reversed, the contract comes back empty and every supplied value is reported as
+    * unknown. Setting the endpoint also does more than record a name: the connector's
+    * {@code updatePagination} runs from inside the setter and is what establishes the pagination
+    * spec, the request method and the content type.</p>
+    *
+    * <p>NOTHING HERE TRUSTS THAT A WRITE HAPPENED. {@code PropertyMeta.setValue} reports a failed
+    * invocation with {@code LOG.error} and returns, and {@code createParameters} skips a token its
+    * parser rejects with a {@code LOG.warn}. Both are silent to the caller, and the observable
+    * result of either is a request that goes out narrower than the one that was asked for. So every
+    * write is checked, by read-back where possible and by the suffix at the end.</p>
+    *
+    * @return the built URL suffix, with every parameter substituted.
+    */
+   private String applyEndpointContract(TabularQuery query,
+                                        Map<String, PropertyMeta> pmap,
+                                        WorksheetTable.TabularSource src)
+      throws Exception
+   {
+      PropertyMeta endpointProp = pmap.get("endpoint");
+
+      if(endpointProp == null) {
+         throw new IllegalArgumentException(
+            "Data source '" + src.getDatasourcePath() + "' (type '" + query.getType() +
+            "') is tabular but not endpoint-based, so it has no endpoint to select. Only connectors " +
+            "that ship an endpoint catalogue can be used as a tabular table this way.");
+      }
+
+      String endpoint = src.getEndpoint().trim();
+      assertKnownEndpoint(query, endpoint, src.getDatasourcePath());
+      endpointProp.setValue(query, endpoint);
+
+      // Read back, because setValue swallows a failed invocation. Everything below derives from the
+      // endpoint being set, so an unnoticed failure here produces an empty contract and a null
+      // suffix, both of which are much harder to attribute than this line.
+      if(!endpoint.equals(endpointProp.getValue(query))) {
+         throw new IllegalStateException(
+            "Failed to select endpoint '" + endpoint + "' on the query for '" +
+            src.getDatasourcePath() + "'; see the server log for the reflection failure.");
+      }
+
+      // Read AFTER the endpoint is set, because that is when the connector's updatePagination has
+      // decided it. A POST endpoint is refused rather than attempted: the body it needs is carried
+      // on a private field of the connector's query and is only moved into the request body by
+      // populateRequestBodyTemplate, a dialog BUTTON method this property-based path never runs.
+      // Attempting one sends an empty body, which most APIs answer with a 400 and some with an
+      // unfiltered full result.
+      PropertyMeta requestTypeProp = pmap.get("requestType");
+
+      if(requestTypeProp != null && "POST".equals(requestTypeProp.getValue(query))) {
+         throw new IllegalArgumentException(
+            "Endpoint '" + endpoint + "' of '" + src.getDatasourcePath() + "' is a POST endpoint, " +
+            "which cannot be created this way yet: its request body comes from a template that only " +
+            "the connector's own dialog populates. Choose a GET endpoint.");
+      }
+
+      PropertyMeta paramProp = pmap.get("parameters");
+      Object contract = paramProp == null ? null : paramProp.getValue(query);
+
+      if(!(contract instanceof RestParameters params)) {
+         throw new IllegalStateException(
+            "Could not read the parameter contract for endpoint '" + endpoint + "' of '" +
+            src.getDatasourcePath() + "'.");
+      }
+
+      Map<String, String> supplied = src.getParameters() == null
+         ? new LinkedHashMap<>() : new LinkedHashMap<>(src.getParameters());
+      List<String> missing = new ArrayList<>();
+
+      for(RestParameter parameter : params.getParameters()) {
+         String value = supplied.remove(parameter.getName());
+
+         if(value != null && !value.isBlank()) {
+            parameter.setValue(value.trim());
+         }
+         else if(parameter.isRequired()) {
+            missing.add(parameter.getName());
+         }
+      }
+
+      // Every missing required name at once. SuffixTemplate.build() does raise a clear
+      // IllegalStateException for a missing required parameter, but only for the FIRST one it walks
+      // into, so a caller filling three of five would need three round trips to learn all of them —
+      // and every round trip past this point is a metered request.
+      if(!missing.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Endpoint '" + endpoint + "' requires parameter(s) with no value supplied: " +
+            String.join(", ", missing) + ". Supply them; do not guess an identifier.");
+      }
+
+      // A name the endpoint does not declare is an error, not something to drop. Dropping it runs a
+      // DIFFERENT query than the one that was asked for and reports success — and the likeliest
+      // cause is a caller using another endpoint's contract, which no later step can detect.
+      if(!supplied.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Endpoint '" + endpoint + "' has no parameter(s) named: " +
+            String.join(", ", supplied.keySet()) + ". Its parameters are: " +
+            params.getParameters().stream()
+               .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
+               .collect(Collectors.joining(", ")) + ".");
+      }
+
+      paramProp.setValue(query, params);
+      setOptionalProperty(pmap, query, "jsonPath", src.getJsonPath());
+      setOptionalProperty(pmap, query, "expanded", src.getExpanded());
+      setOptionalProperty(pmap, query, "expandedPath", src.getExpandedPath());
+
+      // The one end-to-end check, and the reason it is worth a line of its own: reading "suffix"
+      // back invokes the connector's getSuffix(), which rebuilds the URL from the endpoint template
+      // and the values just set. A null means one of the silent paths above fired after all — the
+      // endpoint name resolved to no template, or a parameter never made it onto the bean.
+      PropertyMeta suffixProp = pmap.get("suffix");
+      Object suffix = suffixProp == null ? null : suffixProp.getValue(query);
+
+      if(!(suffix instanceof String s) || s.isBlank()) {
+         throw new IllegalStateException(
+            "Endpoint '" + endpoint + "' of '" + src.getDatasourcePath() + "' produced no URL " +
+            "suffix after its parameters were set; see the server log.");
+      }
+
+      return s;
+   }
+
+   /** Set a property only when a value was supplied, leaving the connector's default otherwise. */
+   private void setOptionalProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
+                                    String name, Object value)
+   {
+      PropertyMeta prop = value == null ? null : pmap.get(name);
+
+      if(prop != null) {
+         prop.setValue(query, value);
+      }
+   }
+
+   /**
+    * Fail on an unknown endpoint name, listing what the connector does offer.
+    *
+    * <p>Without this the name simply resolves to no suffix template and the failure surfaces as
+    * "produced no URL suffix", which does not say that the name was wrong. The tags method is
+    * reached by name because the interface declaring it lives in the connector plugin and is not
+    * visible from core; each row it returns is {@code {label, name}}.</p>
+    */
+   private void assertKnownEndpoint(TabularQuery query, String endpoint, String dsName) {
+      String[][] endpoints;
+
+      try {
+         endpoints = (String[][]) query.getClass().getMethod("getEndpoints").invoke(query);
+      }
+      catch(Exception ex) {
+         // Not fatal: a connector without this method still works, and applyEndpointContract's
+         // suffix check catches a bad name — just with a vaguer message.
+         LOG.debug("Could not list endpoints for '{}'; skipping the name check", dsName, ex);
+         return;
+      }
+
+      if(endpoints == null) {
+         return;
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(String[] tag : endpoints) {
+         if(tag != null && tag.length > 1 && tag[1] != null) {
+            names.add(tag[1]);
+         }
+      }
+
+      if(!names.isEmpty() && !names.contains(endpoint)) {
+         List<String> sample = names.stream().sorted().limit(20).toList();
+         throw new IllegalArgumentException(
+            "Data source '" + dsName + "' has no endpoint named '" + endpoint + "'. It has " +
+            names.size() + " endpoint(s), for example: " + String.join(", ", sample) + ".");
+      }
    }
 
    /**
