@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
 import inetsoft.web.graph.model.dialog.*;
 import org.junit.jupiter.api.Tag;
@@ -218,6 +221,133 @@ class ChartRegionPropertyServiceTest {
       assertEquals("y2", listed.get("target"));
    }
 
+   // ── an axis the chart does not have ───────────────────────────────────────
+
+   /**
+    * <b>The phantom axis.</b> {@code ChartArea} builds all four axis areas unconditionally, so
+    * {@code ChartRegionHandler.getAxisArea} hands back an empty shell for {@code y2} on a chart
+    * with no secondary measure — and this service used to describe it with the full y1 property
+    * list. The read is guarded as well as the write, because the read is what talked the caller
+    * into the write.
+    */
+   @Test
+   void refusesToDescribeAnAxisTheChartDoesNotHave() {
+      Harness h = harness(false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "y2", null));
+
+      assertTrue(thrown.getMessage().contains("y2"));
+      assertTrue(thrown.getMessage().contains("x, y"), "name the axes it does have");
+   }
+
+   @Test
+   void refusesToWriteToAnAxisTheChartDoesNotHave() throws Exception {
+      Harness h = harness(false);
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y2", null,
+                             Map.of("logarithmicScale", true), ""));
+
+      verify(h.regions, never()).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+   }
+
+   /** The long alias must not be a way around the check — it reaches the same axis. */
+   @Test
+   void refusesTheLongAliasForAPhantomAxisToo() {
+      Harness h = harness(false);
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "right_y_axis", null));
+   }
+
+   /** An axis title for an axis that is not there is the same fiction, one region over. */
+   @Test
+   void refusesATitleForAnAxisTheChartDoesNotHave() {
+      Harness h = harness(false);
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "title", "y2", null));
+   }
+
+   /**
+    * <b>Found live, 2026-08-20.</b> {@code region: "title", target: "chart"} returned a raw HTTP
+    * 500: {@code TitlesDescriptor} holds only x/x2/y/y2 descriptors, so
+    * {@code ChartRegionHandler.getTitleArea} returns null for "chart" and
+    * {@code RegionPropertyDialogService} dereferences it. The chart's own title is an assembly
+    * property, not a region — so this is a refusal that names where the title actually lives,
+    * against the same clean-refusal standard the rest of this surface meets.
+    */
+   @Test
+   void refusesTheChartTitleAndSaysWhereItActuallyLives() {
+      Harness h = harness(false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "title", "chart", null));
+
+      assertTrue(thrown.getMessage().contains("set_assembly_properties"),
+                 "a refusal has to name the tool that does work");
+   }
+
+   /**
+    * <b>Found live 2026-08-20.</b> A y2 write landed on the primary axis, because
+    * {@code ChartRegionHandler.getChartRef} does not know the short {@code "y2"} form while
+    * {@code getAxisArea} does — so the area resolved, the descriptor did not, and the chain fell
+    * back to the descriptor shared with the primary axis. Both the read and the write have to
+    * send the long form, or they disagree with each other.
+    */
+   @Test
+   void sendsTheLongAxisFormForY2SoTheDescriptorResolves() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      Map<String, Object> listed =
+         h.service.list("tok", principal(), "Chart1", "axis", "y2", null);
+
+      verify(h.regions).getAxisPropertyDialogModel(anyString(), anyString(), eq("right_y_axis"),
+                                                   anyString(), any(), anyString(),
+                                                   any(Principal.class));
+      assertEquals("y2", listed.get("target"), "the caller's own vocabulary comes back unchanged");
+   }
+
+   @Test
+   void theWriteSendsTheSameLongFormAsTheRead() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y2", null,
+                    Map.of("showAxisLabel", false), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), eq("right_y_axis"),
+                                                   anyInt(), any(), any(), anyString(),
+                                                   any(Principal.class), any());
+   }
+
+   /** The primary forms are already understood downstream and must not be rewritten. */
+   @Test
+   void leavesThePrimaryAxisFormsAlone() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.list("tok", principal(), "Chart1", "axis", "y", null);
+
+      verify(h.regions).getAxisPropertyDialogModel(anyString(), anyString(), eq("y"), anyString(),
+                                                   any(), anyString(), any(Principal.class));
+   }
+
    @Test
    void refusesAMissingTarget() {
       Harness h = harness();
@@ -255,8 +385,17 @@ class ChartRegionPropertyServiceTest {
    private record Harness(ChartRegionPropertyService service, RegionPropertyDialogService regions) {}
 
    private static Harness harness() {
+      // The default chart carries a secondary measure, so every pre-existing case that addresses
+      // y2 is still addressing an axis that exists. Pass false for the phantom-axis cases.
+      return harness(true);
+   }
+
+   private static Harness harness(boolean secondaryAxis) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      // Built first: calling viewsheet() inside the when(...) argument is nested stubbing.
+      Viewsheet vs = viewsheet(secondaryAxis);
+      when(rvs.getViewsheet()).thenReturn(vs);
 
       try {
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
@@ -266,6 +405,10 @@ class ChartRegionPropertyServiceTest {
             mutation.run(rvs, "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Read<?> read = invocation.getArgument(2);
+            return read.run(rvs, "rt1", null);
+         }).when(sessions).read(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
@@ -273,6 +416,36 @@ class ChartRegionPropertyServiceTest {
 
       RegionPropertyDialogService regions = mock(RegionPropertyDialogService.class);
       return new Harness(new ChartRegionPropertyService(sessions, regions), regions);
+   }
+
+   /**
+    * A chart bound with a dimension on x and one or two measures on y. A mocked runtime has no
+    * sandbox, so the axis resolver falls back to the binding — which is the point: these tests
+    * pin what the binding implies, and the laid-out graph is the live case's business.
+    */
+   private static Viewsheet viewsheet(boolean secondaryAxis) {
+      // Built before any stubbing: mocking inside a when(...) argument is nested stubbing.
+      VSChartAggregateRef primary = mock(VSChartAggregateRef.class);
+      when(primary.isSecondaryY()).thenReturn(false);
+      ChartRef[] y = new ChartRef[] { primary };
+
+      if(secondaryAxis) {
+         VSChartAggregateRef secondary = mock(VSChartAggregateRef.class);
+         when(secondary.isSecondaryY()).thenReturn(true);
+         y = new ChartRef[] { primary, secondary };
+      }
+
+      ChartRef[] x = new ChartRef[] { mock(VSChartDimensionRef.class) };
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(x);
+      when(info.getYFields()).thenReturn(y);
+      when(info.isInvertedGraph()).thenReturn(false);
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+      return vs;
    }
 
    private static Principal principal() {
