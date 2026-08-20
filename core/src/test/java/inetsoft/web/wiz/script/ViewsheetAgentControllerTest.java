@@ -246,6 +246,52 @@ class ViewsheetAgentControllerTest {
          controller.context(PANE_TOKEN, null, null, "calcField", "Query1", "Margin", agent));
    }
 
+   /*
+    * session() exists specifically so a headless agent client can learn its OWN current scope
+    * without relying on whatever it cached at connect time -- see the endpoint's own javadoc for
+    * why (Follow Focus retargets with no server-to-agent push channel a plain HTTP client can
+    * listen on). This proves it resolves fresh from the live JoinSession on each call, not from
+    * a value captured once.
+    */
+   @Test
+   void sessionReportsTheLiveEditorContextOnEveryCall() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+
+      JoinSession wholeSheet = new JoinSession(PANE_TOKEN, PANE_RUNTIME_ID, "admin",
+         SheetType.VIEWSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, null, null,
+         null, true);
+      when(sessionService.resolve(eq(PANE_TOKEN), eq("admin"))).thenReturn(wholeSheet);
+
+      ViewsheetAgentController controller = new ViewsheetAgentController(feature,
+         mock(SheetJoinService.class), sessionService, mock(ScriptEditService.class),
+         mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptContextService.class), mock(ScriptApiService.class),
+         mock(ScriptImageService.class), mock(ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+      Principal agent = principal();
+
+      ViewsheetAgentController.SessionInfo before = controller.session(PANE_TOKEN, agent);
+      assertNull(before.editorContext());
+      assertTrue(before.followFocusEnabled());
+
+      // Simulate a Follow Focus retarget having happened server-side between two calls on the
+      // SAME token -- the mock stands in for SheetSessionService.retarget's reconstruct-and-
+      // replace, which session() has no way to distinguish from any other resolve().
+      EditorContext pane = new EditorContext("assemblyOnClick", "Chart1", null, null);
+      JoinSession retargeted = new JoinSession(PANE_TOKEN, PANE_RUNTIME_ID, "admin",
+         SheetType.VIEWSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, null, null,
+         pane, true);
+      when(sessionService.resolve(eq(PANE_TOKEN), eq("admin"))).thenReturn(retargeted);
+
+      ViewsheetAgentController.SessionInfo after = controller.session(PANE_TOKEN, agent);
+      assertEquals(pane, after.editorContext(),
+                  "session() must reflect the NEW target with no caching of its own");
+      assertEquals("viewsheet", after.sheetType());
+      assertEquals(PANE_RUNTIME_ID, after.runtimeId());
+   }
+
    @Test
    void imageRefusesACalcFieldFromAWholeSheetSession() throws Exception {
       ViewsheetAgentController controller = wholeSheetController();
