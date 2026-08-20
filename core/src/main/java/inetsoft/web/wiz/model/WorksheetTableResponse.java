@@ -46,6 +46,29 @@ public class WorksheetTableResponse {
     */
    private List<WorksheetColumnInfo> primaryTableFields;
 
+   /**
+    * The shape of the response the endpoint returned — which paths exist and what type each leaf
+    * is, carrying none of the values. Present only for a {@code tabular table}, and only when the
+    * connector reported one.
+    *
+    * <p>Distinct from {@code columns}, and not a duplicate of it. {@code columns} is what the row
+    * path actually produced, flattened; this is the WHOLE response before that path was applied,
+    * nested. A caller reads it to pick {@code jsonPath} (which of the response's arrays holds the
+    * rows) and {@code expandedPath} (which nested array to expand), neither of which the flat
+    * column list can answer.</p>
+    *
+    * <p>Untyped because core does not interpret it: the connector produced it, the caller consumes
+    * it. See {@code TabularQuery.getResponseShape}.</p>
+    */
+   private Object responseSchema;
+
+   /**
+    * True when {@code responseSchema} was cut off by a node or depth cap. Under truncation a path's
+    * absence means "not reached", not "not present" — a consumer that conflates the two will report
+    * a field as nonexistent when it was merely beyond the cap.
+    */
+   private boolean responseSchemaTruncated;
+
    private boolean success;
    private String errorMessage;
 
@@ -61,6 +84,15 @@ public class WorksheetTableResponse {
    public List<WorksheetColumnInfo> getPrimaryTableFields() { return primaryTableFields; }
    public void setPrimaryTableFields(List<WorksheetColumnInfo> primaryTableFields) {
       this.primaryTableFields = primaryTableFields;
+   }
+
+   public Object getResponseSchema() { return responseSchema; }
+   public void setResponseSchema(Object responseSchema) { this.responseSchema = responseSchema; }
+
+   public boolean isResponseSchemaTruncated() { return responseSchemaTruncated; }
+
+   public void setResponseSchemaTruncated(boolean responseSchemaTruncated) {
+      this.responseSchemaTruncated = responseSchemaTruncated;
    }
 
    public boolean isSuccess() { return success; }

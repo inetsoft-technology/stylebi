@@ -327,6 +327,46 @@ public abstract class TabularQuery extends XQuery {
    }
 
    /**
+    * The shape of the response this query's last execution parsed: which paths exist and what type
+    * each leaf is, carrying none of the values.
+    *
+    * <p>A SLOT, not a computation. Core defines it and never fills it, because only the connector
+    * sees a raw response and only the connector knows its format; the JSON connectors distil theirs
+    * with {@code JsonShapeDistiller} (which lives beside the JSON tables, in a module core does not
+    * depend on). Anything absent means the connector does not report a shape, which is the normal
+    * state for most tabular types and never an error.</p>
+    *
+    * <p>It describes ONE EXECUTION, not the query, so it is deliberately not written to XML by
+    * {@link #writeContents} and not read back by {@link #parseContents}. A saved query carries no
+    * shape; running it produces one again.</p>
+    *
+    * <p>Note for anyone tracing why this is null: {@code TabularHandler.execute} runs a CLONE of the
+    * query and only writes back to the original through {@code setOutputColumns}. A shape set by a
+    * runner therefore lands on the clone, and reaches the caller only because that method copies it
+    * across explicitly. Removing that copy makes this silently null on every path.</p>
+    */
+   public Object getResponseShape() {
+      return responseShape;
+   }
+
+   /**
+    * @param shape     the distilled shape, or null to report none.
+    * @param truncated whether a node or depth cap cut the distillation short — a consumer has to
+    *                  tell "this path is not in the response" from "this path was not reached".
+    */
+   public void setResponseShape(Object shape, boolean truncated) {
+      this.responseShape = shape;
+      this.responseShapeTruncated = truncated;
+   }
+
+   /**
+    * Whether {@link #getResponseShape} was cut off by a cap rather than completed.
+    */
+   public boolean isResponseShapeTruncated() {
+      return responseShapeTruncated;
+   }
+
+   /**
     * Copy query properties from an existing query.
     */
    public void copyInfo(TabularQuery query) {
@@ -351,6 +391,10 @@ public abstract class TabularQuery extends XQuery {
    }
 
    private XTypeNode[] cols;
+   // Not cleared in clone(): the clone is what executes, so it is the copy that needs to be able to
+   // record a shape. Deliberately shallow-copied like the rest -- the shape is immutable once set.
+   private Object responseShape;
+   private boolean responseShapeTruncated;
    private Map<String, String> typemap = new HashMap<>();
    private Map<String, String> fmtmap = new HashMap<>();
    private Map<String, String> extentmap = new HashMap<>();
