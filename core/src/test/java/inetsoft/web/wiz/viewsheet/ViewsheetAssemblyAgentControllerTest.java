@@ -18,7 +18,9 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -309,7 +311,11 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           openService,
-                                          mock(LayoutSessionService.class));
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -345,7 +351,11 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
-                                          mock(LayoutSessionService.class));
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -384,7 +394,11 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
-                                          layoutSessionService);
+                                          layoutSessionService,
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
    }
 
    /** Feature enabled, only {@code propertyService} wired -- for the property-trio tests. */
@@ -416,7 +430,11 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
-                                          mock(LayoutSessionService.class));
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
    }
 
    /**
@@ -529,7 +547,191 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
-                                          mock(LayoutSessionService.class));
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Task 6 (layout implementation plan) -- wiring assertions for the eight new
+   // layout endpoints. Each test only checks that the right service is called with the
+   // right arguments for the right path; every hazard/validation behavior is already
+   // covered by that service's own unit tests (Tasks 1-5).
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void listLayoutsDelegatesToTheReadService() throws Exception {
+      LayoutReadService readService = mock(LayoutReadService.class);
+      Map<String, Object> expected = Map.of("layouts", List.of());
+      when(readService.list(eq("tok"), any(Principal.class))).thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         readService, mock(PrintDeviceLayoutPropertyService.class),
+         mock(LayoutMutationService.class), mock(LayoutUndoService.class));
+
+      assertSame(expected, controller.listLayouts("tok", principal()));
+   }
+
+   @Test
+   void getLayoutDelegatesToTheReadService() throws Exception {
+      LayoutReadService readService = mock(LayoutReadService.class);
+      LayoutModel expected = new LayoutModel("Print Layout", "print", null, null, List.of());
+      when(readService.get(eq("tok"), any(Principal.class), eq("Print Layout")))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         readService, mock(PrintDeviceLayoutPropertyService.class),
+         mock(LayoutMutationService.class), mock(LayoutUndoService.class));
+
+      assertSame(expected, controller.getLayout("tok", "Print Layout", principal()));
+   }
+
+   @Test
+   void setPrintLayoutDelegatesToThePropertyService() throws Exception {
+      PrintDeviceLayoutPropertyService propertyService =
+         mock(PrintDeviceLayoutPropertyService.class);
+      Map<String, Object> patch = Map.of("scaleFont", 1.0);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), propertyService, mock(LayoutMutationService.class),
+         mock(LayoutUndoService.class));
+
+      controller.setPrintLayout("tok",
+         new ViewsheetAssemblyAgentController.LayoutPrintPatchRequest(patch), "link",
+         principal());
+
+      verify(propertyService).setPrintLayout(eq("tok"), any(Principal.class), eq(patch),
+                                             eq("link"));
+   }
+
+   @Test
+   void manageDeviceLayoutDelegatesToThePropertyService() throws Exception {
+      PrintDeviceLayoutPropertyService propertyService =
+         mock(PrintDeviceLayoutPropertyService.class);
+      Map<String, Object> patch = Map.of("name", "Phone");
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), propertyService, mock(LayoutMutationService.class),
+         mock(LayoutUndoService.class));
+
+      controller.manageDeviceLayout("tok",
+         new ViewsheetAssemblyAgentController.LayoutDevicePatchRequest("create", patch), "link",
+         principal());
+
+      verify(propertyService).manageDeviceLayout(eq("tok"), any(Principal.class), eq("create"),
+                                                 eq(patch), eq("link"));
+   }
+
+   @Test
+   void editLayoutObjectsDelegatesToTheMutationServiceWithTheContentRegion() throws Exception {
+      LayoutMutationService mutationService = mock(LayoutMutationService.class);
+      Map<String, Object> expected = Map.of("requiresConfirmation", false);
+      List<Map<String, Object>> objects = List.of(Map.of("name", "Text1"));
+      when(mutationService.editObjects(eq("tok"), any(Principal.class), eq("Print Layout"),
+                                       eq("move_resize"), eq(VSLayoutService.CONTENT),
+                                       eq(objects), eq(false)))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), mock(PrintDeviceLayoutPropertyService.class),
+         mutationService, mock(LayoutUndoService.class));
+
+      Map<String, Object> result = controller.editLayoutObjects("tok",
+         new ViewsheetAssemblyAgentController.LayoutObjectsRequest(
+            "Print Layout", "move_resize", objects, null),
+         principal());
+
+      assertSame(expected, result);
+   }
+
+   @Test
+   void setLayoutTableOptionsDelegatesToTheMutationServiceWithTheContentRegion() throws Exception {
+      LayoutMutationService mutationService = mock(LayoutMutationService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), mock(PrintDeviceLayoutPropertyService.class),
+         mutationService, mock(LayoutUndoService.class));
+
+      controller.setLayoutTableOptions("tok",
+         new ViewsheetAssemblyAgentController.LayoutTableOptionsRequest(
+            "Print Layout", "Table1", 1),
+         principal());
+
+      verify(mutationService).setTableLayoutOptions(eq("tok"), any(Principal.class),
+                                                    eq("Print Layout"), eq("Table1"),
+                                                    eq(VSLayoutService.CONTENT), eq(1));
+   }
+
+   @Test
+   void layoutUndoDelegatesToTheUndoService() throws Exception {
+      LayoutUndoService undoService = mock(LayoutUndoService.class);
+      Map<String, Object> expected = Map.of("applied", true);
+      when(undoService.layoutUndo(eq("tok"), any(Principal.class), eq("Print Layout")))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), mock(PrintDeviceLayoutPropertyService.class),
+         mock(LayoutMutationService.class), undoService);
+
+      Map<String, Object> result = controller.layoutUndo("tok",
+         new ViewsheetAssemblyAgentController.LayoutUndoRedoRequest("Print Layout"), principal());
+
+      assertSame(expected, result);
+   }
+
+   @Test
+   void layoutRedoDelegatesToTheUndoService() throws Exception {
+      LayoutUndoService undoService = mock(LayoutUndoService.class);
+      Map<String, Object> expected = Map.of("applied", true);
+      when(undoService.layoutRedo(eq("tok"), any(Principal.class), eq("Print Layout")))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), mock(PrintDeviceLayoutPropertyService.class),
+         mock(LayoutMutationService.class), undoService);
+
+      Map<String, Object> result = controller.layoutRedo("tok",
+         new ViewsheetAssemblyAgentController.LayoutUndoRedoRequest("Print Layout"), principal());
+
+      assertSame(expected, result);
+   }
+
+   /** Feature enabled, only the four Task 6 layout services wired -- for the layout-endpoint tests. */
+   private static ViewsheetAssemblyAgentController controllerWithLayoutServices(
+      LayoutReadService layoutReadService,
+      PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService,
+      LayoutMutationService layoutMutationService, LayoutUndoService layoutUndoService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          layoutReadService, printDeviceLayoutPropertyService,
+                                          layoutMutationService, layoutUndoService);
    }
 
    private static Principal principal() {

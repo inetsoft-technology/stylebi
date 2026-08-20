@@ -18,7 +18,9 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -72,7 +74,11 @@ public class ViewsheetAssemblyAgentController {
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
                                    SheetOpenService openService,
-                                   LayoutSessionService layoutSessionService)
+                                   LayoutSessionService layoutSessionService,
+                                   LayoutReadService layoutReadService,
+                                   PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService,
+                                   LayoutMutationService layoutMutationService,
+                                   LayoutUndoService layoutUndoService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -98,6 +104,10 @@ public class ViewsheetAssemblyAgentController {
       this.broadcast = broadcast;
       this.openService = openService;
       this.layoutSessionService = layoutSessionService;
+      this.layoutReadService = layoutReadService;
+      this.printDeviceLayoutPropertyService = printDeviceLayoutPropertyService;
+      this.layoutMutationService = layoutMutationService;
+      this.layoutUndoService = layoutUndoService;
    }
 
    public record JoinRequest(String code) {}
@@ -755,6 +765,127 @@ public class ViewsheetAssemblyAgentController {
       comparisonService.clear(sessionToken, user, request.assembly(), linkUri);
    }
 
+   // ── Layout: list_layouts, get_layout, set_print_layout, manage_device_layout, ──────────
+   // ── edit_layout_objects, set_layout_table_options, layout_undo, layout_redo ────────────
+   //
+   // Validation and delegation only, exactly like every other family in this file (Global
+   // Constraint 3 of the layout implementation plan) -- every hazard this family exists to
+   // guard against (Hazard 1's preview-clone isolation, Hazard 2's undo-stack-reset-on-switch,
+   // Hazard 3's scaleFont-zero refusal) is handled inside the five services below, never here.
+   //
+   // edit_layout_objects/set_layout_table_options address CONTENT-region objects only -- the
+   // spec never surfaces "region" (header/footer/content) as a caller-facing concept, and
+   // LayoutReadService.get() itself only ever projects VSLayoutService.CONTENT, so this
+   // controller passes that same constant through rather than inventing a region parameter
+   // nothing else in this plugin family exposes.
+
+   /** {@code list_layouts}. */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/list")
+   public Map<String, Object> listLayouts(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return layoutReadService.list(sessionToken, user);
+   }
+
+   /** {@code get_layout}. */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/{layoutName}")
+   public LayoutModel getLayout(@PathVariable String sessionToken,
+                                @PathVariable String layoutName, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return layoutReadService.get(sessionToken, user, layoutName);
+   }
+
+   public record LayoutPrintPatchRequest(Map<String, Object> properties) {}
+
+   /** {@code set_print_layout}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/print")
+   public void setPrintLayout(@PathVariable String sessionToken,
+                              @RequestBody LayoutPrintPatchRequest request,
+                              @RequestParam(required = false, defaultValue = "") String linkUri,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      printDeviceLayoutPropertyService.setPrintLayout(sessionToken, user, request.properties(),
+                                                       linkUri);
+   }
+
+   public record LayoutDevicePatchRequest(String action, Map<String, Object> properties) {}
+
+   /** {@code manage_device_layout}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/device")
+   public void manageDeviceLayout(@PathVariable String sessionToken,
+                                  @RequestBody LayoutDevicePatchRequest request,
+                                  @RequestParam(required = false, defaultValue = "")
+                                  String linkUri,
+                                  Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      printDeviceLayoutPropertyService.manageDeviceLayout(sessionToken, user, request.action(),
+                                                           request.properties(), linkUri);
+   }
+
+   public record LayoutObjectsRequest(String layoutName, String op,
+                                      List<Map<String, Object>> objects, Boolean confirmed) {}
+
+   /** {@code edit_layout_objects}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/objects")
+   public Map<String, Object> editLayoutObjects(@PathVariable String sessionToken,
+                                                @RequestBody LayoutObjectsRequest request,
+                                                Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return layoutMutationService.editObjects(sessionToken, user, request.layoutName(),
+                                               request.op(), VSLayoutService.CONTENT,
+                                               request.objects(),
+                                               Boolean.TRUE.equals(request.confirmed()));
+   }
+
+   public record LayoutTableOptionsRequest(String layoutName, String objectName,
+                                           int tableLayout) {}
+
+   /** {@code set_layout_table_options}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/table-options")
+   public void setLayoutTableOptions(@PathVariable String sessionToken,
+                                     @RequestBody LayoutTableOptionsRequest request,
+                                     Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      layoutMutationService.setTableLayoutOptions(sessionToken, user, request.layoutName(),
+                                                  request.objectName(), VSLayoutService.CONTENT,
+                                                  request.tableLayout());
+   }
+
+   public record LayoutUndoRedoRequest(String layoutName) {}
+
+   /** {@code layout_undo}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/undo")
+   public Map<String, Object> layoutUndo(@PathVariable String sessionToken,
+                                         @RequestBody LayoutUndoRedoRequest request,
+                                         Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return layoutUndoService.layoutUndo(sessionToken, user, request.layoutName());
+   }
+
+   /** {@code layout_redo}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/redo")
+   public Map<String, Object> layoutRedo(@PathVariable String sessionToken,
+                                         @RequestBody LayoutUndoRedoRequest request,
+                                         Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return layoutUndoService.layoutRedo(sessionToken, user, request.layoutName());
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
       requireEnabled();
@@ -895,4 +1026,8 @@ public class ViewsheetAssemblyAgentController {
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
    private final LayoutSessionService layoutSessionService;
+   private final LayoutReadService layoutReadService;
+   private final PrintDeviceLayoutPropertyService printDeviceLayoutPropertyService;
+   private final LayoutMutationService layoutMutationService;
+   private final LayoutUndoService layoutUndoService;
 }
