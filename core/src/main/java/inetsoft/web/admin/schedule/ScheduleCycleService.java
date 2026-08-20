@@ -152,7 +152,7 @@ public class ScheduleCycleService {
 
       return builder
          .timeProp(timeProp.trim())
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
+         .twelveHourSystem(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours")))
          .build();
    }
 
