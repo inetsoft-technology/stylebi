@@ -89,9 +89,12 @@ public class LayoutSessionService {
 
    /**
     * Resolves the preview-clone runtime for {@code layoutName}, minting or reusing it exactly as
-    * {@link #mutateLayout} would, but without touching the master's layout undo/redo stack -- a
-    * read must not create an undo step, or a caller that only ever calls {@code get_layout} would
-    * see one appear from nowhere.
+    * {@link #mutateLayout} would. A read never seeds a new baseline checkpoint itself (that would
+    * make an undo step "appear from nowhere" for a caller that only ever calls {@code get_layout}),
+    * but if resolving this read causes a genuine switch away from whatever layout (or lack of one)
+    * was previously focused for this token, the master's layout undo/redo stack is still reset to
+    * empty first -- see {@link #resolveClone}'s doc for why a read-triggered switch must reset the
+    * stack just as a mutation-triggered one does, even though it must not go on to seed it.
     */
    public RuntimeViewsheet resolveForRead(String sessionToken, Principal agent, String layoutName)
       throws PairingException
@@ -108,6 +111,29 @@ public class LayoutSessionService {
          throw new IllegalStateException(
             "Failed to resolve layout \"" + layoutName + "\" for reading", e);
       }
+   }
+
+   /**
+    * Focuses the preview-clone runtime for {@code layoutName} -- mints, reuses, or switches
+    * exactly as {@link #mutateLayout} does before running its mutation, including the
+    * reset-and-seed-baseline effect a genuine switch has on the master's layout undo/redo stack --
+    * without running any mutation of its own.
+    *
+    * <p>This plugin has no {@code RuntimeViewsheetRef.getFocusedLayoutName()} equivalent: the
+    * interactive Composer's {@code layoutUndo}/{@code layoutRedo} trust the client's own focused
+    * tab and never themselves cause a layout switch, but this plugin's {@code layout_undo}/
+    * {@code layout_redo} tools take an explicit {@code layoutName} argument on every call instead,
+    * so they must (re-)establish focus on that layout -- via this method -- before consulting the
+    * master's undo stack, rather than trusting whatever layout that stack happens to still reflect
+    * from a previous, unrelated call. Calling this when {@code layoutName} is already focused is a
+    * pure no-op read (the early-return branch in {@link #resolveClone} short-circuits before the
+    * reset/seed logic runs at all), so a normal "undo the edit I just made" call pays no extra cost.
+    */
+   public RuntimeViewsheet focusLayout(String sessionToken, Principal agent, String layoutName)
+      throws Exception
+   {
+      RuntimeViewsheet master = viewsheetSessions.resolve(sessionToken, agent);
+      return resolveClone(sessionToken, agent, master, layoutName, true).cloneRvs();
    }
 
    /**
@@ -148,10 +174,18 @@ public class LayoutSessionService {
     * otherwise flushes whatever clone WAS active for this token (a genuine switch, including the
     * very first mint, which "switches" away from no clone at all) and mints a fresh one.
     *
-    * <p>{@code checkpoint} is {@code false} for {@link #resolveForRead} -- a read must mint/reuse
-    * the same way a mutation would (so a read against a freshly-switched-to layout doesn't see
-    * stale content), but must not reset or seed the master's layout undo/redo stack, which is an
-    * editing concept.
+    * <p>Every genuine switch resets the master's layout undo/redo stack unconditionally --
+    * {@code layoutPoints} is one flat list per runtime, not one per layout (Hazard 2), so leaving
+    * it as-is across a switch would let a caller "undo" into a checkpoint that belongs to whatever
+    * layout was previously focused, or -- worse -- hand a {@code PrintLayout} checkpoint to
+    * {@code updateVSLayouts} for a {@code ViewsheetLayout} name and blow up with a
+    * {@code ClassCastException}. {@code checkpoint} only controls whether a fresh <em>baseline</em>
+    * is then seeded ({@code addLayoutCheckPoint}): {@link #resolveForRead} (checkpoint {@code
+    * false}) must not create an undo step of its own (a caller that only ever calls
+    * {@code get_layout} should never see one appear from nowhere), so after the reset it leaves the
+    * stack genuinely empty ({@code getLayoutPointsSize() == 0}) -- which is still exactly right for
+    * {@code layout_undo}/{@code layout_redo} to treat as "nothing to undo yet" the next time this
+    * layout is focused for editing.
     */
    private Resolved resolveClone(String sessionToken, Principal agent, RuntimeViewsheet master,
                                   String layoutName, boolean checkpoint) throws Exception
@@ -185,8 +219,11 @@ public class LayoutSessionService {
       layoutClone.setScaleFont(1);
       clone.setViewsheet(layoutClone.apply(clone.getViewsheet()));
 
+      // Unconditional: see the class doc above for why a read-triggered switch must reset the
+      // stack too, even though (per checkpoint) it must not go on to seed a baseline.
+      master.resetLayoutUndoRedo();
+
       if(checkpoint) {
-         master.resetLayoutUndoRedo();
          master.addLayoutCheckPoint(layoutClone);
       }
 

@@ -186,6 +186,38 @@ class LayoutSessionServiceTest {
       verify(fx.viewsheetService, never()).flushRuntimeSheet(cloneIdTok2);
    }
 
+   /**
+    * A read-triggered switch (the shape {@code LayoutReadService.get} produces via
+    * {@link LayoutSessionService#resolveForRead}) must reset the master's layout undo/redo stack
+    * just as a mutation-triggered switch does -- otherwise a later {@code layout_undo}/
+    * {@code layout_redo} call on the newly-focused layout would consult stale checkpoints that
+    * belong to whatever layout was previously focused (Hazard 2), and -- for a switch between a
+    * print layout and a device layout specifically -- {@code updateVSLayouts} would try to cast a
+    * stale {@code PrintLayout} checkpoint to {@code ViewsheetLayout} (or vice versa) and throw
+    * {@code ClassCastException}. {@code resolveForRead} must NOT go on to seed a fresh baseline
+    * checkpoint the way a mutation-triggered switch does, though -- a read must never manufacture
+    * an undo step of its own.
+    */
+   @Test
+   void aReadTriggeredSwitchResetsTheUndoStackWithoutSeedingABaseline() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installNamedLayout("A");
+      fx.installNamedLayout("B");
+
+      fx.service.mutateLayout("tok1", AGENT, "A", (clone, master, cloneRuntimeId, dispatcher) -> {});
+      assertEquals(2, fx.masterRvs.getLayoutPointsSize(),
+                   "sanity check: mint seeds one baseline, then mutateLayout's own " +
+                   "makeUndoable call always appends a second checkpoint after the mutation runs");
+
+      RuntimeViewsheet cloneB = fx.service.resolveForRead("tok1", AGENT, "B");
+
+      assertNotNull(cloneB);
+      assertEquals(0, fx.masterRvs.getLayoutPointsSize(),
+                   "a read-triggered switch to B must reset the stack, not merely leave A's " +
+                   "checkpoint in place");
+      assertEquals(-1, fx.masterRvs.getLayoutPoint());
+   }
+
    /** An unknown layout name fails loud, before any clone is minted or cached. */
    @Test
    void mutateLayoutOnAnUnknownLayoutNameFailsLoud() throws Exception {
