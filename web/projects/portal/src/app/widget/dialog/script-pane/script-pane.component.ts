@@ -121,6 +121,21 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
     *  when it opened, must not send a spurious pop when it closes. */
    private followFocusPushed = false;
 
+   /**
+    * The exact `editorContext` value this pane actually pushed in `ngOnInit`, captured once and
+    * reused in `ngOnDestroy` -- NOT re-read live from `this.editorContext` at pop time.
+    *
+    * `editorContext` is an `@Input()` bound from `ViewsheetScriptPane.editorContext`, a getter
+    * derived from `initScriptVisible`, a flag the user flips via the onInit/onRefresh radio
+    * buttons on the SAME persistent `<script-pane>` instance (no `*ngIf` recreation). So opening
+    * this pane on the onInit tab, switching to onRefresh, then closing pushes `viewsheetOnInit`
+    * but would pop `viewsheetOnLoad` if `ngOnDestroy` re-read the live input -- tripping
+    * `FollowFocusService.popFocus`'s stack-integrity check for entirely normal tab-switching.
+    * Same `mintedEditorContext` pattern `ConnectToClaudeComponent` already uses for the identical
+    * live-getter-at-a-later-time hazard.
+    */
+   private pushedEditorContext: EditorContext | null = null;
+
    @Input()
    set expression(value: string) {
       this._expression = value;
@@ -254,8 +269,16 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       // already-live session's target here for the duration this pane is open. A no-op when
       // Follow Focus is off, or when this pane has no runtime/socket/location to push to.
       if(this.runtimeId && this.socketConnection && this.editorContext) {
+         // Read ONCE, here, and carry this exact value through to ngOnDestroy -- see
+         // pushedEditorContext's doc. The live this.editorContext getter can disagree with this
+         // by the time the pane closes.
+         const pushedContext = this.editorContext;
          this.followFocusPushed = this.followFocusService.pushFocus(
-            this.runtimeId, this.socketConnection, this.editorContext);
+            this.runtimeId, this.socketConnection, pushedContext);
+
+         if(this.followFocusPushed) {
+            this.pushedEditorContext = pushedContext;
+         }
       }
    }
 
@@ -311,7 +334,9 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       // when ngOnInit's pushFocus actually took effect -- a pane that opened with Follow Focus
       // off owes no pop.
       if(this.followFocusPushed) {
-         this.followFocusService.popFocus(this.runtimeId, this.socketConnection, this.editorContext);
+         // pushedEditorContext, not the live this.editorContext -- see its doc.
+         this.followFocusService.popFocus(
+            this.runtimeId, this.socketConnection, this.pushedEditorContext);
       }
    }
 

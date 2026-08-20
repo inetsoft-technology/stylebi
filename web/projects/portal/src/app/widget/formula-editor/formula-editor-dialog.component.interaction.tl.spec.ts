@@ -438,6 +438,34 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
             { kind: "calcField", assembly: "Query1", name: "Margin" });
       });
 
+      /*
+       * The bug the automated review on stylebi#4683 found: `editorContext`'s getter derives
+       * from `formulaName`, which the form binds/updates while this dialog is open (renaming a
+       * calc field). Simulated here by mutating comp.formulaName directly between ngOnInit and
+       * ngOnDestroy, exactly as the form would on a rename.
+       */
+      it("pops with the ORIGINALLY PUSHED name, not whatever formulaName was renamed to " +
+         "before close (mid-edit rename hazard)", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "OldName";
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+
+         // Simulates the form renaming the calc field mid-edit -- the exact hazard the review
+         // flagged, since editorContext's getter re-derives from this field live.
+         comp.formulaName = "NewName";
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection,
+            { kind: "calcField", assembly: "Query1", name: "OldName" });
+      });
+
       it("does not pop on ngOnDestroy when Follow Focus was off at open (no push happened)", () => {
          const { comp, followFocusService } = createDialog();
          comp.runtimeId = "vs-1";
