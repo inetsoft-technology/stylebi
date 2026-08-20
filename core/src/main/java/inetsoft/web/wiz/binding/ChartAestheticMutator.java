@@ -23,7 +23,9 @@ import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -132,6 +134,45 @@ public final class ChartAestheticMutator {
       }
 
       return out;
+   }
+
+   /**
+    * The field channels currently holding a binding, in vocabulary order.
+    *
+    * <p>Lives here, not in the caller that needs it: the 2b/2c ownership split declared in
+    * {@link ChartBindingFields} gives these properties one reader, so a check elsewhere that kept
+    * its own list of channels would drift from {@link #assign} the first time one is added. A
+    * chart can be bound entirely through a channel — a word cloud is nothing but a text channel —
+    * and {@code VSAssemblyInfoHandler.validateAestheticFields} deletes exactly these when a chart
+    * is repointed, so anything asking "would this repoint discard fields?" has to count them.
+    *
+    * <p>Node channels are counted whatever the chart type. They only render on a relation chart,
+    * but a non-null one is still a binding a repoint would delete, and the read cannot invent one:
+    * {@code ChartAestheticService} populates them only for a {@code RelationChartInfo}.
+    *
+    * <p>A non-null {@code AestheticInfo} <em>is</em> the binding: the read path
+    * {@code AestheticRefModelFactory.createAestheticInfo} returns null for an absent
+    * {@code AestheticRef} rather than an empty wrapper. Counting the wrapper rather than the field
+    * name it resolves to is deliberate — a wrapper whose name cannot be read is still something
+    * the user bound, and over-reporting here costs a caller one {@code force}, while
+    * under-reporting costs them the binding.
+    */
+   public static List<String> boundFieldChannels(ChartBindingModel model) {
+      List<String> bound = new ArrayList<>();
+
+      for(String channel : AestheticChannels.FIELD_CHANNELS) {
+         if(read(model, channel) != null) {
+            bound.add(channel);
+         }
+      }
+
+      for(String channel : AestheticChannels.NODE_CHANNELS) {
+         if(read(model, channel) != null) {
+            bound.add(channel);
+         }
+      }
+
+      return bound;
    }
 
    private static boolean acceptsField(String channel) {

@@ -31,6 +31,7 @@ import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -155,10 +156,22 @@ public class ChartBindingService {
    /**
     * Refuses to discard bound fields.
     *
-    * <p>Counts <b>all thirteen</b> places a chart keeps fields, not just x/y/group. A candlestick's
-    * entire binding lives on the single-field shelves with x and y empty, so a check that looked
-    * only at the three lists would report "nothing bound" and repoint without asking — silently
-    * discarding the whole binding of exactly the chart types whose binding is hardest to rebuild.
+    * <p>Counts <b>every</b> place a chart keeps a field, not just x/y/group: the three list
+    * shelves, the ten single-field shelves, the six aesthetic channels, and a map's geo fields.
+    * Each of those is a binding {@code VSAssemblyInfoHandler.validateChartColumns} deletes when a
+    * chart is repointed — it clears the shelves, then {@code validateAestheticFields} clears
+    * colour/shape/size/text and a relation chart's node channels, and {@code VSMapInfo}'s geo
+    * fields alongside them. A check that read fewer of them would report "nothing bound" for a
+    * chart that is fully bound and repoint without asking:
+    *
+    * <ul>
+    *   <li>A candlestick's entire binding lives on the single-field shelves, x and y empty.</li>
+    *   <li>A word cloud is nothing but a text channel — every shelf empty.</li>
+    *   <li>A map keeps its geography on {@code geoFields}, which is no shelf at all.</li>
+    * </ul>
+    *
+    * <p>Those are the chart types whose binding is hardest to rebuild, so they are the worst ones
+    * to discard silently.
     */
    private static void requireNoBoundFields(ChartBindingModel model, String assemblyName,
                                             String table)
@@ -177,6 +190,19 @@ public class ChartBindingService {
          if(ChartBindingMutator.readSingleShelf(model, shelf) != null) {
             populated.add(shelf);
          }
+      }
+
+      // Named as channels rather than shelves because that is the vocabulary the caller binds
+      // them with: set_aesthetic_field takes a channel, so a refusal reporting "color" tells it
+      // which call to undo.
+      for(String channel : ChartAestheticMutator.boundFieldChannels(model)) {
+         populated.add(channel + " channel");
+      }
+
+      List<ChartRefModel> geoFields = model.getGeoFields();
+
+      if(geoFields != null && !geoFields.isEmpty()) {
+         populated.add(geoFields.size() + " on geo");
       }
 
       if(!populated.isEmpty()) {

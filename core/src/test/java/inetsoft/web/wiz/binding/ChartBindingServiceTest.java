@@ -301,6 +301,116 @@ class ChartBindingServiceTest {
       assertTrue(thrown.getMessage().contains("force"));
    }
 
+   /**
+    * The aesthetic half: a chart can be bound entirely through a channel, with every shelf empty.
+    *
+    * <p>A word cloud is nothing but a text channel. {@code validateAestheticFields} clears exactly
+    * these on a repoint, so a check that read only the shelves would report "nothing bound" for a
+    * fully bound chart and discard its one binding without asking.
+    */
+   @Test
+   void setSourceCountsTheAestheticChannelsNotJustTheShelves() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"), "name the way through");
+      assertTrue(thrown.getMessage().contains("text"), "name which channel would be lost");
+   }
+
+   /**
+    * A relation chart's node channels are the same story on a second pair of properties, and
+    * {@code validateAestheticFields} clears them too.
+    */
+   @Test
+   void setSourceCountsARelationChartsNodeChannels() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "node-color",
+                                     new FieldRef("Region", "dimension", null, null, null), true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"));
+      assertTrue(thrown.getMessage().contains("node-color"));
+   }
+
+   /**
+    * A map keeps its geography on {@code geoFields}, which is no shelf and no channel —
+    * {@code validateChartColumns} removes those on a repoint alongside everything else.
+    */
+   @Test
+   void setSourceCountsAMapsGeoFields() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setGeoFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"));
+      assertTrue(thrown.getMessage().contains("geo"));
+   }
+
+   /** An aesthetic-only binding is discardable on the same terms as a shelf one: with force. */
+   @Test
+   void setSourceProceedsWhenForcedOverAnAestheticOnlyBinding() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChartAestheticMutator.setField(existing, "text",
+                                     new FieldRef("Product", "dimension", null, null, null));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", true, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      ChartBindingModel posted = captor.getValue().getModel();
+      assertEquals("ORDER_DETAILS1", posted.getSource().getSource());
+      assertNotNull(posted.getTextField(),
+                    "the repoint must not clear the channel itself — validateChartColumns " +
+                    "decides what survives, this write only moves the source");
+   }
+
+   /**
+    * A chart with no binding at all still repoints without {@code force} — the check must not
+    * become "anything non-null anywhere", or the very case {@code set_chart_source} exists for
+    * (a fresh chart that has no source yet) would be refused.
+    */
+   @Test
+   void setSourceOnAnUnboundChartNeedsNoForce() throws Exception {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, "");
+
+      verify(refs).changeChartRef(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
    @Test
    void setSourceProceedsWhenForced() throws Exception {
       ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
