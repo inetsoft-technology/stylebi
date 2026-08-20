@@ -71,8 +71,8 @@ export function isAnchoredAssemblyType(objectType: string): boolean {
  * cannot drift apart; both are TEMPORARY and are deleted together with this predicate (see
  * ANCHORED_ASSEMBLY_TYPES above).
  */
-export function isAnchoredResident(objectType: string): boolean {
-   return GuiTool.isVizModern() && GuiTool.isVizDensityAtLeastCompact() &&
+export function isAnchoredResident(objectType: string, vizModern: boolean): boolean {
+   return vizModern && GuiTool.isVizDensityAtLeastCompact() &&
       isAnchoredAssemblyType(objectType);
 }
 
@@ -87,8 +87,8 @@ export function isAnchoredResident(objectType: string): boolean {
  * Deliberately a separate predicate rather than !isAnchoredResident: that would be true for every
  * non-anchored type and gate-off, stripping toolbars users have today.
  */
-export function isAnchoredChromeSuppressed(objectType: string): boolean {
-   return GuiTool.isVizModern() && !GuiTool.isVizDensityAtLeastCompact() &&
+export function isAnchoredChromeSuppressed(objectType: string, vizModern: boolean): boolean {
+   return vizModern && !GuiTool.isVizDensityAtLeastCompact() &&
       isAnchoredAssemblyType(objectType);
 }
 

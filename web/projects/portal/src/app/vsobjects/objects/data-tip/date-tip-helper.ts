@@ -40,7 +40,7 @@ const POP_UP_CONTENT_MAX_ZINDEX = 999899;
 
 export class DateTipHelper {
    public static get popDimColor() {
-      return GuiTool.isVizModern() ? POP_DIM_COLOR_MODERN : POP_DIM_COLOR;
+      return GuiTool.isVizShell() ? POP_DIM_COLOR_MODERN : POP_DIM_COLOR;
    }
 
    public static getPopUpBackgroundZIndex(): number {

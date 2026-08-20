@@ -59,19 +59,15 @@ function setShowingActions(comp: MiniToolbar, groups: AssemblyActionGroup[]): vo
 }
 
 describe("MiniToolbar.topY", () => {
-   afterEach(() => {
-      document.body.classList.remove("viz-modern");
-   });
-
    it("positions the toolbar 28px above the object when the gate is off", () => {
       const comp = makeToolbar();
       comp.top = 100;
       expect(comp.topY).toBe(72); // 100 - 28 - 0
    });
 
-   it("positions the toolbar 24px above the object under .viz-modern", () => {
-      document.body.classList.add("viz-modern");
+   it("positions the toolbar 24px above the object under the assembly's own vizModern", () => {
       const comp = makeToolbar();
+      comp.actions = { getModel: () => ({ vizModern: true }) } as any;
       comp.top = 100;
       expect(comp.topY).toBe(76); // 100 - 24 - 0
    });
@@ -105,8 +101,8 @@ describe("MiniToolbar.topY", () => {
    });
 
    it("floors at the origin under the gate too", () => {
-      document.body.classList.add("viz-modern");
       const comp = makeToolbar();
+      comp.actions = { getModel: () => ({ vizModern: true }) } as any;
       comp.top = 0;
       comp.forceAbove = true;
 

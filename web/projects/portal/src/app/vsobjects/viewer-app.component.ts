@@ -2807,7 +2807,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(!this.inPortal) {
          const body: HTMLElement = this.document.body;
          const modern: boolean = !!this.modernVisualization;
-         body.classList.toggle("viz-modern", modern);
+         // Org-level shell state only. Assembly chrome keys off "viz-modern" on the
+         // assembly's own wrapper, not on this body class.
+         body.classList.toggle("viz-shell", modern);
          body.classList.remove(
             "viz-density-comfortable", "viz-density-compact", "viz-density-dense");
 
@@ -2815,7 +2817,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             body.classList.add(`viz-density-${this.vizDensity}`);
          }
 
-         body.classList.toggle("viz-dark", modern && this.darkMode);
+         body.classList.toggle("viz-shell-dark", modern && this.darkMode);
       }
 
       this.pageTabService.updateTabLabel(this.assetId, this.name);

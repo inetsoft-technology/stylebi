@@ -91,10 +91,11 @@
 }
 
 // The resident strip is visible at rest so its kebab can render, take focus and be tapped. The
-// class is set by kebabResident, which is already isVizModern() && the anchored set (either
-// geometrically anchored, or — off that path, on touch only — carrying the design without a lane
-// to anchor into), so it carries the gate and the set condition on its own — no separate
-// .viz-modern scope needed here.
+// class is set by kebabResident, whose anchorInTitleLane/residentKebab inputs are already gated
+// on the per-assembly vizModern read upstream (see VSObjectContainer.isKebabResident) && the
+// anchored set (either geometrically anchored, or — off that path, on touch only — carrying the
+// design without a lane to anchor into), so it carries the gate and the set condition on its own
+// — no separate .viz-modern scope needed here.
 .mini-toolbar.mini-toolbar--anchored {
   visibility: visible;
 }

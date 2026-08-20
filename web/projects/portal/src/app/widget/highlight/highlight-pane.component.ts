@@ -32,7 +32,6 @@ import { AddHighlightDialog } from "./add-highlight-dialog.component";
 import { FontInfo } from "../../common/data/format-info-model";
 import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
-import { GuiTool } from "../../common/util/gui-tool";
 import { JunctionOperatorPipe } from "../condition/junction-operator.pipe";
 import { ConditionPipe } from "../condition/condition.pipe";
 import { FormsModule } from "@angular/forms";
@@ -71,7 +70,7 @@ export class HighlightPane implements OnInit {
 
    // Modern semantic presets: non-chart highlights only (charts have no background), modern gate only.
    get showSemanticPresets(): boolean {
-      return !!this.model && !this.model.chartAssembly && GuiTool.isVizModern();
+      return !!this.model && !this.model.chartAssembly && this.model.vizModern;
    }
 
    applyPreset(preset: SemanticPreset): void {

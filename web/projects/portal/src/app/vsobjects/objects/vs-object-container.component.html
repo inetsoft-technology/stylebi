@@ -42,6 +42,8 @@
         class="vs-object-parent-container"
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
+        [class.viz-modern]="vsObject.vizModern"
+        [class.viz-dark]="vsObject.vizDark"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
         [style.z-index]="getContainerZIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
@@ -340,6 +342,8 @@
       @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled) {
         <mini-toolbar
           VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
+          [class.viz-modern]="vsObject.vizModern"
+          [class.viz-dark]="vsObject.vizDark"
           VSPopComponent [popComponentName]="vsObject.absoluteName"
           [popContainerName]="vsObject.container"
           [containerBounds]="containerBounds"
@@ -389,6 +393,8 @@
       !$any(vsObject).maxMode && !!$any(vsObject).plot) {
       <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+        [class.viz-modern]="vsObject.vizModern"
+        [class.viz-dark]="vsObject.vizDark"
         style="position: absolute;">
         @for (ann of getChartDataAnnotations(vsObject); track ann.absoluteName) {
           <vs-annotation

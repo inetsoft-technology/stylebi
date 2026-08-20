@@ -772,6 +772,9 @@ export namespace ChartTool {
     * @param offsetY the distance this context is shifted from its origin.
     * @param areaName the area being drawn, used to decide whether the selection is chrome
     *                 (stroke only) or data (stroke plus fill). Omitted means data.
+    * @param vizModern the drawn assembly's own resolved modern-visualization mark; not the org
+    *                  gate. Defaults to false so callers that have not reached a model yet keep
+    *                  the legacy fill.
     *
     * @throws        TypeError if the context or regions are null
     */
@@ -779,7 +782,8 @@ export namespace ChartTool {
                                offsetX: number, offsetY: number, currentScale?: number,
                                scaleX?: number, scaleY?: number,
                                drawReferLine: boolean = false,
-                               areaName: ChartAreaName = null): void
+                               areaName: ChartAreaName = null,
+                               vizModern: boolean = false): void
    {
       if(context && regions) {
          let deviceRatio = window.devicePixelRatio;
@@ -852,7 +856,7 @@ export namespace ChartTool {
          // without covering the labels the user selected the axis in order to read, and it does not
          // scale its weight with the size of the band. Data selections keep the fill — marking
          // values is what a fill is for. Gate-off keeps the old behaviour for both.
-         const strokeOnly = GuiTool.isVizModern() && ChartTool.isChromeArea(areaName);
+         const strokeOnly = vizModern && ChartTool.isChromeArea(areaName);
 
          const dregions = Tool.clone(regions);
 
@@ -1109,11 +1113,14 @@ export namespace ChartTool {
    // draw a plus at the point (x, y), and clears it after a slight delay.
    // this helps user orient where the touch is registered and can adjust accordingly to
    // tap the correct spot.
-   export function drawTouch(context: CanvasRenderingContext2D, x: number, y: number) {
+   // vizModern is the drawn assembly's own resolved modern-visualization mark, not the org gate.
+   export function drawTouch(context: CanvasRenderingContext2D, x: number, y: number,
+                             vizModern: boolean)
+   {
       if(context) {
          context.lineWidth = 2;
          // an empty getPropertyValue would be ignored by the canvas, leaving the last colour set
-         context.strokeStyle = GuiTool.isVizModern()
+         context.strokeStyle = vizModern
             ? getComputedStyle(document.documentElement)
                  .getPropertyValue("--inet-primary-color").trim() || "#E58A2A"
             : "#dc581e";

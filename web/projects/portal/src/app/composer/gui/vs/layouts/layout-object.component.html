@@ -70,6 +70,8 @@
   @if (model.objectModel) {
     <div
       class="object-container"
+      [class.viz-modern]="model.objectModel.vizModern"
+      [class.viz-dark]="model.objectModel.vizDark"
       [class.txt-primary]="isTabLineOrCalendar() && isSearchFocus"
       [class.search-result]="isTabLineOrCalendar() && isSearchFocus"
       [class.object]="isTabLineOrCalendar()"
@@ -215,6 +217,8 @@
 @for (childModel of model.childModels; track childModel.absoluteName) {
   <div [class.search-no-match]="searchMode && !isSearchResults">
     <div class="object child-object"
+      [class.viz-modern]="childModel.vizModern"
+      [class.viz-dark]="childModel.vizDark"
       [style.left.px]="childModel.objectFormat.left"
       [style.top.px]=" childModel.objectFormat.top"
       [style.min-width.px]="childModel.objectFormat.width"
@@ -330,6 +334,8 @@
     @if (childModel && childModel.objectType == 'VSSelectionContainer' && (childModel.outerSelections || childModel.childObjects)) {
       <vs-selection-container-children
         class="selection-children"
+        [class.viz-modern]="childModel.vizModern"
+        [class.viz-dark]="childModel.vizDark"
         [style.z-index]="childModel.objectFormat.zIndex"
         [vsObject]="childModel"
         [style.display]="(childModel.active && searchVisible) ? null : 'none'">
@@ -340,6 +346,8 @@
 @if (showSelectionChildren) {
   <vs-selection-container-children
     class="selection-children"
+    [class.viz-modern]="model.objectModel.vizModern"
+    [class.viz-dark]="model.objectModel.vizDark"
     [style.z-index]="model.objectModel.objectFormat.zIndex"
     [vsObject]="model.objectModel"
     [style.display]="(model.objectModel.active && searchVisible) ? null : 'none'">
