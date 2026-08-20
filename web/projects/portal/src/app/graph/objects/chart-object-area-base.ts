@@ -155,10 +155,14 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
          }, []);
 
          // draw the region after convas is updated in case size changed.
+         // this.model is typed ChartModel, but VSChartModel extends VSObjectModel, ChartModel, so
+         // on the viewsheet path it always carries vizModern too; the cast mirrors the established
+         // idiom this file already uses for the same situation (sheetMaxMode below).
          setTimeout(() => ChartTool.drawRegions(this.getContext(), regions, this.canvasX,
                                                 this.canvasY, this.viewsheetScale, undefined,
                                                 undefined, false,
-                                                this._chartObject.areaName), 0);
+                                                this._chartObject.areaName,
+                                                (<any> this.model)?.vizModern), 0);
       }
    }
 

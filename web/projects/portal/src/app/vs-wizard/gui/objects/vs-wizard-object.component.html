@@ -28,6 +28,8 @@ has z-index 1000 and up. -->
 
 <div class="wizard-object-container object-editor wizard-object-editor"
   [id]="vsObject.absoluteName"
+  [class.viz-modern]="vsObject.vizModern"
+  [class.viz-dark]="vsObject.vizDark"
   [class.follow-object]="willFollow"
   [style.left.px]="vsObject.objectFormat.left"
   [style.top.px]="vsObject.objectFormat.top"
@@ -128,6 +130,9 @@ has z-index 1000 and up. -->
 </div>
 @if (isVSWizardObject()) {
   <mini-toolbar [miniToolbarActions]="miniToolbarActions" [forceAbove]="true"
+    [vizModern]="vsObject.vizModern"
+    [class.viz-modern]="vsObject.vizModern"
+    [class.viz-dark]="vsObject.vizDark"
     [top]="vsObject.objectFormat.top" [left]="vsObject.objectFormat.left"
     [width]="vsObject.objectFormat.width">
   </mini-toolbar>

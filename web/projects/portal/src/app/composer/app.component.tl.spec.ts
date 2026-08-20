@@ -39,7 +39,7 @@
  *                        resizeHandlerService.initListeners() called on init
  *   Group 7 [baseline] — constructor: ngbDatepickerConfig.minDate/maxDate set to 1900/2099 range
  *   Group 8 [baseline] — downloadStarted: opens info dialog via ComponentTool.showMessageDialog
- *   Group 9 [Risk 2]  — ngOnInit: PortalModel fetch drives viz-modern/viz-density body classes;
+ *   Group 9 [Risk 2]  — ngOnInit: PortalModel fetch drives viz-shell/viz-density body classes;
  *                        modern off → no classes; unrecognized density value ignored
  *
  * Out of scope this pass: none (single pass)
@@ -132,7 +132,7 @@ afterEach(() => {
    vi.restoreAllMocks();
    document.body.className = document.body.className
       .replace(/\bapp-loaded\b/g, "")
-      .replace(/\bviz-modern\b/g, "")
+      .replace(/\bviz-shell(-dark)?\b/g, "")
       .replace(/\bviz-density-\w+\b/g, "")
       .trim();
 });
@@ -324,23 +324,23 @@ describe("ComposerAppComponent — downloadStarted", () => {
 
 describe("ComposerAppComponent — visualization mode", () => {
    // 🔁 Regression-sensitive: composer dialogs (e.g. hyperlink params list) render at legacy
-   // density unless the composer body carries the same viz-modern/viz-density classes as the portal.
-   it("should apply viz-modern and viz-density-<mode> when modern is on", async () => {
+   // density unless the composer body carries the same viz-shell/viz-density classes as the portal.
+   it("should apply viz-shell and viz-density-<mode> when modern is on", async () => {
       await renderComponent({ portalModel: { modernVisualization: true, vizDensity: "comfortable" } });
-      expect(document.body.classList.contains("viz-modern")).toBe(true);
+      expect(document.body.classList.contains("viz-shell")).toBe(true);
       expect(document.body.classList.contains("viz-density-comfortable")).toBe(true);
    });
 
    it("should not apply any viz classes when modern is off", async () => {
       await renderComponent({ portalModel: { modernVisualization: false, vizDensity: "comfortable" } });
-      expect(document.body.classList.contains("viz-modern")).toBe(false);
+      expect(document.body.classList.contains("viz-shell")).toBe(false);
       expect(document.body.className).not.toContain("viz-density-");
    });
 
    // Guards against injecting an arbitrary class from a server-set property value.
    it("should ignore an unrecognized density value", async () => {
       await renderComponent({ portalModel: { modernVisualization: true, vizDensity: "bogus" } });
-      expect(document.body.classList.contains("viz-modern")).toBe(true);
+      expect(document.body.classList.contains("viz-shell")).toBe(true);
       expect(document.body.className).not.toContain("viz-density-");
    });
 });

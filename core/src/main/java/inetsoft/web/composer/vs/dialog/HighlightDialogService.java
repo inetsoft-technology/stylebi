@@ -87,6 +87,7 @@ public class HighlightDialogService {
       VSAssembly assembly = viewsheet.getAssembly(objectId);
       VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
       HighlightDialogModel model = new HighlightDialogModel();
+      model.setVizModern(VizContext.of(assemblyInfo).modern);
       DataRefModel[] fields = null;
       String tableName = null;
       VSTableLens lens = null;

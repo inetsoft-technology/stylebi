@@ -591,7 +591,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       ChartTool.drawRegions(payload.context, regions, payload.canvasX, payload.canvasY,
          this.scaleService.getCurrentScale(), undefined, undefined, false,
-         payload.chartObject?.areaName);
+         payload.chartObject?.areaName, this.vsChartModel.vizModern);
       let nowSelectedPlot = ChartTool.isPlotAreaSelected(this.model);
 
       if(!nowSelectedPlot && !!this.chartPlotArea && this.model.hasFlyovers) {

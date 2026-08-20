@@ -293,7 +293,8 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
       leftStr = leftStr.endsWith("px") ? leftStr.substring(0, leftStr.length - 2) : leftStr;
 
       if(this.miniToolbar) {
-         top -= GuiTool.getMiniToolbarHeight();
+         // Only the assembly name is known here, not its model; approximate with the org-level shell.
+         top -= GuiTool.getMiniToolbarHeight(GuiTool.isVizShell());
          let miniToolbarWidth = this.getToolbarWidth(parseInt(leftStr, 10), mainComponent.clientWidth);
          this.renderer.setStyle(nativeElement, "width",
             this.containerBounds == null ? mainComponent.clientWidth : miniToolbarWidth + "px");

@@ -63,29 +63,29 @@ describe("isAnchoredAssemblyType", () => {
 describe("isAnchoredResident", () => {
    afterEach(() => {
       document.body.classList.remove(
-         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
    });
 
    it("is false when the modern gate is off, regardless of type", () => {
-      expect(isAnchoredResident("VSChart")).toBe(false);
+      expect(isAnchoredResident("VSChart", false)).toBe(false);
    });
 
    it("is false under dense, even for an anchored type with the gate on", () => {
-      document.body.classList.add("viz-modern", "viz-density-dense");
-      expect(isAnchoredResident("VSChart")).toBe(false);
+      document.body.classList.add("viz-density-dense");
+      expect(isAnchoredResident("VSChart", true)).toBe(false);
    });
 
    it("is true under compact and comfortable, for an anchored type with the gate on", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
-      expect(isAnchoredResident("VSChart")).toBe(true);
+      document.body.classList.add("viz-density-compact");
+      expect(isAnchoredResident("VSChart", true)).toBe(true);
       document.body.classList.remove("viz-density-compact");
       document.body.classList.add("viz-density-comfortable");
-      expect(isAnchoredResident("VSChart")).toBe(true);
+      expect(isAnchoredResident("VSChart", true)).toBe(true);
    });
 
    it("is false under compact for a type outside the anchored set", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
-      expect(isAnchoredResident("VSCalendar")).toBe(false);
+      document.body.classList.add("viz-density-compact");
+      expect(isAnchoredResident("VSCalendar", true)).toBe(false);
    });
 });
 
@@ -95,45 +95,45 @@ describe("isAnchoredResident", () => {
 describe("isAnchoredChromeSuppressed", () => {
    afterEach(() => {
       document.body.classList.remove(
-         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
    });
 
    it("is true under dense for an anchored type with the gate on", () => {
-      document.body.classList.add("viz-modern", "viz-density-dense");
-      expect(isAnchoredChromeSuppressed("VSChart")).toBe(true);
-      expect(isAnchoredChromeSuppressed("VSSelectionList")).toBe(true);
+      document.body.classList.add("viz-density-dense");
+      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(true);
+      expect(isAnchoredChromeSuppressed("VSSelectionList", true)).toBe(true);
    });
 
-   it("treats a bare modern gate as dense, matching the token fallback", () => {
-      document.body.classList.add("viz-modern");
-      expect(isAnchoredChromeSuppressed("VSChart")).toBe(true);
+   it("treats a bare density as dense, matching the token fallback", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(true);
    });
 
    it("is false when the modern gate is off, so gate-off output is untouched", () => {
       document.body.classList.add("viz-density-dense");
-      expect(isAnchoredChromeSuppressed("VSChart")).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSChart", false)).toBe(false);
    });
 
    it("is false under compact and comfortable", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
-      expect(isAnchoredChromeSuppressed("VSChart")).toBe(false);
+      document.body.classList.add("viz-density-compact");
+      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(false);
       document.body.classList.remove("viz-density-compact");
       document.body.classList.add("viz-density-comfortable");
-      expect(isAnchoredChromeSuppressed("VSChart")).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(false);
    });
 
    it("is false under dense for a type outside the anchored set", () => {
-      document.body.classList.add("viz-modern", "viz-density-dense");
-      expect(isAnchoredChromeSuppressed("VSCalendar")).toBe(false);
-      expect(isAnchoredChromeSuppressed("VSRangeSlider")).toBe(false);
+      document.body.classList.add("viz-density-dense");
+      expect(isAnchoredChromeSuppressed("VSCalendar", true)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSRangeSlider", true)).toBe(false);
    });
 
    it("is never true at the same time as isAnchoredResident", () => {
       for(const density of ["viz-density-dense", "viz-density-compact", "viz-density-comfortable"]) {
-         document.body.classList.add("viz-modern", density);
+         document.body.classList.add(density);
 
          for(const type of ["VSChart", "VSSelectionList", "VSCalendar"]) {
-            expect(isAnchoredResident(type) && isAnchoredChromeSuppressed(type)).toBe(false);
+            expect(isAnchoredResident(type, true) && isAnchoredChromeSuppressed(type, true))
+               .toBe(false);
          }
 
          document.body.classList.remove(density);
