@@ -23,12 +23,14 @@ import { take } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { EditorContext } from "./editor-context";
+import { FollowFocusService } from "./services/follow-focus.service";
+import { FormsModule } from "@angular/forms";
 
 @Component({
    selector: "wiz-connect-to-claude",
    templateUrl: "./connect-to-claude.component.html",
    standalone: true,
-   imports: [NgIf, ClipboardModule]
+   imports: [NgIf, ClipboardModule, FormsModule]
 })
 export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    @Input() runtimeId!: string;
@@ -80,6 +82,18 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    private mintedEditorContext: EditorContext | null = null;
 
    /**
+    * The session's LIVE target, tracked only on the whole-sheet (toolbar) instance --
+    * {@code mintedEditorContext === null} -- since that is the only instance Follow Focus ever
+    * retargets (a session must opt in, and only a whole-sheet session is ever pushed onto a
+    * pane; see the design spec). {@code null} means "whole sheet," the same meaning
+    * {@code editorContext}/{@code mintedEditorContext} give it elsewhere in this component.
+    *
+    * Set from the initial join notice and from every subsequent `focusChanged` notice
+    * ({@link FollowFocusService}'s push/pop) -- see {@link #onJoined}.
+    */
+   currentTarget: EditorContext | null = null;
+
+   /**
     * Whether this instance has an outstanding mint of its own.
     *
     * `mintedEditorContext === null` cannot answer that: it means both "I minted a whole-sheet
@@ -90,7 +104,40 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     */
    private hasMinted = false;
 
-   constructor(private zone: NgZone) {}
+   constructor(private zone: NgZone, private followFocusService: FollowFocusService) {}
+
+   /**
+    * Whether the Follow Focus toggle should render at all -- only once connected, and only on
+    * the whole-sheet (toolbar) instance. A pane's own {@code ConnectToClaudeComponent} has
+    * nothing meaningful to toggle: Follow Focus opts in the OUTER session, not the pane session
+    * itself (see the design spec's "what this changes" section).
+    */
+   get followFocusToggleVisible(): boolean {
+      return this.connected && !this.editorContext;
+   }
+
+   get followFocusEnabled(): boolean {
+      return this.followFocusService.isEnabled(this.runtimeId);
+   }
+
+   toggleFollowFocus(event: Event): void {
+      const enabled = (event.target as HTMLInputElement).checked;
+      this.followFocusService.setEnabled(this.runtimeId, this.socketConnection, enabled);
+   }
+
+   /**
+    * Human-readable label for {@link currentTarget}, e.g. "Whole sheet" or "Chart1 → onClick" --
+    * the exact shape the design spec's indicator calls for.
+    */
+   get currentTargetLabel(): string {
+      if(!this.currentTarget) {
+         return "Whole sheet";
+      }
+
+      return this.currentTarget.assembly
+         ? `${this.currentTarget.assembly} → ${this.currentTarget.kind}`
+         : this.currentTarget.kind;
+   }
 
    /**
     * Opens the standing subscription for join notices.
@@ -119,6 +166,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          this.connected = false;
          this.mintedEditorContext = null;
          this.hasMinted = false;
+         this.currentTarget = null;
          if(this.mintSubscription) {
             this.mintSubscription.unsubscribe();
             this.mintSubscription = null;
@@ -133,6 +181,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       this.copied = false;
       this.connected = false;
       this.hasMinted = false;
+      this.currentTarget = null;
 
       // Read ONCE, here, and carry this exact value through to the response handler: the getters
       // that supply it are live, so re-reading it later (in detach, or even in this same
@@ -196,9 +245,29 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          return;
       }
 
-      if(!this.hasMinted || body.runtimeId !== this.runtimeId ||
-         !this.sameEditorContext(body.editorContext, this.mintedEditorContext))
-      {
+      if(!this.hasMinted || body.runtimeId !== this.runtimeId) {
+         return;
+      }
+
+      /*
+       * Follow Focus retargeted/popped an already-connected session -- a DIFFERENT event from a
+       * fresh mint being redeemed, and one the strict editorContext match below cannot handle:
+       * the whole point of a retarget is that editorContext no longer matches what THIS instance
+       * originally minted. Only the whole-sheet (toolbar) instance tracks this live, since that
+       * is the only kind of session Follow Focus ever retargets (see currentTarget's doc).
+       */
+      if(body.focusChanged) {
+         if(this.mintedEditorContext !== null) {
+            return;
+         }
+
+         this.zone.run(() => {
+            this.currentTarget = body.editorContext ?? null;
+         });
+         return;
+      }
+
+      if(!this.sameEditorContext(body.editorContext, this.mintedEditorContext)) {
          return;
       }
 
@@ -208,6 +277,12 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          // to redeem it again.
          this.code = null;
          this.error = null;
+
+         // currentTarget is meaningful only on the whole-sheet (toolbar) instance -- a pane
+         // instance's own join already IS its target, with no further movement to track.
+         if(this.mintedEditorContext === null) {
+            this.currentTarget = body.editorContext ?? null;
+         }
       });
    }
 

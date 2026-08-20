@@ -7,6 +7,13 @@
 
   <div *ngIf="connected" role="status" class="wiz-connect-connected alert alert-success mt-2">
     ✓ Agent connected
+    <div class="wiz-connect-target">Target: {{ currentTargetLabel }}</div>
+  </div>
+
+  <div *ngIf="followFocusToggleVisible" class="wiz-follow-focus form-check mt-2">
+    <input type="checkbox" class="form-check-input" id="wiz-follow-focus-toggle"
+      [ngModel]="followFocusEnabled" (change)="toggleFollowFocus($event)">
+    <label class="form-check-label" for="wiz-follow-focus-toggle">Follow Focus</label>
   </div>
 
   <div *ngIf="code && !connected" class="wiz-connect-code mt-2">
