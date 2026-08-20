@@ -17,12 +17,16 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 @Service
 public class SheetSessionService {
@@ -30,20 +34,70 @@ public class SheetSessionService {
    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
    private final ConcurrentHashMap<String, JoinSession> sessions;
+
+   /**
+    * Follow Focus's stack storage -- keyed by {@code sessionToken}, holding the *previous*
+    * {@code editorContext} values a session has been {@link #retarget}ed through, most recent on
+    * top. An absent/empty deque means "nothing left to pop" -- {@link #popFocus} then leaves the
+    * session exactly as it is, which is what makes an EXHAUSTED stack idempotent under repeated
+    * pops, whatever the session's original scope happened to be (including a non-null one, for a
+    * session that was itself opened already pane-scoped). {@code JoinSession} stays one flat
+    * value, unaware this history exists.
+    *
+    * <p>Wrapped in {@link FocusFrame} rather than storing {@code EditorContext} directly:
+    * {@link java.util.concurrent.ConcurrentLinkedDeque} refuses {@code null} elements, and the
+    * FIRST retarget away from a whole-sheet session legitimately needs to push {@code null} (that
+    * session's original, whole-sheet scope) -- {@code FocusFrame} is a non-null box around a
+    * possibly-null value, exactly so "a frame exists, and it holds null" stays distinguishable
+    * from "no frame exists at all".
+    */
+   private final ConcurrentHashMap<String, Deque<FocusFrame>> focusStacks;
+
+   /** Non-null wrapper around a possibly-null {@code editorContext} -- see {@link #focusStacks}. */
+   private record FocusFrame(EditorContext editorContext) {}
+
    private final SecureRandom random = new SecureRandom();
    private final LongSupplier clock;
 
-   public SheetSessionService() { this(System::currentTimeMillis); }
+   /**
+    * The {@link SheetPairingService} whose {@code validateEditorContext} {@link #retarget}
+    * reuses before moving a live session's target -- a retarget to a location the runtime
+    * doesn't actually have must fail the same way a mint to one does today.
+    */
+   private final SheetPairingService pairing;
 
-   SheetSessionService(LongSupplier clock) {
-      this.clock = clock;
-      this.sessions = new ConcurrentHashMap<>();
+   /** Production constructor -- Spring injects the real, runtime-validating SheetPairingService. */
+   @Autowired
+   public SheetSessionService(SheetPairingService pairing) {
+      this(System::currentTimeMillis, pairing);
    }
 
-   /** Test constructor: shares the sessions map of an existing service with a different clock. */
+   /**
+    * Back-compat/convenience constructor: builds its own {@link SheetPairingService} using ITS
+    * OWN back-compat constructor, which validates against no configured runtime (mirrors
+    * {@code SheetPairingService()}'s own javadoc). Fine for the wide set of existing tests that
+    * construct a bare {@code new SheetSessionService()} and never exercise {@link #retarget}'s
+    * validation branch; retarget on one of these simply refuses any editorContext naming a real
+    * assembly, exactly like an unconfigured mint would.
+    */
+   public SheetSessionService() { this(System::currentTimeMillis, new SheetPairingService()); }
+
+   SheetSessionService(LongSupplier clock) { this(clock, new SheetPairingService()); }
+
+   SheetSessionService(LongSupplier clock, SheetPairingService pairing) {
+      this.clock = clock;
+      this.pairing = pairing;
+      this.sessions = new ConcurrentHashMap<>();
+      this.focusStacks = new ConcurrentHashMap<>();
+   }
+
+   /** Test constructor: shares the sessions map (and focus stacks) of an existing service with a
+    *  different clock. */
    SheetSessionService(LongSupplier clock, SheetSessionService source) {
       this.clock = clock;
+      this.pairing = source.pairing;
       this.sessions = source.sessions;
+      this.focusStacks = source.focusStacks;
    }
 
    public JoinSession open(String runtimeId, String ownerIdentity, SheetType sheetType,
@@ -63,15 +117,24 @@ public class SheetSessionService {
       if (token == null) return null;
       JoinSession s = sessions.get(token);
       if (s == null || s.isExpired(clock.getAsLong()) || !s.ownerIdentity().equals(agentIdentity)) return null;
+      // Full 11-arg canonical constructor, NOT the 10-arg back-compat overload -- that overload
+      // defaults followFocusEnabled to false, which would silently un-opt-in every session on
+      // its very next refresh. Must carry s.followFocusEnabled() through explicitly.
       JoinSession refreshed = new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(),
                                               s.sheetType(), clock.getAsLong(), s.ttlMillis(),
                                               s.connectionMode(), s.socketSessionId(),
-                                              s.socketUserName(), s.editorContext());
+                                              s.socketUserName(), s.editorContext(),
+                                              s.followFocusEnabled());
       sessions.put(token, refreshed);
       return refreshed;
    }
 
-   public void close(String token) { if (token != null) sessions.remove(token); }
+   public void close(String token) {
+      if(token != null) {
+         sessions.remove(token);
+         focusStacks.remove(token);
+      }
+   }
 
    /**
     * Ends every pane-scoped session bound to {@code socketSessionId} -- called when that
@@ -89,7 +152,7 @@ public class SheetSessionService {
     */
    public void socketClosed(String socketSessionId) {
       if(socketSessionId == null) return;
-      sessions.values().removeIf(
+      removeSessionsIf(
          s -> s.editorContext() != null && socketSessionId.equals(s.socketSessionId()));
    }
 
@@ -105,7 +168,7 @@ public class SheetSessionService {
     */
    public void detach(String socketSessionId, EditorContext editorContext) {
       if(socketSessionId == null || editorContext == null) return;
-      sessions.values().removeIf(
+      removeSessionsIf(
          s -> editorContext.equals(s.editorContext()) && socketSessionId.equals(s.socketSessionId()));
    }
 
@@ -135,10 +198,198 @@ public class SheetSessionService {
       return null;
    }
 
+   /**
+    * Returns the unexpired session bound to both {@code socketSessionId} and {@code runtimeId},
+    * or {@code null} if none is held.
+    *
+    * <p>The browser-known identity Follow Focus retargets by (see the plan's "Design refinement"
+    * section): the browser never holds the agent's own {@code sessionToken} -- only the agent
+    * that joined does -- so a client-driven retarget/pop/toggle has to address a session by what
+    * the browser DOES know: {@code socketSessionId} (server-derived from the STOMP session,
+    * unspoofable by the client) plus {@code runtimeId} (the sheet it is editing). Sibling to
+    * {@link #findOpen}, which keys on {@code (ownerIdentity, sheetType)} instead -- a different
+    * lookup, not an overload of that one into ambiguity.
+    */
+   public JoinSession findBySocketAndRuntime(String socketSessionId, String runtimeId) {
+      if(socketSessionId == null || runtimeId == null) {
+         return null;
+      }
+
+      long now = clock.getAsLong();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && runtimeId.equals(s.runtimeId()) &&
+            socketSessionId.equals(s.socketSessionId()))
+         {
+            return s;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Turns Follow Focus on or off for the session bound to {@code (socketSessionId, runtimeId)}.
+    * This is the server-side half of "explicit" (see the design doc): {@link #retarget} refuses
+    * to move a session's target while this is {@code false}, independent of whatever the
+    * Angular UI shows -- even a compromised or buggy browser tab cannot retarget a session that
+    * never had Follow Focus turned on for it.
+    *
+    * <p>A no-op (returns {@code null}, touches nothing) if no session matches -- mirroring
+    * {@link #detach}'s silent-no-op shape for a non-matching case, since the caller (the STOMP
+    * toggle endpoint) is fire-and-forget with no reply to report a refusal on.
+    */
+   public JoinSession setFollowFocus(String socketSessionId, String runtimeId, boolean enabled) {
+      JoinSession session = findBySocketAndRuntime(socketSessionId, runtimeId);
+
+      if(session == null) {
+         return null;
+      }
+
+      JoinSession updated = withFollowFocusEnabled(session, enabled);
+      sessions.put(session.sessionToken(), updated);
+      return updated;
+   }
+
+   /**
+    * Retargets an opted-in session's {@code editorContext} in place, keyed by
+    * {@code (socketSessionId, runtimeId)} -- see {@link #findBySocketAndRuntime}. This is the
+    * mechanism that removes per-pane re-pairing friction: the session's {@code sessionToken}
+    * never changes, so the agent's very next tool call against that SAME token simply resolves
+    * against the new target, with no {@code connect_sheet} and no action on the agent side at
+    * all (the Phase 1 exit criterion).
+    *
+    * <p>Refuses, named, rather than silently no-opping, and touches nothing on any refusal:
+    * <ul>
+    *   <li>no session matches {@code (socketSessionId, runtimeId)};</li>
+    *   <li>the matched session has never had Follow Focus enabled ({@link #setFollowFocus}) --
+    *       the server-side half of "explicit and visible" this whole mechanism depends on;</li>
+    *   <li>{@code next} names a location the runtime does not actually have, per
+    *       {@link SheetPairingService#validateEditorContext} -- reused, not re-derived, so a
+    *       retarget to a location that does not exist fails the same way a mint to one does
+    *       today, rather than silently storing garbage.</li>
+    * </ul>
+    *
+    * <p>On success: the session's CURRENT {@code editorContext} (possibly {@code null}, for a
+    * session still at its original whole-sheet scope) is pushed onto its focus stack before the
+    * session is reconstructed with {@code editorContext = next} and stored back under the same
+    * token -- the reconstruct-and-replace shape {@link #resolve} already uses to refresh
+    * {@code lastAccess}.
+    */
+   public JoinSession retarget(String socketSessionId, String runtimeId, EditorContext next)
+      throws PairingException
+   {
+      JoinSession session = findBySocketAndRuntime(socketSessionId, runtimeId);
+
+      if(session == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "No live session for socket " + socketSessionId + " and runtime " + runtimeId);
+      }
+
+      if(!session.followFocusEnabled()) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Follow Focus is not enabled for this session -- enable it before retargeting.");
+      }
+
+      pairing.validateEditorContext(session.sheetType(), runtimeId, session.ownerIdentity(), next);
+
+      focusStacks.computeIfAbsent(session.sessionToken(), k -> new ConcurrentLinkedDeque<>())
+         .push(new FocusFrame(session.editorContext()));
+      JoinSession retargeted = withEditorContext(session, next);
+      sessions.put(session.sessionToken(), retargeted);
+      return retargeted;
+   }
+
+   /**
+    * Pops the session bound to {@code (socketSessionId, runtimeId)} back to whatever
+    * {@code editorContext} preceded its most recent {@link #retarget}.
+    *
+    * <p>Popping past the bottom of an already-empty (or never-pushed) stack is a no-op that
+    * leaves the session's {@code editorContext} <b>exactly as it already is</b> -- not an error
+    * and not a further change. This is deliberately NOT "reset to null": a session's original
+    * scope is whatever it was AT OPEN TIME, which is only null for a whole-sheet session --
+    * forcing null here would incorrectly widen a session that was itself opened already
+    * pane-scoped, the first time its stack ran out.
+    *
+    * <p>Returns {@code null} both when no session matches {@code (socketSessionId, runtimeId)}
+    * and when a session matched but its stack was already exhausted. Those two cases differ in
+    * what happened to STATE (nothing existed to touch, versus a genuine no-op on a real
+    * session) but are identical in what a caller needs to do about the RETURN VALUE: nothing
+    * moved, so there is nothing to react to. {@link SheetPairingController#popFocusViaSocket}
+    * depends on this -- it broadcasts a {@code focusChanged} notice whenever this returns
+    * non-null -- so returning the unchanged session on an exhausted stack (as an earlier
+    * version of this method did) fired a spurious broadcast on every no-op pop.
+    */
+   public JoinSession popFocus(String socketSessionId, String runtimeId) {
+      JoinSession session = findBySocketAndRuntime(socketSessionId, runtimeId);
+
+      if(session == null) {
+         return null;
+      }
+
+      Deque<FocusFrame> stack = focusStacks.get(session.sessionToken());
+      FocusFrame frame = stack == null ? null : stack.poll();
+
+      if(frame == null) {
+         // Exhausted (or never pushed): the session's editorContext is left untouched -- see
+         // the javadoc above -- but null is still returned, same as "no session matched", so a
+         // caller with no other use for the return value (popFocusViaSocket) sees one signal
+         // for "nothing changed" rather than having to compare the returned session against
+         // what it already had.
+         return null;
+      }
+
+      JoinSession restored = withEditorContext(session, frame.editorContext());
+      sessions.put(session.sessionToken(), restored);
+      return restored;
+   }
+
+   private static JoinSession withEditorContext(JoinSession s, EditorContext editorContext) {
+      return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
+                             s.lastAccess(), s.ttlMillis(), s.connectionMode(),
+                             s.socketSessionId(), s.socketUserName(), editorContext,
+                             s.followFocusEnabled());
+   }
+
+   private static JoinSession withFollowFocusEnabled(JoinSession s, boolean enabled) {
+      return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
+                             s.lastAccess(), s.ttlMillis(), s.connectionMode(),
+                             s.socketSessionId(), s.socketUserName(), s.editorContext(), enabled);
+   }
+
+   /**
+    * Test-only: whether {@code token} still has a live {@link #focusStacks} entry. No
+    * production caller needs this -- it exists purely so a leak-regression test can observe
+    * {@link #removeSessionsIf}'s cleanup without a public accessor on production code.
+    */
+   boolean hasFocusStackEntryForTesting(String token) {
+      return focusStacks.containsKey(token);
+   }
+
    @Scheduled(fixedDelay = 10 * 60_000)
    void evictExpired() {
       long now = clock.getAsLong();
-      sessions.values().removeIf(s -> s.isExpired(now));
+      removeSessionsIf(s -> s.isExpired(now));
+   }
+
+   /**
+    * Removes every session matching {@code predicate} from {@link #sessions}, and its
+    * {@link #focusStacks} entry alongside it. Every removal path in this class (explicit
+    * {@link #close}, socket-close/detach cleanup, and scheduled {@link #evictExpired}) must go
+    * through this rather than calling {@code sessions.values().removeIf(...)} directly --
+    * {@code sessionToken}s are never reused, so a {@code focusStacks} entry left behind after
+    * its owning session is gone is a permanent leak for the remaining life of the process, not
+    * a harmless stale value some later {@code retarget} will overwrite.
+    */
+   private void removeSessionsIf(Predicate<JoinSession> predicate) {
+      sessions.values().removeIf(s -> {
+         if(predicate.test(s)) {
+            focusStacks.remove(s.sessionToken());
+            return true;
+         }
+
+         return false;
+      });
    }
 
    private String newToken() {

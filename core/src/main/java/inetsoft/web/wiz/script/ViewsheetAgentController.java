@@ -111,6 +111,40 @@ public class ViewsheetAgentController {
                               String sheetType, EditorContext editorContext) {}
 
    /**
+    * @param editorContext the session's CURRENT scope -- {@code null} for whole-sheet -- read
+    *                      fresh from the live {@link JoinSession} on every call, never cached.
+    * @param followFocusEnabled whether Follow Focus is opted in for this session (see
+    *                      {@code SheetSessionService.setFollowFocus}).
+    */
+   public record SessionInfo(String runtimeId, String sheetType, EditorContext editorContext,
+                             boolean followFocusEnabled) {}
+
+   /**
+    * Reports this session's OWN current scope, resolved fresh from the live {@link JoinSession}
+    * on every call.
+    *
+    * <p>Exists because Follow Focus ({@code SheetSessionService.retarget}/{@code popFocus}) can
+    * move a session's target without the agent doing anything -- there is no server-to-agent
+    * push channel a headless HTTP client can listen on, unlike the browser's STOMP
+    * {@code focusChanged} broadcast (see {@code SheetAgentBroadcastService.sendFocusChanged}).
+    * A plugin that cached {@code editorContext} from {@code join}'s response and never refreshed
+    * it would silently drift from the truth the instant a browser retargets the session out from
+    * under it -- this endpoint is the one place an agent-side client can ask "what is my scope
+    * RIGHT NOW" and get a live answer, independent of whatever it minted or cached at connect
+    * time. Requires no pane-scope check of its own: a session is always entitled to know its own
+    * scope, whole-sheet or pane-scoped alike.
+    */
+   @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/session")
+   public SessionInfo session(@PathVariable String sessionToken, Principal user)
+      throws PairingException
+   {
+      requireEnabled();
+      JoinSession session = resolveSession(sessionToken, user);
+      return new SessionInfo(session.runtimeId(), session.sheetType().name().toLowerCase(),
+                             session.editorContext(), session.followFocusEnabled());
+   }
+
+   /**
     * Enumerates every scriptable target on the joined viewsheet, with the grammar it speaks.
     *
     * <p>Not excluded from pane scoping just because it takes no single {@code target} to check —

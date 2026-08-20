@@ -261,12 +261,35 @@ public class SheetAgentBroadcastService {
     * valid, so a failure here costs the browser's indicator and nothing more.
     */
    public void sendPairingJoined(JoinSession session) {
+      sendPairingNotice(session, new PairingJoinedNotice(session.runtimeId(), session.sheetType(),
+                                                          session.editorContext(), false));
+   }
+
+   /**
+    * Tell the browser holding this session that Follow Focus moved its target -- via
+    * {@code SheetSessionService.retarget}/{@code popFocus} -- without a fresh mint-and-join.
+    *
+    * <p>Reuses {@link #sendPairingJoined}'s exact topic and addressing (per the design plan:
+    * "reusing the same broadcast channel #4669 already wired rather than inventing a second
+    * one"), distinguished only by {@link PairingJoinedNotice#focusChanged()}. This is load-bearing
+    * on the client: {@code ConnectToClaudeComponent}'s toolbar instance tracks a
+    * {@code focusChanged} notice for its OWN session by {@code runtimeId} alone (the target has
+    * moved, so the editorContext can no longer be expected to match anything that instance itself
+    * minted), while a plain {@code sendPairingJoined} notice keeps requiring an exact
+    * editorContext match so an unrelated pane's fresh pairing never lights up the toolbar.
+    */
+   public void sendFocusChanged(JoinSession session) {
+      sendPairingNotice(session, new PairingJoinedNotice(session.runtimeId(), session.sheetType(),
+                                                          session.editorContext(), true));
+   }
+
+   private void sendPairingNotice(JoinSession session, PairingJoinedNotice notice) {
       // Nothing to notify. The REST mint path can record a null destination user (a null
       // principal), and Spring answers that with Assert.notNull — a stack trace the caller then
       // logs as "notifying the browser failed", which is misleading: nothing failed to send, there
       // was simply nobody to send to. broadcastRefresh guards its own null user for the same reason.
       if(session.socketUserName() == null) {
-         LOG.debug("Pairing joined notice skipped — no destination user recorded (runtimeId={})",
+         LOG.debug("Pairing notice skipped — no destination user recorded (runtimeId={})",
                    session.runtimeId());
          return;
       }
@@ -277,10 +300,7 @@ public class SheetAgentBroadcastService {
       headers.setLeaveMutable(true);
 
       commandDispatcherService.convertAndSendToUser(
-         session.socketUserName(), PAIRING_JOINED_TOPIC,
-         new PairingJoinedNotice(session.runtimeId(), session.sheetType(),
-                                 session.editorContext()),
-         headers.getMessageHeaders());
+         session.socketUserName(), PAIRING_JOINED_TOPIC, notice, headers.getMessageHeaders());
    }
 
    /**

@@ -147,9 +147,14 @@ public class SheetPairingService {
    /**
     * Refuses an editorContext naming a location the runtime does not actually have. Named after
     * what was asked for, so the error is useful back in the editor that produced it.
+    *
+    * <p>Package-private (not {@code private}): {@code SheetSessionService.retarget} (Follow
+    * Focus) reuses this exact check before moving a live session's target, rather than
+    * re-deriving it -- a retarget to a location the runtime doesn't actually have must fail the
+    * same way a mint to one does today, not silently store garbage.
     */
-   private void validateEditorContext(SheetType sheetType, String runtimeId, String ownerIdentity,
-                                      EditorContext ctx)
+   void validateEditorContext(SheetType sheetType, String runtimeId, String ownerIdentity,
+                              EditorContext ctx)
       throws PairingException
    {
       if(isBlank(ctx.kind())) {
