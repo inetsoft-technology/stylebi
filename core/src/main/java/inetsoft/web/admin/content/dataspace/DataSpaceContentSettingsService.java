@@ -230,9 +230,16 @@ public class DataSpaceContentSettingsService {
 
       dataSpace.delete(null, path);
 
-      if(path.startsWith("portal/" + OrganizationManager.getInstance().getCurrentOrgID() + "/shapes/") ||
-         path.startsWith("portal/shapes/"))
-      {
+      final String orgShapesDir = ImageShapes.getShapesDirectory();
+      final String globalShapesDir = ImageShapes.getGlobalShapesDirectory();
+
+      // the shapes directory itself is deleted when the presentation settings are reset, so the
+      // cache must be cleared for the directory as well as for files/folders under it
+      if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
+         // every organization falls back to the global shapes directory, clear all of them
+         ImageShapes.clearAllShapes();
+      }
+      else if(path.equals(orgShapesDir) || path.startsWith(orgShapesDir + "/")) {
          ImageShapes.clearShapes();
       }
 
