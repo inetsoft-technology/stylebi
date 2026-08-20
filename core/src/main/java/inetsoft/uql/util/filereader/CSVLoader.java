@@ -153,6 +153,7 @@ public final class CSVLoader {
             }
 
             String newType = null;
+            Format prevFmt = fmtMap.get(header[i]);
 
             if(XSchema.BOOLEAN.equals(types.get(i)) && !"".equals(data) &&
                (!(data instanceof String) || !"true".equalsIgnoreCase((String) data) &&
@@ -162,6 +163,15 @@ public final class CSVLoader {
             }
             else {
                newType = AssetUtil.getType(header[i], types.get(i), data, fmtMap, isDmyOrder);
+
+               // a column that mixes plain numbers (299.99) with currency or percent
+               // formatted values ($24.99) can't be represented by a single column format.
+               // keep the values as-is instead of nulling out the ones that don't match
+               // the format picked for the column.
+               if(prevFmt != null && fmtMap.get(header[i]) != prevFmt) {
+                  newType = XSchema.STRING;
+                  fmtMap.remove(header[i]);
+               }
             }
 
             // @by stephenwebster, For Bug #16268
@@ -202,7 +212,7 @@ public final class CSVLoader {
       input = new FileInputStream(csvTemp);
 
       if("UTF-8".equals(encode)) {
-         input = consumeBOM(new FileInputStream(csvTemp));
+         input = consumeBOM(input);
       }
 
       reader = new BufferedReader(new InputStreamReader(input, encode));
@@ -524,7 +534,13 @@ public final class CSVLoader {
             fmt = fmtMap.get(header[c]);
 
             if(fmt != null) {
-               val = rdata[c] = fmt.parseObject((String) val, new ParsePosition(0));
+               Object nval = fmt.parseObject((String) val, new ParsePosition(0));
+
+               // parseObject returns null instead of throwing when the value doesn't
+               // match the column format, don't discard the value in that case.
+               if(nval != null) {
+                  val = rdata[c] = nval;
+               }
             }
 
             if(XSchema.STRING.equals(type)) {
