@@ -86,10 +86,12 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
-   private readonly VIZ_MODERN_CLASS: string = "viz-modern";
+   // Org-level shell state only. Assembly chrome keys off "viz-modern" on the
+   // assembly's own wrapper, not on this body class.
+   private readonly VIZ_SHELL_CLASS: string = "viz-shell";
    private readonly VIZ_DENSITY_CLASSES: string[] =
       ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
-   private readonly VIZ_DARK_CLASS: string = "viz-dark";
+   private readonly VIZ_SHELL_DARK_CLASS: string = "viz-shell-dark";
    private destroy$ = new Subject<void>();
    private isGettingStartedShown: boolean = false;
    private readonly _onMessage = (evt: MessageEvent) => this.handleMessageEvent(evt);
@@ -264,7 +266,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    updateVisualizationMode(): void {
       const body: HTMLElement = this.document.body;
       const modern: boolean = !!this.model.modernVisualization;
-      body.classList.toggle(this.VIZ_MODERN_CLASS, modern);
+      body.classList.toggle(this.VIZ_SHELL_CLASS, modern);
       body.classList.remove(...this.VIZ_DENSITY_CLASSES);
 
       if(modern) {
@@ -275,7 +277,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          }
       }
 
-      body.classList.toggle(this.VIZ_DARK_CLASS, modern && !!this.model.darkMode);
+      body.classList.toggle(this.VIZ_SHELL_DARK_CLASS, modern && !!this.model.darkMode);
    }
 
    get leftNavTabs(): PortalTab[] {

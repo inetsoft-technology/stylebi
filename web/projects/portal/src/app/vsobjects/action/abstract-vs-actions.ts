@@ -37,7 +37,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    private assemblyClickAction: AssemblyAction;
    private assemblyScriptAction: AssemblyAction;
    private initedActions: boolean = false;
-   // Set by createToolbarActions() under the isVizModern gate; consumed by createMenuActions()
+   // Set by createToolbarActions() under the model.vizModern gate; consumed by createMenuActions()
    // to surface the same action there instead of at toolbar index 0. See the comments at both
    // sites.
    private hideMiniToolbarAction: AssemblyAction = null;
@@ -140,7 +140,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    // rollout boundary in mini-toolbar.service.ts, so the two cannot drift apart. Deleted together
    // with it when the last family slice lands.
    private get resident(): boolean {
-      return isAnchoredResident(this.model.objectType);
+      return isAnchoredResident(this.model.objectType, this.model.vizModern);
    }
 
    /**
@@ -219,7 +219,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // An anchored type reaches the same rung by the lane rather than the card: a lane too short
       // to host a control draws none. Checked separately because resident is already false in that
       // case, which skips the height test below.
-      if(isAnchoredChromeSuppressed(this.model.objectType) ||
+      if(isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern) ||
          (modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR))
       {
          ToolbarActionsHandler.copyActions([], this.showing);
@@ -429,14 +429,14 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
             action: () => this.hideMiniToolbar(),
          };
 
-         if(GuiTool.isVizModern()) {
+         if(this.model.vizModern) {
             // The dismissal is something done to the strip, not to the assembly, and at toolbar
             // index 0 it ate a slot ahead of show-data under a cap on toolbar length. It moves to
             // the menu instead of splicing at index 0 here; createMenuActions() below reads this
-            // field to surface it there. Gated on isVizModern() alone, with no type test — so under
-            // the gate this reaches every assembly type, not only the anchored ones. Types that
-            // have not yet joined the rollout therefore reach the dismissal by right-click until
-            // their slice lands and gives them a resident kebab.
+            // field to surface it there. Gated on the assembly's own model.vizModern alone, with
+            // no type test — so under the gate this reaches every assembly type, not only the
+            // anchored ones. Types that have not yet joined the rollout therefore reach the
+            // dismissal by right-click until their slice lands and gives them a resident kebab.
             this.hideMiniToolbarAction = hideMiniToolbar;
          }
          else {
@@ -481,7 +481,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // Counterpart to the gated branch in createToolbarActions(): reading this.toolbarActions
       // forces that method to run (it is a cached getter, so this is a no-op if it already has),
       // which populates hideMiniToolbarAction under the same gate before we look for it here.
-      if(GuiTool.isVizModern() && !GuiTool.isMobileDevice() &&
+      if(this.model.vizModern && !GuiTool.isMobileDevice() &&
          this.model.containerType != "VSSelectionContainer" &&
          this.toolbarActions && this.toolbarActions.length > 0)
       {

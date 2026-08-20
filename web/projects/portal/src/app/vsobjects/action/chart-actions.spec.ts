@@ -1755,11 +1755,9 @@ describe("ChartActions", () => {
             .filter(id => id.startsWith("chart "));
       }
 
-      afterEach(() => document.body.classList.remove("viz-modern"));
-
       it("puts the stable actions first when the gate is on", () => {
-         document.body.classList.add("viz-modern");
          const model = createModel();
+         model.vizModern = true;
          const actions = new ChartActions(model, popService, composerContext);
          const ids = toolbarIds(actions.toolbarActions);
 
@@ -1791,8 +1789,8 @@ describe("ChartActions", () => {
       });
 
       it("drops the duplicated clear entries from the toolbar under the gate", () => {
-         document.body.classList.add("viz-modern");
          const model = createModel();
+         model.vizModern = true;
          model.brushed = true;
          model.zoomed = true;
          const actions = new ChartActions(model, popService, composerContext);

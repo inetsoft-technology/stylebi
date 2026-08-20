@@ -241,7 +241,9 @@ export namespace TestUtils {
          containerType: null,
          sheetMaxMode: false,
          hasDynamic: false,
-         popLocation: null
+         popLocation: null,
+         vizModern: false,
+         vizDark: false
       };
    }
 

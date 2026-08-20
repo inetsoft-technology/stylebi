@@ -360,27 +360,123 @@ make irrelevant.
 
 ## 3 · The browser scope
 
-Today `viz-modern`, `viz-dark` and `viz-density-*` are toggled on `document.body` by three shells
-(`viewer-app.component.ts:2790-2798`, `portal/app.component.ts:271`, `composer/app.component.ts:144`), and
-`GuiTool.isVizModern()` reads the class back off the body (`gui-tool.ts:67`).
+> **CORRECTED 2026-08-19 AFTER P5 SHIPPED. Read this box before anything below it.** Parts of this
+> section were edited *during* P5's implementation, on reasoning that implementation then disproved. The
+> body text is retained per this tree's convention, but on three points it now describes something that
+> was not built:
+>
+> 1. **"Three binding sites" is wrong.** The shipped surface is **eight templates**, and three further
+>    render sites inside them that no enumeration by container or by tag name found: the chart-annotation
+>    overlay (a deliberate sibling of the assembly stack), the composer's `VSLine` branch (guarded by
+>    `*ngIf="vsObject.objectType != 'VSLine'"`, so the bound `.object-editor` never applies to it), and the
+>    layout pane's group-container children. The reliable enumeration is not "where are the containers" or
+>    "where is `<vs-chart>`" but **every element whose subtree contains a `:host-context(.viz-modern)` or
+>    `.viz-modern <descendant>` rule**.
+> 2. **The density paragraph is reversed.** It says the wrapper carries `viz-density-<mode>` and quotes the
+>    compound selectors. What shipped: density stays on `body`, and `_viz-tokens.scss`'s three matrices were
+>    rewritten to ancestor-descendant form (`.viz-density-compact .viz-modern`). The wrapper carries no
+>    density class. **P6 must read this and not the paragraph below** — the recorded P6 action (drop the
+>    `if(modern)` guard so the density class is always present) only makes sense under the shipped design.
+> 3. **The stated reason for rejecting descendant selectors is false**, and that is the design that
+>    shipped. It claims a descendant selector "inverts the specificity the file's source-order comment
+>    depends on" because `.viz-dark` wins by coming later. The blocks are disjoint: the density matrices set
+>    only size tokens, `.viz-dark` only colour tokens. They never compete, so there was no specificity to
+>    invert.
+>
+> **Also shipped and not described below:** org-level surfaces need their own token scope. The
+> `--inet-viz-*` blocks in `_viz-tokens.scss` now list `.viz-shell` beside `.viz-modern` (and
+> `.viz-shell-dark` beside `.viz-dark`), because consumers outside any assembly wrapper — the combo-box
+> dropdown appended to `document.body`, the worksheet details pane, the schedule list — otherwise fall back
+> to the legacy `:root` values. A body carrying `viz-shell` resolves the dense tier, which matches what a
+> body carrying `viz-modern` + `viz-density-<mode>` resolved before the split.
+>
+> The authoritative record of what was decided and why is the P5 ledger,
+> `.superpowers/sdd/2026-08-19-seed-mark-p5-browser-reads/progress.md` (search `Ruling:`).
 
-**The CSS half is a rename, not a rewrite.** `.vs-object-parent-container`
-(`vs-object-container.component.html:41`) is already a per-assembly wrapper `<div>` enclosing every assembly
-component. Binding `viz-modern`/`viz-dark` there from the model's mark makes every existing
-`:host-context(.viz-modern)` and `.viz-modern <descendant>` rule per-assembly with **zero selector edits** —
-`:host-context` matches any ancestor.
+
+Today `viz-modern`, `viz-dark` and `viz-density-*` are toggled on `document.body` by three shells
+(`viewer-app.component.ts:2789-2798`, `portal/app.component.ts:264-279`,
+`composer/app.component.ts:138-151`), and `GuiTool.isVizModern()` reads the class back off the body
+(`gui-tool.ts:66`).
+
+**Re-verified 2026-08-19 at `8ef511e45`: three, as first written.** A 2026-08-19 edit briefly recorded two
+here, on a grep of `portal/src/app/app.component.ts` — the wrong file. The shell meant is
+`portal/src/app/portal/app.component.ts`, whose `updateVisualizationMode()` toggles all three classes exactly
+as the other two shells do. The line reference is `:264-279` rather than the `:271` first recorded.
+
+**The CSS half is a rename, not a rewrite** — and the **zero selector edits** claim holds, because
+`:host-context(X)` matches the host element itself as well as its ancestors. What does not hold is the
+"one wrapper" premise. **Corrected 2026-08-19, verified at `8ef511e45`: there are three binding sites,
+across the viewer and composer shells.**
+
+~~`.vs-object-parent-container` (`vs-object-container.component.html:41`) is already a per-assembly wrapper
+`<div>` enclosing every assembly component. Binding `viz-modern`/`viz-dark` there from the model's mark makes
+every existing rule per-assembly.~~ True of the viewer, and only of what that wrapper encloses:
+
+| # | Site | Shell | Why it is separate |
+|---|---|---|---|
+| 1 | `.vs-object-parent-container` — `vs-object-container.component.html:42` | viewer | the wrapper this section already named; encloses the assembly component itself |
+| 2 | `.object-editor` — `editable-object-container.component.html:18` | composer | the composer does not use `.vs-object-parent-container` at all. `vsObject` is already in scope there (`:22` binds `[class.group-container]` off it), so this is one more binding, not a restructure |
+| 3 | `<mini-toolbar>` — `vs-object-container.component.html:341` | viewer | **a DOM sibling of wrapper 1, not a descendant** |
+
+**Site 3 is the one that would have been missed.** `<mini-toolbar>` sits outside the wrapper's closing `</div>`
+at `:340`, and `_moving-resize.scss` addresses it with `+` adjacent-sibling combinators (`:24,27,44,47,53`).
+The arrangement is deliberate, not incidental: `mini-toolbar.component.scss:141` records that the toolbar is a
+sibling so that moving the pointer between object and toolbar behaves, and `mini-toolbar.component.ts:54`
+depends on the wrapper's server-assigned `z-index` being a sibling's. So it must not be moved inside — it
+takes the class directly. Its two live rules, `:host-context(.viz-modern)` at `mini-toolbar.component.scss:81`
+and `:200`, then match on the host itself with no selector edit. `vsObject` is in scope at `:341` already
+(`[dataTipName]="vsObject.absoluteName"`).
+
+**Why missing site 3 would have been expensive rather than merely wrong:** the mini-toolbar *is* the anchored
+toolbar rollout, item F's shipped slices 1–3 — the most visible work in the track. It would have gone quietly
+legacy in every dashboard the moment the class left `body`.
 
 What must change is the body class, renamed (`viz-shell` / `viz-shell-dark`) for the genuinely org-level
-surfaces so it stops matching assembly-scoped rules. Roughly 35 occurrences across nine stylesheet and
-template files, of which `_viz-tokens.scss` (15) and `_themeable.scss` (9) are most of the count.
+surfaces so it stops matching assembly-scoped rules. 35 occurrences across nine stylesheet and template
+files — exact at `8ef511e45` — of which `_viz-tokens.scss` (14, not the 15 first recorded) and
+`_themeable.scss` (9) are most of the count.
 
-**Density stays on the body.** It is an org preference; the mark only decides whether an assembly honours it.
+~~**Density stays on the body.** It is an org preference; the mark only decides whether an assembly honours
+it.~~ **Corrected 2026-08-19, verified at `8ef511e45` — the second sentence is right and the first does not
+follow from it.** The density *preference* stays exactly where it is: one org setting, read from `SreeEnv`,
+shipped once on `SetViewsheetInfoCommand`'s infoMap. But the density **class** has to ride along on the
+assembly wrapper beside `viz-modern`, because `_viz-tokens.scss` declares the token matrices as **compound**
+selectors that require both classes on one element:
 
-**The TS half is 17 call sites** of `GuiTool.isVizModern()` / `isVizDensityAtLeastCompact()` across nine
-files — `chart-actions.ts` (4), `abstract-vs-actions.ts` (3), `mini-toolbar.service.ts` (2), `chart-tool.ts`
-(2), and one each in `table-actions.ts`, `crosstab-actions.ts`, `calc-table-actions.ts`,
-`date-tip-helper.ts`, `highlight-pane.component.ts`, `tooltip-tail-placement.ts`. All nine already hold the
-assembly model.
+```scss
+.viz-modern,
+.viz-modern.viz-density-dense       { --inet-viz-row-height: 20px; ... }  // :109-117
+.viz-modern.viz-density-compact     { --inet-viz-row-height: 24px; ... }  // :120
+.viz-modern.viz-density-comfortable { --inet-viz-row-height: 28px; ... }  // :130
+```
+
+Leave density on `body` while `viz-modern` moves to the wrapper and no element carries both — and the failure
+is **silent rather than loud**, because the bare `.viz-modern` in that first rule group still matches: every
+modern assembly renders at **dense**, in every org, whatever the admin chose. Row height, cell padding,
+toolbar height, control height and font size all snap to the 20px column. The block comment at `:140-142`
+confirms the sheet was written assuming `viz-modern`, `viz-density-*` and `viz-dark` sit on one element
+together. `.viz-dark` is a single class and is unaffected.
+
+**So the wrapper carries `viz-density-<mode>` exactly when it carries `viz-modern`** — which is this
+paragraph's own second sentence expressed in the DOM, and §"Refinements" already states it: *density stays a
+live org preference; the mark decides whether an assembly honours it.* Zero selector edits, which is the
+property this section trades on. No new model field either: the density string is already on the client
+(`viewer-app.component.ts` `this.vizDensity`, `composer/app.component.ts` `model.vizDensity`); only the
+*whether* comes from the assembly.
+
+**Rejected — rewriting the three compounds as descendant selectors** (`.viz-density-compact .viz-modern`).
+Three selector edits, and it inverts the specificity the file's source-order comment depends on: `.viz-dark`'s
+single-class block currently wins by coming later, and a descendant selector would outrank it.
+
+**The TS half is 17 call sites** of `GuiTool.isVizModern()` / `isVizDensityAtLeastCompact()`. **Re-counted
+2026-08-19 at `8ef511e45`:** the total is unchanged but the distribution moved — `chart-actions.ts` (4),
+`abstract-vs-actions.ts` (**2**, not 3), `mini-toolbar.service.ts` (2), `chart-tool.ts` (2), one each in
+`table-actions.ts`, `crosstab-actions.ts`, `calc-table-actions.ts`, `date-tip-helper.ts`,
+`highlight-pane.component.ts` and `tooltip-tail-placement.ts`, and **one inside `gui-tool.ts` itself**
+(`getMiniToolbarHeight`, `:73`), which is not a consumer to re-key but the helper's own use of its sibling.
+So sixteen sites to convert across ten files, all of which already hold the assembly model, plus one
+internal call that follows whatever `isVizModern()` becomes.
 
 **The mark reaches the browser on `VSObjectModel`** — one field on the base class (`:559` onward), populated
 in the constructor that already receives the info (`VSObjectModel(T assembly, RuntimeViewsheet rvs)`), and
@@ -980,8 +1076,10 @@ mark existed, and exported PDF, PNG and Excel files, none of which this pass had
 
 ### P5 — flip the browser reads to the mark
 
-`VSObjectModel` field; per-assembly `viz-modern`/`viz-dark` on `.vs-object-parent-container`; the body class
-renamed for the org-level surfaces; the 17 `GuiTool` sites take the model's mark.
+`VSObjectModel` field; per-assembly `viz-modern`/`viz-dark` at the **three** binding sites §3 enumerates —
+`.vs-object-parent-container` in the viewer, `.object-editor` in the composer, and `<mini-toolbar>`, which is
+the wrapper's sibling rather than its child; the body class renamed for the org-level surfaces in all three
+shells; the `GuiTool` sites take the model's resolved values.
 
 **Plus one server-side reader P4 deferred here, added 2026-08-19 from `8ef511e45`'s commit message.**
 `AbstractChartInfo.getTooltipStyle` resolves AUTO to CARD from the org gate. It was left out of P4 because

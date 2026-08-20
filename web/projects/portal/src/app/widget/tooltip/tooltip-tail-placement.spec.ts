@@ -22,10 +22,10 @@ import {
 // Host 206x106 => inner box 200x100 once the 3px inset is removed.
 const HOST = { hostWidth: 206, hostHeight: 106 };
 
-// Every geometry expectation below is a gate-off one (8px corners), so a viz-modern class
+// Every geometry expectation below is a gate-off one (8px corners), so a viz-shell class
 // leaked by another spec would break them as unreadable path mismatches.
-beforeEach(() => document.body.classList.remove("viz-modern"));
-afterEach(() => document.body.classList.remove("viz-modern"));
+beforeEach(() => document.body.classList.remove("viz-shell"));
+afterEach(() => document.body.classList.remove("viz-shell"));
 const CONTAINER = { x: 0, y: 0, width: 1000, height: 600 };
 
 function vertical(x: number, y: number, container = CONTAINER) {
@@ -155,18 +155,18 @@ describe("buildChromePaths", () => {
    });
 });
 
-describe("tailRadius (modern visualization gate)", () => {
+describe("tailRadius (shell state)", () => {
    it("returns the legacy 8px radius when the gate is off", () => {
       expect(tailRadius()).toBe(8);
    });
 
    it("returns the shipped 6px card radius when the gate is on", () => {
-      document.body.classList.add("viz-modern");
+      document.body.classList.add("viz-shell");
       expect(tailRadius()).toBe(6);
    });
 
    it("shrinks buildChromePaths' corner radius under the gate, tail geometry unchanged", () => {
-      document.body.classList.add("viz-modern");
+      document.body.classList.add("viz-shell");
       const c = buildChromePaths(200, 100, "bottom", 50);
       expect(c.radius).toBe(6);
       expect(c.borderPath).toBe(

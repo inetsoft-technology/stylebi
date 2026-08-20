@@ -406,6 +406,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
    const anchoredChart = (overrides: any = {}) => {
       const obj: any = makeVSObject({
          objectType: "VSChart",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 0, left: 0, width: 1000, height: 600 }),
       });
       obj.paddingTop = 6;
@@ -418,11 +419,11 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
    const scrollless = { scrollHeight: 600, clientHeight: 600 } as any;
 
    beforeEach(() => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
+      document.body.classList.add("viz-density-compact");
    });
 
    afterEach(() => {
-      document.body.classList.remove("viz-modern", "viz-density-compact");
+      document.body.classList.remove("viz-density-compact");
    });
 
    it("anchors a maximised chart's strip inside the assembly, from objectFormat alone", () => {
@@ -474,6 +475,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSChart",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 0, left: 30, width: 400, height: 200 }),
       });
       comp.vsInfo = makeVsInfo([obj]);
@@ -520,6 +522,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSTable",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       comp.vsInfo = makeVsInfo([obj]);
@@ -540,6 +543,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSTable",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.maxMode = true;
@@ -563,6 +567,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSTable",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.titleVisible = false;
@@ -579,6 +584,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSTable",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.titleVisible = true;
@@ -598,6 +604,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSSelectionList",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.titleVisible = false;
@@ -613,6 +620,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSSelectionTree",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.titleVisible = false;
@@ -631,6 +639,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSSelectionList",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       comp.vsInfo = makeVsInfo([obj]);
@@ -649,6 +658,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSSelectionList",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.maxMode = true;
@@ -668,6 +678,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSSelectionList",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.maxMode = true;
@@ -691,6 +702,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSSelectionList",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.maxMode = true;
@@ -711,6 +723,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.containerRef = scrollless;
       const obj: any = makeVSObject({
          objectType: "VSCalendar",
+         vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       comp.vsInfo = makeVsInfo([obj]);
@@ -722,21 +735,21 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
 describe("Group 12 — isKebabResident: anchoring is a compact-and-above affordance", () => {
    afterEach(() => {
       document.body.classList.remove(
-         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
    });
 
    it("does not anchor an anchored-type assembly under dense", () => {
-      document.body.classList.add("viz-modern", "viz-density-dense");
+      document.body.classList.add("viz-density-dense");
       const { comp } = makeComponent();
-      const obj = makeVSObject({ objectType: "VSChart" });
+      const obj = makeVSObject({ objectType: "VSChart", vizModern: true });
 
       expect(comp.isKebabResident(obj)).toBe(false);
    });
 
    it("anchors the same assembly under compact", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
+      document.body.classList.add("viz-density-compact");
       const { comp } = makeComponent();
-      const obj = makeVSObject({ objectType: "VSChart" });
+      const obj = makeVSObject({ objectType: "VSChart", vizModern: true });
 
       expect(comp.isKebabResident(obj)).toBe(true);
    });

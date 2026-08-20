@@ -46,15 +46,15 @@ describe("DateTipHelper stacking", () => {
 });
 
 describe("DateTipHelper scrim colour", () => {
-   beforeEach(() => document.body.classList.remove("viz-modern"));
-   afterEach(() => document.body.classList.remove("viz-modern"));
+   beforeEach(() => document.body.classList.remove("viz-shell"));
+   afterEach(() => document.body.classList.remove("viz-shell"));
 
    it("uses the legacy 0.2 scrim when the modern gate is off", () => {
       expect(DateTipHelper.popDimColor).toBe("rgba(0, 0, 0, 0.2)");
    });
 
    it("uses the shipped 0.3 overlay scrim when the modern gate is on", () => {
-      document.body.classList.add("viz-modern");
+      document.body.classList.add("viz-shell");
       expect(DateTipHelper.popDimColor).toBe("rgba(0, 0, 0, 0.3)");
    });
 });

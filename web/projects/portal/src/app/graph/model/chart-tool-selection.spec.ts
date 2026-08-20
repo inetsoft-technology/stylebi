@@ -67,27 +67,23 @@ describe("drawRegions chrome/data fill split", () => {
       index: 0, valIdx: 0, segTypes: [[1, 2]], pts: [[[[0, 0], [10, 0], [10, 10], [0, 10]]]]
    };
 
-   beforeEach(() => document.body.classList.add("viz-modern"));
-   afterEach(() => document.body.classList.remove("viz-modern"));
-
    it("strokes without filling for a chrome area", () => {
       const ctx = fakeContext();
-      ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "left_y_axis");
+      ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "left_y_axis", true);
       expect(ctx.calls).toContain("stroke");
       expect(ctx.calls).not.toContain("fill");
    });
 
    it("fills and strokes for the plot area", () => {
       const ctx = fakeContext();
-      ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "plot_area");
+      ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "plot_area", true);
       expect(ctx.calls).toContain("fill");
       expect(ctx.calls).toContain("stroke");
    });
 
    it("keeps the fill for a chrome area when the gate is off", () => {
-      document.body.classList.remove("viz-modern");
       const ctx = fakeContext();
-      ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "left_y_axis");
+      ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "left_y_axis", false);
       expect(ctx.calls).toContain("fill");
    });
 });

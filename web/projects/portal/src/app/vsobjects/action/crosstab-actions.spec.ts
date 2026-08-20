@@ -1195,12 +1195,10 @@ describe("CrosstabActions", () => {
          actions.toolbarActions.reduce(
             (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
-      afterEach(() => document.body.classList.remove("viz-modern"));
-
       it("leads with the stable actions under the gate", () => {
-         document.body.classList.add("viz-modern");
-         const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
-            ViewerContextProviderFactory(false));
+         const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+         model.vizModern = true;
+         const actions = new CrosstabActions(model, ViewerContextProviderFactory(false));
 
          expect(toolbarIds(actions)).toEqual([
             "crosstab open-max-mode",

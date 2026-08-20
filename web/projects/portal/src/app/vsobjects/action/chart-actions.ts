@@ -26,7 +26,6 @@ import { Axis } from "../../graph/model/axis";
 import { ChartRegion } from "../../graph/model/chart-region";
 import { ChartTool } from "../../graph/model/chart-tool";
 import { Legend } from "../../graph/model/legend";
-import { GuiTool } from "../../common/util/gui-tool";
 import { ContextProvider } from "../context-provider.service";
 import { VSChartModel } from "../model/vs-chart-model";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
@@ -438,7 +437,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          label: () => "_#(js:Clear Brush)",
          icon: () => "brush-no-icon",
          enabled: () => true,
-         visible: () => !GuiTool.isVizModern() &&
+         visible: () => !this.model.vizModern &&
             this.model.brushed && this.isActionVisibleInViewer("Clear Brush")
             && !this.isDataTip() && !this.isPopComponent()
       };
@@ -455,7 +454,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          label: () => "_#(js:Clear Zoom)",
          icon: () => "zoom-no-icon",
          enabled: () => true,
-         visible: () => !GuiTool.isVizModern() &&
+         visible: () => !this.model.vizModern &&
             this.model.zoomed && this.isActionVisibleInViewer("Clear Zoom") &&
             !this.isDataTip() && !this.isPopComponent()
       };
@@ -511,7 +510,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          // Predicate copied verbatim from the menu entry (chart properties). Do not paraphrase:
          // !annotationsSelected is what keeps Properties out of the strip while an annotation is
          // selected. Gated — this is a new button in the strip.
-         visible: () => GuiTool.isVizModern() &&
+         visible: () => this.model.vizModern &&
             this.isActionVisibleInViewer("Properties") && !this.annotationsSelected
             && !this.isPopComponent() && !this.mobileDevice
       };
@@ -577,7 +576,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
       ];
 
       groups.push(new AssemblyActionGroup(
-         GuiTool.isVizModern() ? stableFirst : legacyOrder));
+         this.model.vizModern ? stableFirst : legacyOrder));
 
       return super.createToolbarActions(groups, true);
    }

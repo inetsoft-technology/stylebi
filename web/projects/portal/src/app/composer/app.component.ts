@@ -41,10 +41,12 @@ const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
     templateUrl: "app.component.html"
 })
 export class ComposerAppComponent implements OnInit, OnDestroy {
-   private readonly VIZ_MODERN_CLASS: string = "viz-modern";
+   // Org-level shell state only. Assembly chrome keys off "viz-modern" on the
+   // assembly's own wrapper, not on this body class.
+   private readonly VIZ_SHELL_CLASS: string = "viz-shell";
    private readonly VIZ_DENSITY_CLASSES: string[] =
       ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
-   private readonly VIZ_DARK_CLASS: string = "viz-dark";
+   private readonly VIZ_SHELL_DARK_CLASS: string = "viz-shell-dark";
    initialSheet: string;
    baseWS: string;
    runtimeId: string;
@@ -137,7 +139,7 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
    private updateVisualizationMode(model: PortalModel): void {
       const body: HTMLElement = document.body;
       const modern: boolean = !!model.modernVisualization;
-      body.classList.toggle(this.VIZ_MODERN_CLASS, modern);
+      body.classList.toggle(this.VIZ_SHELL_CLASS, modern);
       body.classList.remove(...this.VIZ_DENSITY_CLASSES);
 
       if(modern) {
@@ -148,7 +150,7 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
          }
       }
 
-      body.classList.toggle(this.VIZ_DARK_CLASS, modern && !!model.darkMode);
+      body.classList.toggle(this.VIZ_SHELL_DARK_CLASS, modern && !!model.darkMode);
    }
 
    downloadStarted(url: string): void {

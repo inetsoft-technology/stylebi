@@ -1,7 +1,9 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-19 (eighth revision — **P4 has committed as `8ef511e45`**, and a product decision taken
-this day, **decision 13, overrules the org-wide revert sweep**: disabling the gate now reverts nothing, and a
+**Date:** 2026-08-19 (ninth revision — **P5 is built**, in the working tree and uncommitted, with all three
+automated gates green; a new section below, "What P5 left behind", carries the six items it deferred or
+uncovered. The eighth revision's notes follow: **P4 committed as `8ef511e45`**, and a product decision taken
+that day, **decision 13, overrules the org-wide revert sweep**: disabling the gate now reverts nothing, and a
 per-dashboard Revert action mirrors Modernize. That collapses most of the release gate into one phase, P6.
 The seventh revision's P4 note, the sixth's P3 note, the fifth's P2 note and the fourth's rebase note are all
 retained below)
@@ -84,10 +86,11 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  the only route in for old content              eleven manual checks still outstanding
      P4  server reads follow the mark                   SHIPPED 8ef511e45 · THE BEHAVIOUR REVERSAL
       │  43 read sites + the creation site              unblocks L' now · nine manual checks PASSED
-     P5  browser reads follow the mark                  STARTABLE
-      │  resolved modern/dark on the model, not         P4's interim state is LIVE on the branch
-      │  the raw mark (design §3, amended 08-19)        right now — P5 closes it. Also carries
-      │  + AbstractChartInfo.getTooltipStyle             the one reader P4 deferred to it
+     P5  browser reads follow the mark                  BUILT, uncommitted · gates green
+      │  resolved modern/dark on the model · 8 of 15    4905 core / 1316+356 portal / full
+      │  bindings across 8 templates · body class       cross-module build. 24 manual checks
+      │  renamed viz-shell · isVizModern() deleted      OUTSTANDING — see manual-checks.md
+      │  ✗ getTooltipStyle NOT done — deferred, R20     P4's interim state is now closed
       ├──┬──→ §07 derived selection, retire the teal family
       │  │         └──→ Range slider — painter half
       │  └──→ Outlined text conversion (also behind G)
@@ -155,14 +158,20 @@ and decision 13 turned the release gate's largest unbuilt item into a phase smal
 reading of the picture, not a new decision; it goes stale as things land. Effort is relative to this track,
 not absolute.
 
+**Re-derived 2026-08-19 after P5 was built**, from the picture above rather than by editing the previous
+ranking — this file's own instruction. P5 dropped off because it is built; what replaced it at the top is
+running its manual checks, because nothing else in this track can be trusted until they have.
+
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **L′ — the title lane height row** | the highest-value visible item, and startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
-| 2 | **M-P5 — browser reads follow the mark** | closes the browser half | **M** | four of the six | modifies shipped slices 1–3; body class becomes per-assembly |
-| 3 | **M-P6 — Revert** | clears most of what is left of the release gate | **S–M** — P3's wiring mirrored, plus three deletions | card radius 12→6 | deletes the `gate &&` term and both `PlotDescriptor` seed booleans together; splitting them strands charts |
-| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 1 | **P5's 24 manual checks** | the only verification behind most of P5's visible behaviour | **S** — one browser session | confidence in everything below | R9/R10/R11 left Tasks 2–4 with no automated tests, and four templates have no spec file at all |
+| 2 | **L′ — the title lane height row** | the highest-value visible item, and startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
+| 3 | **M-P6 — Revert** | clears most of what is left of the release gate | **S–M** — P3's wiring mirrored, plus three deletions | card radius 12→6 | deletes the `gate &&` term and both `PlotDescriptor` seed booleans together; splitting them strands charts. **Also must drop the `if(modern)` guard on the density body class** — see below |
+| 4 | **The binding-pane dead buttons** | a broken affordance users will click | **XS** — two predicates | nothing | none; pre-existing, not P5's |
+| 5 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**P6 goes after P5, and the reason is the same one that ordered P4 before P5.** P6 makes gate-off mean
+**P6's ordering constraint is satisfied — P5 is built, so P6 is unblocked.** The reasoning is retained
+because it explains why the order mattered: P6 makes gate-off mean
 "marked content stays modern" on the server, while the browser's `viz-modern` body class is still toggled
 from the org gate until P5 lands — so P6-before-P5 would put legacy CSS over modern server chrome for every
 gate-off org. Nothing else couples them: P6 is server plus composer wiring and touches none of P5's files.
@@ -672,6 +681,175 @@ still expires the day the branch ships, and P6 is still on the near side of that
 `VSCompositeFormat` (`:474-490`) — so any reversal that ignores them is undone the next time a user opens an
 old bookmark (decision 10). And the dark axis has to be keyed off the mark too, or unchecking dark mode
 leaves persisted dark card backgrounds under read-time light chart chrome (decision 9).
+
+---
+
+## What P5 left behind
+
+**Added 2026-08-19, after P5 was built.** P5 is "browser reads follow the mark": the server's resolved
+answer reaches the client on `VSObjectModel`, fifteen bindings across eight templates carry
+`viz-modern`/`viz-dark` per assembly, the body class became `viz-shell`/`viz-shell-dark`, and
+`GuiTool.isVizModern()` is gone. Automated gates: core 4905/0 failures, portal 1316+356 passing, full
+`-Pcommunity,enterprise` build clean. **Uncommitted, and its 24 manual checks have not run** — see
+`.superpowers/sdd/2026-08-19-seed-mark-p5-browser-reads/manual-checks.md`, and the ledger beside it for
+every ruling (search `Ruling:`).
+
+Six items came out of the phase. Two are new findings about pre-existing behaviour; four are things P5
+deliberately did not do.
+
+### 1. Binding-pane chart toolbar shows two dead buttons — pre-existing, XS fix
+
+**Symptom.** Editing a chart in the binding pane, the mini-toolbar shows *summary data*, a **gear
+(Properties)** and a **kebab**. The gear and the kebab do nothing. Legacy showed only summary data and
+hide-toolbar.
+
+**Root cause.** `vsview/view/vs-object-view.component.html:30` renders `<vs-chart #object>` with **no
+action-handler directive**. The binding pane has `bTableActionHandler`, `bCrosstabActionHandler` and
+`bCalcTableActionHandler` — `vsview/action/` contains exactly those three files and no chart equivalent. So
+chart toolbar actions have never been routed in the binding pane and the buttons have nothing to dispatch
+to.
+
+**Not P5's.** At pristine `HEAD` both extras were gated on `GuiTool.isVizModern()` — the *body* class — so
+in any modern org they already appeared in the binding pane. P5 moved the gate from org-wide to
+per-assembly; it did not put these buttons here.
+
+**Recommended fix — suppress rather than wire.** A dead button is worse than no button, the binding pane
+already has its own settings surface, and making Properties work there is a product decision (should the
+chart properties dialog open from inside the binding editor?) rather than a bug fix. The mechanism is
+already in place and already used by these classes: `AbstractVSActions` has `protected get binding()`
+(`:88-90`) over `ContextProvider.binding` (`vsobjects/context-provider.service.ts:114`).
+
+- `vsobjects/action/chart-actions.ts:514` — add `&& !this.binding` to `propertiesToolbar.visible`
+- `vsobjects/action/abstract-vs-actions.ts:432` — gate the hide-toolbar→kebab move on `&& !this.binding`,
+  which returns hide-toolbar to toolbar index 0 and reproduces the legacy two-button set exactly
+
+**Second, separate defect in the same screenshot:** the binding pane's toolbar *overlaps the chart title
+lane*. `vs-object-view.component.html:66` passes `[top]="0" [left]="5"` with `[forceAbove]="true"`, so
+`topY` floors at 0 and the strip lands on top of the chart. Also pre-existing. Worth folding into the same
+fix.
+
+### 2. The composer never anchors the mini-toolbar — open product question, not a defect
+
+Anchoring is decided by the host passing `[anchorInTitleLane]`. The viewer supplies it
+(`vs-object-container.component.html:357` ← `isToolbarAnchored(vsObject)`, with `[residentKebab]` at
+`:358`). The composer supplies neither, passing only `[top]="vsObject.objectFormat.top"` — and never has:
+its block at pristine `HEAD` contains zero occurrences of `anchorInTitleLane`. **The anchored strip is a
+viewer-only feature of the toolbar rollout.**
+
+The gap above the card in the composer is also deliberate: `topY` returns `top - miniToolbarHeight - adj`
+with `adj = 3`, commented "don't cover resize handle in composer".
+
+**The question for item F:** should the composer anchor too? If yes it needs `isToolbarAnchored` /
+`isKebabResident` equivalents on the composer host plus a decision about the resize-handle clearance that
+3px exists for. Nobody has decided this; P5 never touched it. A P5 manual check asserted viewer/composer
+parity on an inferred premise and was corrected rather than the code.
+
+### 3. Tooltips stay org-scoped — both halves deferred together (R15 + R20)
+
+`TooltipComponent` and `TooltipDirective` take content, CSS classes and tail geometry only; neither has any
+route to a source assembly, and the only one available is the `tooltipCSS` input set by every site that
+applies `wTooltip`. So `_directives.scss`'s ninety-line tooltip block was re-pointed at `.viz-shell` (one
+line) rather than compound-converted, and `tailRadius()` reads `GuiTool.isVizShell()`.
+
+**`AbstractChartInfo.getTooltipStyle` is the server half of the same surface and was deferred with it.**
+The plan had assumed `PlotArea` could reach a `ChartVSAssemblyInfo`; it cannot — it holds a `ChartInfo`
+(`PlotArea.java:79,88`) and so does `ChartArea` across five constructor overloads whose callers include the
+report painter, the exporter, annotations, the scheduler and the format painter, several with no assembly
+in existence. Converting only `GraphBuilder` and the dialog service would make the tooltip *content*
+builder and the model *shipped to the browser* disagree about the same chart — the exact property
+`AbstractChartInfo:3739-3742` says the method exists to guarantee.
+
+**Cost while deferred:** on a mixed dashboard in a modern org, a legacy assembly's tooltip takes modern
+tooltip chrome. Status quo, not a regression. Doing it means the constructor-threading job above, unchanged
+in size by waiting.
+
+### 4. Three overlay surfaces follow the org, not the assembly (R17, R21)
+
+- **The pop-dim scrim** behind a data tip fills a canvas over the whole container, so `popDimColor` reads
+  `GuiTool.isVizShell()`.
+- **Data-tip and pop-component offsets** may sit 4px stale on mixed dashboards:
+  `vs-data-tip.directive.ts` and `vs-pop-component.directive.ts` hold only assembly *names*
+  (`@Input() dataTipName`, `popContainerName`), no model, so they pass `isVizShell()` to
+  `getMiniToolbarHeight()`.
+
+Each is a page-level overlay where a per-assembly answer would be inventing precision the surface does not
+have. Revisit only if a mixed dashboard makes it visible.
+
+### 5. ~~Print-layout text and image objects always render legacy~~ — WITHDRAWN, not reproducible
+
+**Reported by the final review as a marking defect (M6/R26); withdrawn 2026-08-19 after the human partner
+could not reproduce it.** The mechanism the review described is real, and the conclusion drawn from it was
+wrong.
+
+Real part: `VSLayoutService.java:410` does replace the info — `assembly.setVSAssemblyInfo(info)` on a
+freshly constructed `TextVSAssembly`/`ImageVSAssembly`, so whatever mark the constructor inherited at
+`AbstractVSAssembly:136` is gone.
+
+Why it does not matter: **neither type has any gate-dependent chrome to lose.**
+`TextVSAssemblyInfo` is in `bypassesBaseChrome()` (`VSAssemblyInfo.java:1327`), so `seedChromeDefaults`
+returns immediately for it — a text object receives no border colour, no radius, nothing, marked or not.
+And neither text nor image is in `isCornerSeedTarget()`'s positive list (`:1297-1301` — table family, chart,
+selection list, selection tree, current selection), so no card radius either. For an image the base hook
+does run and writes a DEFAULT-tier border *colour*, but that is invisible unless a border style is set.
+
+**The lesson, not the defect, is what is worth keeping:** the review reasoned from "the mark is discarded"
+to "it renders legacy" without checking whether the type consumes the mark at all. Same
+inference-over-verification shape as several P5 findings, one level further out.
+
+### 6. ~~Embedded assemblies always take dense metrics~~ — WITHDRAWN, disproved by test
+
+**Reported by the final review (M7/R27), defended once by the controller, then disproved: an embedded
+viewsheet with a crosstab, org density set to compact, rendered compact row heights.** Withdrawn
+2026-08-19.
+
+**Two errors produced the false finding, and both were the same mistake.**
+
+1. **A directory-scoped grep stood in for a behavioural question.** The claim "nothing in the embed app sets
+   a viz class" came from grepping `web/projects/portal/src/app/embed/` for `classList` and finding nothing.
+   But `embed/viewer/embed-viewer.component.html:24` renders `<viewer-app>` (imported at
+   `embed-viewer.component.ts:51`), and `viewer-app.component.ts:2792-2800` is one of the three shells that
+   toggles `viz-shell` / `viz-shell-dark` / `viz-density-<mode>` on `document.body`. The code that sets the
+   class lives outside the directory that was searched. The question was "does this page end up with the
+   class on `body`", not "does any file under `embed/` write it".
+2. **The shadow boundary was assumed always present.** `ShadowDomService.addShadowRootHost` is guarded by
+   `if(element && this.isInShadowDom(element))` (`shadow-dom.service.ts:32`) — it re-homes Angular's
+   `<style>` elements when the host page **has already** mounted the element inside a shadow root. It does
+   not create one. On an ordinary embed there is no boundary between `body` and the assembly wrapper, so
+   `.viz-density-compact .viz-modern` matches normally.
+
+**Untested, and deliberately not claimed as a defect:** the case where a customer mounts `inetsoft-viewer`
+or `inetsoft-chart` inside their *own* shadow root. There a density selector genuinely could not match
+across the boundary — but nothing here has been observed to misbehave, and the stylesheet situation in that
+configuration differs in other ways too. Do not record it as a defect without a reproduction.
+
+**Embed gaining modern chrome at all is still new from P5** — before this phase the wrapper carried no
+`viz-modern` and embed rendered fully legacy. That part stands.
+
+### Carried into P6 — do not lose this
+
+**P6 must drop the `if(modern)` guard on the density body class.** All three shells add
+`viz-density-<mode>` only when the org gate is on (`portal/app.component.ts:270` and the same in the viewer
+and composer). After P6, gate-off stops meaning legacy — so a marked assembly in a gate-off org would find
+no density class on the body and fall back to the bare `.viz-modern` dense defaults. One line, and it is
+required under either of the two density designs that were considered.
+
+**Also for P6's reader:** the design document's §3 carries a correction box added after P5 shipped. Three
+of its statements were edited *during* P5 on reasoning implementation then disproved, including one that
+would send a P6 implementer in the opposite direction on density. Read the box, not the body text.
+
+### Test-coverage debt this phase created
+
+Recorded because it is invisible from the diff. Rulings R9, R10 and R11 left **Tasks 2–4 with no automated
+tests** — the two container `.tl.spec.ts` files construct components directly with mocked services and
+render no DOM, so the plan's DOM assertions could not be written. **Four templates have no spec file at
+all**: `layout-object.component`, `wizard-preview-container.component`, `embed-chart.component`, and the
+layout pane's child-assembly bindings. An Angular binding on a wrongly-scoped variable applies no class and
+raises no error, so those four are verified by code reading and a type-check only.
+
+Three pre-existing failures at `HEAD`, not from this work: `chart-plot-area.component.interaction.tl.spec.ts`
+"should redraw the current selection when it belongs to the plot area" (**confirmed** pre-existing via
+`git stash`), and two scrollbar assertions in `chart-plot-area.component.display.tl.spec.ts` (200 vs 201,
+100 vs 101 — not stash-confirmed).
 
 ---
 

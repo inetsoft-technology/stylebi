@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import "@angular/compiler";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { HighlightDialogModel } from "./highlight-dialog-model";
 import { HighlightModel } from "./highlight-model";
@@ -26,8 +26,10 @@ function highlight(name: string): HighlightModel {
    return { name, applyRow: false, vsConditionDialogModel: { conditionList: [] } } as HighlightModel;
 }
 
-function createModel(chartAssembly: boolean, highlights: HighlightModel[] = []): HighlightDialogModel {
-   return { highlights, tableName: "T1", fields: [], chartAssembly } as HighlightDialogModel;
+function createModel(chartAssembly: boolean, highlights: HighlightModel[] = [],
+                      vizModern: boolean = false): HighlightDialogModel
+{
+   return { highlights, tableName: "T1", fields: [], chartAssembly, vizModern } as HighlightDialogModel;
 }
 
 function createPane(model: HighlightDialogModel, selected: HighlightModel | null = null) {
@@ -39,13 +41,8 @@ function createPane(model: HighlightDialogModel, selected: HighlightModel | null
 }
 
 describe("HighlightPane — semantic presets", () => {
-   afterEach(() => {
-      document.body.classList.remove("viz-modern");
-   });
-
    it("shows presets for a non-chart highlight when the modern gate is on", () => {
-      document.body.classList.add("viz-modern");
-      const comp = createPane(createModel(false, [highlight("h1")]));
+      const comp = createPane(createModel(false, [highlight("h1")], true));
       expect(comp.showSemanticPresets).toBe(true);
    });
 
@@ -55,8 +52,7 @@ describe("HighlightPane — semantic presets", () => {
    });
 
    it("hides presets for a chart highlight even when the gate is on", () => {
-      document.body.classList.add("viz-modern");
-      const comp = createPane(createModel(true, [highlight("h1")]));
+      const comp = createPane(createModel(true, [highlight("h1")], true));
       expect(comp.showSemanticPresets).toBe(false);
    });
 

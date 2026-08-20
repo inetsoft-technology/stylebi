@@ -271,7 +271,7 @@ describe("ChartPlotArea — plotScaleInfo setter", () => {
       comp.plotScaleInfo = { scale: 2, vertical: true, clear: false };
 
       expect(drawSpy).toHaveBeenCalledWith(
-         ctx, comp.chartObject.regions, 3, 7, 1, 1, 2
+         ctx, comp.chartObject.regions, 3, 7, 1, 1, 2, undefined, undefined, undefined
       );
    });
 
@@ -284,7 +284,7 @@ describe("ChartPlotArea — plotScaleInfo setter", () => {
       comp.plotScaleInfo = { scale: 2, vertical: false, clear: false };
 
       expect(drawSpy).toHaveBeenCalledWith(
-         ctx, comp.chartObject.regions, 0, 0, 1, 2, 1
+         ctx, comp.chartObject.regions, 0, 0, 1, 2, 1, undefined, undefined, undefined
       );
    });
 
@@ -301,7 +301,8 @@ describe("ChartPlotArea — plotScaleInfo setter", () => {
 
       comp.plotScaleInfo = { scale: 2, vertical: false, clear: false };
 
-      expect(drawSpy).toHaveBeenCalledWith(ctx, [keep], 0, 0, 1, 2, 1);
+      expect(drawSpy).toHaveBeenCalledWith(
+         ctx, [keep], 0, 0, 1, 2, 1, undefined, undefined, undefined);
    });
 });
 

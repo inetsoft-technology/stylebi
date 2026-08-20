@@ -24,7 +24,6 @@ import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
 import { SourceInfoType } from "../../binding/data/source-info-type";
 import { CellBindingInfo } from "../../binding/data/table/cell-binding-info";
-import { GuiTool } from "../../common/util/gui-tool";
 import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
 
 export class CalcTableActions extends BaseTableActions<VSCalcTableModel> {
@@ -367,7 +366,7 @@ export class CalcTableActions extends BaseTableActions<VSCalcTableModel> {
       const legacyOrder = [openMaxMode, closeMaxMode, showDetails, exportAction, multiSelect, edit];
 
       groups.push(new AssemblyActionGroup(
-         GuiTool.isVizModern() ? stableFirst : legacyOrder));
+         this.model.vizModern ? stableFirst : legacyOrder));
       return super.createToolbarActions(groups, true);
    }
 

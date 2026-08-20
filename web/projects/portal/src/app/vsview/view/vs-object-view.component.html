@@ -21,6 +21,8 @@
     (onContextmenuOpened)="contextmenuOpened()"
     (onContextmenuClosed)="contextmenuClosed()"
     [actions]="actions?.menuActions"
+    [class.viz-modern]="model.vizModern"
+    [class.viz-dark]="model.vizDark"
     [class.object-margin]="!chartMaxMode"
     [style.min-width.px]="model.objectFormat.width"
     [style.min-height.px]="model.objectFormat.height" (mouseenter)="onMouseEnter($event)">
@@ -59,6 +61,7 @@
       </vs-calc-table-layout>
     }
     @if (model.objectType !== 'VSCalcTable') {
+      <!-- inherits viz-modern/viz-dark from .vs-object-container above, a real ancestor here -->
       <mini-toolbar [actions]="actions" [forceAbove]="true"
         [top]="0" [left]="5"
         [width]="model.objectFormat.width" [assembly]="model?.absoluteName" [forceHide]="!showMiniToolbar()">

@@ -47,10 +47,14 @@ describe("AbstractVSActions", () => {
    // AbstractVSActions is abstract; ChartActions is the cheapest concrete subclass to exercise
    // the shared createToolbarActions()/createMenuActions() logic through. Reused by later tests
    // appended to this file.
-   function actionsFor(width: number, height: number): ChartActions {
+   // AbstractVSActions.resident/isAnchoredChromeSuppressed read model.vizModern rather than the
+   // global gate, so each helper below takes it as an explicit parameter instead of reading a body
+   // class the test toggles to simulate the gate.
+   function actionsFor(width: number, height: number, vizModern: boolean): ChartActions {
       const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new ChartActions(model, popService, composerContext, false, null, null,
          miniToolbarService);
    }
@@ -58,10 +62,11 @@ describe("AbstractVSActions", () => {
    // A non-chart concrete subclass, for the "gate + cap is chart-only" tests. Constructor
    // parameter order differs from ChartActions (popService is positional 6th here, not 2nd) —
    // verified against calendar-actions.ts rather than assumed.
-   function calendarActionsFor(width: number, height: number): CalendarActions {
+   function calendarActionsFor(width: number, height: number, vizModern: boolean): CalendarActions {
       const model: VSCalendarModel = TestUtils.createMockVSCalendarModel("Calendar1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new CalendarActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
@@ -69,10 +74,11 @@ describe("AbstractVSActions", () => {
    // A table concrete subclass, for the rollout's first family. Constructor parameter order differs
    // again from both ChartActions and CalendarActions: popService is positional 6th and
    // miniToolbarService 7th — verified against table-actions.ts rather than assumed.
-   function tableActionsFor(width: number, height: number): TableActions {
+   function tableActionsFor(width: number, height: number, vizModern: boolean): TableActions {
       const model: VSTableModel = TestUtils.createMockVSTableModel("Table1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new TableActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
@@ -80,68 +86,72 @@ describe("AbstractVSActions", () => {
    // The selection family. Same constructor order as TableActions and CalendarActions —
    // popService positional 6th, miniToolbarService 7th — verified against selection-list-actions.ts
    // and selection-tree-actions.ts rather than assumed.
-   function selectionListActionsFor(width: number, height: number): SelectionListActions {
+   function selectionListActionsFor(width: number, height: number, vizModern: boolean): SelectionListActions {
       const model: VSSelectionListModel = TestUtils.createMockVSSelectionListModel("SelectionList1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new SelectionListActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
-   function selectionTreeActionsFor(width: number, height: number): SelectionTreeActions {
+   function selectionTreeActionsFor(width: number, height: number, vizModern: boolean): SelectionTreeActions {
       const model: VSSelectionTreeModel = TestUtils.createMockVSSelectionTreeModel("SelectionTree1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new SelectionTreeActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
    // The remaining two anchored table-family types, for the kebabOnly negative assertions only.
-   function crosstabActionsFor(width: number, height: number): CrosstabActions {
+   function crosstabActionsFor(width: number, height: number, vizModern: boolean): CrosstabActions {
       const model: VSCrosstabModel = TestUtils.createMockVSCrosstabModel("Crosstab1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new CrosstabActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
-   function calcTableActionsFor(width: number, height: number): CalcTableActions {
+   function calcTableActionsFor(width: number, height: number, vizModern: boolean): CalcTableActions {
       const model: VSCalcTableModel = TestUtils.createMockVSCalcTableModel("CalcTable1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
+      model.vizModern = vizModern;
       return new CalcTableActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
    afterEach(() => {
-      document.body.classList.remove("viz-modern", "viz-density-compact", "viz-density-dense");
+      document.body.classList.remove("viz-density-compact", "viz-density-dense");
    });
 
    it("keeps the dismissal off the toolbar under the gate", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
-      const ids = actionsFor(400, 200).toolbarActions
+      document.body.classList.add("viz-density-compact");
+      const ids = actionsFor(400, 200, true).toolbarActions
          .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       expect(ids).not.toContain("vs-assembly hide-mini-toolbar");
    });
 
    it("still prepends the dismissal to the toolbar when the gate is off", () => {
-      const ids = actionsFor(400, 200).toolbarActions
+      const ids = actionsFor(400, 200, false).toolbarActions
          .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       expect(ids[0]).toBe("vs-assembly hide-mini-toolbar");
    });
 
    it("exposes the dismissal in the menu under the gate", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
-      const ids = actionsFor(400, 200).menuActions
+      document.body.classList.add("viz-density-compact");
+      const ids = actionsFor(400, 200, true).menuActions
          .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       expect(ids).toContain("vs-assembly hide-mini-toolbar");
    });
 
    it("does not expose the dismissal in the menu when the gate is off", () => {
-      const ids = actionsFor(400, 200).menuActions
+      const ids = actionsFor(400, 200, false).menuActions
          .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       expect(ids).not.toContain("vs-assembly hide-mini-toolbar");
@@ -153,37 +163,37 @@ describe("AbstractVSActions", () => {
       // these numbers are supposed to produce are asserted separately below and, at the DOM level,
       // in mini-toolbar.component.tl.spec.ts.
       it("caps at three actions plus the kebab under the gate however wide the assembly", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(actionsFor(2000, 400).allowedActionsNum()).toBe(4);
+         document.body.classList.add("viz-density-compact");
+         expect(actionsFor(2000, 400, true).allowedActionsNum()).toBe(4);
       });
 
       it("does not cap when the gate is off", () => {
-         expect(actionsFor(2000, 400).allowedActionsNum()).toBeGreaterThan(4);
+         expect(actionsFor(2000, 400, false).allowedActionsNum()).toBeGreaterThan(4);
       });
 
       it("allows no actions below the 32px control floor", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(actionsFor(400, 24).allowedActionsNum()).toBe(0);
+         document.body.classList.add("viz-density-compact");
+         expect(actionsFor(400, 24, true).allowedActionsNum()).toBe(0);
       });
 
       it("allows no action buttons between 32 and 56px, leaving the kebab", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(actionsFor(400, 40).allowedActionsNum()).toBe(0);
+         document.body.classList.add("viz-density-compact");
+         expect(actionsFor(400, 40, true).allowedActionsNum()).toBe(0);
       });
 
       it("allows three actions at 56px and above", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(actionsFor(400, 70).allowedActionsNum()).toBe(4);
+         document.body.classList.add("viz-density-compact");
+         expect(actionsFor(400, 70, true).allowedActionsNum()).toBe(4);
       });
 
       it("still lets width bind below the cap on a narrow assembly", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(actionsFor(60, 200).allowedActionsNum()).toBeLessThan(4);
+         document.body.classList.add("viz-density-compact");
+         expect(actionsFor(60, 200, true).allowedActionsNum()).toBeLessThan(4);
       });
 
       it("does not cap a non-chart assembly even under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(calendarActionsFor(2000, 400).allowedActionsNum()).toBeGreaterThan(4);
+         document.body.classList.add("viz-density-compact");
+         expect(calendarActionsFor(2000, 400, true).allowedActionsNum()).toBeGreaterThan(4);
       });
    });
 
@@ -196,8 +206,8 @@ describe("AbstractVSActions", () => {
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       it("puts the first three stable actions and the kebab on a wide strip", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const actions = actionsFor(2000, 400);
+         document.body.classList.add("viz-density-compact");
+         const actions = actionsFor(2000, 400, true);
 
          // chart properties-toolbar is third in ChartActions' stable-first order and is the action
          // this cap regressed: at three slots it fell into the overflow at every width.
@@ -209,12 +219,13 @@ describe("AbstractVSActions", () => {
       });
 
       it("keeps all three when exactly three action buttons are available", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          // Viewer with the mock model's enableAdhoc=false: chart edit is not visible, leaving
          // exactly three action buttons plus the "menu actions" wrapper.
          const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
          model.objectFormat.width = 2000;
          model.objectFormat.height = 400;
+         model.vizModern = true;
          const actions = new ChartActions(model, popService, ViewerContextProviderFactory(false),
             false, null, null, miniToolbarService);
 
@@ -224,10 +235,11 @@ describe("AbstractVSActions", () => {
       });
 
       it("still overflows the wrapper into a non-empty kebab when fewer than three real actions are available", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
          model.objectFormat.width = 2000;
          model.objectFormat.height = 400;
+         model.vizModern = true;
          model.actionNames = ["Properties"];
          const actions = new ChartActions(model, popService, ViewerContextProviderFactory(false),
             false, null, null, miniToolbarService);
@@ -244,8 +256,8 @@ describe("AbstractVSActions", () => {
       });
 
       it("gives up action buttons before the kebab when width binds below the cap", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const actions = actionsFor(120, 400);
+         document.body.classList.add("viz-density-compact");
+         const actions = actionsFor(120, 400, true);
          const showing = ids(actions.showingActions);
 
          // 120px fits three buttons, one of which is the kebab.
@@ -255,41 +267,42 @@ describe("AbstractVSActions", () => {
       });
 
       it("still leaves only the kebab between the floor and 56px", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(ids(actionsFor(2000, 40).showingActions)).toEqual(["more actions"]);
+         document.body.classList.add("viz-density-compact");
+         expect(ids(actionsFor(2000, 40, true).showingActions)).toEqual(["more actions"]);
       });
 
       it("still removes all chrome below the 32px floor", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(ids(actionsFor(2000, 24).showingActions)).toEqual([]);
+         document.body.classList.add("viz-density-compact");
+         expect(ids(actionsFor(2000, 24, true).showingActions)).toEqual([]);
       });
    });
 
    describe("kebab residency", () => {
       it("keeps a kebab at 40px where no action buttons fit", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const ids = actionsFor(400, 40).showingActions
+         document.body.classList.add("viz-density-compact");
+         const ids = actionsFor(400, 40, true).showingActions
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
          expect(ids).toEqual(["more actions"]);
       });
 
       it("removes all chrome below 32px", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const ids = actionsFor(400, 24).showingActions
+         document.body.classList.add("viz-density-compact");
+         const ids = actionsFor(400, 24, true).showingActions
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
          expect(ids).toEqual([]);
       });
 
       it("still appends a kebab rather than throwing when every toolbar action is suppressed", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          // actionNames suppression is only honored by isActionVisibleInViewer() in viewer/preview
          // mode (composer ignores it), so this needs a viewer context to actually zero out every
          // action rather than the shared composer-context actionsFor() helper.
          const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
          model.objectFormat.width = 400;
          model.objectFormat.height = 200;
+         model.vizModern = true;
          // Suppress every named chart toolbar/menu action so both groups end up with zero
          // visible actions — the scenario that leaves ToolbarActionsHandler.copyActions()
          // with nothing to append the kebab onto without the this.showing.length===0 guard.
@@ -310,8 +323,8 @@ describe("AbstractVSActions", () => {
       });
 
       it("does not cap or gate-remove chrome for a non-chart assembly under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const ids = calendarActionsFor(2000, 400).showingActions
+         document.body.classList.add("viz-density-compact");
+         const ids = calendarActionsFor(2000, 400, true).showingActions
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
          expect(ids).not.toContain("more actions");
@@ -345,27 +358,27 @@ describe("AbstractVSActions", () => {
       it("uses the same predicate the template guard evaluates", () => {
          onTouch();
 
-         expect((actionsFor(2000, 400) as any).mobileDevice).toBe(GuiTool.isMobileDevice());
+         expect((actionsFor(2000, 400, false) as any).mobileDevice).toBe(GuiTool.isMobileDevice());
       });
 
       it("allows no action-button slots on a chart under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          onTouch();
 
-         expect(actionsFor(2000, 400).allowedActionsNum()).toBe(0);
+         expect(actionsFor(2000, 400, true).allowedActionsNum()).toBe(0);
       });
 
       it("leaves the kebab alone on the strip, as in the 32-56px band", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          onTouch();
 
-         expect(ids(actionsFor(2000, 400).showingActions)).toEqual(["more actions"]);
+         expect(ids(actionsFor(2000, 400, true).showingActions)).toEqual(["more actions"]);
       });
 
       it("gives the kebab a non-empty list containing the actions the cap would have put on the strip", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          onTouch();
-         const more = ids(actionsFor(2000, 400).getMoreActions());
+         const more = ids(actionsFor(2000, 400, true).getMoreActions());
 
          // The symptom: this list was empty, so VSUtil.showDropdownMenus() opened nothing.
          expect(more.length).toBeGreaterThan(0);
@@ -376,14 +389,14 @@ describe("AbstractVSActions", () => {
          // Nothing visible is dropped: every visible toolbar action is reachable from the kebab.
          // Asserted by membership rather than by count, because the flattened kebab also carries
          // the menu -- see "inlines the menu instead of chaining to it" below.
-         ids(ToolbarActionsHandler.getVisibleToolbarActions(actionsFor(2000, 400).toolbarActions))
+         ids(ToolbarActionsHandler.getVisibleToolbarActions(actionsFor(2000, 400, true).toolbarActions))
             .filter(id => id !== "menu actions")
             .forEach(id => expect(more).toContain(id));
       });
 
       it("does not change the pointer case", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const actions = actionsFor(2000, 400);
+         document.body.classList.add("viz-density-compact");
+         const actions = actionsFor(2000, 400, true);
 
          expect(actions.allowedActionsNum()).toBe(4);
          expect(ids(actions.showingActions)).toEqual(
@@ -392,16 +405,16 @@ describe("AbstractVSActions", () => {
       });
 
       it("does not zero a non-chart assembly on touch, even under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          onTouch();
 
-         expect(calendarActionsFor(2000, 400).allowedActionsNum()).toBeGreaterThan(4);
+         expect(calendarActionsFor(2000, 400, true).allowedActionsNum()).toBeGreaterThan(4);
       });
 
       it("does not zero a chart on touch when the gate is off", () => {
          onTouch();
 
-         expect(actionsFor(2000, 400).allowedActionsNum()).toBeGreaterThan(4);
+         expect(actionsFor(2000, 400, false).allowedActionsNum()).toBeGreaterThan(4);
       });
    });
 
@@ -432,9 +445,9 @@ describe("AbstractVSActions", () => {
       });
 
       it("inlines the menu instead of chaining to it, so nothing sits three taps deep", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          onTouch();
-         const actions = actionsFor(2000, 400);
+         const actions = actionsFor(2000, 400, true);
          const more = ids(actions.getMoreActions());
 
          // The toolbar actions still lead, in strip order.
@@ -450,40 +463,40 @@ describe("AbstractVSActions", () => {
       });
 
       it("does not add the entry for a non-chart assembly on touch under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          onTouch();
          // 120px so the calendar's toolbar overflows and the kebab has a list at all — at 2000px
          // nothing overflows and an absent entry would prove nothing.
-         const more = ids(calendarActionsFor(120, 400).getMoreActions());
+         const more = ids(calendarActionsFor(120, 400, true).getMoreActions());
 
          expect(more).toEqual(["calendar clear", "calendar multi-select"]);
          expect(more).not.toContain("menu actions");
       });
 
       it("keeps the entry for a non-chart assembly on a pointer device under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
 
-         expect(ids(calendarActionsFor(120, 400).getMoreActions()))
+         expect(ids(calendarActionsFor(120, 400, true).getMoreActions()))
             .toEqual(["calendar clear", "menu actions"]);
       });
 
       it("does not add the entry for a chart on touch when the gate is off", () => {
          onTouch();
-         const more = ids(actionsFor(120, 400).getMoreActions());
+         const more = ids(actionsFor(120, 400, false).getMoreActions());
 
          expect(more).toEqual(["chart multi-select", "chart edit"]);
          expect(more).not.toContain("menu actions");
       });
 
       it("keeps the entry for a chart on a pointer device when the gate is off", () => {
-         expect(ids(actionsFor(120, 400).getMoreActions()))
+         expect(ids(actionsFor(120, 400, false).getMoreActions()))
             .toEqual(["chart open-max-mode", "chart edit", "menu actions"]);
       });
 
       it("does not change the chart pointer case under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
 
-         expect(ids(actionsFor(2000, 400).getMoreActions()))
+         expect(ids(actionsFor(2000, 400, true).getMoreActions()))
             .toEqual(["chart edit", "menu actions"]);
       });
    });
@@ -509,28 +522,28 @@ describe("AbstractVSActions", () => {
       // on an anchored assembly, so the strip is those 2 real actions plus the kebab: 3 entries,
       // not the pre-fix 4 (which wrongly kept the wrapper on the strip beside an empty kebab).
       it("caps a table's strip at its real action count plus the kebab under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const showing = ids(tableActionsFor(2000, 400).showingActions);
+         document.body.classList.add("viz-density-compact");
+         const showing = ids(tableActionsFor(2000, 400, true).showingActions);
 
          expect(showing).toEqual(["table export", "table edit", "more actions"]);
       });
 
       it("does not cap a table when the gate is off", () => {
          // Gate off and wide enough for every action, showingActions returns toolbarActions whole.
-         expect(ids(tableActionsFor(2000, 400).showingActions).length).toBeGreaterThan(4);
+         expect(ids(tableActionsFor(2000, 400, false).showingActions).length).toBeGreaterThan(4);
       });
 
       it("leaves a table only its kebab between the 32px floor and 56px", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(ids(tableActionsFor(2000, 40).showingActions)).toEqual(["more actions"]);
+         document.body.classList.add("viz-density-compact");
+         expect(ids(tableActionsFor(2000, 40, true).showingActions)).toEqual(["more actions"]);
       });
 
       // Where no action button renders, the kebab is the whole strip. Nesting the menu behind a
       // "More" row there cost three taps to reach a one-tap action, and repeated the four entries
       // the menu-reachability fix shares with the toolbar across two adjacent panels.
       it("flattens the kebab into one panel where no action button renders", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const more = ids(tableActionsFor(2000, 40).getMoreActions());
+         document.body.classList.add("viz-density-compact");
+         const more = ids(tableActionsFor(2000, 40, true).getMoreActions());
 
          expect(more).not.toContain("menu actions");
          expect(new Set(more).size).toBe(more.length);
@@ -539,14 +552,14 @@ describe("AbstractVSActions", () => {
       });
 
       it("keeps the menu nested behind the wrapper while action buttons still render", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
 
-         expect(ids(tableActionsFor(2000, 400).getMoreActions())).toEqual(["menu actions"]);
+         expect(ids(tableActionsFor(2000, 400, true).getMoreActions())).toEqual(["menu actions"]);
       });
 
       it("removes all chrome from a table below the 32px floor", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(ids(tableActionsFor(2000, 24).showingActions)).toEqual([]);
+         document.body.classList.add("viz-density-compact");
+         expect(ids(tableActionsFor(2000, 24, true).showingActions)).toEqual([]);
       });
    });
 
@@ -562,12 +575,13 @@ describe("AbstractVSActions", () => {
       // Viewer context, not composer: table open-max-mode requires !composer, and the mock's
       // enableAdhoc=false keeps table edit hidden regardless of context. This isolates the two
       // real actions (open-max-mode, export) the probe found with nothing selected.
-      function viewerTableActionsFor(width: number, height: number,
+      function viewerTableActionsFor(width: number, height: number, vizModern: boolean,
                                       configure?: (model: VSTableModel) => void): TableActions
       {
          const model: VSTableModel = TestUtils.createMockVSTableModel("Table1");
          model.objectFormat.width = width;
          model.objectFormat.height = height;
+         model.vizModern = vizModern;
 
          if(configure) {
             configure(model);
@@ -578,8 +592,8 @@ describe("AbstractVSActions", () => {
       }
 
       it("shows exactly the two real actions plus a non-empty kebab with nothing selected", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const actions = viewerTableActionsFor(2000, 400);
+         document.body.classList.add("viz-density-compact");
+         const actions = viewerTableActionsFor(2000, 400, true);
 
          expect(ids(actions.showingActions)).toEqual(
             ["table open-max-mode", "table export", "more actions"]);
@@ -588,10 +602,10 @@ describe("AbstractVSActions", () => {
       });
 
       it("shows three real actions plus a non-empty kebab with a cell selected", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          // showDetailsVisible needs summary && selectedData.size > 0 && !form (isActionVisibleInViewer
          // is unconditionally true here since viewer=false/preview=false in ViewerContextProviderFactory(false)).
-         const actions = viewerTableActionsFor(2000, 400, model => {
+         const actions = viewerTableActionsFor(2000, 400, true, model => {
             model.summary = true;
             model.selectedData = new Map([[0, [0]]]);
          });
@@ -602,8 +616,8 @@ describe("AbstractVSActions", () => {
       });
 
       it("still overflows the chart's wrapper unchanged (3 real actions, budget 4)", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const actions = actionsFor(2000, 400);
+         document.body.classList.add("viz-density-compact");
+         const actions = actionsFor(2000, 400, true);
 
          expect(ids(actions.showingActions)).toEqual(
             ["chart show-data", "chart open-max-mode", "chart properties-toolbar", "more actions"]);
@@ -618,8 +632,8 @@ describe("AbstractVSActions", () => {
          // "cap the budget to the total visible count" fix gets wrong: with the wrapper gone the
          // total visible count equals realActions (2), and a budget of exactly 2 would force one of
          // the two real actions into the kebab. This asserts both stay on the strip.
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const actions = viewerTableActionsFor(2000, 400, model => {
+         document.body.classList.add("viz-density-compact");
+         const actions = viewerTableActionsFor(2000, 400, true, model => {
             model.actionNames = ["Menu Actions"];
          });
 
@@ -635,15 +649,15 @@ describe("AbstractVSActions", () => {
    // Asserting it on all six anchored types is what stops a later slice widening it by accident.
    describe("kebabOnly capability", () => {
       it("is set on the selection family", () => {
-         expect((selectionListActionsFor(400, 200) as any).kebabOnly).toBe(true);
-         expect((selectionTreeActionsFor(400, 200) as any).kebabOnly).toBe(true);
+         expect((selectionListActionsFor(400, 200, false) as any).kebabOnly).toBe(true);
+         expect((selectionTreeActionsFor(400, 200, false) as any).kebabOnly).toBe(true);
       });
 
       it("is not set on the chart pilot or the table family", () => {
-         expect((actionsFor(400, 200) as any).kebabOnly).toBe(false);
-         expect((tableActionsFor(400, 200) as any).kebabOnly).toBe(false);
-         expect((crosstabActionsFor(400, 200) as any).kebabOnly).toBe(false);
-         expect((calcTableActionsFor(400, 200) as any).kebabOnly).toBe(false);
+         expect((actionsFor(400, 200, false) as any).kebabOnly).toBe(false);
+         expect((tableActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
+         expect((crosstabActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
+         expect((calcTableActionsFor(400, 200, false) as any).kebabOnly).toBe(false);
       });
    });
 
@@ -655,36 +669,36 @@ describe("AbstractVSActions", () => {
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       it("allows no action-button slots at any width under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(selectionListActionsFor(150, 200).allowedActionsNum()).toBe(0);
-         expect(selectionListActionsFor(400, 200).allowedActionsNum()).toBe(0);
-         expect(selectionListActionsFor(800, 200).allowedActionsNum()).toBe(0);
+         document.body.classList.add("viz-density-compact");
+         expect(selectionListActionsFor(150, 200, true).allowedActionsNum()).toBe(0);
+         expect(selectionListActionsFor(400, 200, true).allowedActionsNum()).toBe(0);
+         expect(selectionListActionsFor(800, 200, true).allowedActionsNum()).toBe(0);
       });
 
       it("renders the kebab and nothing else at any width under the gate", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(ids(selectionListActionsFor(150, 200).showingActions)).toEqual(["more actions"]);
-         expect(ids(selectionListActionsFor(400, 200).showingActions)).toEqual(["more actions"]);
-         expect(ids(selectionListActionsFor(800, 200).showingActions)).toEqual(["more actions"]);
+         document.body.classList.add("viz-density-compact");
+         expect(ids(selectionListActionsFor(150, 200, true).showingActions)).toEqual(["more actions"]);
+         expect(ids(selectionListActionsFor(400, 200, true).showingActions)).toEqual(["more actions"]);
+         expect(ids(selectionListActionsFor(800, 200, true).showingActions)).toEqual(["more actions"]);
       });
 
       it("treats the tree the same as the list", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(selectionTreeActionsFor(400, 200).allowedActionsNum()).toBe(0);
-         expect(ids(selectionTreeActionsFor(400, 200).showingActions)).toEqual(["more actions"]);
+         document.body.classList.add("viz-density-compact");
+         expect(selectionTreeActionsFor(400, 200, true).allowedActionsNum()).toBe(0);
+         expect(ids(selectionTreeActionsFor(400, 200, true).showingActions)).toEqual(["more actions"]);
       });
 
       it("leaves the width-derived number alone when the gate is off", () => {
-         expect(selectionListActionsFor(800, 200).allowedActionsNum()).toBeGreaterThan(1);
-         expect(selectionTreeActionsFor(800, 200).allowedActionsNum()).toBeGreaterThan(1);
+         expect(selectionListActionsFor(800, 200, false).allowedActionsNum()).toBeGreaterThan(1);
+         expect(selectionTreeActionsFor(800, 200, false).allowedActionsNum()).toBeGreaterThan(1);
       });
 
       // Every selection list takes the flattened branch permanently, because no action button ever
       // renders. Leaving the menu nested behind a "More" row would cost three taps to reach what
       // the strip exists to put one tap away.
       it("flattens the kebab into one panel with no wrapper row", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         const more = ids(selectionListActionsFor(400, 200).getMoreActions());
+         document.body.classList.add("viz-density-compact");
+         const more = ids(selectionListActionsFor(400, 200, true).getMoreActions());
 
          expect(more).not.toContain("menu actions");
          expect(more).toContain("selection-list search");
@@ -692,18 +706,19 @@ describe("AbstractVSActions", () => {
       });
 
       it("still removes all chrome below the 32px control floor", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(ids(selectionListActionsFor(400, 24).showingActions)).toEqual([]);
+         document.body.classList.add("viz-density-compact");
+         expect(ids(selectionListActionsFor(400, 24, true).showingActions)).toEqual([]);
       });
 
       // flattenedMoreActions() dedupes by id, and these entries reuse their toolbar twins' ids
       // exactly for that reason. A fresh id would put Maximize in the kebab twice, in adjacent
       // groups.
       it("shows one Maximize row in the flattened kebab, not two", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
+         document.body.classList.add("viz-density-compact");
          const model = TestUtils.createMockVSSelectionListModel("SelectionList1");
          model.objectFormat.width = 400;
          model.objectFormat.height = 200;
+         model.vizModern = true;
          const actions = new SelectionListActions(model, ViewerContextProviderFactory(false),
             false, null, null, popService, miniToolbarService);
          const ids = actions.getMoreActions()
@@ -720,40 +735,41 @@ describe("AbstractVSActions", () => {
    // opts out entirely, so a 24px strip never gets forced onto dense's 20px title lane. Dense must
    // therefore skip the resident-only cap/kebab-forcing behaviour, the same as the gate being off —
    // this is the regression that motivated sharing one helper between the two call sites instead of
-   // two independently-named copies of the same condition. Unrelated isVizModern()-only visibility
-   // (chart properties-toolbar; the hide-mini-toolbar dismissal moving into the menu) is not part of
-   // this and stays in effect at every density, dense included — only resident's own callers change.
+   // two independently-named copies of the same condition. Unrelated model.vizModern-only
+   // visibility (chart properties-toolbar; the hide-mini-toolbar dismissal moving into the menu) is
+   // not part of this and stays in effect at every density, dense included — only resident's own
+   // callers change.
    describe("density gate: dense draws no chrome for an anchored type", () => {
       const ids = (groups: any[]) =>
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       it("draws nothing at all under dense, at a card height that is otherwise ample", () => {
-         document.body.classList.add("viz-modern", "viz-density-dense");
-         expect(ids(actionsFor(2000, 400).showingActions)).toEqual([]);
+         document.body.classList.add("viz-density-dense");
+         expect(ids(actionsFor(2000, 400, true).showingActions)).toEqual([]);
       });
 
       it("draws nothing for the selection family either, kebab included", () => {
-         document.body.classList.add("viz-modern", "viz-density-dense");
-         expect(ids(selectionListActionsFor(800, 200).showingActions)).toEqual([]);
+         document.body.classList.add("viz-density-dense");
+         expect(ids(selectionListActionsFor(800, 200, true).showingActions)).toEqual([]);
       });
 
       it("leaves a non-anchored type alone under dense", () => {
-         document.body.classList.add("viz-modern", "viz-density-dense");
+         document.body.classList.add("viz-density-dense");
          // Calendar is outside ANCHORED_ASSEMBLY_TYPES, so the lane rule does not reach it. Guards
          // against the suppression being written as !isAnchoredResident, which would catch every
          // non-anchored type and strip toolbars that ship today.
-         expect(ids(calendarActionsFor(2000, 400).showingActions).length).toBeGreaterThan(0);
+         expect(ids(calendarActionsFor(2000, 400, true).showingActions).length).toBeGreaterThan(0);
       });
 
       it("leaves an anchored type alone under dense when the gate is off", () => {
          document.body.classList.add("viz-density-dense");
-         expect(ids(actionsFor(2000, 400).showingActions).length).toBeGreaterThan(0);
+         expect(ids(actionsFor(2000, 400, false).showingActions).length).toBeGreaterThan(0);
       });
 
       it("returns to the capped resident strip once density moves back to compact", () => {
-         document.body.classList.add("viz-modern", "viz-density-compact");
-         expect(actionsFor(2000, 400).allowedActionsNum()).toBe(4);
-         expect(ids(actionsFor(2000, 400).showingActions).length).toBeGreaterThan(0);
+         document.body.classList.add("viz-density-compact");
+         expect(actionsFor(2000, 400, true).allowedActionsNum()).toBe(4);
+         expect(ids(actionsFor(2000, 400, true).showingActions).length).toBeGreaterThan(0);
       });
    });
 });

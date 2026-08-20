@@ -313,8 +313,8 @@ table.scrollable-table {
 }
 
 // Modern visualization gate. The tooltip surfaces are global classes, so the gate is a
-// descendant selector on the body class rather than :host-context.
-.viz-modern {
+// descendant selector on the org-level shell class rather than :host-context.
+.viz-shell {
   // Item 1 — a position:fixed overlay should not carry the card's own in-flow elevation.
   .widget__default-tooltip,
   .widget__card-tooltip,

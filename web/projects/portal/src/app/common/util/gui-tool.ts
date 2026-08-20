@@ -62,21 +62,25 @@ export class GuiTool {
    // (:host-context(.viz-modern)) binds to; change both together.
    static readonly MINI_TOOLBAR_HEIGHT_MODERN = 24;
 
-   // Read the modern visualization gate live: the .viz-modern body class toggles at runtime.
-   static isVizModern(): boolean {
-      return document.body.classList.contains("viz-modern");
+   // Org-level shell state, for chrome that is not owned by any one assembly: surfaces appended to
+   // body (tooltips) and full-container overlays (the pop-dim scrim). Assembly chrome must not use
+   // this - it reads the assembly's own resolved vizModern instead.
+   static isVizShell(): boolean {
+      return document.body.classList.contains("viz-shell");
    }
 
    // The mini-toolbar is positioned by JS (mini-toolbar.component.ts topY), so the height it assumes
-   // must match the rendered height.
-   static getMiniToolbarHeight(): number {
-      return GuiTool.isVizModern()
+   // must match the rendered height. vizModern is the caller's own resolved gate (per-assembly, or
+   // the org-level shell approximation where no assembly model is available).
+   static getMiniToolbarHeight(vizModern: boolean): number {
+      return vizModern
          ? GuiTool.MINI_TOOLBAR_HEIGHT_MODERN
          : GuiTool.MINI_TOOLBAR_HEIGHT;
    }
 
    // Density reaches the browser as a viz-density-<mode> body class, set by the portal, composer
-   // and viewer shells. Bare .viz-modern means dense, matching the _viz-tokens.scss fallback.
+   // and viewer shells. Bare .viz-modern (the per-assembly wrapper class, never this body class)
+   // falls back to dense, matching the _viz-tokens.scss fallback.
    static vizDensityMode(): "dense" | "compact" | "comfortable" {
       if(document.body.classList.contains("viz-density-comfortable")) {
          return "comfortable";
