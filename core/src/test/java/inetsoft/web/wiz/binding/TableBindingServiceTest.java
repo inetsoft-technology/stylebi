@@ -109,7 +109,7 @@ class TableBindingServiceTest {
    @Test
    void readReportsTheObjectTypeAndShelvesWithoutMutating() throws Exception {
       TableBindingModel existing = new TableBindingModel();
-      TableBindingMutator.setShelf(existing, "groups", List.of(dim("Region")));
+      TableBindingMutator.setShelf(existing, "details", List.of(dim("Region")));
       ViewsheetSessionService sessions = sessionsFor(mock(TableVSAssembly.class));
 
       Map<String, Object> read = serviceWith(sessions, existing,
@@ -119,8 +119,10 @@ class TableBindingServiceTest {
       assertEquals("table", read.get("objectType"));
       @SuppressWarnings("unchecked")
       Map<String, Object> shelves = (Map<String, Object>) read.get("shelves");
-      assertTrue(shelves.containsKey("groups"));
       assertTrue(shelves.containsKey("details"));
+      assertFalse(shelves.containsKey("groups"),
+                  "a table has no grouping — that is Crosstab's job — and this shelf can never " +
+                  "be written, so it should not be advertised as readable either");
       assertFalse(shelves.containsKey("rows"), "a table has no rows shelf");
       verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
    }
