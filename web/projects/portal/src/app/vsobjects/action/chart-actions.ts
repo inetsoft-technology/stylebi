@@ -509,8 +509,10 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          enabled: () => true,
          // Predicate copied verbatim from the menu entry (chart properties). Do not paraphrase:
          // !annotationsSelected is what keeps Properties out of the strip while an annotation is
-         // selected. Gated — this is a new button in the strip.
-         visible: () => this.model.vizModern &&
+         // selected. Gated — this is a new button in the strip. Excluded from the two hosts that
+         // give the action nowhere to dispatch: the binding pane routes no chart toolbar actions,
+         // and the object wizard's preview leaves its onAssemblyActionEvent output unsubscribed.
+         visible: () => this.model.vizModern && !this.binding && !this.vsWizardPreview &&
             this.isActionVisibleInViewer("Properties") && !this.annotationsSelected
             && !this.isPopComponent() && !this.mobileDevice
       };
@@ -564,10 +566,17 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
       // position. Under the gate it becomes load-bearing, because the cap of three shows the first
       // three *visible* actions — so the stable, chart-level actions have to come first or the strip
       // reshuffles under the pointer on every selection.
+      // Composer's primary action is Edit — it opens the binding editor — so it leads the pair
+      // there. Legacy put Edit on the strip and never rendered Properties at all (its predicate
+      // requires the mark), so the gate had demoted the composer's main action without meaning to.
+      // In the viewer the pair reverses: Edit is adhoc-only, Properties is the general one. Moving
+      // edit up from last changes nothing in the viewer, where Properties always takes the third
+      // slot under the gate and edit overflows either way.
+      const primary = this.composer ? [edit, propertiesToolbar] : [propertiesToolbar, edit];
       const stableFirst = [
-         showData, openMaxMode, closeMaxMode, propertiesToolbar,
+         showData, openMaxMode, closeMaxMode, ...primary,
          drillDown, drillUp, brush, clearBrush, zoom, clearZoom, excludeData,
-         showDetails, manualRefresh, autoRefresh, refresh, multiSelect, edit
+         showDetails, manualRefresh, autoRefresh, refresh, multiSelect
       ];
       const legacyOrder = [
          drillDown, drillUp, brush, clearBrush, zoom, clearZoom, excludeData,

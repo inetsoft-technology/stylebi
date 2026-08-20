@@ -602,6 +602,18 @@ drift: **Revert undoes exactly what Modernize does, because they are the same me
 touched the USER tier, so neither does Revert. A designer who tuned colours for modern chrome keeps them
 after reverting, and can change them.
 
+**One exemption, added 2026-08-20 by the P6 review: two chart values have no tiers, so the sentence above
+does not cover them.** `PlotDescriptor.barCornerRadius` and `smoothLines` are plain fields on the descriptor,
+not entries in a `VSCompositeFormat`, and both are user-settable in Chart Plot Options
+(`chart-plot-options-pane.component.html:266-271`, `:235-240`). The only thing that has ever distinguished a
+seeded value from an authored one there is the pair of seed booleans this decision deletes — so once they are
+gone, Revert resets both to legacy whether the author chose them or not. **Accepted, because it is still
+symmetric:** Modernize overwrites the same two values in the forward direction on any unmarked chart, and
+"Revert undoes exactly what Modernize does" holds even here. The alternatives were both worse — value-sniffing
+the seed is the `resolveSeededCorner` pattern this file is deleting, and keeping a renamed marker keeps two
+persisted XML attributes alive against the phase's whole point. Say "the DEFAULT tier only, plus the two
+untiered chart plot values" when precision matters.
+
 ### Why this is the better rule
 
 Four arguments, every one of them from a decision already in this file.
@@ -669,17 +681,56 @@ rather than to a later one.
   `if(ctx.modern)` sets `barCornerRadius` and `smoothLines` with nothing on the false side (`:106-112`) —
   precisely because the two booleans above did the reversing. Once they are gone, the hook has to write both
   legacy values itself, which is also what makes Revert complete for charts.
+- **`resolveSeededCorner` is retired in the same commit — a fourth item, added 2026-08-20 by the P6 review.**
+  `VSObjectChromeDefaults.resolveSeededCorner` (`:68-70`) tests `VSDensityDefaults.isModern()` directly and is
+  reached from `VSCompositeFormat.getRoundCornerValue()` (`:323-327`) through the private
+  `resolveDefaultTierCorner` (`:334-337`), which is the composite getter every read path uses. This decision's
+  bullet above says the two `PlotDescriptor` booleans are "the only reads still testing the org gate"; that was
+  wrong, and the consequence is the same one the bullet argues about. Leave the method in and a marked assembly
+  in a gate-off org keeps its modern border colour, card background, page background, density and bar corners
+  while its 12px card radius collapses to square — the more visible property of the two. Both methods go, the
+  getter returns the raw DEFAULT-tier radius, and the TAB carve-out `resolveDefaultTierCorner` existed for
+  dies with it. **This is not the card radius 12→6 change**, which stays a separately scheduled constant move;
+  what the retirement was waiting for was *a* reversal path, and Revert is one.
 
-Net effect on the codebase is subtractive: two persisted booleans, two XML attributes, one predicate term and
-two org-scoped `SreeEnv` reads out of getters that run inside chart render loops.
+Net effect on the codebase is subtractive: two persisted booleans, two XML attributes, one predicate term, two
+resolver methods, and four org-scoped `SreeEnv` reads out of getters that run inside chart render and format
+resolution loops.
 
-### Known issue the phase has to settle
+**Two org-gated chart reads survive on purpose, and they are new inconsistencies this decision creates.**
+Added 2026-08-20. Until P6 the `gate &&` term made a gate-off org consistently legacy, so neither showed;
+afterwards a marked chart in a gate-off org is modern except for these. `AbstractChartInfo.getTooltipStyle`
+(`:3736-3746`) resolves AUTO from the gate, and threading it means widening five `ChartArea` constructor
+overloads reached by the report painter, the exporter, annotations and the scheduler — larger than the whole
+of P6. `VSChartInteractionDefaults.isInlineSvg()` (`:41-49`) follows the gate unless `graph.svg.inline` is set,
+costing inline-SVG animation and hover dimming; it is interaction rather than chrome and the override is the
+documented workaround. Both are the gate-off mirror of an inconsistency already accepted in the gate-on
+direction, and both are accepted costs rather than work.
+
+### Known issue the phase has to settle — settled 2026-08-20
 
 **Reverting while the gate is on immediately re-arms Modernize.** `modernizable` is recomputed on every
 refresh (`CoreLifecycleService.java:314`) as `isModern() && hasUnmarked(vs)`, so a just-reverted sheet
 qualifies the instant the refresh lands and the bar returns, offering to modernize what was reverted a second
 ago. The bar is dismissable per composer session, so the practical cost is one dismissal — but the phase
 should decide whether a sheet reverted in this session suppresses the offer for the rest of it.
+
+**Decided: it suppresses.** Reverting sets the same per-session `modernizeBarDismissed` flag
+(`composer/data/vs/viewsheet.ts:56`) the bar's own dismiss button sets, so the offer stays gone until the
+session ends. One line on the client, and it reuses the existing dismissal rather than introducing a second
+suppression rule with its own lifetime. The **menu entry is deliberately unaffected** — it already outlives a
+dismissal (`viewsheet-pane.component.ts:1699-1702`), and an author who reverts and changes their mind should
+still be able to reach Modernize without reopening the sheet.
+
+### A second known issue, found 2026-08-20: the EM hides the density control behind the gate
+
+`look-and-feel-settings-view.component.html:38-49` renders **Visualization Density** and **Dark Mode** only
+while Modern Visualization is checked. After this decision lands, density is still read live for every marked
+assembly in a gate-off org — `VizContext.of(mark)` takes `density` from `VSDensityDefaults.mode()` regardless
+of the gate — so an admin loses sight of a setting that still changes how their dashboards render. **Density is
+unhidden. Dark Mode stays hidden**, and coherently: the dark axis is stamped into the mark at creation, and a
+gate-off org creates no marked content, so the checkbox genuinely has nothing to act on. The same pass rewrites
+the gate's own description, which is what the "smaller cost" paragraph above asks for.
 
 ### Rejected alternatives
 
@@ -759,6 +810,14 @@ rewriting or the property renaming.
    half its rationale has moved: the title-lane "lozenge" argument assumed a filled title band, and the
    chart card track has since decided the band draws no fill. The scale argument (12 is off a scale topping
    out at 6) still stands on its own.
+
+   **Amended 2026-08-20: the retirement and the value change have separated, and only the value change is
+   still open.** The P6 review found that `resolveSeededCorner`'s gate read strands card corners on a marked
+   assembly in a gate-off org the moment the `gate &&` term goes, so the retirement is *required* by the Revert
+   phase rather than merely unblocked by it, and it moved into P6's same-commit set. What is left open here is
+   the constant: `CARD_CORNER_RADIUS` 12 → 6. One thing that got *easier* by separating them — the old warning
+   that "already-seeded assets stop being stripped the moment the constant changes" applies to a strip that no
+   longer exists after P6, so the cohort question the entry raises dissolves rather than needing an answer.
 
 ---
 

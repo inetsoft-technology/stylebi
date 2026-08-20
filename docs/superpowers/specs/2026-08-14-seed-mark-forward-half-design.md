@@ -244,10 +244,14 @@ Two things this amendment adds that the paragraph above could not have known, bo
 
 - **After P4, the term is no longer the only gate-keyed reversal.** `PlotDescriptor.isSmoothLines()`
   (`:635`) and `getBarCornerRadius()` (`:1319`) still test `VSDensityDefaults.isModern()` directly — P2 left
-  them alone on purpose, as interim mechanisms, and P4 did not touch them. They and this term are the whole
-  of what reverses on gate-off today. They therefore have to be deleted **in the same phase** as the term:
-  delete the term alone and a marked chart in a gate-off org keeps modern chrome everywhere except its bar
-  corners and line smoothing, which is a worse state than either end.
+  them alone on purpose, as interim mechanisms, and P4 did not touch them. ~~They and this term are the whole
+  of what reverses on gate-off today.~~ **Corrected 2026-08-20 by the P6 review: they are not.**
+  `resolveSeededCorner` is a third, and the paragraph at the end of this subsection is where it was
+  overlooked — it says the method "stays untouched" without noticing that the same argument this bullet makes
+  applies to it verbatim. All three, plus this term, have to be deleted **in the same phase**: delete the term
+  alone and a marked chart in a gate-off org keeps modern chrome everywhere except its bar corners and line
+  smoothing; delete the booleans with it and it still loses its card radius. Either partial state is worse
+  than either end. §5's P6 carries the full four-deletion set.
 - **`ChartVSAssemblyInfo.seedChromeDefaults` is forward-only** (`:106-112`) because those two booleans did
   the reversing. P6 gives it the `else` branch, which is also what makes Revert complete for charts.
 
@@ -258,11 +262,18 @@ fixes it automatically and nothing needs to** — a marked assembly is *supposed
 closes. The mismatch the paragraph above was worried about only existed because gate-off was meant to mean
 legacy.
 
-`resolveSeededCorner` (`VSObjectChromeDefaults.java:79-81`), its tab carve-out
-(`VSCompositeFormat.java:334-337`) and both `PlotDescriptor` seed booleans stay untouched. Decision 12
-forbids deleting them before the mark is verified, and they are what keeps the radius reversible in the
-meantime. **`VSCompositeFormat` therefore needs no changes in this scope at all** — which removes the
-granularity problem the external ticket spends a section on.
+`resolveSeededCorner` (`VSObjectChromeDefaults.java:68-70` at `35ca4fce0`; the `:79-81` first recorded here
+has since moved), its tab carve-out (`VSCompositeFormat.java:334-337`) and both `PlotDescriptor` seed
+booleans stay untouched. Decision 12 forbids deleting them before the mark is verified, and they are what
+keeps the radius reversible in the meantime. **`VSCompositeFormat` therefore needs no changes in this scope at
+all** — which removes the granularity problem the external ticket spends a section on.
+
+**Amended 2026-08-20 — true of the forward half, and P6 ends it.** "This scope" above means P1–P5, and
+across those five phases the sentence held: `VSCompositeFormat` was never touched. P6 is where all three go,
+together with the term, and it is therefore also where `VSCompositeFormat` finally changes —
+`getRoundCornerValue()` (`:323-327`) loses its call to `resolveDefaultTierCorner`, and that private method
+and its TAB carve-out are deleted with it. The condition decision 12 set is met by then: the mark is
+verified, P4 and P5 read it, and Revert is the reversal path the retirement needed. See §5's P6, piece 4.
 
 ### The four sub-gate properties — deleted in P2
 
@@ -387,8 +398,16 @@ make irrelevant.
 > `--inet-viz-*` blocks in `_viz-tokens.scss` now list `.viz-shell` beside `.viz-modern` (and
 > `.viz-shell-dark` beside `.viz-dark`), because consumers outside any assembly wrapper — the combo-box
 > dropdown appended to `document.body`, the worksheet details pane, the schedule list — otherwise fall back
-> to the legacy `:root` values. A body carrying `viz-shell` resolves the dense tier, which matches what a
-> body carrying `viz-modern` + `viz-density-<mode>` resolved before the split.
+> to the legacy `:root` values. ~~A body carrying `viz-shell` resolves the dense tier, which matches what a
+> body carrying `viz-modern` + `viz-density-<mode>` resolved before the split.~~ **The first half is right and
+> the second is wrong — corrected 2026-08-20 by the P6 review.** A body carrying `viz-shell` does resolve the
+> dense tier, at every density, because `.viz-shell` appears only in the bare/dense group at `:115-117` and
+> the compact and comfortable matrices are *descendant* selectors that cannot match the body's own classes.
+> But the pre-split form was **compound** — `.viz-modern.viz-density-compact`, confirmed at
+> `git show 4c237a7dd^:web/projects/portal/src/scss/_viz-tokens.scss:120` — which matched a body carrying both
+> and resolved the org's chosen density. So org-level surfaces silently lost their density tier at P5. Two
+> added compound selectors restore it, and the fix is folded into P6 because P6 is the phase that touches
+> these lines; see §5's P6.
 >
 > What actually shipped, and the reasoning behind each departure, is recorded in
 > [chart-card-roadmap.md](./lookfeel/chart-card-roadmap.md) under "What P5 left behind". P5 shipped as
@@ -1112,26 +1131,59 @@ is not reviewable. Server first, so the last commit is the one that makes it coh
 What replaced the sweep is one composer action, so it belongs here beside its mirror rather than in a
 reverse-half document that no longer has enough in it to exist.
 
-Four pieces, and pieces 1–3 must land in the same commit:
+> **Reviewed against the code 2026-08-20, at `35ca4fce0` (P5 shipped).** Every citation below verified; six
+> findings changed the phase, four of them decided the same day. The largest: **this section's claim that the
+> two `PlotDescriptor` booleans are "the only reads left that still test the org gate" is false.**
+> `VSObjectChromeDefaults.resolveSeededCorner` is a third, and it strands card corners exactly the way the
+> booleans strand bar corners — so it joins the same-commit set as piece 4, and the phase has five pieces
+> rather than four. Two further gate reads survive P6 as documented accepted costs, and three items the
+> section did not list are folded in. All of it is below, in place; nothing here was built when the review
+> ran.
 
-1. **`VizModernizeUtil.revert(Viewsheet)`** — the mirror of `modernize()` (`VizModernizeUtil.java:52-69`).
+Five pieces, and pieces 1–4 must land in the same commit:
+
+1. **`VizModernizeUtil.revert(Viewsheet)`** — the mirror of `modernize()` (`VizModernizeUtil.java:53-69`).
    Same enumeration with the predicate inverted: the sheet's own **marked** infos, including the sheet's own
    `ViewsheetVSAssemblyInfo` and the second non-recursive pass for embedded-viewsheet containers that
    `unmarked()` already gets right. Clear the mark, then call `seedChromeDefaults(VizContext.of(info))` —
    which now resolves unmarked and therefore writes the legacy branch of every ternary. **No reverser is
    authored; it is the creation call**, which is what decision 12's "revert calls the legacy creation path"
-   was asking for and what decision 11's enumeration point makes free.
-2. **`ChartVSAssemblyInfo.seedChromeDefaults` gains its `else` branch** (`:106-112`), and
-   `PlotDescriptor.modernCornerSeed` and `modernSmoothSeed` are deleted with their fields, XML
-   read/write attributes, `equals` terms and self-clearing setters. Non-negotiably this phase — see §2's
-   amendment for what stranding them would look like.
+   was asking for and what decision 11's enumeration point makes free. A `hasMarked(Viewsheet)` beside
+   `hasUnmarked` feeds the affordance.
+2. **`ChartVSAssemblyInfo.seedChromeDefaults` gains its `else` branch** (`:106-112`, `if(ctx.modern)` at
+   `:106` with no false side), writing the legacy values `barCornerRadius = 0` and `smoothLines = false`, and
+   `PlotDescriptor.modernCornerSeed` and `modernSmoothSeed` are deleted with their fields (`:1996`, `:2009`),
+   XML read/write attributes (`:1534-1535`, `:1580-1583`, `:1721-1722`, `:1742-1744`), `equals` terms
+   (`:1876-1877`, `:1902-1903`) and self-clearing setters (`:648-652`, `:1335-1339`). The two gate-reading
+   getters (`isSmoothLines()` `:633-636`, `getBarCornerRadius()` `:1317-1320`) collapse to plain accessors.
+   Non-negotiably this phase — see §2's amendment for what stranding them would look like.
+   **Two production consumers this section did not list**, both found by the 2026-08-20 review:
+   `ChangeChartTypeService.java:341` sets `setModernSmoothSeed(true)` beside its `setSmoothLines(true)` on a
+   type change to Line, and `ChartPlotOptionsPaneModel.java:227-229` guards its radius write solely to keep a
+   no-op OK from laundering a seeded radius into an authored one. The first loses one line; the second loses
+   its `if` and writes unconditionally.
 3. **The `gate &&` term goes** from `VizContext.of(VizMark)` (`VizContext.java:66`), leaving
    `modern = mark != null`. `ofGate()` survives, for `ChartColorPaletteController` and for stamping at
    creation; the persisted guard `VizContextReadFlipTest.exactlyOneDocumentedSiteStillReadsTheOrgGate` keeps
-   holding unchanged.
-4. **The wiring**, mirroring P3's exactly: a `RevertViewsheetController`/`Service` pair beside
+   holding unchanged — **and note what that guard does not cover:** it counts `ofGate()` call sites, so none
+   of the four direct `VSDensityDefaults.isModern()` reads this phase deletes was ever inside it.
+4. **`resolveSeededCorner` is retired** — added 2026-08-20, decided the same day, and it is the review's
+   central finding. `VSObjectChromeDefaults.resolveSeededCorner` (`:68-70`) reads the gate directly and is
+   called from `VSCompositeFormat.getRoundCornerValue()` (`:323-327`) by way of `resolveDefaultTierCorner`
+   (`:334-337`) — the composite getter every read path uses. Leave it in place and a marked assembly in a
+   gate-off org keeps its modern border colour, card background, page background, density **and** bar
+   corners while losing its 12px card radius: the identical stranding piece 2 exists to prevent, on the more
+   visible property. Both methods are deleted, `getRoundCornerValue()` returns the raw DEFAULT-tier radius,
+   and the TAB exemption `resolveDefaultTierCorner` carried dies with it. Revert already writes `0` to that
+   tier, so reverted assemblies need no strip. Four tests in `VSObjectChromeDefaultsTest` (`:213-230`) go
+   with it.
+   **This is not the card radius 12→6 change**, which stays a follow-on: that is a constant move needing its
+   own sign-off, and the roadmap's "Decided, unscheduled" entry for it is about the value, not the gate read.
+   What made the retirement wait was needing *a* reversal path to fall back on, and Revert is one.
+5. **The wiring**, mirroring P3's exactly: a `RevertViewsheetController`/`Service` pair beside
    `ModernizeViewsheetController`/`Service` (58 and 90 lines respectively), a `revertable` flag beside
-   `modernizable` (`CoreLifecycleService.java:314`), a menu entry, and a **confirmation dialog**.
+   `modernizable` (`CoreLifecycleService.java:314`), a menu entry, and a **confirmation dialog** — the
+   `ComponentTool.showConfirmDialog` pattern already in the pane at `viewsheet-pane.component.ts:1448`.
 
 **Three places it deliberately differs from Modernize.**
 
@@ -1145,18 +1197,90 @@ Four pieces, and pieces 1–3 must land in the same commit:
   an author may have been working against for months, and the undo step is just as available but far less
   likely to be reached for calmly.
 
-**The one interaction to settle in the plan.** `modernizable` is recomputed on every refresh, so a sheet
-reverted with the gate open qualifies again immediately and the Modernize bar returns, offering to undo what
-was just done. The bar is dismissable per composer session, so the floor is one dismissal; decide whether a
-sheet reverted in this session suppresses the offer for the rest of it.
+**The one interaction the section left to the plan — settled 2026-08-20: a revert suppresses the offer for
+the rest of the session.** `modernizable` is recomputed on every refresh (`CoreLifecycleService.java:314`),
+so a sheet reverted with the gate open qualifies again immediately and the Modernize bar returns, offering to
+undo what was just done. Reverting therefore sets the same `modernizeBarDismissed` flag
+(`composer/data/vs/viewsheet.ts:56`) the bar's own dismiss button sets, so the bar stays gone until the
+session ends. One line client-side, and it reuses the per-session dismissal rather than inventing a second
+suppression rule. The **menu entry** still recomputes normally — it outlives the dismissal today
+(`viewsheet-pane.component.ts:1699-1702`) and there is no reason for Revert to change that.
+
+**Two gate reads survive P6 on purpose, and both are new inconsistencies P6 creates.** Before this phase the
+`gate &&` term made a gate-off org consistently legacy, so neither showed. Both are the *same* defect class
+already accepted in the gate-on direction, and both are recorded as accepted costs rather than work:
+
+- **`AbstractChartInfo.getTooltipStyle` (`:3736-3746`)** resolves AUTO → CARD/DEFAULT from the org gate, so a
+  marked chart in a gate-off org renders modern everywhere and takes a legacy tooltip. This is R20, deferred
+  at P5 for a reason that has not changed: `PlotArea` and `ChartArea` hold a `ChartInfo` across five
+  constructor overloads whose callers include the report painter, the exporter, annotations and the
+  scheduler, several with no assembly in existence. Threading it is larger than the whole of P6. **Decided
+  2026-08-20: accept and document.**
+- **`VSChartInteractionDefaults.isInlineSvg()` (`:41-49`)** follows the gate unless `graph.svg.inline` is set
+  explicitly, so a marked chart in a gate-off org loses inline-SVG animation and hover dimming. It is
+  interaction rather than chrome, it is org-scoped by design, and it already has an admin override — which is
+  the workaround to name in release notes. **Decided 2026-08-20: accept and document.**
+
+After P6, `VSDensityDefaults.isModern()` has exactly five readers left and every one is correct by design:
+`VizContext.ofGate()`, `VizMark.fromGate()` (creation), `CoreLifecycleService` (the `modernizable` offer), and
+the two above.
+
+**Three items folded in that this section did not list.**
+
+- **The `if(modern)` guard on the density body class** — carried into P6 from P5 and recorded in the
+  roadmap. All three shells add `viz-density-<mode>` only when the org gate is on
+  (`portal/app.component.ts:272`, `composer/app.component.ts:145`, `viewer-app.component.ts:2796`). After P6
+  a marked assembly in a gate-off org would find no density class on the body and fall back to the bare
+  `.viz-modern` dense defaults. One line each, and required under either density design considered.
+- **A P5 regression on the same selectors** — found by the 2026-08-20 review. Pre-P5 the matrices were
+  compound (`.viz-modern.viz-density-compact`), so a `body` carrying both classes matched. Post-P5 they are
+  ancestor-descendant and `.viz-shell` appears only in the dense group (`_viz-tokens.scss:115-117`), so a
+  body carrying `viz-shell` + `viz-density-compact` resolves **dense** — a descendant selector cannot match
+  its own element. **§3's correction box claims this "matches what a body carrying `viz-modern` +
+  `viz-density-<mode>` resolved before the split"; it does not**, and `git show 4c237a7dd^` of the file
+  confirms the compound form it replaced. Affected are exactly the org-level consumers §3 names: the
+  body-appended combo-box dropdown, the worksheet details pane, the schedule task list. Fix is two added
+  selectors, `.viz-density-compact.viz-shell` and `.viz-density-comfortable.viz-shell`.
+- **The EM hides Visualization Density behind the gate checkbox**
+  (`look-and-feel-settings-view.component.html:38-49`). After P6 density is still read live for every marked
+  assembly in a gate-off org — `VizContext.of(mark)` takes `density` from `VSDensityDefaults.mode()`
+  regardless — and the body-class fix above makes it apply in the browser too, so an admin loses sight of a
+  setting that still does something. Density is unhidden; **Dark Mode stays hidden**, and coherently, because
+  the dark axis is stamped into the mark at creation and a gate-off org creates no marked content. The gate's
+  own description is rewritten in the same pass, which is what decision 13's "the EM property now says
+  something it does not do" asked for.
 
 *Verification:* a dashboard modernized and then reverted is byte-comparable, in the properties this hook
 touches, with one that was never modernized — the check decision 12's creation-path routing exists to make
-possible; a marked chart in a **gate-off** org renders fully modern including bar corners and smooth lines,
-which could not have passed before this phase and is the clearest single signal that the term and the
-booleans went together; undo after Revert restores modern chrome in one step; a mixed sheet reverts its
-marked assemblies and leaves its unmarked ones untouched; an embedded viewsheet's own assemblies are not
-reverted by reverting its host.
+possible, and it must be run against a **freshly created** dashboard, because a pre-mark-cohort asset (P0's
+subject) carries seeded modern values with no mark and would make the comparison meaningless; a marked chart
+in a **gate-off** org renders fully modern including bar corners, smooth lines **and card radius**, which
+could not have passed before this phase and is the clearest single signal that all four deletions went
+together; undo after Revert restores modern chrome in one step; a mixed sheet reverts its marked assemblies
+and leaves its unmarked ones untouched; an embedded viewsheet's own assemblies are not reverted by reverting
+its host; and export agrees with view across PDF, PNG and Excel, since every value Revert writes is persisted
+and painter-read.
+
+**Five existing tests invert, and that is the phase's assertion rather than breakage.** Enumerated while
+planning, 2026-08-20 — an earlier draft of this paragraph said two, counting only the `VizContext` pair:
+
+| Test | What it pins today | After P6 |
+|---|---|---|
+| `VizContextTest.ofAMarkIsLegacyWhenTheGateIsOff` (`:97`) | the `gate &&` term, by name | a mark alone makes it modern |
+| `VizContextReadFlipTest.closingTheGateStillRevertsAMarkedAssembly` | the same term, by name | closing the gate reverts nothing |
+| `ChartVSAssemblyInfoBarRoundingTest.seededBarRadiusRevertsWhenGateTurnedOff` | 0.3 → 0 on gate-off | 0.3 survives |
+| `ChartVSAssemblyInfoBarRoundingTest.seededSmoothLinesRevertsWhenGateTurnedOff` | true → false on gate-off | true survives |
+| `VSCompositeFormatRoundCornerGateTest.defaultTierSeedStrippedGateOff` | 12 → 0 on gate-off | 12 survives |
+
+**And a deletion surface larger than the production diff, which is worth knowing before budgeting the
+phase.** The two seed booleans are asserted across six test files — `PlotDescriptorXmlTest` (roughly a
+dozen tests, most of them wholly about the booleans), `ChartVSAssemblyInfoBarRoundingTest`,
+`ChartVSAScriptableTest`, `ChangeChartTypeServiceSmoothLinesTransitionTest`,
+`ChartPlotOptionsPaneModelTest` (a whole `:426-565` block on no-op-save seed preservation) and
+`VSWizardBindingHandlerSmoothLinesTest` — and `resolveSeededCorner` has a dedicated file of its own,
+`VSCompositeFormatRoundCornerGateTest`, most of which dies with the strip, plus three tests in
+`VSObjectChromeDefaultsTest` (`:213-230`). The production change is four deletions and one `else` branch;
+the test change is the larger half.
 
 ---
 
@@ -1194,6 +1318,24 @@ description of the P1–P5 window rather than of the end state.
 of modern is a per-dashboard job. Stated in full in the decisions file's decision 13, including the two
 things that soften it — a scripted bulk revert and "revisit if customers ask" — and neither is committed
 work.
+
+**New 2026-08-20, from the P6 review: two chart surfaces stay org-gated after P6, so a marked chart in a
+gate-off org is modern except for its tooltip chrome and its inline-SVG interaction.** Both are the gate-off
+mirror of a gate-on inconsistency already accepted at P5 (a legacy assembly on a modern org taking modern
+tooltip chrome), and both were decided as accepted costs rather than work: `getTooltipStyle` because threading
+it means widening five `ChartArea` constructor overloads reached by the report painter, the exporter,
+annotations and the scheduler, and `isInlineSvg()` because it is interaction rather than chrome and already
+carries an explicit `graph.svg.inline` override for anyone who wants it back. Full reasoning in §5's P6.
+
+**New 2026-08-20: Revert resets bar corner radius and smooth lines even when an author set them by hand.**
+`PlotDescriptor.barCornerRadius` and `smoothLines` are untiered single fields, both user-settable in Chart
+Plot Options (`chart-plot-options-pane.component.html:266-271`, `:235-240`), and once the two seed booleans
+are gone nothing distinguishes an author's `0.4` from the seeded `0.3`. Accepted because it is genuinely
+symmetric — Modernize already overwrites the same two values in the forward direction, which is decision 13's
+whole argument — and because both alternatives are worse: value-sniffing the seed is the
+`resolveSeededCorner` pattern this set is deleting, and keeping a renamed marker contradicts the phase's
+subtractive premise. This is the one place decision 13's "Revert writes the DEFAULT tier only" does not hold;
+the decisions file is amended to say so.
 
 **A press that finds nothing left to modernize still takes an undo checkpoint.** `@Undoable` is implemented as
 `@AfterReturning("@annotation(Undoable) && within(inetsoft.web..*)")` (`EventAspect.java:103-122`), which fires
@@ -1253,6 +1395,10 @@ Small enough to answer in the plan rather than before it.
    assembly's title border legacy while a fresh one took the modern colour, and would have needed an explicit
    exemption in P3's verification claim. The accepted cost is that the hook touches a second path, so the
    per-path contract has to hold there too.
+8. ~~**Whether a sheet reverted in a composer session suppresses the Modernize offer for the rest of it.**~~
+   Answered 2026-08-20 during the P6 review: **yes**, by setting the existing per-session
+   `modernizeBarDismissed` flag rather than adding a second suppression rule. The menu entry is unaffected and
+   keeps recomputing. See §5's P6.
 
 ---
 

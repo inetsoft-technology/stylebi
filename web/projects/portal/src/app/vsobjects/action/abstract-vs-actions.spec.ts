@@ -17,7 +17,7 @@
  */
 import { TestUtils } from "../../common/test/test-utils";
 import { GuiTool } from "../../common/util/gui-tool";
-import { ComposerContextProviderFactory, ViewerContextProviderFactory } from "../context-provider.service";
+import { BindingContextProviderFactory, ComposerContextProviderFactory, ViewerContextProviderFactory, VSWizardPreviewContextProviderFactory } from "../context-provider.service";
 import { VSCalcTableModel } from "../model/vs-calctable-model";
 import { VSCalendarModel } from "../model/calendar/vs-calendar-model";
 import { VSChartModel } from "../model/vs-chart-model";
@@ -209,13 +209,13 @@ describe("AbstractVSActions", () => {
          document.body.classList.add("viz-density-compact");
          const actions = actionsFor(2000, 400, true);
 
-         // chart properties-toolbar is third in ChartActions' stable-first order and is the action
-         // this cap regressed: at three slots it fell into the overflow at every width.
+         // actionsFor() builds a composer context, where Edit leads the Edit/Properties pair, so
+         // Edit is the third stable action here and Properties is what the cap pushes over.
          expect(ids(actions.showingActions)).toEqual(
-            ["chart show-data", "chart open-max-mode", "chart properties-toolbar", "more actions"]);
+            ["chart show-data", "chart open-max-mode", "chart edit", "more actions"]);
          // Nothing is dropped — the rest, including the "menu actions" wrapper that carries the
          // full right-click menu, moves into the kebab.
-         expect(ids(actions.getMoreActions())).toEqual(["chart edit", "menu actions"]);
+         expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
       });
 
       it("keeps all three when exactly three action buttons are available", () => {
@@ -400,8 +400,8 @@ describe("AbstractVSActions", () => {
 
          expect(actions.allowedActionsNum()).toBe(4);
          expect(ids(actions.showingActions)).toEqual(
-            ["chart show-data", "chart open-max-mode", "chart properties-toolbar", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["chart edit", "menu actions"]);
+            ["chart show-data", "chart open-max-mode", "chart edit", "more actions"]);
+         expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
       });
 
       it("does not zero a non-chart assembly on touch, even under the gate", () => {
@@ -452,7 +452,7 @@ describe("AbstractVSActions", () => {
 
          // The toolbar actions still lead, in strip order.
          expect(more.slice(0, 4)).toEqual(["chart show-data", "chart open-max-mode",
-                                           "chart multi-select", "chart edit"]);
+                                           "chart edit", "chart multi-select"]);
          // The wrapper is gone. Nesting the menu behind a "More" row put a one-tap action three
          // taps away, and repeated every id the menu shares with the toolbar across two panels.
          expect(more).not.toContain("menu actions");
@@ -497,7 +497,7 @@ describe("AbstractVSActions", () => {
          document.body.classList.add("viz-density-compact");
 
          expect(ids(actionsFor(2000, 400, true).getMoreActions()))
-            .toEqual(["chart edit", "menu actions"]);
+            .toEqual(["chart properties-toolbar", "menu actions"]);
       });
    });
 
@@ -620,8 +620,8 @@ describe("AbstractVSActions", () => {
          const actions = actionsFor(2000, 400, true);
 
          expect(ids(actions.showingActions)).toEqual(
-            ["chart show-data", "chart open-max-mode", "chart properties-toolbar", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["chart edit", "menu actions"]);
+            ["chart show-data", "chart open-max-mode", "chart edit", "more actions"]);
+         expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
       });
 
       it("does not push a real action into the kebab when the wrapper itself is hidden", () => {
@@ -637,8 +637,11 @@ describe("AbstractVSActions", () => {
             model.actionNames = ["Menu Actions"];
          });
 
+         // What this test exists to guard is unchanged: both real actions stay on the strip.
+         // The trailing kebab was incidental to that, and went on 2026-08-20 — nothing overflows
+         // here, so it would have opened onto an empty list.
          expect(ids(actions.showingActions)).toEqual(
-            ["table open-max-mode", "table export", "more actions"]);
+            ["table open-max-mode", "table export"]);
          // Nothing to overflow — the wrapper was never visible in the first place.
          expect(ids(actions.getMoreActions())).toEqual([]);
       });
@@ -770,6 +773,152 @@ describe("AbstractVSActions", () => {
          document.body.classList.add("viz-density-compact");
          expect(actionsFor(2000, 400, true).allowedActionsNum()).toBe(4);
          expect(ids(actionsFor(2000, 400, true).showingActions).length).toBeGreaterThan(0);
+      });
+   });
+
+   // The binding pane hosts chart, table, crosstab and calc table
+   // (vsview/view/vs-object-view.component.html) but routes toolbar actions for the three table
+   // types only — vsview/action/ holds no chart handler — so a chart's Properties gear dispatches
+   // nowhere. Both extras were gated on the assembly's mark alone, which put them on every modern
+   // chart edited here.
+   describe("binding pane", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+      // toolbarActions carries every action whether or not it renders; the strip filters on
+      // visible(). Properties is always in the array, so only the predicate can be asserted.
+      const visibleIds = (groups: any[]) =>
+         groups.reduce((acc, g) =>
+            acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
+
+      // Both flavours — opened from the composer, and opened from the viewer, which sets viewer
+      // alongside binding.
+      function bindingChartActions(vizModern: boolean, fromComposer: boolean): ChartActions {
+         const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+         model.objectFormat.width = 400;
+         model.objectFormat.height = 200;
+         model.vizModern = vizModern;
+         return new ChartActions(model, popService, BindingContextProviderFactory(fromComposer),
+            false, null, null, miniToolbarService);
+      }
+
+      it("keeps Properties off the strip, opened from the composer", () => {
+         expect(visibleIds(bindingChartActions(true, true).toolbarActions))
+            .not.toContain("chart properties-toolbar");
+      });
+
+      it("keeps Properties off the strip, opened from the viewer", () => {
+         expect(visibleIds(bindingChartActions(true, false).toolbarActions))
+            .not.toContain("chart properties-toolbar");
+      });
+
+      it("still shows Properties outside the binding pane", () => {
+         expect(visibleIds(actionsFor(400, 200, true).toolbarActions))
+            .toContain("chart properties-toolbar");
+      });
+
+      it("leaves the dismissal on the toolbar instead of moving it to the menu", () => {
+         const actions = bindingChartActions(true, true);
+
+         expect(ids(actions.toolbarActions)[0]).toBe("vs-assembly hide-mini-toolbar");
+         expect(ids(actions.menuActions)).not.toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      // The kebab renders with the gate off too, so it is not something the gate adds here.
+      // What the gate changed was the toolbar losing the dismissal and the menu gaining it, so
+      // assert the whole strip rather than one button: the binding pane should look the same
+      // whether or not the chart is marked.
+      it("renders the same strip marked as unmarked", () => {
+         expect(visibleIds(bindingChartActions(true, true).toolbarActions))
+            .toEqual(visibleIds(bindingChartActions(false, true).toolbarActions));
+      });
+   });
+
+   // The object wizard's preview pane is the second host with no route for these actions:
+   // wizard-preview-container declares onAssemblyActionEvent and nothing under vs-wizard/ binds to
+   // it, so a toolbar action there fires into an unsubscribed @Output. Its context sets
+   // vsWizardPreview and leaves binding false, so the binding test above never reached it.
+   describe("object wizard preview", () => {
+      const visibleIds = (groups: any[]) =>
+         groups.reduce((acc, g) =>
+            acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      function wizardChartActions(vizModern: boolean): ChartActions {
+         const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+         model.objectFormat.width = 400;
+         model.objectFormat.height = 200;
+         model.vizModern = vizModern;
+         return new ChartActions(model, popService, VSWizardPreviewContextProviderFactory(),
+            false, null, null, miniToolbarService);
+      }
+
+      it("keeps Properties off the strip", () => {
+         expect(visibleIds(wizardChartActions(true).toolbarActions))
+            .not.toContain("chart properties-toolbar");
+      });
+
+      // Without this the dismissal is unreachable here, not merely relocated: it moves into the
+      // menu, and the menu's own wrapper is already hidden by !vsWizardPreview.
+      it("leaves the dismissal on the toolbar, where the menu wrapper cannot carry it", () => {
+         const actions = wizardChartActions(true);
+
+         expect(ids(actions.toolbarActions)[0]).toBe("vs-assembly hide-mini-toolbar");
+         expect(ids(actions.menuActions)).not.toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      it("renders the same strip marked as unmarked", () => {
+         expect(visibleIds(wizardChartActions(true).toolbarActions))
+            .toEqual(visibleIds(wizardChartActions(false).toolbarActions));
+      });
+   });
+
+   // needsKebab keys off resident, which reads the mark and the body density class and never the
+   // host, so a marked chart at compact-or-above got a kebab in every host whether anything
+   // overflowed or not. The design tolerates an empty kebab because the trailing "menu actions"
+   // wrapper stays on the strip and carries the menu — but that wrapper is hidden in the wizard
+   // (!vsWizardPreview) and vs-wizard/ has no contextmenu anchor either, so there the control
+   // opened onto nothing at all.
+   describe("kebab appears only where it opens onto something", () => {
+      const visibleIds = (groups: any[]) =>
+         groups.reduce((acc, g) =>
+            acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
+
+      function wizardChartActions(): ChartActions {
+         const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+         model.objectFormat.width = 400;
+         model.objectFormat.height = 200;
+         model.vizModern = true;
+         return new ChartActions(model, popService, VSWizardPreviewContextProviderFactory(),
+            false, null, null, miniToolbarService);
+      }
+
+      // Two visible actions against a cap of three — nothing overflows.
+      it("omits the kebab in the wizard, where nothing overflows into it", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = wizardChartActions();
+
+         expect(visibleIds(actions.getMoreActions())).toEqual([]);
+         expect(visibleIds(actions.showingActions)).not.toContain("more actions");
+      });
+
+      // The counter-case, so the guard cannot be satisfied by dropping the kebab everywhere.
+      it("still appends the kebab where actions do overflow", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = actionsFor(2000, 400, true);
+
+         expect(visibleIds(actions.getMoreActions()).length).toBeGreaterThan(0);
+         expect(visibleIds(actions.showingActions)).toContain("more actions");
+      });
+
+      // Touch and the 32-56px band take the flattened list, which carries the whole menu, so the
+      // one route that has nothing else must keep its kebab.
+      it("keeps the kebab where it is the entire strip", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = selectionListActionsFor(400, 40, true);
+
+         expect(actions.allowedActionsNum()).toBe(0);
+         expect(visibleIds(actions.showingActions)).toContain("more actions");
       });
    });
 });
