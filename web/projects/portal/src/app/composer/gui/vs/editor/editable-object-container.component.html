@@ -20,6 +20,8 @@
      (onContextmenuOpened)="contextMenuOpen($event)"
      (onContextmenuClosed)="contextMenuClose()"
      [class.group-container]="vsObject.objectType =='VSGroupContainer'"
+     [class.viz-modern]="vsObject.vizModern"
+     [class.viz-dark]="vsObject.vizDark"
      [class.container-child]="selectionChildModel"
      [class.container-drop-target]="isDragBorder()"
      [class.interact-group-element]="!isShape()"
@@ -373,6 +375,8 @@
 <ng-container *ngIf="isMiniToolbarVisible()">
   <mini-toolbar *ngIf="hasMiniToolbar()"
                 [actions]="actions"
+                [class.viz-modern]="vsObject.vizModern"
+                [class.viz-dark]="vsObject.vizDark"
                 [forceAbove]="searchDisplayed"
                 [top]="vsObject.objectFormat.top"
                 [left]="vsObject.objectFormat.left"
@@ -400,6 +404,8 @@
   @let lineRotationAngle = getLineRotationAngle();
   <div #objectEditor class="object-editor line-resize-container"
        [style.display]="vsObject.active? null : 'none'"
+       [class.viz-modern]="vsObject.vizModern"
+       [class.viz-dark]="vsObject.vizDark"
        [class.active]="selected"
        [class.txt-primary]="selected"
        data-is-object-editor="true"

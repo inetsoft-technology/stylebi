@@ -35,4 +35,5 @@ export interface HighlightDialogModel {
     nonsupportBrowseFields?: string[];
     isAxis?: boolean;
     isText?: boolean;
+    vizModern: boolean;
 }

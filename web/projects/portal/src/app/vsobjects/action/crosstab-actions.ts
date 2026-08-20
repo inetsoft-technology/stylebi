@@ -21,7 +21,6 @@ import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { XSchema } from "../../common/data/xschema";
 import { ChartConstants } from "../../common/util/chart-constants";
-import { GuiTool } from "../../common/util/gui-tool";
 import { DrillLevel } from "../../composer/data/vs/drill-level";
 import { ContextProvider } from "../context-provider.service";
 import { BaseTableCellModel } from "../model/base-table-cell-model";
@@ -389,7 +388,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
       ];
 
       groups.push(new AssemblyActionGroup(
-         GuiTool.isVizModern() ? stableFirst : legacyOrder));
+         this.model.vizModern ? stableFirst : legacyOrder));
 
       return super.createToolbarActions(groups, true);
    }

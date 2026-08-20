@@ -47,6 +47,10 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
 export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() actions: AbstractVSActions<any>;
    @Input() miniToolbarActions: AssemblyActionGroup[];
+   // Fallback for hosts that build miniToolbarActions directly rather than holding an
+   // AbstractVSActions (e.g. VsWizardObjectComponent), so miniToolbarHeight still has a
+   // per-assembly vizModern read to fall back on.
+   @Input() vizModern: boolean = false;
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
@@ -254,7 +258,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    get miniToolbarHeight(): number {
-      return GuiTool.getMiniToolbarHeight();
+      return GuiTool.getMiniToolbarHeight(this.actions?.getModel()?.vizModern ?? this.vizModern);
    }
 
    /**

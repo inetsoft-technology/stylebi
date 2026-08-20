@@ -261,8 +261,9 @@ describe("SelectionTreeActions", () => {
       });
 
       it("is present with the gate off, since the fix is ungated", () => {
-         expect(document.body.classList.contains("viz-modern")).toBe(false);
-         expect(ids(viewerActions().menuActions)).toContain("selection-tree open-max-mode");
+         const actions = viewerActions();
+         expect(actions.getModel().vizModern).toBe(false);
+         expect(ids(actions.menuActions)).toContain("selection-tree open-max-mode");
       });
    });
 });

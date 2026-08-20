@@ -483,7 +483,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * rather than falling back to the floating strip; that is enforced in the action layer, not here.
     */
    public isKebabResident(object: VSObjectModel): boolean {
-      return isAnchoredResident(object.objectType);
+      return isAnchoredResident(object.objectType, object.vizModern);
    }
 
    /**

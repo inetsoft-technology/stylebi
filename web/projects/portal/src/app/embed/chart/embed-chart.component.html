@@ -20,6 +20,8 @@
   wInteractContainer
   #viewerRoot tabindex="0"
   [attr.runtime-id]="runtimeId"
+  [class.viz-modern]="vsObject?.vizModern"
+  [class.viz-dark]="vsObject?.vizDark"
   (mouseenter)="onMouseEnter($event)"
   (resized)="onResize()">
   @if (vsObject && runtimeId && !timeoutError) {
@@ -49,6 +51,8 @@
   @if (isMiniToolbarVisible()) {
     <mini-toolbar
       [actions]="vsObjectActions"
+      [class.viz-modern]="vsObject.vizModern"
+      [class.viz-dark]="vsObject.vizDark"
       [top]="getToolbarTop(vsObject)"
       [left]="getToolbarLeft(vsObject)"
       [width]="getToolbarWidth(vsObject)"

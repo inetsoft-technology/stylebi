@@ -98,6 +98,11 @@ public abstract class VSObjectModel<T extends VSAssembly> {
       absoluteName = assemblyInfo.getAbsoluteName();
       objectFormat = createFormatModel(compositeFormat, assemblyInfo);
       inEmbeddedViewsheet = vs.getViewsheet() != null;
+
+      VizContext vizContext = VizContext.of(assemblyInfo);
+      vizModern = vizContext.modern;
+      vizDark = vizContext.dark;
+
       boolean binding = rvs != null && rvs.isBinding();
       boolean wizard = rvs != null && rvs.getVSTemporaryInfo() != null;
 
@@ -556,6 +561,14 @@ public abstract class VSObjectModel<T extends VSAssembly> {
 
    public PopLocation getPopLocation() { return popLocation;}
 
+   public boolean isVizModern() {
+      return vizModern;
+   }
+
+   public boolean isVizDark() {
+      return vizDark;
+   }
+
    private VSFormatModel objectFormat;
    private boolean enabled;
    private boolean visible;
@@ -588,4 +601,9 @@ public abstract class VSObjectModel<T extends VSAssembly> {
    private boolean sheetMaxMode;
    private boolean hasDynamic;
    private String drillTip;
+   // The assembly's resolved modern-visualization state, not its mark. Resolving on the server keeps
+   // the gate term (VizContext.of(VizMark), deleted in P6) in one place and one language; shipping
+   // the raw mark would need the client to re-evaluate it and drift the moment that term goes.
+   private boolean vizModern;
+   private boolean vizDark;
 }

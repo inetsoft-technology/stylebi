@@ -20,50 +20,52 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GuiTool } from "./gui-tool";
 
 describe("GuiTool.getMiniToolbarHeight", () => {
-   afterEach(() => {
-      document.body.classList.remove("viz-modern");
+   it("returns the legacy height (28) when vizModern is false", () => {
+      expect(GuiTool.getMiniToolbarHeight(false)).toBe(GuiTool.MINI_TOOLBAR_HEIGHT);
+      expect(GuiTool.getMiniToolbarHeight(false)).toBe(28);
    });
 
-   it("returns the legacy height (28) when the modern gate is off", () => {
-      expect(GuiTool.getMiniToolbarHeight()).toBe(GuiTool.MINI_TOOLBAR_HEIGHT);
-      expect(GuiTool.getMiniToolbarHeight()).toBe(28);
-   });
-
-   it("returns the compact height (24) when .viz-modern is on the body", () => {
-      document.body.classList.add("viz-modern");
-      expect(GuiTool.getMiniToolbarHeight()).toBe(GuiTool.MINI_TOOLBAR_HEIGHT_MODERN);
-      expect(GuiTool.getMiniToolbarHeight()).toBe(24);
+   it("returns the compact height (24) when vizModern is true", () => {
+      expect(GuiTool.getMiniToolbarHeight(true)).toBe(GuiTool.MINI_TOOLBAR_HEIGHT_MODERN);
+      expect(GuiTool.getMiniToolbarHeight(true)).toBe(24);
    });
 });
 
-describe("GuiTool.isVizModern", () => {
+describe("GuiTool retired global reads", () => {
+   it("no longer exposes a global modern-visualization read", () => {
+      // The gate is per-assembly from P5 on. A global read cannot answer "is THIS assembly modern",
+      // and leaving one available invites a caller that silently regresses a mixed dashboard.
+      expect((GuiTool as any).isVizModern).toBeUndefined();
+   });
+});
+
+describe("GuiTool.isVizShell", () => {
    afterEach(() => {
-      document.body.classList.remove("viz-modern");
+      document.body.classList.remove("viz-shell");
    });
 
-   it("returns false when the modern gate is off", () => {
-      expect(GuiTool.isVizModern()).toBe(false);
+   it("returns false when the shell class is off the body", () => {
+      expect(GuiTool.isVizShell()).toBe(false);
    });
 
-   it("returns true when .viz-modern is on the body", () => {
-      document.body.classList.add("viz-modern");
-      expect(GuiTool.isVizModern()).toBe(true);
+   it("returns true when .viz-shell is on the body", () => {
+      document.body.classList.add("viz-shell");
+      expect(GuiTool.isVizShell()).toBe(true);
    });
 });
 
 describe("GuiTool density mode", () => {
    afterEach(() => {
       document.body.classList.remove(
-         "viz-modern", "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
    });
 
    it("defaults to dense when no density class is present", () => {
-      document.body.classList.add("viz-modern");
       expect(GuiTool.vizDensityMode()).toBe("dense");
    });
 
    it("reads the density class when one is present", () => {
-      document.body.classList.add("viz-modern", "viz-density-compact");
+      document.body.classList.add("viz-density-compact");
       expect(GuiTool.vizDensityMode()).toBe("compact");
       document.body.classList.remove("viz-density-compact");
       document.body.classList.add("viz-density-comfortable");
@@ -71,7 +73,6 @@ describe("GuiTool density mode", () => {
    });
 
    it("reports compact and comfortable as at-least-compact, dense as not", () => {
-      document.body.classList.add("viz-modern");
       expect(GuiTool.isVizDensityAtLeastCompact()).toBe(false);
       document.body.classList.add("viz-density-compact");
       expect(GuiTool.isVizDensityAtLeastCompact()).toBe(true);

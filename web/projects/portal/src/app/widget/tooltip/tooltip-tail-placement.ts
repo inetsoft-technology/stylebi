@@ -29,9 +29,9 @@ export type TailAxis = "vertical" | "horizontal";
 const TAIL_RADIUS = 8;
 const TAIL_RADIUS_MODERN = 6;
 
-/** Reads the modern visualization gate at call time; the body class toggles at runtime. */
+/** Reads the shell state at call time; the body class toggles at runtime. */
 export function tailRadius(): number {
-   return GuiTool.isVizModern() ? TAIL_RADIUS_MODERN : TAIL_RADIUS;
+   return GuiTool.isVizShell() ? TAIL_RADIUS_MODERN : TAIL_RADIUS;
 }
 
 /** How far the tail projects past the box edge. */

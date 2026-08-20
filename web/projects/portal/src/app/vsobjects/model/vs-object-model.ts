@@ -64,4 +64,6 @@ export interface VSObjectModel {
    hasDynamic: boolean; // if this obj has Dynamic field, then can't open object-wizard-pane
    originalObjectFormat?: Partial<VSFormatModel>; // original format when editing the format model.
    drillTip?: string;
+   vizModern: boolean;   // resolved server-side from the assembly's mark; not the org gate
+   vizDark: boolean;     // never true unless vizModern is true
 }

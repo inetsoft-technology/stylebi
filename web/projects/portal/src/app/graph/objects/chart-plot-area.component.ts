@@ -95,14 +95,17 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                const drawRegions = this.chartObject.regions.filter(
                   (region) => !!region && !region.noselect &&
                      ChartTool.areaType(this.model, region) != "text");
+               // this.model is typed ChartModel, but in practice always the VSChartModel this
+               // component tree renders under (chart-area is only ever bound from vs-chart).
+               const vizModern = (<any> this.model)?.vizModern;
 
                if(plotScaleInfo.vertical) {
                   ChartTool.drawRegions(context, drawRegions, this.canvasX, this.canvasY, this.viewsheetScale,
-                                        1, plotScaleInfo.scale);
+                                        1, plotScaleInfo.scale, undefined, undefined, vizModern);
                }
                else {
                   ChartTool.drawRegions(context, drawRegions, this.canvasX, this.canvasY, this.viewsheetScale,
-                                        plotScaleInfo.scale, 1);
+                                        plotScaleInfo.scale, 1, undefined, undefined, vizModern);
                }
             }
          }
@@ -933,7 +936,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
             if(this.mobile) {
                const context = this.referenceLineCanvas.nativeElement.getContext("2d");
-               ChartTool.drawTouch(context, x1, y1);
+               ChartTool.drawTouch(context, x1, y1, (<any> this.model)?.vizModern);
             }
          }
 
@@ -1193,7 +1196,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.chartSelection.chartObject === this.chartObject)
          {
             ChartTool.drawRegions(this.getContext(), this.chartSelection.regions,
-                                  this.canvasX, this.canvasY, this.viewsheetScale);
+                                  this.canvasX, this.canvasY, this.viewsheetScale,
+                                  undefined, undefined, undefined, undefined,
+                                  (<any> this.model)?.vizModern);
          }
       }
    }
