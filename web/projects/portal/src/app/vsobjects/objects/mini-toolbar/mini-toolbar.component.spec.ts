@@ -262,17 +262,41 @@ describe("MiniToolbar kebab split (Step 8)", () => {
 // .mini-toolbar-container would still render — bordered, backgrounded, and (once the
 // assembly-hover reveal fires) fully opaque — the one rung the fit ladder says should show no
 // chrome at all.
+//
+// The same emptiness reaches the container off the anchored path, which is what dense does:
+// isAnchoredResident() is false there, so the host passes anchorInTitleLane false while
+// isAnchoredChromeSuppressed() empties the action list. The guard therefore cannot be conditioned
+// on being anchored.
 describe("MiniToolbar.showToolbarContainer", () => {
-   it("mirrors !mobileDevice when not anchored, regardless of content", () => {
+   // This read "mirrors !mobileDevice when not anchored, regardless of content" until 2026-08-20,
+   // which recorded the pre-existing behaviour rather than a rule. Dense disproved it: an anchored
+   // type at dense is un-anchored by the host *and* has its whole action list suppressed, so
+   // "regardless of content" drew an empty bordered pill above the card.
+   it("hides the container when not anchored and there is nothing to show", () => {
       const comp = makeToolbar();
       comp.anchorInTitleLane = false;
-      comp.mobileDevice = true;
+      comp.mobileDevice = false;
       setShowingActions(comp, []);
 
       expect(comp.showToolbarContainer).toBe(false);
+   });
 
+   it("shows the container when not anchored and actions survive", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
       comp.mobileDevice = false;
+      setShowingActions(comp, [new AssemblyActionGroup([makeAction("chart show-data")])]);
+
       expect(comp.showToolbarContainer).toBe(true);
+   });
+
+   it("stays hidden on mobile off the anchored path even with actions", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = false;
+      comp.mobileDevice = true;
+      setShowingActions(comp, [new AssemblyActionGroup([makeAction("chart show-data")])]);
+
+      expect(comp.showToolbarContainer).toBe(false);
    });
 
    it("hides the container when anchored with nothing to show (below the floor)", () => {
