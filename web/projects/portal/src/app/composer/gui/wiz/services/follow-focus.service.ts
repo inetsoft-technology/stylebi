@@ -71,8 +71,16 @@ export class FollowFocusService {
    private state = new Map<string, FollowFocusState>();
    private errorSubject = new Subject<string>();
 
-   /** Surfaces a client-side stack-integrity problem (plan Phase 2 task 4) so a host UI --
-    *  `ConnectToClaudeComponent`'s indicator -- can show it rather than let it pass silently. */
+   /**
+    * Surfaces a client-side stack-integrity problem (plan Phase 2 task 4), intended for a host
+    * UI -- `ConnectToClaudeComponent`'s indicator -- to show rather than let pass silently.
+    *
+    * <p><b>Not wired up to any UI yet.</b> Nothing in this codebase currently subscribes to this
+    * Observable, so a mismatch reaches only the `console.error` this service also logs, not any
+    * visible surface. Flagged by code review on stylebi#4683 so this doesn't read as
+    * already-done; wiring a subscriber into `ConnectToClaudeComponent`'s indicator is a
+    * follow-up, not part of this PR's Phase 3 scope.
+    */
    get errors(): Observable<string> {
       return this.errorSubject.asObservable();
    }
