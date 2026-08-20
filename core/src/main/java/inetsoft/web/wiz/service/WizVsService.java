@@ -1293,6 +1293,12 @@ public class WizVsService {
     * them was meant, so the loose scan in findAggregatedColumn answers with whichever the view lists
     * first: an Average condition silently lands on the Sum column, and the highlight colors cells chosen
     * by a number nobody asked about.
+    *
+    * Answers null — no preferred name, leaving that scan to decide — whenever the condition does not
+    * carry enough to name a header the view could have produced: no formula at all, a two-column formula
+    * with no secondary column, or an N-parameter formula whose N is 0. Those are the cases where the
+    * remaining ambiguity is real rather than something a spelling can resolve, so this returns nothing
+    * instead of inventing a header and matching the wrong column with confidence.
     */
    // Package-private for unit testing (WizVsServiceHighlightRebindTest).
    static String aggregateHeaderOf(DataRef ref) {
@@ -1320,14 +1326,19 @@ public class WizVsService {
          return null;
       }
 
-      // An AggregateRef stores N as a primitive and leaves it 0 when the caller named none, but the view
-      // side is a VSAggregateRef whose nValue defaults to "1" — so an unset N must be passed as null to
-      // reach that same default. Passing the 0 through composes "NthLargest(SALES, 0)", a header no view
-      // ever produces, and the lookup falls back to the loose base-name scan for every such condition.
+      // Same for an N-parameter formula whose N is 0. An AggregateRef stores N as a bare primitive, so 0
+      // is both "the caller named none" and "the caller named zero" — and for PthPercentile the latter is
+      // a real P the view can carry. Composing either reading picks a header the condition may not have
+      // meant: "NthLargest(SALES, 0)" is one no view produces (VSAggregateRef's nValue defaults to "1"),
+      // and substituting that 1 would spell a P=0 condition as P=1. Neither guess is safe, so answer none
+      // and let the base-name scan decide, the same way the missing secondary column above does.
       int n = aggregateRef.getN();
 
-      return buildVSAggregateRefFullName(base, formula.getFormulaName(), secondaryName,
-                                         n > 0 ? n : null);
+      if(formula.hasN() && n <= 0) {
+         return null;
+      }
+
+      return buildVSAggregateRefFullName(base, formula.getFormulaName(), secondaryName, n);
    }
 
    /**
