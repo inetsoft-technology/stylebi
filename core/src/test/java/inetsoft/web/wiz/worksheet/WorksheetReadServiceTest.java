@@ -168,6 +168,55 @@ class WorksheetReadServiceTest {
       assertEquals("UNION", u.concatType());
    }
 
+   /**
+    * A concatenation whose operator map disagrees with its subtable list must not take the whole
+    * worksheet down with it.
+    *
+    * <p>{@code getOperatorCount()} reports the map's size while {@code getOperator(int)} indexes
+    * {@code tnames}, so reading the operators by iterating {@code 0..getOperatorCount()} walks
+    * off the end of the array as soon as the map holds a pair that is not adjacent. That is how
+    * a single bad assembly turned every {@code read} of its worksheet into an HTTP 500 -- the
+    * agent could no longer see ANY table, including the ones it needed in order to repair the
+    * broken one.</p>
+    *
+    * <p>The way the map got into that state has been fixed (see
+    * {@code CompositeTableAssembly.reorderTableAssemblies}), but the read must not depend on
+    * that being the only way in: it is the one call an agent makes to find out what is wrong.
+    * Subtable count is the honest bound, and it is what {@code readConcatCompatible} already
+    * guards for the same reason.</p>
+    */
+   @Test
+   void inconsistentOperatorMapDoesNotFailTheWholeRead() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+
+      ConcatenatedTableAssembly u = concat(ws, "U", TableAssemblyOperator.UNION, a, b, c);
+      ws.addAssembly(u);
+
+      // (A,C) is not an adjacent pair, so the map now holds three operators for three subtables.
+      u.setOperator("A", "C", unionOperator());
+
+      WorksheetModel m = assertDoesNotThrow(() -> read(ws));
+
+      assertEquals("UNION", tableNamed(m, "U").concatType());
+      assertEquals(List.of("A", "B", "C"), tableNamed(m, "U").sources());
+      assertEquals(4, m.tables().size(), "the other tables must still be readable");
+   }
+
+   private static TableAssemblyOperator unionOperator() {
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      top.addOperator(op);
+
+      return top;
+   }
+
    @Test
    void concatenationReportsIntersectAndMinus() {
       Worksheet ws = new Worksheet();

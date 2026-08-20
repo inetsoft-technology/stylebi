@@ -1616,7 +1616,11 @@ public class WorksheetAgentController {
 
    /**
     * Reorders the subtables of a {@link ConcatenatedTableAssembly} (UNION/INTERSECT/MINUS).
-    * Operators are preserved after reordering by restoring them at their new positions.
+    *
+    * <p>Operators are carried over by position inside {@code reorderTableAssemblies}. Do not
+    * re-apply them here: writing them back adds the new adjacent pairs without removing the ones
+    * the reorder invalidated, and the operator map then holds more pairs than there are
+    * subtables — which used to make every subsequent read of the worksheet fail outright.</p>
     *
     * @param req.table    the ConcatenatedTableAssembly name
     * @param req.subtables the subtable names in the desired new order
@@ -1641,14 +1645,6 @@ public class WorksheetAgentController {
          }
 
          String[] subtables = req.subtables().toArray(new String[0]);
-
-         // Preserve existing operators (indexed by position) before reordering.
-         TableAssemblyOperator[] ops = new TableAssemblyOperator[subtables.length - 1];
-
-         for(int i = 0; i < ops.length; i++) {
-            ops[i] = table.getOperator(i);
-         }
-
          TableAssembly[] reordered = new TableAssembly[subtables.length];
 
          for(int i = 0; i < subtables.length; i++) {
@@ -1663,13 +1659,6 @@ public class WorksheetAgentController {
          }
 
          table.reorderTableAssemblies(reordered);
-
-         // Restore operators at new positions.
-         for(int i = 0; i < ops.length; i++) {
-            if(ops[i] != null) {
-               table.setOperator(i, ops[i]);
-            }
-         }
 
          WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
          WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
