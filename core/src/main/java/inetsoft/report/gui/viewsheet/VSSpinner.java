@@ -119,37 +119,61 @@ public class VSSpinner extends VSFloatable {
 
    /**
     * Draw the outline of the widget box, whose right edge is covered by the stepper
-    * arrows. The box is skipped when the assembly format defines its own borders: the
-    * assembly border already delimits the widget, and a second outline shows up as a
-    * doubled line - misaligned at the corners, since the two rectangles have different
-    * origins and sizes - which does not match the browser, where only the input's own
-    * border is drawn.
+    * arrows.
+    *
+    * <p>A side is skipped when the assembly format defines a border on it: the assembly
+    * border already delimits the widget there, and a second outline shows up as a doubled
+    * line - misaligned at the corners, since the two rectangles have different origins
+    * and sizes. Sides the assembly format leaves undefined still get an outline, matching
+    * the browser, where the input keeps its own border on those sides.
     *
     * @param bw the box width.
     * @param h  the widget height.
     */
    private void drawWidgetBox(Graphics2D g, int bw, int h, int roundCorner) {
-      if(hasBorders()) {
+      boolean top = getBW(TOP) > 0;
+      boolean bottom = getBW(BOTTOM) > 0;
+      boolean left = getBW(LEFT) > 0;
+      boolean right = getBW(RIGHT) > 0;
+
+      // fully bordered by the assembly: nothing to add
+      if(top && bottom && left && right) {
          return;
       }
 
       g.setColor(Color.lightGray);
 
       //Bug #31348. if start with (0,0), the top and left border will be hidden when export png.
-      if(roundCorner > 0) {
-         int arc = roundCorner * 2;
-         g.drawRoundRect(1, 1, bw, h - 2, arc, arc);
-      }
-      else {
-         g.drawRect(1, 1, bw, h - 2);
-      }
-   }
+      if(!top && !bottom && !left && !right) {
+         if(roundCorner > 0) {
+            int arc = roundCorner * 2;
+            g.drawRoundRect(1, 1, bw, h - 2, arc, arc);
+         }
+         else {
+            g.drawRect(1, 1, bw, h - 2);
+         }
 
-   /**
-    * Check if the assembly format defines a border on any side.
-    */
-   private boolean hasBorders() {
-      return getBW(TOP) > 0 || getBW(BOTTOM) > 0 || getBW(LEFT) > 0 || getBW(RIGHT) > 0;
+         return;
+      }
+
+      // partially bordered by the assembly: fill in only the missing sides. The corners
+      // are already shaped by the assembly border and the round corner clip, so straight
+      // edges are enough here.
+      if(!top) {
+         g.drawLine(1, 1, 1 + bw, 1);
+      }
+
+      if(!bottom) {
+         g.drawLine(1, h - 1, 1 + bw, h - 1);
+      }
+
+      if(!left) {
+         g.drawLine(1, 1, 1, h - 1);
+      }
+
+      if(!right) {
+         g.drawLine(1 + bw, 1, 1 + bw, h - 1);
+      }
    }
 
    /**
