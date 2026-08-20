@@ -26,6 +26,7 @@ import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 @Service
 public class SheetSessionService {
@@ -128,7 +129,12 @@ public class SheetSessionService {
       return refreshed;
    }
 
-   public void close(String token) { if (token != null) sessions.remove(token); }
+   public void close(String token) {
+      if(token != null) {
+         sessions.remove(token);
+         focusStacks.remove(token);
+      }
+   }
 
    /**
     * Ends every pane-scoped session bound to {@code socketSessionId} -- called when that
@@ -146,7 +152,7 @@ public class SheetSessionService {
     */
    public void socketClosed(String socketSessionId) {
       if(socketSessionId == null) return;
-      sessions.values().removeIf(
+      removeSessionsIf(
          s -> s.editorContext() != null && socketSessionId.equals(s.socketSessionId()));
    }
 
@@ -162,7 +168,7 @@ public class SheetSessionService {
     */
    public void detach(String socketSessionId, EditorContext editorContext) {
       if(socketSessionId == null || editorContext == null) return;
-      sessions.values().removeIf(
+      removeSessionsIf(
          s -> editorContext.equals(s.editorContext()) && socketSessionId.equals(s.socketSessionId()));
    }
 
@@ -303,9 +309,16 @@ public class SheetSessionService {
     * and not a further change. This is deliberately NOT "reset to null": a session's original
     * scope is whatever it was AT OPEN TIME, which is only null for a whole-sheet session --
     * forcing null here would incorrectly widen a session that was itself opened already
-    * pane-scoped, the first time its stack ran out. A no-op (returns {@code null}) if no session
-    * matches {@code (socketSessionId, runtimeId)} either, mirroring {@link #detach}'s
-    * silent-no-op shape.
+    * pane-scoped, the first time its stack ran out.
+    *
+    * <p>Returns {@code null} both when no session matches {@code (socketSessionId, runtimeId)}
+    * and when a session matched but its stack was already exhausted. Those two cases differ in
+    * what happened to STATE (nothing existed to touch, versus a genuine no-op on a real
+    * session) but are identical in what a caller needs to do about the RETURN VALUE: nothing
+    * moved, so there is nothing to react to. {@link SheetPairingController#popFocusViaSocket}
+    * depends on this -- it broadcasts a {@code focusChanged} notice whenever this returns
+    * non-null -- so returning the unchanged session on an exhausted stack (as an earlier
+    * version of this method did) fired a spurious broadcast on every no-op pop.
     */
    public JoinSession popFocus(String socketSessionId, String runtimeId) {
       JoinSession session = findBySocketAndRuntime(socketSessionId, runtimeId);
@@ -318,9 +331,12 @@ public class SheetSessionService {
       FocusFrame frame = stack == null ? null : stack.poll();
 
       if(frame == null) {
-         // Exhausted (or never pushed): a real no-op, not a forced reset to null -- see the
-         // javadoc above.
-         return session;
+         // Exhausted (or never pushed): the session's editorContext is left untouched -- see
+         // the javadoc above -- but null is still returned, same as "no session matched", so a
+         // caller with no other use for the return value (popFocusViaSocket) sees one signal
+         // for "nothing changed" rather than having to compare the returned session against
+         // what it already had.
+         return null;
       }
 
       JoinSession restored = withEditorContext(session, frame.editorContext());
@@ -341,10 +357,39 @@ public class SheetSessionService {
                              s.socketSessionId(), s.socketUserName(), s.editorContext(), enabled);
    }
 
+   /**
+    * Test-only: whether {@code token} still has a live {@link #focusStacks} entry. No
+    * production caller needs this -- it exists purely so a leak-regression test can observe
+    * {@link #removeSessionsIf}'s cleanup without a public accessor on production code.
+    */
+   boolean hasFocusStackEntryForTesting(String token) {
+      return focusStacks.containsKey(token);
+   }
+
    @Scheduled(fixedDelay = 10 * 60_000)
    void evictExpired() {
       long now = clock.getAsLong();
-      sessions.values().removeIf(s -> s.isExpired(now));
+      removeSessionsIf(s -> s.isExpired(now));
+   }
+
+   /**
+    * Removes every session matching {@code predicate} from {@link #sessions}, and its
+    * {@link #focusStacks} entry alongside it. Every removal path in this class (explicit
+    * {@link #close}, socket-close/detach cleanup, and scheduled {@link #evictExpired}) must go
+    * through this rather than calling {@code sessions.values().removeIf(...)} directly --
+    * {@code sessionToken}s are never reused, so a {@code focusStacks} entry left behind after
+    * its owning session is gone is a permanent leak for the remaining life of the process, not
+    * a harmless stale value some later {@code retarget} will overwrite.
+    */
+   private void removeSessionsIf(Predicate<JoinSession> predicate) {
+      sessions.values().removeIf(s -> {
+         if(predicate.test(s)) {
+            focusStacks.remove(s.sessionToken());
+            return true;
+         }
+
+         return false;
+      });
    }
 
    private String newToken() {

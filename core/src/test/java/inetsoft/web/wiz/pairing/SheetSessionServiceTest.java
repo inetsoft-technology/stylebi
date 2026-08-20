@@ -53,6 +53,13 @@ import static org.junit.jupiter.api.Assertions.*;
  *                                 refuses before mutating anything
  * [PopFocus: empty stack]         popFocus past the bottom of an empty stack is a no-op, not an
  *                                 error, leaving the session at its original scope
+ * [PopFocus: null on no-op]       popFocus returns null (not the unchanged session) both when
+ *                                 nothing was ever pushed and once a real push has been drained --
+ *                                 the caller has one signal for "nothing to broadcast"
+ * [FocusStacks cleanup: close]        close() removes the matching focusStacks entry, not just
+ *                                     the session, or a retargeted session leaks one forever
+ * [FocusStacks cleanup: socketClosed] socketClosed() does the same for a pane-scoped session
+ * [FocusStacks cleanup: evictExpired] the scheduled sweep does the same for an expired session
  * [Exit criterion]                after a successful retarget, PaneScopeService.requireWholeSheetSession
  *                                 against a FRESH resolve() of the same token reflects the new
  *                                 pane-scoped target -- proving enforcement needed no code change
@@ -376,6 +383,109 @@ class SheetSessionServiceTest {
       JoinSession stillOriginal = svc.resolve(session.sessionToken(), "owner~;~org");
       assertNull(stillOriginal.editorContext());
       assertFalse(stillOriginal.followFocusEnabled(), "popFocus must not itself flip followFocusEnabled");
+   }
+
+   /**
+    * A session found but with nothing left to pop must return null, not the unchanged session --
+    * SheetPairingController.popFocusViaSocket broadcasts a focusChanged notice on any non-null
+    * return, so returning the unchanged session here (an earlier version of this method did)
+    * fires a spurious broadcast for every no-op pop, e.g. a pane that closes without ever having
+    * been retargeted.
+    */
+   @Test
+   void popFocusOnAnExhaustedStackReturnsNullNotTheUnchangedSession() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+
+      assertNull(svc.popFocus("sock-1", "vs-1"),
+                "a session with an empty/never-pushed stack must pop to null, exactly like " +
+                "'no session found', so the caller has one signal for 'nothing to broadcast'");
+   }
+
+   /**
+    * Same exhausted-stack case, but after the stack genuinely HAD an entry and it was already
+    * consumed -- distinct from "never pushed at all" above, and the case the original defect
+    * report singled out as uncovered.
+    */
+   @Test
+   void popFocusReturnsNullOnceTheStackIsDrainedEvenAfterARealPush() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      svc.retarget("sock-1", "vs-1", new EditorContext("viewsheetOnInit", null, null, null));
+
+      assertNotNull(svc.popFocus("sock-1", "vs-1"), "the first pop drains a real pushed frame");
+      assertNull(svc.popFocus("sock-1", "vs-1"),
+                "the second pop, on the now-exhausted stack, must return null rather than the " +
+                "unchanged session");
+   }
+
+   /**
+    * SheetSessionService.focusStacks is keyed by sessionToken, and tokens are never reused --
+    * so every removal path that forgets to clear the matching focusStacks entry leaks it for
+    * the remaining life of the process. Covers close() directly; socketClosed/detach/
+    * evictExpired all route through the same private removeSessionsIf helper this exercises.
+    */
+   @Test
+   void closeRemovesTheFocusStacksEntryTooRatherThanLeakingIt() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      svc.retarget("sock-1", "vs-1", new EditorContext("viewsheetOnInit", null, null, null));
+
+      assertTrue(svc.hasFocusStackEntryForTesting(session.sessionToken()),
+                "retarget should have pushed a focus-stack entry to observe cleanup against");
+
+      svc.close(session.sessionToken());
+
+      assertFalse(svc.hasFocusStackEntryForTesting(session.sessionToken()),
+                 "close must remove the focusStacks entry too, or every retargeted session " +
+                 "leaks one for the remaining life of the process");
+   }
+
+   /**
+    * The Follow Focus-specific leak path the defect report called out by name: pane-scoped
+    * sessions churn constantly as panes open/close, and socketClosed (not close()) is what
+    * actually ends one when its browser socket drops.
+    */
+   @Test
+   void socketClosedRemovesTheFocusStacksEntryForAPaneScopedSessionToo() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", pane);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      svc.retarget("sock-1", "vs-1", new EditorContext("viewsheetOnLoad", null, null, null));
+
+      assertTrue(svc.hasFocusStackEntryForTesting(session.sessionToken()));
+
+      svc.socketClosed("sock-1");
+
+      assertFalse(svc.hasFocusStackEntryForTesting(session.sessionToken()),
+                 "socketClosed must remove the focusStacks entry for the pane session it ends");
+   }
+
+   /**
+    * The scheduled sweep must not be the one removal path that forgets the same cleanup --
+    * proven by advancing the clock past TTL rather than asserting on evictExpired() in isolation
+    * from a real expiry.
+    */
+   @Test
+   void evictExpiredRemovesTheFocusStacksEntryForAnExpiredSessionToo() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      svc.retarget("sock-1", "vs-1", new EditorContext("viewsheetOnInit", null, null, null));
+      assertTrue(svc.hasFocusStackEntryForTesting(session.sessionToken()));
+
+      SheetSessionService afterTtl = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
+      afterTtl.evictExpired();
+
+      assertFalse(svc.hasFocusStackEntryForTesting(session.sessionToken()),
+                 "evictExpired must remove the focusStacks entry for a session it expires too");
    }
 
    /**

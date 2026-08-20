@@ -248,4 +248,29 @@ class SheetPairingControllerTest {
 
       verifyNoInteractions(broadcast);
    }
+
+   /**
+    * Distinct from {@link #popFocusViaSocketDoesNotBroadcastWhenNoSessionMatches}: here a real
+    * session exists and matches, but its focus stack has nothing left to pop (never retargeted
+    * at all). This is the exhausted-but-found case the original defect report singled out as
+    * uncovered -- popFocus used to return the unchanged session for it, which this controller
+    * would have (wrongly) treated as "something changed, broadcast it".
+    */
+   @Test
+   void popFocusViaSocketDoesNotBroadcastWhenTheSessionsStackIsAlreadyExhausted() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, true);
+
+      sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET, "stomp-9",
+                   "alice", null);
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.popFocusViaSocket(new SheetPairingController.PopFocusRequest("Viewsheet/vs-1"), accessor);
+
+      verifyNoInteractions(broadcast);
+   }
 }
