@@ -109,6 +109,17 @@ public class ViewsheetSessionService {
    }
 
    /**
+    * Whether {@code sessionToken} still names a live session, with no owner/pane-scope check --
+    * a pure liveness probe for {@code LayoutSessionService}'s own scheduled cleanup sweep, which
+    * has no {@code Principal} to check against and no need for one: it is deciding whether to
+    * free a preview-clone resource, not authorizing an action. Do not use this for anything that
+    * needs an authorization decision -- use {@link #resolve} for that.
+    */
+   public boolean isSessionLive(String sessionToken) {
+      return sessions.isLive(sessionToken);
+   }
+
+   /**
     * The runtime id for a paired session.
     *
     * <p>Grants the ownership bypass as a side effect, because every caller of this method hands the

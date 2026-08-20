@@ -137,6 +137,23 @@ public class SheetSessionService {
    }
 
    /**
+    * Whether {@code token} still names a live (present, unexpired) session -- regardless of
+    * owner. For internal cleanup use only (see {@code LayoutSessionService}'s own scheduled
+    * sweep, which has no {@code Principal} to check against and no need for one: it is deciding
+    * whether to free a resource, not authorizing an action). NOT an authorization check --
+    * callers that need to verify the caller actually owns the session must still use
+    * {@link #resolve}.
+    */
+   public boolean isLive(String token) {
+      if(token == null) {
+         return false;
+      }
+
+      JoinSession s = sessions.get(token);
+      return s != null && !s.isExpired(clock.getAsLong());
+   }
+
+   /**
     * Ends every pane-scoped session bound to {@code socketSessionId} -- called when that
     * WebSocket session disconnects (crash, network drop, or a killed tab; see
     * {@code SheetSessionSocketCleanup}). A pane-scoped session (nullable

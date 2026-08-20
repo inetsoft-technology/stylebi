@@ -95,4 +95,24 @@ class ViewsheetSessionServiceTest {
 
       verify(rvs).bumpWriteRevision();
    }
+
+   /**
+    * {@code isSessionLive} is a bare passthrough to {@code SheetSessionService.isLive} -- no
+    * owner/pane-scope check of its own -- for {@code LayoutSessionService}'s scheduled cleanup
+    * sweep, which has no {@code Principal} and needs none: it is deciding whether to free a
+    * cached preview-clone runtime, not authorizing an agent action.
+    */
+   @Test
+   void isSessionLiveIsABarePassthroughToTheUnderlyingSessionStore() {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      when(sessions.isLive("live-token")).thenReturn(true);
+      when(sessions.isLive("dead-token")).thenReturn(false);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+
+      assertTrue(svc.isSessionLive("live-token"));
+      assertFalse(svc.isSessionLive("dead-token"));
+   }
 }
