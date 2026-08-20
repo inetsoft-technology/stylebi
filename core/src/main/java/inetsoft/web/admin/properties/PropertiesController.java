@@ -200,8 +200,5 @@ public class PropertiesController {
       "log.level.inetsoft.web.portal.controller.ControllerErrorHandler",
       "log.level.inetsoft_audit");
 
-   private final AssetRepository assetRepository;
-   private final LogManager logManager;
-   private final SecurityEngine securityEngine;
    private final PropertyChangeSideEffects sideEffects;
 }
