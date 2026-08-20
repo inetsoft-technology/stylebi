@@ -375,6 +375,19 @@ public class CompositeTableAssemblyInfo extends ComposedTableAssemblyInfo {
    }
 
    /**
+    * Drop every stored operator, leaving the subtables and the schema table infos alone.
+    *
+    * <p>For rebuilding the operator map from scratch — after a reorder, where the stored pairs
+    * describe adjacencies that no longer exist. Neither of the obvious alternatives does this:
+    * {@code resetOperators(null)} also clears the schema table infos, and removing the pairs one
+    * by one goes through {@code ConcatenatedTableAssembly.removeOperator}, which drops any
+    * subtable that is left unconnected.</p>
+    */
+   public void clearOperators() {
+      map.clear();
+   }
+
+   /**
     * Reset the operators.
     * @param tables the available tables.
     */

@@ -221,6 +221,19 @@ public abstract class CompositeTableAssembly extends ComposedTableAssembly {
 
    /**
     * Reorder the subtables of this table
+    *
+    * <p>Operators are keyed by table PAIR, not by position, and for a join those pairs are
+    * arbitrary: a star join holds an operator between the fact table and each dimension, which no
+    * ordering makes all-adjacent. Reordering therefore leaves a join's operators alone here --
+    * they are still keyed by the same table names and still found by
+    * {@link #getOperator(String, String)}.</p>
+    *
+    * <p>{@link ConcatenatedTableAssembly} overrides this, because a concatenation is the one
+    * composite whose operators <em>are</em> one-per-adjacent-pair: reordering it strands the
+    * operators whose tables stopped being neighbours, so they have to be carried over by position.
+    * That rebuild must not be applied to a join, where it would drop every operator between two
+    * tables that are not adjacent.</p>
+    *
     * @param tables the specified table assemblies containing the same elements as the current
     *               subtables
     * @return false if change was rejected

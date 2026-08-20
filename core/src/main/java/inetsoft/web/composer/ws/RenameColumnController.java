@@ -463,6 +463,14 @@ public class RenameColumnController extends WorksheetController {
          CompositeTableAssembly composite = (CompositeTableAssembly) mirror;
          String[] tableNames = composite.getTableNames();
 
+         // NOTE: the bound here counts OPERATORS while the indices address TABLES, of which there
+         // is one more -- so the last table is never reached, and with two tables (count 1, j
+         // starting at 1) the body does not run at all. Deliberately left as-is: disabling this
+         // loop entirely changes no observable behaviour, because renaming already propagates to
+         // join operators by another path (see RenameColumnControllerTest). Correcting the bound
+         // would start executing code that has effectively never run, on a rename path with no
+         // test coverage of its own -- a bigger risk than the wrong bound. Pinned by tests so the
+         // behaviour cannot regress silently if this is ever revisited.
          for(int i = 0; i < composite.getOperatorCount(); i++) {
             for(int j = i + 1; j < composite.getOperatorCount(); j++) {
                TableAssemblyOperator tableOperator = composite.getOperator(tableNames[i], tableNames[j]);

@@ -188,8 +188,17 @@ public class WorksheetReadService {
       }
 
       Set<String> operations = new LinkedHashSet<>();
+      String[] names = concat.getTableNames();
 
-      for(int i = 0; i < concat.getOperatorCount(); i++) {
+      // Bound by the SUBTABLES, not by getOperatorCount(): that reports the operator map's size
+      // while getOperator(int) indexes the subtable names, so the two disagree the moment the map
+      // holds a pair that is not adjacent, and iterating the count reads past the end of the
+      // names. One malformed assembly must not cost the caller every other table in the
+      // worksheet -- this is the call it makes to find out what is wrong. getOperator returns
+      // null for a pair with nothing stored, which concatOperation already handles.
+      int pairs = names == null ? 0 : names.length - 1;
+
+      for(int i = 0; i < pairs; i++) {
          operations.add(concatOperation(concat.getOperator(i)));
       }
 

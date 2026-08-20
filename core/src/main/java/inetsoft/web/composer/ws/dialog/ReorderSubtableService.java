@@ -61,25 +61,16 @@ public class ReorderSubtableService extends WorksheetControllerService {
          updateOperators(table, subtables);
       }
 
-      TableAssemblyOperator[] ops = null;
-
-      if(table instanceof ConcatenatedTableAssembly) {
-         ops = new TableAssemblyOperator[subtables.length - 1];
-
-         for(int i = 0; i < ops.length; i++) {
-            ops[i] = table.getOperator(i);
-         }
-      }
-
+      // Operators are handled by the assembly itself and must not be re-applied here. A
+      // concatenation carries them over by position inside its own reorderTableAssemblies
+      // override; writing them back afterwards would add the new adjacent pairs without removing
+      // the ones the reorder stranded, leaving the map holding more pairs than there are subtables
+      // -- a state later reads of the assembly cannot survive. A join needs nothing carried over
+      // at all: its operators are keyed by arbitrary table pairs, unaffected by order, and
+      // updateOperators above has already handled the join-specific part.
       table.reorderTableAssemblies(Arrays.stream(subtables).map(
             (subtable) -> (TableAssembly) rws.getWorksheet().getAssembly(subtable))
                                       .toArray(TableAssembly[]::new));
-
-      if(ops != null) {
-         for(int i = 0; i < ops.length; i++) {
-            table.setOperator(i, ops[i]);
-         }
-      }
 
       WorksheetEventUtil.refreshColumnSelection(rws, event.parentTable(), true);
       WorksheetEventUtil.loadTableData(rws, event.parentTable(), true, true);

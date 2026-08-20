@@ -70,6 +70,54 @@ public class ConcatenatedTableAssembly extends CompositeTableAssembly {
    }
 
    /**
+    * Reorder the subtables, carrying the operators over BY POSITION.
+    *
+    * <p>A concatenation is the one composite whose operators are one per ADJACENT pair, so a
+    * reorder strands every operator whose two tables stopped being neighbours:
+    * {@code A UNION B MINUS C} reordered to {@code C, A, B} has nothing stored for its new first
+    * pair {@code (C,A)}. Position is what carries over -- the first pair keeps the first operation
+    * whichever tables now sit there.</p>
+    *
+    * <p>The map is <em>rebuilt</em> rather than added to, because it must never hold more pairs
+    * than {@code tnames} can index: {@link #getOperatorCount()} reports the map's size while
+    * {@link #getOperator(int)} indexes {@code tnames}, and once those disagree a caller iterating
+    * them together reads past the end of the array. That reached users as an
+    * {@code ArrayIndexOutOfBoundsException} which made a whole worksheet unreadable.</p>
+    *
+    * <p>Deliberately here and not in {@link CompositeTableAssembly}: a join's operators are keyed
+    * by arbitrary table pairs, and clearing them to rebuild by position would delete every join
+    * between two tables that are not adjacent. Callers must not re-apply the operators themselves
+    * afterwards either -- writing them back adds the new pairs without removing the stranded ones,
+    * which is the same inconsistency from the other direction.</p>
+    */
+   @Override
+   public boolean reorderTableAssemblies(TableAssembly[] tables) {
+      // Read against the CURRENT order, before super swaps tnames underneath.
+      TableAssemblyOperator[] ops = new TableAssemblyOperator[tnames.length - 1];
+
+      for(int i = 0; i < ops.length; i++) {
+         ops[i] = getOperator(i);
+      }
+
+      if(!super.reorderTableAssemblies(tables)) {
+         return false;
+      }
+
+      // super's resetOperators() only drops pairs naming a table that left the assembly, and a
+      // reorder changes no names -- so every pre-reorder pair is still in the map and has to go
+      // before the carried-over ones are written back against the new order.
+      getCompositeTableInfo().clearOperators();
+
+      for(int i = 0; i < ops.length; i++) {
+         if(ops[i] != null) {
+            setOperator(tnames[i], tnames[i + 1], ops[i]);
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Set the operator at an index.
     * @param ltable the specified left table.
     * @param rtable the specified right table.
