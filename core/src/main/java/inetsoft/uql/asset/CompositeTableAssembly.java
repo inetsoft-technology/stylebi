@@ -222,16 +222,17 @@ public abstract class CompositeTableAssembly extends ComposedTableAssembly {
    /**
     * Reorder the subtables of this table
     *
-    * <p>Operators are keyed by ADJACENT pair, so a reorder strands every operator whose two
-    * tables stopped being neighbours -- {@code A UNION B MINUS C} reordered to {@code C, A, B}
-    * has nothing stored for its new first pair {@code (C,A)}. They are therefore carried over
-    * BY POSITION here, and the operator map is rebuilt rather than added to: it must never end
-    * up holding more pairs than {@code tnames} can index, because {@link #getOperatorCount()}
-    * reports the map's size while {@link #getOperator(int)} indexes {@code tnames}, and once
-    * those disagree a caller iterating them together reads past the end of the array.</p>
+    * <p>Operators are keyed by table PAIR, not by position, and for a join those pairs are
+    * arbitrary: a star join holds an operator between the fact table and each dimension, which no
+    * ordering makes all-adjacent. Reordering therefore leaves a join's operators alone here --
+    * they are still keyed by the same table names and still found by
+    * {@link #getOperator(String, String)}.</p>
     *
-    * <p>Callers must not re-apply the operators themselves afterwards. Writing them back adds
-    * the new pairs without removing the old ones, which is exactly the inconsistency above.</p>
+    * <p>{@link ConcatenatedTableAssembly} overrides this, because a concatenation is the one
+    * composite whose operators <em>are</em> one-per-adjacent-pair: reordering it strands the
+    * operators whose tables stopped being neighbours, so they have to be carried over by position.
+    * That rebuild must not be applied to a join, where it would drop every operator between two
+    * tables that are not adjacent.</p>
     *
     * @param tables the specified table assemblies containing the same elements as the current
     *               subtables
@@ -250,22 +251,8 @@ public abstract class CompositeTableAssembly extends ComposedTableAssembly {
       final List<String> oldTNames = Arrays.asList(tnames);
 
       if(oldTNames.containsAll(newTNamesList)) {
-         final TableAssemblyOperator[] ops = new TableAssemblyOperator[tnames.length - 1];
-
-         for(int i = 0; i < ops.length; i++) {
-            ops[i] = getOperator(i);
-         }
-
          tnames = newTNames;
          getCompositeTableInfo().resetOperators(newTNamesList);
-         getCompositeTableInfo().clearOperators();
-
-         for(int i = 0; i < ops.length; i++) {
-            if(ops[i] != null) {
-               setOperator(tnames[i], tnames[i + 1], ops[i]);
-            }
-         }
-
          return true;
       }
 
