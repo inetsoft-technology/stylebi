@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -60,7 +61,8 @@ import static org.mockito.Mockito.when;
  *   <li>{@code checkWorksheetActionPermission} — the "Visual Composer -> Data Worksheet" action-level
  *       gate checked at the top of {@code createTables} and {@code deleteTables}.</li>
  *   <li>The datasource READ check inside {@code createTables}'s {@code buildTable} step, gating
- *       physical/sql-query tables bound to a {@code physicalSource.datasourcePath}.</li>
+ *       physical/sql-query tables bound to a {@code physicalSource.datasourcePath} and
+ *       tabular tables bound to a {@code tabularSource.datasourcePath}.</li>
  * </ul>
  *
  * <p>These tests only assert on the gate itself. The action-level WORKSHEET/ACCESS gate is checked
@@ -244,6 +246,143 @@ class WorksheetTableServicePermissionTest {
       verify(deps.dataSourceService).checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER));
    }
 
+   // ─── createTable -> buildTable: tabular table datasource READ gate ────────
+
+   /**
+    * The same gate, reached through {@code tabularSource} instead of {@code physicalSource}.
+    *
+    * <p>Worth its own pair rather than trusting the physical-table pair: the gate reads the path off
+    * whichever of the two fields carries one, and a tabular table supplies it in the other field. An
+    * earlier shape of this check looked only at {@code physicalSource}, which let a tabular table
+    * reach the connector — and dial its remote endpoint — with no READ check at all.</p>
+    */
+   @Test
+   void createTableTabularTableFailsWhenDatasourceReadDenied() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(false);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "endpoint": "Charges" }
+         }
+         """);
+
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("no READ permission on datasource myds"),
+                 "error should name the denied datasource, got: " + table.getErrorMessage());
+
+      // Denial short-circuits before the data source is even resolved, so nothing can reach the
+      // connector. This is the assertion that matters: past this point the next step dials a
+      // remote, metered endpoint.
+      verifyNoInteractions(deps.xrepository);
+   }
+
+   @Test
+   void createTableTabularTableProceedsWhenDatasourceReadGranted() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "endpoint": "Charges" }
+         }
+         """);
+
+      // xrepository is an unstubbed mock, so getDataSource returns null and the table fails with
+      // "Data source not found" — proof execution proceeded past the datasource gate into
+      // buildTabularTable. Asserted on the message rather than on success, because a mock
+      // repository can never produce a real connector.
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("Data source not found"),
+                 "should fail past the gate, got: " + table.getErrorMessage());
+
+      verify(deps.xrepository).getDataSource(eq("myds"));
+      verify(deps.dataSourceService).checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER));
+   }
+
+   /**
+    * The bypass the field-presence version of this gate allowed.
+    *
+    * <p>A tabular request carrying BOTH sources was checked against its {@code physicalSource} — a path
+    * nothing on the tabular path ever reads — and then reached the connector on its unchecked
+    * {@code tabularSource} path. Both halves are asserted: the gate must consult the tabular path
+    * (denied here), and the data source must never be resolved, because the step after that dials a
+    * remote, metered endpoint.</p>
+    */
+   @Test
+   void createTableTabularTableChecksTabularPathEvenWhenPhysicalSourceIsAlsoPresent() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      // Readable: the path the old gate would have checked.
+      when(deps.dataSourceService.checkPermission(eq("readable"), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+      // Denied: the path the connector would actually be reached on.
+      when(deps.dataSourceService.checkPermission(eq("denied"), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(false);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "physicalSource": { "datasourcePath": "readable", "tableName": "CUSTOMERS" },
+           "tabularSource": { "datasourcePath": "denied", "endpoint": "Charges" }
+         }
+         """);
+
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("no READ permission on datasource denied"),
+                 "the tabular path must be the one checked, got: " + table.getErrorMessage());
+
+      verify(deps.dataSourceService).checkPermission(eq("denied"), eq(ResourceAction.READ), eq(USER));
+      verifyNoInteractions(deps.xrepository);
+   }
+
+   /**
+    * And with the tabular path readable, the pair is still refused — by the builder this time, because
+    * naming two sources gets one of them silently ignored whichever way the gate is written.
+    */
+   @Test
+   void createTableTabularTableRejectsAPhysicalSourceEvenWhenBothPathsAreReadable() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(anyString(), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "physicalSource": { "datasourcePath": "ds", "tableName": "CUSTOMERS" },
+           "tabularSource": { "datasourcePath": "ds", "endpoint": "Charges" }
+         }
+         """);
+
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("cannot carry physicalSource"),
+                 "expected the mismatched-pair rejection, got: " + table.getErrorMessage());
+
+      verifyNoInteractions(deps.xrepository);
+   }
    // ─── createTable -> buildTable: sql query table FREE_FORM_SQL gate ─────────
 
    @Test

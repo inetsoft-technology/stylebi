@@ -114,6 +114,18 @@ class MetadataApiServiceStructureTest {
    }
 
    @Test
+   void classifiesTabularTable() {
+      // Not a cosmetic branch: without it a tabular table reaches the getSimpleName() fallback
+      // below and this endpoint reports "TabularTableAssembly", a name that is not one of the
+      // tableType strings /ws/table accepts. Anything that reads a worksheet back and builds on it
+      // — incremental creation, reusing a table from an earlier turn — then fails to recognize its
+      // own table.
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = new TabularTableAssembly(ws, "endpointTable");
+      assertEquals("tabular table", MetadataApiService.structureTableType(t));
+   }
+
+   @Test
    void fallsBackToSimpleClassNameForUnrecognizedType() {
       // UnpivotTableAssembly isn't one of the four classified types, so it exercises the
       // getClass().getSimpleName() fallback branch.
