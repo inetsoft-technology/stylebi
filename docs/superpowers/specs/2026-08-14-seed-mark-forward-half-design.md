@@ -390,8 +390,9 @@ make irrelevant.
 > to the legacy `:root` values. A body carrying `viz-shell` resolves the dense tier, which matches what a
 > body carrying `viz-modern` + `viz-density-<mode>` resolved before the split.
 >
-> The authoritative record of what was decided and why is the P5 ledger,
-> `.superpowers/sdd/2026-08-19-seed-mark-p5-browser-reads/progress.md` (search `Ruling:`).
+> What actually shipped, and the reasoning behind each departure, is recorded in
+> [chart-card-roadmap.md](./lookfeel/chart-card-roadmap.md) under "What P5 left behind". P5 shipped as
+> `4c237a7dd`; `git show` it for the change set.
 
 
 Today `viz-modern`, `viz-dark` and `viz-density-*` are toggled on `document.body` by three shells
