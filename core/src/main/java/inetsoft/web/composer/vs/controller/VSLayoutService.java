@@ -472,8 +472,12 @@ public class VSLayoutService {
 
    /**
     * Check if current assembly support editing tablelayout in printlayout.
+    *
+    * <p>Widened from {@code private} to {@code public} for {@code inetsoft.web.wiz.viewsheet
+    * .LayoutReadService} (2026-08-20-layout-implementation.md, Task 2), which projects this same
+    * check onto the agent-facing {@code get_layout} response rather than re-deriving it.
     */
-   private boolean supportTableLayout(VSAssembly assembly) {
+   public boolean supportTableLayout(VSAssembly assembly) {
       if(assembly == null) {
          return false;
       }
