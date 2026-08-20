@@ -71,7 +71,8 @@ public class ViewsheetAssemblyAgentController {
                                    InputValueService inputService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
-                                   SheetOpenService openService)
+                                   SheetOpenService openService,
+                                   LayoutSessionService layoutSessionService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -96,6 +97,7 @@ public class ViewsheetAssemblyAgentController {
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
       this.openService = openService;
+      this.layoutSessionService = layoutSessionService;
    }
 
    public record JoinRequest(String code) {}
@@ -821,6 +823,11 @@ public class ViewsheetAssemblyAgentController {
     * could terminate their pairing -- {@code Principal} was accepted and ignored while every other
     * endpoint binds the token through {@code resolve}. Skipping {@code requireEnabled()} is
     * deliberate and stays: disconnecting is always allowed.
+    *
+    * <p>Also flushes any layout preview-clone runtime {@link LayoutSessionService} is holding for
+    * this token. This is the one real detach hook every wiz viewsheet session already closes
+    * through (see the class doc), so a layout clone is disposed here rather than through a second,
+    * parallel cleanup path.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/detach")
    public void detach(@PathVariable String sessionToken, Principal user) {
@@ -828,6 +835,7 @@ public class ViewsheetAssemblyAgentController {
 
       if(session != null) {
          sessionService.close(sessionToken);
+         layoutSessionService.disposeAll(sessionToken);
       }
    }
 
@@ -886,4 +894,5 @@ public class ViewsheetAssemblyAgentController {
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
+   private final LayoutSessionService layoutSessionService;
 }

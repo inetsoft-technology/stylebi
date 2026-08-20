@@ -129,6 +129,50 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * Task 1 (layout implementation plan, Phase 0): {@code LayoutSessionService} caches a preview
+    * clone per session token, and this is the one real detach hook every wiz viewsheet session
+    * already closes through -- so a layout clone must be flushed here rather than through a
+    * second, parallel cleanup path.
+    */
+   @Test
+   void detachDisposesTheLayoutSessionCacheForTheClosedToken() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString()))
+         .thenReturn(mock(JoinSession.class));
+      LayoutSessionService layoutSessionService = mock(LayoutSessionService.class);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(feature, mock(ViewsheetSessionService.class),
+                        mock(ViewsheetReadService.class), sessionService, layoutSessionService);
+
+      controller.detach("my-token", principal());
+
+      verify(layoutSessionService).disposeAll("my-token");
+   }
+
+   /**
+    * A refused detach (not the caller's own session) must not dispose anything -- naming a
+    * token that resolves to someone else's session should not let an outsider flush a layout
+    * clone they never opened.
+    */
+   @Test
+   void detachRefusalDoesNotDisposeTheLayoutSessionCache() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(anyString(), anyString())).thenReturn(null);
+      LayoutSessionService layoutSessionService = mock(LayoutSessionService.class);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(feature, mock(ViewsheetSessionService.class),
+                        mock(ViewsheetReadService.class), sessionService, layoutSessionService);
+
+      controller.detach("someone-elses-token", principal());
+
+      verify(layoutSessionService, never()).disposeAll(anyString());
+   }
+
+   /**
     * {@code list_viewsheet_properties} / {@code get_viewsheet_properties} /
     * {@code set_viewsheet_properties} delegate straight through to {@link SheetPropertyService},
     * exactly as the assembly property trio delegates to {@link AssemblyPropertyService} — no
@@ -264,7 +308,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
-                                          openService);
+                                          openService,
+                                          mock(LayoutSessionService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -299,13 +344,25 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
-                                          mock(SheetOpenService.class));
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
                                                           ViewsheetSessionService sessions,
                                                           ViewsheetReadService reader,
                                                           SheetSessionService sessionService)
+   {
+      return controllerWith(feature, sessions, reader, sessionService,
+                            mock(LayoutSessionService.class));
+   }
+
+   /** Overload that exposes {@code layoutSessionService} -- for the detach/disposeAll tests. */
+   private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
+                                                          ViewsheetSessionService sessions,
+                                                          ViewsheetReadService reader,
+                                                          SheetSessionService sessionService,
+                                                          LayoutSessionService layoutSessionService)
    {
       return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
                                           sessionService, sessions, reader,
@@ -326,7 +383,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
-                                          mock(SheetOpenService.class));
+                                          mock(SheetOpenService.class),
+                                          layoutSessionService);
    }
 
    /** Feature enabled, only {@code propertyService} wired -- for the property-trio tests. */
@@ -357,7 +415,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
-                                          mock(SheetOpenService.class));
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class));
    }
 
    /**
@@ -469,7 +528,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(InputValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
-                                          mock(SheetOpenService.class));
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class));
    }
 
    private static Principal principal() {
