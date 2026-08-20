@@ -575,4 +575,158 @@ describe("ConnectToClaudeComponent", () => {
       });
    });
 
+   describe("Follow Focus toggle + live target indicator (Phase 3)", () => {
+      function notice(body: any): any {
+         return { frame: { body: JSON.stringify(body) } };
+      }
+
+      function handlerFor(dest: string): (msg: any) => void {
+         const call = mockStompConnection.subscribe.mock.calls
+            .filter((c: any[]) => c[0] === dest).pop();
+         expect(call).toBeTruthy();
+         return call[1];
+      }
+
+      /** Real toolbar mint + join, so hasMinted/mintedEditorContext land in the "whole-sheet
+       *  owner" state the toggle and the live-target tracking both require. */
+      function connectAsToolbar(): void {
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") {
+                  mintHandler = h;
+               }
+
+               return { unsubscribe: vi.fn() };
+            });
+
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         fixture.detectChanges();
+      }
+
+      it("hides the toggle before a session is connected", () => {
+         expect(component.followFocusToggleVisible).toBe(false);
+      });
+
+      it("shows the toggle once the whole-sheet session is connected", () => {
+         connectAsToolbar();
+
+         expect(component.followFocusToggleVisible).toBe(true);
+         expect(fixture.nativeElement.querySelector("#wiz-follow-focus-toggle")).toBeTruthy();
+      });
+
+      it("hides the toggle on a pane instance even once connected", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") { mintHandler = h; }
+               return { unsubscribe: vi.fn() };
+            });
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                     editorContext: { kind: "assemblyMain", assembly: "Chart1",
+                                      name: null, table: null } }));
+
+         expect(component.connected).toBe(true);
+         expect(component.followFocusToggleVisible).toBe(false);
+      });
+
+      it("toggling sends the toggle request and flips followFocusEnabled", () => {
+         connectAsToolbar();
+         expect(component.followFocusEnabled).toBe(false);
+
+         component.toggleFollowFocus({ target: { checked: true } } as unknown as Event);
+
+         expect(component.followFocusEnabled).toBe(true);
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/follow-focus", {},
+            JSON.stringify({ runtimeId: "rt-1", enabled: true }));
+      });
+
+      it("defaults the live target to Whole sheet on join", () => {
+         connectAsToolbar();
+
+         expect(component.currentTarget).toBeNull();
+         expect(component.currentTargetLabel).toBe("Whole sheet");
+      });
+
+      it("updates the live target label from a focusChanged notice on the toolbar instance", () => {
+         connectAsToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", focusChanged: true,
+                     editorContext: { kind: "onClick", assembly: "Chart1", name: null, table: null } }));
+
+         expect(component.currentTarget).toEqual(
+            { kind: "onClick", assembly: "Chart1", name: null, table: null });
+         expect(component.currentTargetLabel).toBe("Chart1 → onClick");
+      });
+
+      it("returns the live target to Whole sheet from a focusChanged pop notice", () => {
+         connectAsToolbar();
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", focusChanged: true,
+                     editorContext: { kind: "onClick", assembly: "Chart1", name: null, table: null } }));
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", focusChanged: true,
+                     editorContext: null }));
+
+         expect(component.currentTargetLabel).toBe("Whole sheet");
+      });
+
+      /*
+       * A pane's own ConnectToClaudeComponent (mintedEditorContext !== null) must never adopt a
+       * focusChanged notice as its own live target -- Follow Focus only ever retargets the
+       * whole-sheet session, and a pane instance has no "live target" concept of its own.
+       */
+      it("ignores a focusChanged notice on a pane instance", () => {
+         component.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") { mintHandler = h; }
+               return { unsubscribe: vi.fn() };
+            });
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET",
+                     editorContext: { kind: "assemblyMain", assembly: "Chart1",
+                                      name: null, table: null } }));
+
+         // The pane's own join must not populate currentTarget -- only the toolbar instance
+         // tracks a live target at all.
+         expect(component.currentTarget).toBeNull();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", focusChanged: true,
+                     editorContext: { kind: "onClick", assembly: "Chart2", name: null, table: null } }));
+
+         expect(component.currentTarget).toBeNull();
+      });
+
+      it("resets the live target and toggle visibility when the runtimeId changes", () => {
+         connectAsToolbar();
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", focusChanged: true,
+                     editorContext: { kind: "onClick", assembly: "Chart1", name: null, table: null } }));
+
+         component.runtimeId = "rt-2";
+         component.ngOnChanges(
+            { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(component.currentTarget).toBeNull();
+         expect(component.followFocusToggleVisible).toBe(false);
+      });
+   });
+
 });

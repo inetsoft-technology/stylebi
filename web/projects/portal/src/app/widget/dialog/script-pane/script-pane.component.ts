@@ -37,6 +37,7 @@ import { DataRef } from "../../../common/data/data-ref";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { EditorContext } from "../../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../../composer/gui/wiz/connect-to-claude.component";
+import { FollowFocusService } from "../../../composer/gui/wiz/services/follow-focus.service";
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 import { HelpUrlService } from "../../help-link/help-url.service";
 import { TreeNodeModel } from "../../tree/tree-node-model";
@@ -114,6 +115,26 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    private cursorTop: boolean = false;
    helpURL = "";
    needUseVirtualScroll: boolean = true;
+   /** Whether this pane's own `pushFocus` call actually took effect (Follow Focus was enabled
+    *  for this runtime at the time this pane opened). Only set when true so `ngOnDestroy` knows
+    *  it owes a matching `popFocus` -- a pane that never pushed, because Follow Focus was off
+    *  when it opened, must not send a spurious pop when it closes. */
+   private followFocusPushed = false;
+
+   /**
+    * The exact `editorContext` value this pane actually pushed in `ngOnInit`, captured once and
+    * reused in `ngOnDestroy` -- NOT re-read live from `this.editorContext` at pop time.
+    *
+    * `editorContext` is an `@Input()` bound from `ViewsheetScriptPane.editorContext`, a getter
+    * derived from `initScriptVisible`, a flag the user flips via the onInit/onRefresh radio
+    * buttons on the SAME persistent `<script-pane>` instance (no `*ngIf` recreation). So opening
+    * this pane on the onInit tab, switching to onRefresh, then closing pushes `viewsheetOnInit`
+    * but would pop `viewsheetOnLoad` if `ngOnDestroy` re-read the live input -- tripping
+    * `FollowFocusService.popFocus`'s stack-integrity check for entirely normal tab-switching.
+    * Same `mintedEditorContext` pattern `ConnectToClaudeComponent` already uses for the identical
+    * live-getter-at-a-later-time hazard.
+    */
+   private pushedEditorContext: EditorContext | null = null;
 
    @Input()
    set expression(value: string) {
@@ -226,7 +247,8 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                private analyzerService: FormulaFunctionAnalyzerService,
                private helpService: HelpUrlService,
                private scriptSettingsService: ScriptSettingsService,
-               private renderer: Renderer2, private host: ElementRef)
+               private renderer: Renderer2, private host: ElementRef,
+               private followFocusService: FollowFocusService)
    {
    }
 
@@ -241,6 +263,23 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          this.cursorTopLoaded = true;
          this.applyCursorPosition();
       });
+
+      // Follow Focus (separate from, and in addition to, the ConnectToClaudeComponent#detach()
+      // call in ngOnDestroy below): if the human has opted in, this pane opening pushes an
+      // already-live session's target here for the duration this pane is open. A no-op when
+      // Follow Focus is off, or when this pane has no runtime/socket/location to push to.
+      if(this.runtimeId && this.socketConnection && this.editorContext) {
+         // Read ONCE, here, and carry this exact value through to ngOnDestroy -- see
+         // pushedEditorContext's doc. The live this.editorContext getter can disagree with this
+         // by the time the pane closes.
+         const pushedContext = this.editorContext;
+         this.followFocusPushed = this.followFocusService.pushFocus(
+            this.runtimeId, this.socketConnection, pushedContext);
+
+         if(this.followFocusPushed) {
+            this.pushedEditorContext = pushedContext;
+         }
+      }
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -288,6 +327,17 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       // handle behind. No-op when this pane never showed a Connect-to-Claude control, or when
       // it did but editorContext is a whole-sheet (null) mint.
       this.connectToClaude?.detach();
+
+      // Follow Focus's pop is a distinct signal from detach() above, not a replacement for it:
+      // detach ends a session THIS pane itself minted; pop restores an already-live session's
+      // target to whatever enclosing scope it had before this pane pushed it here. Only fires
+      // when ngOnInit's pushFocus actually took effect -- a pane that opened with Follow Focus
+      // off owes no pop.
+      if(this.followFocusPushed) {
+         // pushedEditorContext, not the live this.editorContext -- see its doc.
+         this.followFocusService.popFocus(
+            this.runtimeId, this.socketConnection, this.pushedEditorContext);
+      }
    }
 
    private isEditorElementDisplayed(): boolean {

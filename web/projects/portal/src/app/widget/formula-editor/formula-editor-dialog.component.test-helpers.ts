@@ -25,6 +25,7 @@ import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { FormulaEditorService } from "./formula-editor.service";
+import { FollowFocusService } from "../../composer/gui/wiz/services/follow-focus.service";
 
 export function flushPromises(): Promise<void> {
    return new Promise(resolve => setTimeout(resolve, 0));
@@ -50,12 +51,20 @@ export function createDialog() {
       appendChild: vi.fn(),
       listen: vi.fn(() => vi.fn()),
    };
+   const followFocusService = {
+      isEnabled: vi.fn(() => false),
+      setEnabled: vi.fn(),
+      pushFocus: vi.fn(() => false),
+      popFocus: vi.fn(),
+      errors: of(undefined as unknown as string),
+   } as unknown as FollowFocusService;
    const comp = new FormulaEditorDialog(
       editorService as unknown as FormulaEditorService,
       modalService as unknown as NgbModal,
       renderer as unknown as Renderer2,
       { nativeElement: document.createElement("form") } as ElementRef,
       dropdownService as unknown as FixedDropdownService,
+      followFocusService,
    );
    comp.formulaName = "CalcField1";
    comp.formulaType = FormulaType.SCRIPT;
@@ -72,7 +81,7 @@ export function createDialog() {
    comp._columnTreeRoot = comp.columnTreeRoot;
    comp.originalColumnTreeRoot = comp.columnTreeRoot;
    comp.submitCallback = () => Promise.resolve(true);
-   return { comp, editorService, modalService, dropdownService, renderer };
+   return { comp, editorService, modalService, dropdownService, renderer, followFocusService };
 }
 
 export function prepareExpressionEditor(comp: FormulaEditorDialog) {

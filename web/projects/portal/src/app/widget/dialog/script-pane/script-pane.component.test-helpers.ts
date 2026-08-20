@@ -18,6 +18,7 @@
 
 import { Subject } from "rxjs";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
+import { FollowFocusService } from "../../../composer/gui/wiz/services/follow-focus.service";
 import { ScriptPane } from "./script-pane.component";
 
 export interface MockCodeMirror {
@@ -180,6 +181,13 @@ export function createScriptPane(options: {
    } as any;
 
    const host = { nativeElement: hostElement } as any;
+   const followFocusService = {
+      isEnabled: vi.fn(() => false),
+      setEnabled: vi.fn(),
+      pushFocus: vi.fn(() => false),
+      popFocus: vi.fn(),
+      errors: new Subject<string>().asObservable()
+   } as unknown as FollowFocusService;
    const comp = new ScriptPane(
       codemirrorService,
       zone,
@@ -187,7 +195,8 @@ export function createScriptPane(options: {
       helpService,
       scriptSettingsService,
       renderer,
-      host
+      host,
+      followFocusService
    );
 
    (comp as any).scriptEditor = { nativeElement: textarea };
@@ -209,6 +218,7 @@ export function createScriptPane(options: {
       helpService,
       scriptSettingsService,
       renderer,
+      followFocusService,
       rendererCleanups,
       helpUrl$,
       cursorTop$,

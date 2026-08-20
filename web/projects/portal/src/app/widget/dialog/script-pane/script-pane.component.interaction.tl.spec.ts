@@ -279,4 +279,126 @@ describe("ScriptPane - pane-scoped pairing runtime/socket inputs [Group 5, Risk 
 
       expect(() => comp.ngOnDestroy()).not.toThrow();
    });
+
+   /*
+    * Follow Focus (plan `2026-08-19-follow-focus-pane-targeting-implementation.md`, Phase 2 task
+    * 2/3): push/pop is a distinct signal from detach() above, fired independently, not a
+    * replacement for it.
+    */
+   describe("Follow Focus push/pop [Phase 2]", () => {
+      it("pushes focus on ngOnInit when Follow Focus is enabled", () => {
+         const { comp, followFocusService } = createScriptPane();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+
+         comp.ngOnInit();
+
+         expect(followFocusService.pushFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection, { kind: "assemblyMain", assembly: "Chart1" });
+      });
+
+      it("does not push when there is no editorContext (a pane with no script location)", () => {
+         const { comp, followFocusService } = createScriptPane();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = undefined;
+
+         comp.ngOnInit();
+
+         expect(followFocusService.pushFocus).not.toHaveBeenCalled();
+      });
+
+      it("does not push when there is no runtime/socket to push against", () => {
+         const { comp, followFocusService } = createScriptPane();
+         comp.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+
+         comp.ngOnInit();
+
+         expect(followFocusService.pushFocus).not.toHaveBeenCalled();
+      });
+
+      it("pops focus on ngOnDestroy when this pane's own push took effect", () => {
+         const { comp, codeMirror, ternServer, followFocusService } = createScriptPane();
+         (comp as any).codemirrorInstance = codeMirror;
+         (comp as any).ternServer = ternServer;
+         (comp as any).cancelAutocomplete = vi.fn();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection, { kind: "assemblyMain", assembly: "Chart1" });
+      });
+
+      /*
+       * The bug the automated review on stylebi#4683 found: `editorContext` is a plain @Input()
+       * here, but the REAL ViewsheetScriptPane host rebinds it live off `initScriptVisible` --
+       * a flag the onInit/onRefresh radio buttons flip on the SAME persistent <script-pane>
+       * instance (no *ngIf* recreation). Simulated here by mutating comp.editorContext directly
+       * between ngOnInit and ngOnDestroy, exactly as that live rebinding would.
+       */
+      it("pops with the ORIGINALLY PUSHED context, not whatever editorContext changed to " +
+         "before close (tab-switch hazard)", () => {
+         const { comp, codeMirror, ternServer, followFocusService } = createScriptPane();
+         (comp as any).codemirrorInstance = codeMirror;
+         (comp as any).ternServer = ternServer;
+         (comp as any).cancelAutocomplete = vi.fn();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = { kind: "viewsheetOnInit" };
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+
+         // Simulates switching from the onInit tab to the onRefresh tab on this same, persistent
+         // pane instance -- the exact rebinding the review flagged as tripping the mismatch.
+         comp.editorContext = { kind: "viewsheetOnLoad" };
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection, { kind: "viewsheetOnInit" });
+      });
+
+      it("does not pop on ngOnDestroy when Follow Focus was off at open (no push happened)", () => {
+         const { comp, codeMirror, ternServer, followFocusService } = createScriptPane();
+         (comp as any).codemirrorInstance = codeMirror;
+         (comp as any).ternServer = ternServer;
+         (comp as any).cancelAutocomplete = vi.fn();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         (followFocusService.pushFocus as any).mockReturnValue(false);
+         comp.ngOnInit();
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).not.toHaveBeenCalled();
+      });
+
+      it("fires pop independently of detach -- both run, neither implies the other", () => {
+         const { comp, codeMirror, ternServer, followFocusService } = createScriptPane();
+         (comp as any).codemirrorInstance = codeMirror;
+         (comp as any).ternServer = ternServer;
+         (comp as any).cancelAutocomplete = vi.fn();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = { kind: "assemblyMain", assembly: "Chart1" };
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+         // This pane never itself minted a pairing code (no Connect-to-Claude control present),
+         // so detach() has nothing to do -- but the Follow Focus pop must still fire, because the
+         // pane pushed an existing OUTER session's target here, not a session of its own.
+         (comp as any).connectToClaude = undefined;
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledTimes(1);
+      });
+   });
 });

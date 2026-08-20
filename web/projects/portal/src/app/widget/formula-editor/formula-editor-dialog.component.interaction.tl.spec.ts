@@ -375,6 +375,131 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
       expect(() => comp.ngOnDestroy()).not.toThrow();
    });
 
+   /*
+    * Follow Focus (plan `2026-08-19-follow-focus-pane-targeting-implementation.md`, Phase 2 task
+    * 2/3): push/pop is a distinct signal from detach() above, fired independently, not a
+    * replacement for it.
+    */
+   describe("Follow Focus push/pop [Phase 2]", () => {
+      it("pushes focus on ngOnInit when canPair and Follow Focus is enabled", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "Margin";
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+
+         comp.ngOnInit();
+
+         expect(followFocusService.pushFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection,
+            { kind: "calcField", assembly: "Query1", name: "Margin" });
+      });
+
+      it("does not push when the location is not addressable (canPair is false)", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = ""; // no name yet -- unaddressable, see COLUMN_ADDRESSED_KINDS
+
+         comp.ngOnInit();
+
+         expect(followFocusService.pushFocus).not.toHaveBeenCalled();
+      });
+
+      it("does not push when there is no runtime/socket to pair against", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "Margin";
+
+         comp.ngOnInit();
+
+         expect(followFocusService.pushFocus).not.toHaveBeenCalled();
+      });
+
+      it("pops focus on ngOnDestroy when this dialog's own push took effect", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "Margin";
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection,
+            { kind: "calcField", assembly: "Query1", name: "Margin" });
+      });
+
+      /*
+       * The bug the automated review on stylebi#4683 found: `editorContext`'s getter derives
+       * from `formulaName`, which the form binds/updates while this dialog is open (renaming a
+       * calc field). Simulated here by mutating comp.formulaName directly between ngOnInit and
+       * ngOnDestroy, exactly as the form would on a rename.
+       */
+      it("pops with the ORIGINALLY PUSHED name, not whatever formulaName was renamed to " +
+         "before close (mid-edit rename hazard)", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "OldName";
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+
+         // Simulates the form renaming the calc field mid-edit -- the exact hazard the review
+         // flagged, since editorContext's getter re-derives from this field live.
+         comp.formulaName = "NewName";
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledWith(
+            "vs-1", comp.socketConnection,
+            { kind: "calcField", assembly: "Query1", name: "OldName" });
+      });
+
+      it("does not pop on ngOnDestroy when Follow Focus was off at open (no push happened)", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "Margin";
+         (followFocusService.pushFocus as any).mockReturnValue(false);
+         comp.ngOnInit();
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).not.toHaveBeenCalled();
+      });
+
+      it("fires pop independently of detach -- both run, neither implies the other", () => {
+         const { comp, followFocusService } = createDialog();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.isCalc = true;
+         comp.assemblyName = "Query1";
+         comp.formulaName = "Margin";
+         (followFocusService.pushFocus as any).mockReturnValue(true);
+         comp.ngOnInit();
+         // No Connect-to-Claude control mounted -- this dialog never minted its own pairing
+         // code, so detach() has nothing to do -- but the Follow Focus pop must still fire.
+         (comp as any).connectToClaude = undefined;
+
+         comp.ngOnDestroy();
+
+         expect(followFocusService.popFocus).toHaveBeenCalledTimes(1);
+      });
+   });
+
    it("should run checkValid after view init when formulaType control exists", async () => {
       const { comp } = createDialog();
       comp.resizeable = false;
