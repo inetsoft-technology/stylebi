@@ -117,7 +117,15 @@ public class BindingAgentController {
       return readService.read(sessions.resolve(sessionToken, user), assembly);
    }
 
-   public record ShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}
+   /**
+    * @param table the source these fields come from. Optional, and on the <em>request</em> rather
+    *              than on each field on purpose: an assembly binds every field from one source, so
+    *              a per-field table would let a caller express a state that cannot exist. Omit it
+    *              and the table is inferred when the columns name exactly one; a name several
+    *              tables share is refused rather than guessed.
+    */
+   public record ShelfRequest(String assembly, String shelf, List<FieldRef> fields,
+                              String table) {}
    public record ChartTypeRequest(String assembly, Integer type, Boolean multi,
                                   Boolean stackMeasures, Boolean separate) {}
    public record SwapRequest(String assembly) {}
@@ -131,12 +139,27 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
+                                         request.fields());
       chartService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
-                            request.fields(), linkUri);
+                            request.fields(), source, linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/source")
+   public void setChartSource(@PathVariable String sessionToken,
+                              @RequestBody ChartSourceRequest request,
+                              @RequestParam(required = false, defaultValue = "") String linkUri,
+                              Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      chartService.setSource(sessionToken, user, request.assembly(), request.table(),
+                             Boolean.TRUE.equals(request.force()), linkUri);
    }
 
    /** {@code field} may be null, which clears the shelf. */
-   public record SingleShelfRequest(String assembly, String shelf, FieldRef field) {}
+   /** @param table see {@link ShelfRequest#table()}. */
+   public record SingleShelfRequest(String assembly, String shelf, FieldRef field, String table) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/single-shelf")
    public void setChartSingleShelf(@PathVariable String sessionToken,
@@ -147,8 +170,14 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+
+      // A null field is a clear: nothing to validate, and no source to derive from it.
+      String source = request.field() == null ? null
+         : resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
+                              List.of(request.field()));
+
       chartService.setSingleShelf(sessionToken, user, request.assembly(), request.shelf(),
-                                  request.field(), linkUri);
+                                  request.field(), source, linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
@@ -203,7 +232,9 @@ public class BindingAgentController {
                                      linkUri);
    }
 
-   public record AestheticFieldRequest(String assembly, String channel, FieldRef field) {}
+   /** @param table see {@link ShelfRequest#table()}. */
+   public record AestheticFieldRequest(String assembly, String channel, FieldRef field,
+                                       String table) {}
    public record AestheticFrameRequest(String assembly, String channel,
                                        Map<String, Object> frame) {}
 
@@ -238,8 +269,10 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
+                                         List.of(request.field()));
       aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
-                                request.field(), linkUri);
+                                request.field(), source, linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field/clear")
@@ -269,6 +302,7 @@ public class BindingAgentController {
    public record TableShelfRequest(String assembly, String shelf, List<FieldRef> fields) {}
 
    /** {@code force} discards fields already bound to the old source; absent means false. */
+   public record ChartSourceRequest(String assembly, String table, Boolean force) {}
    public record TableSourceRequest(String assembly, String table, Boolean force) {}
    public record TableFieldRequest(String assembly, String shelf, FieldRef field,
                                    Integer position) {}
@@ -598,6 +632,38 @@ public class BindingAgentController {
       }
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
+      }
+   }
+
+   /**
+    * Validates the columns and answers which table the write is against, in one listing.
+    *
+    * <p>Both questions are decided from the same data and one round trip: whether these columns are
+    * bindable at all, and — for an assembly with no source yet — which table they come from, so it
+    * can be established the way the Composer's drag does.
+    *
+    * <p>A listing failure is logged and skipped rather than propagated, matching
+    * {@link #requireBindableColumns}: not being able to read the tree is a different fault, and
+    * refusing the write on the strength of it would turn a read problem into a write problem.
+    *
+    * @return the source table to establish, or {@code null} for none
+    */
+   private String resolveSourceTable(String sessionToken, Principal user, String assembly,
+                                     String table, java.util.Collection<FieldRef> fields)
+   {
+      try {
+         List<BindableTable> tables =
+            fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user);
+         BindableColumns.require(tables, assembly, fields);
+
+         return BindableColumns.requireSource(tables, assembly, table, fields);
+      }
+      catch(IllegalArgumentException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
+         return null;
       }
    }
 

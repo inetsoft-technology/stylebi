@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -53,7 +54,29 @@ public class ViewsheetReadService {
          }
       }
 
-      return new ViewsheetModel(vs.getName(), nodes);
+      return new ViewsheetModel(sheetName(rvs), nodes);
+   }
+
+   /**
+    * The sheet's name, from its asset entry.
+    *
+    * <p>Deliberately not {@code Viewsheet.getName()}, which is the <em>assembly</em> name: it is
+    * set only by {@code createVSAssembly(name)}, i.e. when a viewsheet is embedded in another
+    * viewsheet as an assembly, so for a top-level sheet it is legitimately null and never answered
+    * the question this field is asking.
+    *
+    * <p>It was worse than merely empty, because that null does not survive a save/reload.
+    * {@code AssemblyInfo.writeAttributes} emits {@code "<name><![CDATA[" + name + "]]></name>"},
+    * and concatenating a null yields the four characters {@code null} — so a reopened sheet
+    * reported the <b>string</b> {@code "null"}, which a caller testing {@code if(name)} accepts as
+    * a real name and renders to a user. Left the shared serialization alone: it is on the path of
+    * every assembly in every sheet, and the one field that already carries a hand-patch for this
+    * ({@code VSAssemblyInfo} maps {@code "null"} back to null when parsing {@code absoluteName2})
+    * shows the flaw is older and wider than this read.
+    */
+   private static String sheetName(RuntimeViewsheet rvs) {
+      AssetEntry entry = rvs.getEntry();
+      return entry == null ? null : entry.getName();
    }
 
    private AssemblyNode toNode(Viewsheet vs, VSAssembly assembly) {

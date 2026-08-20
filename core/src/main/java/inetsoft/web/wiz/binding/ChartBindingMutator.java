@@ -109,6 +109,20 @@ public final class ChartBindingMutator {
       }
    }
 
+   /** Reads one of the list shelves; never null, so a caller can count it without a guard. */
+   public static List<ChartRefModel> readShelf(ChartBindingModel model, String shelf) {
+      String name = shelf == null ? "" : shelf.trim().toLowerCase();
+      List<ChartRefModel> refs = switch(name) {
+         case "x" -> model.getXFields();
+         case "y" -> model.getYFields();
+         case "group" -> model.getGroupFields();
+         default -> throw new IllegalArgumentException(
+            "Unknown chart shelf '" + shelf + "'. Valid shelves: " + String.join(", ", SHELVES));
+      };
+
+      return refs == null ? List.of() : refs;
+   }
+
    /** Reads one single-field shelf, or null when nothing is bound to it. */
    public static ChartRefModel readSingleShelf(ChartBindingModel model, String shelf) {
       return switch(requireSingleShelf(shelf)) {
