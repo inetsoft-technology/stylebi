@@ -1,6 +1,15 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-20 (tenth revision — **P5 has shipped as `4c237a7dd`**, 61 files, with all three automated
+**Date:** 2026-08-20 (eleventh revision — **P6 has been reviewed against the code, ahead of planning it.**
+Six findings, four decided the same day. The one that changes the shape of the phase: `resolveSeededCorner`
+is a **fourth** deletion inside P6's same-commit set, because the design's claim that the two
+`PlotDescriptor` seed booleans are "the only reads left that still test the org gate" is false — leave the
+method in and a marked assembly in a gate-off org loses its card radius while keeping every other modern
+value. Two more gate reads survive P6 as documented accepted costs, and three items the spec did not list
+are folded in, one of them a P5 density regression on org-level surfaces. Everything is recorded in
+"Carried into P6" below, in [the design](../2026-08-14-seed-mark-forward-half-design.md) §5's P6 and in
+[decision 13](./seeded-value-reversibility-decisions.md). The tenth revision's note follows: **P5 has
+shipped as `4c237a7dd`**, 61 files, with all three automated
 gates green and **every manual check passed, including P3's eleven**, which had never been run before. The
 section below, "What P5 left behind", carries what it deferred; two of the six items it originally listed
 were withdrawn after testing. The eighth revision's notes follow: **P4 committed as `8ef511e45`**, and a product decision taken
@@ -97,9 +106,10 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  └──→ Outlined text conversion (also behind G)
       │
      P6  Revert — the per-dashboard mirror of         NEW 2026-08-19 · decision 13
-         Modernize; deletes the gate && term and      replaces the sweep entirely
-         both PlotDescriptor seed booleans            ~P3's weight, not the sweep's
-      └──→ Card radius 12→6, retire resolveSeededCorner()
+         Modernize; deletes the gate && term,         replaces the sweep entirely
+         both PlotDescriptor seed booleans AND        ~P3's weight, not the sweep's
+         resolveSeededCorner, all in one commit       REVIEWED 2026-08-20 · 5 pieces
+      └──→ Card radius 12→6 (the constant only)
 
      P4 unblocks the first of the six — L' — directly, ahead of P5. P5 gates four of the other five. P1 and
      P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
@@ -107,6 +117,12 @@ rather than repairing it — the whole of its content is one reading of the two 
 
      The card radius moved off P5 and onto P6 on 2026-08-19. It never needed the sweep specifically — it
      needed A reversal path for resolveSeededCorner's retirement to fall back on, and Revert is one.
+
+     Split again on 2026-08-20 by the P6 review, and this is the sharper version: retiring
+     resolveSeededCorner is REQUIRED BY P6, not unblocked by it. Its gate read strands a marked
+     assembly's card radius the moment the gate && term goes — the same stranding the design already
+     calls non-negotiable for the PlotDescriptor booleans, on a more visible property. So it is inside
+     P6's same-commit set. Only the 12→6 CONSTANT is a follow-on, and it needs its own sign-off.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
@@ -167,9 +183,14 @@ so the item is gone rather than demoted.
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
 | 1 | **L′ — the title lane height row** | the highest-value visible item, startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
-| 2 | **M-P6 — Revert** | clears most of what is left of the release gate | **S–M** — P3's wiring mirrored, plus three deletions | card radius 12→6 | deletes the `gate &&` term and both `PlotDescriptor` seed booleans together; splitting them strands charts. **Also must drop the `if(modern)` guard on the density body class** — see "What P5 left behind" |
-| 3 | **The binding-pane dead buttons** | a broken affordance users will click | **XS** — two predicates | nothing | none; pre-existing, not P5's |
-| 4 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+| 2 | **M-P6 — Revert** | clears most of what is left of the release gate | **M** — P3's wiring mirrored, plus four deletions and three folded-in items; reviewed up from S–M on 2026-08-20 | card radius 12→6 (the constant only) | deletes the `gate &&` term, both `PlotDescriptor` seed booleans **and `resolveSeededCorner`** together; splitting any of them strands charts or card corners. **Also drops the `if(modern)` guard on the density body class**, fixes a P5 density regression on the same selectors, and unhides the EM density control — see "Carried into P6" |
+| 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+
+**The binding-pane dead buttons are off this table because they are built** — both predicates landed
+2026-08-20. **They are built but not yet verified in a running app** — the manual pass on 2026-08-20 ran
+against a bundle built before the change (`target/classes` chunk at 11:07, source edited at 14:16) and so
+tested pre-fix code. Rebuild the web module before re-running it. See "What P5 left behind" item 1. The
+overlap defect recorded beside them was **not** folded in and is not XS; it is recorded there too.
 
 **P6's ordering constraint is satisfied — P5 is built, so P6 is unblocked.** The reasoning is retained
 because it explains why the order mattered: P6 makes gate-off mean
@@ -401,6 +422,31 @@ the gate at dense an anchored assembly on a tablet has no route to its actions. 
 floor branch already behaves below 32px, and one predicate changes it if that is not intended.
 
 Tests at commit: 255 action specs, 83 unit, 60 TL — all green.
+
+**One defect found in it on 2026-08-20 and fixed the same day: dense drew an empty pill above the card.**
+Reported from a running viewer during the binding-pane manual pass, with a screenshot — a thin bordered
+sliver where dense is supposed to draw nothing at all.
+
+`MiniToolbarComponent.showToolbarContainer` conditioned its emptiness test on being resident:
+
+```ts
+if(!this.kebabResident) {
+   return !this.mobileDevice;      // renders regardless of content
+}
+return (this.actionButtonGroups && this.actionButtonGroups.length > 0) || !!this.kebabAction;
+```
+
+Dense reaches that first branch. `isAnchoredResident()` is false at dense, so the host passes
+`anchorInTitleLane` false and `kebabResident` is false — while `isAnchoredChromeSuppressed()` has already
+emptied `showingActions`. Container renders, nothing inside it, and the assembly-hover reveal takes it to
+full opacity. The guard was written for the 32px floor, which only ever occurs *while* anchored, so the
+dense rung was never in its scope. Its own doc comment recorded the gap as intended behaviour ("the
+container renders whenever the device isn't mobile, regardless of content"), and a unit test asserted it —
+both have been corrected.
+
+The fix makes residency decide only whether mobile suppresses the container, never whether its content is
+checked. **Both rungs that empty the action list now hide the container, which is what "no chrome at all"
+was supposed to mean in the first place.**
 
 ---
 
@@ -700,9 +746,103 @@ reasoning that produced them, because both were code-reading findings that reaso
 had verified, and that is worth not repeating. Of the four that stand, two are new findings about
 pre-existing behaviour and two are things P5 deliberately did not do.
 
-### 1. Binding-pane chart toolbar shows two dead buttons — pre-existing, XS fix
+### 1. Binding-pane chart toolbar shows two dead buttons — pre-existing, XS fix — DONE
 
-**Symptom.** Editing a chart in the binding pane, the mini-toolbar shows *summary data*, a **gear
+**Both predicates landed 2026-08-20, and the section named only half the problem: there are two hosts, not
+one.** The fix as prescribed — `&& !this.binding` on `propertiesToolbar.visible` in `chart-actions.ts` and on
+the hide-toolbar→kebab move in `abstract-vs-actions.ts` — was verified in a running composer and **the gear
+and kebab were still there**, because the screen in question was the **object wizard's preview pane**, not
+the classic binding editor.
+
+`object-wizard-pane.component.ts:96` provides `ContextProvider` via `VSWizardPreviewContextProviderFactory`,
+which sets `binding` **false** and `vsWizardPreview` true, so a binding test cannot reach it. Both predicates now carry
+`&& !this.vsWizardPreview` as well.
+
+**Correction to this entry, made the same day: the mechanism first recorded here was overstated.** It said
+the gear fires into an unsubscribed output, because `wizard-preview-container.component.ts:76` declares
+`@Output() onAssemblyActionEvent` and nothing under `vs-wizard/` binds to it. That much is true and is not
+the whole picture: the preview renders `<vs-chart cChartActionHandler [actions]="actions">`
+(`wizard-preview-container.component.html:51`), and **two other subscribers take the same emitter** —
+`vs-chart.component.ts:258`, whose switch falls through to `propertiesHandler` for ids it does not name, and
+`chart-action-handler.directive.ts:61`, which handles six ids (the four hyperlink variants, highlight and
+conditions). So actions in the wizard are not universally unrouted.
+
+**The gear being dead there is a tested observation, not a derived one** — confirmed in a running wizard —
+and the precise reason the properties path does not function in that host was never isolated. The
+suppression stands on the product argument (the wizard carries its own configuration surfaces, and a dead
+button is worse than no button) plus that observation. Anyone reopening this should isolate the mechanism
+before quoting one.
+
+**The dismissal case is worse in the wizard than in the binding pane, and this is why the guard belongs on
+both.** The "menu actions" wrapper that would surface a relocated dismissal is *itself* hidden by
+`!this.vsWizardPreview` (`abstract-vs-actions.ts:465`). So under the mark the wizard moved the dismissal off
+the toolbar and into a menu that never renders — not relocated, stranded.
+
+**A third defect surfaced once the gear was gone: the wizard's kebab opened onto nothing.** Verified in a
+running wizard, then reproduced exactly in a unit probe — marked chart, compact, 400x200: `resident` true,
+`allowedActionsNum()` 3, **two** visible toolbar actions, and `showingActions` carrying `more actions`
+anyway while `getMoreActions()` returned empty.
+
+The cause is one line, `abstract-vs-actions.ts`: `const needsKebab = modern || width < actionsWidth`, where
+`modern` is `this.resident` — `isAnchoredResident(objectType, model.vizModern)`, which reads **the mark and
+the body density class and never the host**. So every marked assembly at compact-or-above got a kebab,
+overflow or not. The design knew the kebab could be empty and said so in a comment; what made that
+survivable was the trailing `menu actions` wrapper staying on the strip to carry the menu. **In the wizard
+that wrapper is hidden (`!vsWizardPreview`) and `vs-wizard/` has no `actionsContextmenuAnchor` anywhere**, so
+there was no menu route at all and the control opened an empty dropdown.
+
+Fixed by gating `needsKebab` on `kebabHasContent()`, which asks the very list the kebab opens rather than
+re-deriving the overflow arithmetic. Two things that look like details and are not: **emptiness cannot be
+read off the array's length**, because `ToolbarActionsHandler.getMoreActions()` pads its result with one
+empty group per overflowed slot; and the touch / 32-56px routes are untouched because both are
+`allowedActionsNum() === 0`, where `getMoreActions()` returns the flattened whole menu. **This also removes
+the same dead click in the viewer and composer where nothing overflows** — accepted deliberately, and one
+existing test that asserted the empty kebab was updated, keeping the property it was actually written to
+guard (both real actions stay on the strip).
+
+**Flattening the kebab everywhere under the gate was raised on 2026-08-20 and is planned, not done** —
+see [the plan](../../plans/2026-08-20-flatten-kebab-under-the-gate.md). The viewer is the case that motivates
+it: its kebab's entire content is the `menu actions` wrapper, so every menu item sits three clicks away for
+no benefit. The plan is not a one-line change for two reasons, both measured rather than assumed, and both
+recorded there.
+
+**Evidence for the open composer-anchoring question in item 2, found on the way.** `AbstractVSActions
+.resident` is true in the wizard, the binding pane **and** the composer canvas — none of which pass
+`[anchorInTitleLane]` — so all three are also carrying the gate's three-action cap while their strips are
+not anchored at all. Making `resident` consult the host would fix that and would likely subsume the empty
+kebab as well; it was **not** taken here because it changes composer behaviour inside a question nobody has
+decided. Whoever settles item 2 should settle this with it, and should check B3 ("the dismissal is not in
+the composer canvas kebab") against the same cause.
+
+**The lesson for anyone extending a context predicate here: enumerate the hosts, do not reason from the one
+in the report.** Four `ContextProvider` factories set neither `viewer` nor a plain `composer` — binding
+(two flavours), wizard and wizard-preview — and `mini-toolbar` is mounted by
+`vsview/view/vs-object-view`, `vs-wizard/gui/object-wizard/wizard-preview-container` and
+`vs-wizard/gui/objects/vs-wizard-object`. The last of those passes `[miniToolbarActions]` rather than
+`[actions]`, so `AbstractVSActions` predicates do not reach it at all. Five tests in
+`abstract-vs-actions.spec.ts` cover them, using the `BindingContextProviderFactory` that already existed
+beside the viewer and composer ones. The whole action suite (29 files, 260 tests), the mini-toolbar specs
+and the `vsview` TL specs are green.
+
+**A correction was published here on 2026-08-20 and withdrawn the same day; the section as originally
+written was right.** The withdrawn claim was that the kebab renders in the binding pane with the mark off as
+well as on, so only the gear was the mark's. Its evidence was `TestUtils.createMockVSChartModel`, which
+makes six chart menu entries visible (`chart properties`, `chart show-format-pane`, `chart show-title`,
+`chart MenuAction HelperText`, `chart show-data`, `chart open-max-mode`) that a real binding-pane chart does
+not. **In the running composer an unmarked chart's strip is exactly two buttons — the dismissal and summary
+data** — so the kebab is the mark's after all, and "reproduces the legacy two-button set exactly" stands as
+the acceptance test.
+
+**The lesson is the one items 5 and 6 below already record, one layer in:** a mock model is not the
+application. A visibility predicate read through `TestUtils` answers "what does this fixture make visible",
+not "what does a user see". Where a claim is about what renders, the running app is the only evidence that
+settles it.
+
+The tests keep the shape they were given, because it survives the correction: they assert the marked strip
+and the unmarked strip are **identical** rather than naming two buttons. That property holds under the
+fixture and in the app, and does not have to be rewritten when a fixture changes.
+
+**Symptom as originally reported.** Editing a chart in the binding pane, the mini-toolbar shows *summary data*, a **gear
 (Properties)** and a **kebab**. The gear and the kebab do nothing. Legacy showed only summary data and
 hide-toolbar.
 
@@ -726,10 +866,17 @@ already in place and already used by these classes: `AbstractVSActions` has `pro
 - `vsobjects/action/abstract-vs-actions.ts:432` — gate the hide-toolbar→kebab move on `&& !this.binding`,
   which returns hide-toolbar to toolbar index 0 and reproduces the legacy two-button set exactly
 
-**Second, separate defect in the same screenshot:** the binding pane's toolbar *overlaps the chart title
-lane*. `vs-object-view.component.html:66` passes `[top]="0" [left]="5"` with `[forceAbove]="true"`, so
-`topY` floors at 0 and the strip lands on top of the chart. Also pre-existing. Worth folding into the same
-fix.
+**Second, separate defect in the same screenshot — NOT folded in, and it is not XS.** The binding pane's
+toolbar *overlaps the chart title lane*. `vs-object-view.component.html:66` passes `[top]="0" [left]="5"`
+with `[forceAbove]="true"`, so `topY` floors at 0 and the strip lands on top of the chart. Pre-existing, and
+it reproduces with the mark off.
+
+It was left open deliberately on 2026-08-20. `.vs-object-container` is `overflow-x: auto; overflow-y: hidden`
+(`vs-object-view.component.scss:22-25`) and the strip is `position: absolute` inside it, so the floor at 0 is
+the only thing keeping the strip on screen at all — there is no space above origin to move into. Making room
+means either padding the container against its `min-height: objectFormat.height`, or anchoring the strip in
+the title lane, which is exactly the undecided product question in item 2 below. Needs a running composer to
+measure; do not treat it as a predicate change.
 
 ### 2. The composer never anchors the mini-toolbar — open product question, not a defect
 
@@ -765,6 +912,14 @@ builder and the model *shipped to the browser* disagree about the same chart —
 **Cost while deferred:** on a mixed dashboard in a modern org, a legacy assembly's tooltip takes modern
 tooltip chrome. Status quo, not a regression. Doing it means the constructor-threading job above, unchanged
 in size by waiting.
+
+**Updated 2026-08-20: P6 adds a second, mirror-image cost, and the item was decided rather than deferred
+again.** Once the `gate &&` term goes, a marked chart in a **gate-off** org renders modern everywhere and
+takes a legacy tooltip — the same defect pointing the other way, and new, because until P6 gate-off meant
+legacy throughout. Weighed against the constructor-threading job (five `ChartArea` overloads reached by the
+report painter, the exporter, annotations and the scheduler, several with no assembly in existence), it is
+**accepted and documented rather than fixed in P6**. Recorded as an accepted cost in the design and in
+decision 13. It stays R20 for whenever the threading job is worth doing on its own terms.
 
 ### 4. Three overlay surfaces follow the org, not the assembly (R17, R21)
 
@@ -830,15 +985,60 @@ configuration differs in other ways too. Do not record it as a defect without a 
 
 ### Carried into P6 — do not lose this
 
+**Reviewed 2026-08-20 against `35ca4fce0`, and the list grew.** P6's spec was checked citation by citation
+before planning; six findings changed the phase and four were decided the same day. The full account is in
+[the design](../2026-08-14-seed-mark-forward-half-design.md) §5's P6, which now carries five pieces rather
+than four, and in [the decisions file](./seeded-value-reversibility-decisions.md) decision 13. The headline
+is in the dependency picture above: **`resolveSeededCorner` is a fourth deletion inside P6's same-commit
+set**, not a follow-on, because the design's claim that the two `PlotDescriptor` booleans are "the only reads
+left that still test the org gate" is false. Three items below, two of them new.
+
 **P6 must drop the `if(modern)` guard on the density body class.** All three shells add
-`viz-density-<mode>` only when the org gate is on (`portal/app.component.ts:270` and the same in the viewer
-and composer). After P6, gate-off stops meaning legacy — so a marked assembly in a gate-off org would find
-no density class on the body and fall back to the bare `.viz-modern` dense defaults. One line, and it is
-required under either of the two density designs that were considered.
+`viz-density-<mode>` only when the org gate is on (`portal/app.component.ts:272`,
+`composer/app.component.ts:145`, `viewer-app.component.ts:2796` — re-verified 2026-08-20; the `:270` first
+recorded here has moved). After P6, gate-off stops meaning legacy — so a marked assembly in a gate-off org
+would find no density class on the body and fall back to the bare `.viz-modern` dense defaults. One line
+each, and it is required under either of the two density designs that were considered.
+
+**New 2026-08-20 — and it is a P5 regression sitting on the same selectors, so it is folded in rather than
+filed.** Pre-P5 the density matrices were **compound** (`.viz-modern.viz-density-compact`), so a `body`
+carrying both classes matched and org-level surfaces resolved the org's chosen density. Post-P5 they are
+ancestor-descendant and `.viz-shell` appears only in the bare/dense group (`_viz-tokens.scss:115-117`), so a
+body carrying `viz-shell` + `viz-density-compact` resolves **dense** — a descendant selector cannot match its
+own element. Confirmed against `git show 4c237a7dd^` of the file. The affected consumers are exactly the ones
+the design names as the reason `.viz-shell` was added: the combo-box dropdown appended to `document.body`, the
+worksheet details pane, the schedule task list. Fix is two added compound selectors,
+`.viz-density-compact.viz-shell` and `.viz-density-comfortable.viz-shell`. **The design's §3 correction box
+asserts the opposite** — that a `viz-shell` body resolving dense "matches what a body carrying `viz-modern` +
+`viz-density-<mode>` resolved before the split." It does not; that claim is now struck through in place.
+
+**New 2026-08-20 — the EM hides Visualization Density behind the gate checkbox.**
+`look-and-feel-settings-view.component.html:38-49` shows Density and Dark Mode only while Modern Visualization
+is checked. After P6, density is still read live for every marked assembly in a gate-off org
+(`VizContext.of(mark)` takes it from `VSDensityDefaults.mode()` regardless) and the body-class fix above makes
+it apply in the browser too — so an admin loses sight of a setting that still does something. Density is
+unhidden; **Dark Mode stays hidden**, because the dark axis is stamped at creation and a gate-off org creates
+no marked content. The gate's description is rewritten in the same pass, which is decision 13's "the EM
+property now says something it does not do."
+
+**Two gate reads survive P6 as accepted costs, both decided 2026-08-20 rather than deferred by omission.**
+`AbstractChartInfo.getTooltipStyle` (`:3736-3746`) — the R20 half recorded under "What P5 left behind" item
+3 — and `VSChartInteractionDefaults.isInlineSvg()` (`:41-49`). Each makes a marked chart in a **gate-off** org
+modern everywhere except one surface: legacy tooltip chrome, and no inline-SVG animation or hover dimming.
+Both are the gate-off mirror of an inconsistency already accepted in the gate-on direction. Threading the
+tooltip means widening five `ChartArea` constructor overloads reached by the report painter, the exporter,
+annotations and the scheduler — larger than the whole of P6; `isInlineSvg()` is interaction rather than chrome
+and already carries a `graph.svg.inline` override, which is the workaround for release notes.
 
 **Also for P6's reader:** the design document's §3 carries a correction box added after P5 shipped. Three
 of its statements were edited *during* P5 on reasoning implementation then disproved, including one that
-would send a P6 implementer in the opposite direction on density. Read the box, not the body text.
+would send a P6 implementer in the opposite direction on density. Read the box, not the body text — and note
+that the box itself has since been corrected on one point, per the second item above.
+
+**And one prerequisite that is not code.** P6's headline verification — a modernized-then-reverted dashboard
+byte-comparable with one never modernized — is meaningless if it runs against a pre-mark-cohort asset, which
+carries seeded modern values with no mark. **P0's status is unverified**; use a freshly created dashboard, or
+confirm the pre-mark dev dashboards are gone, before reading that check as a pass.
 
 ### Test-coverage debt this phase created
 
@@ -935,6 +1135,12 @@ sibling project first: it breaks the title-bar/table-header equality their §05 
 retiring `resolveSeededCorner` without it leaves no reversal path. Confirm the seeded 12px cohort is empty
 before either constant moves — `resolveSeededCorner` keys on exact equality, so already-seeded assets stop
 being stripped the moment the constant changes.
+
+**Amended 2026-08-20: this entry is now only about the constant, and its cohort caveat dissolves.** The P6
+review moved the *retirement* of `resolveSeededCorner` inside P6, because its gate read strands a marked
+assembly's card radius the moment the `gate &&` term goes. So what is left here is `CARD_CORNER_RADIUS`
+12 → 6 and the sign-off it needs. The caveat above described a stripping behaviour that no longer exists
+after P6, so there is no cohort question to answer — the constant can move on its own schedule.
 
 ---
 
@@ -1050,6 +1256,11 @@ carry the roadmap, the open-item decisions and the design sets.
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice
   works
 - `plans/2026-08-11-chart-card-strip-density-gating.md` · `plans/2026-08-11-chart-card-dark-browser-surfaces.md`
+- [plans/2026-08-20-flatten-kebab-under-the-gate.md](../../plans/2026-08-20-flatten-kebab-under-the-gate.md)
+  — **proposed, not implemented.** Widens `flattenedMoreActions()` from the kebab-only rungs to every
+  host that offers the wrapper, so the kebab stops nesting its contents behind a "More" row. Carries the
+  two traps that make it non-trivial: flattening resurrects the wizard's suppressed kebab, and the
+  strip/menu Properties pair does not share an id, so dedup misses it
 - `chart-card-design3/` — the external source set. Regenerated wholesale on each sync, so nothing authored
   there survives. `chart-card-design2/` and `chart-card-design/` are kept as history
 - [visualization-implementation-roadmap.md](./visualization-implementation-roadmap.md) — the wider

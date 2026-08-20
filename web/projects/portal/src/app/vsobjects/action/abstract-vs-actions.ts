@@ -245,8 +245,13 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // the full menu is always one click away: either the wrapper is still on the strip, or it has
       // overflowed into the kebab. It is not a guarantee that the kebab is non-empty — when nothing
       // overflows, getMoreActions() is empty and the wrapper on the strip carries the menu instead.
-      const needsKebab = modern || this.model.objectFormat.width <
-         this.miniToolbarService.getActionsWidth(this.toolbarActions);
+      // ...and only where it opens onto something. resident reads the mark and the body density
+      // class, never the host, so this branch fired for every marked assembly at compact-or-above
+      // whether anything had overflowed or not. That was survivable while the trailing "menu
+      // actions" wrapper stayed on the strip to carry the menu, and it is not survivable in hosts
+      // that hide the wrapper: there the kebab opened an empty dropdown.
+      const needsKebab = (modern || this.model.objectFormat.width <
+         this.miniToolbarService.getActionsWidth(this.toolbarActions)) && this.kebabHasContent();
 
       if(needsKebab) {
          // getShowingActions(groups, 0) can leave this.showing empty (e.g. every toolbar action
@@ -264,6 +269,23 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       }
 
       return this.showing;
+   }
+
+   /**
+    * Whether the kebab would open onto any visible action, asked of the very list it opens —
+    * getMoreActions() — rather than of a second copy of the overflow arithmetic.
+    *
+    * Emptiness cannot be read off the array's length: ToolbarActionsHandler.getMoreActions() pads
+    * its result with one empty group per overflowed slot, so a kebab with nothing visible in it
+    * still arrives as a non-empty array of empty groups.
+    *
+    * Where the kebab is the entire strip — touch, and the 32-56px band, both allowedActionsNum()
+    * 0 — getMoreActions() returns the flattened list carrying the whole menu, so that route keeps
+    * its kebab.
+    */
+   private kebabHasContent(): boolean {
+      return this.getMoreActions().some(
+         group => group.actions.some(action => action.visible()));
    }
 
    getMoreActions(): AssemblyActionGroup[] {
@@ -429,14 +451,19 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
             action: () => this.hideMiniToolbar(),
          };
 
-         if(this.model.vizModern) {
+         if(this.model.vizModern && !this.binding && !this.vsWizardPreview) {
             // The dismissal is something done to the strip, not to the assembly, and at toolbar
             // index 0 it ate a slot ahead of show-data under a cap on toolbar length. It moves to
             // the menu instead of splicing at index 0 here; createMenuActions() below reads this
-            // field to surface it there. Gated on the assembly's own model.vizModern alone, with
-            // no type test — so under the gate this reaches every assembly type, not only the
+            // field to surface it there. Gated on the assembly's own model.vizModern, with no
+            // type test — so under the gate this reaches every assembly type, not only the
             // anchored ones. Types that have not yet joined the rollout therefore reach the
             // dismissal by right-click until their slice lands and gives them a resident kebab.
+            // Not in the binding pane or the wizard's preview, where the strip should look the
+            // same marked or not. The dismissal is the only entry the mark moves there, so leaving
+            // it on the toolbar keeps the marked strip identical to the unmarked one. In the
+            // wizard the move also strands it: the menu wrapper that would surface it is itself
+            // hidden by !vsWizardPreview, so it would relocate to somewhere unreachable.
             this.hideMiniToolbarAction = hideMiniToolbar;
          }
          else {

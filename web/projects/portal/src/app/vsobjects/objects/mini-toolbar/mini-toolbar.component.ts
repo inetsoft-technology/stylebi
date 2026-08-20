@@ -176,17 +176,19 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    /**
     * Whether .mini-toolbar-container should render at all.
     *
-    * Not resident: unchanged from before this task — the container renders whenever the device
-    * isn't mobile, regardless of content, exactly as it always has.
+    * An empty container is a bordered, backgrounded pill that goes fully opaque once the
+    * assembly-hover reveal fires, so it must not render with nothing in it. AbstractVSActions
+    * .showingActions empties the list on two rungs: below the 32px control floor, and at dense,
+    * where isAnchoredChromeSuppressed() removes every control from an anchored type.
     *
-    * Resident: below the 32px control floor, AbstractVSActions.showingActions suppresses every
-    * action (actionButtonGroups is empty) and there is no kebab, so without this guard the
-    * container would still render as an empty bordered, backgrounded pill once the assembly-hover
-    * reveal set its opacity to 1 — exactly the rung the fit ladder says should have no chrome.
+    * The content test used to be conditioned on being resident, which missed dense entirely —
+    * dense turns residency off, so it fell to the branch that rendered regardless of content and
+    * drew a sliver above the card. Residency now decides only whether mobile suppresses the
+    * container, not whether its content is checked.
     */
    get showToolbarContainer(): boolean {
-      if(!this.kebabResident) {
-         return !this.mobileDevice;
+      if(this.mobileDevice && !this.kebabResident) {
+         return false;
       }
 
       return (this.actionButtonGroups && this.actionButtonGroups.length > 0) || !!this.kebabAction;
