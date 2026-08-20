@@ -1002,6 +1002,20 @@ public class WorksheetTableService {
             "the response, then select or rename them on a mirror table over it.");
       }
 
+      // applyExpressionColumns/applyWindowColumns are reached from buildPhysicalTable and
+      // buildMirrorTable only, so on this type they would be accepted and then never applied — a
+      // table that reports success while quietly lacking the derived column the caller asked for.
+      // Rejected instead, and pointed at the mirror, which is where a derived column over an
+      // endpoint belongs anyway: it needs the column list this call has not produced yet.
+      if((request.getExpressionColumns() != null && !request.getExpressionColumns().isEmpty()) ||
+         (request.getWindowColumns() != null && !request.getWindowColumns().isEmpty()))
+      {
+         throw new IllegalArgumentException(
+            "expressionColumns/windowColumns are not supported for tableType \"tabular table\" — a " +
+            "derived column needs the endpoint's columns, which do not exist until this request has " +
+            "run. Put them on a mirror table over this one, in a later call.");
+      }
+
       String dsName = src.getDatasourcePath();
 
       // Answered before createQuery rather than inferred from its failure. Pointed at a JDBC
