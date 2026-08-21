@@ -15,13 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-select {
-  width: 100%;
-}
+generic-selectable-list {
+  --generic-selectable-list-height: 14em;
 
-select[size] {
-  overflow: auto;
-  background: none;
+  width: 100%;
 }
 
 :host ::ng-deep custom-select.embedded-list-values-select .custom-select-trigger {

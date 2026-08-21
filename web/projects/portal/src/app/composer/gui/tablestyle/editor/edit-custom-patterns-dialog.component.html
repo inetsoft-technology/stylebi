@@ -132,15 +132,11 @@
           <div class="row shell-form-row--field">
             <div class="col">
               <div class="col form-floating">
-                <select class="form-control defaultvalue" id="defaultvalue"
+                <custom-select class="defaultvalue" id="defaultvalue"
                   [(ngModel)]="specModel.level"
+                  [options]="groupLevels"
                   [disabled]="disableGroupTab()">
-                  <ng-container>
-                    @for (level of groupLevels; track $index) {
-                      <option [value]="level.value">{{level.label}}</option>
-                    }
-                  </ng-container>
-                </select>
+                </custom-select>
                 <label>_#(Group Level)</label>
               </div>
             </div>
