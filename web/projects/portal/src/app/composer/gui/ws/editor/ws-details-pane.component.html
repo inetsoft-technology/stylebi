@@ -24,8 +24,8 @@
       <span>{{tableStatus}}</span>
     </div>
     <div class="ws-table-buttons me-3">
-      <button type="button" class="btn btn-sm btn-primary me-1" (click)="openConsoleDialog()">
-        Console <span class="badge console-count-badge">{{consoleMessages ? consoleMessages.length : 0}}</span>
+      <button type="button" class="btn btn-sm btn-default rounded-pill me-1" (click)="openConsoleDialog()">
+        Console <span class="badge console-count-badge ms-2">{{consoleMessages ? consoleMessages.length : 0}}</span>
       </button>
       @for (_button of tableButtons; track _button.id) {
         @if (isTableButtonVisible(_button)) {
