@@ -25,7 +25,6 @@ import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.uql.XConstants;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
-import inetsoft.web.binding.model.table.TableOptionInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -45,10 +44,6 @@ import java.util.*;
  * else no tool here touches.
  */
 public final class TableBindingMutator {
-   /** Shelves holding dimensions, per object type. */
-   private static final List<String> CROSSTAB_DIMENSION_SHELVES = List.of("rows", "cols");
-   private static final List<String> TABLE_DIMENSION_SHELVES = List.of("groups");
-
    /**
     * Natural spellings an agent is likely to reach for. The canonical names match
     * {@code CrosstabConstants} rather than inventing new ones.
@@ -74,8 +69,16 @@ public final class TableBindingMutator {
          return List.of("rows", "cols", "aggregates");
       }
 
+      // TableVSAssemblyInfo has no grouping or aggregation of its own — that is Crosstab's job.
+      // TableBindingModel.getGroups()/getAggregates()/getOption() exist as wire-format fields
+      // that VSTableBindingFactory.updateTableAssembly never reads back into the real assembly
+      // (it only ever applies getDetails()), so accepting writes to them here silently dropped
+      // every one: set_table_fields/add_table_field returned {"ok":true} and applied nothing,
+      // and move_table_field lost the field entirely (removed from its source shelf, never
+      // landed on the target). Restricting a table to its one real shelf makes requireShelf
+      // refuse "groups"/"aggregates" by name instead — see docs/superpowers L5 findings 1-2.
       if(model instanceof TableBindingModel) {
-         return List.of("groups", "details", "aggregates");
+         return List.of("details");
       }
 
       throw new IllegalArgumentException(
@@ -604,25 +607,16 @@ public final class TableBindingMutator {
       }
    }
 
+   /**
+    * A plain Table has no options a write here can actually apply. {@code TableOptionInfo} /
+    * {@code TableBindingModel.getOption()} are wire-format leftovers nothing in
+    * {@code VSTableBindingFactory.updateTableAssembly} ever reads, so accepting {@code
+    * grandTotal}/{@code distinct} silently dropped both: {@code {"ok":true}}, nothing applied,
+    * read-back unchanged. {@code requireKnown} against an empty list refuses every key by name
+    * instead, reusing the same refusal a real unknown option already gets.
+    */
    private static void setTableOptions(TableBindingModel model, Map<String, Object> options) {
-      TableOptionInfo info = model.getOption();
-
-      if(info == null) {
-         info = new TableOptionInfo();
-         model.setOption(info);
-      }
-
-      requireKnown(options, List.of("grandTotal", "distinct"));
-
-      if(options.containsKey("grandTotal")) {
-         info.setGrandTotal(
-            Boolean.parseBoolean(stringBoolean(options.get("grandTotal"), "grandTotal")));
-      }
-
-      if(options.containsKey("distinct")) {
-         info.setDistinct(
-            Boolean.parseBoolean(stringBoolean(options.get("distinct"), "distinct")));
-      }
+      requireKnown(options, List.of());
    }
 
    /**
@@ -720,7 +714,7 @@ public final class TableBindingMutator {
       return Map.of(
          "crosstab", List.of("rowTotals", "colTotals", "percentageBy", "summarySideBySide",
                              "suppressGroupTotal"),
-         "table", List.of("grandTotal", "distinct"),
+         "table", List.of(),
          "percentageBy", List.of("none", "row", "col"),
          "sortDirections", DimensionSortRanking.sortTokens(),
          "rankingModes", DimensionSortRanking.rankingTokens());

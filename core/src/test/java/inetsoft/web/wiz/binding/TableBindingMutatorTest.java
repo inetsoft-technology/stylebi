@@ -86,15 +86,27 @@ class TableBindingMutatorTest {
 
    // ── table shelves ─────────────────────────────────────────────────────────
 
+   /**
+    * A plain Table has no grouping or aggregation in StyleBI — that is Crosstab's job.
+    * {@code TableBindingModel.groups}/{@code aggregates} exist as wire-format fields, but
+    * {@code VSTableBindingFactory.updateTableAssembly} never reads them back into the real
+    * {@code TableVSAssemblyInfo}, so accepting a write here used to silently drop it: the call
+    * reported {@code {"ok":true}} and nothing was applied. Refusing by name is the fix.
+    */
    @Test
-   void setsTableGroupsAndAggregates() {
+   void refusesTableGroupsAndAggregatesShelves() {
       TableBindingModel model = new TableBindingModel();
 
-      TableBindingMutator.setShelf(model, "groups", List.of(dim("Region")));
-      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
+      Exception groups = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setShelf(model, "groups", List.of(dim("Region"))));
+      Exception aggregates = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setShelf(model, "aggregates",
+                                            List.of(measure("Sales", "Sum"))));
 
-      assertEquals(1, model.getGroups().size());
-      assertEquals(1, model.getAggregates().size());
+      assertTrue(groups.getMessage().contains("groups"));
+      assertTrue(aggregates.getMessage().contains("aggregates"));
+      assertTrue(groups.getMessage().contains("details"),
+                 "the refusal should name the one shelf a table actually has");
    }
 
    /**
@@ -134,7 +146,7 @@ class TableBindingMutatorTest {
          () -> TableBindingMutator.setShelf(new TableBindingModel(), "rows", List.of()));
 
       assertTrue(thrown.getMessage().contains("rows"));
-      assertTrue(thrown.getMessage().contains("groups"),
+      assertTrue(thrown.getMessage().contains("details"),
                  "the refusal should list the shelves this object type does have");
    }
 
@@ -577,14 +589,21 @@ class TableBindingMutatorTest {
                                                         Map.of("percentageBy", "diagonal")));
    }
 
+   /**
+    * A plain Table has no options a write here can actually apply — {@code grandTotal}/
+    * {@code distinct} on {@code TableOptionInfo} are wire-format leftovers nothing in
+    * {@code VSTableBindingFactory.updateTableAssembly} ever reads, so accepting them used to
+    * report {@code {"ok":true}} and apply nothing. Refusing by name is the fix.
+    */
    @Test
-   void setsTableOptions() {
-      TableBindingModel model = new TableBindingModel();
+   void refusesAnyTableOption() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new TableBindingModel(),
+                                              Map.of("grandTotal", true, "distinct", false)));
 
-      TableBindingMutator.setOptions(model, Map.of("grandTotal", true, "distinct", false));
-
-      assertTrue(model.getOption().getGrandTotal());
-      assertFalse(model.getOption().getDistinct());
+      assertTrue(thrown.getMessage().contains("grandTotal"));
+      assertTrue(thrown.getMessage().contains("distinct"));
    }
 
    /** An option belonging to the other object type would be accepted and do nothing. */
@@ -596,7 +615,6 @@ class TableBindingMutatorTest {
                                               Map.of("rowTotals", true)));
 
       assertTrue(thrown.getMessage().contains("rowTotals"));
-      assertTrue(thrown.getMessage().contains("grandTotal"), "list what this type does take");
    }
 
    @Test
@@ -610,6 +628,7 @@ class TableBindingMutatorTest {
       Map<String, Object> vocabulary = TableBindingMutator.optionVocabulary();
 
       assertTrue(String.valueOf(vocabulary.get("crosstab")).contains("rowTotals"));
-      assertTrue(String.valueOf(vocabulary.get("table")).contains("distinct"));
+      assertEquals(List.of(), vocabulary.get("table"),
+                   "a table has no options this write path can actually apply");
    }
 }
