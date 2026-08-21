@@ -1159,6 +1159,12 @@ public class WorksheetTableService {
          requireRowCapWhenPaged(query, src.getEndpoint(), dsName);
       }
 
+      // How many rows to report back, carried ON THE QUERY because the runner is the only place that
+      // sees a response and it is the only thing that can sample one. Zero when the caller did not
+      // ask, which is the default: sampling is opt-in, so a table built without this field runs
+      // exactly the request it ran before and reports exactly the columns.
+      query.setSampleRowLimit(src.getSampleRows() == null ? 0 : Math.max(0, src.getSampleRows()));
+
       TabularTableAssembly table = new TabularTableAssembly(worksheet, request.getTableName());
       TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) table.getTableInfo();
       info.setQuery(query);

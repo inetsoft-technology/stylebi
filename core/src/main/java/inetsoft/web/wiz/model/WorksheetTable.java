@@ -182,6 +182,7 @@ public class WorksheetTable {
       private Boolean expanded;
       private String expandedPath;
       private Integer maxRows;
+      private Integer sampleRows;
 
       /** Full repository path of the connector INSTANCE, e.g. "SaaS/Stripe Prod". */
       public String getDatasourcePath() { return datasourcePath; }
@@ -221,6 +222,21 @@ public class WorksheetTable {
        */
       public Integer getMaxRows() { return maxRows; }
       public void setMaxRows(Integer maxRows) { this.maxRows = maxRows; }
+
+      /**
+       * How many rows of DATA to report back in {@code WorksheetTableResponse.sampleRows}. Null or
+       * 0 reports none, which is the default: the rows are of no use to a caller that only needed
+       * the column list, and they are paid for in that caller's response.
+       *
+       * <p>NOT a row cap and unrelated to {@link #getMaxRows}. This bounds what is REPORTED from the
+       * one request the build already makes; maxRows bounds what every later render FETCHES.</p>
+       *
+       * <p>Capped by {@code rest.sample.rows}, so a request larger than the deployment allows is
+       * clamped rather than refused, and a deployment that sets it to 0 returns no rows whatever is
+       * asked for here.</p>
+       */
+      public Integer getSampleRows() { return sampleRows; }
+      public void setSampleRows(Integer sampleRows) { this.sampleRows = sampleRows; }
    }
 
    // ─── Nested: column info ─────────────────────────────────────────────────

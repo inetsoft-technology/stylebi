@@ -405,6 +405,25 @@ public abstract class TabularQuery extends XQuery {
    }
 
    /**
+    * How many rows the caller asked to have reported back. 0, the default, means none — sampling is
+    * OPT-IN, because rows are of no use to a caller that only wanted the column list and are paid
+    * for in that caller's response.
+    *
+    * <p>An INPUT, and that makes it the mirror image of {@link #getSampleRows} in two ways. It is
+    * NOT cleared by {@link #clone()}: the clone is the object that executes, so a limit the caller
+    * set has to reach it or nothing is ever sampled. And it is not written to XML deliberately
+    * rather than incidentally — a saved query that carried it would sample again on every later
+    * render, holding rows of customer data on a query nobody is reading them from.</p>
+    */
+   public int getSampleRowLimit() {
+      return sampleRowLimit;
+   }
+
+   public void setSampleRowLimit(int sampleRowLimit) {
+      this.sampleRowLimit = sampleRowLimit;
+   }
+
+   /**
     * Copy query properties from an existing query.
     */
    public void copyInfo(TabularQuery query) {
@@ -463,6 +482,11 @@ public abstract class TabularQuery extends XQuery {
     */
    private List<?> sampleRows;
    private boolean sampleRowsTruncated;
+   /**
+    * See {@link #getSampleRowLimit}. Deliberately NOT cleared by {@link #clone()} — it is the
+    * caller's request rather than an execution's result, and the clone is what executes.
+    */
+   private int sampleRowLimit;
    private Map<String, String> typemap = new HashMap<>();
    private Map<String, String> fmtmap = new HashMap<>();
    private Map<String, String> extentmap = new HashMap<>();

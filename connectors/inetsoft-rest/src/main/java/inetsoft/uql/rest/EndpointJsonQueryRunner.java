@@ -144,25 +144,36 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
     * Record a bounded sample of the selected rows on the query, swallowing anything that goes wrong
     * — a by-product, on the same terms as {@link #shapeResponse}.
     *
-    * <p>{@code rest.sample.rows} is the row cap AND the switch: at {@code 0} nothing is sampled and
-    * no response values leave the connector. One property rather than a flag plus a size, because
-    * "how much customer data may travel" is a single decision, and it belongs to the deployment
-    * rather than to the caller — a caller-supplied opt-in would have to be known about in advance,
-    * which is exactly the extra round trip the sample exists to remove. A value that is not a
-    * number lands in the catch below and yields no sample, which is the right way to be wrong about
-    * a knob that governs customer data.</p>
+    * <p>NOTHING IS SAMPLED UNLESS THE CALLER ASKED. {@code TabularQuery.getSampleRowLimit} is 0 by
+    * default, so every path that does not set it — the composer dialog, every later render, any
+    * caller that only wanted columns — runs exactly the request it ran before and pays for exactly
+    * the response it did before. Rows are returned to whoever asked for them and are spent tokens
+    * in that answer, which makes the count the caller's decision rather than a default.</p>
+    *
+    * <p>{@code rest.sample.rows} is the CEILING on that decision, and at {@code 0} the switch that
+    * stops any response value leaving the connector no matter what is requested. So the deployment
+    * bounds the exposure and the caller bounds the cost; neither can override the other. A value
+    * that is not a number lands in the catch below and yields no sample, which is the right way to
+    * be wrong about a knob that governs customer data.</p>
     */
    private void sampleRows(Object selectedData) {
       try {
-         int maxRows = Integer.parseInt(
-            SreeEnv.getProperty(SAMPLE_ROWS_PROPERTY,
-                                Integer.toString(JsonRowSampler.DEFAULT_MAX_ROWS)));
+         int requested = query.getSampleRowLimit();
 
-         if(maxRows <= 0) {
+         if(requested <= 0) {
             return;
          }
 
-         JsonRowSampler.Result result = JsonRowSampler.sample(selectedData, maxRows);
+         int ceiling = Integer.parseInt(
+            SreeEnv.getProperty(SAMPLE_ROWS_PROPERTY,
+                                Integer.toString(JsonRowSampler.DEFAULT_MAX_ROWS)));
+
+         if(ceiling <= 0) {
+            return;
+         }
+
+         JsonRowSampler.Result result =
+            JsonRowSampler.sample(selectedData, Math.min(requested, ceiling));
          query.setSampleRows(result.getRows(), result.isTruncated());
       }
       catch(Exception ex) {
@@ -170,7 +181,10 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
       }
    }
 
-   /** Rows to sample per build, and at 0 the switch that turns sampling off entirely. */
+   /**
+    * The most rows a caller may have reported back, and at 0 the switch that turns sampling off
+    * entirely. A ceiling, not a default: a caller that asks for nothing gets nothing.
+    */
    private static final String SAMPLE_ROWS_PROPERTY = "rest.sample.rows";
 
    private static final Logger LOG =
