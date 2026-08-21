@@ -40,8 +40,9 @@ import static org.mockito.Mockito.*;
  * <p>{@link ScheduleTaskCloudJob} is the production Quartz job that drives the cloud protocol.
  * It cannot be driven in a unit test because:
  * <ul>
- *   <li>Its constructor calls {@code Cluster.getInstance()} and
- *       {@code SreeEnv.getProperty("schedule.task.timeout")} immediately on construction.</li>
+ *   <li>Its constructor calls {@code Cluster.getInstance()} immediately on construction.
+ *       (The {@code schedule.task.timeout} read has since moved into {@code execute()}, but
+ *       the cluster dependency remains.)</li>
  *   <li>{@code createCloudRunnerConfig()} requires a live Ignite cluster
  *       ({@code getLock()}, {@code getMap()}, {@code getClusterAddresses()}) and a fully
  *       wired {@code InetsoftConfig} Spring bean.</li>
@@ -148,6 +149,22 @@ class ScheduleTaskCloudJobTest {
 
       Object msg = harness.getClusterMessages().poll(2, TimeUnit.SECONDS);
       assertNull(msg, "No CloudJobResult must be delivered after stop() precedes start()");
+   }
+
+   // -----------------------------------------------------------------------
+   // Construction: a bad schedule.task.timeout must not stop Quartz instantiating the job
+   // -----------------------------------------------------------------------
+
+   @Test
+   void constructorSurvivesAnUnusableTimeoutProperty() {
+      // The timeout was once parsed in the constructor, so a missing or non-numeric
+      // schedule.task.timeout threw before Quartz could instantiate the job at all: the trigger
+      // misfired, the task never ran, and nothing pointed at the property value as the cause.
+      // The harness leaves schedule.task.timeout unstubbed (so it reads back null), which is
+      // exactly the input that used to throw from here.
+      assertDoesNotThrow(ScheduleTaskCloudJob::new,
+         "An unusable schedule.task.timeout must not prevent construction of the Quartz job; " +
+         "the value belongs in execute(), where a fallback can be reported and applied");
    }
 
    // -----------------------------------------------------------------------

@@ -20,7 +20,6 @@ package inetsoft.sree.schedule;
 import inetsoft.mv.*;
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.ClusterUtil;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SimpleMessage;
@@ -256,14 +255,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          boolean exists = mv.hasData();
 
          if(createInScheduler) {
-            long timeout;
-
-            try {
-               timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
-            }
-            catch(NumberFormatException e) {
-               timeout = 600000L;
-            }
+            long timeout = ScheduleTask.getTaskTimeout();
 
             try {
                MVCallable creator = new MVCallable(mv, principal);
