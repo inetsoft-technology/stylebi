@@ -2332,7 +2332,11 @@ public class LayoutTool {
             cell.getBType() == TableCellBinding.GROUP, sortOthersLast);
       }
       else if(cell.getBType() == TableCellBinding.DETAIL) {
-         exp = createDetailExpression(groups, gnames, createDetailField(cell, table), var);
+         // wrap in none(...) the same way the crosstab-supported branch does for the
+         // same bType (createCrosstabCalcExpression), so CellRange.getCollectionValue's
+         // raw Object[] array lookup gets reduced back to a scalar instead of leaking
+         // as "[Ljava.lang.Object;@<hash>".
+         exp = "none(" + createDetailExpression(groups, gnames, createDetailField(cell, table), var) + ")";
 
          // use noEmpty to avoid a row disappearing when there is not avoid
          // this should only be necessary when there is multi-source join and

@@ -18,9 +18,19 @@
 
 package inetsoft.report.internal.table;
 
+import inetsoft.report.BaseLayout;
+import inetsoft.report.CellBinding;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableDataDescriptor;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLayout;
+import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.XTable;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,5 +55,48 @@ public class RuntimeCalcTableLensTest {
       originalTable.addCalcColumn(0, calcCellContext);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(RuntimeCalcTableLens.class, deserializedTable.getClass());
+   }
+
+   /**
+    * Bug: a GROUP cell bound to a numeric column (with the date option left at its
+    * unconditional default of DAY_DATE_GROUP) must not have a date format auto-applied.
+    * Doing so makes createXFormatInfo() report a "yyyy-MM-dd" date format for the cell,
+    * and DateFormat.format(Object) treats the numeric value as epoch-millis, rendering
+    * e.g. EMPLOYEE_ID=5 as a date near 1970-01-01.
+    */
+   @Test
+   public void testNoAutoDateFormatForNumericGroupColumn() {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "EMPLOYEE_ID" },
+         { 5 }
+      });
+
+      TableLayout layout = new TableLayout();
+      layout.setColCount(1);
+      TableDataDescriptor desc = data.getDescriptor();
+      TableDataPath rpath = desc.getRowDataPath(0);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(rpath, region);
+
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, "EMPLOYEE_ID");
+      cell.setBType(TableCellBinding.GROUP);
+      // a freshly-created OrderInfo defaults its date option to DAY_DATE_GROUP
+      // (OrderInfo's constructor), matching how a real GROUP cell's binding
+      // ends up with an unset-but-non-null OrderInfo.
+      cell.setOrderInfo(new OrderInfo());
+      layout.setCellBinding(0, 0, cell);
+
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly();
+      assembly.setTableLayout(layout);
+      assembly.setScriptTable(data);
+
+      CalcTableLens calc = new CalcTableLens(data);
+      calc.setElement(assembly);
+
+      RuntimeCalcTableLens runtime = new RuntimeCalcTableLens(calc);
+
+      XFormatInfo finfo = runtime.createXFormatInfo(0, 0);
+      Assertions.assertNull(finfo);
    }
 }

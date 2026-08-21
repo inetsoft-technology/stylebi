@@ -1064,7 +1064,7 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
 
          // do not apply default date format to non-date type column
          // fix bug1370224630687
-         if(cls == null || !XSchema.isDateType(dtype) && !XSchema.isNumericType(dtype)) {
+         if(cls == null || !XSchema.isDateType(dtype)) {
             return null;
          }
 

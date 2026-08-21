@@ -18,8 +18,15 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.CellBinding;
+import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -191,7 +198,7 @@ public class CalcTableService {
       }
 
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireCalcTable(rvs, assemblyName);
+         CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
 
          GetPredefinedNamedGroupEvent event = new GetPredefinedNamedGroupEvent();
          event.setName(assemblyName);
@@ -211,15 +218,62 @@ public class CalcTableService {
             }
          }
 
+         // The above only sees repository-registered "predefined named group" assets
+         // (SummaryAttr.getAssetNamedGroupInfos), a different kind from the plain
+         // DefaultNamedGroupAssembly that add_named_group creates as an ordinary secondary
+         // assembly inside the calc table's own bound worksheet. Scan that worksheet too, so
+         // a group created through add_named_group is actually listed.
+         Set<String> seen = new LinkedHashSet<>(groups);
+         List<String> worksheetGroups = new ArrayList<>();
+         SourceInfo sinfo = ((CalcTableVSAssemblyInfo) assembly.getInfo()).getSourceInfo();
+         Worksheet ws = rvs.getViewsheet() == null ? null : rvs.getViewsheet().getBaseWorksheet();
+
+         if(sinfo != null && sinfo.getSource() != null && ws != null) {
+            for(Assembly wsAssembly : ws.getAssemblies()) {
+               if(!(wsAssembly instanceof DefaultNamedGroupAssembly ngAssembly) ||
+                  ngAssembly.getAttachedType() != AttachedAssembly.COLUMN_ATTACHED)
+               {
+                  continue;
+               }
+
+               SourceInfo attachedSource = ngAssembly.getAttachedSource();
+               DataRef attr = ngAssembly.getAttachedAttribute();
+
+               if(attachedSource == null || attr == null ||
+                  !sinfo.getSource().equals(attachedSource.getSource()) ||
+                  !column.equals(attr.getAttribute()))
+               {
+                  continue;
+               }
+
+               if(seen.add(ngAssembly.getName())) {
+                  worksheetGroups.add(ngAssembly.getName());
+               }
+            }
+         }
+
+         groups.addAll(worksheetGroups);
+
          Map<String, Object> out = new LinkedHashMap<>();
          out.put("assembly", assemblyName);
          out.put("column", column);
          out.put("namedGroups", groups);
 
-         if(groups.isEmpty()) {
+         if(!worksheetGroups.isEmpty()) {
+            // Listable here does not yet mean bindable: VSTableLayoutService.setNamedGroupInfo
+            // has no code path for a worksheet-local DefaultNamedGroupAssembly's plain
+            // NamedGroupInfo, only for the asset-repository named-group kinds above.
             out.put("note",
-                    "No predefined named groups exist for this column. Named groups are defined " +
-                    "on the data source, not created here.");
+                    "'" + String.join("', '", worksheetGroups) + "' " +
+                    (worksheetGroups.size() == 1 ? "was" : "were") +
+                    " created via add_named_group on this column's worksheet. It is listed " +
+                    "here, but set_cell_binding's 'namedGroup' parameter may not yet be able " +
+                    "to bind it — this has not been confirmed against a live server.");
+         }
+         else if(groups.isEmpty()) {
+            out.put("note",
+                    "No predefined named groups exist for this column. Named groups can be " +
+                    "defined on the data source, or created here with add_named_group.");
          }
 
          return out;
@@ -438,8 +492,13 @@ public class CalcTableService {
          info.setFormula(formula);
       }
       else if(type == CellBinding.BIND_FORMULA) {
-         info.setFormula(str(binding, "formula"));
-         info.setValue(str(binding, "value"));
+         String script = str(binding, "formula");
+         info.setValue(script != null ? script : str(binding, "value"));
+         // 'formula' on CellBinding is the aggregate name (Sum/Count/...) StyleBI generates for a
+         // BIND_COLUMN summary cell -- see CellBinding.setFormula's own javadoc. It has no meaning
+         // for a BIND_FORMULA cell's script and must not carry it; leaving it null here matches
+         // what get_cell_binding already reports back for a formula cell today when a script is
+         // genuinely absent.
       }
       else {
          info.setValue(str(binding, "value"));
@@ -449,8 +508,17 @@ public class CalcTableService {
          info.setMergeCells(merge);
       }
 
-      info.setRowGroup(str(binding, "rowGroup"));
-      info.setColGroup(str(binding, "colGroup"));
+      // rowGroup/colGroup aren't part of this seam's cell vocabulary, so they're always
+      // null here. null is the deliberate "no ancestor, grand total" sentinel elsewhere in
+      // StyleBI (TableCellBinding), which is wrong for a cell created through this seam --
+      // it must instead inherit its nearest enclosing expand ancestor by default, the same
+      // as a freshly drag-and-dropped cell (see TableLayoutHandler.createDefalutCellBinding).
+      String rowGroup = str(binding, "rowGroup");
+      info.setRowGroup(rowGroup != null ? rowGroup : TableCellBinding.DEFAULT_GROUP);
+      String colGroup = str(binding, "colGroup");
+      info.setColGroup(colGroup != null ? colGroup : TableCellBinding.DEFAULT_GROUP);
+      info.setMergeRowGroup(TableCellBinding.DEFAULT_GROUP);
+      info.setMergeColGroup(TableCellBinding.DEFAULT_GROUP);
       return info;
    }
 

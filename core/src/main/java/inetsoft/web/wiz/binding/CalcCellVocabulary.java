@@ -131,10 +131,12 @@ public final class CalcCellVocabulary {
             "nothing renders blank, which reads as missing data rather than a binding error.");
       }
 
-      if(type == CellBinding.BIND_FORMULA && str(cell, "formula") == null) {
+      if(type == CellBinding.BIND_FORMULA && str(cell, "formula") == null &&
+         str(cell, "value") == null)
+      {
          throw new IllegalArgumentException(
-            "A cell with content 'formula' needs a 'formula'. A cell bound to nothing renders " +
-            "blank, which reads as missing data rather than a binding error.");
+            "A cell with content 'formula' needs a 'formula' (or 'value'). A cell bound to " +
+            "nothing renders blank, which reads as missing data rather than a binding error.");
       }
 
       if(type == CellBinding.BIND_TEXT && str(cell, "value") == null) {
