@@ -103,6 +103,12 @@ public class TabularHandler extends XHandler {
       oquery.setResponseShape(((TabularQuery) query).getResponseShape(),
                               ((TabularQuery) query).isResponseShapeTruncated());
 
+      // Same clone boundary, same unconditional copy, same dependence on clone() clearing the field
+      // -- see above. Kept as a second call rather than folded into one: a sample is rows of customer
+      // data and a shape is not, so the two are switched, bounded and consumed separately.
+      oquery.setSampleRows(((TabularQuery) query).getSampleRows(),
+                           ((TabularQuery) query).isSampleRowsTruncated());
+
       if(tbl != null && tbl.getColCount() > 0) {
          int max = TabularUtil.getMaxRows(query, params);
 

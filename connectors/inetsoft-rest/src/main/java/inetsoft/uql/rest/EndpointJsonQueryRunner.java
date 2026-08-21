@@ -26,7 +26,9 @@ import inetsoft.uql.rest.json.RestDataIteratorStrategyFactory;
 import inetsoft.uql.rest.json.RestJsonQuery;
 import inetsoft.uql.rest.json.lookup.*;
 import inetsoft.uql.rest.json.lookup.LookupService;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.util.BaseJsonTable;
+import inetsoft.uql.util.JsonRowSampler;
 import inetsoft.uql.util.JsonShapeDistiller;
 import inetsoft.uql.util.LookupList;
 import inetsoft.uql.util.LookupMap;
@@ -59,6 +61,7 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
          strategy.setTouchTimestamp(getTouchTimestamp());
 
          boolean shaped = false;
+         boolean sampled = false;
 
          while(hasNext(strategy, table)) {
             final Object json = strategy.next();
@@ -92,6 +95,21 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
             doLookups(query, json);
 
             final Object selectedData = selectData(json, query.getValidJsonPath(), transformer);
+
+            // Sample the ROWS, and note that every "before" in the comment above is an "after" here.
+            // The shape answers where the rows are; the sample answers what is in them, so it has to
+            // be taken from what jsonPath actually selected and after doLookups has grafted the
+            // lookup fields in -- otherwise it would report values the built table does not have.
+            //
+            // Still the FIRST page only, and for a different reason than the shape: later pages are
+            // more of the same data, and this is a sample rather than a read. Also before
+            // loadStreamed, because that flattens nested objects into columns (JsonTable.walkRecord)
+            // and the response's own structure cannot be recovered from the result.
+            if(!sampled) {
+               sampled = true;
+               sampleRows(selectedData);
+            }
+
             table.loadStreamed(selectedData);
          }
       }
@@ -121,6 +139,39 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
          LOG.debug("Failed to distil the response shape for " + query.getClass().getSimpleName(), ex);
       }
    }
+
+   /**
+    * Record a bounded sample of the selected rows on the query, swallowing anything that goes wrong
+    * — a by-product, on the same terms as {@link #shapeResponse}.
+    *
+    * <p>{@code rest.sample.rows} is the row cap AND the switch: at {@code 0} nothing is sampled and
+    * no response values leave the connector. One property rather than a flag plus a size, because
+    * "how much customer data may travel" is a single decision, and it belongs to the deployment
+    * rather than to the caller — a caller-supplied opt-in would have to be known about in advance,
+    * which is exactly the extra round trip the sample exists to remove. A value that is not a
+    * number lands in the catch below and yields no sample, which is the right way to be wrong about
+    * a knob that governs customer data.</p>
+    */
+   private void sampleRows(Object selectedData) {
+      try {
+         int maxRows = Integer.parseInt(
+            SreeEnv.getProperty(SAMPLE_ROWS_PROPERTY,
+                                Integer.toString(JsonRowSampler.DEFAULT_MAX_ROWS)));
+
+         if(maxRows <= 0) {
+            return;
+         }
+
+         JsonRowSampler.Result result = JsonRowSampler.sample(selectedData, maxRows);
+         query.setSampleRows(result.getRows(), result.isTruncated());
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to sample rows for " + query.getClass().getSimpleName(), ex);
+      }
+   }
+
+   /** Rows to sample per build, and at 0 the switch that turns sampling off entirely. */
+   private static final String SAMPLE_ROWS_PROPERTY = "rest.sample.rows";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());

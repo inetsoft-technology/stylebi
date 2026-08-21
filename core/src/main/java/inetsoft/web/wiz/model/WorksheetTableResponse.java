@@ -69,6 +69,31 @@ public class WorksheetTableResponse {
     */
    private boolean responseSchemaTruncated;
 
+   /**
+    * Rows from the endpoint's first page, as the row path selected them — the VALUES, where
+    * {@code responseSchema} carries only the structure. Present only for a {@code tabular table},
+    * only when the connector reported some, and never when {@code rest.sample.rows} is 0.
+    *
+    * <p>A caller reads these to resolve a parameter whose legal values live in another endpoint's
+    * data: {@code Section Tasks} needs a section, and the sections are rows of
+    * {@code Project Sections}. Without them that costs a viewsheet, which is a chart runtime built
+    * to read four ids out of.</p>
+    *
+    * <p>RAW RESPONSE KEYS, NOT the flattened names in {@code columns}. {@code JsonTable.walkRecord}
+    * joins nested keys with "." to build the column list, so {@code {a:{b:1}}} is column
+    * {@code a.b} there and a nested object here. Take a column name from {@code columns}; take a
+    * value from these.</p>
+    */
+   private List<?> sampleRows;
+
+   /**
+    * True when {@code sampleRows} is not a faithful copy of the first page's rows: rows were left
+    * out, or a value was replaced by an {@code "<omitted: ...>"} marker (too long, or too deep).
+    * A consumer extracting parameter values must not read the sample as the full set of values —
+    * under truncation, a value's absence means "not sampled", not "not in the response".
+    */
+   private boolean sampleRowsTruncated;
+
    private boolean success;
    private String errorMessage;
 
@@ -93,6 +118,15 @@ public class WorksheetTableResponse {
 
    public void setResponseSchemaTruncated(boolean responseSchemaTruncated) {
       this.responseSchemaTruncated = responseSchemaTruncated;
+   }
+
+   public List<?> getSampleRows() { return sampleRows; }
+   public void setSampleRows(List<?> sampleRows) { this.sampleRows = sampleRows; }
+
+   public boolean isSampleRowsTruncated() { return sampleRowsTruncated; }
+
+   public void setSampleRowsTruncated(boolean sampleRowsTruncated) {
+      this.sampleRowsTruncated = sampleRowsTruncated;
    }
 
    public boolean isSuccess() { return success; }
