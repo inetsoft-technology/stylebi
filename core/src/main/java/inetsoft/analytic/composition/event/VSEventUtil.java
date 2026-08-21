@@ -1322,8 +1322,14 @@ public final class VSEventUtil {
             Dimension scaleSize = new Dimension();
 
             scaleSize.width = (int) Math.floor(size.width * sizeScale.x);
+            // the tab bar's height is not scaled, so its slack is absorbed by the
+            // children -- but only by children that scale vertically. A fixed-height
+            // child (input, submit, dropdown selection, nested tab) renders at its
+            // natural height, so adding the slack inflates its box and leaves the
+            // content detached from a bottom tab bar (Bug #76022).
+            double childRepairH = sizeScale.y == scaleRatio.y ? repairH : 0;
             scaleSize.height =
-               (int) Math.floor(size.height * sizeScale.y + repairH);
+               (int) Math.floor(size.height * sizeScale.y + childRepairH);
             scaleSize.height = Math.max(0, scaleSize.height);
 
             // top tabs: children below tab bar; bottom tabs: children above tab bar
