@@ -93,6 +93,45 @@ class LayoutMutationServiceTest {
    }
 
    /**
+    * A move-only call (only x/y, no width/height) must leave the object's existing size alone --
+    * the tool's own contract allows an omitted dimension to mean "unchanged", and the server must
+    * honor that rather than collapsing the omitted fields to zero.
+    */
+   @Test
+   void moveOnlyPreservesExistingSize() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 555, "y", 666)), false);
+
+      LayoutObjectModelHolder table = fx.readTableObject();
+      assertEquals(555, table.layoutX());
+      assertEquals(666, table.layoutY());
+      assertEquals(50, table.layoutWidth(), "resize-omitted width must be preserved, not zeroed");
+      assertEquals(60, table.layoutHeight(), "resize-omitted height must be preserved, not zeroed");
+   }
+
+   /**
+    * A resize-only call (only width/height, no x/y) must leave the object's existing position
+    * alone, for the same reason as {@link #moveOnlyPreservesExistingSize}.
+    */
+   @Test
+   void resizeOnlyPreservesExistingPosition() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "width", 70, "height", 80)), false);
+
+      LayoutObjectModelHolder table = fx.readTableObject();
+      assertEquals(300, table.layoutX(), "move-omitted x must be preserved, not zeroed");
+      assertEquals(400, table.layoutY(), "move-omitted y must be preserved, not zeroed");
+      assertEquals(70, table.layoutWidth());
+      assertEquals(80, table.layoutHeight());
+   }
+
+   /**
     * The Hazard-1 exit criterion again, from this task's own entry point (not just
     * {@code LayoutSessionServiceTest}'s unit test in isolation) -- a full {@code
     * edit_layout_objects} call through {@code LayoutMutationService} leaves the master runtime's
