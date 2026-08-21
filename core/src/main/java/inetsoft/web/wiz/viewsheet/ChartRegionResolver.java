@@ -17,13 +17,18 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.EGraph;
 import inetsoft.graph.VGraph;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.graph.guide.legend.Legend;
 import inetsoft.graph.guide.legend.LegendGroup;
+import inetsoft.graph.internal.GTool;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -35,9 +40,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Which axes and how many legends a chart actually has.
+ * Which axes a chart actually has, and which legends it actually renders.
  *
  * <p><b>Why this exists.</b> Nothing else in the agent surface could answer that question, and
  * three tools needed it: the element vocabulary offered {@code y2} on every chart, the region
@@ -87,10 +93,53 @@ final class ChartRegionResolver {
    static final List<String> AXES = List.of("x", "x2", "y", "y2");
 
    /**
-    * @param count    how many legends the chart renders
-    * @param measured false when there was no laid-out graph to count from
+    * One legend the chart actually renders, in the vocabulary its visibility event needs.
+    *
+    * @param field         the aesthetic field it is bound to, as the frame itself reports it;
+    *                      null for a legend that carries no field (a measure or static frame)
+    * @param aestheticType the event's own discriminator, and the value whose absence hid every
+    *                      legend. {@code Legend.createLegend} builds a legend for five frame
+    *                      families only, so this is {@code Color}, {@code Size}, {@code Shape},
+    *                      {@code Texture} or {@code Line} — the last three being one target,
+    *                      see {@link #channelFamily}
+    * @param targetFields  the measures this legend applies to, which is what tells two legends
+    *                      of the same channel apart on a multi-aesthetic chart
+    * @param nodeAesthetic true when this is a relation chart's node aesthetic rather than its edge
     */
-   record Legends(int count, boolean measured) {}
+   record LegendTarget(String field, String aestheticType, List<String> targetFields,
+                       boolean nodeAesthetic)
+   {
+      /**
+       * Lower-cased, to match the channel names {@code get_chart_aesthetics} reports — which is
+       * not to say the two always agree on <em>which</em> channel: a line chart renders the field
+       * on its shape channel as a {@code line} legend. Empty for a legend with no describable
+       * frame, which is also a legend with no field, so neither can be named.
+       */
+      String channel() {
+         return aestheticType == null ? "" : aestheticType.toLowerCase();
+      }
+   }
+
+   /**
+    * @param legends  the chart's legends in the graph's own order, so a position here is the
+    *                 0-based legend index the region tools address
+    * @param measured false when there was no laid-out graph to read them from
+    */
+   record Legends(List<LegendTarget> legends, boolean measured) {
+      int count() {
+         return legends.size();
+      }
+   }
+
+   /**
+    * A chart's axes and legends read from one laid-out graph.
+    *
+    * <p>They come from different halves of the same {@link VGraphPair} - the axes from the
+    * expanded graph, the legends from the real-size one, each where {@code ChartArea} reads them -
+    * so fetching the pair once is what makes the two answers describe the same layout rather than
+    * two layouts either side of a relayout.
+    */
+   record Regions(Axes axes, Legends legends) {}
 
    /**
     * @param present  the canonical names of the axes this chart has
@@ -112,14 +161,29 @@ final class ChartRegionResolver {
    }
 
    static Axes resolve(RuntimeViewsheet rvs, ChartVSAssembly chart) {
-      VGraphPair pair = laidOutPair(rvs, chart);
+      return regions(rvs, chart).axes();
+   }
 
-      // ChartArea reads its axis areas from the EXPANDED graph, so resolve from the same one.
-      return resolve(chart, pair == null ? null : pair.getExpandedVGraph());
+   static Legends legends(RuntimeViewsheet rvs, ChartVSAssembly chart) {
+      return regions(rvs, chart).legends();
    }
 
    /**
-    * How many legends the chart has, counted where {@code ChartArea} counts them.
+    * Both answers off one laid-out pair, for a caller that reports them together.
+    *
+    * <p>The two halves are read from different graphs on purpose - see {@link Regions}.
+    */
+   static Regions regions(RuntimeViewsheet rvs, ChartVSAssembly chart) {
+      VGraphPair pair = laidOutPair(rvs, chart);
+
+      // ChartArea reads its axis areas from the EXPANDED graph and its legend areas from the
+      // REAL-SIZE one, so each half is resolved from the same graph its areas come from.
+      return new Regions(resolve(chart, pair == null ? null : pair.getExpandedVGraph()),
+                         legends(pair == null ? null : pair.getRealSizeVGraph()));
+   }
+
+   /**
+    * The legends the chart has, read where {@code ChartArea} reads them.
     *
     * <p>{@code LegendsArea} builds one area per {@code vgraph.getLegendGroup().getLegendCount()}
     * and is not built at all when the group is null, so that count is exactly the valid index
@@ -128,19 +192,140 @@ final class ChartRegionResolver {
     * expanded graph.
     *
     * <p>An index outside it used to reach StyleBI and return a raw HTTP 500 page; a chart with no
-    * laid-out graph has no legends either, so {@code count 0} with the basis stated is a truthful
+    * laid-out graph has no legends either, so an empty list with the basis stated is a truthful
     * answer rather than a guess.
+    *
+    * <p><b>Each legend is described, not just counted</b>, because the count alone cannot answer
+    * the question the visibility event actually asks: which aesthetic channel is this field's
+    * legend on. Every fact here is taken from the same place {@link
+    * inetsoft.report.composition.region.LegendArea} takes it, so the answer matches what the
+    * Composer sends for the same legend rather than being a second opinion about it.
+    *
+    * <p>A legend whose frame cannot be described still occupies its slot in the list. Dropping it
+    * would renumber every legend after it, and the index is a target the region tools address.
     */
-   static Legends legendCount(RuntimeViewsheet rvs, ChartVSAssembly chart) {
-      VGraphPair pair = laidOutPair(rvs, chart);
-      VGraph graph = pair == null ? null : pair.getRealSizeVGraph();
-
+   static Legends legends(VGraph graph) {
       if(graph == null) {
-         return new Legends(0, false);
+         return new Legends(List.of(), false);
       }
 
-      LegendGroup legends = graph.getLegendGroup();
-      return new Legends(legends == null ? 0 : legends.getLegendCount(), true);
+      LegendGroup group = graph.getLegendGroup();
+
+      if(group == null) {
+         return new Legends(List.of(), true);
+      }
+
+      EGraph egraph = graph.getEGraph();
+      List<LegendTarget> targets = new ArrayList<>();
+
+      for(int i = 0; i < group.getLegendCount(); i++) {
+         Legend legend = group.getLegend(i);
+         VisualFrame frame = legend == null ? null : legend.getVisualFrame();
+
+         if(frame == null) {
+            targets.add(new LegendTarget(null, null, List.of(), false));
+            continue;
+         }
+
+         targets.add(new LegendTarget(
+            frame.getField(),
+            GTool.getFrameType(frame.getClass()),
+            egraph == null ? List.of() : GraphUtil.getTargetFields(frame, egraph),
+            GraphUtil.isNodeAestheticFrame(frame, legend.getGraphElement())));
+      }
+
+      return new Legends(targets, true);
+   }
+
+   /**
+    * The legend a caller named, or a refusal naming the ones the chart has.
+    *
+    * <p><b>Why this has to refuse rather than fall through.</b> The event reads a hide with no
+    * {@code aestheticType} as "hide every legend" — see {@code VSChartLegendsVisibilityService},
+    * which routes it to {@code showAllLegends(false)}. So an unresolved target is not an inert
+    * no-op the way an unknown axis column is: it hides the chart's real legends and reports
+    * success naming the one the caller asked for. That is what made this the one part of the
+    * "a bogus target is an accepted no-op" ruling that could not be closed with it.
+    *
+    * <p>Forgiving where the intent is unambiguous, per this repo's own rule: the field is matched
+    * ignoring case and surrounding space, and a caller who names the <em>channel</em> instead
+    * ({@code color}, {@code shape}, {@code size}) is taken to mean that legend when the chart has
+    * exactly one of them — with {@code shape}, {@code line} and {@code texture} folded together,
+    * because the event does not tell them apart either and the two names for the same legend are
+    * both put in front of the caller (see {@link #channelFamily}). Two legends in the same family
+    * make it ambiguous, so that is refused with both fields named rather than resolved to the
+    * first.
+    */
+   static LegendTarget requireLegendField(Legends legends, String target) {
+      String wanted = target == null ? "" : target.trim();
+
+      if(!legends.measured()) {
+         throw new IllegalArgumentException(
+            "This chart has no laid-out graph yet - it is unbound, empty, or still computing - so " +
+            "its legends cannot be resolved, and hiding one by name would hide them all. Call " +
+            "this without 'target' to hide every legend deliberately, or retry once the chart " +
+            "has rendered.");
+      }
+
+      for(LegendTarget legend : legends.legends()) {
+         if(legend.field() != null && legend.field().equals(wanted)) {
+            return legend;
+         }
+      }
+
+      for(LegendTarget legend : legends.legends()) {
+         if(legend.field() != null && legend.field().equalsIgnoreCase(wanted)) {
+            return legend;
+         }
+      }
+
+      String family = channelFamily(wanted);
+      List<LegendTarget> byChannel = family.isEmpty() ? List.of() : legends.legends().stream()
+         .filter(legend -> channelFamily(legend.aestheticType()).equals(family))
+         .toList();
+
+      if(byChannel.size() == 1) {
+         return byChannel.get(0);
+      }
+
+      throw new IllegalArgumentException(describeLegends(legends, target, byChannel.size() > 1));
+   }
+
+   /**
+    * The channel names that address the same legend, folded onto one.
+    *
+    * <p>{@code GraphUtil.getLegendDescriptor} maps {@code Shape}, {@code Line} and {@code Texture}
+    * onto the same shape legend descriptor, so for hiding they are one target rather than three.
+    * Folding them matters because the caller meets both names: {@code get_chart_aesthetics}
+    * reports the field on the <b>shape</b> channel, while a line chart renders that legend as
+    * <b>Line</b> — so a caller who read the aesthetics and said "shape" was naming this legend
+    * correctly and being refused for it.
+    */
+   private static String channelFamily(String channel) {
+      String name = channel == null ? "" : channel.trim().toLowerCase();
+
+      return switch(name) {
+         case "shape", "line", "texture" -> "shape";
+         default -> name;
+      };
+   }
+
+   private static String describeLegends(Legends legends, String target, boolean ambiguousChannel) {
+      String have = legends.legends().isEmpty()
+         ? "This chart renders no legends"
+         : "Its legends are: " + legends.legends().stream()
+            .map(legend -> (legend.field() == null ? "(unnamed)" : legend.field()) +
+               " (" + (legend.aestheticType() == null ? "unknown channel" : legend.channel()) + ")")
+            .collect(Collectors.joining(", "));
+
+      return (ambiguousChannel
+         ? "This chart has more than one '" + target + "' legend, so naming the channel does not " +
+           "say which. Name the field instead. "
+         : "This chart has no '" + target + "' legend. ") +
+         have + ". A legend target is the aesthetic FIELD name - list_chart_elements on this " +
+         "chart, or get_chart_aesthetics, reports them - or the channel above when only one " +
+         "legend is on it. Omit 'target' to hide every legend, which is what a target the chart " +
+         "does not have used to do while reporting that it had hidden the one you named.";
    }
 
    /**
