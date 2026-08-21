@@ -210,9 +210,21 @@ public class LayoutMutationService {
                VSAssemblyLayout assemblyLayout =
                   requireAssemblyLayout(layout, name, region, layoutName);
 
-               Point position = new Point(toInt(object.get("x")), toInt(object.get("y")));
-               Dimension size = new Dimension(toInt(object.get("width")),
-                                               toInt(object.get("height")));
+               // A move-only or resize-only call must leave the other dimension unchanged --
+               // merge onto the assembly's current position/size rather than defaulting an
+               // omitted field to 0, which would silently shrink/relocate it instead.
+               Point currentPosition = assemblyLayout.getPosition();
+               Dimension currentSize = assemblyLayout.getSize();
+               int x = object.containsKey("x") ? toInt(object.get("x")) :
+                  (currentPosition != null ? currentPosition.x : 0);
+               int y = object.containsKey("y") ? toInt(object.get("y")) :
+                  (currentPosition != null ? currentPosition.y : 0);
+               int width = object.containsKey("width") ? toInt(object.get("width")) :
+                  (currentSize != null ? currentSize.width : 0);
+               int height = object.containsKey("height") ? toInt(object.get("height")) :
+                  (currentSize != null ? currentSize.height : 0);
+               Point position = new Point(x, y);
+               Dimension size = new Dimension(width, height);
                assemblyLayout.setPosition(position);
                assemblyLayout.setSize(size);
 
