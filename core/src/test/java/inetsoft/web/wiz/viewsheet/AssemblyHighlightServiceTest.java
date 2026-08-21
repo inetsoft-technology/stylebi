@@ -65,6 +65,13 @@ class AssemblyHighlightServiceTest {
          false);
    }
 
+   private static AssemblyHighlightService.Highlight highlightApplyRow(String name) {
+      return new AssemblyHighlightService.Highlight(
+         name, null, "#ff0000",
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false)),
+         true);
+   }
+
    @Test
    void addsAHighlightWithItsConditionBuiltByTheSharedVocabulary() throws Exception {
       Harness h = harness(model());
@@ -295,6 +302,32 @@ class AssemblyHighlightServiceTest {
       assertTrue(thrown.getMessage().contains("DATA"), thrown.getMessage());
       assertFalse(thrown.getMessage().contains("cannot filter on"),
                   "must not blame the field: " + thrown.getMessage());
+   }
+
+   /**
+    * {@code CrosstabVSAssemblyInfo} is a sibling of {@code TableVSAssemblyInfo}, not a subtype, so
+    * {@code HighlightDialogService} never wires up row-level highlights for it: the real
+    * {@code getHighlightDialogModel} leaves {@code showRow} false for a Crosstab. An
+    * {@code applyRow:true} highlight there was excluded from the per-cell store (because applyRow
+    * is true) AND never reached the row store (because it isn't a TableVSAssemblyInfo) — stored
+    * nowhere, with the call still reporting success. This must be refused instead.
+    */
+   @Test
+   void refusesApplyRowOnAnAssemblyWhoseModelDoesNotSupportIt() throws Exception {
+      HighlightDialogModel crosstabModel = model();
+      crosstabModel.setShowRow(false);
+      Harness h = harness(crosstabModel);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Crosstab1", null,
+                             highlightApplyRow("RowHighlight"), false, ""));
+
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("applyrow"), thrown.getMessage());
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                             anyString(), any(Principal.class),
+                                                             any());
    }
 
    // ── read ──────────────────────────────────────────────────────────────────
