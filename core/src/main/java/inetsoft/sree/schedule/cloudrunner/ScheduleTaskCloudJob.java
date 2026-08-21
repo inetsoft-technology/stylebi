@@ -95,13 +95,17 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             }
          }
 
-         // timeout value might need to be configurable
-         if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
-            if(job != null) {
-               job.stop();
-            }
+         if(timeout > 0) {
+            if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+               if(job != null) {
+                  job.stop();
+               }
 
-            throw new JobExecutionException("Scheduled task '" + taskName + "' timed out");
+               throw new JobExecutionException("Scheduled task '" + taskName + "' timed out");
+            }
+         }
+         else {
+            latch.await();
          }
 
          if(result != null && !result.isSuccess()) {
