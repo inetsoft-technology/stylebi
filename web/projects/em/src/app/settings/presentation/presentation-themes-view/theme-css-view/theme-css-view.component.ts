@@ -232,6 +232,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-schema-column-incompatible-bg-color", color: true},
       {name: "--inet-ws-header-primary-bg-color", color: true},
       {name: "--inet-ws-header-secondary-bg-color", color: true},
+      {name: "--inet-ws-schema-title-bg", color: true},
       {name: "--inet-ws-table-odd-row-bg-color", color: true},
       {name: "--inet-ws-table-even-row-bg-color", color: true},
       {name: "--inet-ws-schema-highlight-bg", color: true},
