@@ -27,6 +27,9 @@ import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
@@ -169,7 +172,7 @@ class ChartRegionResolverTest {
    void refusesALegendIndexOutsideTheChartsRange() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(1, true), 7));
+         () -> ChartRegionResolver.requireLegend(legends(1, true), 7));
 
       assertTrue(thrown.getMessage().contains("1 legend"), "name the range");
       assertTrue(thrown.getMessage().contains("7"), "and what was asked for");
@@ -184,14 +187,14 @@ class ChartRegionResolverTest {
    void refusesANegativeLegendIndex() {
       assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(2, true), -1));
+         () -> ChartRegionResolver.requireLegend(legends(2, true), -1));
    }
 
    @Test
    void spellsOutARangeWhenThereIsMoreThanOneLegend() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(3, true), 9));
+         () -> ChartRegionResolver.requireLegend(legends(3, true), 9));
 
       assertTrue(thrown.getMessage().contains("0 to 2"), "a real range, spelled out");
    }
@@ -199,14 +202,14 @@ class ChartRegionResolverTest {
    @Test
    void allowsEveryIndexInRange() {
       assertDoesNotThrow(
-         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(2, true), 1));
+         () -> ChartRegionResolver.requireLegend(legends(2, true), 1));
    }
 
    @Test
    void refusesAnyLegendOnAChartThatRendersNone() {
       assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(0, true), 0));
+         () -> ChartRegionResolver.requireLegend(legends(0, true), 0));
    }
 
    /**
@@ -216,7 +219,155 @@ class ChartRegionResolverTest {
    @Test
    void doesNotRefuseWhenTheCountCouldNotBeMeasured() {
       assertDoesNotThrow(
-         () -> ChartRegionResolver.requireLegend(new ChartRegionResolver.Legends(0, false), 5));
+         () -> ChartRegionResolver.requireLegend(legends(0, false), 5));
+   }
+
+   // ── naming a legend ────────────────────────────────────────────────────────────
+   //
+   // The index above is the region tools' vocabulary. These are the visibility tool's: it names
+   // the aesthetic FIELD, and an unresolved one is the case that hid every legend.
+
+   @Test
+   void resolvesALegendByItsField() {
+      ChartRegionResolver.LegendTarget legend =
+         ChartRegionResolver.requireLegendField(twoLegends(), "Customer:Reseller");
+
+      assertEquals("Shape", legend.aestheticType(), "the channel is what the event needs");
+      assertEquals("shape", legend.channel(), "reported lower-cased, as the aesthetic tools do");
+   }
+
+   @Test
+   void resolvesALegendFieldIgnoringCaseAndSpace() {
+      assertEquals(
+         "Color",
+         ChartRegionResolver.requireLegendField(twoLegends(), "  customer:region ").aestheticType(),
+         "forgiving where the intent is unambiguous");
+   }
+
+   /** A caller who says "the color legend" means the one colour legend, when there is only one. */
+   @Test
+   void resolvesALegendByItsChannelWhenOnlyOneIsOnThatChannel() {
+      assertEquals("Customer:Region",
+                   ChartRegionResolver.requireLegendField(twoLegends(), "color").field());
+      assertEquals("Customer:Reseller",
+                   ChartRegionResolver.requireLegendField(twoLegends(), "Shape").field());
+   }
+
+   /**
+    * A line chart renders its shape aesthetic as a Line legend, while get_chart_aesthetics reports
+    * the field on the shape channel — so a caller who read the aesthetics and said "shape" is
+    * naming this legend correctly. The event folds Shape, Line and Texture onto one descriptor
+    * anyway, so there is nothing ambiguous to protect here. Found live on a line chart.
+    */
+   @Test
+   void takesShapeToMeanTheLegendALineChartRendersAsLine() {
+      ChartRegionResolver.Legends legends = new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget("Customer:Region", "Color", List.of(), false),
+                 new ChartRegionResolver.LegendTarget("Customer:Reseller", "Line", List.of(),
+                                                      false)),
+         true);
+
+      assertEquals("Customer:Reseller",
+                   ChartRegionResolver.requireLegendField(legends, "shape").field());
+      assertEquals("Customer:Reseller",
+                   ChartRegionResolver.requireLegendField(legends, "texture").field(),
+                   "the same fold in the other direction");
+      assertEquals("Customer:Region",
+                   ChartRegionResolver.requireLegendField(legends, "color").field(),
+                   "and colour is still its own family");
+   }
+
+   @Test
+   void refusesAChannelNameWhenTwoLegendsShareIt() {
+      ChartRegionResolver.Legends legends = new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget("Sales", "Color", List.of(), false),
+                 new ChartRegionResolver.LegendTarget("Region", "Color", List.of(), false)),
+         true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegendField(legends, "color"));
+
+      assertTrue(thrown.getMessage().contains("more than one"), "say why it cannot be resolved");
+      assertTrue(thrown.getMessage().contains("Sales") && thrown.getMessage().contains("Region"),
+                 "and name both, so the caller can pick one");
+   }
+
+   /**
+    * The finding this whole path exists for: a target the chart has never heard of did not no-op,
+    * it hid the chart's real legends and reported success naming the one asked for. So an
+    * unknown field has to be refused, not passed through.
+    */
+   @Test
+   void refusesAFieldNoLegendHas() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegendField(twoLegends(), "NoSuchField"));
+
+      assertTrue(thrown.getMessage().contains("NoSuchField"), "name what was asked for");
+      assertTrue(thrown.getMessage().contains("Customer:Region") &&
+                 thrown.getMessage().contains("Customer:Reseller"),
+                 "and the legends it does have");
+      assertTrue(thrown.getMessage().contains("color") && thrown.getMessage().contains("shape"),
+                 "with their channels, since a channel is also accepted");
+   }
+
+   /**
+    * Without a graph there is nothing to resolve against, and passing through would hide every
+    * legend - the exact defect. Unlike the index check, silence here is not the safe side.
+    */
+   @Test
+   void refusesToResolveAFieldWithNoLaidOutGraph() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegendField(
+            new ChartRegionResolver.Legends(List.of(), false), "Customer:Region"));
+
+      assertTrue(thrown.getMessage().contains("without 'target'"),
+                 "and say what to call instead");
+   }
+
+   @Test
+   void refusesAnyFieldOnAChartThatRendersNoLegends() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegendField(
+            new ChartRegionResolver.Legends(List.of(), true), "Customer:Region"));
+
+      assertTrue(thrown.getMessage().contains("no legends"), "say so plainly");
+   }
+
+   /** A legend with no field of its own keeps its slot, because the index addresses it. */
+   @Test
+   void keepsAnUnnamedLegendInThePositionTheIndexAddresses() {
+      ChartRegionResolver.Legends legends = new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget(null, null, List.of(), false),
+                 new ChartRegionResolver.LegendTarget("Region", "Color", List.of(), false)),
+         true);
+
+      assertEquals(2, legends.count(), "both slots counted");
+      assertEquals(List.of("Region"), legends.fields(), "but only one can be named");
+      assertDoesNotThrow(() -> ChartRegionResolver.requireLegend(legends, 1));
+   }
+
+   private static ChartRegionResolver.Legends twoLegends() {
+      return new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget("Customer:Region", "Color", List.of(), false),
+                 new ChartRegionResolver.LegendTarget("Customer:Reseller", "Shape", List.of(),
+                                                      false)),
+         true);
+   }
+
+   /** A chart with {@code count} legends, for the index checks that predate fields. */
+   private static ChartRegionResolver.Legends legends(int count, boolean measured) {
+      List<ChartRegionResolver.LegendTarget> legends = new ArrayList<>();
+
+      for(int i = 0; i < count; i++) {
+         legends.add(
+            new ChartRegionResolver.LegendTarget("Field" + i, "Color", List.of(), false));
+      }
+
+      return new ChartRegionResolver.Legends(legends, measured);
    }
 
    private static ChartRegionResolver.Axes resolveWithGraph(VSChartInfo info, boolean mirrored) {

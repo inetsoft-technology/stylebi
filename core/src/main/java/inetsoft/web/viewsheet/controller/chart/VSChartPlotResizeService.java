@@ -57,6 +57,16 @@ public class VSChartPlotResizeService extends VSChartControllerService<VSChartPl
          if(reset) {
             chartInfo.setUnitWidthRatio(1);
             chartInfo.setUnitHeightRatio(1);
+            // The percents have to go too, and back to 0 rather than 1: VGraphPair re-derives
+            // unitWidthRatio/unitHeightRatio from them whenever they are >= 1, without consulting
+            // the resized flags, so a reset that left them behind reported default/not-resized
+            // while the old ratio was rebuilt on every subsequent layout. (1 is not the neutral
+            // value here - it would re-derive the ratio as the plot's own baseline. 0 is the
+            // field's declared default and the only value that turns the re-derivation off.) It
+            // was invisible only because the enlargement itself, minPlot *= ratio, is gated on
+            // the flag this branch does clear.
+            chartInfo.setUnitWidthRatioPercent(0);
+            chartInfo.setUnitHeightRatioPercent(0);
             chartInfo.setWidthResized(false);
             chartInfo.setHeightResized(false);
          }

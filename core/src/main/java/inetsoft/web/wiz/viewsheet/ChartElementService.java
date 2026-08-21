@@ -27,6 +27,7 @@ import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.internal.GTool;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
+import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.viewsheet.controller.chart.*;
 import inetsoft.web.viewsheet.event.chart.*;
@@ -112,7 +113,7 @@ public class ChartElementService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireChart(rvs, assemblyName);
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
 
          switch(kind) {
             case "axis" -> axesService.eventHandler(
@@ -121,9 +122,7 @@ public class ChartElementService {
                      VSChartAxesVisibilityEvent.class),
                linkUri, user, dispatcher);
             case "legend" -> legendsService.eventHandler(
-               runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible), "field", target,
-                     VSChartLegendsVisibilityEvent.class),
+               runtimeId, legendEvent(rvs, chart, target, visible),
                linkUri, user, dispatcher);
             default -> titlesService.eventHandler(
                runtimeId,
@@ -350,6 +349,11 @@ public class ChartElementService {
     * measure. {@code axesBasis} says whether that came from the laid-out graph or was inferred
     * from the binding, because the two are not equally trustworthy and hiding the difference is
     * how a plausible-but-wrong answer gets believed.
+    *
+    * <p>{@code legends} names the chart's legends for the same reason, and it is the answer to a
+    * different question than {@code get_chart_aesthetics}: that reports which channels are
+    * <em>bound</em>, while this reports which legends are <em>rendered</em>, which is what the
+    * visibility and region tools can address.
     */
    public Map<String, Object> vocabulary(String sessionToken, Principal user, String assembly)
       throws Exception
@@ -358,11 +362,17 @@ public class ChartElementService {
          return vocabulary();
       }
 
-      ChartRegionResolver.Axes axes = sessions.read(
+      // One read for both answers: they come off the same laid-out graph, and two reads could
+      // disagree with each other if the chart relaid out between them.
+      Chart chart = sessions.read(
          sessionToken, user,
-         (rvs, runtimeId, dispatcher) ->
-            ChartRegionResolver.resolve(rvs, ChartRegionResolver.requireChart(rvs, assembly)));
+         (rvs, runtimeId, dispatcher) -> {
+            ChartVSAssembly assembly0 = ChartRegionResolver.requireChart(rvs, assembly);
+            return new Chart(ChartRegionResolver.resolve(rvs, assembly0),
+                             ChartRegionResolver.legends(rvs, assembly0));
+         });
 
+      ChartRegionResolver.Axes axes = chart.axes();
       Map<String, Object> out = new LinkedHashMap<>(vocabulary());
       List<String> titleTargets = new ArrayList<>(axes.ordered());
       // The chart title is not an axis title and does not depend on any axis existing.
@@ -373,6 +383,40 @@ public class ChartElementService {
       out.put("titleTargets", titleTargets);
       out.put("axesBasis", axes.basis());
       out.put("axesMeasured", axes.measured());
+      out.put("legends", describe(chart.legends()));
+      out.put("legendsMeasured", chart.legends().measured());
+      return out;
+   }
+
+   /** Both answers off one laid-out graph. */
+   private record Chart(ChartRegionResolver.Axes axes, ChartRegionResolver.Legends legends) {}
+
+   /**
+    * The legends as targets a caller can name.
+    *
+    * <p>Reported for the same reason the axes are: the write now refuses a legend the chart does
+    * not have, and a refusal with nowhere to look it up would just move the guessing. The
+    * {@code index} is the legend's own position, which is what the region property tools address,
+    * so the two vocabularies line up here rather than in the caller's head.
+    */
+   private static List<Map<String, Object>> describe(ChartRegionResolver.Legends legends) {
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      for(int i = 0; i < legends.count(); i++) {
+         ChartRegionResolver.LegendTarget legend = legends.legends().get(i);
+         Map<String, Object> one = new LinkedHashMap<>();
+         one.put("index", i);
+         one.put("channel", legend.channel());
+
+         // Omitted rather than reported as empty: a legend with no field cannot be named as a
+         // target at all, and an empty string reads like one that can.
+         if(legend.field() != null) {
+            one.put("field", legend.field());
+         }
+
+         out.add(one);
+      }
+
       return out;
    }
 
@@ -384,10 +428,89 @@ public class ChartElementService {
          // names the column whose axis is hidden, while set_chart_region_properties takes the
          // axis TYPE (y, y2, x, x2). Following this note over there addressed no axis at all.
          "note", "For hiding and showing, an axis target is a column name and a legend target is " +
-            "a field name; call get_binding for those. Showing a single axis or legend is not " +
+            "a field name; call get_binding for those, or name an assembly here to get this " +
+            "chart's own axes and legends. Showing a single axis or legend is not " +
             "supported — showing restores all of them. Note that " +
             "set_chart_region_properties addresses an axis by TYPE (y, y2, x, x2) instead, not " +
             "by column — it takes the column separately, as 'field'.");
+   }
+
+   // ── the legend footgun, contained ─────────────────────────────────────────
+
+   /**
+    * Builds the legends event, resolving a named legend to the channel the event needs.
+    *
+    * <p><b>Why the resolution is not optional.</b> {@code aestheticType} is the event's
+    * discriminator, and {@code VSChartLegendsVisibilityService} reads a hide that omits it as
+    * "hide every legend" — it routes straight to {@code showAllLegends(false)}. This class used
+    * to send {@code field} alone, so the field was dead on arrival: naming one legend of two hid
+    * <em>both</em>, and the summary reported having hidden the one that was named. It looked like
+    * a no-op on a single-legend chart, which is why reading the source was the only way to tell
+    * the two behaviours apart.
+    *
+    * <p>So a named legend is resolved against the ones the chart actually renders, and an
+    * unresolvable name is refused — the one case where "a bogus target is an accepted no-op"
+    * does not hold, because here it is not a no-op.
+    *
+    * <p>The remaining fields are the same ones the Composer's own {@code hideLegend} sends, taken
+    * from the same graph it reads them from: {@code targetFields} to tell two same-channel
+    * legends apart, {@code nodeAesthetic} for a relation chart's node aesthetic, and
+    * {@code colorMerged} for the case below.
+    */
+   private VSChartLegendsVisibilityEvent legendEvent(
+      inetsoft.report.composition.RuntimeViewsheet rvs, ChartVSAssembly chart, String target,
+      boolean visible)
+   {
+      Map<String, Object> fields = new LinkedHashMap<>();
+      fields.put("chartName", chart.getAbsoluteName());
+      fields.put("hide", !visible);
+
+      // No target is the one case where hide-all is what was asked for, and showing is always all
+      // of them - the event has no way to express showing one, which setVisibility refuses above.
+      if(target == null) {
+         return convert(fields, VSChartLegendsVisibilityEvent.class);
+      }
+
+      ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
+
+      return convert(
+         legendFields(chart.getAbsoluteName(), visible,
+                      ChartRegionResolver.requireLegendField(legends, target), legends),
+         VSChartLegendsVisibilityEvent.class);
+   }
+
+   /**
+    * The event's fields for hiding one named legend, separated from fetching the graph so the
+    * values can be pinned in a test. This map is where the defect lived: it is one missing key
+    * away from meaning "hide them all".
+    */
+   static Map<String, Object> legendFields(String chartName, boolean visible,
+                                           ChartRegionResolver.LegendTarget legend,
+                                           ChartRegionResolver.Legends legends)
+   {
+      Map<String, Object> fields = new LinkedHashMap<>();
+      fields.put("chartName", chartName);
+      fields.put("hide", !visible);
+      fields.put("field", legend.field());
+      fields.put("targetFields", legend.targetFields());
+      fields.put("aestheticType", legend.aestheticType());
+      fields.put("nodeAesthetic", legend.nodeAesthetic());
+      fields.put("colorMerged", colorMerged(legends, legend.aestheticType()));
+      return fields;
+   }
+
+   /**
+    * Whether the colour legend is merged into the one being hidden, so its descriptor has to go
+    * too — the same test the Composer's own {@code VSChartService.hideLegend} makes, over the same
+    * legend list. A colour legend that is not rendered separately is drawn inside another
+    * legend's box, and hiding that box without it leaves the colour swatches behind.
+    */
+   private static boolean colorMerged(ChartRegionResolver.Legends legends, String aestheticType) {
+      long colors = legends.legends().stream()
+         .filter(legend -> ChartArea.COLOR_LEGEND.equals(legend.aestheticType()))
+         .count();
+
+      return colors < (ChartArea.COLOR_LEGEND.equals(aestheticType) ? 2 : 1);
    }
 
    // ── the titles footgun, contained ─────────────────────────────────────────

@@ -95,17 +95,84 @@ class ChartElementServiceTest {
    }
 
    @Test
-   void hidesOneLegendByField() throws Exception {
+   void hidesEveryLegendWhenNoneIsNamed() throws Exception {
       Harness h = harness(mock(ChartVSAssembly.class));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "legend", null, false, "");
 
       ArgumentCaptor<VSChartLegendsVisibilityEvent> captor =
          ArgumentCaptor.forClass(VSChartLegendsVisibilityEvent.class);
       verify(h.legends).eventHandler(eq("rt1"), captor.capture(), anyString(),
                                      any(Principal.class), any());
-      assertEquals("Category", captor.getValue().getField());
       assertTrue(captor.getValue().isHide());
+      assertNull(captor.getValue().getAestheticType(),
+                 "no aestheticType IS the event's hide-all, which is what was asked for");
+   }
+
+   /**
+    * The defect this path was rewritten for. A named legend used to be sent as {@code field}
+    * alone, and the event reads a hide with no {@code aestheticType} as "hide every legend" — so
+    * naming one legend of two hid both and reported success naming the one. With no laid-out
+    * graph there is nothing to resolve the name against, so the call is refused rather than
+    * quietly becoming hide-all.
+    */
+   @Test
+   void refusesToHideANamedLegendItCannotResolve() {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false,
+                                       ""));
+
+      assertTrue(thrown.getMessage().contains("without 'target'"), "and say what to call instead");
+      verifyNoInteractions(h.legends);
+   }
+
+   /**
+    * {@code aestheticType} is the whole fix: without it the event hides every legend. Pinned on
+    * the field map for the same reason the titles event is — an all-default event is the
+    * destructive case, so the values have to be asserted rather than assumed.
+    */
+   @Test
+   void aNamedLegendCarriesItsChannelOntoTheEvent() {
+      ChartRegionResolver.Legends legends = twoLegends();
+      VSChartLegendsVisibilityEvent event = new ObjectMapper().convertValue(
+         ChartElementService.legendFields("Chart1", false, legends.legends().get(1), legends),
+         VSChartLegendsVisibilityEvent.class);
+
+      assertTrue(event.isHide());
+      assertEquals("Customer:Reseller", event.getField());
+      assertEquals("Shape", event.getAestheticType(),
+                   "without this the event hides every legend on the chart");
+   }
+
+   /**
+    * The Composer's own rule, over the same legend list: a colour legend that is not rendered
+    * separately is drawn inside another legend's box, so hiding that box has to take it too.
+    */
+   @Test
+   void marksTheColourLegendMergedOnTheSameTestTheComposerMakes() {
+      ChartRegionResolver.Legends legends = twoLegends();
+
+      // One colour legend, hiding the colour legend: merged, so its descriptor goes too.
+      assertTrue((Boolean) ChartElementService
+         .legendFields("Chart1", false, legends.legends().get(0), legends).get("colorMerged"));
+
+      // One colour legend, hiding the SHAPE legend: the colour legend stands on its own and must
+      // survive. This is the case StyleBI's own bug 58639 was about.
+      assertFalse((Boolean) ChartElementService
+         .legendFields("Chart1", false, legends.legends().get(1), legends).get("colorMerged"));
+   }
+
+   private static ChartRegionResolver.Legends twoLegends() {
+      return new ChartRegionResolver.Legends(
+         java.util.List.of(
+            new ChartRegionResolver.LegendTarget("Customer:Region", "Color",
+                                                 java.util.List.of(), false),
+            new ChartRegionResolver.LegendTarget("Customer:Reseller", "Shape",
+                                                 java.util.List.of(), false)),
+         true);
    }
 
    // ── the titles footgun ────────────────────────────────────────────────────

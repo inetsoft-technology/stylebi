@@ -184,7 +184,7 @@ public class ChartRegionPropertyService {
          ChartRegionResolver.Legends legends = sessions.read(
             sessionToken, user,
             (rvs, runtimeId, dispatcher) ->
-               ChartRegionResolver.legendCount(
+               ChartRegionResolver.legends(
                   rvs, ChartRegionResolver.requireChart(rvs, assembly)));
 
          ChartRegionResolver.requireLegend(legends, indexOf(target));
