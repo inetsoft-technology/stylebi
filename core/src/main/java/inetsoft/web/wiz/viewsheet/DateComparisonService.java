@@ -69,13 +69,20 @@ public class DateComparisonService {
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
       throws Exception
    {
-      DateComparisonPaneModel model = comparisonService.getDateComparison(
-         sessions.resolve(sessionToken, user).getID(), assemblyName, user);
+      String runtimeId = sessions.resolve(sessionToken, user).getID();
+      DateComparisonPaneModel model =
+         comparisonService.getDateComparison(runtimeId, assemblyName, user);
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
 
-      if(model == null) {
+      // getDateComparison() always returns a default-populated model for a DateCompareAble
+      // assembly, even when no comparison is actually set (e.g. after clear()), so "enabled"
+      // cannot be read from model == null.
+      boolean enabled = model != null &&
+         comparisonService.isDateComparisonEnabled(runtimeId, assemblyName, user);
+
+      if(!enabled) {
          out.put("enabled", false);
          return out;
       }

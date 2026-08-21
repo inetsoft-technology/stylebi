@@ -100,6 +100,18 @@ public class DateComparisonDialogService {
       return model;
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Boolean isDateComparisonEnabled(@ClusterProxyKey String runtimeId, String objectId,
+                                          Principal principal) throws Exception
+   {
+      runtimeId = Tool.byteDecode(runtimeId);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly vsAssembly = vs.getAssembly(objectId);
+      VSAssemblyInfo info = vsAssembly == null ? null : vsAssembly.getVSAssemblyInfo();
+      return DateComparisonUtil.isDateComparisonDefined(info, false);
+   }
+
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void clearDateComparison(@ClusterProxyKey String runtimeId, String assemblyName, String linkUri,
