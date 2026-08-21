@@ -21,7 +21,11 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartRefService;
 import inetsoft.web.binding.controller.ChangeChartTypeService;
@@ -33,6 +37,8 @@ import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -240,20 +246,94 @@ public class ChartBindingService {
    }
 
    public void setChartType(String sessionToken, Principal user, String assemblyName, int type,
-                            Boolean multi, Boolean stackMeasures, Boolean separate,
+                            Boolean multi, Boolean stackMeasures, Boolean separate, String field,
                             String linkUri) throws Exception
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireChart(rvs, assemblyName);
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         String ref = requireTypeableField(chart, assemblyName, field);
 
          ChangeChartTypeEvent event = new ChangeChartTypeEvent();
          event.setName(assemblyName);
          event.setType(type);
-         event.setMulti(Boolean.TRUE.equals(multi));
-         event.setStackMeasures(Boolean.TRUE.equals(stackMeasures));
-         event.setSeparate(!Boolean.FALSE.equals(separate));
+         event.setRef(ref);
+         // An omitted flag means "leave it alone", and the event has no way to say that: it carries
+         // three primitive booleans, and the obvious coercions -- TRUE.equals(null) for multi and
+         // stackMeasures, !FALSE.equals(null) for separate -- turn "unstated" into a concrete value
+         // the shared service then applies. Confirmed live on stackMeasures: a chart with it on,
+         // retyped once without mentioning it, read back with it off. So send what the chart
+         // already has, which leaves the shared service comparing a value to itself.
+         //
+         // multi has the same hole and escapes it only by accident, since its coerced value travels
+         // through the WebSocket path that drops it silently -- repairing that path would otherwise
+         // turn every plain retype into a multi-style teardown.
+         event.setMulti(multi == null ? isMultiStyles(chart) : multi);
+         event.setStackMeasures(
+            stackMeasures == null ? isStackMeasures(chart) : stackMeasures);
+         event.setSeparate(separate == null ? isSeparatedGraph(chart) : separate);
          typeService.changeChartType(runtimeId, event, user, dispatcher, linkUri);
+
+         applyMultiStyle(rvs, runtimeId, assemblyName, multi, separate, user, dispatcher, linkUri);
       });
+   }
+
+   /**
+    * Applies the requested multi-style state, which the chart-type change itself cannot.
+    *
+    * <p>{@code ChangeChartTypeService.handleMulti} is the only code that turns multiStyles on, and
+    * it routes through {@code ChangeSeparateStatusController} — a
+    * {@code @MessageMapping("/vs/chart/changeSeparateStatus")} handler that takes its runtime id
+    * from {@code runtimeViewsheetRef}, described in its own constructor as the runtime "associated
+    * with the WebSocket session", and returns silently when that id is null. An agent call is plain
+    * HTTP with a pairing token and has no such session, so {@code multi} was accepted, reported ok,
+    * and dropped — on every call, including the one case the shared path would otherwise have
+    * handled. It is also reached only when the type is unchanged, so asking for a new type and
+    * multi-style together lost the multi half twice over.
+    *
+    * <p>Repaired here rather than there. The shared path has no test coverage, and the defect is an
+    * absent WebSocket context rather than wrong logic, so no test at that layer would have caught
+    * it; meanwhile {@code setSeparateStatus} in this same class already makes exactly this call
+    * correctly, with the runtime id this method holds. Fixing the shared method is still worth
+    * doing for whatever calls it next — it is a trap for any non-WebSocket caller — but that is a
+    * change to Composer code with its own risk, not part of closing this gap for the agent.
+    *
+    * <p>The chart's info is re-read after the type change rather than captured before it, because
+    * {@code ChangeChartTypeService} replaces {@code VSChartInfo} outright for some transitions.
+    */
+   private void applyMultiStyle(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                                Boolean multi, Boolean separate, Principal user,
+                                CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      // An omitted multi is "not asked about", not "off" — the shared event builder coerces it to
+      // false, which is why a plain retype cannot leave the flag alone.
+      if(multi == null) {
+         return;
+      }
+
+      VSChartInfo info = requireChart(rvs, assemblyName).getVSChartInfo();
+
+      // Nothing to change, nothing to call. This is a second write with its own undo step, so
+      // firing it on a state that already matches would put a no-op into the Composer's history
+      // for every retype.
+      if(info == null || info.isMultiStyles() == multi) {
+         return;
+      }
+
+      // Separated travels with multi through this service — it sets both — so an unstated separate
+      // preserves what the chart has rather than pushing it either way.
+      boolean separated = separate == null ? info.isSeparatedGraph() : separate;
+      String forcedTypeName = separated ? null : forcedSeparateTypeName(info.getChartType());
+
+      if(forcedTypeName != null) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a " + forcedTypeName + " chart, which cannot be merged — " +
+            "StyleBI always renders it as separated graphs regardless of this setting. Call with " +
+            "separate: true, or leave it unset.");
+      }
+
+      ChangeSeparateStatusEvent event =
+         new ChangeSeparateStatusEvent(assemblyName, multi, separated);
+      separateStatusService.changeSeparateStatus(runtimeId, event, user, dispatcher, linkUri);
    }
 
    /**
@@ -339,6 +419,101 @@ public class ChartBindingService {
          event.setName(assemblyName);
          swapService.swapXYBinding(runtimeId, event, user, dispatcher, linkUri);
       });
+   }
+
+   /**
+    * Reads a chart's type and the flags that decide what it means, without opening a checkpoint.
+    *
+    * <p>{@code sessions.resolve} rather than {@code sessions.mutate}: a read that went through the
+    * mutating path would drop a no-op step into the user's Composer undo history for every look an
+    * agent takes.
+    */
+   public ChartTypeState readChartType(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ChartVSAssembly chart = requireChart(rvs, assemblyName);
+      ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+
+      return new ChartTypeState(assemblyName, model.getChartType(), model.getRTChartType(),
+                                model.isMultiStyles(), model.isSeparated(),
+                                model.isStackMeasures());
+   }
+
+   /**
+    * The named measure, checked against the only two shelves a per-measure type can live on, or
+    * null when the caller asked about the whole chart.
+    *
+    * <p>Both refusals exist because the alternative is a write that reports ok and changes nothing.
+    * {@code ChangeChartTypeProcessor} looks for the ref by scanning {@code getXFieldCount()} and
+    * {@code getYFieldCount()}, and when it matches neither it sets no type at all — it does not fall
+    * back to the assembly, since it is inside the {@code ref != null} branch. So a misspelled
+    * column, or one that sits on {@code group} or a single-field shelf, is silently dropped. And a
+    * per-measure type on a chart that is not multi-style would be stored where nothing renders from
+    * it, which is the inert-write shape this lane already found on the visual frames.
+    */
+   private static String requireTypeableField(ChartVSAssembly chart, String assemblyName,
+                                              String field)
+   {
+      if(field == null || field.isBlank()) {
+         return null;
+      }
+
+      String name = field.trim();
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+
+      if(info == null || !info.isMultiStyles()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is not a multi-style chart, so a per-measure type would be " +
+            "stored and never rendered. Call set_chart_type with multi: true first, then type the " +
+            "field.");
+      }
+
+      List<String> typeable = new ArrayList<>();
+
+      for(int i = 0; i < info.getXFieldCount(); i++) {
+         collectTypeable(info.getXField(i), typeable);
+      }
+
+      for(int i = 0; i < info.getYFieldCount(); i++) {
+         collectTypeable(info.getYField(i), typeable);
+      }
+
+      if(typeable.contains(name)) {
+         return name;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' has no measure '" + name + "' on x or y, which are the only " +
+         "shelves a per-measure type applies to. " +
+         (typeable.isEmpty()
+             ? "It has no measures there at all — bind one first."
+             : "Measures that can be typed: " + String.join(", ", typeable) + ".") +
+         " get_binding reports what is bound where.");
+   }
+
+   private static void collectTypeable(ChartRef ref, List<String> names) {
+      if(ref instanceof ChartAggregateRef aggregate && aggregate.getFullName() != null) {
+         names.add(aggregate.getFullName());
+      }
+   }
+
+   private static boolean isMultiStyles(ChartVSAssembly chart) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+      return info != null && info.isMultiStyles();
+   }
+
+   /** Defaults to separated, which is what the event's own null coercion did. */
+   private static boolean isSeparatedGraph(ChartVSAssembly chart) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+      return info == null || info.isSeparatedGraph();
+   }
+
+   /** Lives on the plot descriptor rather than the chart info, unlike the other two flags. */
+   private static boolean isStackMeasures(ChartVSAssembly chart) {
+      ChartDescriptor descriptor = chart == null ? null : chart.getChartDescriptor();
+      PlotDescriptor plot = descriptor == null ? null : descriptor.getPlotDescriptor();
+      return plot != null && plot.isStackMeasures();
    }
 
    private static ChartVSAssembly requireChart(RuntimeViewsheet rvs, String assemblyName) {

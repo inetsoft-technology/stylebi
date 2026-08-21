@@ -22,6 +22,11 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartRefService;
 import inetsoft.web.binding.controller.ChangeChartTypeService;
 import inetsoft.web.binding.controller.ChangeSeparateStatusService;
@@ -33,6 +38,7 @@ import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
@@ -98,7 +104,7 @@ class ChartBindingServiceTest {
 
       harness(new ChartBindingModel(), mock(ChangeChartRefService.class), types,
               mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
-         .setChartType("tok", principal(), "Chart1", 3, null, null, null, "");
+         .setChartType("tok", principal(), "Chart1", 3, null, null, null, null, "");
 
       ArgumentCaptor<ChangeChartTypeEvent> captor =
          ArgumentCaptor.forClass(ChangeChartTypeEvent.class);
@@ -473,6 +479,350 @@ class ChartBindingServiceTest {
       return model;
    }
 
+   /**
+    * Multi Style's whole point is a per-measure type, and no tool could set one: set_chart_type was
+    * assembly-scoped, so `multi: true` switched on a mode with nothing behind it.
+    *
+    * <p>The backend already carries it — {@code ChangeChartTypeEvent.ref} names an aggregate and
+    * {@code ChangeChartTypeProcessor} sets that ref's type instead of the assembly's — and the agent
+    * path simply never filled the field in. Same shape as the single-shelf read: the capability
+    * exists and is exercised by the Composer, one tier just did not pass it along.
+    */
+   @Test
+   void namesOneMeasureWhenAskedToTypeJustThatField() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      multiStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null,
+                       "Sum(DISCOUNT)", "");
+
+      ArgumentCaptor<ChangeChartTypeEvent> event =
+         ArgumentCaptor.forClass(ChangeChartTypeEvent.class);
+      verify(types).changeChartType(eq("rt1"), event.capture(), any(Principal.class), any(),
+                                    anyString());
+      assertEquals("Sum(DISCOUNT)", event.getValue().getRef(),
+                   "the field the caller named must reach the event");
+   }
+
+   /** No field named means the whole chart, exactly as before. */
+   @Test
+   void leavesTheRefEmptyWhenNoFieldWasNamed() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      multiStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null, null,
+                       "");
+
+      ArgumentCaptor<ChangeChartTypeEvent> event =
+         ArgumentCaptor.forClass(ChangeChartTypeEvent.class);
+      verify(types).changeChartType(eq("rt1"), event.capture(), any(Principal.class), any(),
+                                    anyString());
+      assertNull(event.getValue().getRef());
+   }
+
+   /**
+    * {@code ChangeChartTypeProcessor} searches x and y for the named ref and, finding nothing, sets
+    * no type at all — it does not fall back to the assembly, because it is inside the
+    * {@code ref != null} branch. So a misspelled column, or one that sits on `group` or a
+    * single-field shelf, would report ok and change nothing. Refused by name instead, with the
+    * fields that would have worked.
+    */
+   @Test
+   void refusesAFieldThatIsNotOnXOrY() {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      ChartBindingService service = multiStyleChart(types);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null,
+                                    null, "Sum(NOPE)", ""));
+
+      assertTrue(thrown.getMessage().contains("Sum(NOPE)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sum(PAID)"),
+                 "must name the measures that would have worked, got: " + thrown.getMessage());
+      verifyNoInteractions(types);
+   }
+
+   /**
+    * A per-measure type only renders under Multi Style, so accepting one on a single-style chart
+    * would store a setting nothing draws from — and the caller would have no way to tell, since the
+    * write reports ok either way.
+    */
+   @Test
+   void refusesAPerFieldTypeOnAChartThatIsNotMultiStyle() {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      ChartBindingService service = singleStyleChart(types);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null,
+                                    null, "Sum(PAID)", ""));
+
+      assertTrue(thrown.getMessage().contains("multi"), thrown.getMessage());
+      verifyNoInteractions(types);
+   }
+
+   private static ChartBindingService multiStyleChart(ChangeChartTypeService types) {
+      return chartWithFields(types, true);
+   }
+
+   private static ChartBindingService singleStyleChart(ChangeChartTypeService types) {
+      return chartWithFields(types, false);
+   }
+
+   private static ChartBindingService chartWithFields(ChangeChartTypeService types, boolean multi) {
+      // Mocked rather than built: getFullName() on a real ref depends on runtime state this test
+      // has no reason to stand up, and the name is the only thing the lookup cares about.
+      VSChartAggregateRef paid = mock(VSChartAggregateRef.class);
+      when(paid.getFullName()).thenReturn("Sum(PAID)");
+      VSChartAggregateRef discount = mock(VSChartAggregateRef.class);
+      when(discount.getFullName()).thenReturn("Sum(DISCOUNT)");
+
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(multi);
+      when(info.isSeparatedGraph()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(info.getXFieldCount()).thenReturn(1);
+      when(info.getXField(0)).thenReturn(paid);
+      when(info.getYFieldCount()).thenReturn(1);
+      when(info.getYField(0)).thenReturn(discount);
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      return harnessWithAssembly(chart, new ChartBindingModel(),
+                                 mock(ChangeChartRefService.class), types,
+                                 mock(SwapXYBindingService.class),
+                                 mock(ChangeSeparateStatusService.class));
+   }
+
+   /**
+    * An omitted flag means "leave it alone", and the shared event builder had no way to say that:
+    * {@code Boolean.TRUE.equals(stackMeasures)} turns a null into false, which is then applied.
+    *
+    * <p>Confirmed live before this test existed: on a chart with stackMeasures on, one
+    * {@code set_chart_type(bar)} that did not mention the flag read back with it **off**, same type
+    * and nothing else changed. {@code multi} has the same hole and only escapes it by accident —
+    * the coerced value travels through the WebSocket path that silently drops it — so repairing
+    * that path would turn every plain retype into a multi-style teardown.
+    */
+   @Test
+   void sendsTheChartsCurrentFlagsWhenTheCallerDidNotMentionThem() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      PlotDescriptor plot = mock(PlotDescriptor.class);
+      when(plot.isStackMeasures()).thenReturn(true);
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      when(descriptor.getPlotDescriptor()).thenReturn(plot);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isSeparatedGraph()).thenReturn(false);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      when(chart.getChartDescriptor()).thenReturn(descriptor);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          types, mock(SwapXYBindingService.class),
+                          mock(ChangeSeparateStatusService.class))
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, null, null, null, "");
+
+      ArgumentCaptor<ChangeChartTypeEvent> event =
+         ArgumentCaptor.forClass(ChangeChartTypeEvent.class);
+      verify(types).changeChartType(eq("rt1"), event.capture(), any(Principal.class), any(),
+                                    anyString());
+      assertTrue(event.getValue().isStackMeasures(),
+                 "an unmentioned stackMeasures must not be reported as off");
+      assertTrue(event.getValue().isMulti(), "an unmentioned multi must not be reported as off");
+      assertFalse(event.getValue().isSeparate(),
+                  "an unmentioned separate must carry the chart's own state, not a forced true");
+   }
+
+   /** What the caller does state still wins, so the preserving default cannot swallow a real ask. */
+   @Test
+   void stillSendsTheFlagsTheCallerDidState() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      PlotDescriptor plot = mock(PlotDescriptor.class);
+      when(plot.isStackMeasures()).thenReturn(true);
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      when(descriptor.getPlotDescriptor()).thenReturn(plot);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isSeparatedGraph()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      when(chart.getChartDescriptor()).thenReturn(descriptor);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          types, mock(SwapXYBindingService.class),
+                          mock(ChangeSeparateStatusService.class))
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, false, false, null, null, "");
+
+      ArgumentCaptor<ChangeChartTypeEvent> event =
+         ArgumentCaptor.forClass(ChangeChartTypeEvent.class);
+      verify(types).changeChartType(eq("rt1"), event.capture(), any(Principal.class), any(),
+                                    anyString());
+      assertFalse(event.getValue().isStackMeasures(), "an explicit false must survive");
+      assertFalse(event.getValue().isMulti(), "an explicit false must survive");
+   }
+
+   /**
+    * set_chart_type's documented `multi` flag never reached the chart on this path.
+    *
+    * <p>{@code ChangeChartTypeService.handleMulti} — the only code that turns multiStyles on —
+    * routes through {@code ChangeSeparateStatusController}, a
+    * {@code @MessageMapping("/vs/chart/changeSeparateStatus")} handler that reads its runtime id
+    * from {@code runtimeViewsheetRef}, documented in its own constructor as the runtime "associated
+    * with the WebSocket session". An agent call is plain HTTP with a pairing token, so that id is
+    * null and the handler returns silently. Three live attempts reported ok with multiStyles still
+    * false, including the one that should have worked: type unchanged, two measures bound.
+    *
+    * <p>Applied here rather than repaired there, for two reasons: the shared path has no test
+    * coverage at all and the defect is a missing WebSocket context rather than wrong logic, so no
+    * mock test at that layer would have caught it; and this service already makes exactly this call
+    * correctly in {@code setSeparateStatus}, with the runtime id it holds.
+    */
+   @Test
+   void appliesMultiStyleItselfRatherThanLeavingItToTheWebSocketPath() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(false);
+      when(info.isSeparatedGraph()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                          separateStatus)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, true, null, null, null, "");
+
+      ArgumentCaptor<ChangeSeparateStatusEvent> event =
+         ArgumentCaptor.forClass(ChangeSeparateStatusEvent.class);
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), event.capture(),
+                                                 any(Principal.class), any(), anyString());
+      assertTrue(event.getValue().isMulti(), "the multi the caller asked for must reach the chart");
+      assertTrue(event.getValue().isSeparate(),
+                 "separate was not given, so the chart's current separated state is preserved");
+   }
+
+   /**
+    * Nothing to change, nothing to call. The multi transition is a second write with its own
+    * undo step, so firing it when the state already matches would put a no-op into the user's
+    * Composer history for every retype.
+    */
+   @Test
+   void doesNotTouchMultiStyleWhenItAlreadyMatches() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                          separateStatus)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, true, null, null, null, "");
+
+      verify(separateStatus, never()).changeSeparateStatus(anyString(), any(), any(), any(), any());
+   }
+
+   /**
+    * An omitted multi means "not asked for", not "off". Coercing it to false is what the shared
+    * event builder does, and it is why a plain retype cannot leave the flag alone.
+    */
+   @Test
+   void leavesMultiStyleAloneWhenTheCallerDidNotAskAboutIt() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                          separateStatus)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, null, null, null, "");
+
+      verify(separateStatus, never()).changeSeparateStatus(anyString(), any(), any(), any(), any());
+   }
+
+   /**
+    * A chart's type had no reader anywhere in the agent surface — not get_binding, not
+    * get_chart_aesthetics, not the property tools, not even get_assembly_properties(raw), which is
+    * the documented escape hatch for a property with no short name. So set_chart_type's own advice
+    * to "read the binding again afterwards" could not be acted on.
+    *
+    * <p>Reports the codes, not names: the code↔name vocabulary already exists in three copies here
+    * (WizAutoBindingService twice, WizVsService once) plus the plugin's, and the plugin owns the
+    * one that faces the agent — set_chart_type already echoes names from it.
+    */
+   @Test
+   void readsTheAssemblyTypeAndTheThreeFlagsThatDecideWhatItMeans() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(1);
+      // Deliberately different from chartType: reporting only the stored value is how a read
+      // becomes a "stored but inert" mirror of what the renderer actually used.
+      model.setRTChartType(5);
+      model.setMultiStyles(true);
+      model.setSeparated(false);
+      model.setStackMeasures(true);
+
+      ChartTypeState state = harness(model, mock(ChangeChartRefService.class),
+                                     mock(ChangeChartTypeService.class),
+                                     mock(SwapXYBindingService.class),
+                                     mock(ChangeSeparateStatusService.class))
+         .readChartType("tok", principal(), "Chart1");
+
+      assertEquals("Chart1", state.assembly());
+      assertEquals(1, state.chartType());
+      assertEquals(5, state.runtimeChartType());
+      assertTrue(state.multiStyles(), "multiStyles decides whether the type is per-measure");
+      assertFalse(state.separated());
+      assertTrue(state.stackMeasures());
+   }
+
+   /**
+    * A read must not open an undo checkpoint. The cheapest wrong implementation reuses
+    * {@code sessions.mutate}, which would put a no-op step into the user's Composer history for
+    * every read an agent makes.
+    */
+   @Test
+   void readsTheTypeWithoutOpeningACheckpoint() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(mock(ChartVSAssembly.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenReturn(new ChartBindingModel());
+
+      new ChartBindingService(sessions, binding, mock(ChangeChartRefService.class),
+                              mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                              mock(ChangeSeparateStatusService.class))
+         .readChartType("tok", principal(), "Chart1");
+
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void refusesToReadATypeOffSomethingThatIsNotAChart() {
+      ChartBindingService service = harnessWithAssembly(
+         mock(TextVSAssembly.class), new ChartBindingModel(),
+         mock(ChangeChartRefService.class), mock(ChangeChartTypeService.class),
+         mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.readChartType("tok", principal(), "Text1"));
+
+      assertTrue(thrown.getMessage().contains("not a chart"),
+                 "must say it is not a chart, got: " + thrown.getMessage());
+   }
+
    private static ChartBindingService harness(ChartBindingModel model,
                                               ChangeChartRefService refs,
                                               ChangeChartTypeService types,
@@ -507,6 +857,8 @@ class ChartBindingServiceTest {
             mutation.run(rvs, "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
+         // Reads take this path instead — no checkpoint.
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);

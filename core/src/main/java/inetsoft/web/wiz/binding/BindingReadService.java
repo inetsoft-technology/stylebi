@@ -24,6 +24,8 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.ChartAestheticModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -70,9 +72,36 @@ public class BindingReadService {
       Map<String, List<FieldRef>> shelves = new LinkedHashMap<>();
 
       if(model instanceof ChartBindingModel chart) {
-         shelves.put("x", refs(chart.getXFields()));
-         shelves.put("y", refs(chart.getYFields()));
+         // Under Multi Style each measure renders with its own type, so x and y carry it per field.
+         // Gated on three things, not one: the shelf, because ChangeChartTypeProcessor's per-ref
+         // write searches getXFieldCount()/getYFieldCount() and nothing else, so an aggregate on
+         // `group` or on a single-field shelf has no such setting however willingly the model
+         // answers for it; the ref being a measure, since ChartDimensionRefModel has no chart type
+         // at all; and multi-style being on, because otherwise the value is inert and reporting it
+         // would describe something that cannot render — the shape of this lane's inert-frame
+         // finding.
+         boolean perField = chart.isMultiStyles();
+
+         shelves.put("x", refs(chart.getXFields(), perField));
+         shelves.put("y", refs(chart.getYFields(), perField));
          shelves.put("group", refs(chart.getGroupFields()));
+
+         // The ten single-field shelves. Left out of this read until now, so a
+         // set_chart_single_shelf write could not be read back at all: four OHLC shelves bound and
+         // visibly rendering while this reported x/y/group and nothing else.
+         //
+         // Reported only where something is bound, unlike x/y/group above. Those three are
+         // present-and-empty because they are meaningful on every chart; these ten are not, and
+         // listing `milestone` on a pie chart would advertise a shelf that chart cannot use — the
+         // same fabricated-capability shape as the phantom Dimensions column in
+         // BindableFieldsService.isColumn and the phantom y2 axis in ChartRegionResolver.
+         for(String shelf : ChartBindingMutator.SINGLE_SHELVES) {
+            ChartRefModel ref = ChartBindingMutator.readSingleShelf(chart, shelf);
+
+            if(ref != null) {
+               shelves.put(shelf, refs(List.of(ref)));
+            }
+         }
       }
       else if(model instanceof CrosstabBindingModel crosstab) {
          shelves.put("rows", refs(crosstab.getRows()));
@@ -93,11 +122,20 @@ public class BindingReadService {
    }
 
    private static List<FieldRef> refs(List<? extends DataRefModel> models) {
+      return refs(models, false);
+   }
+
+   private static List<FieldRef> refs(List<? extends DataRefModel> models, boolean withChartType) {
       List<FieldRef> refs = new ArrayList<>();
 
       if(models != null) {
          for(DataRefModel model : models) {
-            refs.add(FieldRefFactory.from(model));
+            FieldRef ref = FieldRefFactory.from(model);
+
+            refs.add(withChartType && model instanceof ChartAestheticModel aesthetic
+                        ? new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
+                                       ref.namedGroup(), aesthetic.getChartType())
+                        : ref);
          }
       }
 

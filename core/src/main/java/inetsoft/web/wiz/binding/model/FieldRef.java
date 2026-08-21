@@ -25,11 +25,28 @@ package inetsoft.web.wiz.binding.model;
  * A reference without it is exactly the input that gets coerced onto the wrong shelf and
  * renders plausibly wrong, so it is never defaulted.
  *
+ * <p>{@code chartType} is read-only and chart-only. Under Multi Style each measure renders with its
+ * own type, so that type belongs to the bound field rather than to the assembly — and it is
+ * reported only where it can render: on {@code x} and {@code y}, on a measure, and only while the
+ * chart is multi-style. Writing it goes through {@code set_chart_type}'s {@code field} argument,
+ * not through here, so an inbound value on this record is ignored.
+ *
  * @param column     the column name, as it appears in the binding tree
  * @param type       "dimension" or "measure"
  * @param aggregate  aggregate formula, measures only (e.g. "Sum", "Count")
  * @param dateLevel  date grouping level, dimensions only
  * @param namedGroup named-group name, dimensions only
+ * @param chartType  the measure's own GraphTypes code under Multi Style; null everywhere else
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
-                       String namedGroup) {}
+                       String namedGroup, Integer chartType) {
+   /**
+    * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
+    * component did not touch forty-odd construction sites that have nothing to do with charts.
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, null);
+   }
+}

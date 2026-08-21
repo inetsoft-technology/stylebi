@@ -27,6 +27,13 @@ import java.util.Map;
  * {@code cols}, {@code aggregates}; table are {@code groups}, {@code details},
  * {@code aggregates}. Calc tables are not represented here — their binding lives in the cell
  * layout, per spec 2e.
+ *
+ * <p>A chart additionally carries whichever of the ten single-field shelves
+ * ({@code open}, {@code high}, {@code low}, {@code close}, {@code path}, {@code source},
+ * {@code target}, {@code start}, {@code end}, {@code milestone}) hold a field. Those keys are
+ * present only when bound, unlike the three list shelves above which are always present: they are
+ * meaningful on every chart, whereas {@code milestone} on a pie chart is not, and listing it would
+ * advertise a shelf that chart cannot use.
  */
 public record AssemblyBinding(String assembly, String objectType, String source,
                               Map<String, List<FieldRef>> shelves) {}
