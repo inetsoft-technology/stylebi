@@ -916,7 +916,7 @@ public class ScheduleManager {
     * @return
     */
    public static boolean isShareInGroup() {
-      return SreeEnv.getBooleanProperty("schedule.options.shareTaskInGroup");
+      return SreeEnv.getBooleanProperty("schedule.options.shareTaskInGroup", "true", "CHECKED");
    }
 
    /**
@@ -924,7 +924,7 @@ public class ScheduleManager {
     * @return
     */
    public static boolean isDeleteByOwner() {
-      return SreeEnv.getBooleanProperty("schedule.options.deleteTaskOnlyByOwner");
+      return SreeEnv.getBooleanProperty("schedule.options.deleteTaskOnlyByOwner", "true", "CHECKED");
    }
 
    public static boolean hasShareGroupPermission(ScheduleTask task, Principal principal) {
@@ -936,9 +936,7 @@ public class ScheduleManager {
          return false;
       }
 
-      boolean isShareRole = SreeEnv.getBooleanProperty("schedule.options.shareTaskInGroup");
-
-      if(isShareRole) {
+      if(isShareInGroup()) {
          return isSameGroup(owner, IdentityID.getIdentityIDFromKey(principal.getName()));
       }
 

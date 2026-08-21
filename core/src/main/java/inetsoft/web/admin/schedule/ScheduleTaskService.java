@@ -363,7 +363,7 @@ public class ScheduleTaskService {
 
       return builder
          .timeProp(timeProp)
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
+         .twelveHourSystem(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours")))
          .build();
    }
 
