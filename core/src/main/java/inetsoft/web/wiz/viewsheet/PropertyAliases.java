@@ -50,6 +50,24 @@ public final class PropertyAliases {
    public record TypeAliases(String assemblyType, Class<?> modelClass,
                              Map<String, String> aliases) {}
 
+   /**
+    * The chart line pane's read-only capability flags — what the dialog uses to decide which
+    * controls to <i>show</i>, not what any of them is set to.
+    *
+    * <p>{@code ChartLinePaneModel} recomputes every one of these from the chart type on each read
+    * ({@code initPlotComVisible}, {@code getPlotComsEnable}, and the constructor's own tail), and
+    * {@code updateChartLinePaneModel} writes none of them anywhere. A write therefore could not
+    * work even in principle: it lands on a field the next read overwrites. They stay in the
+    * vocabulary because reading them is genuinely useful — a caller learns that a treemap has no
+    * grid lines to configure — but writing one is refused rather than accepted and lost.
+    *
+    * <p>Note which name is <b>not</b> here: {@code facetGrid} is the real setting and is applied.
+    * Only {@code facetGridVisible}, the flag saying whether the control appears, is refused.
+    */
+   private static final Set<String> CHART_READ_ONLY_FLAGS = Set.of(
+      "gridLineVisible", "innerLineVisible", "trendLineVisible", "facetGridVisible",
+      "facetGridEnabled", "projectForwardEnabled", "lineTabVisible");
+
    private static final Map<String, TypeAliases> REGISTRY = registry();
 
    private PropertyAliases() {
@@ -94,20 +112,57 @@ public final class PropertyAliases {
     */
    public static String resolveForWrite(String assemblyType, String key) {
       String normalizedType = normalize(assemblyType);
-      String refusal = viewsheetWriteRefusal(normalizedType, key);
+      String refusal = writeRefusal(normalizedType, key);
 
       if(refusal != null) {
          throw new IllegalArgumentException(refusal);
       }
 
       String path = resolve(assemblyType, key);
-      refusal = viewsheetWriteRefusal(normalizedType, path);
+      refusal = writeRefusal(normalizedType, path);
 
       if(refusal != null) {
          throw new IllegalArgumentException(refusal);
       }
 
       return path;
+   }
+
+   /**
+    * Every write refusal, checked against both the input key and the resolved path so the
+    * raw-dotted-path escape hatch cannot reach a refused field under a different spelling.
+    */
+   private static String writeRefusal(String normalizedType, String pathOrKey) {
+      String refusal = viewsheetWriteRefusal(normalizedType, pathOrKey);
+
+      return refusal != null ? refusal : chartWriteRefusal(normalizedType, pathOrKey);
+   }
+
+   /**
+    * Refuses a write to one of the chart line pane's derived capability flags.
+    *
+    * <p>This is the first assembly-type refusal to exist; the mechanism was already routed for it.
+    * The message names the flag and says what to change instead, because "it did not work" with no
+    * reason is what sent someone reading {@code ChartLinePaneModel} to find out that these fields
+    * are recomputed on every read.
+    */
+   private static String chartWriteRefusal(String normalizedType, String pathOrKey) {
+      if(!"chart".equals(normalizedType) || pathOrKey == null) {
+         return null;
+      }
+
+      String leaf = pathOrKey.substring(pathOrKey.lastIndexOf('.') + 1);
+
+      if(!CHART_READ_ONLY_FLAGS.contains(leaf)) {
+         return null;
+      }
+
+      return "'" + leaf + "' is read-only. It reports whether this chart TYPE offers that " +
+         "control -- the dialog uses it to decide what to show -- and is recomputed from the " +
+         "chart type on every read, so a write to it cannot survive. Setting it would have " +
+         "reported success and changed nothing. To change whether grid or trend lines apply, " +
+         "set the properties themselves (gridLine/trendLine colours and styles, facetGrid) or " +
+         "change the chart type with set_chart_type.";
    }
 
    /**
@@ -410,6 +465,10 @@ public final class PropertyAliases {
       aliases.put("diagonalLineColor", "chartLinePaneModel.diagonalLineColor");
       aliases.put("quadrantGridLineStyle", "chartLinePaneModel.quadrantGridLineStyle");
       aliases.put("quadrantGridLineColor", "chartLinePaneModel.quadrantGridLineColor");
+      // Readable so a caller can see WHY projectForward reads back as 0: getPlotComsEnable()
+      // zeroes it on read whenever the chart cannot project forward. Exposing the setting without
+      // its gate left that looking like a dropped write. Refused for write, with the flags below.
+      aliases.put("projectForwardEnabled", "chartLinePaneModel.projectForwardEnabled");
       return aliases;
    }
 
