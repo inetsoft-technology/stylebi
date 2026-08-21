@@ -264,6 +264,22 @@ class DateComparisonServiceTest {
       assertEquals(false, read.get("enabled"));
    }
 
+   /**
+    * getDateComparison() always substitutes a default-populated model for a DateCompareAble
+    * assembly, even right after clear() — it never returns null in that case. Reading "enabled"
+    * from {@code model == null} would report a cleared comparison as still on.
+    */
+   @Test
+   void reportsAClearedComparisonAsDisabledDespiteTheDefaultModel() throws Exception {
+      Harness h = harness(model());
+      when(h.comparisons().isDateComparisonEnabled(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(false);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1");
+
+      assertEquals(false, read.get("enabled"));
+   }
+
    @Test
    void hidesTheEndDateWhenTheRangeAnchorsOnToday() throws Exception {
       Map<String, Object> read = harness(model()).service.read("tok", principal(), "Chart1");
@@ -296,6 +312,8 @@ class DateComparisonServiceTest {
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
          when(comparisons.getDateComparison(anyString(), anyString(), any(Principal.class)))
             .thenReturn(model);
+         when(comparisons.isDateComparisonEnabled(anyString(), anyString(), any(Principal.class)))
+            .thenReturn(model != null);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
