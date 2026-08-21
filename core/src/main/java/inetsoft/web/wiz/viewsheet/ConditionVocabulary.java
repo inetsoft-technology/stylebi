@@ -195,7 +195,7 @@ public final class ConditionVocabulary {
    private static ConditionValueModel value(Object raw) {
       ConditionValueModel value = new ConditionValueModel();
       value.setValue(raw);
-      value.setType("value");
+      value.setType(ConditionValueModel.VALUE);
       return value;
    }
 
