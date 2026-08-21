@@ -23,6 +23,8 @@ import inetsoft.report.painter.ImagePainter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.image.FilteredImageSource;
@@ -866,17 +868,32 @@ public class Gop implements StyleConstants {
       if(fontratios == null) {
          fontratios = new HashMap();
 
-         // get the user defined font ratio to adjust for pdf output, e.g.
-         // pdf.font.ratio=MS Hei:1.1;Algerian-bolditalic:1.02
+         // get the user defined per-font width ratio, e.g.
+         // font.ratio.x=MS Hei:1.1;Algerian-bolditalic:1.02
          String prop = SreeEnv.getProperty("font.ratio.x");
+         String propName = "font.ratio.x";
+         String obsolete = SreeEnv.getProperty("pdf.font.ratio");
 
          if(prop == null) {
-            // obsolete
-            prop = SreeEnv.getProperty("pdf.font.ratio");
+            // pdf.font.ratio is the obsolete name for font.ratio.x and takes
+            // the same name:ratio;name:ratio form
+            prop = obsolete;
+            propName = "pdf.font.ratio";
+
+            if(prop != null) {
+               LOG.warn("The pdf.font.ratio property is obsolete. Use " +
+                        "font.ratio.x instead, with the same list of " +
+                        "font-name:ratio pairs. A single ratio applied to " +
+                        "every font is not supported by either property.");
+            }
+         }
+         else if(obsolete != null) {
+            LOG.warn("Ignoring the obsolete pdf.font.ratio property because " +
+                     "font.ratio.x is also set.");
          }
 
          if(prop != null) {
-            parseRatios(fontratios, prop);
+            parseRatios(fontratios, prop, propName);
          }
 
          noratio = fontratios.size() == 0;
@@ -903,7 +920,7 @@ public class Gop implements StyleConstants {
          String prop = SreeEnv.getProperty("font.ratio.y");
 
          if(prop != null) {
-            parseRatios(vfontratios, prop);
+            parseRatios(vfontratios, prop, "font.ratio.y");
          }
 
          novratio = vfontratios.size() == 0;
@@ -939,17 +956,23 @@ public class Gop implements StyleConstants {
    /**
     * Parse ratio string, in the format as:
     * font-name:ratio;font-name:ration
+    *
+    * @param propName the name of the property the value came from, used to
+    * identify the source of a malformed value in the log.
     */
-   protected void parseRatios(HashMap fontratios, String prop) {
+   protected void parseRatios(HashMap fontratios, String prop, String propName) {
       String[] pairs = Tool.split(prop, ';');
 
       for(int i = 0; i < pairs.length; i++) {
          String[] pair = Tool.split(pairs[i], ':');
 
-         if(pair.length == 2 && pair[0].length() > 0) {
+         if(pair.length == 2 && pair[0].trim().length() > 0) {
             try {
-               Double ratio = Double.valueOf(pair[1]);
-               String name = pair[0];
+               // trim so that a space after the ';' separator, which is the
+               // natural way to write the list, does not produce a font name
+               // that getNameWithStyle() can never match
+               Double ratio = Double.valueOf(pair[1].trim());
+               String name = pair[0].trim();
 
                if(name.indexOf('-') < 0) {
                   // add all font styles
@@ -961,7 +984,17 @@ public class Gop implements StyleConstants {
                fontratios.put(name, ratio);
             }
             catch(Exception e) {
+               LOG.warn("Ignoring \"" + pairs[i] + "\" in the " +
+                        propName + " property value: \"" + pair[1] +
+                        "\" is not a number.");
             }
+         }
+         else if(pairs[i].trim().length() > 0) {
+            LOG.warn("Ignoring \"" + pairs[i] + "\" in the " +
+                     propName + " property value. Expected a list of " +
+                     "font-name:ratio pairs separated by ';', for example " +
+                     "\"MS Hei:1.1;Algerian-bolditalic:1.02\". A single ratio " +
+                     "that applies to every font is not supported.");
          }
       }
    }
@@ -989,6 +1022,8 @@ public class Gop implements StyleConstants {
    public String reorderBidi(String str) {
       return str;
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(Gop.class);
 
    static String[] fonts = null; // font list
    HashMap fontratios = null; // font name -> spacing ratio
