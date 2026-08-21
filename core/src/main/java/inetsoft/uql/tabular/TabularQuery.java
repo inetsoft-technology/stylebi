@@ -367,6 +367,63 @@ public abstract class TabularQuery extends XQuery {
    }
 
    /**
+    * A bounded sample of the rows this query's last execution actually read.
+    *
+    * <p>The same kind of slot as {@link #getResponseShape}, on the same terms — core defines it and
+    * never fills it, only the connector sees a response, absent is the normal state — and it
+    * describes ONE EXECUTION too, so it is likewise cleared by {@link #clone()} and never written
+    * to XML.</p>
+    *
+    * <p>What differs is what it carries: a shape is a property of the connector, these rows are
+    * CUSTOMER DATA. So this one must not be recorded and reused for anyone else, and the connector
+    * that fills it bounds it at the source ({@code JsonRowSampler}, and the
+    * {@code rest.sample.rows} property that can switch sampling off entirely).</p>
+    *
+    * <p>A list, but core never looks inside an element: rows are the connector's response format.
+    * Unmodifiable, recursively — see the field comment for why that matters.</p>
+    */
+   public List<?> getSampleRows() {
+      return sampleRows;
+   }
+
+   /**
+    * @param rows      the sampled rows, or null to report none.
+    * @param truncated whether a limit cut the sample short (rows left out, or a value replaced by a
+    *                  marker) — a consumer extracting parameter values has to tell "this value is
+    *                  not in the response" from "this value was not sampled".
+    */
+   public void setSampleRows(List<?> rows, boolean truncated) {
+      this.sampleRows = rows;
+      this.sampleRowsTruncated = truncated;
+   }
+
+   /**
+    * Whether {@link #getSampleRows} left something out rather than copying every row faithfully.
+    */
+   public boolean isSampleRowsTruncated() {
+      return sampleRowsTruncated;
+   }
+
+   /**
+    * How many rows the caller asked to have reported back. 0, the default, means none — sampling is
+    * OPT-IN, because rows are of no use to a caller that only wanted the column list and are paid
+    * for in that caller's response.
+    *
+    * <p>An INPUT, and that makes it the mirror image of {@link #getSampleRows} in two ways. It is
+    * NOT cleared by {@link #clone()}: the clone is the object that executes, so a limit the caller
+    * set has to reach it or nothing is ever sampled. And it is not written to XML deliberately
+    * rather than incidentally — a saved query that carried it would sample again on every later
+    * render, holding rows of customer data on a query nobody is reading them from.</p>
+    */
+   public int getSampleRowLimit() {
+      return sampleRowLimit;
+   }
+
+   public void setSampleRowLimit(int sampleRowLimit) {
+      this.sampleRowLimit = sampleRowLimit;
+   }
+
+   /**
     * Copy query properties from an existing query.
     */
    public void copyInfo(TabularQuery query) {
@@ -399,6 +456,11 @@ public abstract class TabularQuery extends XQuery {
       copy.responseShape = null;
       copy.responseShapeTruncated = false;
 
+      // Cleared for the same reason, and the reason applies harder here: these are rows of customer
+      // data, so a clone inheriting them would report one execution's data as another's.
+      copy.sampleRows = null;
+      copy.sampleRowsTruncated = false;
+
       return copy;
    }
 
@@ -413,6 +475,18 @@ public abstract class TabularQuery extends XQuery {
     */
    private Object responseShape;
    private boolean responseShapeTruncated;
+   /**
+    * See {@link #getSampleRows}. Cleared by {@link #clone()}, same as {@code responseShape}, and
+    * shared by reference once set in the same way — so it must not be mutated in place. Enforced at
+    * the producing end: {@code JsonRowSampler} returns a recursively unmodifiable structure.
+    */
+   private List<?> sampleRows;
+   private boolean sampleRowsTruncated;
+   /**
+    * See {@link #getSampleRowLimit}. Deliberately NOT cleared by {@link #clone()} — it is the
+    * caller's request rather than an execution's result, and the clone is what executes.
+    */
+   private int sampleRowLimit;
    private Map<String, String> typemap = new HashMap<>();
    private Map<String, String> fmtmap = new HashMap<>();
    private Map<String, String> extentmap = new HashMap<>();

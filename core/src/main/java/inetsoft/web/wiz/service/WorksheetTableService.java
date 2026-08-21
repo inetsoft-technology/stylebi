@@ -299,6 +299,7 @@ public class WorksheetTableService {
       response.setTableName(table.getName());
       response.setColumns(columns);
       applyResponseShape(response, table);
+      applyResponseSampleRows(response, table);
 
       if(request.isAsPrimaryTable()) {
          String dbTableOverride = request.getPhysicalSource() != null
@@ -355,6 +356,44 @@ public class WorksheetTableService {
       // the only thing that carries the difference.
       if(query.isResponseShapeTruncated()) {
          response.setResponseSchemaTruncated(true);
+      }
+   }
+
+   /**
+    * Report a sample of the rows the endpoint returned, when this table came from one.
+    *
+    * <p>Same by-product as the shape and from the same single request — see
+    * {@link #applyResponseShape}. What it adds is the VALUES, which is what a caller needs when the
+    * legal values of one endpoint's parameter are rows of another's data; the shape can only say
+    * that the field exists.</p>
+    *
+    * <p>Kept separate from {@code applyResponseShape} rather than folded in, because the two carry
+    * different things: a shape is a property of the connector, and a sample is customer data that
+    * a deployment can switch off ({@code rest.sample.rows}). They are consumed, bounded and
+    * governed separately, so they are read separately.</p>
+    *
+    * <p>Absent is normal: a non-tabular table has no response, sampling may be off, and an empty
+    * page yields no rows.</p>
+    */
+   private void applyResponseSampleRows(WorksheetTableResponse response,
+                                        AbstractTableAssembly table)
+   {
+      if(!(table.getTableInfo() instanceof TabularTableAssemblyInfo info)) {
+         return;
+      }
+
+      TabularQuery query = info.getQuery();
+
+      if(query == null || query.getSampleRows() == null || query.getSampleRows().isEmpty()) {
+         return;
+      }
+
+      response.setSampleRows(query.getSampleRows());
+
+      // Only set when true, same as the shape's flag: a caller extracting parameter values has to be
+      // able to tell "the response has no such value" from "the sample stopped before it".
+      if(query.isSampleRowsTruncated()) {
+         response.setSampleRowsTruncated(true);
       }
    }
 
@@ -1119,6 +1158,12 @@ public class WorksheetTableService {
       else {
          requireRowCapWhenPaged(query, src.getEndpoint(), dsName);
       }
+
+      // How many rows to report back, carried ON THE QUERY because the runner is the only place that
+      // sees a response and it is the only thing that can sample one. Zero when the caller did not
+      // ask, which is the default: sampling is opt-in, so a table built without this field runs
+      // exactly the request it ran before and reports exactly the columns.
+      query.setSampleRowLimit(src.getSampleRows() == null ? 0 : Math.max(0, src.getSampleRows()));
 
       TabularTableAssembly table = new TabularTableAssembly(worksheet, request.getTableName());
       TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) table.getTableInfo();
