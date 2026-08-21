@@ -21,6 +21,7 @@ import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.XCondition;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,20 @@ class ConditionVocabularyTest {
       assertEquals(1, list.length);
       ConditionModel condition = assertInstanceOf(ConditionModel.class, list[0]);
       assertEquals(XCondition.EQUAL_TO, condition.getOperation());
+   }
+
+   /**
+    * ConditionUtil gates every value-model branch on {@code getType().equals(VALUE)}; a
+    * literal that doesn't match the constant (e.g. a lowercase "value") silently falls through
+    * to a generic fallback instead of the value's real type-specific handling.
+    */
+   @Test
+   void builtValuesCarryTheValueTypeConstant() {
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Region", "equals", List.of("East"), null)), FIELDS);
+
+      ConditionModel condition = (ConditionModel) list[0];
+      assertEquals(ConditionValueModel.VALUE, condition.getValues()[0].getType());
    }
 
    @Test
