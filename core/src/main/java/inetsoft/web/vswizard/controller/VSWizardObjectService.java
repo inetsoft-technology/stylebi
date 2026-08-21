@@ -209,6 +209,11 @@ public class VSWizardObjectService {
          AssetTreeModel assetTreeModel = treeHandler.getChartTreeModel(
             viewsheetService.getAssetRepository(), rvs,
             temporaryInfo.getTempChart().getChartInfo(), true, principal);
+
+         if(assetTreeModel == null) {
+            return null;
+         }
+
          TreeNodeModel model = treeHandler.createTreeNodeModel(
             (AssetTreeModel.Node) assetTreeModel.getRoot(), principal);
          DataRefModel[] grayedOutFields = assemblyHandler.getGrayedOutFields(rvs);
