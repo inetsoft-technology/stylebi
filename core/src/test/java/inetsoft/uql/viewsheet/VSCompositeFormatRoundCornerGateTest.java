@@ -21,7 +21,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import inetsoft.util.css.CSSConstants;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,8 +31,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The DEFAULT tier of roundCorner is gate-owned: a seeded 12 reverts to square when the modern gate is
- * off. USER and CSS tier values are never gate-stripped.
+ * Tier precedence for roundCorner: a USER-tier radius beats a DEFAULT-tier one, and a DEFAULT-tier
+ * radius is honoured whatever the org gate says.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -69,18 +68,13 @@ class VSCompositeFormatRoundCornerGateTest {
    }
 
    @Test
-   void defaultTierSeedStrippedGateOff() {
+   void defaultTierSeedSurvivesGateOff() {
       withGate("false", () -> {
          VSCompositeFormat fmt = withDefaultTierRadius(12);
-         assertEquals(0, fmt.getRoundCorner(), "seeded card reverts to square when the gate is off");
-         assertEquals(0, fmt.getRoundCornerValue(), "format editor shows what is rendered");
+         assertEquals(12, fmt.getRoundCorner(),
+                      "a seeded card keeps its radius; the gate no longer strips it");
+         assertEquals(12, fmt.getRoundCornerValue());
       });
-   }
-
-   @Test
-   void defaultTierNonSeedValuePreservedGateOff() {
-      // a format.css TableStyle radius lands on the DEFAULT tier too; only the exact seed is gate-owned
-      withGate("false", () -> assertEquals(8, withDefaultTierRadius(8).getRoundCorner()));
    }
 
    @Test
@@ -88,7 +82,7 @@ class VSCompositeFormatRoundCornerGateTest {
       withGate("false", () -> {
          VSCompositeFormat fmt = withDefaultTierRadius(12);
          fmt.getUserDefinedFormat().setRoundCornerValue(12);
-         assertEquals(12, fmt.getRoundCorner(), "a user-set radius is never gate-stripped");
+         assertEquals(12, fmt.getRoundCorner(), "the USER tier answers, not the DEFAULT tier");
          assertEquals(12, fmt.getRoundCornerValue());
       });
    }
@@ -106,40 +100,5 @@ class VSCompositeFormatRoundCornerGateTest {
    void bareFormatIsSquareInBothGateStates() {
       withGate("true", () -> assertEquals(0, new VSCompositeFormat().getRoundCorner()));
       withGate("false", () -> assertEquals(0, new VSCompositeFormat().getRoundCorner()));
-   }
-
-   @Test
-   void resolvedRadiusCopiedToUserTierIsNotDoubleStripped() {
-      // export resolves the chart's radius, then re-applies it to a synthetic rectangle's USER tier
-      VSCompositeFormat synthetic = new VSCompositeFormat();
-
-      withGate("true", () -> {
-         VSCompositeFormat source = withDefaultTierRadius(12);
-         assertEquals(12, source.getRoundCorner(), "gate on: the chart card resolves to 12");
-         synthetic.getUserDefinedFormat().setRoundCornerValue(source.getRoundCorner());
-      });
-
-      withGate("false", () -> {
-         // control: the same value on the DEFAULT tier IS stripped, so the assertion below is real
-         assertEquals(0, withDefaultTierRadius(12).getRoundCorner());
-         assertEquals(12, synthetic.getRoundCorner(),
-                      "the USER-tier copy survives the strip");
-      });
-   }
-
-   @Test
-   void tabDefaultTierRadiusIsNotStripped() {
-      // FormatInfo.copyDefaultFormat launders a resolved radius onto a tab's active-format default
-      // tier; a user radius equal to the seed must survive there
-      withGate("false", () -> {
-         VSCompositeFormat tab = new VSCompositeFormat();
-         tab.getCSSFormat().setCSSType(CSSConstants.TAB);
-         tab.getDefaultFormat().setRoundCornerValue(12);
-         assertEquals(12, tab.getRoundCorner(), "a tab default-tier radius is never gate-stripped");
-         assertEquals(12, tab.getRoundCornerValue());
-
-         // control: the same value on a non-tab format IS stripped
-         assertEquals(0, withDefaultTierRadius(12).getRoundCorner());
-      });
    }
 }

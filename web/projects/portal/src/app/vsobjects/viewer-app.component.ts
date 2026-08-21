@@ -2813,7 +2813,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          body.classList.remove(
             "viz-density-comfortable", "viz-density-compact", "viz-density-dense");
 
-         if(modern && ["comfortable", "compact", "dense"].includes(this.vizDensity)) {
+         // unconditional: see the portal shell's comment
+         if(["comfortable", "compact", "dense"].includes(this.vizDensity)) {
             body.classList.add(`viz-density-${this.vizDensity}`);
          }
 

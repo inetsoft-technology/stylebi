@@ -52,9 +52,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The model carries the resolved context, never the mark. P5's central contract: the browser is told
- * "is this assembly modern", not "what mark does it hold", so the gate term that lives on VizContext
- * until P6 is applied exactly once, on the server.
+ * The model carries the resolved context, never the mark: the browser is told "is this assembly
+ * modern", not "what mark does it hold", so the resolution happens exactly once, on the server.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
@@ -103,12 +102,12 @@ class VSObjectModelVizContextTest {
       vs.addAssembly(assembly);
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
-      // gate off: even a dark-marked assembly resolves legacy
+      // gate off: the mark still resolves, since the gate no longer decides how anything renders
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       info.setVizMark(VizMark.MODERN_DARK);
       VizContext gateOff = VizContext.of(info);
-      assertFalse(gateOff.modern, "gate off overrides the mark");
-      assertFalse(gateOff.dark, "dark must not survive a legacy resolution");
+      assertTrue(gateOff.modern, "the mark decides, not the gate");
+      assertTrue(gateOff.dark, "and dark tracks MODERN_DARK whatever the gate says");
 
       // gate on: the mark now resolves, and dark tracks MODERN_DARK specifically
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");

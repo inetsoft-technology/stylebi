@@ -124,6 +124,9 @@
   --inet-viz-font-size: 12px; // only tier that reduces type
 }
 
+// the body carries viz-shell and viz-density-<mode> on ONE element, so org-level surfaces need the
+// compound form; the descendant form below it is for the per-assembly wrapper
+.viz-density-compact.viz-shell,
 .viz-density-compact .viz-modern {
   --inet-viz-row-height: 24px;
   --inet-viz-chrome-row-height: 26px;
@@ -134,6 +137,7 @@
   --inet-viz-font-size: var(--inet-font-size-base); // 13px
 }
 
+.viz-density-comfortable.viz-shell,
 .viz-density-comfortable .viz-modern {
   --inet-viz-row-height: 28px;
   --inet-viz-chrome-row-height: 30px;

@@ -355,6 +355,15 @@ public class GraphTypes {
    }
 
    /**
+    * Check if smooth lines is the chart-type default for this type: non-step Area, Area Stack and
+    * Circular Network. Narrower than isArea(), which also covers step area. Shared by the creation
+    * seed, the type-transition matrix and the wizard so the three cannot drift apart.
+    */
+   public static final boolean isSmoothLinesDefault(int type) {
+      return type == CHART_AREA || type == CHART_AREA_STACK || type == CHART_CIRCULAR;
+   }
+
+   /**
     * Check if is point graph.
     */
    public static final boolean is3DBar(int type) {

@@ -24,7 +24,7 @@ import java.awt.Color;
 
 /**
  * Supplies the modern object-title-bar palette (background / foreground / bottom-border) for titled
- * viewsheet assemblies, gated by the org modern-visualization setting.
+ * viewsheet assemblies, for the VizContext it is handed.
  *
  * The title bar is rendered from the server title VSFormat (getFormatInfo().getFormat(TITLEPATH))
  * with no browser CSS hook and is re-drawn in export, so it is server-owned. Unlike chart chrome, the
@@ -57,8 +57,8 @@ public final class VSTitleChromeDefaults {
 
    /**
     * Return a title format with the modern neutrals substituted, or the original format unchanged
-    * (gate off, or already customized). Applied to the DEFAULT tier of a clone, so the stored format
-    * is never mutated or serialized and a user (USER tier) or format.css (CSS tier) title color still
+    * (legacy context, or already customized). Applied to the DEFAULT tier of a clone, so the stored
+    * format is never mutated or serialized and a user (USER tier) or format.css (CSS tier) title color still
     * wins. Substitution is keyed on whether the user / format.css has set the value — NOT on matching
     * a specific default color — because legacy title backgrounds vary by widget (white, #f5f5f5,
     * transparent); modern mode gives them all one consistent title bar.
@@ -84,8 +84,8 @@ public final class VSTitleChromeDefaults {
     * In-place variant for the export copy (the viewsheet is cloned before export): mutate the title
     * format's DEFAULT tier to the modern neutrals so every per-widget / per-format export title draw
     * resolves the modern chrome from the one shared format rather than needing each draw site wrapped.
-    * No-op when the gate is off or the value is already user / format.css customized; never touches a
-    * persisted format (export clones upstream).
+    * No-op for a legacy context, or when the value is already user / format.css customized; never
+    * touches a persisted format (export clones upstream).
     */
    public static void applyModernDefaultsInPlace(VSCompositeFormat titleFmt, VizContext ctx) {
       if(!ctx.modern || titleFmt == null) {

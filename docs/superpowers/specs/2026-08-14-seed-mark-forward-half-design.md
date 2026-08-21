@@ -1151,7 +1151,8 @@ Five pieces, and pieces 1–4 must land in the same commit:
    was asking for and what decision 11's enumeration point makes free. A `hasMarked(Viewsheet)` beside
    `hasUnmarked` feeds the affordance.
 2. **`ChartVSAssemblyInfo.seedChromeDefaults` gains its `else` branch** (`:106-112`, `if(ctx.modern)` at
-   `:106` with no false side), writing the legacy values `barCornerRadius = 0` and `smoothLines = false`, and
+   `:106` with no false side), writing the legacy values ~~`barCornerRadius = 0` and `smoothLines = false`~~
+   **`barCornerRadius = 0` and the type-derived legacy `smoothLines`**, and
    `PlotDescriptor.modernCornerSeed` and `modernSmoothSeed` are deleted with their fields (`:1996`, `:2009`),
    XML read/write attributes (`:1534-1535`, `:1580-1583`, `:1721-1722`, `:1742-1744`), `equals` terms
    (`:1876-1877`, `:1902-1903`) and self-clearing setters (`:648-652`, `:1335-1339`). The two gate-reading
@@ -1162,6 +1163,32 @@ Five pieces, and pieces 1–4 must land in the same commit:
    type change to Line, and `ChartPlotOptionsPaneModel.java:227-229` guards its radius write solely to keep a
    no-op OK from laundering a seeded radius into an authored one. The first loses one line; the second loses
    its `if` and writes unconditionally.
+
+   **Corrected 2026-08-21 by the whole-phase review: `smoothLines = false` is wrong, and this document is
+   what prescribed the constant.** `smoothLines` is not only a modern seed — it is also a chart-**type**
+   default, with no modern term anywhere. `ChangeChartTypeService.applySmoothLinesTransition` and
+   `VSWizardBindingHandler.applyWizardSmoothLines` both set it `true` for non-step Area, Area Stack and
+   Circular Network. A constant `false` on the legacy branch therefore straight-lines every chart of those
+   three types that Revert touches, a state no legacy Area chart has ever been in, and it breaks the
+   byte-comparability check this section closes with in the one direction that check exists to guarantee:
+   a legacy Area chart holds `true`, Modernize leaves it `true`, Revert writes `false`, so the two
+   directions are not inverse. The `else` branch writes the **type-derived** legacy value instead.
+   Three things the correct form depends on:
+   - **`GraphTypes.isArea()` is the wrong predicate.** It includes `CHART_STEP_AREA` and
+     `CHART_STEP_AREA_STACK` (`GraphTypes.java:331`), which both existing writers deliberately exclude. The
+     list is exactly `CHART_AREA || CHART_AREA_STACK || CHART_CIRCULAR`, and it is now extracted once as
+     `GraphTypes.isSmoothLinesDefault(int)` with all three writers pointing at it — a third copy inside the
+     hook would recreate, on the type-default axis, the drift risk "no separate reverser" exists to prevent.
+   - **Design types only.** `GraphTypeUtil.checkType` resolves `CHART_AUTO` through `getRTChartType()`, which
+     would write `true` for an AUTO chart whose runtime type happens to be Area — a value no legacy chart of
+     that shape holds, because the transition matrix never fired for it.
+   - **Multi-style charts carry a type per measure** (`ChangeChartTypeService.java:140` sets `oldType` from
+     the per-measure ref), so a per-measure switch to Area leaves the info-level type non-Area. The hook
+     checks the info type and, when `isMultiStyles()`, the aggregate types on the X and Y fields.
+   `getVSChartInfo()` can be null (`ChartVSAssemblyInfo.java:1069`, `:1576`), so the hook null-guards it the
+   way `applyWizardSmoothLines` already does. **`barCornerRadius = 0` stands unchanged**: it has no type
+   default, and resetting an author's hand-set radius is the accepted cost already recorded in decision 13's
+   exemption, symmetric because Modernize clobbers it in the forward direction too.
 3. **The `gate &&` term goes** from `VizContext.of(VizMark)` (`VizContext.java:66`), leaving
    `modern = mark != null`. `ofGate()` survives, for `ChartColorPaletteController` and for stamping at
    creation; the persisted guard `VizContextReadFlipTest.exactlyOneDocumentedSiteStillReadsTheOrgGate` keeps
@@ -1250,16 +1277,28 @@ the two above.
   own description is rewritten in the same pass, which is what decision 13's "the EM property now says
   something it does not do" asked for.
 
-*Verification:* a dashboard modernized and then reverted is byte-comparable, in the properties this hook
-touches, with one that was never modernized — the check decision 12's creation-path routing exists to make
-possible, and it must be run against a **freshly created** dashboard, because a pre-mark-cohort asset (P0's
-subject) carries seeded modern values with no mark and would make the comparison meaningless; a marked chart
-in a **gate-off** org renders fully modern including bar corners, smooth lines **and card radius**, which
-could not have passed before this phase and is the clearest single signal that all four deletions went
-together; undo after Revert restores modern chrome in one step; a mixed sheet reverts its marked assemblies
-and leaves its unmarked ones untouched; an embedded viewsheet's own assemblies are not reverted by reverting
-its host; and export agrees with view across PDF, PNG and Excel, since every value Revert writes is persisted
-and painter-read.
+*Verification:* a dashboard modernized and then reverted is byte-comparable, ~~in the properties this hook
+touches~~ **for the values this hook exclusively owns**, with one that was never modernized — the check
+decision 12's creation-path routing exists to make possible, and it must be run against a **freshly
+created** dashboard, because a pre-mark-cohort asset (P0's subject) carries seeded modern values with no
+mark and would make the comparison meaningless; a marked chart in a **gate-off** org renders fully modern
+including bar corners, smooth lines **and card radius**, which could not have passed before this phase and
+is the clearest single signal that all four deletions went together; undo after Revert restores modern
+chrome in one step; a mixed sheet reverts its marked assemblies and leaves its unmarked ones untouched; an
+embedded viewsheet's own assemblies are not reverted by reverting its host; and export agrees with view
+across PDF, PNG and Excel, since every value Revert writes is persisted and painter-read.
+
+**Why the qualifier, added 2026-08-21 with the correction in piece 2.** "The properties this hook touches"
+overstated the guarantee, because one of them is not the hook's alone. `smoothLines` has four writers — the
+creation seed, the type-transition matrix, the wizard, and the author's Plot Options checkbox — and the mark is
+per-assembly, not per-field, so it cannot record *which* values Modernize changed; the boolean that did
+record exactly that, `modernSmoothSeed`, is deleted by piece 2. The legacy branch is therefore deriving a
+value rather than restoring a remembered one, and any derivation is wrong for some population. The
+type-derived form narrows that population from *every Area, Area Stack and Circular chart* to *charts of
+those types whose author explicitly turned smoothing off* — and Modernize already destroyed that choice in
+the forward direction, so it is unrecoverable either way. Byte-comparability holds for the values the hook
+exclusively owns; for `smoothLines` it holds for every chart that has not been hand-edited against its type
+default.
 
 **Five existing tests invert, and that is the phase's assertion rather than breakage.** Enumerated while
 planning, 2026-08-20 — an earlier draft of this paragraph said two, counting only the `VizContext` pair:

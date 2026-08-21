@@ -21,7 +21,7 @@ import java.awt.Color;
 
 /**
  * Supplies the modern table-structure palette (interior gridline, header background/text, grand-total
- * background) for viewsheet table assemblies, gated by the org modern-visualization setting.
+ * background) for viewsheet table assemblies, for the VizContext it is handed.
  *
  * The colors are overlaid onto a per-assembly clone of the shipped "Default Style" in
  * DataVSAQuery, so they behave as DEFAULTS: user cell/column/row formats merge on top and win, and a

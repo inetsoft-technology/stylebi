@@ -19,10 +19,8 @@ package inetsoft.uql.viewsheet;
 
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import inetsoft.uql.viewsheet.internal.XVSFormat;
 import inetsoft.util.Tool;
-import inetsoft.util.css.CSSConstants;
 import org.w3c.dom.Element;
 
 import java.awt.*;
@@ -313,7 +311,7 @@ public class VSCompositeFormat implements XVSFormat {
       return (userfmt.isRoundCornerDefined() || userfmt.isRoundCornerValueDefined())
          ? userfmt.getRoundCorner()
          : cssfmt.isRoundCornerValueDefined() ? cssfmt.getRoundCornerValue()
-         : resolveDefaultTierCorner(deffmt.getRoundCorner());
+         : deffmt.getRoundCorner();
    }
 
    /**
@@ -323,17 +321,7 @@ public class VSCompositeFormat implements XVSFormat {
    public int getRoundCornerValue() {
       return userfmt.isRoundCornerValueDefined() ? userfmt.getRoundCornerValue() :
          cssfmt.isRoundCornerValueDefined() ? cssfmt.getRoundCornerValue() :
-         resolveDefaultTierCorner(deffmt.getRoundCornerValue());
-   }
-
-   /**
-    * Gate-strip a DEFAULT-tier corner radius, except on tab formats. FormatInfo.copyDefaultFormat
-    * copies a composite-resolved radius onto a tab's active-format default tier, so a user radius equal
-    * to the seed would be stripped there. Tab is not a corner-seed target, so no seed can live here.
-    */
-   private int resolveDefaultTierCorner(int radius) {
-      return CSSConstants.TAB.equals(cssfmt.getCSSType())
-         ? radius : VSObjectChromeDefaults.resolveSeededCorner(radius);
+         deffmt.getRoundCornerValue();
    }
 
    @Override

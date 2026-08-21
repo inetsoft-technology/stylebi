@@ -308,7 +308,7 @@ Add to `VizModernizeUtilTest`:
 
    @Test
    void revertIsOfferedAndWorksWithTheGateOff() {
-      // no gate floor, unlike modernize(): decision 13 offers Revert under both gate states
+      // no gate floor, unlike modernize(): reverting is offered under both gate states on purpose
       gateOn();
       Viewsheet vs = new Viewsheet();
       vs.addAssembly(new TextVSAssembly(vs, "Text1"));
@@ -381,7 +381,7 @@ Add to `VizModernizeUtilTest`:
 
    @Test
    void aModernizedThenRevertedSheetMatchesOneNeverModernized() {
-      // the phase's headline property, and the reason decision 12 routed reversal through the
+      // the phase's headline property, and the reason reversal is routed through the
       // creation path: there is no separate reverser whose behaviour could drift
       Viewsheet reverted = legacySheet();
       TableVSAssembly a = (TableVSAssembly) reverted.getAssembly("Table1");
@@ -422,7 +422,7 @@ Add the two public methods after `modernize()`:
     * Whether this sheet holds anything Revert would act on: the sheet's own info, or any assembly
     * of its own, carrying a mark.
     *
-    * No gate term, unlike the modernizable flag: decision 13 offers Revert under both gate states,
+    * No gate term, unlike the modernizable flag: Revert is offered under both gate states on purpose,
     * so an author in a modern org can keep one dashboard classic.
     */
    public static boolean hasMarked(Viewsheet vs) {
@@ -640,7 +640,7 @@ class RevertViewsheetServiceTest {
 
    @Test
    void revertStillWorksWithTheGateOff() throws Exception {
-      // the difference from Modernize that decision 13 is entirely about
+      // the one behavioural difference from Modernize: no gate floor
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
 
       service.revert("rid", principal, dispatcher, "uri");
@@ -843,7 +843,7 @@ In `CoreLifecycleService.java`, immediately after the `modernizable` put at `:31
          // action completes and returns if the user undoes it
          infoMap.put("modernizable",
                      VSDensityDefaults.isModern() && VizModernizeUtil.hasUnmarked(vs));
-         // no gate term, unlike modernizable: decision 13 offers Revert under both gate states, so
+         // no gate term, unlike modernizable: Revert is offered under both gate states on purpose, so
          // an author in a modern org can keep one dashboard classic
          infoMap.put("revertable", VizModernizeUtil.hasMarked(vs));
 ```
@@ -944,7 +944,7 @@ Expected: FAIL — `comp.vs.revertable` is not a property, and `comp.revert` is 
 In `viewsheet.ts`, after `modernizeBarDismissed` at `:56`:
 
 ```typescript
-   /** Server-computed: this sheet holds marked content. No gate term - see decision 13. */
+   /** Server-computed: this sheet holds marked content. No gate term, unlike modernizable. */
    revertable: boolean = false;
 ```
 
@@ -1254,6 +1254,12 @@ In `ChartPlotOptionsPaneModel.java` (`:224-230`), the guard existed only to prot
 
 In all three shells, drop the `if(modern)` guard so `viz-density-<mode>` is present regardless of the gate. After this commit a marked assembly in a gate-off org is modern, and without a density ancestor on the body it would fall back to the bare `.viz-modern` dense tier at every org density.
 
+**This reaches TypeScript as well as CSS, and it is the reason the change matters more than a token fallback.** `GuiTool.vizDensityMode()` (`gui-tool.ts:84-89`) reads the body class directly and returns `"dense"` when none is present, so `isVizDensityAtLeastCompact()` (`:96`) answers `false` for a whole gate-off org today. `isAnchoredResident()` and `isAnchoredChromeSuppressed()` (`mini-toolbar.service.ts:74`, `:90`) both consume it — which means without this step a marked assembly in a gate-off org would take **dense** anchored-strip behaviour whatever density the org chose: no strip at compact or comfortable, and the suppression branch instead.
+
+**And it cannot leak into legacy content, which is what makes it safe.** Both predicates read `vizModern && GuiTool.isVizDensityAtLeastCompact()`, and `vizModern` is the per-assembly flag P5 put on the model. An unmarked assembly has it `false`, so adding a density class to the body of a gate-off org changes nothing for legacy content — verify this by reading those two predicates before making the change, because if either ever drops its `vizModern` term this step becomes a regression rather than a fix.
+
+Related but out of scope: `b371c6aa8` ("stop the modern strip drawing controls that do nothing") changed `showToolbarContainer` so residency no longer decides whether the container's emptiness is checked, and left a proposed follow-on at `plans/2026-08-20-flatten-kebab-under-the-gate.md`. It touches none of P6's files, but it is the commit that made dense's empty-pill branch correct, so a strip anomaly seen while verifying this step should be checked against that plan before being blamed on P6.
+
 `portal/app.component.ts:266-281`:
 
 ```typescript
@@ -1481,7 +1487,7 @@ The headline check below is meaningless against a pre-mark-cohort asset — one 
 5. **Reverting a host does not revert an embedded viewsheet's own assemblies.**
 6. **Revert is offered with the gate off** and refused without write permission on the asset.
 7. **Export agrees with view** — PDF, PNG and Excel, for a reverted dashboard and for a marked one in a gate-off org. Every value Revert writes is persisted and painter-read, so this is not a formality.
-8. **Density applies in a gate-off org with marked content** — set the org to compact, confirm row heights and control heights follow, and confirm the EM still shows the density control.
+8. **Density applies in a gate-off org with marked content** — set the org to compact, confirm row heights and control heights follow, and confirm the EM still shows the density control. Check the **anchored mini-toolbar** specifically: `isAnchoredResident` reads density through `GuiTool`, so a marked assembly in a compact gate-off org must show the anchored strip rather than the dense suppression. Then open a **legacy** dashboard in the same org and confirm it shows neither — that is the half this step could have broken.
 9. **Org-level surfaces take the org density** (Task 1's fix): open a combo-box dropdown in a compact org and confirm its row height is the compact 24px, not the dense 20px.
 10. **The two accepted costs are what was accepted, not something worse** — in a gate-off org, a marked chart's tooltip renders legacy chrome and its plot has no inline-SVG animation. Confirm these are the *only* two surfaces that stay legacy.
 

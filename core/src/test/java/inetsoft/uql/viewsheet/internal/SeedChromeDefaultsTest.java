@@ -248,15 +248,11 @@ class SeedChromeDefaultsTest {
    // ---- the chart's plot seeds -----------------------------------------------------------------
 
    @Test
-   void gateOnChartTakesTheFourPlotSeeds() {
-      // the *Value() accessors read the stored seed; getBarCornerRadius()/isSmoothLines() are
-      // effective getters that consult the gate themselves, which is a P4 concern, not this one
+   void gateOnChartTakesItsPlotSeeds() {
       gateOn();
       PlotDescriptor plot = newChart().getChartDescriptor().getPlotDescriptor();
-      assertEquals(0.3, plot.getBarCornerRadiusValue(), 0.0001);
-      assertTrue(plot.isModernCornerSeed());
-      assertTrue(plot.isSmoothLinesValue());
-      assertTrue(plot.isModernSmoothSeed());
+      assertEquals(0.3, plot.getBarCornerRadius(), 0.0001);
+      assertTrue(plot.isSmoothLines());
    }
 
    @Test
@@ -264,10 +260,8 @@ class SeedChromeDefaultsTest {
       gateOff();
       ChartVSAssemblyInfo info = newChart();
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
-      assertEquals(0.0, plot.getBarCornerRadiusValue(), 0.0001);
-      assertFalse(plot.isModernCornerSeed());
-      assertFalse(plot.isSmoothLinesValue());
-      assertFalse(plot.isModernSmoothSeed());
+      assertEquals(0.0, plot.getBarCornerRadius(), 0.0001);
+      assertFalse(plot.isSmoothLines());
       assertTrue(info.getChartDescriptor().getLegendsDescriptor().isRoundCorners(),
                  "round legend corners are unconditional and must stay in setDefaultFormat");
       assertEquals(10, info.getPadding().top,
@@ -377,10 +371,8 @@ class SeedChromeDefaultsTest {
       assertEquals(VSObjectChromeDefaults.cardBackgroundCss(ctx),
                    objectDefault(info).getBackgroundValue());
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
-      assertEquals(0.3, plot.getBarCornerRadiusValue(), 0.0001, "the plot seeds are reachable");
-      assertTrue(plot.isModernCornerSeed(), "and are recorded as seeds, not author choices");
-      assertTrue(plot.isSmoothLinesValue());
-      assertTrue(plot.isModernSmoothSeed());
+      assertEquals(0.3, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
+      assertTrue(plot.isSmoothLines());
       assertEquals(new Insets(3, 3, 3, 3), info.getPadding(),
                    "padding is not a gate-dependent seed and must not be re-applied");
    }
@@ -417,8 +409,8 @@ class SeedChromeDefaultsTest {
 
    @Test
    void theHookRevertsChromeWhenGivenALegacyContext() {
-      // the ternaries live in the hook, so a legacy context writes the legacy values. Nothing
-      // calls it that way in P3 - this pins the contract P4's flip will depend on.
+      // the ternaries live in the hook, so a legacy context writes the legacy values. Revert is
+      // what calls it that way.
       gateOn();
       TableVSAssemblyInfo info = newTable();
 
@@ -427,6 +419,23 @@ class SeedChromeDefaultsTest {
       assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR,
                    objectDefault(info).getBorderColorsValue().topColor);
       assertEquals(0, objectDefault(info).getRoundCornerValue());
+   }
+
+   @Test
+   void chartPlotSeedsAreWrittenOnTheLegacyBranchToo() {
+      // the hook has to be able to un-seed, not only seed: Revert calls it with an unmarked
+      // context and expects the legacy values written rather than left alone
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.initDefaultFormat();
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      plot.setBarCornerRadius(0.4);
+      plot.setSmoothLines(true);
+
+      info.seedChromeDefaults(VizContext.LEGACY);
+
+      assertEquals(0.0, plot.getBarCornerRadius(), 0.0001,
+                   "an unmarked context writes the legacy radius");
+      assertFalse(plot.isSmoothLines(), "and the legacy smoothing");
    }
 
    // ---- creation seeds from the assembly's own mark, not the org gate -------------------------

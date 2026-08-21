@@ -102,14 +102,60 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       super.seedChromeDefaults(ctx);
       getFormat().getDefaultFormat().setBackgroundValue(
          VSObjectChromeDefaults.cardBackgroundCss(ctx));
+      PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
 
       if(ctx.modern) {
-         PlotDescriptor plotDesc = getChartDescriptor().getPlotDescriptor();
          plotDesc.setBarCornerRadius(0.3);
-         plotDesc.setModernCornerSeed(true);
          plotDesc.setSmoothLines(true);
-         plotDesc.setModernSmoothSeed(true);
       }
+      else {
+         // Revert calls this with an unmarked context and needs the legacy values written, not
+         // left alone. Value-identical at gate-off creation, where both fields already hold these.
+         plotDesc.setBarCornerRadius(0);
+         // smoothLines also has a chart-type default, so the legacy value is type-dependent: a
+         // constant false would straight-line an Area chart no legacy Area chart ever was.
+         plotDesc.setSmoothLines(legacySmoothLines());
+      }
+   }
+
+   /**
+    * The smoothLines a legacy chart of this type carries: on for non-step Area, Area Stack and
+    * Circular Network, off otherwise. Design types and design multi-styles only - an AUTO chart
+    * whose runtime type is Area never had the type default applied, so resolving AUTO here would
+    * write a value no legacy chart holds, and a chart date comparison has forced into runtime
+    * multi-styles is still single-style by design. Multi-style charts carry a type per measure, so
+    * the aggregates are checked too.
+    */
+   private boolean legacySmoothLines() {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return false;
+      }
+
+      if(GraphTypes.isSmoothLinesDefault(info.getChartType())) {
+         return true;
+      }
+
+      return info.isMultiStyles(true)
+         && (anySmoothLinesAggregate(info.getXFields())
+            || anySmoothLinesAggregate(info.getYFields()));
+   }
+
+   private static boolean anySmoothLinesAggregate(ChartRef[] refs) {
+      if(refs == null) {
+         return false;
+      }
+
+      for(ChartRef ref : refs) {
+         if(ref instanceof ChartAggregateRef
+            && GraphTypes.isSmoothLinesDefault(((ChartAggregateRef) ref).getChartType()))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    @Override

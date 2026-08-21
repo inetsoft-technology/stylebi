@@ -422,6 +422,14 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             action: () => this.modernize()
          },
          {
+            id: () => "composer vspane revert",
+            label: () => "_#(js:composer.vs.revert.menu)",
+            icon: () => "reset-icon",
+            enabled: () => true,
+            visible: () => this.vs.revertable && !this.deployed,
+            action: () => this.revert()
+         },
+         {
             id: () => "composer vspane preview",
             label: () => "_#(js:Preview)",
             icon: () => "eye-icon",
@@ -818,6 +826,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.messageLevels = command.info["messageLevels"];
       this.vs.snapGrid = command.info["snapGrid"];
       this.vs.modernizable = !!command.info["modernizable"];
+      this.vs.revertable = !!command.info["revertable"];
       this.hasScript = command.hasScript;
       this.hideNotifications = !!command.hideNotifications;
       this.refreshStatus();
@@ -1710,6 +1719,23 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       // endpoint with nothing to do, and @Undoable would still checkpoint it
       this.vs.modernizable = false;
       this.vs.socketConnection.sendEvent("/events/composer/viewsheet/modernize");
+   }
+
+   revert(): Promise<void> {
+      return this.confirm("_#(js:composer.vs.revert.confirm)").then((ok: boolean) => {
+         if(!ok) {
+            return;
+         }
+
+         // hide the entry at once: a second press before the refresh lands would reach the
+         // endpoint with nothing to do, and @Undoable would still checkpoint it
+         this.vs.revertable = false;
+         // modernizable is recomputed on every refresh, so a reverted sheet qualifies again the
+         // instant the refresh lands. Reuse the per-session dismissal rather than let the bar
+         // offer to undo what was just done.
+         this.vs.modernizeBarDismissed = true;
+         this.vs.socketConnection.sendEvent("/events/composer/viewsheet/revert");
+      });
    }
 
    /**

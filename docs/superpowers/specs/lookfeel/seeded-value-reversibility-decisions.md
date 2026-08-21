@@ -598,9 +598,20 @@ does is reverted by the same edit to the same method, or it is not added at all.
 also cleared USER-tier values, reasoning that a value a designer chose to suit modern chrome may not work
 against legacy. That justification belonged to an org-wide sweep the designer did not ask for. Under an
 action a person presses on their own dashboard, the symmetric rule is both safer and the one that cannot
-drift: **Revert undoes exactly what Modernize does, because they are the same method.** Modernize has never
-touched the USER tier, so neither does Revert. A designer who tuned colours for modern chrome keeps them
-after reverting, and can change them.
+drift: **Revert undoes exactly what Modernize does, for the values this hook exclusively owns, because they
+are the same method.** Modernize has never touched the USER tier, so neither does Revert. A designer who
+tuned colours for modern chrome keeps them after reverting, and can change them.
+
+*The qualifier was added 2026-08-21 by the P6 whole-phase review, and it is narrower than the exemption
+below.* `smoothLines` has a **chart-type** default as well as a modern one — non-step Area, Area Stack and
+Circular Network are smooth whatever the org gate says — so the legacy branch cannot write a constant. It
+derives the value from the chart's design type instead, via the one shared
+`GraphTypes.isSmoothLinesDefault(int)` the type-transition matrix and the wizard also use. Deriving is not
+remembering: the mark is per-assembly, not per-field, so nothing records *which* values Modernize changed
+once `modernSmoothSeed` is gone, and the derivation is wrong for exactly one population — a chart of those
+three types whose author explicitly turned smoothing off. Modernize destroyed that choice in the forward
+direction too, so it is unrecoverable either way, which is why this stays an accepted cost rather than
+reopening the marker question.
 
 **One exemption, added 2026-08-20 by the P6 review: two chart values have no tiers, so the sentence above
 does not cover them.** `PlotDescriptor.barCornerRadius` and `smoothLines` are plain fields on the descriptor,
