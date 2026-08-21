@@ -25,6 +25,15 @@
   vertical-align: top;
 }
 
+// The detail-table header row reads as an extension of the selected assembly,
+// so this component alone uses the composer selected tone rather than the
+// shared --inet-ws-header-primary/secondary-bg-color tokens (which other
+// components rely on for an unrelated rose-family distinction).
+.ws-header-primary-bg-color,
+.ws-header-secondary-bg-color {
+  background-color: var(--inet-composer-selected-bg);
+}
+
 .column-buttons {
   position: absolute;
   top: 0;

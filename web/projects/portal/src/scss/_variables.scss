@@ -384,10 +384,12 @@ $sqrt2: 1.41421356;
   --inet-schema-column-connected-bg-color: var(--inet-ws-schema-connected-bg);
   --inet-schema-column-compatible-bg-color: var(--inet-ws-schema-compatible-bg);
   --inet-schema-column-incompatible-bg-color: var(--inet-ws-schema-incompatible-bg);
-  // detail pane header shares the selected block's tone so it reads as an
-  // extension of the assembly it belongs to, not a separate accent family
-  --inet-ws-header-primary-bg-color: var(--inet-composer-selected-bg);
-  --inet-ws-header-secondary-bg-color: var(--inet-composer-selected-bg);
+  // these two also drive the primary/secondary distinction in edit-join-table's
+  // dragging state, join-node-graph's alias-node state, and the schema/concat
+  // table title bars, so keep them at their original rose family here; the
+  // detail pane's own selected-bg treatment is scoped to ws-header-cell.component.scss
+  --inet-ws-header-primary-bg-color: var(--inet-third-color);
+  --inet-ws-header-secondary-bg-color: var(--inet-third-color-light);
   --inet-ws-table-odd-row-bg-color: #{$worksheet-row-odd-bg};
   --inet-ws-table-even-row-bg-color: #{$worksheet-row-even-bg};
   --inet-ws-schema-highlight-bg: #{$ws-schema-highlight-bg};
