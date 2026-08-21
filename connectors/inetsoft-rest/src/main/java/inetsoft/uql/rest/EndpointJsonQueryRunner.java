@@ -27,6 +27,7 @@ import inetsoft.uql.rest.json.RestJsonQuery;
 import inetsoft.uql.rest.json.lookup.*;
 import inetsoft.uql.rest.json.lookup.LookupService;
 import inetsoft.uql.util.BaseJsonTable;
+import inetsoft.uql.util.JsonShapeDistiller;
 import inetsoft.uql.util.LookupList;
 import inetsoft.uql.util.LookupMap;
 import org.slf4j.Logger;
@@ -57,11 +58,35 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
          strategy.setLiveMode(isLiveMode());
          strategy.setTouchTimestamp(getTouchTimestamp());
 
+         boolean shaped = false;
+
          while(hasNext(strategy, table)) {
             final Object json = strategy.next();
 
             if(json == null) {
                break;
+            }
+
+            // Distil the response's SHAPE before jsonPath narrows it, and before doLookups mutates
+            // it by grafting lookup responses in. Three things make this the right point and no
+            // other:
+            //
+            //  - It costs NO EXTRA REQUEST. This page has already been fetched and paid for. The
+            //    alternative -- RestJsonQuery.getJsonMetadata() -- dials the endpoint a second time
+            //    from inside a getter, caches a failure permanently as "{}", persists real records
+            //    into the worksheet XML, and changes the column set by merging the metadata table's
+            //    own headers in. None of that applies here.
+            //  - It is BEFORE selectData, so a wrong jsonPath cannot corrupt it. That is the point:
+            //    when the caller guessed the row path wrong and built a table of envelope columns,
+            //    this shape is what tells it where the rows actually are.
+            //  - It is the FIRST page only. Later pages repeat the same structure, and a shape is a
+            //    statement about the endpoint rather than about how much of it was read.
+            //
+            // Values are dropped by the distiller, never carried here: the shape is a property of
+            // the connector, the body is customer data. See JsonShapeDistiller.
+            if(!shaped) {
+               shaped = true;
+               shapeResponse(json);
             }
 
             doLookups(query, json);
@@ -78,4 +103,25 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
 
       return table;
    }
+
+   /**
+    * Record the response shape on the query, swallowing anything that goes wrong.
+    *
+    * <p>The shape is a BY-PRODUCT. A malformed response, an unexpected object model, a cap that
+    * fires -- none of it may cost the caller the table it asked for, which is the thing it actually
+    * requested and already paid a request for. So a failure here is logged and dropped, and the
+    * caller simply sees no shape.</p>
+    */
+   private void shapeResponse(Object json) {
+      try {
+         JsonShapeDistiller.Result result = JsonShapeDistiller.distill(json);
+         query.setResponseShape(result.getShape(), result.isTruncated());
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to distil the response shape for " + query.getClass().getSimpleName(), ex);
+      }
+   }
+
+   private static final Logger LOG =
+      LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

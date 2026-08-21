@@ -298,6 +298,7 @@ public class WorksheetTableService {
       WorksheetTableResponse response = new WorksheetTableResponse();
       response.setTableName(table.getName());
       response.setColumns(columns);
+      applyResponseShape(response, table);
 
       if(request.isAsPrimaryTable()) {
          String dbTableOverride = request.getPhysicalSource() != null
@@ -315,6 +316,46 @@ public class WorksheetTableService {
       }
 
       return response;
+   }
+
+   /**
+    * Report the shape of the response the endpoint returned, when this table came from one.
+    *
+    * <p>Only a {@code tabular table} has one: it is the only table type built by sending a request,
+    * and {@code loadColumnSelection} has already sent it by the time this runs. So the shape is a
+    * BY-PRODUCT of work already done and already paid for — no second request, and nothing to
+    * enable. See {@code EndpointJsonQueryRunner} for where it is distilled and why there.</p>
+    *
+    * <p>WHY THE CALLER NEEDS IT, given it also gets {@code columns}: the columns are what the row
+    * path it chose produced, and {@code jsonPath} defaults to {@code "$"}
+    * ({@code RestJsonQuery.getValidJsonPath}). A caller that guessed wrong against an envelope
+    * response — {@code {object, url, has_more, data:[...]}} — gets a one-row table of envelope
+    * columns and no way to tell that from a correct result. The shape is distilled BEFORE the row
+    * path is applied, so it is unaffected by that mistake and is what identifies the real rows.</p>
+    *
+    * <p>Absent is normal and not an error: a non-tabular table has no response, a connector may
+    * report no shape, and {@code getQuery()} is {@code @Nullable} when the data source plugin is
+    * missing.</p>
+    */
+   private void applyResponseShape(WorksheetTableResponse response, AbstractTableAssembly table) {
+      if(!(table.getTableInfo() instanceof TabularTableAssemblyInfo info)) {
+         return;
+      }
+
+      TabularQuery query = info.getQuery();
+
+      if(query == null || query.getResponseShape() == null) {
+         return;
+      }
+
+      response.setResponseSchema(query.getResponseShape());
+
+      // Only set when true. A truncated shape is the exceptional case, and a caller has to be able
+      // to tell "this path is not in the response" from "this path was not reached" — the flag is
+      // the only thing that carries the difference.
+      if(query.isResponseShapeTruncated()) {
+         response.setResponseSchemaTruncated(true);
+      }
    }
 
    // ─── Probe: execute a freshly-built table to surface render-time query failures ──────────

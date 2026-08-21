@@ -87,6 +87,22 @@ public class TabularHandler extends XHandler {
          tbl = runtime.runQuery((TabularQuery) query, params);
       }
 
+      // Carry the response shape across the clone made above. A runner sees only the clone, so
+      // anything it records there is otherwise dropped the moment this method returns -- and
+      // dropped silently, which reads as "this connector reports no shape" rather than as a lost
+      // write.
+      //
+      // Copied unconditionally, including when it is null, so a re-execution that produced no shape
+      // clears a stale one rather than leaving the previous run's answer in place. That only holds
+      // because TabularQuery.clone() clears the field: super.clone() is shallow, so without it the
+      // clone would arrive carrying the ORIGINAL's shape from an earlier run and this line would
+      // copy it straight back -- a no-op dressed as a clear.
+      //
+      // Untyped on purpose: core defines the slot and never interprets it (see
+      // TabularQuery.getResponseShape). Whatever the connector put there is what the caller gets.
+      oquery.setResponseShape(((TabularQuery) query).getResponseShape(),
+                              ((TabularQuery) query).isResponseShapeTruncated());
+
       if(tbl != null && tbl.getColCount() > 0) {
          int max = TabularUtil.getMaxRows(query, params);
 
