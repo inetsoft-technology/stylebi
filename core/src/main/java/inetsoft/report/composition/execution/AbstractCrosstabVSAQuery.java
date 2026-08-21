@@ -1047,6 +1047,16 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          if(colname.equals(aggrs[i].getName())) {
             return i;
          }
+
+         // The aggregate's full/VS name (used above, and by VSCrosstabInfo.fixCol() to
+         // normalize a matching sortByCol) is always entity-free, but getName() is
+         // entity-qualified whenever the underlying column comes from a real (non-embedded)
+         // table -- the normal case. A sortByField naming the bare column, exactly like every
+         // sibling API (set_field_ranking's measure, set_table_fields/add_table_field's
+         // column), then silently fails to match here and the sort falls back to the label.
+         if(colname.equals(aggrs[i].getAttribute())) {
+            return i;
+         }
       }
 
       return -1;
