@@ -25,9 +25,12 @@
       <form [formGroup]="form" class="container-fluid">
         <div class="shell-form-row--field row">
           <div class="col">
-            <input type="file" class="form-control-file" id="file"
-              accept=".csv,.txt,.xls,.xlsx"
-              (change)="updateFile($event)">
+            <div class="d-flex align-items-center">
+              <button type="button" class="btn btn-default" (click)="openFileUpload()">_#(Choose File)</button>
+              <span class="ms-2 text-truncate">{{model.fileName || '_#(No file chosen)'}}</span>
+              <input type="file" id="file" accept=".csv,.txt,.xls,.xlsx"
+                (change)="updateFile($event)" hidden #fileInput>
+            </div>
             @if (fileUploadProgress) {
               <ngb-progressbar type="success" [animated]="true"
               [value]="fileUploadProgress" [striped]="true"></ngb-progressbar>

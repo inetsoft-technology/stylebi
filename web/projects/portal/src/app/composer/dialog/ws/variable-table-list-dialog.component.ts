@@ -21,6 +21,7 @@ import { VariableTableListDialogModel } from "../../data/ws/variable-table-list-
 import { AbstractTableAssembly, getHeader } from "../../data/ws/abstract-table-assembly";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
+import { GenericSelectableList } from "../../../widget/generic-selectable-list/generic-selectable-list.component";
 
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
@@ -29,7 +30,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "variable-table-list-dialog",
     templateUrl: "variable-table-list-dialog.component.html",
     styleUrls: ["variable-table-list-dialog.component.scss"],
-    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, CustomSelectComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, CustomSelectComponent, GenericSelectableList]
 })
 
 export class VariableTableListDialog implements OnInit {
@@ -79,6 +80,8 @@ export class VariableTableListDialog implements OnInit {
    public get modelIndex(): number {
       return this.tables.findIndex((t) => t.name === this.form.get("tableName").value);
    }
+
+   tableElementToString = (table: AbstractTableAssembly): string => table.name;
 
    public updateTableName(index: number) {
       this.currentTable = this.tables[index];
