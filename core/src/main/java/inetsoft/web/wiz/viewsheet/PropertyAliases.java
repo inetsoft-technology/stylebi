@@ -320,7 +320,13 @@ public final class PropertyAliases {
       String basic = generalPrefix + ".basicGeneralPaneModel";
       aliases.put("name", basic + ".name");
       aliases.put("visible", basic + ".visible");
-      aliases.put("enabled", basic + ".enabled");
+      // Deliberately NOT basicGeneralPaneModel.enabled, one level down with its siblings.
+      // That field is the Editable flag wearing the wrong name -- its own setter is declared
+      // setEnabled(boolean editable) and toString() prints it as editable= -- and nothing in the
+      // tree ever writes it, so an alias pointing there read a permanent default of false and
+      // wrote somewhere no one reads. The live switch is GeneralPropPaneModel.enabled, which
+      // every property dialog service fills from VSAssemblyInfo.getEnabledValue().
+      aliases.put("enabled", generalPrefix + ".enabled");
       aliases.put("shadow", basic + ".shadow");
       aliases.put("primary", basic + ".primary");
       aliases.put("refresh", basic + ".refresh");
