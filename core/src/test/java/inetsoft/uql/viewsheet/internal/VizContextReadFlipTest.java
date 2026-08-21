@@ -83,11 +83,11 @@ class VizContextReadFlipTest {
    }
 
    @Test
-   void closingTheGateStillRevertsAMarkedAssembly() {
+   void closingTheGateRevertsNothing() {
       TableVSAssemblyInfo marked = markedTable();
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
-      assertFalse(VizContext.of(marked).modern,
-                  "the gate && term in of(mark) is what makes gate-off revert read-time chrome");
+      assertTrue(VizContext.of(marked).modern,
+                 "closing the gate reverts nothing; Revert is the only route back");
    }
 
    @Test

@@ -268,13 +268,12 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       const modern: boolean = !!this.model.modernVisualization;
       body.classList.toggle(this.VIZ_SHELL_CLASS, modern);
       body.classList.remove(...this.VIZ_DENSITY_CLASSES);
+      const densityClass = `viz-density-${this.model.vizDensity}`;
 
-      if(modern) {
-         const densityClass = `viz-density-${this.model.vizDensity}`;
-
-         if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
-            body.classList.add(densityClass);
-         }
+      // unconditional: a marked assembly renders modern in a gate-off org too, and without a
+      // density ancestor it would take the bare .viz-modern dense tier whatever the org chose
+      if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
+         body.classList.add(densityClass);
       }
 
       body.classList.toggle(this.VIZ_SHELL_DARK_CLASS, modern && !!this.model.darkMode);

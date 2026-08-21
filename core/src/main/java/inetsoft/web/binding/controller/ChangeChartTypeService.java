@@ -313,34 +313,37 @@ public class ChangeChartTypeService {
     * Default smoothLines on first transition into a (non-step) Area or Circular type so newly-
     * created charts use smooth curves; user can still turn it off via Plot Options. On the
     * reverse transition (Area/Circular → Line) clear the flag so the Line chart does not
-    * silently inherit curves from the previously-smooth source type, unless the modern gate is
-    * on, in which case any transition into Line sets smoothLines instead.
+    * silently inherit curves from the previously-smooth source type, unless the chart itself is
+    * modern, in which case any transition into Line sets smoothLines instead.
     *
     * <p>Package-private and pure (no Spring/runtime state) so the transition matrix is unit-
-    * testable without standing up the WebSocket controller; the gate is passed in rather than
-    * read here to keep it that way.
+    * testable without standing up the WebSocket controller; the caller resolves the chart's own
+    * modern state and passes it in rather than it being read here, to keep it that way.
     */
    static void applySmoothLinesTransition(int oldType, int newType, PlotDescriptor plotDesc,
                                           boolean modern)
    {
-      boolean newIsArea = newType == GraphTypes.CHART_AREA || newType == GraphTypes.CHART_AREA_STACK;
-      boolean oldIsArea = oldType == GraphTypes.CHART_AREA || oldType == GraphTypes.CHART_AREA_STACK;
-      boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
-      boolean oldIsLine = oldType == GraphTypes.CHART_LINE || oldType == GraphTypes.CHART_LINE_STACK;
+      boolean newSmoothDefault = GraphTypes.isSmoothLinesDefault(newType);
+      boolean oldSmoothDefault = GraphTypes.isSmoothLinesDefault(oldType);
       boolean newIsCircular = newType == GraphTypes.CHART_CIRCULAR;
       boolean oldIsCircular = oldType == GraphTypes.CHART_CIRCULAR;
+      // the shared default splits into two transitions here: entering Area and entering Circular
+      // are separate, so Circular -> Area still defaults on
+      boolean newIsArea = newSmoothDefault && !newIsCircular;
+      boolean oldIsArea = oldSmoothDefault && !oldIsCircular;
+      boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
+      boolean oldIsLine = oldType == GraphTypes.CHART_LINE || oldType == GraphTypes.CHART_LINE_STACK;
 
       if((newIsArea && !oldIsArea) || (newIsCircular && !oldIsCircular)) {
          plotDesc.setSmoothLines(true);
       }
       else if(newIsLine) {
          if(modern && !oldIsLine) {
-            // under the gate a line chart is smooth; set rather than preserve, since a saved chart
-            // switched to Line carries no marker
+            // a modern chart switched into Line is smooth whatever the source type had, so set
+            // rather than preserve
             plotDesc.setSmoothLines(true);
-            plotDesc.setModernSmoothSeed(true);
          }
-         else if(oldIsArea || oldIsCircular) {
+         else if(oldSmoothDefault) {
             plotDesc.setSmoothLines(false);
          }
       }

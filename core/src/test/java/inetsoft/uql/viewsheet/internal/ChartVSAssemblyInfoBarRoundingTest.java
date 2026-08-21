@@ -65,7 +65,6 @@ class ChartVSAssemblyInfoBarRoundingTest {
       withGate("true", () -> {
          PlotDescriptor plot = newChartPlot();
          assertEquals(0.3, plot.getBarCornerRadius(), 1e-9);
-         assertTrue(plot.isModernCornerSeed(), "seeded value is marked as gate-owned");
       });
    }
 
@@ -74,19 +73,17 @@ class ChartVSAssemblyInfoBarRoundingTest {
       withGate("false", () -> {
          PlotDescriptor plot = newChartPlot();
          assertEquals(0.0, plot.getBarCornerRadius(), 1e-9);
-         assertFalse(plot.isModernCornerSeed());
       });
    }
 
    @Test
-   void seededBarRadiusRevertsWhenGateTurnedOff() {
+   void seededBarRadiusSurvivesTheGateTurningOff() {
       PlotDescriptor[] holder = new PlotDescriptor[1];
       withGate("true", () -> holder[0] = newChartPlot());
 
-      withGate("false", () -> assertEquals(0.0, holder[0].getBarCornerRadius(), 1e-9,
-                                           "a chart made under the gate goes square once it is off"));
-      withGate("true", () -> assertEquals(0.3, holder[0].getBarCornerRadius(), 1e-9,
-                                          "and rounds again when the gate returns"));
+      withGate("false", () -> assertEquals(0.3, holder[0].getBarCornerRadius(), 1e-9,
+                                           "a chart made under the gate stays rounded; Revert is "
+                                              + "the only route back to square"));
    }
 
    @Test
@@ -110,7 +107,6 @@ class ChartVSAssemblyInfoBarRoundingTest {
       withGate("true", () -> {
          PlotDescriptor plot = newChartPlot();
          assertTrue(plot.isSmoothLines());
-         assertTrue(plot.isModernSmoothSeed(), "seeded value is marked as gate-owned");
       });
    }
 
@@ -119,18 +115,15 @@ class ChartVSAssemblyInfoBarRoundingTest {
       withGate("false", () -> {
          PlotDescriptor plot = newChartPlot();
          assertFalse(plot.isSmoothLines());
-         assertFalse(plot.isModernSmoothSeed());
       });
    }
 
    @Test
-   void seededSmoothLinesRevertsWhenGateTurnedOff() {
+   void seededSmoothLinesSurviveTheGateTurningOff() {
       PlotDescriptor[] holder = new PlotDescriptor[1];
       withGate("true", () -> holder[0] = newChartPlot());
 
-      withGate("false", () -> assertFalse(holder[0].isSmoothLines(),
-                                          "a chart made under the gate goes straight once it is off"));
-      withGate("true", () -> assertTrue(holder[0].isSmoothLines(),
-                                        "and smooths again when the gate returns"));
+      withGate("false", () -> assertTrue(holder[0].isSmoothLines(),
+                                         "a chart made under the gate stays smooth"));
    }
 }

@@ -23,13 +23,15 @@ import inetsoft.uql.viewsheet.Viewsheet;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
- * Modernize: give an existing dashboard's unmarked content the chrome a freshly created dashboard
- * would have. It lives in this package because seedChromeDefaults is protected.
+ * Modernize and Revert: move a dashboard's own content between the classic and modern chrome a
+ * freshly created dashboard would have. Both run through seedChromeDefaults, which is why they
+ * cannot drift apart, and both live in this package because that method is protected.
  *
- * Unmarked content is never touched automatically - this is the one route in, and something has to
- * ask for it. Marked content is left exactly as it is, so a mixed dashboard stays mixed.
+ * Nothing here is automatic - unmarked content is never modernized and marked content is never
+ * reverted unless somebody asks. A mixed dashboard stays mixed either way.
  */
 public final class VizModernizeUtil {
    private VizModernizeUtil() {
@@ -69,14 +71,60 @@ public final class VizModernizeUtil {
    }
 
    /**
-    * The sheet's own info, every unmarked assembly of its own, and every unmarked embedded-viewsheet
-    * container of its own. Assemblies belonging to an embedded viewsheet are skipped: they are
-    * another asset's content, and this sheet has no business writing to them.
+    * Whether this sheet holds anything Revert would act on: the sheet's own info, or any assembly
+    * of its own, carrying a mark.
+    *
+    * No gate term, unlike the modernizable flag: Revert is offered under both gate states on purpose,
+    * so an author in a modern org can keep one dashboard classic.
     */
+   public static boolean hasMarked(Viewsheet vs) {
+      return !marked(vs).isEmpty();
+   }
+
+   /**
+    * Clear the mark on every marked assembly, and on the sheet itself, then re-seed each through
+    * the same hook creation uses. Returns how many were touched.
+    *
+    * No reverser is written: with the mark cleared, seedChromeDefaults writes the legacy branch of
+    * every ternary, which is the identical call a gate-off creation makes. A property added to what
+    * Modernize does is therefore reverted by the same edit to the same method, or it is not added.
+    *
+    * No gate floor, unlike modernize(): modernizing into a closed gate produces content that
+    * changes appearance the moment the gate opens, and clearing a mark has no such hazard.
+    */
+   public static int revert(Viewsheet vs) {
+      List<VSAssemblyInfo> targets = marked(vs);
+      // every target is unmarked by the time it is seeded, so one context serves them all; the
+      // cast picks the VizMark overload rather than the VSAssemblyInfo one
+      VizContext ctx = VizContext.of((VizMark) null);
+
+      for(VSAssemblyInfo info : targets) {
+         info.setVizMark(null);
+         info.seedChromeDefaults(ctx);
+      }
+
+      return targets.size();
+   }
+
+   /** The unmarked half of the sheet's own content. Modernize's targets. */
    private static List<VSAssemblyInfo> unmarked(Viewsheet vs) {
+      return collect(vs, info -> info.getVizMark() == null);
+   }
+
+   /** The marked half of the sheet's own content. Revert's targets - the same traversal inverted. */
+   private static List<VSAssemblyInfo> marked(Viewsheet vs) {
+      return collect(vs, info -> info.getVizMark() != null);
+   }
+
+   /**
+    * The sheet's own info, every matching assembly of its own, and every matching
+    * embedded-viewsheet container of its own. Assemblies belonging to an embedded viewsheet are
+    * skipped: they are another asset's content, and this sheet has no business writing to them.
+    */
+   private static List<VSAssemblyInfo> collect(Viewsheet vs, Predicate<VSAssemblyInfo> test) {
       List<VSAssemblyInfo> targets = new ArrayList<>();
 
-      addIfUnmarked(targets, vs.getVSAssemblyInfo());
+      addIf(targets, vs.getVSAssemblyInfo(), test);
 
       for(Assembly assembly : vs.getAssemblies(true)) {
          if(!(assembly instanceof VSAssembly)) {
@@ -86,7 +134,7 @@ public final class VizModernizeUtil {
          VSAssemblyInfo info = ((VSAssembly) assembly).getVSAssemblyInfo();
 
          if(info != null && !info.isEmbedded()) {
-            addIfUnmarked(targets, info);
+            addIf(targets, info, test);
          }
       }
 
@@ -96,15 +144,17 @@ public final class VizModernizeUtil {
       // embedded asset and stay excluded by the isEmbedded() test above.
       for(Assembly assembly : vs.getAssemblies(false)) {
          if(assembly instanceof Viewsheet) {
-            addIfUnmarked(targets, ((Viewsheet) assembly).getVSAssemblyInfo());
+            addIf(targets, ((Viewsheet) assembly).getVSAssemblyInfo(), test);
          }
       }
 
       return targets;
    }
 
-   private static void addIfUnmarked(List<VSAssemblyInfo> targets, VSAssemblyInfo info) {
-      if(info != null && info.getVizMark() == null) {
+   private static void addIf(List<VSAssemblyInfo> targets, VSAssemblyInfo info,
+                             Predicate<VSAssemblyInfo> test)
+   {
+      if(info != null && test.test(info)) {
          targets.add(info);
       }
    }

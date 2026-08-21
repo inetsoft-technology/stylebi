@@ -35,9 +35,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for VSWizardBindingHandler.applyWizardSmoothLines, the ungated re-assertion that
- * must keep wizard-created Area/Circular charts gate-unowned even though initDefaultFormat's
- * gated seed already ran and marked them gate-owned.
+ * Unit tests for VSWizardBindingHandler.applyWizardSmoothLines, the wizard's own statement that
+ * Area/Circular charts are created smooth. initDefaultFormat now writes that same default itself,
+ * so the value is forced off before the handler runs: only the handler can turn it back on, which
+ * is what keeps these tests sensitive to its body instead of passing on the creation default alone.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -69,45 +70,66 @@ class VSWizardBindingHandlerSmoothLinesTest {
       return assembly;
    }
 
-   private void assertUngatedSmooth(int chartType) {
+   /**
+    * Forces smoothLines off after creation, so the handler is the only thing left that can turn
+    * it back on - an emptied handler body would leave this false and fail the assertion.
+    */
+   private void assertHandlerTurnsSmoothLinesOn(int chartType) {
       ChartVSAssembly assembly = newChart(chartType);
-      // reproduce the gated seed
+      // creation writes the plot defaults first
       assembly.initDefaultFormat();
-      HANDLER.applyWizardSmoothLines(assembly);
       PlotDescriptor plotDesc = assembly.getChartDescriptor().getPlotDescriptor();
-      assertTrue(plotDesc.isSmoothLinesValue());
-      assertFalse(plotDesc.isModernSmoothSeed(),
-                  "area/circular stay ungated after the wizard hook re-asserts");
+      plotDesc.setSmoothLines(false);
+      HANDLER.applyWizardSmoothLines(assembly);
+      assertTrue(plotDesc.isSmoothLines());
    }
 
    @Test
-   void areaStaysUngatedInBothGateStates() {
-      withGate("true", () -> assertUngatedSmooth(GraphTypes.CHART_AREA));
-      withGate("false", () -> assertUngatedSmooth(GraphTypes.CHART_AREA));
+   void areaStaysSmoothInBothGateStates() {
+      withGate("true", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA));
+      withGate("false", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA));
    }
 
    @Test
-   void areaStackStaysUngatedInBothGateStates() {
-      withGate("true", () -> assertUngatedSmooth(GraphTypes.CHART_AREA_STACK));
-      withGate("false", () -> assertUngatedSmooth(GraphTypes.CHART_AREA_STACK));
+   void areaStackStaysSmoothInBothGateStates() {
+      withGate("true", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA_STACK));
+      withGate("false", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA_STACK));
    }
 
    @Test
-   void circularStaysUngatedInBothGateStates() {
-      withGate("true", () -> assertUngatedSmooth(GraphTypes.CHART_CIRCULAR));
-      withGate("false", () -> assertUngatedSmooth(GraphTypes.CHART_CIRCULAR));
+   void circularStaysSmoothInBothGateStates() {
+      withGate("true", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_CIRCULAR));
+      withGate("false", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_CIRCULAR));
    }
 
    @Test
-   void lineChartSeedIsLeftAlone() {
-      // Line is not one of the ungated types; the wizard hook must not touch the gated seed
+   void lineChartCreationDefaultIsLeftAlone() {
+      // Line is not one of the types this hook re-asserts, so it must not touch the value
       withGate("true", () -> {
          ChartVSAssembly assembly = newChart(GraphTypes.CHART_LINE);
          assembly.initDefaultFormat();
-         HANDLER.applyWizardSmoothLines(assembly);
          PlotDescriptor plotDesc = assembly.getChartDescriptor().getPlotDescriptor();
-         assertTrue(plotDesc.isSmoothLinesValue(), "gated seed already set this");
-         assertTrue(plotDesc.isModernSmoothSeed(), "Line stays gate-owned; the hook is a no-op here");
+         plotDesc.setSmoothLines(false);
+         HANDLER.applyWizardSmoothLines(assembly);
+         assertFalse(plotDesc.isSmoothLines(), "not a smooth-lines default type, so left alone");
+      });
+   }
+
+   @Test
+   void wizardCreatedAreaChartEndsUpSmoothRegardlessOfWhichWriterDidIt() {
+      // end-to-end guard on the property both the handler and initDefaultFormat independently
+      // assert: an Area chart the wizard creates is smooth, whichever of the two wrote it
+      withGate("true", () -> {
+         ChartVSAssembly assembly = newChart(GraphTypes.CHART_AREA);
+         assembly.initDefaultFormat();
+         HANDLER.applyWizardSmoothLines(assembly);
+         assertTrue(assembly.getChartDescriptor().getPlotDescriptor().isSmoothLines());
+      });
+      withGate("false", () -> {
+         ChartVSAssembly assembly = newChart(GraphTypes.CHART_AREA);
+         assembly.initDefaultFormat();
+         HANDLER.applyWizardSmoothLines(assembly);
+         assertTrue(assembly.getChartDescriptor().getPlotDescriptor().isSmoothLines());
       });
    }
 }

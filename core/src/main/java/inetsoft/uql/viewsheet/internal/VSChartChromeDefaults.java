@@ -22,9 +22,9 @@ import inetsoft.graph.internal.GDefaults;
 import java.awt.Color;
 
 /**
- * Supplies the modern in-graph chart-chrome palette for viewsheet charts, gated by the org
- * modern-visualization setting: gridline / facet-grid / legend-border colors, and the axis/legend
- * label and title text colors.
+ * Supplies the modern in-graph chart-chrome palette for viewsheet charts, for the VizContext it is
+ * handed: gridline / facet-grid / legend-border colors, and the axis/legend label and title text
+ * colors.
  *
  * The gridline and legend-border colors are written to the CSS tier of the descriptor CompositeValues
  * (in CSSChartStyles.apply) as a baseline that the format.css dictionary overrides and a user picker
@@ -57,18 +57,19 @@ public final class VSChartChromeDefaults {
 
    /**
     * Legend background default: a dark surface in dark mode so the light legend text stays legible;
-    * white otherwise (light modern and legacy unchanged). Seeded only in the modern chart context,
-    * mirroring the label/title color gate.
+    * white otherwise (light modern and legacy unchanged). Seeded only when the context is modern,
+    * matching how label/title colors are applied.
     */
    public static Color legendBackground(VizContext ctx) {
       return ctx.dark ? LEGEND_BG_DARK : Color.WHITE;
    }
 
    /**
-    * Resolve an axis-line color: when the gate is on and the color is still the legacy default,
-    * substitute the modern gridline neutral so the axis line unifies with the gridlines; otherwise
-    * (a customer/user color, or gate off) leave it unchanged. Compared against the hardcoded fallback
-    * so a format.css or user-picker color, which resolves to something else, is preserved.
+    * Resolve an axis-line color: when the context is modern and the color is still the legacy
+    * default, substitute the modern gridline neutral so the axis line unifies with the gridlines;
+    * otherwise (a customer/user color, or a legacy context) leave it unchanged. Compared against the
+    * hardcoded fallback so a format.css or user-picker color, which resolves to something else, is
+    * preserved.
     */
    public static Color resolveAxisLineColor(Color current, VizContext ctx) {
       return ctx.modern && GDefaults.DEFAULT_LINE_COLOR.equals(current)
@@ -76,10 +77,10 @@ public final class VSChartChromeDefaults {
    }
 
    /**
-    * Resolve a gridline color for display: when the gate is on and the color is still the legacy
-    * default, substitute the modern gridline neutral; otherwise (a customer/user color, or gate off)
-    * leave it unchanged. Compared against the hardcoded fallback so a format.css or user-picker color
-    * is preserved.
+    * Resolve a gridline color for display: when the context is modern and the color is still the
+    * legacy default, substitute the modern gridline neutral; otherwise (a customer/user color, or a
+    * legacy context) leave it unchanged. Compared against the hardcoded fallback so a format.css or
+    * user-picker color is preserved.
     */
    public static Color resolveGridlineColor(Color current, VizContext ctx) {
       return ctx.modern && GDefaults.DEFAULT_GRIDLINE_COLOR.equals(current)
@@ -87,8 +88,8 @@ public final class VSChartChromeDefaults {
    }
 
    /**
-    * Resolve a legend-border color for display: modern neutral iff the gate is on and the color is
-    * still the legacy default; otherwise unchanged.
+    * Resolve a legend-border color for display: modern neutral iff the context is modern and the
+    * color is still the legacy default; otherwise unchanged.
     */
    public static Color resolveLegendBorderColor(Color current, VizContext ctx) {
       return ctx.modern && GDefaults.DEFAULT_LINE_COLOR.equals(current)

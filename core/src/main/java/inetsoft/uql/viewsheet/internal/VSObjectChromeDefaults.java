@@ -22,12 +22,12 @@ import inetsoft.uql.viewsheet.VSCompositeFormat;
 import java.awt.Color;
 
 /**
- * Supplies the modern object-chrome default colors (object-frame border + viewsheet page background),
- * gated by the org modern-visualization setting. Applied as DESIGN-TIME defaults: the gated seed is
- * written to the assembly's default format at creation (VSAssemblyInfo.setDefaultFormat and
- * ViewsheetVSAssemblyInfo.setDefaultFormat), so a new object created under the gate carries the modern
- * default (visible in the format editor, effective in the viewer and export). A user format or a
- * format.css class still overrides it via the normal USER > CSS > DEFAULT tier precedence.
+ * Supplies the modern object-chrome default colors (object-frame border + viewsheet page background)
+ * for the VizContext it is handed. Applied as DESIGN-TIME defaults: the seed is written to the
+ * assembly's default format at creation (VSAssemblyInfo.setDefaultFormat and
+ * ViewsheetVSAssemblyInfo.setDefaultFormat), so an object created modern carries the modern default
+ * (visible in the format editor, effective in the viewer and export). A user format or a format.css
+ * class still overrides it via the normal USER > CSS > DEFAULT tier precedence.
  */
 public final class VSObjectChromeDefaults {
    private VSObjectChromeDefaults() {
@@ -57,17 +57,6 @@ public final class VSObjectChromeDefaults {
    /** Object-card corner radius default, in pixels. Matches the annotation-rectangle radius. */
    public static int cardCornerRadius() {
       return CARD_CORNER_RADIUS;
-   }
-
-   /**
-    * Gate-strip a DEFAULT-tier corner radius: when the value is our seed and the gate is off, the
-    * object reverts to square. Keyed on exact equality with the seed so a format.css TableStyle radius
-    * written to the same tier survives. Callers must pass only DEFAULT-tier values; VSCompositeFormat
-    * additionally exempts tab formats, whose default tier can hold a laundered user radius.
-    */
-   public static int resolveSeededCorner(int radius) {
-      // reads the gate directly: the only caller is a VSFormat getter with no context to hand
-      return radius == CARD_CORNER_RADIUS && !VSDensityDefaults.isModern() ? 0 : radius;
    }
 
    /**

@@ -141,13 +141,11 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
       const modern: boolean = !!model.modernVisualization;
       body.classList.toggle(this.VIZ_SHELL_CLASS, modern);
       body.classList.remove(...this.VIZ_DENSITY_CLASSES);
+      const densityClass = `viz-density-${model.vizDensity}`;
 
-      if(modern) {
-         const densityClass = `viz-density-${model.vizDensity}`;
-
-         if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
-            body.classList.add(densityClass);
-         }
+      // unconditional: see the portal shell's comment
+      if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
+         body.classList.add(densityClass);
       }
 
       body.classList.toggle(this.VIZ_SHELL_DARK_CLASS, modern && !!model.darkMode);

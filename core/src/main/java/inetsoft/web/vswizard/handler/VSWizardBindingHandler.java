@@ -832,8 +832,10 @@ public class VSWizardBindingHandler {
    /**
     * Default smoothLines on for wizard-recommended (non-step) Area and Circular charts,
     * matching the default applied when a user picks the type via the chart-type chooser.
-    * Must run after initDefaultFormat, whose gated seed would otherwise mark these types
-    * as gate-owned.
+    * Ordering-independent: initDefaultFormat's chrome seed writes true unconditionally in the
+    * modern branch and derives from chart type in the legacy branch, so on a wizard-created
+    * Area/Circular chart this is a re-assertion either way. It is kept as the wizard's own
+    * statement of the default, not as a repair of a seed that undoes it.
     *
     * <p>Package-private so the wizard smooth-lines default is unit-testable without standing
     * up the wizard pipeline.
@@ -850,11 +852,7 @@ public class VSWizardBindingHandler {
          return;
       }
 
-      int ctype = chartInfo.getChartType();
-
-      if(ctype == GraphTypes.CHART_AREA || ctype == GraphTypes.CHART_AREA_STACK
-         || ctype == GraphTypes.CHART_CIRCULAR)
-      {
+      if(GraphTypes.isSmoothLinesDefault(chartInfo.getChartType())) {
          chart.getChartDescriptor().getPlotDescriptor().setSmoothLines(true);
       }
    }

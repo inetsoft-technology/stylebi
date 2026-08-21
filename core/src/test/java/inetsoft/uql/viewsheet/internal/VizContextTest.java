@@ -94,12 +94,12 @@ class VizContextTest {
    }
 
    @Test
-   void ofAMarkIsLegacyWhenTheGateIsOff() {
-      // modern = gate && mark != null, so a mark alone can't make it modern
+   void ofAMarkIsModernEvenWhenTheGateIsOff() {
+      // the gate is a creation-time switch only: it decides what a new assembly is stamped with,
+      // never how a stamped one renders
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
-      assertFalse(VizContext.of(VizMark.MODERN_LIGHT).modern);
-      assertFalse(VizContext.of(VizMark.MODERN_DARK).modern);
-      assertFalse(VizContext.of(VizMark.MODERN_DARK).dark, "dark is never true without modern");
+      assertTrue(VizContext.of(VizMark.MODERN_LIGHT).modern,
+                 "a mark alone makes it modern - the gate && term is gone");
    }
 
    @Test

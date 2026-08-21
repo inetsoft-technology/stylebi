@@ -1,6 +1,15 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-20 (eleventh revision — **P6 has been reviewed against the code, ahead of planning it.**
+**Date:** 2026-08-21 (twelfth revision — **P6 has been built, and its four automated gates are clean; the
+whole phase is uncommitted, and none of its ten manual checks nor the P0 pre-mark-cohort confirmation has
+run.** Task 8 ran `core` (4904 tests, 0 failures, 0 errors, 67 skipped), `portal` (1329/1329), `em`
+(356/356) and the cross-module `-Pcommunity,enterprise` build (BUILD SUCCESS, 3:55 min) — all four clean.
+The commit-approval gate refused all eight of P6's task commits, the same as it refused P3's and P4's before
+a human partner committed those two outside the building session — so unlike them there is no commit hash
+here yet, only a working tree. Read the Done table, "What to pick up next" and "P6 built 2026-08-21" in the
+seed-mark section before treating any of this as verified in a running application: the automated gates
+prove the code and the tests agree with each other, not that a screen agrees with either. The eleventh
+revision's note follows: **P6 has been reviewed against the code, ahead of planning it.**
 Six findings, four decided the same day. The one that changes the shape of the phase: `resolveSeededCorner`
 is a **fourth** deletion inside P6's same-commit set, because the design's claim that the two
 `PlotDescriptor` seed booleans are "the only reads left that still test the org gate" is false — leave the
@@ -82,7 +91,7 @@ rather than repairing it — the whole of its content is one reading of the two 
      P1 and P2 landing did NOT free it: the row must READ the mark, and P4 is what makes that read exist.
      L' is unblocked now, not "when P5 lands" — its read path is a server read, P4's subject, not P5's.
 
-  M. Seed mark — SIX phases now. P1–P4 SHIPPED; P5 and P6 remain.
+  M. Seed mark — SIX phases now. P1–P5 SHIPPED; P6 BUILT 2026-08-21, uncommitted.
      design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–13
      ALSO THE RELEASE GATE — and the gate SHRANK on 2026-08-19: decision 13 overruled the
      sweep (decisions 6+7), so release needs P6 + bookmarks, not an async org-wide sweep
@@ -105,11 +114,12 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  │         └──→ Range slider — painter half
       │  └──→ Outlined text conversion (also behind G)
       │
-     P6  Revert — the per-dashboard mirror of         NEW 2026-08-19 · decision 13
-         Modernize; deletes the gate && term,         replaces the sweep entirely
-         both PlotDescriptor seed booleans AND        ~P3's weight, not the sweep's
-         resolveSeededCorner, all in one commit       REVIEWED 2026-08-20 · 5 pieces
-      └──→ Card radius 12→6 (the constant only)
+     P6  Revert — the per-dashboard mirror of         BUILT 2026-08-21 · uncommitted
+         Modernize; deletes the gate && term,         (commit gate refused all 8 tasks,
+         both PlotDescriptor seed booleans AND        same as P3/P4 before a human
+         resolveSeededCorner, all in one commit       partner committed those later)
+      └──→ Card radius 12→6 (the constant only)       4 automated gates GREEN · 10 manual
+                                                       checks + P0 cohort check OUTSTANDING
 
      P4 unblocks the first of the six — L' — directly, ahead of P5. P5 gates four of the other five. P1 and
      P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
@@ -123,6 +133,10 @@ rather than repairing it — the whole of its content is one reading of the two 
      assembly's card radius the moment the gate && term goes — the same stranding the design already
      calls non-negotiable for the PlotDescriptor booleans, on a more visible property. So it is inside
      P6's same-commit set. Only the 12→6 CONSTANT is a follow-on, and it needs its own sign-off.
+
+     Amended 2026-08-21: P6 built, uncommitted, automated gates green. The constant now has an actual
+     reversal path sitting in the working tree, not merely a planned one — but its own sign-off still
+     needs P6's ten manual checks, none of which has run.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
@@ -180,10 +194,22 @@ than by editing the previous ranking, per this file's own instruction. The previ
 checks at the top because nothing in the track could be trusted until they ran. They have, and they passed,
 so the item is gone rather than demoted.
 
+**Re-derived 2026-08-21, after P6's automated gates went green** — from the picture above rather than by
+editing the 2026-08-20 ranking in place, per this file's own instruction. P6 is built: Revert, the `gate &&`
+term, both `PlotDescriptor` seed booleans and `resolveSeededCorner` are all deleted together in the working
+tree, and all four automated gates are clean (`core` 4904/0/0, `portal` 1329/1329, `em` 356/356, the
+cross-module build — see "P6 built 2026-08-21" above for the exact numbers). **It comes off this table for
+that, not because it has been seen working: it is uncommitted, and none of its ten manual checks nor the P0
+cohort confirmation has run.** M-P6 is dropped rather than demoted, the same disposition P5's manual checks
+got in the prior revision — but this time the drop records finished-and-unverified-in-a-browser, not
+finished-and-confirmed. The two things it frees are the card-radius constant, newly rankable because Revert
+gives `resolveSeededCorner`'s retirement the reversal path it needed, and L′, which does not move: it was
+first before P6 and P6 landing changes nothing about why.
+
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **L′ — the title lane height row** | the highest-value visible item, startable since P4 | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
-| 2 | **M-P6 — Revert** | clears most of what is left of the release gate | **M** — P3's wiring mirrored, plus four deletions and three folded-in items; reviewed up from S–M on 2026-08-20 | card radius 12→6 (the constant only) | deletes the `gate &&` term, both `PlotDescriptor` seed booleans **and `resolveSeededCorner`** together; splitting any of them strands charts or card corners. **Also drops the `if(modern)` guard on the density body class**, fixes a P5 density regression on the same selectors, and unhides the EM density control — see "Carried into P6" |
+| 1 | **L′ — the title lane height row** | the highest-value visible item, startable since P4, and still first — P6 landing changes nothing about it | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
+| 2 | **Card radius 12→6 (the constant only)** | small, visible polish — the last thing the seed-mark track was blocking | **S**, plus its own sign-off | nothing further downstream | needs P6's ten manual checks run first. They are the only evidence that a marked assembly in a gate-off org actually keeps its card radius now that `resolveSeededCorner` is gone in the working tree — none of them has run yet |
 | 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
 **The binding-pane dead buttons are off this table because they are built** — both predicates landed
@@ -198,6 +224,10 @@ because it explains why the order mattered: P6 makes gate-off mean
 from the org gate until P5 lands — so P6-before-P5 would put legacy CSS over modern server chrome for every
 gate-off org. Nothing else couples them: P6 is server plus composer wiring and touches none of P5's files.
 
+**Amended 2026-08-21: P6 has since been built** (uncommitted — see the Done table and "P6 built 2026-08-21"
+below). This paragraph is retained as the record of why the ordering mattered, not as a live status; P6 is
+off the ranking table below for that reason, not because the ordering question above is still open.
+
 **M-P3 and M-P4 are off this table because they are built.** P3 shipped in `cd06da9b1` and P4 in
 `8ef511e45`, both committed outside the sessions that built them. **P4's nine manual checks all passed on
 2026-08-19**, per its commit message: an unmarked dashboard rendering legacy chrome under an open gate, a
@@ -206,6 +236,17 @@ dialog on a legacy chart previewing legacy chrome, and a mixed dashboard renderi
 mark. **P3's eleven have not**, and nothing in P4's pass substitutes for them. They need a built server, a
 browser and a legacy dashboard. Running them is a real prerequisite for anyone continuing this track, even
 though it is not a ranked item in the sense the table means: there is no design work or code left to write.
+
+**M-P6 is off this table for the same reason, and it is the newest addition, added 2026-08-21 — read this
+before treating it as shipped.** It is built, and its four automated gates are clean (see "P6 built
+2026-08-21" below for the exact numbers). It is **not** committed: the commit-approval gate refused all
+eight of its task commits, exactly as it refused P3's and P4's before those landed later outside the
+building session — so unlike P3 and P4, there is no commit hash to cite yet, only a working tree. **And
+unlike P4, none of P6's own manual checks have run — ten of them, plus the P0 pre-mark-cohort confirmation**
+— because they need a built server, a browser and exported PDF/PNG/Excel files, which this pass could not
+produce. Do not read the clean automated gates as a substitute for having watched a marked chart in a
+gate-off org keep its card radius. That is exactly the gap P3's still-outstanding eleven checks illustrate
+one phase over: code and tests can be clean for a long time before anyone looks at a screen.
 
 **P5 also inherits one server-side reader P4 deferred.** `AbstractChartInfo.getTooltipStyle` resolves AUTO to
 CARD from the org gate; threading it changes the `ChartInfo` interface getter and ripples through four
@@ -627,6 +668,29 @@ same commit. After P4 those two getters are the only reads left that still test 
 term alone leaves a marked chart in a gate-off org modern everywhere except its bar corners and line
 smoothing. Deleting the booleans in turn requires the `else` branch in `ChartVSAssemblyInfo.seedChromeDefaults`
 (`:106-112`), which is forward-only today precisely because those booleans did the reversing.
+
+**P6 built 2026-08-21 — all four deletions above landed together, plus Revert, plus `resolveSeededCorner`'s
+retirement.** Eight tasks, and every one of them is **uncommitted**: the same commit-approval gate that
+refused P3's and P4's task commits (before a human partner committed those two outside the building session)
+refused all eight of P6's, including the documentation commit this entry is part of. **Task 8 ran the four
+automated gates and all four are clean:** `core` — 4904 tests, 0 failures, 0 errors, 67 skipped (down from
+P5's 4905 by exactly the test surface Task 6 deleted along with the mechanisms it covered — a lower total is
+the expected shape, not a sign of anything skipped); `portal` — 217 files, 1329/1329 passing (up from P5's
+1316, the new unit tests this phase added); `em` — 101 files, 356/356 passing (unchanged from P5); the
+cross-module `./mvnw.cmd install -DskipTests "-Pcommunity,enterprise"` build — BUILD SUCCESS, 3:55 min, no
+reactor failures. **None of that is the same claim as "verified."** P6's ten manual checks — a marked
+dashboard in a gate-off org rendering fully modern including card radius and bar corners; Modernize-then-
+Revert byte-comparable with never-modernized; Undo after Revert; a mixed dashboard reverting only its marked
+assemblies; a host revert not touching an embedded sheet's own assemblies; Revert offered with the gate off
+and refused without write permission; export agreement across PDF/PNG/Excel for both a reverted and a
+gate-off-marked dashboard; density behaviour in a gate-off org including the anchored mini-toolbar and a
+legacy-dashboard control; org-level surfaces taking the org density; and confirming the two accepted costs
+(legacy tooltip chrome, no inline-SVG animation) are the *only* two surfaces that stay legacy — **have not
+run.** Nor has the P0 prerequisite: confirming no pre-mark-cohort dashboard survives on this branch, or
+building fresh ones for the checks to run against. Both need a built server, a browser and exported files,
+none of which a shell can produce, and neither was attempted here. Treat P6 as code-reviewed and
+automated-test-clean, not as seen working, until they run — see "Carried into P6" below for the full list
+and its own P0 note.
 
 **Superseded by a product decision set, 2026-08-12. Read
 [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) before implementing
@@ -1170,6 +1234,7 @@ older copy of this file recognise what moved — **none of those hashes is reach
 | M-P1's null-guard — a mocked host viewsheet with no assembly info | `be0e3c664` | postdates the third revision |
 | **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the fifth revision |
 | **M-P4 — the 43 read-path sites and the creation site flipped from `ofGate()` to the mark, one documented survivor left** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the sixth revision |
+| **M-P6 — Revert (the per-dashboard mirror of Modernize), plus the `gate &&` term in `VizContext.of(VizMark)`, both `PlotDescriptor` seed booleans and `VSObjectChromeDefaults.resolveSeededCorner` all deleted in one commit** | *uncommitted — working tree, blocked by a commit-approval gate, same as M-P3 and M-P4 above.* **Unlike them, none of its manual checks have run yet** — see "P6 built 2026-08-21" below | postdates the eleventh revision |
 
 **Why P2 landed as two commits.** `be0e3c664` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
 regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole
@@ -1228,6 +1293,22 @@ carry the roadmap, the open-item decisions and the design sets.
   cross-widget consistency.
 - **Whether the teal selection family has an owner.** It is unchanged in `_viz-tokens.scss:51-53`, and v3
   deleted the paragraphs that tracked it without resolving it.
+
+---
+
+## Follow-up annotations
+
+**2026-08-21 — stale phase reference in `VSObjectModel.java:604-606`.** The comment on the `vizModern`
+field reads: "The assembly's resolved modern-visualization state, not its mark. Resolving on the server
+keeps the gate term (VizContext.of(VizMark), deleted in P6) in one place and one language; shipping the
+raw mark would need the client to re-evaluate it and drift the moment that term goes." The parenthetical
+now describes this change set: the gate term inside `VizContext.of(VizMark)` is what P6 deleted, and the
+code now reads `boolean modern = mark != null` (`VizContext.java:66`). The comment's statement remains
+true and is not edited here (the file is outside this phase's change set; widening the diff for a
+comment at a merge gate is the wrong trade). When `VSObjectModel.java` is next edited for unrelated
+reasons, the parenthetical can be replaced with a one-line mention of what was deleted — e.g.
+"(VizContext.of(VizMark), which was deleted in P6 and replaced with `mark != null`)" — if brevity is
+needed, or simply removed if the parenthetical has lost its explanatory value by then.
 
 ---
 

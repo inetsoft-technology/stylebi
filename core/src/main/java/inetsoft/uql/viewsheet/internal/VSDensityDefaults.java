@@ -57,7 +57,9 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * The active density mode, defaulting to dense when unset. Only meaningful when the gate is on.
+    * The active density mode, defaulting to dense when unset. Meaningful for any marked assembly,
+    * whatever the org gate says: the mark decides whether an assembly honours density, not which
+    * density is in force. That is why the browser's density body class is unconditional.
     */
    public static String mode() {
       String density = SreeEnv.getProperty("viewsheet.density", false, true);

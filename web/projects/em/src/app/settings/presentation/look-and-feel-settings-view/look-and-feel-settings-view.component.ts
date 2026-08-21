@@ -41,6 +41,7 @@ import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 import { NgIf } from "@angular/common";
+import { MatTooltip } from "@angular/material/tooltip";
 
 
 @Searchable({
@@ -60,7 +61,7 @@ import { NgIf } from "@angular/common";
     templateUrl: "./look-and-feel-settings-view.component.html",
     styleUrls: ["./look-and-feel-settings-view.component.scss"],
     providers: [DataSpaceTreeDataSource],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton, MatTooltip]
 })
 export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
    @Input() securityEnabled: boolean = false;

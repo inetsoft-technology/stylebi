@@ -24,13 +24,14 @@ import inetsoft.uql.viewsheet.VSFormat;
 import java.awt.Color;
 
 /**
- * Supplies the modern KPI/control-chrome defaults for server-rendered output assemblies, gated by the
- * org modern-visualization setting.
+ * Supplies the modern KPI/control-chrome defaults for server-rendered output assemblies, for the
+ * VizContext it is handed.
  *
  * Two surfaces so far:
  *  - Slider painter (VSSlider) chrome — track / handle / tick colors. Pure server-render constants with
- *    no user VSFormat behind them, so each accessor returns the legacy color gate-off (byte-identical)
- *    and the modern warm-neutral gate-on. The neutrals equal the live-view CSS (vs-slider.component.scss)
+ *    no user VSFormat behind them, so each accessor returns the legacy color for a legacy context
+ *    (byte-identical) and the modern warm-neutral for a modern one. The neutrals equal the live-view
+ *    CSS (vs-slider.component.scss)
  *    so the exported slider and the live slider agree.
  *  - KPI text/output value defaults — foreground and border. applyModernDefaults substitutes the modern
  *    neutral on the DEFAULT tier of a clone at read time (live model build, export text draw), only when
@@ -82,8 +83,8 @@ public final class VSOutputChromeDefaults {
 
    /**
     * Return an output value format with the modern value emphasis (foreground + border) substituted on
-    * the DEFAULT tier of a clone, or the original unchanged (gate off, or already customized). Weight and
-    * size are intentionally not changed. A user (USER tier) or format.css (CSS tier) foreground/border
+    * the DEFAULT tier of a clone, or the original unchanged (legacy context, or already customized).
+    * Weight and size are intentionally not changed. A user (USER tier) or format.css (CSS tier) foreground/border
     * still wins; the source format is never mutated or serialized. Mirrors VSTitleChromeDefaults.
     */
    public static VSCompositeFormat applyModernDefaults(VSCompositeFormat fmt, VizContext ctx) {
@@ -105,8 +106,8 @@ public final class VSOutputChromeDefaults {
 
    /**
     * In-place variant for the export copy (the viewsheet / format is already cloned upstream): mutate the
-    * DEFAULT tier directly. No-op when the gate is off or the value is already user / format.css
-    * customized; never touches a persisted format.
+    * DEFAULT tier directly. No-op for a legacy context, or when the value is already user /
+    * format.css customized; never touches a persisted format.
     */
    public static void applyModernDefaultsInPlace(VSCompositeFormat fmt, VizContext ctx) {
       if(!ctx.modern || fmt == null) {
@@ -146,7 +147,7 @@ public final class VSOutputChromeDefaults {
       return String.format("0x%06x", c.getRGB() & 0xFFFFFF);
    }
 
-   // legacy slider chrome — the pre-modern VSSlider constants, kept exact for gate-off parity
+   // legacy slider chrome — the pre-modern VSSlider constants, kept exact for non-modern parity
    private static final Color SLIDER_INACTIVE_LEGACY = new Color(224, 224, 224);
    private static final Color SLIDER_ACTIVE_LEGACY = new Color(158, 158, 158);
    private static final Color SLIDER_HANDLE_LEGACY = new Color(158, 158, 158);

@@ -40,7 +40,7 @@
  *   Group 7 [baseline] — constructor: ngbDatepickerConfig.minDate/maxDate set to 1900/2099 range
  *   Group 8 [baseline] — downloadStarted: opens info dialog via ComponentTool.showMessageDialog
  *   Group 9 [Risk 2]  — ngOnInit: PortalModel fetch drives viz-shell/viz-density body classes;
- *                        modern off → no classes; unrecognized density value ignored
+ *                        modern off → density only, no viz-shell; unrecognized density ignored
  *
  * Out of scope this pass: none (single pass)
  */
@@ -331,10 +331,10 @@ describe("ComposerAppComponent — visualization mode", () => {
       expect(document.body.classList.contains("viz-density-comfortable")).toBe(true);
    });
 
-   it("should not apply any viz classes when modern is off", async () => {
+   it("should apply the density class but not viz-shell when modern is off", async () => {
       await renderComponent({ portalModel: { modernVisualization: false, vizDensity: "comfortable" } });
       expect(document.body.classList.contains("viz-shell")).toBe(false);
-      expect(document.body.className).not.toContain("viz-density-");
+      expect(document.body.classList.contains("viz-density-comfortable")).toBe(true);
    });
 
    // Guards against injecting an arbitrary class from a server-set property value.

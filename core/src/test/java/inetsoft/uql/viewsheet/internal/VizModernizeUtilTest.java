@@ -20,9 +20,16 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -34,7 +41,7 @@ import java.awt.Color;
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -60,6 +67,22 @@ class VizModernizeUtilTest {
       Viewsheet vs = new Viewsheet();
       vs.addAssembly(new TextVSAssembly(vs, "Text1"));
       vs.addAssembly(new TableVSAssembly(vs, "Table1"));
+      return vs;
+   }
+
+   /**
+    * A legacy Area chart as one actually exists: created unmarked, then switched to Area, which is
+    * what turns smoothing on - the chart-type transition does it, and the wizard does it for a
+    * recommended Area chart.
+    */
+   private Viewsheet legacyAreaChartSheet() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      chart.getVSChartInfo().setChartType(GraphTypes.CHART_AREA);
+      chart.getChartDescriptor().getPlotDescriptor().setSmoothLines(true);
+      vs.addAssembly(chart);
       return vs;
    }
 
@@ -127,7 +150,7 @@ class VizModernizeUtilTest {
 
    @Test
    void modernizeLeavesMarkedSiblingsAlone() {
-      // decision 3's mixed dashboard: an already-modern assembly keeps the mark it has. A brand
+      // the mixed dashboard: an already-modern assembly keeps the mark it has. A brand
       // new assembly inherits its host's mark (absence included - see AbstractVSAssembly), so a
       // sibling already carrying a mark is simulated directly, standing in for one modernized (or
       // created) in an earlier dark-mode pass.
@@ -255,5 +278,248 @@ class VizModernizeUtilTest {
 
       assertTrue(VizModernizeUtil.hasUnmarked(vs),
                  "the container is the sheet's only unmarked item");
+   }
+
+   @Test
+   void aLegacySheetHasNothingToRevert() {
+      assertFalse(VizModernizeUtil.hasMarked(legacySheet()));
+   }
+
+   @Test
+   void aModernSheetHasSomethingToRevert() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      assertTrue(VizModernizeUtil.hasMarked(vs));
+   }
+
+   @Test
+   void revertClearsEveryMarkIncludingTheSheetsOwn() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      vs.addAssembly(new TableVSAssembly(vs, "Table1"));
+
+      assertEquals(3, VizModernizeUtil.revert(vs), "two assemblies plus the sheet itself");
+
+      assertNull(vs.getVSAssemblyInfo().getVizMark());
+
+      for(Assembly assembly : vs.getAssemblies(true)) {
+         assertNull(((VSAssembly) assembly).getVSAssemblyInfo().getVizMark());
+      }
+
+      assertFalse(VizModernizeUtil.hasMarked(vs), "and there is nothing left to revert");
+   }
+
+   @Test
+   void revertAlsoUnSeedsTheChrome() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      vs.addAssembly(table);
+      table.getVSAssemblyInfo().initDefaultFormat();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   table.getVSAssemblyInfo().getFormat().getDefaultFormat().getRoundCornerValue(),
+                   "modern: rounded");
+
+      VizModernizeUtil.revert(vs);
+
+      assertEquals(0, table.getVSAssemblyInfo().getFormat().getDefaultFormat()
+         .getRoundCornerValue(), "legacy: square");
+   }
+
+   @Test
+   void revertIsOfferedAndWorksWithTheGateOff() {
+      // no gate floor, unlike modernize(): reverting is offered under both gate states on purpose
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+
+      gateOff();
+
+      assertTrue(VizModernizeUtil.hasMarked(vs));
+      assertEquals(2, VizModernizeUtil.revert(vs));
+      assertNull(vs.getVSAssemblyInfo().getVizMark());
+   }
+
+   @Test
+   void revertIsIdempotent() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+
+      assertEquals(2, VizModernizeUtil.revert(vs));
+      assertEquals(0, VizModernizeUtil.revert(vs), "a second run touches nothing");
+   }
+
+   @Test
+   void revertLeavesUnmarkedSiblingsAlone() {
+      // the mixed dashboard, backwards: reverting touches only what carries a mark
+      Viewsheet vs = legacySheet();
+      gateOn();
+      TextVSAssembly modern = new TextVSAssembly(vs, "Text2");
+      vs.addAssembly(modern);
+      modern.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+
+      assertEquals(1, VizModernizeUtil.revert(vs), "only the marked sibling");
+      assertNull(modern.getVSAssemblyInfo().getVizMark());
+   }
+
+   @Test
+   void revertReachesAnEmbeddedViewsheetContainerButNotItsChildren() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      Viewsheet embedded = new Viewsheet();
+      embedded.getVSAssemblyInfo().setName("EmbeddedVS");
+      embedded.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      TextVSAssembly inner = new TextVSAssembly(embedded, "InnerText");
+      embedded.addAssembly(inner);
+      inner.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      vs.addAssembly(embedded);
+
+      VizModernizeUtil.revert(vs);
+
+      assertNull(embedded.getVSAssemblyInfo().getVizMark(),
+                 "the container is this sheet's content");
+      assertEquals(VizMark.MODERN_LIGHT, inner.getVSAssemblyInfo().getVizMark(),
+                   "its children are the embedded asset's content and stay untouched");
+   }
+
+   @Test
+   void revertNeverTouchesAuthorProvenanceFlags() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      vs.addAssembly(table);
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      info.setTitleHeightValue(44);
+      info.setUserTitleHeight(true);
+
+      VizModernizeUtil.revert(vs);
+
+      assertTrue(info.isUserTitleHeight(), "userTitleHeight records an author's choice, not a mark");
+      assertEquals(44, info.getTitleHeightValue(), "and the height they chose survives");
+   }
+
+   @Test
+   void aModernizedThenRevertedSheetMatchesOneNeverModernized() {
+      // the phase's headline property, and the reason reversal is routed through the
+      // creation path: there is no separate reverser whose behaviour could drift
+      Viewsheet reverted = legacySheet();
+      TableVSAssembly a = (TableVSAssembly) reverted.getAssembly("Table1");
+      a.getVSAssemblyInfo().initDefaultFormat();
+      gateOn();
+      VizModernizeUtil.modernize(reverted);
+      VizModernizeUtil.revert(reverted);
+
+      Viewsheet untouched = legacySheet();
+      TableVSAssembly b = (TableVSAssembly) untouched.getAssembly("Table1");
+      b.getVSAssemblyInfo().initDefaultFormat();
+
+      VSFormat af = a.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      VSFormat bf = b.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      assertEquals(bf.getRoundCornerValue(), af.getRoundCornerValue());
+      assertEquals(bf.getBorderColorsValue().topColor, af.getBorderColorsValue().topColor);
+      assertEquals(bf.getBackgroundValue(), af.getBackgroundValue());
+   }
+
+   @Test
+   void aModernizedThenRevertedAreaChartMatchesOneNeverModernized() {
+      // the table case above cannot see a seed whose legacy value depends on the chart type.
+      // smoothLines is on for every legacy Area chart, so writing a constant false on the legacy
+      // branch would leave the reverted chart straight-lined and the untouched one smooth.
+      Viewsheet reverted = legacyAreaChartSheet();
+      ChartVSAssembly a = (ChartVSAssembly) reverted.getAssembly("Chart1");
+      gateOn();
+      VizModernizeUtil.modernize(reverted);
+      VizModernizeUtil.revert(reverted);
+
+      Viewsheet untouched = legacyAreaChartSheet();
+      ChartVSAssembly b = (ChartVSAssembly) untouched.getAssembly("Chart1");
+
+      PlotDescriptor ap = a.getChartDescriptor().getPlotDescriptor();
+      PlotDescriptor bp = b.getChartDescriptor().getPlotDescriptor();
+      assertTrue(bp.isSmoothLines(), "a legacy Area chart is smooth; guards a false pass on false");
+      assertEquals(bp.isSmoothLines(), ap.isSmoothLines());
+      assertEquals(bp.getBarCornerRadius(), ap.getBarCornerRadius(), 0.0001);
+   }
+
+   /**
+    * A design multi-styles chart whose overall type is not a smooth-lines default, but one of its
+    * per-measure aggregates is. Multi-styles here is a design choice, not one forced by date
+    * comparison.
+    */
+   private ChartVSAssembly multiStyleChartWithAggregate(Viewsheet vs, int aggregateChartType) {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      VSChartInfo info = chart.getVSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setMultiStyles(true);
+      VSChartAggregateRef yRef = new VSChartAggregateRef();
+      yRef.setChartType(aggregateChartType);
+      info.addYField(yRef);
+      vs.addAssembly(chart);
+      return chart;
+   }
+
+   @Test
+   void revertOnDesignMultiStylesChartWithSmoothAggregateLeavesSmoothLinesOn() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = multiStyleChartWithAggregate(vs, GraphTypes.CHART_AREA);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      VizModernizeUtil.revert(vs);
+
+      assertTrue(chart.getChartDescriptor().getPlotDescriptor().isSmoothLines(),
+                 "the overall type is Bar, but a design multi-styles Area aggregate still " +
+                 "carries the smooth-lines default");
+   }
+
+   @Test
+   void revertOnDesignMultiStylesChartWithNoSmoothAggregateTurnsSmoothLinesOff() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = multiStyleChartWithAggregate(vs, GraphTypes.CHART_BAR);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      VizModernizeUtil.revert(vs);
+
+      assertFalse(chart.getChartDescriptor().getPlotDescriptor().isSmoothLines(),
+                  "no aggregate carries a smooth-lines default, so the legacy value is off");
+   }
+
+   @Test
+   void revertIgnoresDcRuntimeMultiStylesWhenDesignIsSingleStyle() {
+      // date comparison can force a design single-style chart into runtime multi-styles.
+      // legacySmoothLines must read the design answer, not the DC runtime one, or a chart
+      // nobody made multi-styles would have its aggregates scanned anyway.
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      VSChartInfo info = chart.getVSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setMultiStyles(false);
+
+      // an Area aggregate that would flip smoothLines on if the aggregate scan ran
+      VSChartAggregateRef yRef = new VSChartAggregateRef();
+      yRef.setChartType(GraphTypes.CHART_AREA);
+      info.addYField(yRef);
+
+      // date comparison forces runtime multi-styles on a chart that is single-style by design
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ new VSChartDimensionRef() });
+      info.setRuntimeMulti(true);
+      vs.addAssembly(chart);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      VizModernizeUtil.revert(vs);
+
+      assertFalse(chart.getChartDescriptor().getPlotDescriptor().isSmoothLines(),
+                  "design is single-style Bar; the DC-forced runtime multi-styles must not " +
+                  "trigger the aggregate scan");
    }
 }

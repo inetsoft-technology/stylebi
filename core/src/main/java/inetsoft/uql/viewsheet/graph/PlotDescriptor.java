@@ -26,7 +26,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.ContentObject;
@@ -628,17 +627,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
 
    /**
     * Check if line segments connecting points should be drawn as smooth curves.
-    * Effective value; a gate-seeded value collapses to false when the gate is off.
     */
    public boolean isSmoothLines() {
-      // reads the gate directly: no assembly or context reaches this seed getter
-      return modernSmoothSeed && !VSDensityDefaults.isModern() ? false : smoothLines;
-   }
-
-   /**
-    * Raw stored flag, for serialization and content comparison.
-    */
-   public boolean isSmoothLinesValue() {
       return smoothLines;
    }
 
@@ -647,16 +637,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
     */
    public void setSmoothLines(boolean smoothLines) {
       this.smoothLines = smoothLines;
-      // an explicit write makes the value user-authored, so it stops tracking the gate
-      this.modernSmoothSeed = false;
-   }
-
-   public boolean isModernSmoothSeed() {
-      return modernSmoothSeed;
-   }
-
-   public void setModernSmoothSeed(boolean modernSmoothSeed) {
-      this.modernSmoothSeed = modernSmoothSeed;
    }
 
    /**
@@ -1313,29 +1293,13 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       this.pieRatio = pieRatio;
    }
 
-   /** Effective bar corner radius; a gate-seeded value collapses to 0 when the gate is off. */
+   /** Bar corner radius, 0 to 0.5 as a fraction of bar width. */
    public double getBarCornerRadius() {
-      // reads the gate directly: no assembly or context reaches this seed getter
-      return modernCornerSeed && !VSDensityDefaults.isModern() ? 0 : barCornerRadius;
-   }
-
-   /** Raw stored radius, for serialization and content comparison. */
-   public double getBarCornerRadiusValue() {
       return barCornerRadius;
-   }
-
-   public boolean isModernCornerSeed() {
-      return modernCornerSeed;
-   }
-
-   public void setModernCornerSeed(boolean modernCornerSeed) {
-      this.modernCornerSeed = modernCornerSeed;
    }
 
    public void setBarCornerRadius(double barCornerRadius) {
       this.barCornerRadius = Math.max(0, Math.min(0.5, barCornerRadius));
-      // an explicit write makes the value user-authored, so it stops tracking the gate
-      this.modernCornerSeed = false;
    }
 
    public boolean isBarRoundAllCorners() {
@@ -1532,7 +1496,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       fillZero = "true".equals(Tool.getAttribute(node, "fillZero"));
       fillGapWithDash = "true".equals(Tool.getAttribute(node, "fillGapWithDash"));
       smoothLines = "true".equals(Tool.getAttribute(node, "smoothLines"));
-      modernSmoothSeed = "true".equals(Tool.getAttribute(node, "modernSmoothSeed"));
       String treeLayoutAttr = Tool.getAttribute(node, "treeLayout");
 
       if(treeLayoutAttr != null) {
@@ -1580,7 +1543,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       val = Tool.getAttribute(node, "barCornerRadius");
       setBarCornerRadius(val != null ? Double.parseDouble(val) : 0.0);
       barRoundAllCorners = "true".equals(Tool.getAttribute(node, "barRoundAllCorners"));
-      modernCornerSeed = "true".equals(Tool.getAttribute(node, "modernCornerSeed"));
 
       val = Tool.getAttribute(node, "nodeCornerRadius");
       setNodeCornerRadius(val != null ? Double.parseDouble(val) : 0.0);
@@ -1719,7 +1681,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" fillZero=\"" + fillZero + "\" ");
       writer.print(" fillGapWithDash=\"" + fillGapWithDash + "\" ");
       writer.print(" smoothLines=\"" + smoothLines + "\" ");
-      writer.print(" modernSmoothSeed=\"" + modernSmoothSeed + "\" ");
 
       if(!TREE_LAYOUT_TOP_BOTTOM.equals(treeLayout)) {
          writer.print(" treeLayout=\"" + treeLayout + "\" ");
@@ -1741,7 +1702,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" pieRatio=\"" + pieRatio + "\" ");
       writer.print(" barCornerRadius=\"" + barCornerRadius + "\" ");
       writer.print(" barRoundAllCorners=\"" + barRoundAllCorners + "\" ");
-      writer.print(" modernCornerSeed=\"" + modernCornerSeed + "\" ");
       writer.print(" nodeCornerRadius=\"" + nodeCornerRadius + "\" ");
       writer.print(" oneLine=\"" + oneLine + "\" ");
 
@@ -1874,7 +1834,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          fillZero == desc.fillZero &&
          fillGapWithDash == desc.fillGapWithDash &&
          smoothLines == desc.smoothLines &&
-         modernSmoothSeed == desc.modernSmoothSeed &&
          Tool.equals(treeLayout, desc.treeLayout) &&
          Tool.equals(alpha, desc.alpha) &&
          rLineVisible == desc.rLineVisible &&
@@ -1900,7 +1859,6 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          Tool.equals(wordCloudFontScale, desc.wordCloudFontScale) &&
          pieRatio == desc.pieRatio &&
          barCornerRadius == desc.barCornerRadius &&
-         modernCornerSeed == desc.modernCornerSeed &&
          barRoundAllCorners == desc.barRoundAllCorners &&
          nodeCornerRadius == desc.nodeCornerRadius &&
          circleFormats.equals(desc.circleFormats) &&
@@ -1994,19 +1952,11 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    // Default false so saved viewsheets without the smoothLines XML attribute keep their original
    // straight-line look. New area charts get smooth=true via the chart-type chooser/wizard hook.
    private boolean smoothLines = false;
-   // Gate marker for smoothLines: true means modern mode seeded it rather than a user setting it, so
-   // the gate may take it away again. Independent of modernCornerSeed by design — the two mark disjoint
-   // chart families and must not un-gate each other.
-   private boolean modernSmoothSeed = false;
    private String treeLayout = TREE_LAYOUT_TOP_BOTTOM;
    private CompositeTextFormat errorFormat;
    private double pieRatio = 0;
    private static final double DEFAULT_BAR_CORNER_RADIUS = 0;
    private double barCornerRadius = DEFAULT_BAR_CORNER_RADIUS;
-   // Gate marker for barCornerRadius: true means modern mode seeded the radius rather than a user
-   // setting it, so the gate may take it away again. Deliberately unlike the ungated nodeCornerRadius
-   // and smoothLines defaults below — do not collapse this to a plain field default.
-   private boolean modernCornerSeed = false;
    private boolean barRoundAllCorners = false;
    // New tree charts default to rounded nodes; parseXML overrides to 0 for saved charts.
    private static final double DEFAULT_NODE_CORNER_RADIUS = 0.3;

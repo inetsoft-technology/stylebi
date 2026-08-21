@@ -209,27 +209,6 @@ class VSObjectChromeDefaultsTest {
       assertEquals(12, VSObjectChromeDefaults.cardCornerRadius());
    }
 
-   @Test
-   void resolveSeededCornerKeepsSeedUnderGate() {
-      withGate("true", () -> assertEquals(12, VSObjectChromeDefaults.resolveSeededCorner(12)));
-   }
-
-   @Test
-   void resolveSeededCornerStripsSeedGateOff() {
-      withGate("false", () -> assertEquals(0, VSObjectChromeDefaults.resolveSeededCorner(12)));
-   }
-
-   @Test
-   void resolveSeededCornerPreservesNonSeedValues() {
-      // only the exact seed is gate-owned; any other value is a customer/legacy radius
-      withGate("false", () -> {
-         assertEquals(8, VSObjectChromeDefaults.resolveSeededCorner(8));
-         assertEquals(16, VSObjectChromeDefaults.resolveSeededCorner(16));
-         assertEquals(0, VSObjectChromeDefaults.resolveSeededCorner(0));
-      });
-      withGate("true", () -> assertEquals(8, VSObjectChromeDefaults.resolveSeededCorner(8)));
-   }
-
    private int seededRadius(VSAssemblyInfo info) {
       info.setVizMark(VizMark.fromGate());
       info.initDefaultFormat();
@@ -253,8 +232,7 @@ class VSObjectChromeDefaultsTest {
    @Test
    void calendarKeepsItsOwnRadiusInBothGateStates() {
       // CalendarVSAssemblyInfo:88 overrides initDefaultFormat and clones a static template whose
-      // object format hardcodes roundCorner=10 (:1420), so the seed never reaches it. 10 survives the
-      // gate strip because that keys on exact equality with 12.
+      // object format hardcodes roundCorner=10 (:1420), so the seed never reaches it.
       withGate("true", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
       withGate("false", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
    }
@@ -268,7 +246,7 @@ class VSObjectChromeDefaultsTest {
          assertEquals(0, seededRadius(new TimeSliderVSAssemblyInfo()), "range slider stays square");
          assertEquals(0, seededRadius(new RectangleVSAssemblyInfo()), "shapes own their radius");
          // TabVSAssemblyInfo:65 unconditionally sets its own roundCorner of 4; the point is that it is
-         // not overwritten by the 12px seed. 4 survives because the strip keys on exact equality with 12.
+         // not overwritten by the 12px seed.
          assertEquals(4, seededRadius(new TabVSAssemblyInfo()), "tab keeps its own radius, not the seed");
       });
    }
@@ -284,14 +262,16 @@ class VSObjectChromeDefaultsTest {
    }
 
    @Test
-   void cardCornerSeedRevertsWhenGateTurnedOff() {
+   void cardCornerSeedSurvivesTheGateTurningOff() {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
       withGate("true", () -> {
          info.setVizMark(VizMark.fromGate());
          info.initDefaultFormat();
       });
       withGate("true", () -> assertEquals(12, info.getFormat().getRoundCorner(), "rounded while on"));
-      withGate("false", () -> assertEquals(0, info.getFormat().getRoundCorner(), "square once off"));
+      withGate("false", () -> assertEquals(12, info.getFormat().getRoundCorner(),
+                                           "a seeded card keeps its radius; Revert is the only "
+                                              + "route back to square"));
    }
 
    @Test
@@ -300,6 +280,6 @@ class VSObjectChromeDefaultsTest {
       withGate("true", () -> info.initDefaultFormat());
       info.getFormat().getUserDefinedFormat().setRoundCornerValue(6);
       withGate("false", () -> assertEquals(6, info.getFormat().getRoundCorner(),
-                                           "a user radius is not gate-stripped"));
+                                           "a user radius beats the seeded default"));
    }
 }

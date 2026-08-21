@@ -58,12 +58,20 @@ public final class VizContext {
    }
 
    /**
-    * The context a mark implies, gated: modern only while the org gate is also on, so turning the
-    * gate off restores legacy read-time chrome even on a marked assembly. Density still comes from
-    * the org: the mark decides whether an assembly honours density, not which density is in force.
+    * The context a mark implies. The org gate does not appear: it is a creation-time switch that
+    * decides what a new assembly is stamped with, and the mark decides how a stamped one renders.
+    * Closing the gate therefore reverts nothing that resolves through here - the per-dashboard
+    * Revert action is the only route back. Density still comes from the org: the mark decides
+    * whether an assembly honours density, not which density is in force.
+    *
+    * Three reads outside this context still follow the gate, each a documented accepted cost:
+    * AbstractChartInfo.getTooltipStyle's AUTO resolution, VSChartInteractionDefaults.isInlineSvg,
+    * and the viz-shell / viz-shell-dark shell body classes. A marked assembly in a gate-off org
+    * takes a legacy tooltip style, loses inline-SVG animation and hover dimming, and sits in an
+    * unthemed shell.
     */
    public static VizContext of(VizMark mark) {
-      boolean modern = VSDensityDefaults.isModern() && mark != null;
+      boolean modern = mark != null;
       return new VizContext(modern, modern && mark == VizMark.MODERN_DARK, VSDensityDefaults.mode());
    }
 
