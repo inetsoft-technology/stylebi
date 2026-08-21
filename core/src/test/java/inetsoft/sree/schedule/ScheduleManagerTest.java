@@ -168,6 +168,34 @@ public class ScheduleManagerTest {
       assertTrue(scheduleManager.isDeleteOnlyByOwner(task, tuser0));
    }
 
+   /*
+    * The Schedule settings page displays these two options with
+    * SreeEnv.getBooleanProperty(property, "true", "CHECKED"), and defaults.properties ships
+    * four of the eight schedule.options.* keys as CHECKED, so CHECKED is the established
+    * spelling for this family. The enforcement paths here passed no true-value list, which
+    * falls back to "true".equals -- a stored CHECKED showed both options ticked in Enterprise
+    * Manager while every enforcement path read them as off.
+    */
+   @Test
+   void schedulePermissionOptions_checkedValue_matchesDisplayedState() {
+      SreeEnv.setProperty("security.enabled", "true");
+      SreeEnv.setProperty("schedule.options.shareTaskInGroup", "CHECKED");
+      SreeEnv.setProperty("schedule.options.deleteTaskOnlyByOwner", "CHECKED");
+
+      assertTrue(ScheduleManager.isShareInGroup());
+      assertTrue(ScheduleManager.isDeleteByOwner());
+
+      // hasShareGroupPermission() now delegates to isShareInGroup() for the flag. Its outcome
+      // is not asserted here: past the flag it defers to isSameGroup(), which resolves groups
+      // through the security provider, and this fixture defines no users for tuser0/admin.
+
+      // an unrecognized value stays off
+      SreeEnv.setProperty("schedule.options.shareTaskInGroup", "yes");
+      assertFalse(ScheduleManager.isShareInGroup());
+      SreeEnv.setProperty("schedule.options.deleteTaskOnlyByOwner", "1");
+      assertFalse(ScheduleManager.isDeleteByOwner());
+   }
+
    /**
     * check save and remove  task
     */

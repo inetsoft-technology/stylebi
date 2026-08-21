@@ -492,7 +492,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
    public String toString() {
       Catalog catalog = Catalog.getCatalog();
       setCurrTimeformat();
-      boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12hours");
+      boolean twelveHourSystem = Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours"));
 
       if(type == AT) {
          TimeZone serverTZ = TimeZone.getDefault();

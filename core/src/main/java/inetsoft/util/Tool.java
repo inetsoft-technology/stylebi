@@ -2927,7 +2927,7 @@ public final class Tool extends CoreTool {
    public static SimpleDateFormat getTimeFormat(Locale locale, boolean schedule) {
       String prop = SreeEnv.getProperty("format.time");
       String key = locale + ":time:" + prop;
-      boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12hours");
+      boolean twelveHourSystem = Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours"));
 
       if(schedule) {
          key += ":schedule:" + twelveHourSystem;

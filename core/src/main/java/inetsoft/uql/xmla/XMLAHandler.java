@@ -37,6 +37,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 
@@ -886,7 +887,8 @@ public class XMLAHandler extends XHandler {
     */
    private static String encode(String ticket) {
       return ticket == null ? null :
-         new String(Base64.encodeBase64(ticket.getBytes(), false));
+         new String(Base64.encodeBase64(ticket.getBytes(StandardCharsets.UTF_8), false),
+                    StandardCharsets.US_ASCII);
    }
 
    /**
