@@ -23,11 +23,19 @@
  *   Group 1 [Risk 2] — hasMenuAction: correct boolean logic; wrong result hides the
  *                       sandwich menu button or shows it when it should not exist
  *   Group 2 [Risk 2] — showMobileSandwichDropdown: open/close toggle; wrong branch leaves
- *                       the overlay permanently open or permanently closed
+ *                       the overlay permanently open or permanently closed. Also pins down
+ *                       the fix for the unresponsive mobile sandwich menu: the options must
+ *                       not pin a z-index, or the menu sits below the paging control
  *   Group 3 [Risk 1] — allowedActionsNum: defaultButtons increments by 1 when hasMenuAction
  *                       is true; arithmetic error shows too many or too few toolbar actions
  *
- * Confirmed bugs: none
+ * Confirmed bugs: pinned zIndex 1000 put the menu below the mobile paging control (fixed)
+ *
+ * Known, not fixed here: sandwichMenuOpen is never reset when the dropdown closes on its
+ *   own, so the first tap on the sandwich button after an external close is a no-op. The
+ *   flag cannot simply be reset -- FixedDropdownComponent emits onClose from its own
+ *   document mousedown/click listeners before the button's (click) runs, so an accurate
+ *   flag makes the button reopen the menu instead of dismissing it.
  *
  * Out of scope:
  *   actions setter — trivially assigns _actions; no logic to contract-test
@@ -67,6 +75,17 @@ beforeEach(() => {
    DROPDOWN_SERVICE_MOCK.open.mockClear();
    dropdownRefMock.close.mockClear();
 });
+
+function openSandwich(comp: ViewerMobileToolbarComponent): void {
+   comp.mobileSandwichElement = {
+      nativeElement: {
+         getBoundingClientRect: () => ({ left: 10, top: 20 }),
+         offsetHeight: 50,
+      },
+   } as ElementRef;
+
+   comp.showMobileSandwichDropdown({});
+}
 
 async function renderComp(actions: Partial<AbstractVSActions<any>> = makeActions()) {
    const { fixture } = await render(ViewerMobileToolbarComponent, {
@@ -145,6 +164,19 @@ describe("ViewerMobileToolbarComponent — showMobileSandwichDropdown", () => {
       expect(dropdownRefMock.close).toHaveBeenCalledTimes(1);
       expect(comp.sandwichMenuOpen).toBe(false);
       expect(DROPDOWN_SERVICE_MOCK.open).not.toHaveBeenCalled();
+   });
+
+   // 🔁 Regression-sensitive: a pinned zIndex becomes an inline style on the dropdown host
+   // and overrides the .fixed-dropdown stylesheet value (999900). The old value of 1000 put
+   // this menu below the mobile paging control (z-index 9999, pointer-events: all) that the
+   // viewer plants at the tapped cell, so taps on overlapping menu items hit-tested to the
+   // control and were silently swallowed.
+   it("should not pin a z-index on the dropdown options", async () => {
+      const { comp } = await renderComp();
+      openSandwich(comp);
+
+      const options = DROPDOWN_SERVICE_MOCK.open.mock.calls[0][1] as any;
+      expect(options.zIndex).toBeUndefined();
    });
 });
 
