@@ -33,6 +33,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -87,6 +89,47 @@ class TabularHandlerTest {
       VariableTable vars = new VariableTable();
       vars.put("param", "A");
       return vars;
+   }
+
+   /**
+    * The invariant {@link TabularHandler#execute} depends on and cannot state for itself: it runs a
+    * CLONE of the query and copies the clone's response shape back onto the original, so that copy
+    * only clears a stale shape if the clone arrives without one.
+    *
+    * Shallow-copied, this failed silently. A query re-executed in place kept the shape from its last
+    * successful run, and because a runner that fails never reaches {@code setResponseShape}
+    * ({@code EndpointJsonQueryRunner.runStream} catches its own exceptions), the copy-back wrote that
+    * earlier shape straight back — reporting it as current with nothing to mark it stale.
+    */
+   @Test
+   void cloneDoesNotInheritTheOriginalsResponseShape() {
+      TestTabularQuery original = new TestTabularQuery();
+      original.setResponseShape(Map.of("data", List.of(Map.of("id", "string"))), true);
+
+      TabularQuery copy = original.clone();
+
+      assertNull(copy.getResponseShape(), "a clone must not report a shape it did not produce");
+      assertFalse(copy.isResponseShapeTruncated());
+
+      // Clearing the clone must not clear the source: the original is what TabularHandler copies
+      // back ONTO, and every other reader of an executed query holds it.
+      assertNotNull(original.getResponseShape());
+      assertTrue(original.isResponseShapeTruncated());
+   }
+
+   /**
+    * The other half of the same invariant: the clone is the object that executes, so it has to be
+    * able to record a shape without that leaking into the original before the copy-back decides.
+    */
+   @Test
+   void aCloneRecordsItsOwnShapeIndependently() {
+      TestTabularQuery original = new TestTabularQuery();
+      TabularQuery copy = original.clone();
+
+      copy.setResponseShape(Map.of("object", "string"), false);
+
+      assertEquals(Map.of("object", "string"), copy.getResponseShape());
+      assertNull(original.getResponseShape(), "the original must not see the clone's execution");
    }
 
    private static Principal principal(String name, String orgID) {
