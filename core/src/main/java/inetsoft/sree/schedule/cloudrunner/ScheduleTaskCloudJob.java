@@ -47,7 +47,8 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    @Override
    public void execute(JobExecutionContext context) throws JobExecutionException
    {
-      timeout = ScheduleTask.getTaskTimeout();
+      long configuredTimeout = ScheduleTask.getTaskTimeout();
+      timeout = configuredTimeout > 0 ? configuredTimeout : DEFAULT_TIMEOUT;
       createCloudRunnerConfig();
       taskName = context.getJobDetail().getKey().getName();
 
@@ -94,17 +95,12 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             }
          }
 
-         if(timeout > 0) {
-            if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
-               if(job != null) {
-                  job.stop();
-               }
-
-               throw new JobExecutionException("Scheduled task '" + taskName + "' timed out");
+         if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+            if(job != null) {
+               job.stop();
             }
-         }
-         else {
-            latch.await();
+
+            throw new JobExecutionException("Scheduled task '" + taskName + "' timed out");
          }
 
          if(result != null && !result.isSuccess()) {
@@ -274,5 +270,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    private CloudJobResult result;
    private final CountDownLatch latch = new CountDownLatch(1);
    private long timeout;
+   // a cloud runner task must never wait unbounded, since it consumes billed compute
+   private static final long DEFAULT_TIMEOUT = 600000L; // 10 minutes
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskCloudJob.class);
 }
