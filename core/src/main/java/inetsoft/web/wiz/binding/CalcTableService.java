@@ -21,12 +21,14 @@ import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -37,6 +39,11 @@ import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
 import inetsoft.web.binding.controller.VSTableLayoutService;
 import inetsoft.web.binding.event.GetCellScriptEvent;
 import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
+import inetsoft.web.binding.model.table.OrderModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.composer.model.condition.ConditionExpression;
+import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
@@ -69,9 +76,12 @@ import java.util.List;
 @Service
 public class CalcTableService {
    @Autowired
-   public CalcTableService(ViewsheetSessionService sessions, VSTableLayoutService layoutService) {
+   public CalcTableService(ViewsheetSessionService sessions, VSTableLayoutService layoutService,
+                           DataRefModelFactoryService refModelService)
+   {
       this.sessions = sessions;
       this.layoutService = layoutService;
+      this.refModelService = refModelService;
    }
 
    /**
@@ -200,23 +210,11 @@ public class CalcTableService {
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
 
-         GetPredefinedNamedGroupEvent event = new GetPredefinedNamedGroupEvent();
-         event.setName(assemblyName);
-         event.setColumn(column);
-         layoutService.getNamedGroup(runtimeId, event, user, dispatcher);
-
          // The command carries the group NAMES only — its constructor takes
          // AssetNamedGroupInfo[] but keeps just getName() from each. The members are not on
          // the wire, so this reports what StyleBI actually sends rather than inventing a shape.
-         List<String> groups = new ArrayList<>();
-
-         for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
-            if(command.getCommand() instanceof GetPredefinedNamedGroupCommand named &&
-               named.getNamedGroups() != null)
-            {
-               groups.addAll(List.of(named.getNamedGroups()));
-            }
-         }
+         List<String> groups = new ArrayList<>(
+            predefinedNamedGroupNames(runtimeId, user, dispatcher, assemblyName, column));
 
          // The above only sees repository-registered "predefined named group" assets
          // (SummaryAttr.getAssetNamedGroupInfos), a different kind from the plain
@@ -225,30 +223,10 @@ public class CalcTableService {
          // a group created through add_named_group is actually listed.
          Set<String> seen = new LinkedHashSet<>(groups);
          List<String> worksheetGroups = new ArrayList<>();
-         SourceInfo sinfo = ((CalcTableVSAssemblyInfo) assembly.getInfo()).getSourceInfo();
-         Worksheet ws = rvs.getViewsheet() == null ? null : rvs.getViewsheet().getBaseWorksheet();
 
-         if(sinfo != null && sinfo.getSource() != null && ws != null) {
-            for(Assembly wsAssembly : ws.getAssemblies()) {
-               if(!(wsAssembly instanceof DefaultNamedGroupAssembly ngAssembly) ||
-                  ngAssembly.getAttachedType() != AttachedAssembly.COLUMN_ATTACHED)
-               {
-                  continue;
-               }
-
-               SourceInfo attachedSource = ngAssembly.getAttachedSource();
-               DataRef attr = ngAssembly.getAttachedAttribute();
-
-               if(attachedSource == null || attr == null ||
-                  !sinfo.getSource().equals(attachedSource.getSource()) ||
-                  !column.equals(attr.getAttribute()))
-               {
-                  continue;
-               }
-
-               if(seen.add(ngAssembly.getName())) {
-                  worksheetGroups.add(ngAssembly.getName());
-               }
+         for(DefaultNamedGroupAssembly ngAssembly : worksheetNamedGroups(rvs, assembly, column)) {
+            if(seen.add(ngAssembly.getName())) {
+               worksheetGroups.add(ngAssembly.getName());
             }
          }
 
@@ -260,15 +238,12 @@ public class CalcTableService {
          out.put("namedGroups", groups);
 
          if(!worksheetGroups.isEmpty()) {
-            // Listable here does not yet mean bindable: VSTableLayoutService.setNamedGroupInfo
-            // has no code path for a worksheet-local DefaultNamedGroupAssembly's plain
-            // NamedGroupInfo, only for the asset-repository named-group kinds above.
             out.put("note",
                     "'" + String.join("', '", worksheetGroups) + "' " +
                     (worksheetGroups.size() == 1 ? "was" : "were") +
-                    " created via add_named_group on this column's worksheet. It is listed " +
-                    "here, but set_cell_binding's 'namedGroup' parameter may not yet be able " +
-                    "to bind it — this has not been confirmed against a live server.");
+                    " created via add_named_group on this column's worksheet. set_cell_binding's " +
+                    "'namedGroup' parameter binds it by converting its conditions into an " +
+                    "expert named group on the cell's order.");
          }
          else if(groups.isEmpty()) {
             out.put("note",
@@ -293,12 +268,165 @@ public class CalcTableService {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
 
+         CellBindingInfo cellBindingInfo = toCellBindingInfo(binding);
+         String namedGroup = cellBindingInfo.getType() == CellBinding.BIND_COLUMN
+            ? namedGroupOf(binding.get("field")) : null;
+
+         if(namedGroup != null) {
+            cellBindingInfo.setOrder(resolveNamedGroupOrder(
+               rvs, assembly, runtimeId, user, dispatcher, cellBindingInfo.getValue(),
+               namedGroup));
+         }
+
          SetCellBindingEvent event = new SetCellBindingEvent();
          event.setName(assemblyName);
          event.setSelectCells(new TableCell[]{ cellAt(row, col) });
-         event.setBinding(toCellBindingInfo(binding));
+         event.setBinding(cellBindingInfo);
          layoutService.setCellBinding(runtimeId, event, user, dispatcher);
       });
+   }
+
+   /**
+    * The predefined-named-group names a column offers, straight off the dispatched command —
+    * the same lookup {@link #namedGroups} reports and {@link #resolveNamedGroupOrder} validates
+    * an asset name against.
+    */
+   private List<String> predefinedNamedGroupNames(String runtimeId, Principal user,
+                                                   CapturingCommandDispatcher dispatcher,
+                                                   String assemblyName, String column)
+      throws Exception
+   {
+      GetPredefinedNamedGroupEvent event = new GetPredefinedNamedGroupEvent();
+      event.setName(assemblyName);
+      event.setColumn(column);
+      layoutService.getNamedGroup(runtimeId, event, user, dispatcher);
+
+      List<String> groups = new ArrayList<>();
+
+      for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+         if(command.getCommand() instanceof GetPredefinedNamedGroupCommand named &&
+            named.getNamedGroups() != null)
+         {
+            groups.addAll(List.of(named.getNamedGroups()));
+         }
+      }
+
+      return groups;
+   }
+
+   /**
+    * The worksheet-local {@code DefaultNamedGroupAssembly}(s) {@code add_named_group} created
+    * on this column, attached to the calc table's own source -- a different kind from the
+    * repository-registered "predefined named group" assets {@link #predefinedNamedGroupNames}
+    * sees.
+    */
+   private List<DefaultNamedGroupAssembly> worksheetNamedGroups(RuntimeViewsheet rvs,
+                                                                CalcTableVSAssembly assembly,
+                                                                String column)
+   {
+      List<DefaultNamedGroupAssembly> matches = new ArrayList<>();
+      SourceInfo sinfo = ((CalcTableVSAssemblyInfo) assembly.getInfo()).getSourceInfo();
+      Worksheet ws = rvs.getViewsheet() == null ? null : rvs.getViewsheet().getBaseWorksheet();
+
+      if(sinfo == null || sinfo.getSource() == null || ws == null) {
+         return matches;
+      }
+
+      for(Assembly wsAssembly : ws.getAssemblies()) {
+         if(!(wsAssembly instanceof DefaultNamedGroupAssembly ngAssembly) ||
+            ngAssembly.getAttachedType() != AttachedAssembly.COLUMN_ATTACHED)
+         {
+            continue;
+         }
+
+         SourceInfo attachedSource = ngAssembly.getAttachedSource();
+         DataRef attr = ngAssembly.getAttachedAttribute();
+
+         if(attachedSource == null || attr == null ||
+            !sinfo.getSource().equals(attachedSource.getSource()) ||
+            !column.equals(attr.getAttribute()))
+         {
+            continue;
+         }
+
+         matches.add(ngAssembly);
+      }
+
+      return matches;
+   }
+
+   /**
+    * Resolves a cell's {@code field.namedGroup} to the {@code OrderModel}
+    * {@code VSTableLayoutService.setNamedGroupInfo} actually knows how to apply -- worksheet-local
+    * first (an {@code EXPERT_NAMEDGROUP_INFO} built from the assembly's own per-group
+    * conditions), then the repository-registered asset kind. Neither matching is a hard failure:
+    * a name that resolves to nothing would otherwise silently render without any grouping at
+    * all, which is the defect this fixes.
+    */
+   private OrderModel resolveNamedGroupOrder(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                                             String runtimeId, Principal user,
+                                             CapturingCommandDispatcher dispatcher,
+                                             String column, String namedGroup)
+      throws Exception
+   {
+      for(DefaultNamedGroupAssembly ngAssembly : worksheetNamedGroups(rvs, assembly, column)) {
+         if(namedGroup.equals(ngAssembly.getName())) {
+            return worksheetLocalOrder(ngAssembly);
+         }
+      }
+
+      List<String> registered = predefinedNamedGroupNames(
+         runtimeId, user, dispatcher, assembly.getAbsoluteName(), column);
+
+      if(registered.contains(namedGroup)) {
+         NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
+         ngInfoModel.setType(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO);
+         ngInfoModel.setName(namedGroup);
+         OrderModel orderModel = new OrderModel();
+         orderModel.setType(XConstants.SORT_SPECIFIC);
+         orderModel.setInfo(ngInfoModel);
+         return orderModel;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + namedGroup + "' is not a named group on column '" + column + "' -- it matches " +
+         "neither a worksheet-local group created by add_named_group nor a repository-" +
+         "registered predefined named group. list_named_groups reports what is available.");
+   }
+
+   /**
+    * Converts a worksheet-local {@code DefaultNamedGroupAssembly}'s per-group conditions into
+    * the {@code EXPERT_NAMEDGROUP_INFO} shape {@code VSTableLayoutService.setNamedGroupInfo}
+    * consumes.
+    *
+    * <p>This cannot reuse {@code NamedGroupInfoModel.fixNamedGroupInfoModel} -- that method skips
+    * anything whose {@code getType()} isn't {@code EXPERT}/{@code SIMPLE}, and a worksheet-local
+    * assembly's {@code NamedGroupInfo.getType()} hard-codes {@code ASSET_NAMEDGROUP_INFO} even
+    * though it holds inline per-group {@code ConditionList}s. The conversion itself is the same
+    * technique that method uses.
+    *
+    * <p>{@code SORT_SPECIFIC} on the order is not optional decoration: {@code OrderInfo.isSpecific()}
+    * -- which reads this exact bit -- gates whether {@code OrderInfo.createSortOrder} ever folds
+    * the named-group conditions into the {@code SortOrder} StyleBI actually groups by. Without
+    * it the named group is attached but never takes effect.
+    */
+   private OrderModel worksheetLocalOrder(DefaultNamedGroupAssembly ngAssembly) throws Exception {
+      NamedGroupInfoModel ngInfoModel = new NamedGroupInfoModel();
+      ngInfoModel.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
+
+      for(String group : ngAssembly.getNamedGroupInfo().getGroups(false)) {
+         Object[] conditions = ConditionUtil.fromConditionListToModel(
+            ngAssembly.getNamedGroupInfo().getGroupCondition(group), refModelService);
+         ConditionExpression conditionExpression = new ConditionExpression();
+         conditionExpression.setName(group);
+         conditionExpression.setList(conditions);
+         ngInfoModel.addCondition(conditionExpression);
+      }
+
+      OrderModel orderModel = new OrderModel();
+      orderModel.setType(XConstants.SORT_SPECIFIC);
+      orderModel.setInfo(ngInfoModel);
+      return orderModel;
    }
 
    /**
@@ -551,6 +679,14 @@ public class CalcTableService {
          "A cell's 'field' must be an object such as {column: \"Region\", type: \"dimension\"}.");
    }
 
+   /** A field's named-group name, if it carries one. {@code null} means none was given. */
+   private static String namedGroupOf(Object field) {
+      Object namedGroup = field instanceof FieldRef ref ? ref.namedGroup()
+         : field instanceof Map<?, ?> map ? map.get("namedGroup") : null;
+      String text = namedGroup == null ? "" : String.valueOf(namedGroup).trim();
+      return text.isEmpty() ? null : text;
+   }
+
    private static TableCell cellAt(int row, int col) {
       TableCell cell = new TableCell();
       cell.setRow(row);
@@ -609,4 +745,5 @@ public class CalcTableService {
 
    private final ViewsheetSessionService sessions;
    private final VSTableLayoutService layoutService;
+   private final DataRefModelFactoryService refModelService;
 }

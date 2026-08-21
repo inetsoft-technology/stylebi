@@ -29,19 +29,27 @@ import inetsoft.report.GroupableCellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.NamedGroupInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
 import inetsoft.web.binding.model.table.CellBindingInfo;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -317,7 +325,8 @@ class CalcTableServiceTest {
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
                           VSTableLayoutService layoutService, Viewsheet viewsheet,
-                          CalcTableVSAssemblyInfo assemblyInfo) {}
+                          CalcTableVSAssemblyInfo assemblyInfo,
+                          DataRefModelFactoryService refModelService) {}
 
    private static Harness harness(int rows, int cols) {
       CalcTableVSAssembly assembly = mock(CalcTableVSAssembly.class);
@@ -345,10 +354,13 @@ class CalcTableServiceTest {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
+         // A real CapturingCommandDispatcher, not a bare null: resolving a namedGroup against
+         // the repository-registered list dispatches GetPredefinedNamedGroupCommand the same
+         // way a read does, and needs somewhere real to land.
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(rvs, "rt1", null);
-            return null;
+            return CapturingCommandDispatcher.withCapturingDispatcher(
+               principal(), dispatcher -> { mutation.run(rvs, "rt1", dispatcher); return null; });
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
 
@@ -366,8 +378,10 @@ class CalcTableServiceTest {
       }
 
       VSTableLayoutService layoutService = mock(VSTableLayoutService.class);
-      return new Harness(new CalcTableService(sessions, layoutService), sessions, layoutService,
-                         vs, info);
+      DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+      return new Harness(new CalcTableService(sessions, layoutService, refModelService), sessions,
+                         layoutService, vs, info, refModelService);
    }
 
    private static Principal principal() {
@@ -460,6 +474,114 @@ class CalcTableServiceTest {
       @SuppressWarnings("unchecked")
       List<String> groups = (List<String>) read.get("namedGroups");
       assertTrue(groups.contains("Regions"), "expected worksheet-local group in: " + groups);
+   }
+
+   /**
+    * The confirmed silent-drop defect: {@code field.namedGroup} naming a worksheet-local group
+    * created via {@code add_named_group} must land on {@code CellBindingInfo.order} as an
+    * {@code EXPERT_NAMEDGROUP_INFO} built from that assembly's own per-group conditions, with
+    * {@code order.type == SORT_SPECIFIC} -- the bit {@code OrderInfo.isSpecific()} gates before
+    * a named group's conditions are ever folded into the actual grouping order.
+    */
+   @Test
+   void bindsAWorksheetLocalNamedGroupAsAnExpertOrder() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.assemblyInfo().getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      when(h.viewsheet().getBaseWorksheet()).thenReturn(ws);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+                               spec("content", "column", "grouping", "group", "expand", "vertical",
+                                    "field", Map.of("column", "REGION", "type", "dimension",
+                                                    "namedGroup", "Coastal")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
+      assertEquals(XConstants.SORT_SPECIFIC, order.getType());
+      assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, order.getInfo().getType());
+      List<inetsoft.web.composer.model.condition.ConditionExpression> conds =
+         order.getInfo().getConditions();
+      assertEquals(1, conds.size());
+      assertEquals("West", conds.get(0).getName());
+      assertEquals(1, conds.get(0).getList().length);
+   }
+
+   /**
+    * A {@code namedGroup} that matches no worksheet-local assembly is treated as a genuine
+    * repository-registered predefined named group, exactly the shape the real Composer UI
+    * sends: {@code order.info = {name, type: ASSET_NAMEDGROUP_INFO}}, letting
+    * {@code VSTableLayoutService.setNamedGroupInfo}'s existing branch resolve it.
+    */
+   @Test
+   void bindsARegisteredPredefinedNamedGroupAsAnAssetReference() throws Exception {
+      Harness h = harness(3, 3);
+      GetPredefinedNamedGroupCommand command = new GetPredefinedNamedGroupCommand(
+         new AssetNamedGroupInfo[0]);
+      command.setNamedGroups(new String[]{ "Tiers" });
+      doAnswer(invocation -> {
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("Calc1", command);
+         return null;
+      }).when(h.layoutService).getNamedGroup(anyString(),
+                                             any(GetPredefinedNamedGroupEvent.class),
+                                             any(Principal.class), any());
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+                               spec("content", "column", "grouping", "group", "expand", "vertical",
+                                    "field", Map.of("column", "REGION", "type", "dimension",
+                                                    "namedGroup", "Tiers")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      inetsoft.web.binding.model.table.OrderModel order = captor.getValue().getBinding().getOrder();
+      assertEquals(XConstants.SORT_SPECIFIC, order.getType());
+      assertEquals(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO, order.getInfo().getType());
+      assertEquals("Tiers", order.getInfo().getName());
+   }
+
+   /**
+    * A {@code namedGroup} matching neither a worksheet-local assembly nor the repository-
+    * registered list must fail loud, naming the field/column -- rather than silently building a
+    * dangling {@code ASSET_NAMEDGROUP_INFO} reference that resolves to nothing at render time.
+    */
+   @Test
+   void refusesAnUnrecognizedNamedGroup() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.setCellBinding(
+            "tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", Map.of("column", "REGION", "type", "dimension",
+                                 "namedGroup", "NoSuchGroup"))));
+
+      assertTrue(thrown.getMessage().contains("NoSuchGroup"));
+      assertTrue(thrown.getMessage().contains("REGION"));
    }
 
    @Test
