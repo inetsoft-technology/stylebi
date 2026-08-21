@@ -26,8 +26,15 @@ import inetsoft.web.binding.command.GetCellScriptCommand;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
+import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
@@ -112,6 +119,31 @@ class CalcTableServiceTest {
       assertEquals(1, event.getSelectCells()[0].getCol());
       assertEquals(CellBinding.BIND_COLUMN, event.getBinding().getType());
       assertEquals("Region", event.getBinding().getValue());
+   }
+
+   /**
+    * rowGroup/colGroup aren't part of this seam's cell vocabulary, so a spec that omits them
+    * must not leave the binding's group ancestry at null (StyleBI's "no ancestor, grand
+    * total" sentinel). It must default to TableCellBinding.DEFAULT_GROUP instead, the same as
+    * a freshly drag-and-dropped cell (TableLayoutHandler.createDefalutCellBinding), so
+    * SUMMARY/GROUP/DETAIL cells built through this tool inherit their nearest enclosing
+    * expand ancestor rather than silently becoming table-wide grand totals.
+    */
+   @Test
+   void defaultsRowAndColGroupToTheDefaultGroupSentinelWhenOmitted() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 2, 1, columnCell("Region"));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      SetCellBindingEvent event = captor.getValue();
+      assertEquals(TableCellBinding.DEFAULT_GROUP, event.getBinding().getRowGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, event.getBinding().getColGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, event.getBinding().getMergeRowGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, event.getBinding().getMergeColGroup());
    }
 
    /**
@@ -218,6 +250,48 @@ class CalcTableServiceTest {
       assertEquals("Total", captor.getValue().getBinding().getValue());
    }
 
+   /**
+    * The regression test for the confirmed silent-drop defect: a formula cell's script is
+    * CellBinding.value, the field LayoutTool/get_calc_cell_script actually reads -- not
+    * .formula, which is exclusively the BIND_COLUMN summary-cell aggregate name (Sum/Count/...).
+    * Before the fix this stored the script in .formula and left .value null, so
+    * get_calc_cell_script silently read back no script at all.
+    */
+   @Test
+   void bindsAFormulaCellStoringTheScriptInValueNotFormula() throws Exception {
+      Harness h = harness(2, 2);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+                               spec("content", "formula", "formula", "Sum(Sales)"));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      assertEquals(CellBinding.BIND_FORMULA, captor.getValue().getBinding().getType());
+      assertEquals("Sum(Sales)", captor.getValue().getBinding().getValue());
+      assertNull(captor.getValue().getBinding().getFormula());
+   }
+
+   /**
+    * get_cell_binding echoes a formula cell's script back under 'value', so a caller that
+    * feeds a read straight back into set_cell_binding supplies 'value' with no 'formula' key.
+    * That must still bind, and it must still land in .value.
+    */
+   @Test
+   void acceptsValueAsAnAliasForFormulaContent() throws Exception {
+      Harness h = harness(2, 2);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+                               spec("content", "formula", "value", "Sum(Sales)"));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      assertEquals("Sum(Sales)", captor.getValue().getBinding().getValue());
+   }
+
    @Test
    void refusesANonCalcAssemblyPointingAtTheShelfTools() {
       Harness h = harnessFor(mock(CrosstabVSAssembly.class), 0, 0);
@@ -242,7 +316,8 @@ class CalcTableServiceTest {
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
-                          VSTableLayoutService layoutService) {}
+                          VSTableLayoutService layoutService, Viewsheet viewsheet,
+                          CalcTableVSAssemblyInfo assemblyInfo) {}
 
    private static Harness harness(int rows, int cols) {
       CalcTableVSAssembly assembly = mock(CalcTableVSAssembly.class);
@@ -252,10 +327,16 @@ class CalcTableServiceTest {
       when(layout.getColCount()).thenReturn(cols);
       when(info.getTableLayout()).thenReturn(layout);
       when(assembly.getInfo()).thenReturn(info);
-      return harnessFor(assembly, rows, cols);
+      return harnessFor(assembly, info, rows, cols);
    }
 
    private static Harness harnessFor(VSAssembly assembly, int rows, int cols) {
+      return harnessFor(assembly, null, rows, cols);
+   }
+
+   private static Harness harnessFor(VSAssembly assembly, CalcTableVSAssemblyInfo info,
+                                     int rows, int cols)
+   {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -285,7 +366,8 @@ class CalcTableServiceTest {
       }
 
       VSTableLayoutService layoutService = mock(VSTableLayoutService.class);
-      return new Harness(new CalcTableService(sessions, layoutService), sessions, layoutService);
+      return new Harness(new CalcTableService(sessions, layoutService), sessions, layoutService,
+                         vs, info);
    }
 
    private static Principal principal() {
@@ -347,6 +429,37 @@ class CalcTableServiceTest {
 
       assertEquals(List.of("Regions", "Tiers"), read.get("namedGroups"));
       assertEquals("REGION", read.get("column"));
+   }
+
+   /**
+    * add_named_group creates a {@code DefaultNamedGroupAssembly} as an ordinary secondary
+    * assembly inside the calc table's own bound worksheet -- a completely different code path
+    * from the asset-repository "predefined named group" kind the block above already covers.
+    * Without also scanning the worksheet, a group created via add_named_group would never be
+    * listed here even though it genuinely exists.
+    */
+   @Test
+   void includesWorksheetLocalNamedGroupsCreatedByAddNamedGroup() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.assemblyInfo().getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Regions");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      when(h.viewsheet().getBaseWorksheet()).thenReturn(ws);
+
+      Map<String, Object> read = h.service.namedGroups("tok", principal(), "Calc1", "REGION");
+
+      @SuppressWarnings("unchecked")
+      List<String> groups = (List<String>) read.get("namedGroups");
+      assertTrue(groups.contains("Regions"), "expected worksheet-local group in: " + groups);
    }
 
    @Test

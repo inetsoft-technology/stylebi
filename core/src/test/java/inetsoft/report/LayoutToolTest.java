@@ -17,8 +17,12 @@
  */
 package inetsoft.report;
 
+import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +33,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Regression guard for #75747 / #75801: converting a crosstab to a freehand table
@@ -113,5 +118,50 @@ class LayoutToolTest {
          "getGroupColumnName", TableLens.class, TableCellBinding.class);
       method.setAccessible(true);
       return (String) method.invoke(null, base, cell);
+   }
+
+   /**
+    * Regression guard for the "[Ljava.lang.Object;@&lt;hash&gt;" defect: a plain
+    * detail-grouping cell (no expand, no ancestor group), in the non-crosstab-supported
+    * branch of createCalcBindingExpression, must be wrapped in none(...) the same way
+    * its crosstab-supported sibling branch already wraps the identical DETAIL bType.
+    * Without the wrapper, CalcTableLens/CellRange.getCollectionValue always returns a
+    * raw Object[] for calc-table array lookups, and an unwrapped cell renders that
+    * array's toString() instead of a scalar value.
+    */
+   @Test
+   void wrapsPlainDetailCellExpressionInNoneToAvoidLeakingARawArray() throws Exception {
+      DefaultTableLens base = new DefaultTableLens(new Object[][] {
+         { "EMPLOYEE_ID" },
+         { 5 },
+         { 7 }
+      });
+
+      TableLayout layout = new TableLayout();
+      layout.setColCount(1);
+      TableDataDescriptor desc = base.getDescriptor();
+      TableDataPath rpath = desc.getRowDataPath(0);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(rpath, region);
+
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, "EMPLOYEE_ID");
+      cell.setBType(TableCellBinding.DETAIL);
+      layout.setCellBinding(0, 0, cell);
+
+      Viewsheet viewsheet = new Viewsheet();
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly(viewsheet, "CalcTable1");
+      assembly.setTableLayout(layout);
+      viewsheet.addAssembly(assembly);
+
+      Method method = LayoutTool.class.getDeclaredMethod("fillCalcTableLens",
+         FormulaTable.class, TableLens.class, VariableTable.class, boolean.class);
+      method.setAccessible(true);
+      method.invoke(null, assembly, base, new VariableTable(), false);
+
+      CalcTableLens clens = (CalcTableLens) assembly.getBaseTable();
+      String exp = clens.getFormula(0, 0);
+      assertTrue(exp != null && exp.startsWith("none("),
+         "expected expression to be wrapped in none(...), was: " + exp);
    }
 }

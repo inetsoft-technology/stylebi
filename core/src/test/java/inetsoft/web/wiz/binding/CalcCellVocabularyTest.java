@@ -228,4 +228,16 @@ class CalcCellVocabularyTest {
       assertDoesNotThrow(
          () -> CalcCellVocabulary.validate(spec("content", "text", "value", "Total")));
    }
+
+   /**
+    * get_cell_binding echoes a formula cell's script back under 'value' (see
+    * CalcCellVocabulary.describe), so a caller that feeds that read straight back into
+    * set_cell_binding supplies 'value' rather than 'formula'. That must round-trip without
+    * the caller renaming the key.
+    */
+   @Test
+   void acceptsValueAsAnAliasForFormulaContent() {
+      assertDoesNotThrow(
+         () -> CalcCellVocabulary.validate(spec("content", "formula", "value", "Sum(Sales)")));
+   }
 }
