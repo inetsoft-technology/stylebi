@@ -297,6 +297,53 @@ describe("VSPane — processSetViewsheetInfoCommand", () => {
       expect(comp.vs.modernizable).toBe(false);
       expect(entry.visible()).toBe(false);
    });
+
+   it("should offer Revert in the canvas menu only where there is marked content", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      const entry = comp.menuActions
+         .reduce((all, group) => all.concat(group.actions), [])
+         .find(action => action.id() === "composer vspane revert");
+
+      comp.vs.revertable = false;
+      expect(entry.visible()).toBe(false);
+
+      comp.vs.revertable = true;
+      expect(entry.visible()).toBe(true);
+   });
+
+   it("should not send the revert event when the confirmation is declined", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.revertable = true;
+      const confirmSpy = vi.spyOn<any, any>(comp, "confirm").mockResolvedValue(false);
+
+      await comp.revert();
+
+      // the dialog text of a destructive action: an empty or wrong key would still resolve
+      expect(confirmSpy).toHaveBeenCalledWith("_#(js:composer.vs.revert.confirm)");
+      expect(mocks.vsClient.sendEvent).not.toHaveBeenCalledWith(
+         "/events/composer/viewsheet/revert");
+      expect(comp.vs.revertable).toBe(true);
+   });
+
+   it("should suppress the Modernize bar for the session once a sheet is reverted", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.revertable = true;
+      comp.vs.modernizeBarDismissed = false;
+      const confirmSpy = vi.spyOn<any, any>(comp, "confirm").mockResolvedValue(true);
+
+      await comp.revert();
+
+      expect(confirmSpy).toHaveBeenCalledWith("_#(js:composer.vs.revert.confirm)");
+      expect(mocks.vsClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/revert");
+      expect(comp.vs.revertable).toBe(false);
+      // modernizable is recomputed on every refresh, so a reverted sheet re-arms the bar
+      // immediately; reusing the per-session dismissal is what stops it offering to undo this
+      expect(comp.vs.modernizeBarDismissed).toBe(true);
+   });
 });
 
 // ---------------------------------------------------------------------------

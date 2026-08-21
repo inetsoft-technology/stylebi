@@ -28,31 +28,33 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 
 /**
- * Modernize the focused dashboard. One undo step for the whole action - @Undoable snapshots after
- * the action returns, so Ctrl+Z restores the unmarked state and, with it, the offer to modernize.
+ * Revert the focused dashboard. One undo step, the same as Modernize - @Undoable snapshots after
+ * the action returns, so Ctrl+Z restores the marked state and the modern chrome with it. The
+ * confirmation lives on the client, because the undo step is available but far less likely to be
+ * calmly used after a destructive-looking change.
  */
 @Controller
-public class ModernizeViewsheetController {
+public class RevertViewsheetController {
    @Autowired
-   public ModernizeViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       ModernizeViewsheetServiceProxy modernizeViewsheetService)
+   public RevertViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                    RevertViewsheetServiceProxy revertViewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.modernizeViewsheetService = modernizeViewsheetService;
+      this.revertViewsheetService = revertViewsheetService;
    }
 
    @Undoable
    @LoadingMask
    @HandleAssetExceptions
-   @MessageMapping("composer/viewsheet/modernize")
-   public void modernize(Principal principal, CommandDispatcher commandDispatcher,
-                         @LinkUri String linkUri)
+   @MessageMapping("composer/viewsheet/revert")
+   public void revert(Principal principal, CommandDispatcher commandDispatcher,
+                      @LinkUri String linkUri)
       throws Exception
    {
-      modernizeViewsheetService.modernize(runtimeViewsheetRef.getRuntimeId(), principal,
-                                         commandDispatcher, linkUri);
+      revertViewsheetService.revert(runtimeViewsheetRef.getRuntimeId(), principal,
+                                    commandDispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ModernizeViewsheetServiceProxy modernizeViewsheetService;
+   private final RevertViewsheetServiceProxy revertViewsheetService;
 }

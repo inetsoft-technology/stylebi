@@ -197,10 +197,7 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       plotDesc.setFillZero(fillZero);
       plotDesc.setFillGapWithDash(fillGapWithDash);
 
-      // a no-op OK must not turn a gate-seeded value into a user-authored one
-      if(smoothLines != plotDesc.isSmoothLines()) {
-         plotDesc.setSmoothLines(smoothLines);
-      }
+      plotDesc.setSmoothLines(smoothLines);
       // applied for all chart types so the value survives a chart-type switch;
       // GraphGenerator only reads it for CHART_TREE.
       plotDesc.setTreeLayout(treeLayout);
@@ -221,13 +218,7 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       plotDesc.setIncludeParentLabels(includeParentLabels);
       plotDesc.setApplyAestheticsToSource(applyAestheticsToSource);
       plotDesc.setPieRatio(pieRatio != null ? pieRatio : 0);
-      double incomingRadius = barCornerRadius != null ? barCornerRadius : 0;
-
-      // a no-op OK must not turn a gate-seeded radius into a user-authored one
-      if(incomingRadius != plotDesc.getBarCornerRadius()) {
-         plotDesc.setBarCornerRadius(incomingRadius);
-         plotDesc.setModernCornerSeed(false);
-      }
+      plotDesc.setBarCornerRadius(barCornerRadius != null ? barCornerRadius : 0);
       // Re-derive from info rather than trusting the client-supplied barRoundAllCornersVisible field.
       boolean roundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
          (GraphTypes.isBar(ctype) || GraphTypes.isPareto(ctype)) &&

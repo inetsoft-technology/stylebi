@@ -313,6 +313,9 @@ public class CoreLifecycleService {
          // action completes and returns if the user undoes it
          infoMap.put("modernizable",
                      VSDensityDefaults.isModern() && VizModernizeUtil.hasUnmarked(vs));
+         // no gate term, unlike modernizable: Revert is offered under both gate states on purpose,
+         // so an author in a modern org can keep one dashboard classic
+         infoMap.put("revertable", VizModernizeUtil.hasMarked(vs));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

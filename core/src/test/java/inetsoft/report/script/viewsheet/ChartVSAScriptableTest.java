@@ -145,15 +145,11 @@ public class ChartVSAScriptableTest {
       PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();
 
       chartVSAScriptable.putMember("smoothLines", true);
-      assertTrue(plot.isSmoothLinesValue());
+      assertTrue(plot.isSmoothLines());
       assertTrue((boolean) chartVSAScriptable.getMember("smoothLines"));
 
-      // an explicit script write is user-authored, so it must not stay gate-owned
-      assertFalse(plot.isModernSmoothSeed(),
-                  "a script write clears the gate marker");
-
       chartVSAScriptable.putMember("smoothLines", false);
-      assertFalse(plot.isSmoothLinesValue());
+      assertFalse(plot.isSmoothLines());
       assertFalse((boolean) chartVSAScriptable.getMember("smoothLines"));
    }
 
