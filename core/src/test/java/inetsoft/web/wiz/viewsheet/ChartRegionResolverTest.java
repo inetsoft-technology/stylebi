@@ -346,8 +346,13 @@ class ChartRegionResolverTest {
          true);
 
       assertEquals(2, legends.count(), "both slots counted");
-      assertEquals(List.of("Region"), legends.fields(), "but only one can be named");
-      assertDoesNotThrow(() -> ChartRegionResolver.requireLegend(legends, 1));
+      assertDoesNotThrow(() -> ChartRegionResolver.requireLegend(legends, 1),
+                         "and the empty slot's index is still addressable");
+      assertEquals("Region", ChartRegionResolver.requireLegendField(legends, "color").field(),
+                   "but only the described one can be named");
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartRegionResolver.requireLegendField(legends, ""),
+                   "and the unnamed one is reachable by no target at all");
    }
 
    private static ChartRegionResolver.Legends twoLegends() {

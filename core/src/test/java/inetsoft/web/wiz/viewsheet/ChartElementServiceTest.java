@@ -130,6 +130,45 @@ class ChartElementServiceTest {
    }
 
    /**
+    * A blank target is no target. The tool layer's own show-with-a-target guard already reads
+    * {@code ""} as absent, so a server reading it as present refused a call the tool had passed —
+    * and on the legend path it refused it by naming an empty legend.
+    */
+   @Test
+   void readsABlankTargetAsNoTarget() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      h.service.setVisibility("tok", principal(), "Chart1", "legend", "  ", false, "");
+
+      ArgumentCaptor<VSChartLegendsVisibilityEvent> captor =
+         ArgumentCaptor.forClass(VSChartLegendsVisibilityEvent.class);
+      verify(h.legends).eventHandler(eq("rt1"), captor.capture(), anyString(),
+                                     any(Principal.class), any());
+      assertNull(captor.getValue().getAestheticType(), "which is the event's hide-all");
+      assertDoesNotThrow(
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "", true, ""),
+         "and showing with a blank target is showing them all, not a refused single show");
+   }
+
+   /**
+    * And it costs nothing. {@code ViewsheetSessionService.mutate} adds an undo checkpoint and
+    * broadcasts a refresh in a {@code finally} — deliberately, because a composer service can
+    * partially apply before it ERRORs — so resolving the target inside the mutation would spend
+    * a Ctrl+Z step and a Composer refresh on a call that applied nothing.
+    */
+   @Test
+   void refusingALegendTargetDoesNotOpenAMutation() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      assertThrows(
+         Exception.class,
+         () -> h.service.setVisibility("tok", principal(), "Chart1", "legend", "Category", false,
+                                       ""));
+
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   /**
     * {@code aestheticType} is the whole fix: without it the event hides every legend. Pinned on
     * the field map for the same reason the titles event is — an all-default event is the
     * destructive case, so the values have to be asserted rather than assumed.

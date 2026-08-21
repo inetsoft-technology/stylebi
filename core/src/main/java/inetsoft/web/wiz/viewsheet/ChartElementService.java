@@ -25,6 +25,7 @@ import inetsoft.graph.VGraph;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.internal.GTool;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.region.ChartArea;
@@ -94,39 +95,53 @@ public class ChartElementService {
     * @param element {@code axis}, {@code legend} or {@code title}
     * @param target  which one — an axis column name, a legend field, or an axis title
     *                ({@code x}, {@code x2}, {@code y}, {@code y2}) or {@code chart} for the
-    *                chart title. Null means all of that element.
+    *                chart title. Null, or blank, means all of that element.
     */
    public void setVisibility(String sessionToken, Principal user, String assemblyName,
                              String element, String target, boolean visible, String linkUri)
       throws Exception
    {
       String kind = requireElement(element);
+      // A blank target is no target, and the two layers have to agree on that: the tool's own
+      // show-with-a-target guard already treats "" as absent, so a server that read it as present
+      // refused the very call the tool had let through, and on the legend path the refusal named
+      // an empty legend. Not trimmed otherwise - only the blank case is unambiguous, and a column
+      // name's own spacing is its own business.
+      String target0 = target != null && target.isBlank() ? null : target;
 
       // Resolved before the runtime is touched: "show the y title" and "show every title" are
       // different requests, and the event cannot express the first one, so a caller naming a
       // target it cannot honour has to be told rather than quietly given the second.
-      if(visible && target != null && !"title".equals(kind)) {
+      if(visible && target0 != null && !"title".equals(kind)) {
          throw new IllegalArgumentException(
             "Showing a single " + kind + " is not supported by the Composer — showing restores " +
             "all of them at once. Call this without 'target' to show every " + kind + ", or " +
             "hide the ones you do not want.");
       }
 
+      // Resolved before the runtime is mutated, for the same reason as the guard above and by the
+      // same route ChartRegionPropertyService takes for its own refusals: sessions.mutate
+      // checkpoints and broadcasts in a finally, deliberately, because a composer service can
+      // partially apply before it ERRORs. Nothing is applied when the resolution itself refuses,
+      // so refusing inside the mutation would spend an undo step and a Composer refresh on a call
+      // that changed nothing.
+      VSChartLegendsVisibilityEvent legendEvent = "legend".equals(kind)
+         ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         requireChart(rvs, assemblyName);
 
          switch(kind) {
             case "axis" -> axesService.eventHandler(
                runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible), "columnName", target,
+               event(Map.of("chartName", assemblyName, "hide", !visible), "columnName", target0,
                      VSChartAxesVisibilityEvent.class),
                linkUri, user, dispatcher);
             case "legend" -> legendsService.eventHandler(
-               runtimeId, legendEvent(rvs, chart, target, visible),
-               linkUri, user, dispatcher);
+               runtimeId, legendEvent, linkUri, user, dispatcher);
             default -> titlesService.eventHandler(
                runtimeId,
-               convert(titleFields(assemblyName, target, visible),
+               convert(titleFields(assemblyName, target0, visible),
                        VSChartTitlesVisibilityEvent.class),
                linkUri, user, dispatcher);
          }
@@ -362,17 +377,15 @@ public class ChartElementService {
          return vocabulary();
       }
 
-      // One read for both answers: they come off the same laid-out graph, and two reads could
-      // disagree with each other if the chart relaid out between them.
-      Chart chart = sessions.read(
+      // One laid-out pair for both answers, via regions() rather than the two single-answer
+      // entry points: those fetch the pair each, so the axes and the legends could describe two
+      // layouts either side of a relayout while being reported as one chart's.
+      ChartRegionResolver.Regions regions = sessions.read(
          sessionToken, user,
-         (rvs, runtimeId, dispatcher) -> {
-            ChartVSAssembly assembly0 = ChartRegionResolver.requireChart(rvs, assembly);
-            return new Chart(ChartRegionResolver.resolve(rvs, assembly0),
-                             ChartRegionResolver.legends(rvs, assembly0));
-         });
+         (rvs, runtimeId, dispatcher) ->
+            ChartRegionResolver.regions(rvs, ChartRegionResolver.requireChart(rvs, assembly)));
 
-      ChartRegionResolver.Axes axes = chart.axes();
+      ChartRegionResolver.Axes axes = regions.axes();
       Map<String, Object> out = new LinkedHashMap<>(vocabulary());
       List<String> titleTargets = new ArrayList<>(axes.ordered());
       // The chart title is not an axis title and does not depend on any axis existing.
@@ -383,13 +396,10 @@ public class ChartElementService {
       out.put("titleTargets", titleTargets);
       out.put("axesBasis", axes.basis());
       out.put("axesMeasured", axes.measured());
-      out.put("legends", describe(chart.legends()));
-      out.put("legendsMeasured", chart.legends().measured());
+      out.put("legends", describe(regions.legends()));
+      out.put("legendsMeasured", regions.legends().measured());
       return out;
    }
-
-   /** Both answers off one laid-out graph. */
-   private record Chart(ChartRegionResolver.Axes axes, ChartRegionResolver.Legends legends) {}
 
    /**
     * The legends as targets a caller can name.
@@ -406,10 +416,15 @@ public class ChartElementService {
          ChartRegionResolver.LegendTarget legend = legends.legends().get(i);
          Map<String, Object> one = new LinkedHashMap<>();
          one.put("index", i);
-         one.put("channel", legend.channel());
 
-         // Omitted rather than reported as empty: a legend with no field cannot be named as a
-         // target at all, and an empty string reads like one that can.
+         // Omitted rather than reported as empty, both of them and on the same rule: a legend
+         // with no describable frame has no field and no channel, so neither can be named as a
+         // target, and an empty string reads like one that can. The entry stays, because its
+         // index is addressable even when nothing else about it is.
+         if(legend.aestheticType() != null) {
+            one.put("channel", legend.channel());
+         }
+
          if(legend.field() != null) {
             one.put("field", legend.field());
          }
@@ -427,9 +442,10 @@ public class ChartElementService {
          // Spelled out because the same word means two things across two tools: here a target
          // names the column whose axis is hidden, while set_chart_region_properties takes the
          // axis TYPE (y, y2, x, x2). Following this note over there addressed no axis at all.
-         "note", "For hiding and showing, an axis target is a column name and a legend target is " +
-            "a field name; call get_binding for those, or name an assembly here to get this " +
-            "chart's own axes and legends. Showing a single axis or legend is not " +
+         "note", "For hiding and showing, an axis target is a column name (call get_binding) and " +
+            "a legend target is an aesthetic field name, or its channel when the chart has only " +
+            "one legend on it — name an assembly here for this chart's own axes and rendered " +
+            "legends, or call get_chart_aesthetics. Showing a single axis or legend is not " +
             "supported — showing restores all of them. Note that " +
             "set_chart_region_properties addresses an axis by TYPE (y, y2, x, x2) instead, not " +
             "by column — it takes the column separately, as 'field'.");
@@ -456,27 +472,36 @@ public class ChartElementService {
     * from the same graph it reads them from: {@code targetFields} to tell two same-channel
     * legends apart, {@code nodeAesthetic} for a relation chart's node aesthetic, and
     * {@code colorMerged} for the case below.
+    *
+    * <p><b>It reads through its own session read rather than the caller's mutation</b>, so that a
+    * refusal costs nothing. See the note at the call site: the mutation checkpoints and
+    * broadcasts even when it throws, on purpose, and a resolution that refuses has applied
+    * nothing for that undo step to cover.
     */
-   private VSChartLegendsVisibilityEvent legendEvent(
-      inetsoft.report.composition.RuntimeViewsheet rvs, ChartVSAssembly chart, String target,
-      boolean visible)
+   private VSChartLegendsVisibilityEvent legendEvent(String sessionToken, Principal user,
+                                                     String assemblyName, String target,
+                                                     boolean visible)
+      throws Exception
    {
-      Map<String, Object> fields = new LinkedHashMap<>();
-      fields.put("chartName", chart.getAbsoluteName());
-      fields.put("hide", !visible);
-
       // No target is the one case where hide-all is what was asked for, and showing is always all
       // of them - the event has no way to express showing one, which setVisibility refuses above.
+      // Neither needs the graph, so neither reads the runtime here.
       if(target == null) {
+         Map<String, Object> fields = new LinkedHashMap<>();
+         fields.put("chartName", assemblyName);
+         fields.put("hide", !visible);
          return convert(fields, VSChartLegendsVisibilityEvent.class);
       }
 
-      ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
 
-      return convert(
-         legendFields(chart.getAbsoluteName(), visible,
-                      ChartRegionResolver.requireLegendField(legends, target), legends),
-         VSChartLegendsVisibilityEvent.class);
+         return convert(
+            legendFields(assemblyName, visible,
+                         ChartRegionResolver.requireLegendField(legends, target), legends),
+            VSChartLegendsVisibilityEvent.class);
+      });
    }
 
    /**
@@ -595,9 +620,7 @@ public class ChartElementService {
    }
 
    /** Shared with {@link ChartRegionPropertyService} so both refuse a non-chart identically. */
-   private static ChartVSAssembly requireChart(
-      inetsoft.report.composition.RuntimeViewsheet rvs, String assemblyName)
-   {
+   private static ChartVSAssembly requireChart(RuntimeViewsheet rvs, String assemblyName) {
       return ChartRegionResolver.requireChart(rvs, assemblyName);
    }
 

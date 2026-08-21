@@ -43,7 +43,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Which axes and how many legends a chart actually has.
+ * Which axes a chart actually has, and which legends it actually renders.
  *
  * <p><b>Why this exists.</b> Nothing else in the agent surface could answer that question, and
  * three tools needed it: the element vocabulary offered {@code y2} on every chart, the region
@@ -97,8 +97,11 @@ final class ChartRegionResolver {
     *
     * @param field         the aesthetic field it is bound to, as the frame itself reports it;
     *                      null for a legend that carries no field (a measure or static frame)
-    * @param aestheticType {@code Color}, {@code Shape} or {@code Size} — the event's own
-    *                      discriminator, and the value whose absence hid every legend
+    * @param aestheticType the event's own discriminator, and the value whose absence hid every
+    *                      legend. {@code Legend.createLegend} builds a legend for five frame
+    *                      families only, so this is {@code Color}, {@code Size}, {@code Shape},
+    *                      {@code Texture} or {@code Line} — the last three being one target,
+    *                      see {@link #channelFamily}
     * @param targetFields  the measures this legend applies to, which is what tells two legends
     *                      of the same channel apart on a multi-aesthetic chart
     * @param nodeAesthetic true when this is a relation chart's node aesthetic rather than its edge
@@ -106,7 +109,12 @@ final class ChartRegionResolver {
    record LegendTarget(String field, String aestheticType, List<String> targetFields,
                        boolean nodeAesthetic)
    {
-      /** Lower-cased, to match the channel names {@code get_chart_aesthetics} reports. */
+      /**
+       * Lower-cased, to match the channel names {@code get_chart_aesthetics} reports — which is
+       * not to say the two always agree on <em>which</em> channel: a line chart renders the field
+       * on its shape channel as a {@code line} legend. Empty for a legend with no describable
+       * frame, which is also a legend with no field, so neither can be named.
+       */
       String channel() {
          return aestheticType == null ? "" : aestheticType.toLowerCase();
       }
@@ -121,12 +129,17 @@ final class ChartRegionResolver {
       int count() {
          return legends.size();
       }
-
-      /** The nameable legends, for a message that tells the caller what to say instead. */
-      List<String> fields() {
-         return legends.stream().map(LegendTarget::field).filter(Objects::nonNull).toList();
-      }
    }
+
+   /**
+    * A chart's axes and legends read from one laid-out graph.
+    *
+    * <p>They come from different halves of the same {@link VGraphPair} - the axes from the
+    * expanded graph, the legends from the real-size one, each where {@code ChartArea} reads them -
+    * so fetching the pair once is what makes the two answers describe the same layout rather than
+    * two layouts either side of a relayout.
+    */
+   record Regions(Axes axes, Legends legends) {}
 
    /**
     * @param present  the canonical names of the axes this chart has
@@ -148,10 +161,25 @@ final class ChartRegionResolver {
    }
 
    static Axes resolve(RuntimeViewsheet rvs, ChartVSAssembly chart) {
+      return regions(rvs, chart).axes();
+   }
+
+   static Legends legends(RuntimeViewsheet rvs, ChartVSAssembly chart) {
+      return regions(rvs, chart).legends();
+   }
+
+   /**
+    * Both answers off one laid-out pair, for a caller that reports them together.
+    *
+    * <p>The two halves are read from different graphs on purpose - see {@link Regions}.
+    */
+   static Regions regions(RuntimeViewsheet rvs, ChartVSAssembly chart) {
       VGraphPair pair = laidOutPair(rvs, chart);
 
-      // ChartArea reads its axis areas from the EXPANDED graph, so resolve from the same one.
-      return resolve(chart, pair == null ? null : pair.getExpandedVGraph());
+      // ChartArea reads its axis areas from the EXPANDED graph and its legend areas from the
+      // REAL-SIZE one, so each half is resolved from the same graph its areas come from.
+      return new Regions(resolve(chart, pair == null ? null : pair.getExpandedVGraph()),
+                         legends(pair == null ? null : pair.getRealSizeVGraph()));
    }
 
    /**
@@ -176,10 +204,7 @@ final class ChartRegionResolver {
     * <p>A legend whose frame cannot be described still occupies its slot in the list. Dropping it
     * would renumber every legend after it, and the index is a target the region tools address.
     */
-   static Legends legends(RuntimeViewsheet rvs, ChartVSAssembly chart) {
-      VGraphPair pair = laidOutPair(rvs, chart);
-      VGraph graph = pair == null ? null : pair.getRealSizeVGraph();
-
+   static Legends legends(VGraph graph) {
       if(graph == null) {
          return new Legends(List.of(), false);
       }
