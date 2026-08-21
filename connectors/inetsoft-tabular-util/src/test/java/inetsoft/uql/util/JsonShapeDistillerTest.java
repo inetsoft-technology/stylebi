@@ -202,6 +202,30 @@ public class JsonShapeDistillerTest {
    }
 
    @Test
+   public void doesNotMistakeAWordFollowedByANumberForAnId() {
+      // Fiscal-year, quarter and batch fields are named this way. The id pattern once required only
+      // a digit in the suffix, which batch_2024 and fy_2023 satisfy -- and one matching key collapses
+      // the whole record, so a single such field cost every real field name in it.
+      Map<String, Object> shape = shapeOf(
+         "{\"batch_2024\":1,\"fy_2023\":2,\"revenue\":3,\"detail\":{\"n\":1}}");
+
+      assertFalse(shape.containsKey(JsonShapeDistiller.WILDCARD_KEY));
+      assertEquals(CoreTool.DOUBLE, shape.get("batch_2024"));
+      assertEquals(CoreTool.DOUBLE, shape.get("fy_2023"));
+   }
+
+   @Test
+   public void doesNotCollapseFieldNamesThatFallOutsideThePattern() {
+      // Two more that were raised as suspects and do NOT match: q1_2025's prefix carries a digit, so
+      // it is not `[a-z]{2,6}`, and week_52's suffix is under the four-character minimum. Pinned so
+      // the pattern cannot widen into them later.
+      Map<String, Object> shape = shapeOf("{\"q1_2025\":1,\"week_52\":2}");
+
+      assertFalse(shape.containsKey(JsonShapeDistiller.WILDCARD_KEY));
+      assertEquals(2, shape.size());
+   }
+
+   @Test
    public void stillCollapsesPrefixedIdsThatCarryADigit() {
       Map<String, Object> shape = shapeOf(
          "{\"m\":{\"evt_00Ab\":{\"n\":1},\"acct_1H2x\":{\"n\":2}}}");
@@ -264,6 +288,29 @@ public class JsonShapeDistillerTest {
          parse("{\"a\":{\"b\":{\"c\":{\"d\":1}}}}"), JsonShapeDistiller.DEFAULT_MAX_NODES, 2);
 
       assertTrue(result.isTruncated());
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   public void returnsAnUnmodifiableShape() {
+      // The shape is held by a query, shared by reference with every clone of it and with the
+      // response that reports it, so "immutable once set" has to be enforced rather than documented:
+      // one in-place put would corrupt state shared across query instances, and nothing would fail
+      // where the mistake was made.
+      Map<String, Object> shape = shapeOf(
+         "{\"data\":[{\"id\":\"a\",\"customer\":{\"city\":\"x\"}}]}");
+
+      assertThrows(UnsupportedOperationException.class, () -> shape.put("extra", "string"));
+
+      // ...and all the way down, not just at the root.
+      List<Object> data = (List<Object>) shape.get("data");
+      assertThrows(UnsupportedOperationException.class, () -> data.add("string"));
+
+      Map<String, Object> row = (Map<String, Object>) data.get(0);
+      assertThrows(UnsupportedOperationException.class, () -> row.put("extra", "string"));
+
+      Map<String, Object> customer = (Map<String, Object>) row.get("customer");
+      assertThrows(UnsupportedOperationException.class, () -> customer.put("extra", "string"));
    }
 
    @Test

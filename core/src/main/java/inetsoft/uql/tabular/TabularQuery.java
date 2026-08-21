@@ -387,12 +387,30 @@ public abstract class TabularQuery extends XQuery {
          copy.variableTable = variableTable.clone();
       }
 
+      // CLEARED, not carried over. A shape describes ONE execution, and the clone is the object that
+      // executes -- so it has to start with nothing to report, or "the runner recorded no shape this
+      // time" becomes indistinguishable from "the runner recorded the same shape again".
+      //
+      // Without this the guarantee TabularHandler.execute's copy-back is written for does not hold.
+      // super.clone() is shallow, so the clone would inherit whatever the ORIGINAL had from an
+      // earlier run; a re-execution whose request then fails never reaches setResponseShape --
+      // EndpointJsonQueryRunner.runStream catches its own exceptions and returns the table -- and the
+      // copy-back would write the previous run's shape back onto the original as if it were current.
+      copy.responseShape = null;
+      copy.responseShapeTruncated = false;
+
       return copy;
    }
 
    private XTypeNode[] cols;
-   // Not cleared in clone(): the clone is what executes, so it is the copy that needs to be able to
-   // record a shape. Deliberately shallow-copied like the rest -- the shape is immutable once set.
+   /**
+    * See {@link #getResponseShape}. Cleared by {@link #clone()} rather than shallow-copied, so it
+    * always describes the execution that produced it.
+    *
+    * The tree itself is shared by reference once set (with the caller, and with whatever
+    * {@code TabularHandler} copied it from), so it must not be mutated in place. That is enforced at
+    * the producing end: {@code JsonShapeDistiller} returns a recursively unmodifiable structure.
+    */
    private Object responseShape;
    private boolean responseShapeTruncated;
    private Map<String, String> typemap = new HashMap<>();

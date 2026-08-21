@@ -81,13 +81,22 @@ public final class JsonShapeDistiller {
       Pattern.compile("(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
       // Prefixed opaque id: cus_9f2aB1, evt_00Ab, acct_1H2x.
       //
-      // THE SUFFIX MUST CONTAIN A DIGIT. Without that requirement this pattern matches ordinary
-      // snake_case field names -- has_more, fee_details, available_on, reporting_category are all
-      // "two-to-six lowercase letters, underscore, four-plus alphanumerics" -- and a single such
-      // key collapses the whole record, replacing every real field name with "*". snake_case is
-      // the most common JSON field convention there is, so that is not an edge case; it is most
-      // responses. A digit is what separates an opaque id from a word.
-      Pattern.compile("^[a-z]{2,6}_(?=[A-Za-z0-9]*[0-9])[A-Za-z0-9]{4,}$"),
+      // THE SUFFIX MUST MIX LETTERS AND DIGITS, and both halves of that requirement are there to
+      // stop a false positive -- which is the expensive direction here, because a single matching key
+      // collapses its whole parent object and every real field name in it becomes "*".
+      //
+      //  - Without the DIGIT requirement the pattern matches ordinary snake_case: has_more,
+      //    fee_details, available_on, reporting_category are all "two-to-six lowercase letters,
+      //    underscore, four-plus alphanumerics". snake_case is the prevailing JSON field convention,
+      //    so that is not an edge case, it is most responses.
+      //  - Without the LETTER requirement it matches a word followed by a number -- batch_2024,
+      //    fy_2023 -- which is how fiscal-year, quarter and batch fields are commonly named.
+      //
+      // The cost is an id whose suffix is purely numeric (order_123456) no longer matching. That is
+      // the cheaper way to be wrong: a missed key leaves a few keys recorded in a small dictionary,
+      // and a large one is still caught by the homogeneity rule below, whereas a false positive
+      // destroys a legitimate record's field names outright.
+      Pattern.compile("^[a-z]{2,6}_(?=[A-Za-z0-9]*[0-9])(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{4,}$"),
       // bare opaque id / long hex / digits
       Pattern.compile("^[0-9]+$"),
       Pattern.compile("(?i)^[0-9a-f]{16,}$"),
@@ -113,6 +122,10 @@ public final class JsonShapeDistiller {
       /**
        * A {@code Map<String, Object>} for an object, a single-element {@code List} for an array, or
        * a type name for a leaf. Never null.
+       *
+       * UNMODIFIABLE, recursively. It is held by a query, shared with every clone of that query and
+       * with the response that reports it, so in-place mutation anywhere would corrupt state shared
+       * across query instances. See {@link #freeze}.
        */
       public Object getShape() {
          return shape;
@@ -134,7 +147,46 @@ public final class JsonShapeDistiller {
    public static Result distill(Object json, int maxNodes, int maxDepth) {
       Budget budget = new Budget(maxNodes, maxDepth);
       Object shape = shapeOf(json, budget, 0);
-      return new Result(shape, budget.truncated);
+      return new Result(freeze(shape), budget.truncated);
+   }
+
+   /**
+    * Make the shape unmodifiable, all the way down.
+    *
+    * The result outlives this call by a long way: {@code TabularQuery} holds it, every clone of that
+    * query shares the same reference, {@code TabularHandler} copies the reference back onto the
+    * original, and the web layer serializes it. Nothing mutates it today, and "immutable once set"
+    * was documented as an invariant -- so it is enforced rather than left as convention, because a
+    * single in-place `put` anywhere in that chain would corrupt state shared across query instances
+    * with no failure at the point of the mistake.
+    *
+    * Recursive, not just the top level: a shape is a tree, and wrapping only the root would leave
+    * every nested object mutable while claiming the whole thing was not. Applied once here rather
+    * than inside the walk, so the merging the walk does still operates on writable maps.
+    */
+   @SuppressWarnings("unchecked")
+   private static Object freeze(Object shape) {
+      if(shape instanceof Map) {
+         Map<String, Object> frozen = new LinkedHashMap<>();
+
+         for(Map.Entry<String, Object> entry : ((Map<String, Object>) shape).entrySet()) {
+            frozen.put(entry.getKey(), freeze(entry.getValue()));
+         }
+
+         return Collections.unmodifiableMap(frozen);
+      }
+
+      if(shape instanceof List) {
+         List<Object> frozen = new ArrayList<>();
+
+         for(Object element : (List<Object>) shape) {
+            frozen.add(freeze(element));
+         }
+
+         return Collections.unmodifiableList(frozen);
+      }
+
+      return shape;
    }
 
    private static Object shapeOf(Object value, Budget budget, int depth) {
