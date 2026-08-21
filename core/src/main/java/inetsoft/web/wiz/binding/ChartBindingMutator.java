@@ -17,10 +17,13 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
@@ -43,6 +46,28 @@ public final class ChartBindingMutator {
    }
 
    public static void setShelf(ChartBindingModel model, String shelf, List<FieldRef> fields) {
+      try {
+         setShelf(model, shelf, fields, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireType's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * @param rvs            the runtime viewsheet, so a field's {@code namedGroup} can be
+    *                       resolved against a worksheet-local named group.
+    * @param source         the chart's own {@code SourceInfo}.
+    * @param refModelService needed to resolve a worksheet-local named group's conditions.
+    */
+   public static void setShelf(ChartBindingModel model, String shelf, List<FieldRef> fields,
+                               RuntimeViewsheet rvs, SourceInfo source,
+                               DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = shelf == null ? "" : shelf.trim().toLowerCase();
 
       if(SINGLE_SHELVES.contains(name)) {
@@ -62,7 +87,7 @@ public final class ChartBindingMutator {
       List<ChartRefModel> refs = new ArrayList<>();
 
       for(FieldRef field : fields == null ? List.<FieldRef>of() : fields) {
-         refs.add(FieldRefFactory.toChartRef(field));
+         refs.add(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
       }
 
       switch(name) {
@@ -92,8 +117,26 @@ public final class ChartBindingMutator {
     * why {@code set_chart_type} and these belong in the same conversation.
     */
    public static void setSingleShelf(ChartBindingModel model, String shelf, FieldRef field) {
+      try {
+         setSingleShelf(model, shelf, field, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireSingleShelf's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /** @see #setShelf(ChartBindingModel, String, List, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService) */
+   public static void setSingleShelf(ChartBindingModel model, String shelf, FieldRef field,
+                                     RuntimeViewsheet rvs, SourceInfo source,
+                                     DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = requireSingleShelf(shelf);
-      ChartRefModel ref = field == null ? null : FieldRefFactory.toChartRef(field);
+      ChartRefModel ref = field == null
+         ? null : FieldRefFactory.toChartRef(field, rvs, source, refModelService);
 
       switch(name) {
       case "open" -> model.setOpenField(ref);

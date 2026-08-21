@@ -515,7 +515,8 @@ class ChartBindingServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
 
-      return new ChartBindingService(sessions, binding, refs, types, swap, separateStatus);
+      return new ChartBindingService(sessions, binding, refs, types, swap, separateStatus,
+                                     mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
    }
 
    private static Principal principal() {
