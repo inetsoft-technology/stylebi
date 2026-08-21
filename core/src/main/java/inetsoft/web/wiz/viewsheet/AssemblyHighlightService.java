@@ -144,6 +144,7 @@ public class AssemblyHighlightService {
 
          // Before the shared condition vocabulary gets a chance to blame the field name.
          requireHighlightableRegion(model, assemblyName, region);
+         requireRowApplicable(model, assemblyName, highlight);
 
          List<HighlightModel> highlights = new ArrayList<>();
          boolean found = false;
@@ -339,6 +340,28 @@ public class AssemblyHighlightService {
          ". For a crosstab or table this usually means a header cell: highlights attach to DATA " +
          "cells, so pass 'row' and 'col' of one (row 1, col 1 is the first). Call list_highlights " +
          "with that region to see the fields it exposes.");
+   }
+
+   /**
+    * Refuses {@code applyRow:true} on an assembly whose dialog model does not support it (a
+    * Crosstab, whose {@code TableDataVSAssemblyInfo} sibling class never wires up row highlights).
+    *
+    * <p>Without this the highlight was silently dropped: {@code HighlightDialogService} only
+    * stores a row-level highlight for a {@code TableVSAssemblyInfo}, so an {@code applyRow:true}
+    * highlight on a Crosstab is excluded from the per-cell store AND never reaches the row store —
+    * stored nowhere, with the call still reporting success.
+    */
+   private static void requireRowApplicable(HighlightDialogModel model, String assemblyName,
+                                            Highlight highlight)
+   {
+      if(!highlight.applyRow() || model.isShowRow()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' does not support 'applyRow' — apply-to-row highlights are only " +
+         "available on assemblies whose dialog model shows the row option (e.g. a plain table), " +
+         "not this one. Drop 'applyRow' to highlight the cell instead.");
    }
 
    /**
