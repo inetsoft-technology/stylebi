@@ -33,7 +33,6 @@ public interface LookAndFeelSettingsModel {
    boolean ascending();
    boolean repositoryTree();
    boolean expand();
-   boolean customLogoEnabled();
    boolean defaultLogo();
    @Nullable String logoName();
    @Nullable FileData logoFile();

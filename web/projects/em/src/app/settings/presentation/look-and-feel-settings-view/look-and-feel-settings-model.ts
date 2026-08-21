@@ -23,7 +23,6 @@ export interface LookAndFeelSettingsModel {
    ascending: boolean;
    repositoryTree: boolean;
    expand: boolean;
-   customLogoEnabled: boolean;
    defaultLogo: boolean;
    defaultFavicon: boolean;
    defaultViewsheet: boolean;
