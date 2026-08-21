@@ -294,7 +294,7 @@ public class LogSettingService {
       String sanitized = sanitizeProperty(value);
 
       if(sanitized != null) {
-         return Tool.encryptPassword(value);
+         return Tool.encryptPassword(sanitized);
       }
 
       return null;
