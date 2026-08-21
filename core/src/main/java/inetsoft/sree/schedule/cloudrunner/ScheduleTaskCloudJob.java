@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.schedule.cloudrunner;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleTask;
@@ -43,12 +42,12 @@ import java.util.concurrent.locks.Lock;
 public class ScheduleTaskCloudJob implements InterruptableJob {
    public ScheduleTaskCloudJob() {
       cluster = Cluster.getInstance();
-      timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
    }
 
    @Override
    public void execute(JobExecutionContext context) throws JobExecutionException
    {
+      timeout = ScheduleTask.getTaskTimeout();
       createCloudRunnerConfig();
       taskName = context.getJobDetail().getKey().getName();
 
@@ -274,6 +273,6 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    private boolean interrupted = false;
    private CloudJobResult result;
    private final CountDownLatch latch = new CountDownLatch(1);
-   private final long timeout;
+   private long timeout;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskCloudJob.class);
 }

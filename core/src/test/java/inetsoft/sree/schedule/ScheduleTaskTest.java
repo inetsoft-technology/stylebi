@@ -18,6 +18,11 @@
 
 package inetsoft.sree.schedule;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
@@ -25,6 +30,11 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -67,6 +77,76 @@ import static org.mockito.Mockito.*;
 public class ScheduleTaskTest {
    private ScheduleTask scheduleTask;
    @Autowired SecurityEngine securityEngine;
+
+   @Test
+   void getTaskTimeoutReturnsConfiguredValue() {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn("1500");
+
+         assertEquals(1500L, ScheduleTask.getTaskTimeout(),
+                      "A numeric schedule.task.timeout must be used as-is");
+      }
+   }
+
+   @ParameterizedTest(name = "schedule.task.timeout [{0}] falls back to the default")
+   @NullSource
+   @ValueSource(strings = { "abc", "", " ", "600000ms", "600,000", "1e5" })
+   void getTaskTimeoutFallsBackWhenValueIsNotANumber(String propertyValue) {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout"))
+            .thenReturn(propertyValue);
+
+         assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, ScheduleTask.getTaskTimeout(),
+                      "A missing or non-numeric schedule.task.timeout must fall back to " +
+                      "DEFAULT_TASK_TIMEOUT instead of throwing");
+      }
+   }
+
+   @Test
+   void getTaskTimeoutWarnsNamingThePropertyAndTheOffendingValue() {
+      // the warning is half the fix: without it the fallback is silent and an admin has no way
+      // to attribute a task running on the default timeout to the value they mistyped
+      Logger logger = (Logger) LoggerFactory.getLogger(ScheduleTask.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn("abc");
+
+            ScheduleTask.getTaskTimeout();
+         }
+
+         assertEquals(1, appender.list.size(),
+                      "the fallback must report itself exactly once");
+
+         ILoggingEvent event = appender.list.get(0);
+         assertEquals(Level.WARN, event.getLevel(), "the fallback must be reported at WARN");
+
+         String message = event.getFormattedMessage();
+         assertTrue(message.contains("schedule.task.timeout"),
+                    "the warning must name the property so the cause is discoverable: " + message);
+         assertTrue(message.contains("abc"),
+                    "the warning must quote the offending value: " + message);
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
+   @Test
+   void getTaskTimeoutDefaultTracksShippedProperty() {
+      // read the shipped default rather than a literal, so that editing defaults.properties
+      // without editing DEFAULT_TASK_TIMEOUT fails here instead of silently changing the
+      // timeout that applies whenever the property is unreadable
+      String shipped = SreeEnv.getDefaultProperties().getProperty("schedule.task.timeout");
+
+      assertNotNull(shipped, "defaults.properties must ship a schedule.task.timeout value");
+      assertEquals(Long.parseLong(shipped), ScheduleTask.DEFAULT_TASK_TIMEOUT,
+                   "DEFAULT_TASK_TIMEOUT must track schedule.task.timeout in " +
+                   "defaults.properties so the fallback does not silently change the timeout");
+   }
 
    @Test
    void testCheckRetryTime() {
