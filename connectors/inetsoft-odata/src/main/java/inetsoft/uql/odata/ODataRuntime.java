@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @SuppressWarnings("WeakerAccess")
@@ -376,7 +377,9 @@ public class ODataRuntime extends TabularRuntime {
 
          if(isUsingBasicAuth(ds)) {
             String credential = new String(
-               Base64.encodeBase64((ds.getUser() + ":" + ds.getPassword()).getBytes()));
+               Base64.encodeBase64((ds.getUser() + ":" + ds.getPassword())
+                                      .getBytes(StandardCharsets.UTF_8)),
+               StandardCharsets.US_ASCII);
             getRequest.setHeader("Authorization", "Basic " + credential);
          }
 
