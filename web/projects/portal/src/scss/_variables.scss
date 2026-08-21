@@ -356,7 +356,9 @@ $sqrt2: 1.41421356;
   --inet-composer-selected-outline: #{$composer-selected-outline};
   --inet-composer-focus-ring: #{$composer-focus-ring};
   // aliases of shell primary, not independent values, so they track shell primary
-  // overrides automatically instead of needing a separate customer edit
+  // overrides automatically instead of needing a separate customer edit.
+  // Not yet consumed by any selector in this PR - forward-looking for the
+  // primary/key-action authoring state adoption planned in a follow-up.
   --inet-composer-primary-accent: var(--inet-primary-color);
   --inet-composer-primary-hover: var(--inet-primary-color-dark);
   --inet-composer-primary-text: var(--inet-primary-text-color);
