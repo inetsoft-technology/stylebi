@@ -131,7 +131,11 @@ public class VSChartAreasService {
 
          if(pair != null && !pair.isCompleted()) {
             box.clearGraph(absoluteName);
-            pair = box.getVGraphPair(absoluteName);
+            // pass maxSize so the regenerated pair is laid out at the same content size
+            // used by the chart image requests (AssemblyImageService uses info.getMaxSize()).
+            // otherwise the two paths keep cancelling each other's graph, which makes the
+            // image requests return Retry-After forever and the chart always loading.
+            pair = box.getVGraphPair(absoluteName, true, maxSize);
          }
 
          if(pair != null) {
