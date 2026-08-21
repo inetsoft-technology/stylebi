@@ -211,6 +211,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-composer-selected-bg", color: true},
       {name: "--inet-composer-selected-border", color: true},
       {name: "--inet-composer-selected-text", color: true},
+      {name: "--inet-composer-selected-outline", color: true},
       {name: "--inet-composer-dimmed-bg", color: true},
       {name: "--inet-composer-dimmed-border", color: true},
       {name: "--inet-composer-dimmed-text", color: true},
