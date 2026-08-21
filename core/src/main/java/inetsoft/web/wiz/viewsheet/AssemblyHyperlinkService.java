@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.Hyperlink;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.vs.dialog.HyperlinkDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,9 +48,21 @@ import java.util.*;
  */
 @Service
 public class AssemblyHyperlinkService {
-   /** Agent-facing link types. The integers never appear in either direction. */
+   /**
+    * Agent-facing link types. The integers never appear in either direction.
+    *
+    * <p><b>{@code none} is {@link HyperlinkDialogService#NONE}, not 0.</b> That sentinel is what the
+    * dialog service reports for an assembly with no link and what it tests to decide to clear one,
+    * and mapping {@code none} to 0 instead broke this class in both directions at once. A read of a
+    * never-linked assembly carried the sentinel 9, which matched no entry here and so reported
+    * itself as {@code "unknown(9)"} rather than as {@code none}. A write of {@code none} sent 0, which
+    * {@code HyperlinkDialogService.getHyperlink} does not recognise as "clear", so it built a real
+    * {@code Hyperlink} carrying type 0. The link survived with its tooltip and target frame intact
+    * while {@code tokenOf(0)} read it back as {@code "none"}: a clear that reported success and
+    * cleared nothing.
+    */
    private static final Map<String, Integer> LINK_TYPES = Map.of(
-      "none", 0,
+      "none", HyperlinkDialogService.NONE,
       "web", Hyperlink.WEB_LINK,
       "viewsheet", Hyperlink.VIEWSHEET_LINK,
       "message", Hyperlink.MESSAGE_LINK);
@@ -99,7 +114,7 @@ public class AssemblyHyperlinkService {
          target.colName(), target.axis(), target.text(), target.titleLink(),
          target.emptyPlotLink(), user);
 
-      return describe(assemblyName, model);
+      return describe(assemblyName, model, target);
    }
 
    /** One {@code sessions.mutate}, so one undo checkpoint. */
@@ -111,13 +126,21 @@ public class AssemblyHyperlinkService {
       String type = requireType(link);
       requireValueForType(type, link);
 
+      // Resolved here for the same reason, and it is the reason this ordering matters rather than
+      // being tidy. A viewsheet link is stored by asset ID; resolving inside the mutate meant an
+      // unresolvable target threw with the model already half-written, leaving the assembly
+      // carrying linkType=viewsheet with a null destination -- precisely the broken link the
+      // validation above exists to prevent, arrived at by another road.
+      String assetId = "viewsheet".equals(type)
+         ? resolveViewsheetTarget(link, sessionToken, user) : null;
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Region target = region == null ? Region.whole() : region;
          HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
             runtimeId, assemblyName, target.row(), target.col(), target.colName(),
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
-         apply(model, type, link);
+         apply(model, type, link, assetId);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
@@ -158,6 +181,59 @@ public class AssemblyHyperlinkService {
       }
    }
 
+   /**
+    * Turns the {@code assetLinkPath} a caller naturally supplies into the asset ID a viewsheet link
+    * is actually stored by.
+    *
+    * <p>{@code HyperlinkDialogService.getHyperlink} stores {@code getAssetLinkId()} as the link
+    * value and hands the same string to {@code VSUtil.getBookmarks}. Nothing here ever set it, so
+    * every viewsheet link died inside that lookup on a null — a raw
+    * {@code NullPointerException: … because "this.text" is null} reaching the caller, with the
+    * dialog model already partly written.
+    *
+    * <p>Both scopes are tried, because a path alone does not say which one it means: global first,
+    * then the caller's own user scope, which is where a sheet under My Dashboards lives. An
+    * explicit {@code assetLinkId} short-circuits the whole thing for a caller that already holds
+    * one — the Composer's own dialog works that way, from its asset tree.
+    *
+    * <p>A path that resolves to nothing is refused, naming both scopes that were tried. That is the
+    * one behaviour this method must not soften: the tool's contract says a link with no matching
+    * destination is refused, because such a link is accepted by the dialog and then does nothing
+    * when clicked.
+    */
+   private String resolveViewsheetTarget(Map<String, Object> link, String sessionToken,
+                                         Principal user) throws Exception
+   {
+      String explicit = str(link, "assetLinkId");
+
+      if(explicit != null) {
+         return explicit;
+      }
+
+      String path = str(link, "assetLinkPath");
+      AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
+      AssetEntry global = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, null);
+
+      if(repository.containsEntry(global)) {
+         return global.toIdentifier();
+      }
+
+      IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
+      AssetEntry personal = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, path, owner);
+
+      if(repository.containsEntry(personal)) {
+         return personal.toIdentifier();
+      }
+
+      throw new IllegalArgumentException(
+         "No viewsheet at '" + path + "'. Looked in the global scope and in " + owner.getName() +
+         "'s own scope. A link to a viewsheet that does not exist is accepted by the dialog and " +
+         "then does nothing when clicked, so it is refused here instead. Pass 'assetLinkId' " +
+         "directly if you already hold the asset identifier.");
+   }
+
    private static void require(Map<String, Object> link, String field, String type) {
       if(str(link, field) == null) {
          throw new IllegalArgumentException(
@@ -168,14 +244,21 @@ public class AssemblyHyperlinkService {
    }
 
    private static void apply(HyperlinkDialogModel model, String type,
-                             Map<String, Object> link)
+                             Map<String, Object> link, String assetId)
    {
       model.setLinkType(LINK_TYPES.get(type));
 
       if("none".equals(type)) {
+         // With the type now set to the sentinel the dialog service recognises, it discards the
+         // whole Hyperlink and none of this model survives -- so these nulls, and the tooltip and
+         // target frame that used to linger beside them, no longer decide anything. Kept because a
+         // model handed on with a stale destination still reads wrong to anything that looks.
          model.setWebLink(null);
          model.setAssetLinkPath(null);
          model.setAssetLinkId(null);
+         model.setBookmark(null);
+         model.setTargetFrame(null);
+         model.setTooltip(null);
          return;
       }
 
@@ -185,6 +268,12 @@ public class AssemblyHyperlinkService {
 
       if(link.containsKey("assetLinkPath")) {
          model.setAssetLinkPath(str(link, "assetLinkPath"));
+      }
+
+      // The ID is what getHyperlink actually stores and what VSUtil.getBookmarks looks up; the path
+      // is the display half. Setting only the path is what made every viewsheet link fail.
+      if(assetId != null) {
+         model.setAssetLinkId(assetId);
       }
 
       if(link.containsKey("bookmark")) {
@@ -216,7 +305,9 @@ public class AssemblyHyperlinkService {
       }
    }
 
-   private static Map<String, Object> describe(String assemblyName, HyperlinkDialogModel model) {
+   private static Map<String, Object> describe(String assemblyName, HyperlinkDialogModel model,
+                                               Region asked)
+   {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
 
@@ -236,7 +327,12 @@ public class AssemblyHyperlinkService {
       out.put("sendSelectionsAsParameters", model.isSendSelectionsAsParameters());
       out.put("row", model.getRow());
       out.put("col", model.getCol());
-      out.put("colName", model.getColName());
+      // The dialog service does not echo colName back into the model, so reporting only the model's
+      // value meant a caller that addressed a cell BY NAME read back null and could not confirm it
+      // had read the same cell it wrote. Falling back to what was asked for is the honest answer:
+      // it is the name this read was scoped to, whether or not the model repeats it.
+      out.put("colName", model.getColName() != null ? model.getColName()
+                 : asked == null ? null : asked.colName());
       return out;
    }
 

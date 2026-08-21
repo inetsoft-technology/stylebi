@@ -817,7 +817,15 @@ public class HyperlinkDialogService {
    private final VSObjectPropertyService vsObjectPropertyService;
    private final ViewsheetService viewsheetService;
    private final VSTrapService trapService;
-   private final int NONE = 9;
+   /**
+    * The dialog's "no link selected" sentinel. <b>Not a {@link Hyperlink} constant</b> — it is the
+    * value {@code getHyperlinkDialogModel} reports when an assembly has no hyperlink, and the value
+    * {@code getHyperlink} tests to decide to clear one. Public because any caller driving this
+    * service without the Angular dialog has to speak it: sending anything else (0, say) makes
+    * {@code getHyperlink} build a real {@code Hyperlink} carrying that bogus type instead of
+    * clearing, so the link survives and only looks cleared.
+    */
+   public static final int NONE = 9;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final HighlightService highlightService;
    private final DataRefModelFactoryService dataRefModelService;
