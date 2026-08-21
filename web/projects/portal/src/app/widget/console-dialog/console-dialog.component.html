@@ -81,15 +81,15 @@
 
   <ng-template wDialogButtons>
     <button type="button" class="btn btn-primary" [disabled]="!messages || messages.length == 0"
-      (click)="clearMessages()">
-      _#(Clear)
-    </button>
-    <button type="button" class="btn btn-primary" [disabled]="!messages || messages.length == 0"
       (click)="ok()">
       _#(OK)
     </button>
+    <button type="button" class="btn btn-default" [disabled]="!messages || messages.length == 0"
+      (click)="clearMessages()">
+      _#(Clear)
+    </button>
     <button type="button" class="btn btn-default" (click)="closeDialog()">
-      _#(Close)
+      _#(Cancel)
     </button>
   </ng-template>
 </w-standard-dialog>
