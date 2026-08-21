@@ -373,6 +373,36 @@ public class HighlightDialogService {
       return model;
    }
 
+   /**
+    * The first genuine DATA cell of a table-type assembly -- {@code {row, col}}.
+    *
+    * <p>A caller with no region in mind cannot assume {@code (1, 1)}: a crosstab with 2+
+    * aggregates inserts one extra header row (side by side) or column (stacked, the default)
+    * labeling each aggregate, which shifts the real first data cell past {@code (1, 1)} on
+    * whichever axis carries it. {@code VSTableLens} already tracks this per assembly, so this
+    * reads it directly rather than guessing a literal.
+    *
+    * <p>Non-table assemblies (e.g. a chart) don't address highlights by row/col at all, so
+    * {@code {1, 1}} is returned unused as a harmless default.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public int[] getFirstDataCell(@ClusterProxyKey String runtimeId, String objectId,
+                                 Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly assembly = viewsheet.getAssembly(objectId);
+      VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
+
+      if(box.isPresent() && assemblyInfo instanceof TableDataVSAssemblyInfo) {
+         VSTableLens lens = box.get().getVSTableLens(objectId, false);
+         return new int[] { lens.getHeaderRowCount(), lens.getHeaderColCount() };
+      }
+
+      return new int[] { 1, 1 };
+   }
+
    private boolean listContainsCol(List<DataRefModel> list, DataRef ref) {
       for(int i = 0; i < list.size(); i++) {
          DataRefModel refModel = list.get(i);
