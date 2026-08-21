@@ -73,8 +73,12 @@ export class ViewerMobileToolbarComponent {
             },
             contextmenu: true,
             autoClose: true,
-            closeOnOutsideClick: true,
-            zIndex: 1000
+            closeOnOutsideClick: true
+            // don't pin a z-index: an inline style overrides the .fixed-dropdown
+            // stylesheet value (999900) and the pinned 1000 put this menu *below* the
+            // mobile paging control (z-index 9999, pointer-events: all), which the
+            // viewer plants at the tapped cell. Taps on menu items that overlapped it
+            // hit-tested to the control instead and were silently swallowed.
          } as DropdownOptions;
          this.mobileSandwichRef = this.dropdownService.open(component, options);
          this.sandwichMenuOpen = true;
