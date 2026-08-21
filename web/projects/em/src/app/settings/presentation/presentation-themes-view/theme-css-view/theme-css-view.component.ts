@@ -203,6 +203,19 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-vs-toolbar-bg-color", color: true},
       {name: "--inet-repository-tree-toolbar-bg-color", color: true},
 
+      // composer authoring states
+      {name: "_#(js:em.presentation.lookAndFeel.css.heading.composer)", heading: true},
+      {name: "--inet-composer-context-bg", color: true},
+      {name: "--inet-composer-context-border", color: true},
+      {name: "--inet-composer-context-text", color: true},
+      {name: "--inet-composer-selected-bg", color: true},
+      {name: "--inet-composer-selected-border", color: true},
+      {name: "--inet-composer-selected-text", color: true},
+      {name: "--inet-composer-selected-outline", color: true},
+      {name: "--inet-composer-dimmed-bg", color: true},
+      {name: "--inet-composer-dimmed-border", color: true},
+      {name: "--inet-composer-dimmed-text", color: true},
+
       // worksheet
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.worksheet)", heading: true},
       {name: "--inet-graph-assembly-bg-color", color: true},
@@ -221,6 +234,10 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-ws-header-secondary-bg-color", color: true},
       {name: "--inet-ws-table-odd-row-bg-color", color: true},
       {name: "--inet-ws-table-even-row-bg-color", color: true},
+      {name: "--inet-ws-schema-highlight-bg", color: true},
+      {name: "--inet-ws-connection-muted", color: true},
+      {name: "--inet-ws-row-selected-bg", color: true},
+      {name: "--inet-ws-row-hover-bg", color: true},
 
       // other
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.other)", heading: true},
