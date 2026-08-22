@@ -204,7 +204,7 @@ class ChartAestheticAgentServiceTest {
       Exception thrown = assertThrows(
          Exception.class,
          () -> service.setField("tok", principal(), "Chart1", "size",
-                                new FieldRef("Sales", "measure", null, null, null), ""));
+                                new FieldRef("Sales", "measure", null, null, null), null, ""));
       assertTrue(thrown.getMessage().contains("size"));
    }
 
@@ -217,7 +217,7 @@ class ChartAestheticAgentServiceTest {
       assertThrows(Exception.class,
                    () -> service.setField("tok", principal(), "Chart1", "size",
                                           new FieldRef("Sales", "measure", null, null, null),
-                                          ""));
+                                          null, ""));
    }
 
    @Test
@@ -226,7 +226,7 @@ class ChartAestheticAgentServiceTest {
 
       harness(new ChartBindingModel(), aesthetics)
          .setField("tok", principal(), "Chart1", "size",
-                  new FieldRef("Sales", "measure", null, null, null), "");
+                  new FieldRef("Sales", "measure", null, null, null), null, "");
 
       assertEquals("Sales", captureEvent(aesthetics).getModel().getSizeField().getFullName());
    }

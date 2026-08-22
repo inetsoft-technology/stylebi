@@ -1309,10 +1309,11 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       }
    }
 
-   // if copyToTreemap() synthesized a size/color field from a measure, move it back to y
+   // if copyToTreemap() synthesized a size/color/shape field from a measure, move it back to y
    private void moveMeasureAestheticToY() {
       AestheticRef size = info.getSizeField();
       AestheticRef color = info.getColorField();
+      AestheticRef shape = info.getShapeField();
       DataRef dataRef = null;
 
       if(size != null && GraphUtil.isMeasure(size.getDataRef())) {
@@ -1322,6 +1323,10 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       else if(color != null && GraphUtil.isMeasure(color.getDataRef())) {
          dataRef = color.getDataRef();
          info.setColorField(null);
+      }
+      else if(shape != null && GraphUtil.isMeasure(shape.getDataRef())) {
+         dataRef = shape.getDataRef();
+         info.setShapeField(null);
       }
 
       if(dataRef instanceof ChartRef) {
