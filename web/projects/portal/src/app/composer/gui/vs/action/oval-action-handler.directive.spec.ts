@@ -29,6 +29,12 @@ import { OvalActionHandlerDirective } from "./oval-action-handler.directive";
  * reviewer's own example) and asserts the constructed dialog instance comes
  * out with a live, non-null socketConnection - not just that the assignment
  * line exists in source.
+ *
+ * The same omission recurred for `dialog.assemblyName`: EditorContext-driven
+ * consumers (ClickableScriptPane / VSAssemblyScriptPane, and therefore Follow
+ * Focus / G2 pane-scoped pairing) read PropertyDialog.assemblyName, but it was
+ * never assigned by 17 of the 24 action-handler directives, including this
+ * one - see docs/superpowers/plans/2026-08-22-follow-focus-missing-assembly-name-fix-plan.md.
  */
 describe("OvalActionHandlerDirective - property dialog socket wiring", () => {
    it("gives the constructed OvalPropertyDialog a non-null socketConnection matching vsInfo's", () => {
@@ -65,5 +71,6 @@ describe("OvalActionHandlerDirective - property dialog socket wiring", () => {
       expect(componentInstance.runtimeId).toBe("vs-oval-123");
       expect(componentInstance.socketConnection).toBeTruthy();
       expect(componentInstance.socketConnection).toBe(socketConnectionStub);
+      expect(componentInstance.assemblyName).toBe("Oval1");
    });
 });
