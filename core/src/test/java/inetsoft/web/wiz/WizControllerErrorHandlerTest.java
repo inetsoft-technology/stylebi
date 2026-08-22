@@ -175,6 +175,19 @@ class WizControllerErrorHandlerTest {
                  "every captured error must survive, got: [" + content + "]");
    }
 
+   /**
+    * Any exception none of the handlers above recognize — an NPE deep in a binding/viewsheet
+    * service, for example — must still come back as JSON 500, not fall through to Tomcat's own
+    * default HTML error page (which ignores the client's {@code Accept: application/json} header
+    * and leaks a raw, multi-KB stack-trace dump instead of a clean error).
+    */
+   @Test
+   void anUnrecognizedExceptionMapsToInternalServerErrorWithJsonBody() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "unexpected"))
+         .andExpect(status().isInternalServerError())
+         .andExpect(content().string(containsString("unexpected server error")));
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -217,6 +230,10 @@ class WizControllerErrorHandlerTest {
             throw new inetsoft.util.InvalidUserException(
                "Invalid user found: Principal[Client[admin@172.18.0.1@a2f160d8]] instead of " +
                "Principal[Client[admin@172.18.0.1@ab0096b3]]", () -> "admin");
+         }
+
+         if("unexpected".equals(type)) {
+            throw new NullPointerException("boom");
          }
 
          throw new java.lang.SecurityException("denied");
