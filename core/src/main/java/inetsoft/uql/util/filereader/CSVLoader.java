@@ -164,6 +164,13 @@ public final class CSVLoader {
                newType = AssetUtil.getType(header[i], types.get(i), data, fmtMap, isDmyOrder);
             }
 
+            // DIAGNOSTIC ONLY -- do not merge -- round 4b, per-row trace at the exact spot
+            // debugger-4-2-2 flagged, for the CI-only CSV type detection flake investigation.
+            LOG.warn("DIAGNOSTIC per-row pre-widening: r=" + r + " col=" + i + " currentType=" +
+               currentType + " data=[" + data + "] (" +
+               (data == null ? "null" : data.getClass().getName()) + ") newTypeFromGetType=" +
+               newType + " hasRecognizedTypes=" + hasRecognizedTypes.get(i));
+
             // @by stephenwebster, For Bug #16268
             // If different types are detected from row to row, default
             // the column type to String to avoid loss of information.
@@ -175,6 +182,10 @@ public final class CSVLoader {
                   newType = XSchema.STRING;
                   fmtMap.remove(header[i]);
                }
+
+               // DIAGNOSTIC ONLY -- do not merge -- see comment above.
+               LOG.warn("DIAGNOSTIC per-row Bug#16268 widening fired: r=" + r + " col=" + i +
+                  " -> newType=" + newType);
             }
 
             if(XSchema.isDateType(types.get(i)) && !XSchema.isDateType(newType) &&
