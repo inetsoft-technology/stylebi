@@ -23,7 +23,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.Format;
 import java.util.HashMap;
 import java.util.Locale;
@@ -43,6 +48,26 @@ public class AssetUtilTest {
    @AfterEach
    void restoreDefaultLocale() {
       Locale.setDefault(originalDefault);
+   }
+
+   /**
+    * NFMT/PFMT/CFMT/C2FMT are private static final, built once at whatever
+    * locale is the JVM default the moment AssetUtil is first class-loaded.
+    * Which test triggers that class-load first is Surefire run-order
+    * dependent and cannot be controlled from this test, so asserting via an
+    * end-to-end parse (as getTypeDetectsNumericValuesUnderNonUsDefaultLocale
+    * below does) cannot reliably re-exercise the class-load path in a full
+    * suite run. Inspect the already-constructed formatters' embedded
+    * symbols directly instead, which is independent of load order.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "NFMT", "PFMT", "CFMT", "C2FMT" })
+   void formattersAreLocaleInvariant(String fieldName) throws Exception {
+      Field field = AssetUtil.class.getDeclaredField(fieldName);
+      field.setAccessible(true);
+      DecimalFormat fmt = (DecimalFormat) field.get(null);
+
+      assertEquals(DecimalFormatSymbols.getInstance(Locale.US), fmt.getDecimalFormatSymbols());
    }
 
    /**
