@@ -2954,15 +2954,23 @@ public class AssetUtil {
             fmt = C2FMT;
          }
 
-         // DIAGNOSTIC ONLY -- do not merge -- round 5, unconditional entry log scoped to the
-         // values under investigation, for the CI-only CSV type detection flake investigation.
+         // DIAGNOSTIC ONLY -- do not merge -- round 6, unconditional entry log scoped to the
+         // values under investigation, now with caller/thread/locale identification to resolve
+         // whether AssetUtilTest's direct getType() calls (same "price"/"299.99"/"$499.99"
+         // literals) are being misattributed to CSVLoader's call in the log, for the CI-only
+         // CSV type detection flake investigation.
          boolean diagUnderInvestigation = "299.99".equals(str) || "$499.99".equals(str);
+         StackTraceElement[] diagStack = diagUnderInvestigation ?
+            Thread.currentThread().getStackTrace() : null;
+         String diagCaller = diagStack == null ? null :
+            Arrays.toString(Arrays.copyOfRange(diagStack, 0, Math.min(6, diagStack.length)));
 
          if(diagUnderInvestigation) {
             LOG.warn("DIAGNOSTIC getType DOUBLE-block entry: str=[" + str + "] fmt=" + fmt +
                " fmtIdentity=" + System.identityHashCode(fmt) + " symbols=" +
                (fmt instanceof DecimalFormat ? ((DecimalFormat) fmt).getDecimalFormatSymbols() :
-               "n/a"));
+               "n/a") + " thread=" + Thread.currentThread().getName() + " defaultLocale=" +
+               Locale.getDefault() + " caller=" + diagCaller);
          }
 
          try {
@@ -2977,7 +2985,8 @@ public class AssetUtil {
 
             if(diagUnderInvestigation) {
                LOG.warn("DIAGNOSTIC getType DOUBLE-block SUCCESS: str=[" + str + "] pos=" +
-                  pos.getIndex());
+                  pos.getIndex() + " thread=" + Thread.currentThread().getName() + " caller=" +
+                  diagCaller);
             }
          }
          catch(Throwable ex) {
@@ -2991,7 +3000,8 @@ public class AssetUtil {
                " fmtIdentity=" + System.identityHashCode(fmt) + " symbols=" +
                (fmt instanceof DecimalFormat ? ((DecimalFormat) fmt).getDecimalFormatSymbols() :
                "n/a") + " NFMT.id=" + System.identityHashCode(NFMT) + " CFMT.id=" +
-               System.identityHashCode(CFMT), ex);
+               System.identityHashCode(CFMT) + " thread=" + Thread.currentThread().getName() +
+               " defaultLocale=" + Locale.getDefault() + " caller=" + diagCaller, ex);
             type = XSchema.STRING;
          }
       }
