@@ -19,12 +19,15 @@ package inetsoft.web.wiz.script;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.web.wiz.script.model.FunctionSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Best-effort "Layer A" static metadata lookup (the generated Tern {@code js-functions} JSON the
@@ -36,7 +39,8 @@ import java.io.InputStream;
 @Service
 public class ScriptApiService {
    private static final Logger LOG = LoggerFactory.getLogger(ScriptApiService.class);
-   private static final String RESOURCE = "/inetsoft/web/binding/js-functions.generated.json";
+   private static final String RESOURCE_FUNCTIONS = "/inetsoft/web/binding/js-functions.json";
+   private static final String RESOURCE_GENERATED = "/inetsoft/web/binding/js-functions.generated.json";
 
    /**
     * Looks up a top-level function ({@code "dateAdd"}) or a prototype method
@@ -80,17 +84,31 @@ public class ScriptApiService {
    }
 
    private JsonNode load() {
-      try(InputStream in = getClass().getResourceAsStream(RESOURCE)) {
-         if(in == null) {
-            LOG.warn("Script API metadata resource not found: {}", RESOURCE);
-            return MAPPER.createObjectNode();
+      try {
+         ObjectNode functions = (ObjectNode) readResource(RESOURCE_FUNCTIONS);
+         ObjectNode generated = (ObjectNode) readResource(RESOURCE_GENERATED);
+
+         for(Iterator<Map.Entry<String, JsonNode>> it = generated.fields(); it.hasNext();) {
+            Map.Entry<String, JsonNode> e = it.next();
+            functions.set(e.getKey(), e.getValue());
          }
 
-         return MAPPER.readTree(in);
+         return functions;
       }
       catch(Exception e) {
          LOG.warn("Failed to load script API metadata", e);
          return MAPPER.createObjectNode();
+      }
+   }
+
+   private JsonNode readResource(String path) throws Exception {
+      try(InputStream in = getClass().getResourceAsStream(path)) {
+         if(in == null) {
+            LOG.warn("Script API metadata resource not found: {}", path);
+            return MAPPER.createObjectNode();
+         }
+
+         return MAPPER.readTree(in);
       }
    }
 
