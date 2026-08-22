@@ -2938,38 +2938,66 @@ public class AssetUtil {
       }
 
       if(XSchema.DOUBLE.equals(type)) {
-         NumberFormat fmt = NFMT;
          str = trimPlus(str);
+         NumberFormat fmt = numericFormatForShape(str);
 
-         if(str.endsWith("%")) {
-            fmt = PFMT;
-         }
-         else if(str.length() > 0 && str.charAt(0) == '$') {
-            fmt = CFMT;
-         }
-         else if(str.startsWith("-$")) {
-            fmt = CFMT;
-         }
-         else if(str.startsWith("($") && str.endsWith(")")) {
-            fmt = C2FMT;
-         }
-
-         try {
-            ParsePosition pos = new ParsePosition(0);
-            fmt.parseObject(str, pos);
-
-            if(pos.getIndex() != str.length()) {
-               throw new RuntimeException("failed: " + pos.getIndex());
-            }
-
+         if(fmt != null) {
             fmtMap.put((String) header, fmt);
          }
-         catch(Throwable ex) {
+         else {
             type = XSchema.STRING;
          }
       }
 
       return type;
+   }
+
+   /**
+    * Pick the numeric format matching a value's own shape (plain, percent, currency,
+    * or parenthesized negative currency) and confirm it consumes the entire string.
+    *
+    * @return the matching format, or null if none of the candidate formats fully parse it.
+    */
+   private static NumberFormat numericFormatForShape(String str) {
+      NumberFormat fmt = NFMT;
+
+      if(str.endsWith("%")) {
+         fmt = PFMT;
+      }
+      else if(str.length() > 0 && str.charAt(0) == '$') {
+         fmt = CFMT;
+      }
+      else if(str.startsWith("-$")) {
+         fmt = CFMT;
+      }
+      else if(str.startsWith("($") && str.endsWith(")")) {
+         fmt = C2FMT;
+      }
+
+      ParsePosition pos = new ParsePosition(0);
+      fmt.parseObject(str, pos);
+
+      return pos.getIndex() == str.length() ? fmt : null;
+   }
+
+   /**
+    * Re-derive and apply the numeric format matching a value's own shape. Used as a
+    * fallback when a column's cached format (picked from a sample of scanned rows)
+    * doesn't fully match a later row's own shape, e.g. a percent value beyond the
+    * type-detection scan window in an otherwise plain-number column.
+    *
+    * @return the parsed number, or null if no candidate format fully matches.
+    */
+   public static Number parseNumberByShape(String str) {
+      str = trimPlus(str);
+      NumberFormat fmt = numericFormatForShape(str);
+
+      if(fmt == null) {
+         return null;
+      }
+
+      Object result = fmt.parseObject(str, new ParsePosition(0));
+      return result instanceof Number ? (Number) result : null;
    }
 
    /**
