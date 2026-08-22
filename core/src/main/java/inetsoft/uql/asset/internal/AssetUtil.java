@@ -2954,6 +2954,17 @@ public class AssetUtil {
             fmt = C2FMT;
          }
 
+         // DIAGNOSTIC ONLY -- do not merge -- round 5, unconditional entry log scoped to the
+         // values under investigation, for the CI-only CSV type detection flake investigation.
+         boolean diagUnderInvestigation = "299.99".equals(str) || "$499.99".equals(str);
+
+         if(diagUnderInvestigation) {
+            LOG.warn("DIAGNOSTIC getType DOUBLE-block entry: str=[" + str + "] fmt=" + fmt +
+               " fmtIdentity=" + System.identityHashCode(fmt) + " symbols=" +
+               (fmt instanceof DecimalFormat ? ((DecimalFormat) fmt).getDecimalFormatSymbols() :
+               "n/a"));
+         }
+
          try {
             ParsePosition pos = new ParsePosition(0);
             fmt.parseObject(str, pos);
@@ -2963,8 +2974,24 @@ public class AssetUtil {
             }
 
             fmtMap.put((String) header, fmt);
+
+            if(diagUnderInvestigation) {
+               LOG.warn("DIAGNOSTIC getType DOUBLE-block SUCCESS: str=[" + str + "] pos=" +
+                  pos.getIndex());
+            }
          }
          catch(Throwable ex) {
+            // DIAGNOSTIC ONLY -- do not merge -- round 5, resolving a contradiction between
+            // round 1 (this catch never fired for "$499.99") and round 4b (getType() somehow
+            // returned STRING for it despite that being the only path to STRING here) for the
+            // CI-only CSV type detection flake investigation. Logs fmt identity/symbols to check
+            // for shared-static test-pollution (mutated NFMT/PFMT/CFMT/C2FMT from an earlier
+            // test in the same fork).
+            LOG.warn("DIAGNOSTIC getType numeric parse failed: str=[" + str + "] fmt=" + fmt +
+               " fmtIdentity=" + System.identityHashCode(fmt) + " symbols=" +
+               (fmt instanceof DecimalFormat ? ((DecimalFormat) fmt).getDecimalFormatSymbols() :
+               "n/a") + " NFMT.id=" + System.identityHashCode(NFMT) + " CFMT.id=" +
+               System.identityHashCode(CFMT), ex);
             type = XSchema.STRING;
          }
       }
