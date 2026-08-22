@@ -789,6 +789,10 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       Arrays.fill(spanRow, start);
       CrossTabFilter filter = Util.getCrosstab(lens);
       Map<BaseTableCellModel.FullHashObjWrapper, VSFormatModel> formatModelCache = new HashMap<>();
+      // Keyed by groupInfo identity -- the same dimension's groupInfo instance is shared by
+      // every cell in its column/row across this whole render, so this computes the group-name
+      // set once per dimension rather than once per cell.
+      Map<XNamedGroupInfo, Set<String>> groupNamesCache = new HashMap<>();
 
       for(int i = start; i < end; i++) {
          for(int j = 0; j < colCount; j++) {
@@ -870,7 +874,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                      if(cell.getCellData() != null && groupInfo != null &&
                         !(groupInfo instanceof DCNamedGroupInfo))
                      {
-                        Set<String> groupNames = new HashSet<>(Arrays.asList(groupInfo.getGroups()));
+                        Set<String> groupNames = groupNamesCache.computeIfAbsent(
+                           groupInfo, g -> new HashSet<>(Arrays.asList(g.getGroups())));
                         grouped = groupNames.contains(cell.getCellData() + "");
                      }
 
@@ -940,7 +945,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                      if(groupInfo != null && !(groupInfo instanceof DCNamedGroupInfo) &&
                         cellString != null)
                      {
-                        Set<String> groupNames = new HashSet<>(Arrays.asList(groupInfo.getGroups()));
+                        Set<String> groupNames = groupNamesCache.computeIfAbsent(
+                           groupInfo, g -> new HashSet<>(Arrays.asList(g.getGroups())));
                         grouped = groupNames.contains(cellString);
                      }
 
