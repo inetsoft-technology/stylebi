@@ -306,7 +306,8 @@ class ChartAestheticAgentServiceTest {
    {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
-      return new ChartAestheticAgentService(sessions, binding, aesthetics);
+      return new ChartAestheticAgentService(sessions, binding, aesthetics,
+                                            mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
    }
 
    private static Principal principal() {

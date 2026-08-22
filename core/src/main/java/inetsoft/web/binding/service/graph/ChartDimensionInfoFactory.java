@@ -83,6 +83,28 @@ public abstract class ChartDimensionInfoFactory<M extends ChartDimensionRef>
       if(model.getDataRefModel() != null) {
          ref.setDataRef(model.getDataRefModel().createDataRef());
       }
+
+      // Turns a resolved model-side named group into a live one on the real ref. Must run
+      // after setDataRef above -- createNamedGroupInfo's ASSET_NAMEDGROUP_INFO_REF branch
+      // resolves against ref.getDataRef(), which is stale (from before this paste) until that
+      // call lands.
+      if(model.getOrder() != XConstants.SORT_NONE && model.getNamedGroupInfo() != null) {
+         if((ref.getRefType() & DataRef.CUBE) != 0) {
+            throw new IllegalArgumentException("Named-group binding to a predefined or " +
+               "worksheet-local named group is not supported for OLAP cube data sources; only " +
+               "manual value grouping is available for cube dimensions.");
+         }
+
+         try {
+            ref.setNamedGroupInfo(model.getNamedGroupInfo().createNamedGroupInfo(ref.getDataRef()));
+         }
+         catch(RuntimeException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      }
    }
 
    private final DataRefModelFactoryService refModelService;

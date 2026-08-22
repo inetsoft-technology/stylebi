@@ -17,13 +17,38 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.binding.AssetNamedGroupInfo;
+import inetsoft.report.internal.binding.SummaryAttr;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.NamedGroupInfo;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
+import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Guards the shared field-reference vocabulary. Specs 2b–2e inherit it and spec #4's
@@ -137,5 +162,152 @@ class FieldRefFactoryTest {
    void requireTypeAcceptsBothValidDiscriminatorsCaseInsensitively() {
       FieldRefFactory.requireType(new FieldRef("A", "DIMENSION", null, null, null));
       FieldRefFactory.requireType(new FieldRef("B", "measure", null, null, null));
+   }
+
+   // ── namedGroup resolution ─────────────────────────────────────────────────
+
+   private static final SourceInfo QUERY1_SOURCE =
+      new SourceInfo(SourceInfo.ASSET, null, "Query1");
+
+   private static RuntimeViewsheet rvsWithWorksheet(Worksheet ws) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static DataRefModelFactoryService refModelService() {
+      DataRefModelFactoryService service = mock(DataRefModelFactoryService.class);
+      when(service.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+      return service;
+   }
+
+   /**
+    * {@code createNamedGroupInfo}'s {@code ASSET_NAMEDGROUP_INFO_REF} branch -- constant {@code
+    * 4}, confirmed by {@code AssetNamedGroupInfo.getType()} itself -- is what this must produce
+    * for a registered-name match. {@code ASSET_NAMEDGROUP_INFO} (constant {@code 3}, #4707's own
+    * calc-table-specific sentinel) has no branch in that method and would silently resolve to
+    * {@code null} at apply time.
+    */
+   @Test
+   void resolveNamedGroupInfoBuildsAnExpertNamedGroupFromAWorksheetLocalAssembly() throws Exception {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(java.util.List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      NamedGroupInfoModel model = FieldRefFactory.resolveNamedGroupInfo(
+         "Coastal", rvsWithWorksheet(ws), QUERY1_SOURCE, "REGION", refModelService());
+
+      assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, model.getType());
+      assertEquals(1, model.getConditions().size());
+      assertEquals("West", model.getConditions().get(0).getName());
+      assertEquals(1, model.getConditions().get(0).getList().length);
+   }
+
+   @Test
+   void resolveNamedGroupInfoBuildsAnAssetReferenceForARegisteredNameUsingTheRefConstant()
+      throws Exception
+   {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<SummaryAttr> summaryAttr = mockStatic(SummaryAttr.class))
+      {
+         AssetRepository rep = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(rep);
+
+         AssetNamedGroupInfo info = mock(AssetNamedGroupInfo.class);
+         when(info.getName()).thenReturn("Tiers");
+         summaryAttr.when(() -> SummaryAttr.getAssetNamedGroupInfos(any(), eq(rep), isNull()))
+            .thenReturn(new AssetNamedGroupInfo[]{ info });
+
+         NamedGroupInfoModel model = FieldRefFactory.resolveNamedGroupInfo(
+            "Tiers", rvsWithWorksheet(ws), QUERY1_SOURCE, "REGION", refModelService());
+
+         // The crux of stylebi's own designer-found bug: type 3 (ASSET_NAMEDGROUP_INFO,
+         // #4707's calc-table sentinel) has no branch in createNamedGroupInfo and silently
+         // resolves to null. Type 4 (ASSET_NAMEDGROUP_INFO_REF) is the one it actually handles.
+         assertEquals(4, XNamedGroupInfo.ASSET_NAMEDGROUP_INFO_REF);
+         assertEquals(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO_REF, model.getType());
+         assertNotEquals(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO, model.getType());
+         assertEquals("Tiers", model.getName());
+      }
+   }
+
+   @Test
+   void resolveNamedGroupInfoRefusesAnUnrecognizedNameNamingTheFieldAndColumn() {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(null);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> FieldRefFactory.resolveNamedGroupInfo(
+               "NoSuchGroup", rvsWithWorksheet(ws), QUERY1_SOURCE, "REGION", refModelService()));
+
+         assertTrue(thrown.getMessage().contains("NoSuchGroup"));
+         assertTrue(thrown.getMessage().contains("REGION"));
+      }
+   }
+
+   /**
+    * {@code toChartRef} must force {@code order = SORT_SPECIFIC} when a {@code namedGroup}
+    * resolves -- {@code OrderInfo.isSpecific()} gates whether the named group's conditions are
+    * ever folded into the actual grouping, so a resolved-but-unspecific order silently renders
+    * without any grouping at all.
+    */
+   @Test
+   void toChartRefForcesSortSpecificWhenANamedGroupResolves() throws Exception {
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(new NamedGroupInfo());
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      FieldRef field = new FieldRef("REGION", "dimension", null, null, "Coastal");
+      ChartRefModel ref = FieldRefFactory.toChartRef(
+         field, rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      assertInstanceOf(ChartDimensionRefModel.class, ref);
+      assertEquals(XConstants.SORT_SPECIFIC, ((ChartDimensionRefModel) ref).getOrder());
+      assertNotNull(((ChartDimensionRefModel) ref).getNamedGroupInfo());
+   }
+
+   @Test
+   void toChartRefRefusesAnUnrecognizedNamedGroup() {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(null);
+         FieldRef field = new FieldRef("REGION", "dimension", null, null, "NoSuchGroup");
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> FieldRefFactory.toChartRef(
+               field, rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService()));
+
+         assertTrue(thrown.getMessage().contains("NoSuchGroup"));
+      }
    }
 }

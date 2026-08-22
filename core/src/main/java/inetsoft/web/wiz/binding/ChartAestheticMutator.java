@@ -17,10 +17,13 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.aesthetic.*;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
@@ -51,6 +54,28 @@ public final class ChartAestheticMutator {
    public static void setField(ChartBindingModel model, String channel, FieldRef field,
                                boolean relationChart)
    {
+      try {
+         setField(model, channel, field, relationChart, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireFieldChannel's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * @param rvs            the runtime viewsheet, so a field's {@code namedGroup} can be
+    *                       resolved against a worksheet-local named group.
+    * @param source         the chart's own {@code SourceInfo}.
+    * @param refModelService needed to resolve a worksheet-local named group's conditions.
+    */
+   public static void setField(ChartBindingModel model, String channel, FieldRef field,
+                               boolean relationChart, RuntimeViewsheet rvs, SourceInfo source,
+                               DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
       if(field == null) {
@@ -62,7 +87,7 @@ public final class ChartAestheticMutator {
 
       AestheticInfo info = new AestheticInfo();
       info.setFullName(field.column());
-      info.setDataInfo(FieldRefFactory.toChartRef(field));
+      info.setDataInfo(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
       assign(model, name, info);
    }
 

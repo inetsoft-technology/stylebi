@@ -420,8 +420,33 @@ public class BDimensionRefModel extends AbstractBDRefModel {
          dim.setDataRef(refMode.createDataRef());
       }
 
-      if(this.getOrder() == XConstants.SORT_SPECIFIC && (ngInfoModel == null ||
-         ngInfoModel.getGroups() == null || ngInfoModel.getGroups().isEmpty()) &&
+      // Turns a resolved model-side named group into a live one on the real ref.
+      if(ngInfoModel != null) {
+         if((dim.getRefType() & DataRef.CUBE) != 0) {
+            throw new IllegalArgumentException("Named-group binding to a predefined or " +
+               "worksheet-local named group is not supported for OLAP cube data sources; only " +
+               "manual value grouping is available for cube dimensions.");
+         }
+
+         try {
+            dim.setNamedGroupInfo(ngInfoModel.createNamedGroupInfo(dim.getDataRef()));
+         }
+         catch(RuntimeException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e); // createDataRef() itself declares no checked exception
+         }
+      }
+
+      // A namedGroup binding has no getGroups() content of its own for the EXPERT/ASSET_REF
+      // shapes (their data lives in getConditions()/getName(), not getGroups()) -- checking
+      // "has no named-group content of any kind" (type 0, the field's own declared default)
+      // rather than "has no content of the SIMPLE/manual-value kind specifically" avoids
+      // silently stripping SORT_SPECIFIC -- and the grouping it gates -- right back off for
+      // those two shapes.
+      if(this.getOrder() == XConstants.SORT_SPECIFIC &&
+         (ngInfoModel == null || ngInfoModel.getType() == 0) &&
          (this.getManualOrder() == null || this.getManualOrder().isEmpty()))
       {
          dim.setOrder(getOrder() & ~XConstants.SORT_SPECIFIC);

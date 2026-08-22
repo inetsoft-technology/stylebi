@@ -27,6 +27,7 @@ import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.internal.*;
@@ -282,8 +283,8 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
 
       VSDimensionRef nvref = (VSDimensionRef) nref;
       VSDimensionRef ovref = (VSDimensionRef) oref;
-      SNamedGroupInfo ngroupInfo = (SNamedGroupInfo) nvref.getNamedGroupInfo();
-      SNamedGroupInfo ogroupInfo = (SNamedGroupInfo) ovref.getNamedGroupInfo();
+      XNamedGroupInfo ngroupInfo = nvref.getNamedGroupInfo();
+      XNamedGroupInfo ogroupInfo = ovref.getNamedGroupInfo();
 
       boolean ungroup = ngroupInfo == null &&
          ogroupInfo != null && !ogroupInfo.isEmpty();
