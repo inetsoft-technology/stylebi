@@ -368,6 +368,26 @@ class VisualFrameAliasesTest {
       assertEquals("#4E79A7", frame.getColorMaps()[0].getColor());
    }
 
+   /**
+    * The same defect, hit through the tool's own primary documented example: a plain
+    * {@code colors} list with no mapping and no explicit {@code useGlobal}. Both flags default
+    * to {@code true} and neither was previously cleared for this shape, so the colours were
+    * accepted, stored, and never rendered.
+    */
+   @Test
+   void aPlainColoursListClearsUseGlobalAndShareColorsSoItActuallyRenders() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical",
+            "colors", java.util.List.of("#FF0000", "#00FF00", "#0000FF", "#FFFF00"))));
+
+      assertFalse(frame.isUseGlobal(),
+                  "leaving useGlobal set is what made the explicit colours never render");
+      assertFalse(frame.isShareColors(),
+                  "shareColors independently pulls in another chart's cached frame for the " +
+                  "same column even when useGlobal is cleared");
+   }
+
    @Test
    void refusesUseGlobalTogetherWithAMapping() {
       Exception thrown = assertThrows(

@@ -558,16 +558,19 @@ public final class VisualFrameAliases {
    /**
     * A categorical colour frame, optionally with per-value colour mapping.
     *
-    * <p><b>The {@code useGlobal} footgun lives here.</b> {@code CategoricalColorModel} defaults
-    * {@code useGlobal} and {@code shareColors} to {@code true}, and while {@code useGlobal} is set
-    * the automatic palette wins: an explicit per-value colour is accepted, stored, and never
-    * rendered. That is a recorded defect, and it is invisible — the model round-trips perfectly
-    * and the chart shows something else.
+    * <p><b>The {@code useGlobal}/{@code shareColors} footgun lives here.</b>
+    * {@code CategoricalColorModel} defaults both {@code useGlobal} and {@code shareColors} to
+    * {@code true}. While {@code useGlobal} is set the automatic palette wins at render time; and
+    * independently, while {@code shareColors} is set the whole frame is replaced by a cached
+    * shared frame for the same column before per-value colours are even applied. Either flag
+    * alone is enough to make an explicit per-value colour accepted, stored, and never rendered.
+    * That is a recorded defect, and it is invisible — the model round-trips perfectly and the
+    * chart shows something else.
     *
-    * <p>So supplying a mapping clears {@code useGlobal}, because supplying one <i>is</i> the
-    * intent to override the automatic palette. Asking for {@code useGlobal: true} alongside a
-    * mapping is refused rather than honoured, since that combination cannot render what was
-    * asked for.
+    * <p>So supplying {@code colors} and/or a {@code mapping} clears both flags, because supplying
+    * either <i>is</i> the intent to override the automatic/shared palette. Asking for
+    * {@code useGlobal: true} alongside a mapping is refused rather than honoured, since that
+    * combination cannot render what was asked for.
     */
    private static VisualFrameModel categoricalColor(Map<String, Object> spec) {
       List<String> colors = strList(spec, "colors");
@@ -607,13 +610,16 @@ public final class VisualFrameAliases {
          }
 
          model.setColorMaps(maps.toArray(new ColorMapModel[0]));
-         // Supplying a mapping IS the intent to override the automatic palette.
-         model.setUseGlobal(false);
-         model.setShareColors(false);
       }
-      else if(useGlobal != null) {
-         model.setUseGlobal(useGlobal);
-      }
+
+      // Supplying colours and/or a mapping is the intent to override the automatic/shared
+      // palette. useGlobal and shareColors both default to true on a fresh CategoricalColorModel;
+      // leaving either set is what makes an explicit frame round-trip perfectly and never render.
+      // Default both false; honour an explicit useGlobal: true if the caller actually wants to
+      // keep sharing.
+      boolean share = Boolean.TRUE.equals(useGlobal);
+      model.setUseGlobal(share);
+      model.setShareColors(share);
 
       return model;
    }
