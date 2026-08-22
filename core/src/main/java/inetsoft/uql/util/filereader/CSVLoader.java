@@ -66,6 +66,15 @@ public final class CSVLoader {
                                          DateParseInfo parseInfo)
          throws Exception
    {
+      // DIAGNOSTIC ONLY -- do not merge -- temporary logging for CI-only CSV type detection
+      // flake investigation.
+      LOG.warn("DIAGNOSTIC readCSV env: java.version=" + System.getProperty("java.version") +
+         " user.language=" + System.getProperty("user.language") +
+         " user.country=" + System.getProperty("user.country") +
+         " user.timezone=" + System.getProperty("user.timezone") +
+         " Locale.getDefault()=" + Locale.getDefault() +
+         " TimeZone.getDefault()=" + TimeZone.getDefault().getID());
+
       Map<String, Format> fmtMap = new Object2ObjectOpenHashMap<>();
       XSwappableTable dataTable = new XSwappableTable();
       InputStream input = new FileInputStream(csvTemp);
@@ -383,6 +392,21 @@ public final class CSVLoader {
       Object oval = data;
       boolean defaultDmyOrder = CoreTool.getDateTimeConfig().isDmyOrder();
 
+      // DIAGNOSTIC ONLY -- do not merge -- trace of the date-guard decision, scoped to the
+      // specific values under investigation (plus any case that will actually enter the block)
+      // to avoid logging every single cell in the suite, for the CI-only CSV type detection
+      // flake investigation.
+      boolean diagIsDateType = XSchema.isDateType(type);
+      boolean diagIsDate = oval != null && Tool.isDate(oval.toString());
+      boolean diagIsUnderInvestigation = oval != null &&
+         ("299.99".equals(oval.toString()) || "$499.99".equals(oval.toString()));
+
+      if(diagIsDateType || diagIsDate || diagIsUnderInvestigation) {
+         LOG.warn("DIAGNOSTIC parseData guard: col=" + col + " oval=[" + oval + "] type=" +
+            type + " isDateType=" + diagIsDateType + " Tool.isDate=" + diagIsDate +
+            " willEnterBlock=" + (diagIsDateType || diagIsDate));
+      }
+
       if(oval != null && (XSchema.isDateType(type) || oval != null && Tool.isDate(oval.toString()))
          && parseInfo != null && !parseInfo.getIgnoreTypeColumns().contains(col))
       {
@@ -474,10 +498,16 @@ public final class CSVLoader {
                }
             }
 
+            // DIAGNOSTIC ONLY -- do not merge -- see comment above.
+            LOG.warn("DIAGNOSTIC parseData result: col=" + col + " oval=[" + oval + "] nval=[" +
+               nval + "] (" + (nval == null ? "null" : nval.getClass().getName()) +
+               ") resultingType=" + types.get(col));
+
             data = nval;
          }
          catch(Exception ex) {
-            LOG.debug("Failed to parse date: " + oval, ex);
+            // DIAGNOSTIC ONLY -- do not merge -- bumped from debug to warn, see comment above.
+            LOG.warn("DIAGNOSTIC Failed to parse date: " + oval, ex);
 
             if(parseInfo != null && !parseInfo.getProspectTypeMap().containsKey(col)) {
                parseInfo.getProspectTypeMap().put(col, type);
