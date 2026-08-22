@@ -19,7 +19,9 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
@@ -75,7 +77,7 @@ public class ScriptExecuteService {
          return new ScriptExecResult(false, null, null, null, true,
             "Script references \"" + destructive + "\", which can change stored/live data. " +
             "Dry-run cannot safely preview this — call run_script_live with confirmed=true " +
-            "to execute it for real.", null);
+            "to execute it for real.", null, null);
       }
 
       return execute(rvs, target);
@@ -96,7 +98,7 @@ public class ScriptExecuteService {
       if(destructive != null && !confirmed) {
          return new ScriptExecResult(false, null, null, null, true,
             "Script references \"" + destructive + "\", which can change stored/live data. " +
-            "Call run_script_live again with confirmed=true to proceed.", null);
+            "Call run_script_live again with confirmed=true to proceed.", null, null);
       }
 
       return execute(rvs, target);
@@ -107,7 +109,7 @@ public class ScriptExecuteService {
 
       if(text == null || text.isEmpty()) {
          return new ScriptExecResult(true, null, null, List.of(), false, null,
-            "No script at " + target + " — nothing to execute.");
+            "No script at " + target + " — nothing to execute.", null);
       }
 
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
@@ -136,13 +138,35 @@ public class ScriptExecuteService {
             "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
       };
 
+      VSAScriptable assemblyScriptable =
+         (target.location() == ScriptTarget.Location.ASSEMBLY ||
+          target.location() == ScriptTarget.Location.ASSEMBLY_ONCLICK)
+         ? scope.getVSAScriptable(assemblyName) : null;
+
+      if(assemblyScriptable != null) {
+         assemblyScriptable.resetUnrecognizedWrites();
+      }
+
       try {
          Object value = scope.execute(text, assemblyName);
-         return new ScriptExecResult(true, stringify(value), null, List.of(target.toString()),
-            false, null, "Executed " + target + ".");
+         List<String> unrecognized = assemblyScriptable != null ?
+            assemblyScriptable.getUnrecognizedWrites() : List.of();
+         List<String> changed = unrecognized.isEmpty() ? List.of(target.toString()) : List.of();
+         String summary = unrecognized.isEmpty() ? "Executed " + target + "." :
+            "Executed " + target + ", but assigned " + unrecognized +
+            " which " + (unrecognized.size() == 1 ? "is not a recognized scriptable property" :
+               "are not recognized scriptable properties") + " for this assembly type (" +
+            assemblyTypeName(rvs, assemblyName) + ") — the value " +
+            (unrecognized.size() == 1 ? "was" : "were") + " NOT applied; " +
+            (unrecognized.size() == 1 ? "it" : "they") + " only became an ad hoc script " +
+            "variable nothing else reads. Call get_script_context for " + assemblyName +
+            "'s real scriptable properties, or use get_assembly_properties/update_binding if " +
+            "you meant a different, non-scripted property.";
+         return new ScriptExecResult(true, stringify(value), null, changed, false, null, summary,
+            unrecognized.isEmpty() ? null : unrecognized);
       }
       catch(Exception ex) {
-         return new ScriptExecResult(false, null, toScriptError(ex), null, false, null, null);
+         return new ScriptExecResult(false, null, toScriptError(ex), null, false, null, null, null);
       }
    }
 
@@ -166,6 +190,17 @@ public class ScriptExecuteService {
       // Polyglot/host objects (e.g. GraalJS wrapper types) may not be Jackson-serializable —
       // fall back to a safe string representation rather than risking a 500 on the response.
       return String.valueOf(value);
+   }
+
+   /**
+    * Best-effort assembly type name (e.g. "SubmitVSAssembly") for the unrecognized-property
+    * message. Falls back to the assembly name itself if the assembly can't be resolved (should
+    * not happen for a target that just executed successfully, but this message is diagnostic
+    * text, not load-bearing behavior).
+    */
+   private static String assemblyTypeName(RuntimeViewsheet rvs, String assemblyName) {
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+      return assembly != null ? assembly.getClass().getSimpleName() : assemblyName;
    }
 
    private static String firstDestructiveGlobal(String scriptText) {

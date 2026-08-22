@@ -61,6 +61,23 @@ public class VSAScriptable
    }
 
    /**
+    * Clear the names recorded by {@link #getUnrecognizedWrites()}, so a caller can scope
+    * tracking to a single script execution.
+    */
+   public void resetUnrecognizedWrites() {
+      unrecognizedWrites.clear();
+   }
+
+   /**
+    * Names passed to {@link #putMember(String, Object)} since the last {@link
+    * #resetUnrecognizedWrites()} that did not match a registered {@code propmap} property, and
+    * so fell back to the generic per-assembly expando map instead of actually being applied.
+    */
+   public List<String> getUnrecognizedWrites() {
+      return new ArrayList<>(unrecognizedWrites);
+   }
+
+   /**
     * Add properties.
     */
    private void init() {
@@ -172,6 +189,7 @@ public class VSAScriptable
             desc.set(element, value);
          }
          else {
+            unrecognizedWrites.add(name);
             getVarMap().put(name, value);
          }
       }
@@ -1109,6 +1127,9 @@ public class VSAScriptable
    private boolean includedAll = true;
    private Object element = null;
    private boolean inited = false;
+   // Names that missed propmap and fell back to the expando map in putMember(); see
+   // resetUnrecognizedWrites()/getUnrecognizedWrites().
+   private final List<String> unrecognizedWrites = Collections.synchronizedList(new ArrayList<>());
 
    private static final Logger LOG = LoggerFactory.getLogger(VSAScriptable.class);
 }

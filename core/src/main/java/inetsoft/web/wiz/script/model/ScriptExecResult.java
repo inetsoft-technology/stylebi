@@ -22,4 +22,4 @@ import java.util.List;
 /** Mirrors wiz-services' {@code ScriptExecResult} TS interface exactly (field names matter for JSON). */
 public record ScriptExecResult(boolean ok, Object value, ScriptError error, List<String> changed,
                                boolean requiresConfirmation, String confirmationReason,
-                               String summary) {}
+                               String summary, List<String> unrecognizedProperties) {}
