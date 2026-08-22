@@ -534,12 +534,29 @@ public final class CSVLoader {
             fmt = fmtMap.get(header[c]);
 
             if(fmt != null) {
-               Object nval = fmt.parseObject((String) val, new ParsePosition(0));
+               ParsePosition pos = new ParsePosition(0);
+               Object nval = fmt.parseObject((String) val, pos);
 
                // parseObject returns null instead of throwing when the value doesn't
-               // match the column format, don't discard the value in that case.
-               if(nval != null) {
+               // match the column format, and can also return a non-null result from
+               // only a partial match (e.g. the plain-number format matching just the
+               // digits of "50%" and silently dropping the percent scaling) -- require
+               // the format to consume the entire string before trusting the result.
+               if(nval != null && pos.getIndex() == ((String) val).length()) {
                   val = rdata[c] = nval;
+               }
+               else {
+                  // the cached format was picked from a sample of scanned rows and
+                  // doesn't fit this row's own shape (e.g. a currency/percent value
+                  // beyond the type-detection scan window) -- re-derive the format
+                  // from this value instead of leaving it to the plain
+                  // NumberParserWrapper fallback below, which doesn't understand
+                  // currency/percent notation.
+                  Number reshaped = AssetUtil.parseNumberByShape((String) val);
+
+                  if(reshaped != null) {
+                     val = rdata[c] = reshaped;
+                  }
                }
             }
 
