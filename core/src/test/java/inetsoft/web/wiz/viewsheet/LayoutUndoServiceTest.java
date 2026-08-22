@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
@@ -187,12 +188,14 @@ class LayoutUndoServiceTest {
       final VSLayoutControllerServiceProxy vsLayoutControllerService =
          mock(VSLayoutControllerServiceProxy.class);
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
+      final ViewsheetPropertyDialogService dialogService =
+         mock(ViewsheetPropertyDialogService.class);
       final LayoutSessionService layoutSessions =
          new LayoutSessionService(viewsheetSessions, viewsheetService, vsLayoutService);
       final LayoutMutationService mutationService = new LayoutMutationService(
          layoutSessions, viewsheetSessions, vsLayoutService, vsLayoutControllerService);
       final LayoutReadService readService = new LayoutReadService(
-         viewsheetSessions, layoutSessions, vsLayoutService, deviceRegistry);
+         viewsheetSessions, layoutSessions, vsLayoutService, deviceRegistry, dialogService);
       final LayoutUndoService undoService =
          new LayoutUndoService(layoutSessions, viewsheetSessions, vsLayoutService);
 

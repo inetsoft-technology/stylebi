@@ -25,7 +25,14 @@ import java.util.List;
  * <p>{@code mobileOnly}/{@code selectedDevices} are {@code null} for a print layout ({@code type
  * == "print"}) — those fields exist only on a {@code ViewsheetLayout} (a device layout), never on
  * a {@code PrintLayout}.
+ *
+ * <p>{@code printSettings} is the opposite: populated only for a print layout, and only once one
+ * has actually been configured on the viewsheet -- {@code null} for a device layout, and also
+ * {@code null} for a print layout that has never had {@code set_print_layout} called on it (as
+ * opposed to a zeroed-out {@link PrintLayoutSettingsModel}, which would look like a real "every
+ * field at its default" configuration).
  */
 public record LayoutModel(String name, String type, Boolean mobileOnly,
-                           List<String> selectedDevices, List<LayoutObjectModel> objects) {
+                           List<String> selectedDevices, PrintLayoutSettingsModel printSettings,
+                           List<LayoutObjectModel> objects) {
 }
