@@ -63,6 +63,15 @@ public class SheetPairingService {
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
       "worksheetExpression", "worksheetCondition");
 
+   /**
+    * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
+    * are legitimately whole-viewsheet and name no assembly) -- a blank {@code assembly} for
+    * either of these must be refused at mint time, not treated as if it were one of the two
+    * whole-viewsheet kinds.
+    */
+   private static final List<String> ASSEMBLY_REQUIRED_KINDS =
+      List.of("assemblyMain", "assemblyOnClick");
+
    private final ConcurrentHashMap<String, PairingGrant> grants;
    private final SecureRandom random = new SecureRandom();
    private final LongSupplier clock;
@@ -220,6 +229,16 @@ public class SheetPairingService {
       String assembly = ctx.assembly();
 
       if(isBlank(assembly)) {
+         if(ASSEMBLY_REQUIRED_KINDS.contains(ctx.kind())) {
+            // assemblyMain/assemblyOnClick name a specific assembly's script pane; a blank
+            // assembly here previously minted successfully and matched no pane-scoped target
+            // (the same false-success failure mode WORKSHEET_COLUMN_KINDS validation above
+            // exists to prevent) -- surface it here, at mint time, instead of degrading
+            // silently into a whole-sheet-shaped grant.
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "editorContext kind '" + ctx.kind() + "' requires 'assembly'");
+         }
+
          // Whole-viewsheet script kinds (viewsheetOnInit/viewsheetOnLoad) name no assembly.
          return;
       }
