@@ -845,6 +845,16 @@ public class WorksheetAgentController {
             settings.detectType(), null, CSV_TYPE_SCAN_ROWS, 0,
             Util.getOrganizationMaxColumn(), new DateParseInfo());
 
+         // DIAGNOSTIC ONLY -- do not merge -- round 4 of the CI-only CSV type detection flake
+         // investigation. Logs the types CSVLoader.readCSV settled on and the raw cell values it
+         // produced for column 0, to localize the divergence to before/after this call returns.
+         LOG.warn("DIAGNOSTIC importCsvBytes post-readCSV: name=" + name + " types=" + types +
+            " loaded.rowCount=" + (loaded == null ? "null" : loaded.getRowCount()) +
+            " cell(1,0)=" + (loaded != null && loaded.getRowCount() > 1 ?
+               loaded.getObject(1, 0) : "n/a") +
+            " cell(2,0)=" + (loaded != null && loaded.getRowCount() > 2 ?
+               loaded.getObject(2, 0) : "n/a"));
+
          if(loaded == null || loaded.getRowCount() < 2) {
             if(loaded != null) {
                // XSwappableTable can have spilled to disk even this small; every other exit from
