@@ -227,5 +227,25 @@ public class WizControllerErrorHandler {
       return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
+   /**
+    * Maps any exception none of the handlers above recognize to a plain JSON 500.
+    *
+    * <p>Without this, an unanticipated exception (an NPE deep in a binding/viewsheet service, for
+    * example) fell through to Tomcat's own default HTML error page, which ignores the client's
+    * {@code Accept: application/json} header — leaking a raw, multi-KB HTML/stack-trace dump to
+    * the calling agent instead of a clean JSON error. Ordered last: Spring dispatches to the most
+    * specific matching handler, so this only catches what nothing else already does.
+    */
+   @ExceptionHandler(Exception.class)
+   public ResponseEntity<Map<String, String>> handleUnexpected(Exception e) {
+      LOG.error("Unexpected error in wiz agent request", e);
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error",
+                  "An unexpected server error occurred while processing this request. This is a " +
+                  "StyleBI-side bug -- it has been logged; retrying will fail the same way.");
+      return new ResponseEntity<>(payload, null, HttpStatus.INTERNAL_SERVER_ERROR);
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
 }
