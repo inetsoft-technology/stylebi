@@ -914,9 +914,11 @@ class WorksheetAgentControllerTest {
       Worksheet ws = new Worksheet();
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-DT");
 
-      // The same file twice, differing only in detectType. With detection on, "$499.99" cannot be
-      // coerced to a number; with it off the column is text and the value survives intact -- which
-      // is the answer L2 Finding 8 was missing.
+      // The same file twice, differing only in detectType. "299.99" and "$499.99" mix numeric
+      // sub-formats (plain vs. currency) that CSVLoader can't represent with the single cached
+      // Format it picks during type detection -- #4689 (Bug #76203) demotes a column like this to
+      // string rather than silently losing whichever values don't match that cached format, so
+      // detectType=true and detectType=false converge on the same string result here.
       ctrl.importCsv("TOK-DT", csvRequest("Typed", "price\n299.99\n$499.99",
                                           null, null, null, true, null, null, null, null),
                      TestPrincipals.user("alice", "host-org"));
@@ -929,8 +931,26 @@ class WorksheetAgentControllerTest {
 
       assertEquals(XSchema.STRING, ((ColumnRef) text.getAttribute(0)).getDataType(),
          "detectType=false must leave the column as string");
+      assertEquals(XSchema.STRING, ((ColumnRef) typed.getAttribute(0)).getDataType(),
+         "detectType=true demotes a mixed numeric sub-format column (plain + currency) to string");
+   }
+
+   @Test
+   void importCsvDetectTypeTrueDetectsANumericColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-DT2");
+
+      // Unlike the mixed plain/currency case above, both values here share the same currency
+      // sub-format, so CSVLoader's cached Format never changes between rows and the column is
+      // free to be detected as numeric.
+      ctrl.importCsv("TOK-DT2", csvRequest("Typed", "price\n$299.99\n$499.99",
+                                           null, null, null, true, null, null, null, null),
+                     TestPrincipals.user("alice", "host-org"));
+
+      ColumnSelection typed = importedTable(ws, "Typed").getColumnSelection(false);
+
       assertNotEquals(XSchema.STRING, ((ColumnRef) typed.getAttribute(0)).getDataType(),
-         "detectType=true must still detect a numeric column");
+         "detectType=true must still detect a numeric column when every value shares one format");
    }
 
    @Test
