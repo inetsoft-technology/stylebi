@@ -133,12 +133,19 @@ public class ViewsheetAgentController {
     * RIGHT NOW" and get a live answer, independent of whatever it minted or cached at connect
     * time. Requires no pane-scope check of its own: a session is always entitled to know its own
     * scope, whole-sheet or pane-scoped alike.
+    *
+    * <p>Also verifies the runtime the pairing names still exists (mirrors {@link #targets}) --
+    * {@link #resolveSession} alone only checks the in-memory pairing record, not whether the
+    * {@link RuntimeViewsheet} it points at has since been evicted independently. Without this, a
+    * pairing that outlives its runtime read back as {@code valid} here while every other endpoint
+    * on this controller correctly reported the session as expired.
     */
    @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/session")
    public SessionInfo session(@PathVariable String sessionToken, Principal user)
       throws PairingException
    {
       requireEnabled();
+      editService.resolve(sessionToken, user);
       JoinSession session = resolveSession(sessionToken, user);
       return new SessionInfo(session.runtimeId(), session.sheetType().name().toLowerCase(),
                              session.editorContext(), session.followFocusEnabled());

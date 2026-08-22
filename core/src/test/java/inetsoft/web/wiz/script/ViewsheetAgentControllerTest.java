@@ -292,6 +292,42 @@ class ViewsheetAgentControllerTest {
       assertEquals(PANE_RUNTIME_ID, after.runtimeId());
    }
 
+   /**
+    * A pairing record can stay valid (present, unexpired, owned) in {@code SheetSessionService}
+    * long after the {@link RuntimeViewsheet} its {@code runtimeId} names has been evicted
+    * independently -- {@link #resolveSession} only checks the pairing record. {@code session()}
+    * must also dereference the runtime (via {@link ScriptEditService#resolve}, same as
+    * {@link #targets}) and report the pairing as expired when it is gone, not report {@code
+    * valid} while every other endpoint on this controller already reports expired.
+    */
+   @Test
+   void sessionRefusesAPairingRecordWhoseRuntimeIsGone() throws PairingException {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(eq(PANE_TOKEN), eq("admin"))).thenReturn(wholeSheetSession());
+
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq(PANE_RUNTIME_ID), any()))
+         .thenThrow(new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "Viewsheet runtime not found or expired: " + PANE_RUNTIME_ID));
+
+      ScriptEditService editService = new ScriptEditService(sessionService, runtimeAccess,
+         mock(SheetAgentBroadcastService.class));
+
+      ViewsheetAgentController controller = new ViewsheetAgentController(feature,
+         mock(SheetJoinService.class), sessionService, editService, mock(ScriptReadService.class),
+         mock(ScriptExecuteService.class), mock(ScriptContextService.class),
+         mock(ScriptApiService.class), mock(ScriptImageService.class), mock(ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.session(PANE_TOKEN, principal()));
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, ex.getKind());
+      assertTrue(ex.getMessage().contains("runtime not found or expired"), ex.getMessage());
+   }
+
    @Test
    void imageRefusesACalcFieldFromAWholeSheetSession() throws Exception {
       ViewsheetAgentController controller = wholeSheetController();
