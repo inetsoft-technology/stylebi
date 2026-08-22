@@ -3495,10 +3495,17 @@ public class AssetUtil {
 
    public static boolean debug = false;
    private static DecimalFormat numFmt = null;
-   private static final DecimalFormat NFMT = new DecimalFormat("#,###.#");
-   private static final NumberFormat PFMT = NumberFormat.getPercentInstance();
-   private static final NumberFormat CFMT = new DecimalFormat("$#,##0.##;-$#,##0.##");
-   private static final NumberFormat C2FMT = new DecimalFormat("$#,##0.##;($#,##0.##)");
+   // these recognize StyleBI's own canonical numeric/currency/percent text
+   // representations during import-time type sniffing (not user-facing
+   // rendering), so they must stay pinned to Locale.US regardless of the
+   // JVM default locale in effect when AssetUtil is first class-loaded.
+   private static final DecimalFormat NFMT =
+      new DecimalFormat("#,###.#", DecimalFormatSymbols.getInstance(Locale.US));
+   private static final NumberFormat PFMT = NumberFormat.getPercentInstance(Locale.US);
+   private static final NumberFormat CFMT =
+      new DecimalFormat("$#,##0.##;-$#,##0.##", DecimalFormatSymbols.getInstance(Locale.US));
+   private static final NumberFormat C2FMT =
+      new DecimalFormat("$#,##0.##;($#,##0.##)", DecimalFormatSymbols.getInstance(Locale.US));
 
    private static final String REPOSITORY_KEY = AssetUtil.class.getName() + ".repository";
    private static final String DESIGN_REPOSITORY_KEY =
