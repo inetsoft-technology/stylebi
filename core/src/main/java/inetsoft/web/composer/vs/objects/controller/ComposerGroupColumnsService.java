@@ -34,6 +34,8 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.handler.VSChartHandler;
@@ -158,6 +160,16 @@ public class ComposerGroupColumnsService {
 
       if(refs.stream().anyMatch(dim -> dim.getNamedGroupInfo() instanceof DCNamedGroupInfo)) {
          return null;
+      }
+
+      // Every operation below is a mutation on a literal value-to-group-name mapping
+      // (SNamedGroupInfo), which an Expert/Asset-typed group has no equivalent of -- refuse
+      // loudly rather than let the casts below throw an unexplained ClassCastException.
+      if(refs.stream().anyMatch(dim ->
+         dim.getNamedGroupInfo() != null && !(dim.getNamedGroupInfo() instanceof SNamedGroupInfo)))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "composer.vs.group.namedGroupNotSupported"));
       }
 
       for(VSDimensionRef ref : refs) {

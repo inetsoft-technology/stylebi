@@ -33,6 +33,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.*;
@@ -860,12 +861,17 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                      VSDimensionRef dim = (VSDimensionRef) ref;
                      cell.setDrillLevel(VSUtil.getDrillLevel(dim, crosstabInfo.getXCube()));
 
-                     // setGrouped
-                     SNamedGroupInfo groupInfo = (SNamedGroupInfo) dim.getNamedGroupInfo();
+                     // setGrouped -- membership was already decided once, at query time, by
+                     // the SQL/script expression that produced this row's value (NamedRangeRef),
+                     // so this is a String membership test, not a per-cell condition evaluation.
+                     XNamedGroupInfo groupInfo = dim.getNamedGroupInfo();
                      boolean grouped = false;
 
-                     if(cell.getCellData() != null && groupInfo != null) {
-                        grouped = groupInfo.getGroupValue(cell.getCellData() + "") != null;
+                     if(cell.getCellData() != null && groupInfo != null &&
+                        !(groupInfo instanceof DCNamedGroupInfo))
+                     {
+                        Set<String> groupNames = new HashSet<>(Arrays.asList(groupInfo.getGroups()));
+                        grouped = groupNames.contains(cell.getCellData() + "");
                      }
 
                      cell.setGrouped(grouped);
@@ -924,12 +930,20 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                      VSDimensionRef dim = (VSDimensionRef) ref;
                      cell.setDrillLevel(VSUtil.getDrillLevel(dim, crosstabInfo.getXCube()));
                      cell.setPeriod(dim.getDates() != null && dim.getDates().length >= 2);
-                     // grouped
-                     SNamedGroupInfo groupInfo = (SNamedGroupInfo)
-                        ((VSDimensionRef) ref).getNamedGroupInfo();
+                     // grouped -- membership was already decided once, at query time, by the
+                     // SQL/script expression that produced this row's value (NamedRangeRef), so
+                     // this is a String membership test, not a per-cell condition evaluation.
+                     XNamedGroupInfo groupInfo = ((VSDimensionRef) ref).getNamedGroupInfo();
                      final String cellString = getCellString(cell.getCellData());
-                     boolean grouped = groupInfo != null && !(groupInfo instanceof DCNamedGroupInfo)
-                        && cellString != null && groupInfo.getGroupValue(cellString) != null;
+                     boolean grouped = false;
+
+                     if(groupInfo != null && !(groupInfo instanceof DCNamedGroupInfo) &&
+                        cellString != null)
+                     {
+                        Set<String> groupNames = new HashSet<>(Arrays.asList(groupInfo.getGroups()));
+                        grouped = groupNames.contains(cellString);
+                     }
+
                      cell.setGrouped(grouped);
                   }
                }

@@ -367,12 +367,30 @@ public class CrosstabDrillHandler
    public static ConditionList getGroupCondition(XNamedGroupInfo groupInfo, ColumnRef columnRef,
                                                  String name)
    {
-      ConditionList conditionList = new ConditionList();
-
-      if(!(groupInfo instanceof SNamedGroupInfo)) {
-         return conditionList;
+      if(groupInfo == null) {
+         return new ConditionList();
       }
 
+      if(!(groupInfo instanceof SNamedGroupInfo)) {
+         // Expert/Asset conditions are already fully-typed Condition values -- splice the
+         // group's own condition list directly rather than reconstructing one from a literal
+         // value list (which only SNamedGroupInfo has).
+         ConditionList conds = groupInfo.getGroupCondition(name);
+
+         if(conds == null || conds.isEmpty()) {
+            return new ConditionList();
+         }
+
+         conds = (ConditionList) conds.clone();
+
+         if(NamedGroupConditionUtil.needsColumnResolution(groupInfo)) {
+            NamedGroupConditionUtil.resolveConditionColumn(conds, columnRef.getAttribute());
+         }
+
+         return conds;
+      }
+
+      ConditionList conditionList = new ConditionList();
       SNamedGroupInfo info = (SNamedGroupInfo) groupInfo;
       List<?> value = info.getGroupValue(name);
 
