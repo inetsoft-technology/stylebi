@@ -101,4 +101,18 @@ public class CalcTableVSAScriptableTest {
       assertTrue(calcTableVSAScriptable.isCrosstabOrCalc());
       assertNull(calcTableVSAScriptable.getLayoutInfo());
    }
+
+   /**
+    * CalcTableVSAScriptable overrides getVarMap() (per-thread map) but not putMember() itself,
+    * so unrecognized-write tracking -- which fires in putMember()'s existing fallback branch --
+    * must still work through that override.
+    */
+   @Test
+   void testUnrecognizedWriteTrackedThroughGetVarMapOverride() {
+      calcTableVSAScriptable.putMember("notARealProperty", "x");
+
+      assertEquals(java.util.List.of("notARealProperty"),
+                   calcTableVSAScriptable.getUnrecognizedWrites());
+      assertEquals("x", calcTableVSAScriptable.getMember("notARealProperty"));
+   }
 }

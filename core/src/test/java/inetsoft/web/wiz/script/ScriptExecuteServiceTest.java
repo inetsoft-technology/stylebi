@@ -19,14 +19,18 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.SubmitVSAssemblyInfo;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,6 +57,76 @@ class ScriptExecuteServiceTest {
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
 
       return rvs;
+   }
+
+   /**
+    * Builds a RuntimeViewsheet with a real Submit1 assembly (so {@code getViewsheet().getAssembly}
+    * resolves) and a mocked scope/scriptable, for exercising the ASSEMBLY-location
+    * unrecognized-write reporting in {@code execute()}.
+    */
+   private RuntimeViewsheet viewsheetWithAssemblyScript(String script, ViewsheetScope scope,
+                                                        VSAScriptable scriptable)
+   {
+      Viewsheet vs = new Viewsheet();
+      SubmitVSAssembly submit = new SubmitVSAssembly();
+      SubmitVSAssemblyInfo info = (SubmitVSAssemblyInfo) submit.getVSAssemblyInfo();
+      info.setName("Submit1");
+      info.setScript(script);
+      info.setScriptEnabled(true);
+      vs.addAssembly(submit);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getScope()).thenReturn(scope);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(scope.getVSAScriptable("Submit1")).thenReturn(scriptable);
+
+      return rvs;
+   }
+
+   @Test
+   void executeExcludesTargetFromChangedAndReportsUnrecognizedPropertyWrite() throws Exception {
+      String script = "Submit1.label = 'ClauseTest42';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn("ClauseTest42");
+
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites()).thenReturn(List.of("label"));
+
+      RuntimeViewsheet rvs = viewsheetWithAssemblyScript(script, scope, scriptable);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("label"), result.unrecognizedProperties());
+      assertTrue(result.summary().contains("label"), result.summary());
+      assertTrue(result.summary().contains("SubmitVSAssembly"), result.summary());
+      verify(scriptable).resetUnrecognizedWrites();
+   }
+
+   @Test
+   void executeReportsRealPropertyWriteNormallyWithNoUnrecognizedProperties() throws Exception {
+      String script = "Submit1.enabled = false;";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(false);
+
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites()).thenReturn(List.of());
+
+      RuntimeViewsheet rvs = viewsheetWithAssemblyScript(script, scope, scriptable);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1");
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, target, false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(target.toString()), result.changed());
+      assertNull(result.unrecognizedProperties());
+      verify(scriptable).resetUnrecognizedWrites();
    }
 
    @Test
