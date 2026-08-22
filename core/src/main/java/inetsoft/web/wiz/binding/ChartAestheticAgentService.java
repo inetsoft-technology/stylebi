@@ -74,9 +74,11 @@ public class ChartAestheticAgentService {
    {
       // Validated before the runtime is touched, so a bad channel costs nothing and does not
       // open a checkpoint the caller then has to undo. This still needs the chart itself — node
-      // channels are only valid on a relation chart — so it costs a resolve, not a mutate.
+      // channels are only valid on a relation chart, and size only on chart types that render
+      // it — so it costs a resolve, not a mutate.
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
+      boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -97,7 +99,8 @@ public class ChartAestheticAgentService {
                           String channel, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
+      boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             model -> ChartAestheticMutator.clearField(model, name, relationChart));
@@ -157,6 +160,19 @@ public class ChartAestheticAgentService {
    private static boolean isRelationChart(ChartVSAssembly chart) {
       VSChartInfo info = chart.getVSChartInfo();
       return info != null && GraphTypes.isRelation(info.getChartType());
+   }
+
+   private boolean isSizeSupported(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return isSizeSupported(requireChart(rvs, assemblyName));
+   }
+
+   /** No chart type yet (unbound chart) means no type is forbidding the size channel. */
+   private static boolean isSizeSupported(ChartVSAssembly chart) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return info == null || GraphTypes.supportsSize(info.getChartType());
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,

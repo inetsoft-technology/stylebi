@@ -193,6 +193,52 @@ class ChartAestheticAgentServiceTest {
                                           null, ""));
    }
 
+   // ── size gating on chart types that do not render it ───────────────────────
+
+   @Test
+   void setFieldRefusesSizeOnAChartTypeThatDoesNotSupportIt() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(chartOfType(GraphTypes.CHART_MEKKO)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setField("tok", principal(), "Chart1", "size",
+                                new FieldRef("Sales", "measure", null, null, null), null, ""));
+      assertTrue(thrown.getMessage().contains("size"));
+   }
+
+   @Test
+   void setFieldRefusesSizeOnStockToo() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(chartOfType(GraphTypes.CHART_STOCK)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      assertThrows(Exception.class,
+                   () -> service.setField("tok", principal(), "Chart1", "size",
+                                          new FieldRef("Sales", "measure", null, null, null),
+                                          null, ""));
+   }
+
+   @Test
+   void setFieldAcceptsSizeOnAnOrdinaryChartType() throws Exception {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      harness(new ChartBindingModel(), aesthetics)
+         .setField("tok", principal(), "Chart1", "size",
+                  new FieldRef("Sales", "measure", null, null, null), null, "");
+
+      assertEquals("Sales", captureEvent(aesthetics).getModel().getSizeField().getFullName());
+   }
+
+   private static ChartVSAssembly chartOfType(int chartType) {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getChartType()).thenReturn(chartType);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
+   }
+
    // ── node channels (spec 2c Phase 3) ───────────────────────────────────────
 
    @Test
