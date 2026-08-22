@@ -2965,6 +2965,11 @@ public class AssetUtil {
             fmtMap.put((String) header, fmt);
          }
          catch(Throwable ex) {
+            // DIAGNOSTIC ONLY -- do not merge -- temporary logging for CI-only CSV type
+            // detection flake investigation.
+            LOG.warn("DIAGNOSTIC getType numeric parse failed for str=[" + str + "] fmt=" + fmt +
+               " symbols=" + (fmt instanceof DecimalFormat ?
+               ((DecimalFormat) fmt).getDecimalFormatSymbols() : "n/a"), ex);
             type = XSchema.STRING;
          }
       }

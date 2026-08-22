@@ -477,7 +477,9 @@ public final class CSVLoader {
             data = nval;
          }
          catch(Exception ex) {
-            LOG.debug("Failed to parse date: " + oval, ex);
+            // DIAGNOSTIC ONLY -- do not merge -- temporary bump to warn for CI-only CSV type
+            // detection flake investigation.
+            LOG.warn("DIAGNOSTIC Failed to parse date: " + oval, ex);
 
             if(parseInfo != null && !parseInfo.getProspectTypeMap().containsKey(col)) {
                parseInfo.getProspectTypeMap().put(col, type);
