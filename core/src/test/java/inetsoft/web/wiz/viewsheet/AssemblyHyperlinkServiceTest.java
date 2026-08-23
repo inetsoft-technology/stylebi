@@ -93,7 +93,7 @@ class AssemblyHyperlinkServiceTest {
       h.service.set("tok", principal(), "Chart1", null, link("linkType", "none"), "");
 
       HyperlinkDialogModel posted = capture(h.links);
-      assertEquals(0, posted.getLinkType());
+      assertEquals(HyperlinkDialogService.NONE, posted.getLinkType());
       assertNull(posted.getWebLink(), "clearing the type must clear the destination with it");
    }
 
