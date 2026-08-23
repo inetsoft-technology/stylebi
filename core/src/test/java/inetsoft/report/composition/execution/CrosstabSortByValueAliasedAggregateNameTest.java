@@ -67,8 +67,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@code getAttribute()} check (added for {@link CrosstabSortByValueEntityQualifiedNameTest}'s
  * fix) can never match a bare {@code sortByField} for an ordinarily-aliased real aggregate, even
  * though it does match in that test's own {@code aalias=false} fixture. {@code
- * VSAggregateRef#getColumnValue()} -- the aggregate's untouched design-time column string --
- * survives the aliasing untouched and is what {@code findCol} now falls back to.
+ * VSAggregateRef#getColumnValue()} is no help either -- {@code
+ * AbstractCrosstabVSAQuery#createAggregates()}'s pivot-cell re-aggregation rebuild overwrites it
+ * with the same full/aliased name too. The bare source column only survives inside the
+ * {@code AliasDataRef}'s own wrapped base ref, which is what {@code findCol} now falls back to
+ * (unwrapping {@code ColumnRef} -> {@code AliasDataRef} -> base ref and checking
+ * {@code base.getAttribute()}).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
