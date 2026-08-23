@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
@@ -151,6 +152,95 @@ public class AssemblyHyperlinkService {
       Collections.sort(names);
       return Map.of("linkTypes", names);
    }
+
+   /**
+    * Enumerates the viewsheet asset paths a {@code "viewsheet"}-type {@link #set} call will
+    * actually accept as {@code assetLinkPath} — the same two scopes, same
+    * {@link AssetEntry.Type#VIEWSHEET} filter, same resolution order {@link #resolveViewsheetTarget}
+    * uses, so a path this method returns can never be one the write path then refuses.
+    *
+    * <p>Deliberately does not dedupe a name that exists in both scopes: a caller needs to see the
+    * collision in order to reach for {@code assetLinkId} instead, and silently picking one (even by
+    * {@code resolveViewsheetTarget}'s own global-first tie-break) would hide exactly the ambiguity
+    * {@code assetLinkId} exists to resolve.
+    */
+   public Map<String, Object> listLinkTargets(String sessionToken, Principal user, String folder,
+                                              String query, Integer limit) throws Exception
+   {
+      AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
+      IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
+      int cap = limit == null ? 200 : limit;
+      String root = folder == null || folder.isEmpty() ? "/" : folder;
+      List<Map<String, Object>> targets = new ArrayList<>();
+      boolean truncated = false;
+
+      List<Map.Entry<String, AssetEntry>> scopes = List.of(
+         Map.entry("global", new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, root, null)),
+         Map.entry("user", new AssetEntry(
+            AssetRepository.USER_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, root, owner)));
+
+      for(Map.Entry<String, AssetEntry> scope : scopes) {
+         // A folder that only exists in one scope is normal, not a mistake -- so the scope
+         // missing it is skipped rather than erroring.
+         if(!repository.containsEntry(scope.getValue())) {
+            continue;
+         }
+
+         truncated |= walk(repository, user, scope.getValue(), scope.getKey(), query, cap, targets);
+      }
+
+      targets.sort(Comparator.comparing(t -> (String) t.get("path")));
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("targets", targets);
+      out.put("truncated", truncated);
+      return out;
+   }
+
+   /**
+    * Plain DFS over {@code getEntries}, collecting {@code VIEWSHEET} leaves whose name matches
+    * {@code query} and descending into every {@code REPOSITORY_FOLDER} regardless of its own
+    * name's match, since a match can be several levels deeper. Returns {@code true} once
+    * {@code targets} hits {@code cap} — the same signal the caller reports back as {@code truncated}.
+    */
+   private static boolean walk(AssetRepository repository, Principal user, AssetEntry folder,
+                               String scope, String query, int cap,
+                               List<Map<String, Object>> targets) throws Exception
+   {
+      AssetEntry[] entries = repository.getEntries(folder, user, ResourceAction.READ, SELECTOR);
+
+      for(AssetEntry entry : entries) {
+         if("Recycle Bin".equals(entry.getName())) {
+            continue;
+         }
+
+         if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER) {
+            if(walk(repository, user, entry, scope, query, cap, targets)) {
+               return true;
+            }
+         }
+         else if(entry.getType() == AssetEntry.Type.VIEWSHEET) {
+            if(query != null && !entry.getName().toLowerCase().contains(query.toLowerCase())) {
+               continue;
+            }
+
+            Map<String, Object> target = new LinkedHashMap<>();
+            target.put("path", entry.getPath());
+            target.put("assetLinkId", entry.toIdentifier());
+            target.put("scope", scope);
+            targets.add(target);
+
+            if(targets.size() >= cap) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static final AssetEntry.Selector SELECTOR = new AssetEntry.Selector(
+      AssetEntry.Type.REPOSITORY_FOLDER, AssetEntry.Type.VIEWSHEET);
 
    // ── vocabulary ────────────────────────────────────────────────────────────
 

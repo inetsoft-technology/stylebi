@@ -320,6 +320,18 @@ public class ViewsheetAssemblyAgentController {
                            request.link(), linkUri);
    }
 
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/link-targets")
+   public Map<String, Object> listHyperlinkTargets(
+      @PathVariable String sessionToken,
+      @RequestParam(required = false) String folder,
+      @RequestParam(required = false) String query,
+      @RequestParam(required = false) Integer limit,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return hyperlinkService.listLinkTargets(sessionToken, user, folder, query, limit);
+   }
+
    public record ElementVisibilityRequest(String assembly, String element, String target,
                                           Boolean visible) {}
    public record PlotResizeRequest(String assembly, Double ratio, Boolean vertical,
