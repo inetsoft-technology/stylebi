@@ -114,6 +114,18 @@ public final class ChartAestheticMutator {
    {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
       VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
+      AestheticInfo field = acceptsField(name) ? read(model, name) : null;
+
+      // A bound field carries its own frame (AestheticInfo.frame) -- that, not the top-level
+      // ChartBindingModel.xxxFrame property, is what the interactive Composer's own dialog writes
+      // (ColorFieldMc.changeColorFrame et al.) and what the render path
+      // (VSFrameVisitor.createVisualFrame -> AestheticRef.getVisualFrame) reads at paint time.
+      // Writing only the top-level property round-trips cleanly through get_chart_aesthetics/
+      // set_visual_frame -- both read and write the same wrong place -- but never reaches the chart.
+      if(field != null) {
+         field.setFrame(frame);
+         return;
+      }
 
       switch(name) {
          case "color" -> model.setColorFrame((ColorFrameModel) frame);
@@ -248,6 +260,12 @@ public final class ChartAestheticMutator {
    }
 
    private static VisualFrameModel frameOf(ChartBindingModel model, String channel) {
+      AestheticInfo field = acceptsField(channel) ? read(model, channel) : null;
+
+      if(field != null) {
+         return field.getFrame();
+      }
+
       return switch(channel) {
          case "color" -> model.getColorFrame();
          case "shape" -> model.getShapeFrame();
