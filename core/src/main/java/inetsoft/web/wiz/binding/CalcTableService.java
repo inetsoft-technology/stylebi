@@ -30,6 +30,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
@@ -194,6 +195,10 @@ public class CalcTableService {
    /**
     * The predefined named groups a column offers, for a cell's {@code namedGroup}.
     *
+    * <p>Works for any {@code DataVSAssembly} -- chart, crosstab, table, or calc table -- not
+    * just calc tables. Named groups are a property of the assembly's bound source/column, so
+    * discovery isn't limited to the assembly kind that happens to consume them by cell.
+    *
     * <p>Same command-dispatch shape as {@link #cellScript}: {@code getNamedGroup} answers by
     * dispatching a {@code GetPredefinedNamedGroupCommand}.
     */
@@ -208,7 +213,7 @@ public class CalcTableService {
       }
 
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
+         DataVSAssembly assembly = requireDataAssembly(rvs, assemblyName);
 
          // The command carries the group NAMES only — its constructor takes
          // AssetNamedGroupInfo[] but keeps just getName() from each. The members are not on
@@ -316,16 +321,17 @@ public class CalcTableService {
 
    /**
     * The worksheet-local {@code DefaultNamedGroupAssembly}(s) {@code add_named_group} created
-    * on this column, attached to the calc table's own source -- a different kind from the
+    * on this column, attached to the assembly's own source -- a different kind from the
     * repository-registered "predefined named group" assets {@link #predefinedNamedGroupNames}
-    * sees.
+    * sees. Takes any {@code DataVSAssembly} (chart, crosstab, table, calc table), not just a
+    * calc table -- named groups are a property of the bound source/column, not of calc cells.
     */
    private List<DefaultNamedGroupAssembly> worksheetNamedGroups(RuntimeViewsheet rvs,
-                                                                CalcTableVSAssembly assembly,
+                                                                DataVSAssembly assembly,
                                                                 String column)
    {
       List<DefaultNamedGroupAssembly> matches = new ArrayList<>();
-      SourceInfo sinfo = ((CalcTableVSAssemblyInfo) assembly.getInfo()).getSourceInfo();
+      SourceInfo sinfo = assembly.getSourceInfo();
       Worksheet ws = rvs.getViewsheet() == null ? null : rvs.getViewsheet().getBaseWorksheet();
 
       if(sinfo == null || sinfo.getSource() == null || ws == null) {
@@ -715,6 +721,23 @@ public class CalcTableService {
             layout.getRowCount() + " row(s) by " + layout.getColCount() + " column(s). " +
             "Coordinates read before a layout change are stale — re-read the layout.");
       }
+   }
+
+   private static DataVSAssembly requireDataAssembly(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly == null) {
+         throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
+
+      if(!(assembly instanceof DataVSAssembly data)) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a " + assembly.getClass().getSimpleName() +
+            ", which has no bound source/column to look up named groups on.");
+      }
+
+      return data;
    }
 
    private static CalcTableVSAssembly requireCalcTable(RuntimeViewsheet rvs,
