@@ -172,7 +172,10 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             info.setColorFrame(new BluesColorFrame());
          }
       }
-      else if(!(info.getColorFrame() instanceof StaticColorFrame)) {
+      else if(GraphTypes.isContour(oldType) && info.getColorFrame() instanceof LinearColorFrame) {
+         // Linear/Blues frames only make sense for contour; migrating away from contour with
+         // one still set needs to fall back to something ordinary charts can render. Any other
+         // frame the user explicitly set is valid on non-contour types and must not be touched.
          info.setColorFrame(new StaticColorFrame());
       }
    }
@@ -556,6 +559,12 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       ninfo.setMeasureMapType(oinfo.getMapType());
       ninfo.setAxisDescriptor(info.getAxisDescriptor());
       ninfo.setAxisDescriptor2(info.getAxisDescriptor2());
+
+      ninfo.setColorFrameWrapper(oinfo.getColorFrameWrapper());
+      ninfo.setShapeFrameWrapper(oinfo.getShapeFrameWrapper());
+      ninfo.setSizeFrameWrapper(oinfo.getSizeFrameWrapper());
+      ninfo.setLineFrameWrapper(oinfo.getLineFrameWrapper());
+      ninfo.setTextureFrameWrapper(oinfo.getTextureFrameWrapper());
    }
 
    /**

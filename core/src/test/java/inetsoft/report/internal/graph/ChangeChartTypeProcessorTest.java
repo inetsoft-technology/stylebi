@@ -17,6 +17,7 @@
  */
 package inetsoft.report.internal.graph;
 
+import inetsoft.graph.aesthetic.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -70,6 +71,61 @@ class ChangeChartTypeProcessorTest {
                    "the dimension must move back to x when leaving treemap");
       assertEquals(0, info.getGroupFieldCount(),
                    "the dimension must not be left stranded on the group shelf bar never reads");
+   }
+
+   @Test
+   void treemapToBarPreservesGradientColorFrame() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorFrame(new GradientColorFrame());
+
+      info = changeType(GraphTypes.CHART_TREEMAP, GraphTypes.CHART_BAR, info);
+
+      assertInstanceOf(GradientColorFrame.class, info.getColorFrame(),
+                        "a gradient color frame explicitly set by the user must survive a " +
+                        "type change that crosses the merged/non-merged boundary");
+   }
+
+   @Test
+   void barToBarStackPreservesCategoricalColorFrame() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorFrame(new CategoricalColorFrame());
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_BAR_STACK, info);
+
+      assertInstanceOf(CategoricalColorFrame.class, info.getColorFrame(),
+                        "a categorical color frame must survive a same-family type change " +
+                        "that reuses the same ChartInfo object");
+   }
+
+   @Test
+   void barToScatterContourStillSwitchesToBluesColorFrame() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorFrame(new StaticColorFrame());
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_SCATTER_CONTOUR, info);
+
+      assertInstanceOf(BluesColorFrame.class, info.getColorFrame(),
+                        "entering contour must still switch to a Blues color frame");
+   }
+
+   @Test
+   void scatterContourToBarStillResetsToStaticColorFrame() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorFrame(new BluesColorFrame());
+
+      info = changeType(GraphTypes.CHART_SCATTER_CONTOUR, GraphTypes.CHART_BAR, info);
+
+      assertInstanceOf(StaticColorFrame.class, info.getColorFrame(),
+                        "leaving contour with a Linear/Blues frame still attached must reset " +
+                        "to a static color frame");
    }
 
    private static ChartInfo changeType(int oldType, int newType, ChartInfo info) {
