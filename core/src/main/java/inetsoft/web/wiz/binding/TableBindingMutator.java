@@ -151,6 +151,29 @@ public final class TableBindingMutator {
    public static void addField(BaseTableBindingModel model, String shelf, FieldRef field,
                                Integer position)
    {
+      try {
+         addField(model, shelf, field, position, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireShelf/requireCompatible's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * @param rvs            the runtime viewsheet, so a field already on the shelf (or the one
+    *                       being added) carrying {@code namedGroup} can be resolved against a
+    *                       worksheet-local named group, the same as {@link #setShelf} below.
+    * @param sourceInfo     the crosstab's or table's own {@code SourceInfo}.
+    * @param refModelService needed to resolve a worksheet-local named group's conditions.
+    */
+   public static void addField(BaseTableBindingModel model, String shelf, FieldRef field,
+                               Integer position, RuntimeViewsheet rvs, SourceInfo sourceInfo,
+                               DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = requireShelf(model, shelf);
       requireCompatible(name, field);
       List<FieldRef> current = new ArrayList<>(read(model, name));
@@ -163,10 +186,27 @@ public final class TableBindingMutator {
       }
 
       current.add(index, field);
-      setShelf(model, name, current);
+      setShelf(model, name, current, rvs, sourceInfo, refModelService);
    }
 
    public static void removeField(BaseTableBindingModel model, String shelf, String column) {
+      try {
+         removeField(model, shelf, column, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireShelf's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /** @see #addField(BaseTableBindingModel, String, FieldRef, Integer, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService) */
+   public static void removeField(BaseTableBindingModel model, String shelf, String column,
+                                  RuntimeViewsheet rvs, SourceInfo sourceInfo,
+                                  DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = requireShelf(model, shelf);
       List<FieldRef> current = new ArrayList<>(read(model, name));
       boolean removed = current.removeIf(
@@ -178,7 +218,7 @@ public final class TableBindingMutator {
             (current.isEmpty() ? "(nothing)" : columns(current)) + ".");
       }
 
-      setShelf(model, name, current);
+      setShelf(model, name, current, rvs, sourceInfo, refModelService);
    }
 
    /**
@@ -191,6 +231,23 @@ public final class TableBindingMutator {
     */
    public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
                                 String column, Integer position)
+   {
+      try {
+         moveField(model, fromShelf, toShelf, column, position, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireShelf/requireCompatible's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /** @see #addField(BaseTableBindingModel, String, FieldRef, Integer, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService) */
+   public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
+                                String column, Integer position, RuntimeViewsheet rvs,
+                                SourceInfo sourceInfo, DataRefModelFactoryService refModelService)
+      throws Exception
    {
       String from = requireShelf(model, fromShelf);
       String to = requireShelf(model, toShelf);
@@ -214,8 +271,8 @@ public final class TableBindingMutator {
       }
 
       target.add(index, field);
-      setShelf(model, from, source);
-      setShelf(model, to, target);
+      setShelf(model, from, source, rvs, sourceInfo, refModelService);
+      setShelf(model, to, target, rvs, sourceInfo, refModelService);
    }
 
    /** What a shelf currently holds, in the shared vocabulary. */
