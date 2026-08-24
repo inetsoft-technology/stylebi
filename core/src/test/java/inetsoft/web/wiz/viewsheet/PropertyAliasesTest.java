@@ -385,10 +385,16 @@ class PropertyAliasesTest {
                    () -> PropertyAliases.resolveForWrite("chart", "projectForwardEnabled"));
    }
 
-   /** The refusal is scoped to charts -- it is keyed on the assembly type, not the leaf alone. */
+   /**
+    * The refusal is keyed on the assembly type, not on the leaf name alone. The very leaf that is
+    * refused on a chart has to pass on a type that has no chart line pane -- otherwise the check
+    * would be vetoing a name it knows nothing about, on models where it means something else.
+    */
    @Test
    void theChartRefusalDoesNotReachAnotherAssemblyType() {
-      assertEquals("vsOptionsPane.maxRows",
-                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "maxRows"));
+      assertEquals("chartLinePaneModel.gridLineVisible",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET,
+                                                   "chartLinePaneModel.gridLineVisible"),
+                   "refused on 'chart', but nothing to refuse on a viewsheet");
    }
 }
