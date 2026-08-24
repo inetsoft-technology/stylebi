@@ -142,6 +142,39 @@ class ChartAestheticMutatorTest {
       assertInstanceOf(BluesColorModel.class, model.getColorFrame());
    }
 
+   /**
+    * The render path ({@code VSFrameVisitor.createVisualFrame} -> {@code AestheticRef.getVisualFrame})
+    * reads a bound field's own {@code frame} property, not {@code ChartBindingModel.colorFrame} —
+    * a frame written only to the top-level property never reaches the chart.
+    */
+   @Test
+   void aFrameSetOnABoundFieldLandsOnTheFieldNotTheTopLevelProperty() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", measure("Sales", "Sum"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "gradient", "from", "#FFFF00", "to", "#8000FF"));
+
+      GradientColorModel onField =
+         assertInstanceOf(GradientColorModel.class, model.getColorField().getFrame());
+      assertEquals("#FFFF00", onField.getFromColor());
+      assertEquals("#8000FF", onField.getToColor());
+      assertNull(model.getColorFrame(), "the top-level property must stay untouched");
+   }
+
+   @Test
+   void aCategoricalFrameSetOnABoundDimensionLandsOnTheFieldNotTheTopLevelProperty() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00FF00")));
+
+      CategoricalColorModel onField =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, onField.getColors());
+   }
+
    // ── preservation, both ways ───────────────────────────────────────────────
 
    @Test
