@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.uql.XPrincipal;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
+import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
@@ -127,7 +128,7 @@ public class BindingAgentController {
    public record ShelfRequest(String assembly, String shelf, List<FieldRef> fields,
                               String table) {}
    public record ChartTypeRequest(String assembly, Integer type, Boolean multi,
-                                  Boolean stackMeasures, Boolean separate) {}
+                                  Boolean stackMeasures, Boolean separate, String field) {}
    public record SwapRequest(String assembly) {}
    public record SeparateStatusRequest(String assembly, Boolean separate) {}
 
@@ -180,6 +181,16 @@ public class BindingAgentController {
                                   request.field(), source, linkUri);
    }
 
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
+   public ChartTypeState chartType(@PathVariable String sessionToken,
+                                   @RequestParam String assembly,
+                                   Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return chartService.readChartType(sessionToken, user, assembly);
+   }
+
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
    public void setChartType(@PathVariable String sessionToken,
                             @RequestBody ChartTypeRequest request,
@@ -196,7 +207,7 @@ public class BindingAgentController {
 
       chartService.setChartType(sessionToken, user, request.assembly(), request.type(),
                                 request.multi(), request.stackMeasures(), request.separate(),
-                                linkUri);
+                                request.field(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/swap-axes")
