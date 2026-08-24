@@ -1604,12 +1604,21 @@ public class WorksheetEditService {
        * @param table       the assembly name
        * @param columnOrder ordered list of column names defining the new order.
        *                    Columns not mentioned are appended at the end.
-       * @throws PairingException if the table is not found
+       * @throws PairingException if the table is not found, or if the table is a crosstab
+       *                    (column order there is controlled by the row/column groups, not
+       *                    the column selection — this mirrors the Composer UI, which disables
+       *                    "Reorder Table Columns" for crosstab tables)
        */
       public void reorderColumns(String table, List<String> columnOrder)
          throws PairingException
       {
          TableAssembly t = requireTable(table);
+         AggregateInfo aggInfo = t.getAggregateInfo();
+
+         if(aggInfo != null && aggInfo.isCrosstab()) {
+            throw new PairingException("Cannot reorder columns on a crosstab table: " + table);
+         }
+
          ColumnSelection cs = t.getColumnSelection(false);
 
          // Bare attribute names that occur more than once (e.g. "ID" from both a

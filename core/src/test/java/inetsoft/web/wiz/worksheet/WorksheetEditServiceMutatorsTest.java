@@ -1831,6 +1831,32 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(reordered.containsAttribute(orderId), "Orders.ID must survive reordering");
    }
 
+   @Test
+   void reorderColumnsRefusedOnCrosstabTable() throws Exception {
+      // Bug #76082: the Composer UI disables "Reorder Table Columns" for a crosstab
+      // table (ws-details-pane.component.ts#isSupportChangeColumnOrder), because column
+      // layout there is driven by the row/column groups, not the column selection order.
+      // reorderColumns() had no equivalent guard, so it silently dropped names that don't
+      // match a static column (e.g. a pivoted value like "2024") and returned success.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "orderDate", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("orderDate", "employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+      t.getAggregateInfo().setCrosstab(true);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.reorderColumns("T", List.of("2024", "employee"))));
+      assertTrue(ex.getMessage().contains("crosstab"), "Unexpected message: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("T"), "Unexpected message: " + ex.getMessage());
+   }
+
    // =========================================================================
    // Cell/row edits: snapshot write protection
    // =========================================================================
