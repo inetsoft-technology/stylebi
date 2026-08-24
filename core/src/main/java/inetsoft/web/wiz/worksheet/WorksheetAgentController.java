@@ -228,6 +228,47 @@ public class WorksheetAgentController {
          return;
       }
 
+      // add_named_group with a datasource scopes "Only For" directly to a datasource/logical-model
+      // or physical-table path -- matching what a human produces via the Composer's own "Add
+      // Grouping" dialog -- rather than attaching to a column on an existing worksheet table.
+      // Needs the same permission checks + XLogicalModel/JDBC metadata lookups as add_table, so it
+      // is dispatched here rather than through the plain Editor.
+      if("add_named_group".equals(req.op()) && req.datasource() != null
+         && !req.datasource().isBlank())
+      {
+         if(req.table() != null || req.column() != null || req.type() != null) {
+            throw new PairingException(
+               "add_named_group: datasource is mutually exclusive with table/column and type.");
+         }
+
+         if(req.sourceTable() == null || req.sourceTable().isBlank()) {
+            throw new PairingException(
+               "sourceTable is required when datasource is specified for add_named_group.");
+         }
+
+         if(req.attribute() == null || req.attribute().isBlank()) {
+            throw new PairingException(
+               "attribute is required when datasource is specified for add_named_group.");
+         }
+
+         addDatasourceScopedNamedGroup(sessionToken, req, user);
+         return;
+      }
+
+      // add_named_group's datasource-scoped fields require 'datasource' -- without this guard,
+      // a caller that supplies sourceTable/attribute/logicalModel/schema/catalog but omits (or
+      // blanks) datasource would silently fall through to the plain Editor.addNamedGroup(table,
+      // column, type, ...) below with table/column/type all null, creating a standalone
+      // string-typed grouping and discarding what the caller actually asked for, with no error.
+      if("add_named_group".equals(req.op()) &&
+         (req.sourceTable() != null || req.attribute() != null || req.logicalModel() != null ||
+            req.schema() != null || req.catalog() != null))
+      {
+         throw new PairingException(
+            "add_named_group: sourceTable/attribute/logicalModel/schema/catalog require " +
+               "'datasource' to be set.");
+      }
+
       // set_variable_values needs AssetQuerySandbox, not just Editor.
       if("set_variable_values".equals(req.op())) {
          setVariableValues(sessionToken, req, user);
@@ -373,23 +414,7 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
-         // Position below existing assemblies.
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
@@ -478,25 +503,209 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
+   }
+
+   /**
+    * Creates a {@link DefaultNamedGroupAssembly} scoped directly to a datasource/logical-model
+    * or physical-table attribute -- exactly what a human produces via the Composer's own "Add
+    * Grouping" dialog ("Only For" + "Attribute"), independent of any worksheet table. See
+    * {@code GroupingAssemblyDialogService#setGroupingAssemblyDialogProperties} for the
+    * human-driven equivalent this mirrors, and {@link #addLogicalModelTable}/{@link
+    * #addBoundTable} for the permission-check and metadata-lookup patterns reused here.
+    *
+    * <p>This is a different, orthogonal mode from the {@code table}+{@code column} attached
+    * grouping in {@code WorksheetEditService.Editor#addNamedGroup}: that mode intentionally
+    * records {@code attachedSource} as the worksheet table's own name -- a convention {@code
+    * CalcTableService}/{@code FieldRefFactory} rely on to resolve a chart/table/crosstab/
+    * calc-table's {@code field.namedGroup} binding -- so a grouping created here is not
+    * resolvable through that same binding-time matching, and is not attached to any worksheet
+    * table at all.</p>
+    */
+   private void addDatasourceScopedNamedGroup(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+      String logicalModelName = req.logicalModel();
+      String sourceTableName = req.sourceTable();
+      String attributeName = req.attribute();
+      String name = req.name();
+
+      SourceInfo sinfo;
+      DataRef ref;
+
+      if(logicalModelName != null && !logicalModelName.isBlank()) {
+         // Mirrors addLogicalModelTable's permission checks and XLogicalModel/XEntity lookup.
+         if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+            throw new PairingException(
+               "Access denied: no READ permission on datasource " + datasourceName);
+         }
+
+         XDataModel dataModel = dataSourceService.getDataModel(datasourceName);
+
+         if(dataModel == null) {
+            throw new PairingException("No data model found for datasource: " + datasourceName);
+         }
+
+         XLogicalModel lm = dataModel.getLogicalModel(logicalModelName);
+
+         if(lm == null) {
+            throw new PairingException("Logical model not found: " + logicalModelName
+               + " (datasource=" + datasourceName + ")");
+         }
+
+         AssetEntry modelEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+            AssetEntry.Type.LOGIC_MODEL, datasourceName + "/" + logicalModelName, null);
+         modelEntry = dataSourceService.getModelAssetEntry(modelEntry);
+
+         if(modelEntry == null ||
+            !dataSourceService.checkPermission(modelEntry, ResourceAction.READ, user))
+         {
+            throw new PairingException("Access denied: no READ permission on logical model "
+               + logicalModelName + " (datasource=" + datasourceName + ")");
+         }
+
+         XEntity entity = lm.getEntity(sourceTableName);
+
+         if(entity == null) {
+            throw new PairingException("Entity not found: " + sourceTableName
+               + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName + ")");
+         }
+
+         XAttribute attr = entity.getAttribute(attributeName);
+
+         if(attr == null) {
+            throw new PairingException("Attribute not found: " + attributeName
+               + " (entity=" + sourceTableName + ", logicalModel=" + logicalModelName + ")");
+         }
+
+         sinfo = new SourceInfo(SourceInfo.MODEL, datasourceName, logicalModelName);
+         AttributeRef attributeRef = new AttributeRef(sourceTableName, attr.getName());
+         ColumnRef cref = new ColumnRef(attributeRef);
+
+         if(attr.getDataType() != null) {
+            cref.setDataType(attr.getDataType());
+         }
+
+         ref = cref;
+      }
+      else {
+         // Mirrors addBoundTable's permission checks and JDBC metadata lookup.
+         if(!securityEngine.checkPermission(user, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS)) {
+            throw new SecurityException(
+               Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden"));
+         }
+
+         if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+            throw new PairingException(
+               "Access denied: no READ permission on datasource " + datasourceName);
+         }
+
+         JDBCDataSource jdbcDs = metadataApiService.getJDBCDatasource(datasourceName);
+         XNode tableMetaData = metadataApiService.getTableMetaData(
+            jdbcDs, req.catalog(), req.schema(), sourceTableName);
+
+         if(tableMetaData == null) {
+            throw new PairingException("Table not found: " + sourceTableName +
+               " (datasource=" + datasourceName +
+               ", schema=" + req.schema() +
+               ", catalog=" + req.catalog() + ")");
+         }
+
+         String qname = inetsoft.uql.jdbc.util.SQLTypes.getSQLTypes(jdbcDs)
+            .getQualifiedName(tableMetaData, jdbcDs);
+         String tableType = (String) tableMetaData.getAttribute("type");
+
+         inetsoft.web.wiz.model.DatabaseTableMeta tableMeta =
+            metadataApiService.getTableDetails(datasourceName, sourceTableName,
+               req.catalog(), req.schema(), user);
+
+         inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta colMeta = null;
+
+         for(inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta cm : tableMeta.getColumns()) {
+            if(attributeName.equals(cm.getName())) {
+               colMeta = cm;
+               break;
+            }
+         }
+
+         if(colMeta == null) {
+            throw new PairingException("Column not found: " + attributeName +
+               " (table=" + sourceTableName + ", datasource=" + datasourceName + ")");
+         }
+
+         SourceInfo physSinfo = new SourceInfo(SourceInfo.PHYSICAL_TABLE, datasourceName, qname);
+         physSinfo.setProperty(SourceInfo.SCHEMA, req.schema());
+         physSinfo.setProperty(SourceInfo.CATALOG, req.catalog());
+         physSinfo.setProperty(SourceInfo.TABLE_TYPE, tableType);
+         sinfo = physSinfo;
+
+         AttributeRef attributeRef = new AttributeRef(null, colMeta.getName());
+         ColumnRef cref = new ColumnRef(attributeRef);
+
+         if(colMeta.getType() != null) {
+            cref.setDataType(colMeta.getType());
+         }
+
+         ref = cref;
+      }
+
+      String conditionType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
+      List<WorksheetMutationSupport.GroupMapping> mappings = req.groupMappings();
+      boolean groupOthers = req.groupOthers() != null && req.groupOthers();
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+
+         NamedGroupInfo ngi = new NamedGroupInfo();
+         ngi.setOthers(groupOthers ? XConstants.GROUP_OTHERS : XConstants.LEAVE_OTHERS);
+
+         if(mappings != null) {
+            for(WorksheetMutationSupport.GroupMapping m : mappings) {
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m));
+            }
+         }
+
+         DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
+         assembly.setNamedGroupInfo(ngi);
+         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(sinfo);
+         assembly.setAttachedAttribute(ref);
+
+         positionBelowExisting(ws, assembly);
+         ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Positions a newly-created assembly below every existing one on the canvas, left-aligned at
+    * the same column every other agent-created assembly starts at. Shared by every {@code add_*}
+    * op that builds its own assembly directly (rather than going through {@code Editor}, which
+    * has its own {@code placeAssembly}): {@link #addBoundTable}, {@link #addLogicalModelTable},
+    * {@link #addDatasourceScopedNamedGroup}, and {@code addSqlQuery}.
+    */
+   private static void positionBelowExisting(Worksheet ws, AbstractWSAssembly assembly) {
+      int maxY = 0;
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(!(a instanceof AbstractWSAssembly wa)) {
+            continue;
+         }
+
+         Point p = wa.getPixelOffset();
+         Dimension d = wa.getPixelSize();
+
+         if(p != null && d != null) {
+            maxY = Math.max(maxY, p.y + d.height);
+         }
+      }
+
+      assembly.setPixelOffset(new Point(25, maxY + 40));
    }
 
    /**
@@ -2224,23 +2433,7 @@ public class WorksheetAgentController {
          info.setSourceInfo(new SourceInfo(
             SourceInfo.PHYSICAL_TABLE, body.datasource(), body.datasource()));
 
-         // Position below existing assemblies.
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          assembly.setSQLEdited(true);
 
          // Populate columns from the parsed SQL or by executing the query.

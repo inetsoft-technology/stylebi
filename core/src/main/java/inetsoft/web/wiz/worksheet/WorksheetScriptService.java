@@ -518,7 +518,8 @@ public class WorksheetScriptService {
          null, null, null, null,         // alias, description, maxRows, distinct
          null, null, null, null,         // columnOrder, groupMappings, groupOthers, variableValues
          null, null, null, null,         // x, y, label, defaultValue
-         null, null, null                // mode, insert, subtables
+         null, null, null,               // mode, insert, subtables
+         null, null                      // sourceTable, attribute
       );
    }
 
@@ -598,7 +599,8 @@ public class WorksheetScriptService {
          null, null, null, null,         // alias, description, maxRows, distinct
          null, null, null, null,         // columnOrder, groupMappings, groupOthers, variableValues
          null, null, null, null,         // x, y, label, defaultValue
-         null, null, null                // mode, insert, subtables
+         null, null, null,               // mode, insert, subtables
+         null, null                      // sourceTable, attribute
       );
    }
 
@@ -672,7 +674,8 @@ public class WorksheetScriptService {
          null, null, null, null,         // alias, description, maxRows, distinct
          null, null, null, null,         // columnOrder, groupMappings, groupOthers, variableValues
          null, null, null, null,         // x, y, label, defaultValue
-         null, null, null                // mode, insert, subtables
+         null, null, null,               // mode, insert, subtables
+         null, null                      // sourceTable, attribute
       );
    }
 

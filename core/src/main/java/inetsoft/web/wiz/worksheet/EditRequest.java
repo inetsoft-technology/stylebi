@@ -69,9 +69,16 @@ import java.util.Map;
  *   <li>{@code reorder_columns} — {@code table}, {@code columnOrder}</li>
  *   <li>{@code add_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to add)</li>
  *   <li>{@code remove_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to remove)</li>
- *   <li>{@code add_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}; either
- *       {@code table} + {@code column} (attach to a column) or {@code type} (standalone grouping,
- *       matched by data type; defaults to {@code "string"})</li>
+ *   <li>{@code add_named_group} — {@code name}, {@code groupMappings} (each mapping's
+ *       {@code operation} is any operator accepted by
+ *       {@link WorksheetMutationSupport#parseOperation}, e.g. {@code "STARTING_WITH"};
+ *       defaults to {@code EQUAL_TO} when omitted), {@code groupOthers}; exactly one of:
+ *       {@code table} + {@code column} (attach to a column on an existing worksheet table);
+ *       {@code datasource} + {@code sourceTable} + {@code attribute} (+ optional
+ *       {@code logicalModel}, or {@code schema}/{@code catalog} for a physical table) to scope
+ *       directly to a datasource/logical-model or physical-table path, matching what a human
+ *       produces via the Composer's own "Add Grouping" dialog; or {@code type} (standalone
+ *       grouping, matched by data type; defaults to {@code "string"})</li>
  *   <li>{@code set_column_description} — {@code table}, {@code column}, {@code description}</li>
  *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value)</li>
  *   <li>{@code set_mirror_auto_update} — {@code table}, {@code visible} (true=auto-update on, false=off)</li>
@@ -82,7 +89,8 @@ import java.util.Map;
  *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue}</li>
  *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
  *   <li>{@code delete_variable} — {@code name}</li>
- *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}</li>
+ *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings} (see {@code add_named_group}
+ *       for the {@code operation} field), {@code groupOthers}</li>
  *   <li>{@code edit_sql_query} — {@code table}, {@code expression} (new SQL string)</li>
  *   <li>{@code update_mirror} — {@code table}</li>
  *   <li>{@code set_table_mode} — {@code table}, {@code mode} ({@code "live"}, {@code "default"}, {@code "full"}, {@code "detail"}, {@code "edit"})</li>
@@ -208,5 +216,18 @@ public record EditRequest(
    /** True = insert before index, false = append after index (insert_column). */
    Boolean insert,
    /** New order of subtable names for reorder_concat_subtables. */
-   List<String> subtables
+   List<String> subtables,
+   /**
+    * Entity name (when {@code logicalModel} is given) or physical table name (otherwise) for
+    * add_named_group, when scoping the grouping directly to a datasource path — matching what a
+    * human produces via the Composer's own "Add Grouping" dialog ("Only For") — instead of
+    * attaching to a column on an existing worksheet table. Requires {@code datasource} and
+    * {@code attribute}; mutually exclusive with {@code table}/{@code column} and {@code type}.
+    */
+   String sourceTable,
+   /**
+    * Attribute/column name within {@code sourceTable} for add_named_group's datasource-scoped
+    * mode (see {@code sourceTable}).
+    */
+   String attribute
 ) {}

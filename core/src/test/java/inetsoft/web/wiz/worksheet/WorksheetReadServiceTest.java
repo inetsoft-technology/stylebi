@@ -18,8 +18,17 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.internal.binding.BaseField;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.wiz.pairing.TestWorksheets;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
@@ -590,5 +599,152 @@ class WorksheetReadServiceTest {
 
       t.setVisibleTable(false);
       assertFalse(tableNamed(read(ws), "T").visibleInViewsheet());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Named groups (Bug #76097 review follow-up)
+   // ---------------------------------------------------------------------------
+
+   private static DefaultNamedGroupAssembly namedGroup(
+      Worksheet ws, String name, SourceInfo attachedSource, DataRef attachedAttribute,
+      String groupName, WorksheetMutationSupport.GroupMapping mapping) throws Exception
+   {
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      DataRef conditionRef = attachedAttribute != null ? attachedAttribute
+         : new BaseField("this");
+      ngi.setGroupCondition(groupName,
+         WorksheetMutationSupport.buildGroupConditionList(XSchema.STRING, conditionRef, mapping));
+
+      DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
+      assembly.setNamedGroupInfo(ngi);
+
+      if(attachedAttribute != null) {
+         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(attachedSource);
+         assembly.setAttachedAttribute(attachedAttribute);
+      }
+      else {
+         assembly.setAttachedType(AttachedAssembly.DATA_TYPE_ATTACHED);
+         assembly.setAttachedDataType(XSchema.STRING);
+      }
+
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   private static WorksheetModel.NamedGroupModel namedGroupNamed(WorksheetModel m, String name) {
+      return m.namedGroups().stream().filter(g -> name.equals(g.name())).findFirst().orElseThrow();
+   }
+
+   @Test
+   void readsWorksheetTableAttachedGroupAsTableColumnNotDatasourceScoped() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "State"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo attachedSource = new SourceInfo(SourceInfo.ASSET, null, "Customer1");
+      namedGroup(ws, "StateNGroup", attachedSource, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("N"), "STARTING_WITH"));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "StateNGroup");
+      assertEquals("Customer1", ng.table());
+      assertEquals("State", ng.column());
+      assertNull(ng.datasource());
+      assertNull(ng.logicalModel());
+      assertNull(ng.sourceTable());
+      assertNull(ng.attribute());
+      assertEquals("STARTING_WITH", ng.groupMappings().get(0).operation());
+   }
+
+   @Test
+   void readsLogicalModelScopedGroupAsDatasourceNotTableColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef("Customer", "State"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo attachedSource = new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model");
+      namedGroup(ws, "State N Group", attachedSource, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("NJ", "NY", "NV")));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "State N Group");
+      assertNull(ng.table());
+      assertNull(ng.column());
+      assertEquals("Examples/Orders", ng.datasource());
+      assertEquals("Order Model", ng.logicalModel());
+      assertEquals("Customer", ng.sourceTable());
+      assertEquals("State", ng.attribute());
+      // No operation given at creation -- must round-trip as explicit equality, not be silently
+      // omitted (which would look identical to "couldn't be determined").
+      assertEquals("EQUAL_TO", ng.groupMappings().get(0).operation());
+   }
+
+   @Test
+   void readsPhysicalTableScopedGroupAsDatasourceWithNoLogicalModel() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "STATE"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo attachedSource = new SourceInfo(SourceInfo.PHYSICAL_TABLE, "MyDatasource", "SA.CUSTOMERS");
+      namedGroup(ws, "PhysGroup", attachedSource, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("N"), "STARTING_WITH"));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "PhysGroup");
+      assertNull(ng.table());
+      assertNull(ng.column());
+      assertEquals("MyDatasource", ng.datasource());
+      assertNull(ng.logicalModel());
+      assertEquals("SA.CUSTOMERS", ng.sourceTable());
+      assertEquals("STATE", ng.attribute());
+   }
+
+   @Test
+   void readsNegatedEqualityOperationOnStandaloneGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      namedGroup(ws, "NotNYNJ", null, null, "NotNYNJ",
+         new WorksheetMutationSupport.GroupMapping("NotNYNJ", List.of("NY", "NJ"), "!="));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "NotNYNJ");
+      assertNull(ng.table());
+      assertNull(ng.datasource());
+      assertEquals("NOT_ONE_OF", ng.groupMappings().get(0).operation());
+   }
+
+   /**
+    * PR #4765 review follow-up: {@code add_named_group}'s own vocabulary can never create a
+    * negated {@code STARTING_WITH}/{@code CONTAINS}/{@code LIKE}/{@code BETWEEN}/comparison (there
+    * is no {@code NOT_STARTING_WITH} etc.), but a human can, via the Composer's general condition
+    * editor ({@code Condition.isNegatedChangeable()} is unconditionally {@code true}) -- and
+    * {@code readNamedGroup} runs over every {@code DefaultNamedGroupAssembly} in the worksheet,
+    * not just wizard-created ones. Reporting the positive string for such a condition would
+    * silently flip its meaning if read back and fed into add_named_group/edit_named_group, so
+    * {@code operation} must come back {@code null} ("can't be expressed") rather than
+    * {@code "STARTING_WITH"}.
+    */
+   @Test
+   void readsNullOperationForNegatedStartingWithBeyondThisVocabulary() {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "State"));
+      col.setDataType(XSchema.STRING);
+
+      Condition c = new Condition(XSchema.STRING);
+      c.setOperation(XCondition.STARTING_WITH);
+      c.setNegated(true);
+      c.addValue("N");
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(col, c, 0));
+
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      ngi.setGroupCondition("NotN", conds);
+
+      DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, "HumanMadeGroup");
+      assembly.setNamedGroupInfo(ngi);
+      assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      assembly.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, "Customer1"));
+      assembly.setAttachedAttribute(col);
+      ws.addAssembly(assembly);
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "HumanMadeGroup");
+      assertNull(ng.groupMappings().get(0).operation(),
+         "a negated STARTING_WITH has no round-trippable operation string and must not be " +
+            "reported as the plain positive one");
    }
 }

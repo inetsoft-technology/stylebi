@@ -20,7 +20,11 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.web.wiz.pairing.*;
@@ -313,5 +317,209 @@ class WorksheetEditServiceTest {
       // object" and returning null) rather than propagating it, so this alone would not have
       // caught the regression — the assertions above on the condition ref are what matter here.
       assertDoesNotThrow(() -> ws.clone());
+   }
+
+   /**
+    * Guards the invariant {@code CalcTableService.worksheetNamedGroups}/{@code FieldRefFactory}
+    * depend on: a named group attached to a worksheet table column must carry
+    * {@code SourceInfo(ASSET, null, <worksheet table name>)} — the same convention
+    * {@code WizVsService}/{@code VSChartDndService} use for a chart/table/crosstab/calc-table's
+    * own bound-table {@code SourceInfo} — even when that table is itself bound to a real
+    * datasource/logical-model (a {@link BoundTableAssembly}). Reusing the table's own upstream
+    * {@code SourceInfo} here (attempted and reverted during Bug #76097) breaks that matching:
+    * those two classes look up a group by comparing the VS assembly's own worksheet-table-name
+    * {@code SourceInfo} against the group's {@code attachedSource}, so anything other than the
+    * worksheet table's name here makes a real, already-working named group silently stop
+    * resolving in chart/table/crosstab/calc-table bindings.
+    */
+   @Test
+   void addNamedGroupSourceInfoIsWorksheetTableNameEvenForBoundTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = new BoundTableAssembly(ws, "Customer1");
+      t.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
+      ColumnSelection columns = new ColumnSelection();
+      ColumnRef stateRef = new ColumnRef(new AttributeRef("Customer", "State"));
+      stateRef.setDataType(XSchema.STRING);
+      columns.addAttribute(stateRef);
+      t.setColumnSelection(columns);
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("N", List.of("NJ", "NY", "NV")));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("StateNGroup", "Customer1", "State", null, mappings, true));
+
+      DefaultNamedGroupAssembly nga = (DefaultNamedGroupAssembly) ws.getAssembly("StateNGroup");
+      SourceInfo attached = nga.getAttachedSource();
+      assertNotNull(attached);
+      assertEquals(SourceInfo.ASSET, attached.getType());
+      assertEquals("Customer1", attached.getSource());
+   }
+
+   /**
+    * Regression for Bug #76097: a group mapping's negated-equality operation ("!=" /
+    * "NOT_EQUAL_TO") over more than one value must test "not equal to any of them" (a negated
+    * ONE_OF), not OR together separately-negated single-value EQUAL_TO conditions — the latter
+    * is a near-tautology (true for almost every input) since EQUAL_TO only ever reads a
+    * condition's first value.
+    */
+   @Test
+   void addNamedGroupNegatedEqualityExcludesAllListedValues() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("NotNYNJ", List.of("NY", "NJ"), "!="));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("StateNGroup", null, null, "string", mappings, true));
+
+      DefaultNamedGroupAssembly nga = (DefaultNamedGroupAssembly) ws.getAssembly("StateNGroup");
+      ConditionList conds = nga.getNamedGroupInfo().getGroupCondition("NotNYNJ");
+      assertEquals(1, conds.getSize(),
+         "negated equality over multiple values must be a single negated ONE_OF condition, " +
+            "not OR'd single-value conditions");
+      Condition c = conds.getConditionItem(0).getCondition();
+      assertEquals(XCondition.ONE_OF, c.getOperation());
+      assertTrue(c.isNegated());
+      assertEquals(2, c.getValueCount());
+      assertEquals("NY", c.getValue(0));
+      assertEquals("NJ", c.getValue(1));
+   }
+
+   /**
+    * Regression for Bug #76097: a group mapping's {@code operation} must be honored instead of
+    * always building an EQUAL_TO condition — "starts with N" should produce a single
+    * STARTING_WITH condition per value, not an enumerated equality list.
+    */
+   @Test
+   void addNamedGroupSupportsStartingWithOperator() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("N", List.of("N"), "STARTING_WITH"),
+         new WorksheetMutationSupport.GroupMapping("Others", List.of(), null));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("StateNGroup", null, null, "string", mappings, true));
+
+      DefaultNamedGroupAssembly nga = (DefaultNamedGroupAssembly) ws.getAssembly("StateNGroup");
+      Condition c = nga.getNamedGroupInfo().getGroupCondition("N")
+         .getConditionItem(0).getCondition();
+      assertEquals(XCondition.STARTING_WITH, c.getOperation());
+      assertEquals(1, c.getValueCount());
+      assertEquals("N", c.getValue(0));
+   }
+
+   /**
+    * PR #4765 review follow-up: {@code BETWEEN} with any value count other than 2 is not "no
+    * matches" the way it silently was before -- {@link Condition#evaluate} only ever reads
+    * {@code values.get(0)}/{@code values.get(1)}, so a 1- or 3-value BETWEEN mapping is a
+    * malformed request that should fail loud, not be built into a condition that quietly never
+    * matches.
+    */
+   @Test
+   void addNamedGroupRejectsBetweenWithWrongValueCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Mid", List.of("10"), "BETWEEN"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addNamedGroup("G", null, null, "string", mappings, false)));
+      assertTrue(ex.getMessage().contains("BETWEEN"));
+      assertNull(ws.getAssembly("G"), "a rejected group must not be partially created");
+   }
+
+   /**
+    * PR #4765 review follow-up: an empty value list for {@code ONE_OF} matches nothing, but a
+    * NEGATED empty {@code ONE_OF} (e.g. {@code "!="} with no values) matches EVERYTHING -- both
+    * are almost certainly caller mistakes, not an intentional "match nothing"/"match everything"
+    * grouping, so they fail loud instead of silently building a useless or over-broad condition.
+    */
+   @Test
+   void addNamedGroupRejectsEmptyValuesForSetBasedOperation() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("NotAnything", List.of(), "!="));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addNamedGroup("G2", null, null, "string", mappings, false)));
+      assertTrue(ex.getMessage().contains("at least one value"));
+      assertNull(ws.getAssembly("G2"), "a rejected group must not be partially created");
    }
 }
