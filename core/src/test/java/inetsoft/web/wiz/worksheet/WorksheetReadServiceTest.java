@@ -26,6 +26,7 @@ import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.*;
 
+import java.awt.Point;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -516,8 +517,17 @@ class WorksheetReadServiceTest {
    }
 
    /**
-    * -1 is how the assembly stores "unlimited". Reporting it verbatim would read back as a real
-    * limit of -1, and reporting 0 would collide with a genuine limit of zero rows.
+    * -1 is how the assembly stores "unlimited", and reporting it verbatim would read back as a
+    * real limit of -1. 0 is the same unlimited, not a limit of zero rows -- the engine applies a
+    * limit only when it is positive -- so everything {@code <= 0} reports null.
+    *
+    * <p>What this asserts holds only with no global cap configured, which is this suite's state:
+    * getMaxRows() runs the stored value through Util.getQueryLocalRuntimeMaxrow, so with
+    * query.runtime.maxrow or an organization row limit set, a table stored as unlimited reports
+    * that cap instead of null. The read is deliberately the effective limit -- the Composer's own
+    * dialog shows the same number -- so this is the documented behaviour, not a gap. Asserting the
+    * capped case would mean mutating global state from a unit test; it is verifiable on a
+    * configured server.
     */
    @Test
    void anUnlimitedRowLimitIsReportedAsNullRatherThanMinusOne() {
@@ -533,7 +543,7 @@ class WorksheetReadServiceTest {
    void reportsThePixelOffsetSoAPositionWriteCanBeVerified() {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
-      t.setPixelOffset(new java.awt.Point(120, 340));
+      t.setPixelOffset(new Point(120, 340));
       ws.addAssembly(t);
 
       WorksheetModel.TableModel m = tableNamed(read(ws), "T");

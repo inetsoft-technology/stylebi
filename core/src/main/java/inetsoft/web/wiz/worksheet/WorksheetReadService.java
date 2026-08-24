@@ -28,6 +28,7 @@ import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.springframework.stereotype.Service;
 
+import java.awt.Point;
 import java.util.*;
 
 /**
@@ -117,7 +118,7 @@ public class WorksheetReadService {
       WorksheetModel.AggregateModel aggregates = readAggregates(t);
       List<WorksheetModel.SortModel> sorts = readSorts(t);
 
-      java.awt.Point offset = t.getPixelOffset();
+      Point offset = t.getPixelOffset();
       int maxRows = t.getMaxRows();
 
       return new WorksheetModel.TableModel(
@@ -126,8 +127,9 @@ public class WorksheetReadService {
          preConditions, postConditions, rankingConditions,
          aggregates, sorts, primary,
          t.getDescription(),
-         // -1 is how the assembly stores "unlimited". Reporting it as-is would be read back as a
-         // real limit of -1, and reporting 0 would collide with a genuine limit of zero rows.
+         // Anything <= 0 is "no limit" -- the engine applies one only when it is positive -- so
+         // -1 and 0 both report null rather than reading back as a limit of -1 or of zero rows.
+         // Note this is the effective limit, capped by query.runtime.maxrow; see TableModel.
          maxRows <= 0 ? null : maxRows,
          t.isDistinct(), t.isVisibleTable(), tableMode(t),
          offset == null ? null : offset.x, offset == null ? null : offset.y);
@@ -274,7 +276,9 @@ public class WorksheetReadService {
    }
 
    /**
-    * The table's display mode, as the vocabulary {@code set_table_mode} accepts.
+    * The table's display mode, in four of the five words {@code set_table_mode} accepts --
+    * {@code live}, {@code full}, {@code detail} and {@code edit}. The fifth, {@code default},
+    * is not a state and never appears here; see the note below.
     *
     * <p>No field stores it: the mode is a combination of {@code liveData}, {@code runtime} and
     * {@code editMode}, and {@code set_table_mode} writes all three per mode. Deriving it here is

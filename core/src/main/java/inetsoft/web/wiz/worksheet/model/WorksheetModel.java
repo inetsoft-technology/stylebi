@@ -90,17 +90,28 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param sorts              sort directives; empty when none
     * @param primary            {@code true} if this is the worksheet's primary assembly
     * @param description        the table's own description; {@code null} when unset
-    * @param maxRows            the table's row limit, or {@code null} when unlimited. Stored as
-    *                           {@code -1} for unlimited and reported as {@code null} so that an
-    *                           unset limit is not confused with a limit of zero rows.
+    * @param maxRows            the row limit in effect, or {@code null} when there is none. This
+    *                           is the <em>effective</em> limit, not the stored one: the assembly
+    *                           folds {@code query.runtime.maxrow} and the organization row limit
+    *                           into it, so on a capped server this can be smaller than the number
+    *                           written, and a table stored as unlimited reports the cap. It is the
+    *                           same value the Composer's table-properties dialog shows. Anything
+    *                           {@code <= 0} is no limit at all — the engine applies one only when
+    *                           it is positive — and all of those report {@code null}, so {@code 0}
+    *                           is not a limit of zero rows.
     * @param distinct           whether the table returns only distinct rows
     * @param visibleInViewsheet whether the table is exposed to viewsheets bound to this sheet
     * @param mode               the table's display mode — {@code live}, {@code full},
-    *                           {@code detail}, {@code edit} or {@code default} — derived from the
-    *                           same three flags {@code set_table_mode} writes, since no single
-    *                           field stores it
-    * @param x                  the assembly's pixel offset on the worksheet canvas
-    * @param y                  the assembly's pixel offset on the worksheet canvas
+    *                           {@code detail} or {@code edit} — derived from the same three flags
+    *                           {@code set_table_mode} writes, since no single field stores it.
+    *                           {@code set_table_mode} also accepts {@code default}, which is not
+    *                           a state of its own and so never appears here: the writer resolves
+    *                           it to live for an embedded table and metadata for a bound one, and
+    *                           it reads back as {@code detail} or {@code full} accordingly
+    * @param x                  the assembly's horizontal pixel offset on the worksheet canvas;
+    *                           {@code null} only if the assembly carries no offset at all
+    * @param y                  the assembly's vertical pixel offset on the worksheet canvas;
+    *                           {@code null} only if the assembly carries no offset at all
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
