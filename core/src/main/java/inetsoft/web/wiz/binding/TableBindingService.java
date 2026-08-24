@@ -190,23 +190,28 @@ public class TableBindingService {
    public void addField(String sessionToken, Principal user, String assemblyName, String shelf,
                         FieldRef field, Integer position) throws Exception
    {
-      apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.addField(model, shelf, field, position));
+      applyWithContext(sessionToken, user, assemblyName,
+         (model, rvs, source) ->
+            TableBindingMutator.addField(model, shelf, field, position, rvs, source,
+                                         refModelService));
    }
 
    public void removeField(String sessionToken, Principal user, String assemblyName,
                            String shelf, String column) throws Exception
    {
-      apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.removeField(model, shelf, column));
+      applyWithContext(sessionToken, user, assemblyName,
+         (model, rvs, source) ->
+            TableBindingMutator.removeField(model, shelf, column, rvs, source, refModelService));
    }
 
    public void moveField(String sessionToken, Principal user, String assemblyName,
                          String fromShelf, String toShelf, String column, Integer position)
       throws Exception
    {
-      apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.moveField(model, fromShelf, toShelf, column, position));
+      applyWithContext(sessionToken, user, assemblyName,
+         (model, rvs, source) ->
+            TableBindingMutator.moveField(model, fromShelf, toShelf, column, position, rvs,
+                                          source, refModelService));
    }
 
    public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
@@ -318,6 +323,35 @@ public class TableBindingService {
                       Consumer<BaseTableBindingModel> mutation) throws Exception
    {
       apply(sessionToken, user, assemblyName, mutation, false);
+   }
+
+   /**
+    * A shelf mutation that also needs the runtime context {@link TableBindingMutator#setShelf}
+    * threads through to resolve a field's {@code namedGroup} -- unlike the plain {@link Consumer}
+    * overload above, which reapplies a shelf with no context and so silently drops an
+    * already-resolved {@code namedGroup} on any field the mutation doesn't itself touch.
+    */
+   @FunctionalInterface
+   private interface ContextualShelfMutation {
+      void accept(BaseTableBindingModel model, RuntimeViewsheet rvs,
+                  inetsoft.uql.asset.SourceInfo source) throws Exception;
+   }
+
+   private void applyWithContext(String sessionToken, Principal user, String assemblyName,
+                                 ContextualShelfMutation mutation) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+         inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
+            ? data.getSourceInfo() : null;
+         mutation.accept(model, rvs, source);
+
+         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
+         event.setName(assemblyName);
+         event.setBinding(model);
+         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+      });
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName,
