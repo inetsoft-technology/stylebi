@@ -117,11 +117,20 @@ public class WorksheetReadService {
       WorksheetModel.AggregateModel aggregates = readAggregates(t);
       List<WorksheetModel.SortModel> sorts = readSorts(t);
 
+      java.awt.Point offset = t.getPixelOffset();
+      int maxRows = t.getMaxRows();
+
       return new WorksheetModel.TableModel(
          name, type, columns, joins,
          readSources(t), readConcatType(t), readConcatCompatible(t), readAutoUpdate(t),
          preConditions, postConditions, rankingConditions,
-         aggregates, sorts, primary);
+         aggregates, sorts, primary,
+         t.getDescription(),
+         // -1 is how the assembly stores "unlimited". Reporting it as-is would be read back as a
+         // real limit of -1, and reporting 0 would collide with a genuine limit of zero rows.
+         maxRows <= 0 ? null : maxRows,
+         t.isDistinct(), t.isVisibleTable(), tableMode(t),
+         offset == null ? null : offset.x, offset == null ? null : offset.y);
    }
 
    // -------------------------------------------------------------------------
@@ -262,6 +271,39 @@ public class WorksheetReadService {
     */
    private Boolean readAutoUpdate(TableAssembly t) {
       return t instanceof MirrorTableAssembly mirror ? mirror.isAutoUpdate() : null;
+   }
+
+   /**
+    * The table's display mode, as the vocabulary {@code set_table_mode} accepts.
+    *
+    * <p>No field stores it: the mode is a combination of {@code liveData}, {@code runtime} and
+    * {@code editMode}, and {@code set_table_mode} writes all three per mode. Deriving it here is
+    * what lets a caller read back what it just set — without this, the write is verifiable only by
+    * its side effects, which is what left case 1.19 unable to round-trip.
+    *
+    * <p>Checked in the order the writer distinguishes them: {@code edit} owns editMode, and among
+    * the live modes only {@code live} sets runtime, so live-without-runtime reads as
+    * {@code detail}.
+    *
+    * <p><b>This reports the resulting state, not the word that was written, and the two can
+    * differ.</b> {@code set_table_mode("live")} sets runtime from {@code isRuntimeSelected()},
+    * so on a table whose runtime selection is off it lands in the same state as
+    * {@code "detail"} and reads back as {@code detail}. Likewise {@code "default"} is not a
+    * state of its own — the writer resolves it to live for an embedded table and metadata for a
+    * bound one — so it reads back as {@code detail} or {@code full}. Neither is a lost write;
+    * both are the mode the table is actually in. A caller wanting to confirm a specific word was
+    * honoured should compare states, not strings.
+    */
+   private String tableMode(TableAssembly t) {
+      if(t.isEditMode()) {
+         return "edit";
+      }
+
+      if(t.isLiveData()) {
+         return t.isRuntime() ? "live" : "detail";
+      }
+
+      return "full";
    }
 
    private String tableType(TableAssembly t) {

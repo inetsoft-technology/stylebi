@@ -494,4 +494,91 @@ class WorksheetReadServiceTest {
       assertEquals("entry description", p.description());
       assertFalse(p.dataSource());
    }
+
+   // The write tools set description, maxRows, distinct, mode and position, and none of them came
+   // back in the model -- so a caller could not tell a working write from a dropped one. That is
+   // what left L1 case 1.19 unable to round-trip and 1.16 unable to verify a position at all.
+
+   @Test
+   void reportsTheTablePropertiesTheWriteToolsSet() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      t.setDescription("what this table is for");
+      t.setMaxRows(25);
+      t.setDistinct(true);
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel m = tableNamed(read(ws), "T");
+
+      assertEquals("what this table is for", m.description());
+      assertEquals(Integer.valueOf(25), m.maxRows());
+      assertTrue(m.distinct());
+   }
+
+   /**
+    * -1 is how the assembly stores "unlimited". Reporting it verbatim would read back as a real
+    * limit of -1, and reporting 0 would collide with a genuine limit of zero rows.
+    */
+   @Test
+   void anUnlimitedRowLimitIsReportedAsNullRatherThanMinusOne() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      t.setMaxRows(-1);
+      ws.addAssembly(t);
+
+      assertNull(tableNamed(read(ws), "T").maxRows());
+   }
+
+   @Test
+   void reportsThePixelOffsetSoAPositionWriteCanBeVerified() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      t.setPixelOffset(new java.awt.Point(120, 340));
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel m = tableNamed(read(ws), "T");
+
+      assertEquals(Integer.valueOf(120), m.x());
+      assertEquals(Integer.valueOf(340), m.y());
+   }
+
+   /**
+    * Mode has no field of its own -- set_table_mode writes liveData, runtime and editMode per mode,
+    * so the read derives it from the same three. It reports the state the table is in, which is not
+    * always the word that was written: see tableMode's own note.
+    */
+   @Test
+   void derivesTheDisplayModeFromTheFlagsSetTableModeWrites() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      ws.addAssembly(t);
+
+      t.setEditMode(true);
+      assertEquals("edit", tableNamed(read(ws), "T").mode());
+
+      t.setEditMode(false);
+      t.setLiveData(true);
+      t.setRuntime(true);
+      assertEquals("live", tableNamed(read(ws), "T").mode());
+
+      t.setRuntime(false);
+      assertEquals("detail", tableNamed(read(ws), "T").mode());
+
+      t.setLiveData(false);
+      assertEquals("full", tableNamed(read(ws), "T").mode());
+   }
+
+   /** Both directions, since a one-sided assertion would pass against a hardcoded {@code false}. */
+   @Test
+   void reportsWhetherTheTableIsExposedToViewsheets() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      ws.addAssembly(t);
+
+      t.setVisibleTable(true);
+      assertTrue(tableNamed(read(ws), "T").visibleInViewsheet());
+
+      t.setVisibleTable(false);
+      assertFalse(tableNamed(read(ws), "T").visibleInViewsheet());
+   }
 }

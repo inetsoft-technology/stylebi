@@ -89,6 +89,18 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param aggregates         group-by / aggregate info; {@code null} when none is set
     * @param sorts              sort directives; empty when none
     * @param primary            {@code true} if this is the worksheet's primary assembly
+    * @param description        the table's own description; {@code null} when unset
+    * @param maxRows            the table's row limit, or {@code null} when unlimited. Stored as
+    *                           {@code -1} for unlimited and reported as {@code null} so that an
+    *                           unset limit is not confused with a limit of zero rows.
+    * @param distinct           whether the table returns only distinct rows
+    * @param visibleInViewsheet whether the table is exposed to viewsheets bound to this sheet
+    * @param mode               the table's display mode — {@code live}, {@code full},
+    *                           {@code detail}, {@code edit} or {@code default} — derived from the
+    *                           same three flags {@code set_table_mode} writes, since no single
+    *                           field stores it
+    * @param x                  the assembly's pixel offset on the worksheet canvas
+    * @param y                  the assembly's pixel offset on the worksheet canvas
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
@@ -105,7 +117,14 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<FilterModel> rankingConditions,
       AggregateModel aggregates,
       List<SortModel> sorts,
-      boolean primary
+      boolean primary,
+      String description,
+      Integer maxRows,
+      boolean distinct,
+      boolean visibleInViewsheet,
+      String mode,
+      Integer x,
+      Integer y
    ) {}
 
    /**
