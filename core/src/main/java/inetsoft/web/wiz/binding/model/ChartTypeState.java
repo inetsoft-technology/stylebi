@@ -39,17 +39,22 @@ package inetsoft.web.wiz.binding.model;
  * renderer used something else — {@code ChangeChartTypeProcessor} clears runtime types on a
  * per-ref write for exactly that reason, so the two genuinely diverge.
  *
- * <p><b>It is null unless the assembly-level runtime type is actually maintained</b>, which is
- * narrower than it looks. {@code AbstractChartInfo.updateChartType} sets it only on the
- * {@code separated} branch; the merged branch calls {@code updateFieldChartTypes} and leaves the
- * assembly-level value untouched, and the whole method returns early when no x/y refs are
- * populated. So on a merged chart, or one that has not rendered, the field would hold a stale or
- * never-set {@code 0} — and a caller told to read its presence as "the renderer resolved to
- * something else" would read that as an answer. Merged is the multi-style case, so this is the
- * common path rather than a corner; the runtime type that survives there is the per-measure one on
- * {@link FieldRef#runtimeChartType()}. {@code CHART_AUTO} is treated as unresolved for the same
- * reason: a render always resolves to a concrete type, so {@code auto} is the default rather than
- * an answer.
+ * <p><b>It is null unless the assembly-level runtime type is actually maintained, and
+ * {@code multiStyles} is what decides that.</b> Not {@code separated} — that is an independent
+ * user-facing setting this same response reports, and confusing the two is easy because
+ * {@code AbstractChartInfo.updateChartType} names its parameter {@code separated} and documents it
+ * backwards. The call sites are what settle it: 21 of 24 pass {@code !info.isMultiStyles()}, and
+ * {@code VSChartDataHandler} writes it out as {@code boolean sep = !info.isMultiStyles()}. So the
+ * branch that sets this value runs when multi-style is <em>off</em>, and the branch that updates the
+ * per-measure types runs when it is on.
+ *
+ * <p>The rule the caller needs is therefore one sentence, in terms of a field the response already
+ * carries: <b>this value is maintained exactly when {@code appliesTo} is {@code assembly}, and
+ * {@link FieldRef#runtimeChartType()} exactly when it is {@code measure}.</b> Reported outside that
+ * it would be a stale value a caller had been told to read as "the renderer resolved to something
+ * else". {@code CHART_AUTO} is excluded for a different reason — a render resolves to something
+ * concrete, so {@code auto} here is the unset default rather than an answer — and note it catches
+ * only never-set, never stale, which is why the gate above cannot be loosened.
  *
  * <p>The types are the raw {@code GraphTypes} codes. Naming them is the plugin's job: the
  * code↔name vocabulary already exists in three copies on this side

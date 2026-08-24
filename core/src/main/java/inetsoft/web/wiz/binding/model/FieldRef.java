@@ -37,11 +37,12 @@ package inetsoft.web.wiz.binding.model;
  * compare by hand. It matters most in the case a design-time-only read serves worst: a measure left
  * at {@code auto} reports {@code auto} forever, while the runtime value is the only thing that says
  * what appeared on screen. Reported per measure rather than left to
- * {@link ChartTypeState#runtimeChartType()} because the two are maintained in opposite branches —
- * {@code AbstractChartInfo.updateChartType} sets the assembly-level runtime type only when the
- * chart is separated, and delegates to {@code updateFieldChartTypes} when it is merged. Merged is
- * the multi-style case, so per-measure is the only runtime type available exactly where
- * per-measure types are what render.
+ * {@link ChartTypeState#runtimeChartType()} because the two are maintained in opposite branches of
+ * {@code AbstractChartInfo.updateChartType}, and <b>{@code multiStyles} is the flag that selects
+ * between them</b> — not the chart's {@code separated} setting, despite that being the name of the
+ * parameter. Its call sites pass {@code !info.isMultiStyles()}. So these per-measure values are
+ * maintained exactly while multi-style is on, which is exactly when they are what renders, and the
+ * assembly-level one is maintained exactly while it is off.
  *
  * @param column           the column name, as it appears in the binding tree
  * @param type             "dimension" or "measure"

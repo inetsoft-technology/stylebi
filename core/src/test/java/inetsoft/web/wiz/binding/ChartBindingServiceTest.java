@@ -850,7 +850,9 @@ class ChartBindingServiceTest {
       // Deliberately different from chartType: reporting only the stored value is how a read
       // becomes a "stored but inert" mirror of what the renderer actually used.
       model.setRTChartType(5);
-      model.setMultiStyles(true);
+      // Single-style, because that is the state in which the assembly-level runtime type is the one
+      // being maintained. The multi-style case is covered below, where it is withheld.
+      model.setMultiStyles(false);
       model.setSeparated(true);
       model.setStackMeasures(true);
 
@@ -859,30 +861,49 @@ class ChartBindingServiceTest {
       assertEquals("Chart1", state.assembly());
       assertEquals(1, state.chartType());
       assertEquals(5, state.runtimeChartType());
-      assertTrue(state.multiStyles(), "multiStyles decides whether the type is per-measure");
+      assertFalse(state.multiStyles(), "multiStyles decides whether the type is per-measure");
       assertTrue(state.separated());
       assertTrue(state.stackMeasures());
    }
 
    /**
-    * {@code AbstractChartInfo.updateChartType} sets the assembly-level runtime type only on its
-    * {@code separated} branch; the merged branch updates the per-measure types and leaves this one
-    * alone. So on a merged chart the field holds whatever it last held, and the plugin — which
-    * reads a divergence as proof the renderer chose something else — would draw that conclusion
-    * from a stale value. Merged is the multi-style case, so this is the common path.
+    * multiStyles decides which level {@code AbstractChartInfo.updateChartType} maintains, despite
+    * its parameter being named {@code separated}: its call sites pass {@code !isMultiStyles()}. With
+    * multi-style on, the per-measure branch runs and this assembly-level value is left at whatever
+    * it last held — and the plugin reads a divergence as proof the renderer chose something else, so
+    * a stale value would be read as an answer. Note the {@code != CHART_AUTO} guard cannot help
+    * here: it rejects never-set, not stale, which is what makes the gate load-bearing.
     */
    @Test
-   void withholdsTheAssemblyRuntimeTypeOnAMergedChartWhereNothingMaintainsIt() throws Exception {
+   void withholdsTheAssemblyRuntimeTypeWhileMultiStyleIsOn() throws Exception {
       ChartBindingModel model = new ChartBindingModel();
       model.setChartType(1);
       model.setRTChartType(5);
-      model.setSeparated(false);
+      model.setMultiStyles(true);
+      // The state a freshly bound multi-style chart is actually in, and the one the earlier gate on
+      // isSeparated() reported a stale value from.
+      model.setSeparated(true);
 
       ChartTypeState state = readTypeOf(model);
 
       assertEquals(1, state.chartType(), "the stored type is still reported");
       assertNull(state.runtimeChartType(),
-                 "a merged chart's assembly-level runtime type is not maintained");
+                 "with multi-style on, nothing maintains the assembly-level runtime type");
+   }
+
+   /**
+    * The other direction the {@code isSeparated()} gate got wrong: a single-style merged chart is
+    * having this value maintained, and withholding it dropped real information.
+    */
+   @Test
+   void reportsTheAssemblyRuntimeTypeOnASingleStyleMergedChart() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(1);
+      model.setRTChartType(5);
+      model.setMultiStyles(false);
+      model.setSeparated(false);
+
+      assertEquals(5, readTypeOf(model).runtimeChartType());
    }
 
    /**
@@ -895,7 +916,7 @@ class ChartBindingServiceTest {
       ChartBindingModel model = new ChartBindingModel();
       model.setChartType(GraphTypes.CHART_BAR);
       model.setRTChartType(GraphTypes.CHART_AUTO);
-      model.setSeparated(true);
+      model.setMultiStyles(false);
 
       assertNull(readTypeOf(model).runtimeChartType());
    }

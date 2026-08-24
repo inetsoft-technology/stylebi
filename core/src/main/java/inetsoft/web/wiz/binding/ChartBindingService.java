@@ -475,15 +475,28 @@ public class ChartBindingService {
             "get_binding reports what an assembly is bound to.");
       }
 
-      // Null unless the assembly-level runtime type is maintained: only the separated branch of
-      // AbstractChartInfo.updateChartType sets it, and CHART_AUTO is its unset default rather than
-      // a resolved answer. Reporting it regardless would hand the plugin — which treats a divergence
-      // as proof the renderer chose something else — a stale zero to draw that conclusion from, on
-      // merged charts, which is exactly the multi-style case. FieldRef.runtimeChartType carries the
-      // per-measure runtime type that *is* maintained there.
+      // Null unless the assembly-level runtime type is maintained, and multiStyles is what decides
+      // that — not the chart's separated flag, which is an unrelated user-facing setting reported in
+      // the same response.
+      //
+      // AbstractChartInfo.updateChartType's parameter is *named* `separated`, and its javadoc
+      // describes it backwards, but the call sites settle it: 21 of 24 pass
+      // `!info.isMultiStyles()`, and VSChartDataHandler spells it out as
+      // `boolean sep = !info.isMultiStyles()`. So the branch that sets this assembly-level value
+      // runs when multi-style is off, and the branch that updates the per-measure types runs when
+      // it is on — FieldRef.runtimeChartType carries those.
+      //
+      // Gating on isSeparated() was wrong in both directions. A multi-style chart reads
+      // `separated: true` by default, so it reported an assembly-level value the per-measure branch
+      // had left stale — and a stale value is exactly what the `!= CHART_AUTO` guard cannot catch,
+      // since that only rejects never-set. A single-style merged chart went the other way and
+      // withheld a value that was being maintained.
+      //
+      // CHART_AUTO stays excluded: a render resolves to something concrete, so auto here is the
+      // unset default rather than an answer.
       int runtime = model.getRTChartType();
       Integer reportedRuntime =
-         model.isSeparated() && runtime != GraphTypes.CHART_AUTO ? runtime : null;
+         !model.isMultiStyles() && runtime != GraphTypes.CHART_AUTO ? runtime : null;
 
       return new ChartTypeState(assemblyName, model.getChartType(), reportedRuntime,
                                 model.isMultiStyles(), model.isSeparated(),
