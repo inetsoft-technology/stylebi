@@ -30,7 +30,9 @@ import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -127,6 +129,154 @@ class ScriptExecuteServiceTest {
       assertEquals(List.of(target.toString()), result.changed());
       assertNull(result.unrecognizedProperties());
       verify(scriptable).resetUnrecognizedWrites();
+   }
+
+   /**
+    * Builds a RuntimeViewsheet with a real onInit (or onLoad) script and one real
+    * {@code SubmitVSAssembly} per entry in {@code scriptablesByAssembly}, each wired to the
+    * given mock scriptable via {@code scope.getVSAScriptable(name)} -- for exercising the
+    * VS_INIT/VS_LOAD-location unrecognized-write reporting, which (unlike
+    * ASSEMBLY/ASSEMBLY_ONCLICK) runs with {@code assemblyName == null} and can write to any
+    * assembly in the sheet by name, not just a single "current" one.
+    */
+   private RuntimeViewsheet viewsheetWithVsScript(boolean onLoad, String script,
+                                                   ViewsheetScope scope,
+                                                   Map<String, VSAScriptable> scriptablesByAssembly)
+   {
+      Viewsheet vs = new Viewsheet();
+
+      if(onLoad) {
+         vs.getViewsheetInfo().setOnLoad(script);
+      }
+      else {
+         vs.getViewsheetInfo().setOnInit(script);
+      }
+
+      vs.getViewsheetInfo().setScriptEnabled(true);
+
+      for(String name : scriptablesByAssembly.keySet()) {
+         SubmitVSAssembly submit = new SubmitVSAssembly();
+         ((SubmitVSAssemblyInfo) submit.getVSAssemblyInfo()).setName(name);
+         vs.addAssembly(submit);
+      }
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getScope()).thenReturn(scope);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+
+      for(Map.Entry<String, VSAScriptable> entry : scriptablesByAssembly.entrySet()) {
+         when(scope.getVSAScriptable(entry.getKey())).thenReturn(entry.getValue());
+      }
+
+      return rvs;
+   }
+
+   @Test
+   void executeQualifiesAndReportsAnUnrecognizedWriteFromAnAssemblyTouchedByVsInit()
+      throws Exception
+   {
+      String script = "Submit1.label = 'ClauseTest42';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(null);
+
+      VSAScriptable submit1 = mock(VSAScriptable.class);
+      when(submit1.getUnrecognizedWrites()).thenReturn(List.of("label"));
+
+      RuntimeViewsheet rvs =
+         viewsheetWithVsScript(false, script, scope, Map.of("Submit1", submit1));
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(), result.changed());
+      // Qualified with the assembly name, unlike the single-assembly ASSEMBLY/ASSEMBLY_ONCLICK
+      // path -- VS_INIT/VS_LOAD have no single "the assembly" the message can name.
+      assertEquals(List.of("Submit1.label"), result.unrecognizedProperties());
+      assertTrue(result.summary().contains("Submit1.label"), result.summary());
+      verify(submit1).resetUnrecognizedWrites();
+   }
+
+   /**
+    * VS_INIT can touch several assemblies; each one's scriptable must be reset/checked, but
+    * only the one that actually wrote an unrecognized name should show up in the result -- an
+    * untouched assembly's scriptable reporting an empty list must not leak into the aggregate.
+    */
+   @Test
+   void executeOnlyReportsUnrecognizedWritesFromTheAssembliesActuallyTouchedByVsInit()
+      throws Exception
+   {
+      String script = "Submit2.label = 'ClauseTest42';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(null);
+
+      VSAScriptable submit1 = mock(VSAScriptable.class);
+      when(submit1.getUnrecognizedWrites()).thenReturn(List.of());
+      VSAScriptable submit2 = mock(VSAScriptable.class);
+      when(submit2.getUnrecognizedWrites()).thenReturn(List.of("label"));
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", submit1);
+      scriptables.put("Submit2", submit2);
+      RuntimeViewsheet rvs = viewsheetWithVsScript(false, script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("Submit2.label"), result.unrecognizedProperties());
+      verify(submit1).resetUnrecognizedWrites();
+      verify(submit2).resetUnrecognizedWrites();
+   }
+
+   @Test
+   void executeReportsARealPropertyWriteFromVsInitNormallyWithNoUnrecognizedProperties()
+      throws Exception
+   {
+      String script = "Submit1.enabled = false;";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(false);
+
+      VSAScriptable submit1 = mock(VSAScriptable.class);
+      when(submit1.getUnrecognizedWrites()).thenReturn(List.of());
+
+      RuntimeViewsheet rvs =
+         viewsheetWithVsScript(false, script, scope, Map.of("Submit1", submit1));
+      ScriptTarget target = ScriptTarget.parse("vs-init");
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, target, false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(target.toString()), result.changed());
+      assertNull(result.unrecognizedProperties());
+      verify(submit1).resetUnrecognizedWrites();
+   }
+
+   /** Same mechanism, the other location that runs with {@code assemblyName == null}. */
+   @Test
+   void executeTracksUnrecognizedWritesForVsLoadTheSameWayAsVsInit() throws Exception {
+      String script = "Submit1.label = 'ClauseTest42';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(null);
+
+      VSAScriptable submit1 = mock(VSAScriptable.class);
+      when(submit1.getUnrecognizedWrites()).thenReturn(List.of("label"));
+
+      RuntimeViewsheet rvs =
+         viewsheetWithVsScript(true, script, scope, Map.of("Submit1", submit1));
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-load"), false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("Submit1.label"), result.unrecognizedProperties());
+      verify(submit1).resetUnrecognizedWrites();
    }
 
    @Test

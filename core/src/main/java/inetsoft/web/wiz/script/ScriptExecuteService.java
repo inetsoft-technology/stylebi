@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
@@ -28,7 +29,10 @@ import inetsoft.web.wiz.script.model.ScriptExecResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -138,29 +142,43 @@ public class ScriptExecuteService {
             "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
       };
 
-      VSAScriptable assemblyScriptable =
-         (target.location() == ScriptTarget.Location.ASSEMBLY ||
-          target.location() == ScriptTarget.Location.ASSEMBLY_ONCLICK)
-         ? scope.getVSAScriptable(assemblyName) : null;
+      // ASSEMBLY/ASSEMBLY_ONCLICK touch exactly the one named assembly. VS_INIT/VS_LOAD run with
+      // assemblyName == null and can write to any assembly in the sheet by name, so every
+      // assembly's scriptable is tracked -- each was already eagerly created and cached in the
+      // scope's own propmap when the sandbox initialized (ViewsheetScope#addProperties0), so
+      // this is a lookup, not a fresh instantiation with its own side effects.
+      Map<String, VSAScriptable> trackedScriptables = trackedScriptables(target, assemblyName, rvs, scope);
 
-      if(assemblyScriptable != null) {
-         assemblyScriptable.resetUnrecognizedWrites();
+      for(VSAScriptable scriptable : trackedScriptables.values()) {
+         scriptable.resetUnrecognizedWrites();
       }
 
       try {
          Object value = scope.execute(text, assemblyName);
-         List<String> unrecognized = assemblyScriptable != null ?
-            assemblyScriptable.getUnrecognizedWrites() : List.of();
+         List<String> unrecognized = new ArrayList<>();
+
+         for(Map.Entry<String, VSAScriptable> entry : trackedScriptables.entrySet()) {
+            for(String name : entry.getValue().getUnrecognizedWrites()) {
+               // ASSEMBLY/ASSEMBLY_ONCLICK already name the one assembly in the message below,
+               // so the bare property name is unambiguous there. VS_INIT/VS_LOAD can touch
+               // several different assemblies, so qualify with which one to avoid conflating
+               // e.g. two different assemblies' own unrecognized "label".
+               unrecognized.add(assemblyName != null ? name : entry.getKey() + "." + name);
+            }
+         }
+
          List<String> changed = unrecognized.isEmpty() ? List.of(target.toString()) : List.of();
          String summary = unrecognized.isEmpty() ? "Executed " + target + "." :
             "Executed " + target + ", but assigned " + unrecognized +
             " which " + (unrecognized.size() == 1 ? "is not a recognized scriptable property" :
-               "are not recognized scriptable properties") + " for this assembly type (" +
-            assemblyTypeName(rvs, assemblyName) + ") — the value " +
+               "are not recognized scriptable properties") +
+            (assemblyName != null ? " for this assembly type (" +
+               assemblyTypeName(rvs, assemblyName) + ")" : "") + " — the value " +
             (unrecognized.size() == 1 ? "was" : "were") + " NOT applied; " +
             (unrecognized.size() == 1 ? "it" : "they") + " only became an ad hoc script " +
-            "variable nothing else reads. Call get_script_context for " + assemblyName +
-            "'s real scriptable properties, or use get_assembly_properties/update_binding if " +
+            "variable nothing else reads. Call get_script_context for " +
+            (assemblyName != null ? assemblyName + "'s" : "the named assembly's") +
+            " real scriptable properties, or use get_assembly_properties/update_binding if " +
             "you meant a different, non-scripted property.";
          return new ScriptExecResult(true, stringify(value), null, changed, false, null, summary,
             unrecognized.isEmpty() ? null : unrecognized);
@@ -168,6 +186,40 @@ public class ScriptExecuteService {
       catch(Exception ex) {
          return new ScriptExecResult(false, null, toScriptError(ex), null, false, null, null, null);
       }
+   }
+
+   /**
+    * Which {@code VSAScriptable}(s) to reset/check {@code getUnrecognizedWrites()} on around
+    * this execution. Empty for a location with no per-assembly scriptable to instrument
+    * (e.g. an already-thrown location never reaches here).
+    */
+   private static Map<String, VSAScriptable> trackedScriptables(
+      ScriptTarget target, String assemblyName, RuntimeViewsheet rvs, ViewsheetScope scope)
+   {
+      if(target.location() == ScriptTarget.Location.ASSEMBLY ||
+         target.location() == ScriptTarget.Location.ASSEMBLY_ONCLICK)
+      {
+         VSAScriptable scriptable = scope.getVSAScriptable(assemblyName);
+         return scriptable != null ? Map.of(assemblyName, scriptable) : Map.of();
+      }
+
+      if(target.location() == ScriptTarget.Location.VS_INIT ||
+         target.location() == ScriptTarget.Location.VS_LOAD)
+      {
+         Map<String, VSAScriptable> tracked = new LinkedHashMap<>();
+
+         for(Assembly assembly : rvs.getViewsheet().getAssemblies()) {
+            VSAScriptable scriptable = scope.getVSAScriptable(assembly.getName());
+
+            if(scriptable != null) {
+               tracked.put(assembly.getName(), scriptable);
+            }
+         }
+
+         return tracked;
+      }
+
+      return Map.of();
    }
 
    /**
