@@ -235,7 +235,7 @@ public class Scheduler {
          ScheduleStatusDao.Status status = ScheduleStatusDao.getInstance().getStatus(taskName);
 
          if(status != null && status.getStatus() == Status.STARTED) {
-            long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            long timeout = ScheduleTask.getTaskTimeout();
             long currTime = System.currentTimeMillis();
 
             // in case the status did not update due to a node abruptly shutting down
