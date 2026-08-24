@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.table.XTableColumn;
 import inetsoft.uql.table.XTableFragment;
 import inetsoft.util.Catalog;
+import inetsoft.util.QueryCacheSettings;
 import inetsoft.util.swap.*;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -182,7 +183,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
             "cacheManager.invalidValue"));
       }
 
-      SreeEnv.setProperty("query.cache.limit", size + "");
+      SreeEnv.setProperty(QueryCacheSettings.LIMIT_PROPERTY, size + "");
 
       try {
          SreeEnv.save();
@@ -246,7 +247,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
             "cacheManager.invalidValue"));
       }
 
-      SreeEnv.setProperty("query.cache.timeout", timeout + "");
+      SreeEnv.setProperty(QueryCacheSettings.TIMEOUT_PROPERTY, timeout + "");
 
       try {
          SreeEnv.save();
