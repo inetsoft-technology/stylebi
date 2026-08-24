@@ -92,10 +92,33 @@ public abstract class ColorFrameModelFactory<V extends ColorFrameWrapper,
             return nwrapper;
          }
 
+         String[] cssColors = model.getCssColors();
+         String[] defaultColors = model.getDefaultColors();
+
+         // the wrapper handed in is a fresh instance carrying the stock palette, so the chart's own
+         // palette has to be put back or an apply silently resets it to the legacy colors
+         if(defaultColors != null) {
+            for(int i = 0; i < defaultColors.length; i++) {
+               Color dcolor = Tool.getColorFromHexString(defaultColors[i]);
+
+               if(dcolor != null) {
+                  nwrapper.setDefaultColor(i, dcolor);
+               }
+            }
+         }
+
          for(int i = 0; i < colors.length; i++) {
             Color ncolor = Tool.getColorFromHexString(colors[i]);
+            String css = cssColors != null && i < cssColors.length ? cssColors[i] : null;
+            String defaultColor = defaultColors != null && i < defaultColors.length ?
+               defaultColors[i] : null;
+            // nwrapper is a fresh instance carrying the legacy palette, not the chart's live
+            // one (VisualFrameModelFactoryService.shouldRefresh), so compare against the
+            // model's reported tiers instead of nwrapper's
+            Color resolved = Tool.getColorFromHexString(
+               css != null && !css.isEmpty() ? css : defaultColor);
 
-            if(!Tool.equals(nwrapper.getColor(i), ncolor)) {
+            if(!Tool.equals(resolved, ncolor)) {
                nwrapper.setUserColor(i, ncolor);
             }
          }

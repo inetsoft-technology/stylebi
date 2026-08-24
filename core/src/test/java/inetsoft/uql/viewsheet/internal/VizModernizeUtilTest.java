@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.uql.viewsheet.graph.aesthetic.SharedFrameParameters;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -37,6 +39,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -521,5 +525,122 @@ class VizModernizeUtilTest {
       assertFalse(chart.getChartDescriptor().getPlotDescriptor().isSmoothLines(),
                   "design is single-style Bar; the DC-forced runtime multi-styles must not " +
                   "trigger the aggregate scan");
+   }
+
+   // ---- the sheet's shared colour frames outrank an assembly's own ---------------------------
+
+   /**
+    * A render clones the sheet's shared frame in preference to the assembly's own, and the cache
+    * is not rebuilt just because a palette changed - so seeding a new palette without dropping the
+    * cache leaves the old colours rendering. Every other path that mutates colour state clears it.
+    */
+   @Test
+   void revertDropsTheSheetsSharedColorFrames() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(chart);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      seedSharedFrame(vs);
+
+      VizModernizeUtil.revert(vs);
+
+      assertTrue(vs.getSharedFrames().isEmpty(),
+                 "revert must drop the shared frames, or the modern palette keeps rendering");
+   }
+
+   @Test
+   void modernizeDropsTheSheetsSharedColorFrames() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(chart);
+      seedSharedFrame(vs);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertTrue(vs.getSharedFrames().isEmpty(),
+                 "modernize must drop them too, or the legacy palette keeps rendering");
+   }
+
+   @Test
+   void aNoOpLeavesTheSharedFramesAlone() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      seedSharedFrame(vs);
+
+      assertEquals(0, VizModernizeUtil.revert(vs), "precondition: nothing is marked");
+      assertFalse(vs.getSharedFrames().isEmpty(),
+                  "a revert that touched nothing must not invalidate another render's cache");
+   }
+
+   /**
+    * The per-value colors are a second, separate runtime store: a render reloads them into the
+    * color frame context and writes each back onto the frame, so a stale entry outranks the newly
+    * seeded palette for the rest of the session even though nothing is persisted.
+    */
+   @Test
+   void revertDropsTheSheetsPerValueDimensionColors() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(chart);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      seedDimensionColors(vs);
+
+      VizModernizeUtil.revert(vs);
+
+      assertTrue(vs.getDimensionColors("Category").isEmpty(),
+                 "revert must drop the per-value colors, or the modern ones keep being re-applied");
+   }
+
+   @Test
+   void modernizeDropsTheSheetsPerValueDimensionColors() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(chart);
+      seedDimensionColors(vs);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertTrue(vs.getDimensionColors("Category").isEmpty(), "modernize must drop them too");
+   }
+
+   @Test
+   void aNoOpLeavesThePerValueDimensionColorsAlone() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      seedDimensionColors(vs);
+
+      assertEquals(0, VizModernizeUtil.revert(vs), "precondition: nothing is marked");
+      assertFalse(vs.getDimensionColors("Category").isEmpty(),
+                  "a revert that touched nothing must not discard another chart's colors");
+   }
+
+   /** Per-value colors as a modern render leaves behind on the sheet. */
+   private void seedDimensionColors(Viewsheet vs) {
+      Map<String, Color> colors = new HashMap<>();
+      colors.put("Business", new Color(0x00D4E8));
+      vs.setDimensionColors("Category", colors);
+   }
+
+   /** A shared frame as a render leaves behind, keyed the way CategoricalColorFrameContext keys it. */
+   private void seedSharedFrame(Viewsheet vs) {
+      SharedFrameParameters params = new SharedFrameParameters();
+      params.addParameter("Category");
+      vs.getSharedFrames().put(params, new CategoricalColorFrame());
    }
 }

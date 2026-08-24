@@ -253,6 +253,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
       cmap.clear();
       clearUsedColors();
       scripted.clear();
+      derived.clear();
    }
 
    /**
@@ -262,6 +263,8 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    public void setColor(Object val, Color color) {
       if(color != null) {
          cmap.put(GTool.toString(val), color);
+         // an explicit assignment supersedes one the render derived from the palette
+         derived.remove(GTool.toString(val));
 
          if(JavaScriptEngine.isScriptThread()) {
             scripted.add(GTool.toString(val));
@@ -270,8 +273,48 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
       else {
          cmap.remove(GTool.toString(val));
          scripted.remove(GTool.toString(val));
+         derived.remove(GTool.toString(val));
       }
 
+      clearUsedColors();
+   }
+
+   /**
+    * Assign the color a render derived from the palette for this value. Behaves as setColor for
+    * every lookup, but is not serialized: a derived color must follow the palette, and freezing it
+    * per value would keep the old colors after the palette changes.
+    */
+   @TernMethod
+   public void setDerivedColor(Object val, Color color) {
+      setColor(val, color);
+
+      if(color != null) {
+         derived.add(GTool.toString(val));
+      }
+   }
+
+   /**
+    * Whether this value's color was derived from the palette by a render rather than assigned.
+    */
+   @TernMethod
+   public boolean isDerived(Object val) {
+      return derived.contains(GTool.toString(val));
+   }
+
+   /**
+    * Drop the per-value colors a render derived from the palette, keeping the ones somebody
+    * assigned. Call this when the palette changes: a per-value color takes precedence over the
+    * palette, so a derived one left behind keeps rendering the old color for the rest of the
+    * session. The next render derives them again from the new palette.
+    */
+   @TernMethod
+   public void clearDerivedColors() {
+      if(derived.isEmpty()) {
+         return;
+      }
+
+      cmap.keySet().removeAll(derived);
+      derived.clear();
       clearUsedColors();
    }
 
@@ -585,6 +628,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
          frame.userColors = new HashMap<>(userColors);
          frame.cmap = new LinkedHashMap<>(cmap);
          frame.scripted = new HashSet<>(scripted);
+         frame.derived = new HashSet<>(derived);
          frame.useGlobal = useGlobal;
          frame.shareColors = shareColors;
          return frame;
@@ -650,6 +694,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    private Map<Integer, Color> userColors = new HashMap<>();
    private Map<Object, Color> cmap = new LinkedHashMap<>();
    private Set<Object> scripted = new HashSet<>(1);
+   private Set<Object> derived = new HashSet<>(1);
    private Color defaultColor = null;
    private ArrayList<Color> negcolors = new ArrayList<>();
    private boolean useGlobal = true;
