@@ -108,6 +108,38 @@ class ScriptEditServiceTest {
       verify(rvs).bumpWriteRevision();
    }
 
+   /**
+    * A script write is a real, persisted mutation, so it must enter the undo/redo checkpoint
+    * stack the same way composer edits do (see {@code ViewsheetSessionService#mutate} /
+    * {@code WorksheetEditService#apply}) -- otherwise undo/redo silently skip over script
+    * changes even though they took effect.
+    */
+   @Test
+   void applyAddsACheckpointSoUndoCoversTheScriptWrite() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      Viewsheet checkpoint = mock(Viewsheet.class);
+      when(vs.prepareCheckpoint()).thenReturn(checkpoint);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ScriptEditService svc = new ScriptEditService(sessions, runtimeAccess, broadcast);
+      svc.apply("TOK", agent, r -> {});
+
+      verify(rvs).addCheckpoint(checkpoint);
+   }
+
    @Test
    void applyOnRuntimeIfChangedRejectsInvalidSession() {
       SheetSessionService sessions = mock(SheetSessionService.class);
