@@ -36,9 +36,7 @@
           _#(Expand All Nodes)</mat-checkbox>
         }
         <div class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultLogo?.value">
-          @if (model.customLogoEnabled) {
-            <mat-checkbox formControlName="defaultLogo">_#(Default Logo)</mat-checkbox>
-          }
+          <mat-checkbox formControlName="defaultLogo">_#(Default Logo)</mat-checkbox>
           @if (!form.controls.defaultLogo?.value) {
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Custom Logo File)</mat-label>
@@ -56,9 +54,7 @@
           }
         </div>
         <div class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultFavicon?.value">
-          @if (model.customLogoEnabled) {
-            <mat-checkbox formControlName="defaultFavicon">_#(Default Favicon)</mat-checkbox>
-          }
+          <mat-checkbox formControlName="defaultFavicon">_#(Default Favicon)</mat-checkbox>
           @if (!form.controls.defaultFavicon?.value) {
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Custom Favicon File)</mat-label>

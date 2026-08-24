@@ -64,9 +64,20 @@ public class VSTreeHandler {
       throws Exception
    {
       Viewsheet vs0 = rvs.getViewsheet();
+
+      // viewsheet may have been disposed/reset concurrently (e.g. user interacts with the
+      // binding tree before a heavy chart finishes loading), so vs0 can be null here.
+      if(vs0 == null) {
+         return null;
+      }
+
       String aname = info.getAbsoluteName2();
       aname = aname == null ? info.getAbsoluteName() : aname;
       ChartVSAssembly chart = (ChartVSAssembly) vs0.getAssembly(aname);
+
+      if(chart == null) {
+         return null;
+      }
 
       final Viewsheet vs = chart.getViewsheet();
       final String name = chart.getName();

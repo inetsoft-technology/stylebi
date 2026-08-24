@@ -244,7 +244,7 @@ public class ScheduleDialogService {
          .userDialogEnabled(userDialogEnabled)
          .taskName(taskName)
          .timeProp(timeProp)
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
+         .twelveHourSystem(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours")))
          .actionModel(viewsheetActionModel)
          .emailAddrDialogModel(emailAddrDialogModel)
          .emailButtonVisible(

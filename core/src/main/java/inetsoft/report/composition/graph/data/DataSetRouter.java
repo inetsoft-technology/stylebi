@@ -23,6 +23,7 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.util.Tool;
 
 import java.util.*;
 
@@ -58,15 +59,16 @@ public class DataSetRouter extends AbstractRouter {
          }
       }
 
-      // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) must navigate
-      // previous/next in natural calendar order regardless of any value-based sort/ranking
-      // comparator (e.g. a Top-N "Sort By Value" ranking) applied for display purposes —
-      // "previous hour" has no meaning in rank-value order. Only fall back to the dataset's
-      // own comparator for fields where no natural calendar order applies.
-      comp = getPartDateGroupComparator(data, field);
+      // Any display sort configured on the field — ascending, descending, specific order, or
+      // value-based (a Top-N "Sort By Value" ranking) — defines the order that previous/next
+      // navigation follows, so that the calc stays aligned with the order the values are
+      // actually plotted in. Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear,
+      // Quarter) fall back to natural calendar order only when no sort is configured, since
+      // raw row-appearance order is arbitrary there. (76039)
+      comp = data.getComparator(field);
 
-      if(comp == null) {
-         comp = data.getComparator(field);
+      if(comp == null && getPartDateDimension(data, field) != null) {
+         comp = PART_DATE_ORDER;
       }
 
       if(comp != null) {
@@ -78,15 +80,10 @@ public class DataSetRouter extends AbstractRouter {
    }
 
    /**
-    * Natural-order comparator for part-date-group dimensions (HourOfDay, DayOfWeek,
-    * MonthOfYear, Quarter, etc.), used in preference to any value-based sort/ranking
-    * comparator configured on the field (e.g. a Top-N "Sort By Value" ranking). Values for
-    * these dimensions are always emitted as Integer, so numeric order is the natural calendar
-    * order, and previous/next navigation only makes sense in that order. Scoped to
-    * previous/next calc navigation only (this router) — does not affect axis/legend
-    * ordering, which is controlled separately by CategoricalScale.
+    * Get the dimension backing the field if it is a part-date-group dimension (HourOfDay,
+    * DayOfWeek, MonthOfYear, Quarter, etc.), or null if the field is not one.
     */
-   private static Comparator getPartDateGroupComparator(DataSet data, String field) {
+   private static XDimensionRef getPartDateDimension(DataSet data, String field) {
       DataSet root = data instanceof DataSetFilter
          ? ((DataSetFilter) data).getRootDataSet() : data;
 
@@ -101,13 +98,34 @@ public class DataSetRouter extends AbstractRouter {
       }
 
       XDimensionRef dim = (XDimensionRef) ref;
+      return (dim.getDateLevel() & XConstants.PART_DATE_GROUP) != 0 ? dim : null;
+   }
 
-      if((dim.getDateLevel() & XConstants.PART_DATE_GROUP) == 0) {
-         return null;
+   /**
+    * Natural calendar order for part-date-group dimension values. Values are normally
+    * emitted as Integer, so numeric order is calendar order. Nulls sort first to match the
+    * position the null group occupies on an ascending axis, and any non-numeric label (e.g.
+    * the "Others" group produced by a Top-N ranking) sorts after all numeric values rather
+    * than failing the comparison.
+    */
+   private static final Comparator PART_DATE_ORDER = (a, b) -> {
+      if(a == null || b == null) {
+         return a == b ? 0 : (a == null ? -1 : 1);
       }
 
-      return Comparator.nullsLast(Comparator.comparingInt(val -> ((Number) val).intValue()));
-   }
+      boolean anum = a instanceof Number;
+      boolean bnum = b instanceof Number;
+
+      if(anum && bnum) {
+         return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+      }
+
+      if(anum != bnum) {
+         return anum ? -1 : 1;
+      }
+
+      return Tool.compare(a, b);
+   };
 
    @Override
    public Object[] getValues() {

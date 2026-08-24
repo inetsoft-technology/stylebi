@@ -55,14 +55,6 @@ import static org.junit.jupiter.api.Assertions.*;
  *              Rebalance may still run a few minutes after range start.
  *   Status   : Deferred. Covered by CheckTests minute-boundary parameters.
  *
- * [BUG-TBC-2] getTimeRanges() NPE when schedule.time.ranges property is null
- *   Location : TimeRange.java:223 (getTimeRanges)
- *   Actual   : property.split(";") NPEs when property is null (e.g. after setTimeRanges(empty));
- *              if stream were empty, check() would return false instead.
- *   UI risk  : Medium — EM Time Ranges allows deleting all ranges and saving, which clears the
- *              property; reopening Scheduler settings may then fail.
- *   Status   : Deferred. noNearbyRangeStartReturnsFalse() covers non-trigger path only.
- *
  * [BUG-TBC-3] getRetryTime() mutates lastRun, not only check()
  *   Location : TaskBalancerCondition.java:56 (getRetryTime debounce branch)
  *   Actual   : Quartz getFireTimeAfter() calls getRetryTime(), which sets lastRun for the

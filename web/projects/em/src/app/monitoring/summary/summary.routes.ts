@@ -15,15 +15,35 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Routes } from "@angular/router";
+import { CanActivateFn, Router, Routes, UrlTree } from "@angular/router";
+import { inject } from "@angular/core";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
+import { AuthorizationService } from "../../authorization/authorization.service";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { DebugMonitoringPageComponent } from "./debug-monitoring-page/debug-monitoring-page.component";
 import { SummaryMonitoringPageComponent } from "./summary-monitoring-page/summary-monitoring-page.component";
 
+/**
+ * Guards the debug page with the monitoring/summary/debug EM component permission. The generic
+ * authorizationGuard is not used here because the other children of monitoring/summary are
+ * widget-level permissions with no route of their own, so its redirect-to-first-permitted-child
+ * fallback would navigate to a path that does not exist.
+ */
+export const canActivateDebugPage: CanActivateFn = (): Observable<boolean | UrlTree> => {
+   const service = inject(AuthorizationService);
+   const router = inject(Router);
+
+   return service.getPermissions("monitoring/summary").pipe(
+      map(p => !!p.permissions["debug"] || router.parseUrl("/monitoring/summary"))
+   );
+};
+
 export const SUMMARY_ROUTES: Routes = [
    {
       path: "debug",
-      component: DebugMonitoringPageComponent
+      component: DebugMonitoringPageComponent,
+      canActivate: [canActivateDebugPage]
    },
    {
       path: "",

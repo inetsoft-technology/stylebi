@@ -426,8 +426,12 @@ public abstract class AbstractLayout implements AssetObject {
             childSize =
                new Dimension((int) (childSize.width * scaleRadio.x),
                              (int) (childSize.height * scaleRadio.y));
+            // for bottom tabs the tab bar is placed at the end of the content
+            // area, so bottom-align each child within it. Only the tallest
+            // child fills contentHeight; shorter ones would otherwise float
+            // detached above the tab bar.
             Point childPos = bottomTabs ?
-               new Point(npos.x, npos.y) :
+               new Point(npos.x, npos.y + Math.max(0, contentHeight - childSize.height)) :
                new Point(npos.x, npos.y + tabSize.height);
             applyAssembly(child, childPos, childSize);
          }

@@ -21,10 +21,8 @@ import inetsoft.graph.geo.service.MapboxStyle;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
-import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
 import inetsoft.web.admin.general.WebMapSettingsService;
 import inetsoft.web.admin.presentation.model.PresentationSettingsModel;
 import inetsoft.web.security.RequiredPermission;
@@ -56,7 +54,6 @@ public class PresentationSettingsController {
       PresentationTimeSettingsService timeSettingsService,
       PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService,
       WebMapSettingsService webMapSettingsService,
-      DataSpaceContentSettingsService dataSpaceContentSettingsService,
       AISettingsService aiSettingsService,
       Cluster cluster)
    {
@@ -76,7 +73,6 @@ public class PresentationSettingsController {
       this.timeSettingsService = timeSettingsService;
       this.dataSourceVisibilitySettingsService = dataSourceVisibilitySettingsService;
       this.webMapSettingsService = webMapSettingsService;
-      this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
       this.aiSettingsService = aiSettingsService;
       this.cluster = cluster;
    }
@@ -304,9 +300,8 @@ public class PresentationSettingsController {
          timeSettingsService.resetSettings(globalSettings);
          dataSourceVisibilitySettingsService.resetSettings(globalSettings);
          webMapSettingsService.resetSettings(principal, globalSettings);
-         String shapesDirectory = globalSettings ?
-            ImageShapes.getGlobalShapesDirectory() : ImageShapes.getShapesDirectory();
-         dataSpaceContentSettingsService.deleteDataSpaceNode(shapesDirectory, false);
+         // custom shapes are uploaded content stored in the data space, not a presentation
+         // property, so they are intentionally left alone by the reset
          welcomePageService.resetSettings(globalSettings);
          loginBannerSettingsService.resetSettings(globalSettings);
 
@@ -338,7 +333,6 @@ public class PresentationSettingsController {
    private final PresentationTimeSettingsService timeSettingsService;
    private final PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService;
    private final WebMapSettingsService webMapSettingsService;
-   private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
    private final AISettingsService aiSettingsService;
    private final Cluster cluster;
    private static final String SETTINGS_LOCK = PresentationSettingsController.class.getName() + ".settingsLock";

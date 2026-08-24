@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -73,7 +74,7 @@ public class GlobalStyleController implements ApplicationContextAware {
          }
       }
 
-      StyleResource resource = getResource(path, user);
+      StyleResource resource = getResource(path, user, getRequestOrgID(request));
 
       // use max-age caching for static resources to minimize the number of requests to load the
       // application
@@ -99,6 +100,46 @@ public class GlobalStyleController implements ApplicationContextAware {
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
       this.context = applicationContext;
+   }
+
+   /**
+    * Resolves the organization that an unauthenticated request belongs to. The login page and the
+    * style sheets it pulls in are served without a principal, so OrganizationManager falls back to
+    * the default organization and a tenant's login page ends up styled with the host organization's
+    * theme. The organization the browser actually asked for is encoded in the request (sub-domain
+    * or path, depending on security.login.orgLocation), which is how the login flow reads it too.
+    *
+    * @return the organization to resolve the theme against, or {@code null} to leave the current
+    *         organization alone (authenticated request, single tenant, or unknown organization).
+    */
+   private String getRequestOrgID(HttpServletRequest request) {
+      if(!SUtil.isMultiTenant() || ThreadContext.getContextPrincipal() != null ||
+         OrganizationContextHolder.getCurrentOrgId() != null)
+      {
+         return null;
+      }
+
+      // returns null unless the host/path names an existing organization
+      return SUtil.getLoginOrganization(request);
+   }
+
+   private StyleResource getResource(String path, Principal user, String requestOrgID)
+      throws IOException
+   {
+      if(requestOrgID == null) {
+         return getResource(path, user);
+      }
+
+      // make the organization named by the request current for the duration of the lookup so that
+      // the theme, the organization record and the resource cache all agree on it
+      OrganizationContextHolder.setCurrentOrgId(requestOrgID);
+
+      try {
+         return getResource(path, user);
+      }
+      finally {
+         OrganizationContextHolder.clear();
+      }
    }
 
    private synchronized StyleResource getResource(String path, Principal user) throws IOException {

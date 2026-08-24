@@ -88,9 +88,15 @@ public class MVSupportService {
 
       Map<MVCandidate, MVDef> vs2def = new HashMap<>();
       Map<MVCandidate, MVDef> ws2def = new HashMap<>();
+      // derived from the principal rather than the thread context: callers may invoke this
+      // from a pooled thread that carries no context principal
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(String mv : mvs) {
-         MVDef def = mvManager.get(mv);
+         // resolve within the caller's own organization; MVDefMap's default lookup
+         // derives the organization from the MV name itself, which would allow a
+         // caller to reach another organization's MV by naming it directly
+         MVDef def = mvManager.get(mv, orgID);
 
          if(def != null) {
             String[] sheetIds = def.getMetaData().getRegisteredSheets();
@@ -228,9 +234,15 @@ public class MVSupportService {
       throws Throwable
    {
       ArrayList<MVStatus> views = new ArrayList<>();
+      // derived from the principal rather than the thread context: this runs on a pooled
+      // executor thread for the public update API, which carries no context principal
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(String name : names) {
-         MVDef def = mvManager.get(name);
+         // resolve within the caller's own organization; MVDefMap's default lookup
+         // derives the organization from the MV name itself, which would allow a
+         // caller to reach another organization's MV by naming it directly
+         MVDef def = mvManager.get(name, orgID);
 
          if(def != null) {
             MVStatus status = new MVStatus(def, "");
@@ -239,6 +251,22 @@ public class MVSupportService {
       }
 
       return createMV0(views, background, false, principal);
+   }
+
+   /**
+    * Determines whether a materialized view with the given name exists within the specified
+    * organization. Callers that accept a materialized view name from a remote user should use
+    * this to confirm the view belongs to that user's own organization: the name embeds a
+    * trailing organization id that the default {@code MVManager.get(String)} lookup trusts,
+    * so an unchecked name can resolve to another organization's definition.
+    *
+    * @param name  the name of the materialized view.
+    * @param orgID the id of the organization to look in.
+    *
+    * @return {@code true} if the materialized view exists in that organization.
+    */
+   public boolean existsInOrg(String name, String orgID) {
+      return mvManager.get(name, orgID) != null;
    }
 
    /**
@@ -432,10 +460,30 @@ public class MVSupportService {
     * @param dataCycle the name of the data cycle.
     */
    public void setDataCycle(String[] mvs, String dataCycle) {
+      setDataCycle(mvs, dataCycle, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Sets the data cycle for the specified materialized views, resolving them within an
+    * explicitly supplied organization.
+    * <p>
+    * Callers running off the request thread (for example on a pooled executor thread) must use
+    * this overload: {@code ThreadContext}'s principal is a plain, non-inheritable
+    * {@code ThreadLocal}, so {@code OrganizationManager.getCurrentOrgID()} would resolve to the
+    * default organization there rather than the caller's.
+    *
+    * @param mvs       the names of the materialized views.
+    * @param dataCycle the name of the data cycle.
+    * @param orgID     the id of the organization the views must belong to.
+    */
+   public void setDataCycle(String[] mvs, String dataCycle, String orgID) {
       boolean event = mvs.length > 0;
 
       for(String mv : mvs) {
-         MVDef def = mvManager.get(mv);
+         // resolve within the caller's own organization; MVDefMap's default lookup
+         // derives the organization from the MV name itself, which would allow a
+         // caller to reach another organization's MV by naming it directly
+         MVDef def = mvManager.get(mv, orgID);
 
          if(def == null) {
             continue;
@@ -458,13 +506,31 @@ public class MVSupportService {
     * @param dataCycle the name of the data cycle.
     */
    public void setDataCycle(List<String> mvs, AnalysisResult result, String dataCycle) {
+      setDataCycle(mvs, result, dataCycle, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Sets the data cycle for materialized views that have not been created yet, resolving them
+    * within an explicitly supplied organization. See
+    * {@link #setDataCycle(String[], String, String)} for why callers off the request thread must
+    * use this overload.
+    *
+    * @param mvs       the names of the materialized views.
+    * @param result    the analysis result holding the pending definitions.
+    * @param dataCycle the name of the data cycle.
+    * @param orgID     the id of the organization the views must belong to.
+    */
+   public void setDataCycle(List<String> mvs, AnalysisResult result, String dataCycle,
+                            String orgID)
+   {
       for(String name : mvs) {
          for(MVStatus status : result.getStatus()) {
             if(status.getDefinition().getName().equals(name)) {
                status.getDefinition().setCycle(getCycle(dataCycle));
                status.getDefinition().setChanged(true);
 
-               MVDef odef = mvManager.get(name);
+               // resolve within the caller's own organization; see recreateMV()
+               MVDef odef = mvManager.get(name, orgID);
 
                if(odef != null) {
                   status.getDefinition().setSuccess(odef.isSuccess());

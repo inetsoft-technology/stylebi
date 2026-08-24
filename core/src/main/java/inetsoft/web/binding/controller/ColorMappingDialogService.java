@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Tool;
@@ -76,6 +77,19 @@ public class ColorMappingDialogService {
       }
 
       AestheticRef cfield = (AestheticRef) GraphUtil.getChartAesRef(cinfo, dimensionName, false);
+
+      // Relation (e.g. circular network) chart node color fields bound to a dimension are
+      // excluded from getAestheticRefs() (bug #75253, to keep them out of the query GROUP BY),
+      // so getChartAesRef() above never finds them. Fall back to the node color field directly
+      // so the "assign fixed mapping" dialog can still open for it. (Bug #76066)
+      if(cfield == null && cinfo instanceof RelationChartInfo) {
+         AestheticRef nodeColorField = ((RelationChartInfo) cinfo).getNodeColorField();
+
+         if(nodeColorField != null && GraphUtil.equalsName(nodeColorField, dimensionName)) {
+            cfield = nodeColorField;
+         }
+      }
+
       List list = null;
 
       if(cfield == null) {

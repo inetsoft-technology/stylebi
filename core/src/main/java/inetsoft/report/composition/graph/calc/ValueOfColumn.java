@@ -472,7 +472,7 @@ public class ValueOfColumn extends AbstractColumn {
          DataSet lookupData = data;
 
          if(lookupData instanceof DataSetFilter && (ndimIsPartDate || !ndim.equals(innerDim))) {
-            lookupData = ((DataSetFilter) lookupData).getRootDataSet();
+            lookupData = getLookupRoot(lookupData);
          }
 
          DataSet sub = getSubDataSet(lookupData, cond);
@@ -484,6 +484,31 @@ public class ValueOfColumn extends AbstractColumn {
 
          return sub.getData(field, (ctype == ValueOfCalc.PREVIOUS) ? rcnt - 1 : 0);
       }
+   }
+
+   /**
+    * Unwrap the filter chain toward the root so rows belonging to another facet can be found,
+    * but stop at the last dataset that still contains the measure column being looked up.
+    *
+    * In a brushed chart the all-data columns (__all__xxx) are created by BrushDataSet and do
+    * not exist on the datasets below it. Unwrapping all the way to the root would make
+    * sub.getData(field, ...) return null for every row, which silently turns a
+    * change-from-previous value into the raw aggregate value.
+    */
+   private DataSet getLookupRoot(DataSet data) {
+      DataSet lookup = data;
+
+      while(lookup instanceof DataSetFilter) {
+         DataSet base = ((DataSetFilter) lookup).getDataSet();
+
+         if(base == null || base.indexOfHeader(field) < 0) {
+            break;
+         }
+
+         lookup = base;
+      }
+
+      return lookup;
    }
 
    // Extract the base column name from a date function expression, e.g. "MonthOfYear(Date)" -> "Date".

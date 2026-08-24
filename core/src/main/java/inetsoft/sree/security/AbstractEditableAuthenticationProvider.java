@@ -525,16 +525,25 @@ public abstract class AbstractEditableAuthenticationProvider
                // Global themes are shared; propagate selection pointer only, no clone.
                // Mutate the live entry in `themes` (not the sourceThemes copy) so the
                // change is visible when setCustomThemes is called below.
-               themes.stream()
+               CustomTheme original = themes.stream()
                   .filter(t -> t.getId().equals(theme.getId()))
                   .findFirst()
-                  .ifPresent(original -> {
-                     if(!original.getOrganizations().contains(toOrgId)) {
-                        original.getOrganizations().add(toOrgId);
-                     }
+                  .orElse(null);
 
-                     manager.setOrgSelectedTheme(theme.getId(), toOrgId);
-                  });
+               if(original != null) {
+                  if(!original.getOrganizations().contains(toOrgId)) {
+                     original.getOrganizations().add(toOrgId);
+                  }
+
+                  manager.setOrgSelectedTheme(theme.getId(), toOrgId);
+
+                  // The new org selects the same shared theme, so Organization.theme must
+                  // carry that id as well. Leaving it null here (the returned id used to be
+                  // set only in the org-owned branch above) left the copied org's theme
+                  // reading back as "default" in EM even though the selection pointer and
+                  // the theme's organizations list both pointed at the shared theme.
+                  newOrgThemeId = theme.getId();
+               }
             }
          }
          catch(Exception ex) {

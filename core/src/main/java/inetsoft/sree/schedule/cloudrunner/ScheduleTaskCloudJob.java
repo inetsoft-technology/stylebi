@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.schedule.cloudrunner;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleTask;
@@ -43,12 +42,12 @@ import java.util.concurrent.locks.Lock;
 public class ScheduleTaskCloudJob implements InterruptableJob {
    public ScheduleTaskCloudJob() {
       cluster = Cluster.getInstance();
-      timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
    }
 
    @Override
    public void execute(JobExecutionContext context) throws JobExecutionException
    {
+      timeout = ScheduleTask.getTaskTimeout();
       createCloudRunnerConfig();
       taskName = context.getJobDetail().getKey().getName();
 
@@ -95,13 +94,17 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             }
          }
 
-         // timeout value might need to be configurable
-         if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
-            if(job != null) {
-               job.stop();
-            }
+         if(timeout > 0) {
+            if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+               if(job != null) {
+                  job.stop();
+               }
 
-            throw new JobExecutionException("Scheduled task '" + taskName + "' timed out");
+               throw new JobExecutionException("Scheduled task '" + taskName + "' timed out");
+            }
+         }
+         else {
+            latch.await();
          }
 
          if(result != null && !result.isSuccess()) {
@@ -270,6 +273,6 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    private boolean interrupted = false;
    private CloudJobResult result;
    private final CountDownLatch latch = new CountDownLatch(1);
-   private final long timeout;
+   private long timeout;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskCloudJob.class);
 }

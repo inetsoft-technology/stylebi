@@ -153,10 +153,10 @@ class OrgLifecycleThemeOrchestrationTest {
                 + "must not touch the source)");
    }
 
-   // ── scenario 3c, branch 2: global theme merely selected by fromOrg (known gap) ──
+   // ── scenario 3c, branch 2: global theme merely selected by fromOrg ──
 
    @Test
-   void copy_globalThemeSelectedByFromOrg_organizationThemeFieldStaysNullDespiteSreeEnvAndOrganizationsListAgreeing()
+   void copy_globalThemeSelectedByFromOrg_threeStatesAgree()
       throws Exception
    {
       String fromOrgId = "theme_orch_global_from";
@@ -185,20 +185,16 @@ class OrgLifecycleThemeOrchestrationTest {
       assertNotNull(provider.capturedOrganization,
                     "addOrganization(...) must have been called with the new org");
 
-      // This pair of assertions is the documented gap itself (matrix row 3c, "已知问题，测试记录当前
-      // 行为不假定应修复"): copyThemes() only ever assigns its return value inside branch 1's
-      // "org-owned AND selected" inner if -- a merely-selected GLOBAL theme never reaches that
-      // line, so newOrgThemeId stays null all the way out to newOrg.setTheme(newOrgThemeId), even
-      // though the selection pointer WAS propagated to toOrgId one line below in copyThemes().
-      // Recorded here as current behavior, not asserted as correct.
-      assertNull(provider.capturedOrganization.getTheme(),
-                "known gap: newOrg.getTheme() stays null for a merely-selected global theme -- "
-                + "copyThemes()'s newOrgThemeId is never assigned outside the org-owned branch");
+      // All three states must agree for a merely-selected GLOBAL theme too: copyThemes() used to
+      // assign its return value only inside branch 1's "org-owned AND selected" inner if, so
+      // newOrgThemeId stayed null all the way out to newOrg.setTheme(newOrgThemeId) even though
+      // the selection pointer WAS propagated to toOrgId -- the copied org's Theme then read back
+      // as "default" in EM (Bug: copy org doesn't carry the source org's theme).
+      assertEquals("theme-global-1", provider.capturedOrganization.getTheme(),
+                  "state 3: newOrg.getTheme() must carry the shared global theme's id");
       assertEquals("theme-global-1", orgSelectedThemePointer.get(toOrgId),
-                  "yet CustomThemesManager's own org-selection pointer for toOrgId IS populated -- "
-                  + "state 1 (SreeEnv-backed pointer) and state 2 (organizations list, asserted "
-                  + "below) agree with each other, but state 3 (Organization.theme) disagrees "
-                  + "with both");
+                  "state 1: CustomThemesManager's org-selection pointer for toOrgId must point at "
+                  + "the same global theme");
 
       Set<CustomTheme> finalThemes = storedThemes[0];
       assertEquals(1, finalThemes.size(), "a merely-selected global theme must never be cloned");

@@ -243,7 +243,7 @@ public class HomePageController {
 
          if(dataSpace.isDirectory(path)) {
             addDataSpaceTags(model, linkUrl, path);
-            return;
+            continue;
          }
 
          // strip off leading 'web-assets/'

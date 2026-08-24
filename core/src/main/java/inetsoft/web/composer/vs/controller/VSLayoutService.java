@@ -434,15 +434,22 @@ public class VSLayoutService {
             getChildAssemblies((ContainerVSAssembly) assembly, rvs,
                                childModels, objectModelService);
 
-            // for bottom tabs, position children at the visual top of the
-            // layout area (the stored position is the visual top)
+            // for bottom tabs, children sit above the tab bar. The stored
+            // position is the visual top of the tab area, and the tab bar is
+            // drawn below the tallest child (see the bottomTabsChildHeight
+            // padding in layout-object.component), so bottom-align each child
+            // within that band to keep every child flush with the tab bar.
             if(isBottomTabs) {
                Point layoutPos = assemblyLayout.getPosition();
+               double maxChildHeight = childModels.stream()
+                  .mapToDouble(child -> child.getObjectFormat().getHeight())
+                  .max()
+                  .orElse(0);
 
                for(VSObjectModel childModel : childModels) {
                   VSFormatModel fmt = childModel.getObjectFormat();
                   fmt.setPositions(
-                     layoutPos.x, layoutPos.y,
+                     layoutPos.x, layoutPos.y + (maxChildHeight - fmt.getHeight()),
                      fmt.getWidth(), fmt.getHeight());
                }
             }

@@ -26,7 +26,8 @@ import { MatButton } from "@angular/material/button";
 
 @Secured({
    route: "/monitoring/summary/debug",
-   label: "Debug"
+   label: "Debug",
+   hiddenForMultiTenancy: true
 })
 @Component({
     selector: "em-debug-monitoring-page",

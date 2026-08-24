@@ -41,13 +41,15 @@ package inetsoft.web.admin.presentation;
  *   Same globalSettings gate for fontMapping and AI:
  *     [global]     fontMappingSettingsService.resetSettings and aiSettingsService.resetSettings called
  *     [non-global] those two services skipped
+ *   resetSettings does not touch the data space: custom shapes uploaded to
+ *   portal/shapes (or portal/<orgID>/shapes) are content, not a presentation property, and
+ *   must survive a reset at either scope.
  */
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.util.InvalidOrgException;
-import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
 import inetsoft.web.admin.general.WebMapSettingsService;
 import inetsoft.web.admin.general.model.WebMapSettingsModel;
 import inetsoft.web.admin.presentation.model.*;
@@ -83,7 +85,6 @@ class PresentationSettingsControllerTest {
    @Mock private PresentationTimeSettingsService timeSettingsService;
    @Mock private PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService;
    @Mock private WebMapSettingsService webMapSettingsService;
-   @Mock private DataSpaceContentSettingsService dataSpaceContentSettingsService;
    @Mock private AISettingsService aiSettingsService;
    @Mock private Cluster cluster;
    @Mock private Lock settingsLock;
@@ -106,7 +107,7 @@ class PresentationSettingsControllerTest {
          fontMappingSettingsService, shareSettingsService, securityEngine,
          composerMessageSettingsService, timeSettingsService,
          dataSourceVisibilitySettingsService, webMapSettingsService,
-         dataSpaceContentSettingsService, aiSettingsService, cluster);
+         aiSettingsService, cluster);
 
       sUtilStatic = mockStatic(SUtil.class, withSettings().lenient());
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
@@ -234,7 +235,8 @@ class PresentationSettingsControllerTest {
    // resetSettings — globalSettings gate for fontMapping and AI
    // -------------------------------------------------------------------------
 
-   // [global] fontMapping and AI reset methods called
+   // [global] fontMapping and AI reset methods called; custom shapes in portal/shapes are
+   // left alone (the controller no longer holds a DataSpaceContentSettingsService)
    @Test
    void resetSettings_globalSettings_resetsFontMappingAndAi() throws Exception {
       when(orgManager.isSiteAdmin(principal)).thenReturn(true);
@@ -247,7 +249,8 @@ class PresentationSettingsControllerTest {
       verify(aiSettingsService).resetSettings();
    }
 
-   // [non-global] fontMapping and AI reset skipped
+   // [non-global] fontMapping and AI reset skipped; org-scoped custom shapes in
+   // portal/<orgID>/shapes are likewise left alone
    @Test
    void resetSettings_nonGlobalSettings_skipsFontMappingAndAiReset() throws Exception {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);

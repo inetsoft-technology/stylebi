@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.json.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.io.*;
 import java.util.Base64;
 
@@ -89,8 +90,8 @@ public class DatagovRuntime extends TabularRuntime {
       URLConnection conn = url.openConnection();
 
       if(user != null && password != null) {
-         String credential =
-            Base64.getEncoder().encodeToString((user + ":" + password).getBytes());
+         String credential = Base64.getEncoder().encodeToString(
+            (user + ":" + password).getBytes(StandardCharsets.UTF_8));
          conn.setRequestProperty("Authorization", "Basic " + credential);
       }
 

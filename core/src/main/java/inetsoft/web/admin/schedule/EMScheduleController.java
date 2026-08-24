@@ -221,12 +221,32 @@ public class EMScheduleController {
       this.usersChangeService.addSubscriber(stompHeaderAccessor);
    }
 
+   /**
+    * The user/group list returned here is not specific to schedule tasks: it also backs the
+    * email recipient pickers on the General settings page and the Security settings pages, all
+    * of which are reachable without any schedule permission. Gating it on
+    * "settings/schedule/tasks" alone made simply opening Settings fail for such users. Mirrors
+    * the permission set of {@code /api/em/settings/schedule/check-mail}.
+    */
    @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/tasks",
-         actions = ResourceAction.ACCESS
-      )
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/general",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/schedule/tasks",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/security/users",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
    )
    @GetMapping("/api/em/schedule/users-model")
    public UsersModel getUsersModel(@PermissionUser Principal principal) throws Exception

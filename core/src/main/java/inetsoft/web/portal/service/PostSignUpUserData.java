@@ -56,7 +56,8 @@ public class PostSignUpUserData {
                .header("Content-Type", "application/json; charset=UTF-8");
 
             if(postUsername != null && postPassword != null) {
-               String credential = Base64.getEncoder().encodeToString((postUsername + ":" + postPassword).getBytes());
+               String credential = Base64.getEncoder().encodeToString(
+                  (postUsername + ":" + postPassword).getBytes(StandardCharsets.UTF_8));
                requestBuilder.header("Authorization", "Basic " + credential);
             }
 

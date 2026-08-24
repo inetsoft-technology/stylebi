@@ -169,20 +169,13 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
          this.scheduleChangeService.onFolderChange.subscribe(() => this.loadTaskFolderTree())
       );
 
-      this.http.get(CHANGE_SHOW_TYPE_URI).subscribe((showTasksAsList) => {
-         this.showTasksAsList = <boolean> showTasksAsList;
-         this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : this.treePaneSize;
-
-         if(this.inited) {
-            this.updateTaskTreePane();
-         }
-
-         if(!this.showTasksAsList) {
-            this.loadTaskFolderTree();
-         }
-         else {
-            this.loadTasks();
-         }
+      this.http.get(CHANGE_SHOW_TYPE_URI).subscribe({
+         next: (showTasksAsList) => {
+            this.showTasksAsList = <boolean> showTasksAsList;
+            this.applyShowType();
+         },
+         // fall back to the default view so that the task list still loads
+         error: () => this.applyShowType()
       });
 
       this.http.get(CHECK_ROOT_PERMISSION_URI).subscribe((rootPermission: boolean) => {
@@ -321,13 +314,44 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    changeShowType(value: boolean): void {
+      const oldValue = this.showTasksAsList;
       this.showTasksAsList = value;
       this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : this.treePaneSize;
       this.updateTaskTreePane();
       let params = new HttpParams().set("showTasksAsList", this.showTasksAsList + "");
-      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe(() => {
-         this.loadTasks();
+      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe({
+         next: () => this.loadTasks(),
+         error: (error) => {
+            // the request never reached the preference, so don't leave the view showing
+            // a state that was not stored. Ignore a stale failure that a later toggle
+            // has already superseded.
+            if(this.showTasksAsList === value) {
+               this.showTasksAsList = oldValue;
+               this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : 20;
+            }
+
+            ComponentTool.showHttpError(
+               "Failed to change the schedule task view", error, this.modal);
+         }
       });
+   }
+
+   /**
+    * Loads the tree and/or the task list for the current view.
+    */
+   private applyShowType(): void {
+      this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : this.treePaneSize;
+
+      if(this.inited) {
+         this.updateTaskTreePane();
+      }
+
+      if(!this.showTasksAsList) {
+         this.loadTaskFolderTree();
+      }
+      else {
+         this.loadTasks();
+      }
    }
 
    updateTaskTreePane(): void {

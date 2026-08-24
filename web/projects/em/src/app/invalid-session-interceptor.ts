@@ -40,15 +40,26 @@ export class InvalidSessionInterceptor implements HttpInterceptor {
       );
    }
 
+   /**
+    * Only 401 indicates that the session is gone. When the session has expired or been
+    * invalidated, the security filter chain answers XHR requests with 401
+    * (AbstractSecurityFilter.shouldSendAuthenticationRedirect); this interceptor marks every
+    * request as an XHR (see intercept() above), so that path always applies.
+    *
+    * 403 means the opposite: the session is valid and the user is authenticated, but is not
+    * permitted to access that particular resource. SecuredAspect throws on an @Secured denial
+    * and AdminExceptionHandler maps it to 403, so treating 403 as an expired session logs the
+    * user out of the EM entirely whenever any page issues a request they lack permission for.
+    */
    private handleInvalidSession(req: HttpRequest<any>, error: HttpErrorResponse): void {
-      if((error.status === 401 || error.status === 403) && this.isSameOrigin(req.url)) {
+      if(error.status === 401 && this.isSameOrigin(req.url)) {
          this.logoutService.sessionExpired();
       }
    }
 
    /**
     * Only the application's own (same-origin) responses indicate an expired
-    * session. A 401/403 from an absolute URL pointing at an external service
+    * session. A 401 from an absolute URL pointing at an external service
     * (e.g. the OAuth proxy at data.inetsoft.com) is unrelated to the StyleBI
     * session and must not trigger a logout.
     */

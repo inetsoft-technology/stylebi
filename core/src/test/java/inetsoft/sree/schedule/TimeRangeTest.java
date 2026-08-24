@@ -46,13 +46,15 @@ import static org.mockito.Mockito.mockStatic;
  *
  * Known source bugs (documented below; NOT fixed at this time — tests record current behavior):
  *
- * [BUG-TR-1] getTimeRanges() NPE when schedule.time.ranges property is null
- *   Location : TimeRange.java:223 (getTimeRanges)
- *   Actual   : property.split(";") NPEs when getProperty returns null. Under @SreeHome,
- *              setTimeRanges(null/empty) removes the user override and falls back to
- *              defaults.properties instead.
- *   UI risk  : Medium — EM Time Ranges allows deleting all ranges; Scheduler settings may fail on reload.
- *   Status   : Deferred. Same root cause as BUG-TBC-2 in TaskBalancerConditionTest.
+ * [BUG-TR-1] getTimeRanges() threw on a malformed schedule.time.ranges value
+ *   Location : TimeRange.java (getTimeRanges / parse)
+ *   Was      : property.split(";") NPEd when getProperty returned null, parse() indexed four
+ *              fields without a length check (AIOOBE) and called LocalTime.parse without
+ *              catching DateTimeParseException. Every caller went down with it, including
+ *              SchedulerConfigurationService — the page holding the card that would repair it.
+ *   Now      : a null/blank property yields an empty list and a malformed segment is skipped
+ *              with a logged warning. Covered by MalformedPropertyTests.
+ *   Status   : Fixed. Same root cause as BUG-TBC-2 in TaskBalancerConditionTest.
  *
  * [BUG-TR-2] equals() / hashCode() ignore defaultRange flag
  *   Location : TimeRange.java:197 (equals)
@@ -244,16 +246,6 @@ class TimeRangeTest {
       }
 
       @Test
-      @DisplayName("BUG-TR-1 (deferred): getTimeRanges NPEs when property is null")
-      void getTimeRangesNullPropertyThrows() {
-         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
-            sreeEnv.when(() -> SreeEnv.getProperty("schedule.time.ranges")).thenReturn(null);
-
-            assertThrows(NullPointerException.class, TimeRange::getTimeRanges);
-         }
-      }
-
-      @Test
       @DisplayName("duplicate names rejected")
       void duplicateNamesRejected() {
          TimeRange duplicateName = new TimeRange("tr2", "20:00:00", "09:00:00", true);
@@ -275,6 +267,63 @@ class TimeRangeTest {
             () -> TimeRange.setTimeRanges(Arrays.asList(MORNING, secondDefault)));
 
          assertEquals("Multiple default time ranges", ex.getMessage());
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // BUG-TR-1 — malformed schedule.time.ranges must not break every caller
+   // -------------------------------------------------------------------------
+
+   @Nested
+   @DisplayName("malformed schedule.time.ranges property")
+   class MalformedPropertyTests {
+
+      @Test
+      @DisplayName("null property yields an empty list")
+      void nullPropertyYieldsEmptyList() {
+         assertEquals(Collections.emptyList(), getRangesForProperty(null));
+      }
+
+      @Test
+      @DisplayName("blank property yields an empty list")
+      void blankPropertyYieldsEmptyList() {
+         assertEquals(Collections.emptyList(), getRangesForProperty(""));
+         assertEquals(Collections.emptyList(), getRangesForProperty("   "));
+      }
+
+      @Test
+      @DisplayName("segment with too few fields is skipped")
+      void shortSegmentIsSkipped() {
+         List<TimeRange> ranges = getRangesForProperty("Morning,0,06:00");
+
+         assertEquals(Collections.emptyList(), ranges);
+      }
+
+      @Test
+      @DisplayName("segment with a non-ISO time is skipped")
+      void nonIsoTimeSegmentIsSkipped() {
+         List<TimeRange> ranges = getRangesForProperty("Morning,0,6am,12:00");
+
+         assertEquals(Collections.emptyList(), ranges);
+      }
+
+      @Test
+      @DisplayName("well-formed segments survive a malformed sibling")
+      void wellFormedSegmentsSurviveMalformedSibling() {
+         List<TimeRange> ranges = getRangesForProperty(
+            "Morning,0,06:00,12:00;Broken,0,noon;Overnight,1,18:00,06:00");
+
+         assertEquals(2, ranges.size());
+         assertEquals("Morning", ranges.get(0).getName());
+         assertEquals("Overnight", ranges.get(1).getName());
+         assertTrue(ranges.get(1).isDefault());
+      }
+
+      private List<TimeRange> getRangesForProperty(String value) {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.time.ranges")).thenReturn(value);
+            return TimeRange.getTimeRanges();
+         }
       }
    }
 

@@ -18,6 +18,7 @@
 import { AfterViewInit, Directive, ElementRef, HostBinding, inject, Input, NgZone, OnDestroy, ViewChild } from "@angular/core";
 import { SafeStyle } from "@angular/platform-browser";
 import { fromEvent, Subscription } from "rxjs";
+import { Dimension } from "../../common/data/dimension";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { ChartAreaName } from "../model/chart-area-name";
@@ -55,6 +56,14 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
    protected _model: ChartModel;
    private _scrollTop = 0;
    private _scrollLeft = 0;
+   // max-mode size cached per generation. measuring the DOM inside getSrc() (which the
+   // template calls for every tile on every change detection pass) is both a forced layout
+   // read and a source of spurious url changes: a scrollbar appearing/disappearing changes
+   // the url by a few pixels and makes every tile reload, even though the server ignores
+   // these values when the assembly has a max size. (see AssemblyImageService)
+   private maxModeSize: Dimension = null;
+   private maxModeSizeGenTime: number = null;
+   private maxModeSizeContainer: any = null;
 
    @Input() public set scrollLeft(scroll: number) {
       this._scrollLeft = scroll;
@@ -128,7 +137,11 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
 
       inject(NgZone).runOutsideAngular(() => {
          this.addSubscription(fromEvent(window, "resize")
-            .subscribe(() => this.drawSelectedRegions())
+            .subscribe(() => {
+               // the cached max-mode size is measured from the DOM, so re-measure on resize.
+               this.maxModeSize = null;
+               this.drawSelectedRegions();
+            })
          );
       });
    }
@@ -211,7 +224,7 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
       let maxHeight = 0;
 
       if(this.maxMode) {
-         let viewSize = GuiTool.getChartMaxModeSize(container);
+         const viewSize = this.getMaxModeSize(container);
          maxWidth = viewSize.width;
          maxHeight = viewSize.height;
       }
@@ -229,6 +242,21 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
          "/" + true +
          "?" + NetTool.xsrfToken() +
          (this.suppressAnimation ? "&noanim=true" : "");
+   }
+
+   // measure the max-mode size once per graph generation instead of on every call. genTime
+   // changes whenever the server regenerates the chart areas, which is exactly when the
+   // measurement may have changed.
+   private getMaxModeSize(container: any): Dimension {
+      if(this.maxModeSize == null || this.maxModeSizeGenTime !== this.genTime ||
+         this.maxModeSizeContainer !== container)
+      {
+         this.maxModeSize = GuiTool.getChartMaxModeSize(container);
+         this.maxModeSizeGenTime = this.genTime;
+         this.maxModeSizeContainer = container;
+      }
+
+      return this.maxModeSize;
    }
 
    isTileVisible(tile: ChartTile): boolean {

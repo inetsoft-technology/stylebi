@@ -40,7 +40,7 @@ export namespace PropertiesTool {
       "olap.table.originalContent", "output.null.to.zero", "pdf.compress.image",
       "pdf.compress.text", "pdf.embed.cmap", "pdf.embed.font", "pdf.generate.links",
       "pdf.map.symbols", "pdf.open.bookmark", "pdf.open.thumbnail", "pdf.output.ascii",
-      "pdf.text.avoidoverlap", "portal.history.bar", "query.aggregate.merge",
+      "pdf.text.avoidoverlap", "portal.history.bar",
       "query.cache.data", "query.variable.unique", "remove.outerJoin.only", "replet.cache.clean",
       "dashboard.mydashboard.disabled", "replet.optimize.network", "replet.streaming",
       "report.stringwidth.fontmetrics", "repository.audit.enabled",
@@ -49,7 +49,7 @@ export namespace PropertiesTool {
       "scheduler.restart.auto", "security.cache", "sort.crosstab.aggregate",
       "sort.crosstab.dimension", "sree.find.backward", "string.compare.casesensitive",
       "text.break.pages", "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
-      "schedule.time.12hours", "portal.customLogo.enabled", "calendar.dateCompare.enabled"
+      "schedule.time.12hours", "calendar.dateCompare.enabled"
    ];
 
    export const boolean_options = [

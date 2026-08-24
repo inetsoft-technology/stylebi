@@ -2100,6 +2100,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
+      // Permissions are only keyed by path for global-scope assets. A user's private assets
+      // live in the same path namespace (the owner is carried by the entry, not the path), so
+      // transferring the permission of a private folder would move/clear the permission of the
+      // same-named folder in the global repository.
+      if(oentry.getScope() != GLOBAL_SCOPE) {
+         return;
+      }
+
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
       ResourceType type = getAssetResourceType(oentry);
       Permission oldPermission = securityEngine.getPermission(type, oentry.getPath());
@@ -2109,7 +2117,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       securityEngine.removePermission(type, oentry.getPath());
-      securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+
+      // moving out of the global repository (e.g. into a user's private assets); the old
+      // permission no longer applies to any path and must not be copied to the private path
+      if(nentry.getScope() == GLOBAL_SCOPE) {
+         securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+      }
    }
 
    /**
@@ -3064,6 +3077,22 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
+      // Bug #76194: resolve and validate the destination parent folder up front,
+      // before any mutation of the source entry. Previously this was fetched (and
+      // left unchecked for null) only after the source had already been removed
+      // from its folder and deleted from storage, so any failure past that point
+      // permanently destroyed the source sheet without ever creating the renamed copy.
+      AssetEntry npentry = nentry.getParent();
+      AssetFolder npfolder = getParentFolder(nentry, nstorage);
+      String npidentifier = npentry.toIdentifier();
+
+      if(npfolder == null) {
+         MessageException ex = new MessageException(
+            catalog.getString("common.pfolderNotFound") + ": " + npentry);
+         ex.setKeywords("FOLDER_REQUIRED");
+         throw ex;
+      }
+
       DependencyHandler dependencyHandler = DependencyHandler.getInstance();
 
       if(oentry.isWorksheet()) {
@@ -3108,9 +3137,6 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
 
-      AssetEntry npentry = nentry.getParent();
-      AssetFolder npfolder = getParentFolder(nentry, nstorage);
-      String npidentifier = npentry.toIdentifier();
       opfolder = getParentFolder(oentry, ostorage);
 
       if(npentry.equals(opentry)) {
@@ -3127,16 +3153,6 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       opfolder.removeEntry(oentry);
-
-      if(!Objects.equals(opidentifier, npidentifier) || !Objects.equals(opfolder, npfolder)) {
-         ostorage.putXMLSerializable(opidentifier, opfolder);
-      }
-
-      if(!Objects.equals(oidentifier, nidentifier)) {
-         ostorage.remove(oidentifier);
-         EmbeddedDataCacheHandler.clearWSCache(oidentifier);
-      }
-
       npfolder.addEntry(nentry);
 
       if(nentry.getAlias() != null && oentry.getAlias() != null &&
@@ -3154,9 +3170,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          renameVSBookmark(oentry, nentry);
       }
 
+      // Only overwrite/remove the source's storage entries after the destination
+      // has been fully created; a failure above now leaves the source sheet
+      // untouched instead of destroying it (Bug #76194).
+      if(!Objects.equals(opidentifier, npidentifier) || !Objects.equals(opfolder, npfolder)) {
+         ostorage.putXMLSerializable(opidentifier, opfolder);
+      }
+
       //remove oidentifier last, otherwise dependencies might rewrite it
       if(!Objects.equals(oidentifier, nidentifier)) {
          ostorage.remove(oidentifier);
+         EmbeddedDataCacheHandler.clearWSCache(oidentifier);
       }
 
       clearCache(oentry);
