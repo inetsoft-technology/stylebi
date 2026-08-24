@@ -24,8 +24,12 @@ import inetsoft.uql.DataSourceListing;
 import inetsoft.uql.DataSourceListingService;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.tabular.LayoutCreator;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularEditor;
+import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularUtil;
+import inetsoft.uql.tabular.TabularView;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.web.portal.data.DataSourceDefinition;
@@ -33,11 +37,18 @@ import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
+import inetsoft.web.wiz.model.WizTabularBrowseResult;
 import inetsoft.web.wiz.model.WizTabularListing;
 import inetsoft.web.wiz.model.WizTabularListings;
 import inetsoft.web.wiz.model.WizTabularSaveResult;
+import inetsoft.web.wiz.model.WorksheetTableResponse;
+import inetsoft.web.wiz.request.WizTabularBrowseRequest;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
+import inetsoft.web.wiz.request.WizTabularProbeCloseRequest;
+import inetsoft.web.wiz.request.WizTabularProbeOpenRequest;
+import inetsoft.web.wiz.request.WizTabularProbeTableRequest;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
+import inetsoft.web.wiz.service.WorksheetTableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -45,6 +56,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.security.Principal;
 import java.util.*;
 
@@ -87,11 +100,13 @@ import java.util.*;
 public class WizTabularController {
    public WizTabularController(DatasourcesService datasourcesService,
                                SecurityEngine securityEngine,
-                               XRepository xrepository)
+                               XRepository xrepository,
+                               WorksheetTableService worksheetTableService)
    {
       this.datasourcesService = datasourcesService;
       this.securityEngine = securityEngine;
       this.xrepository = xrepository;
+      this.worksheetTableService = worksheetTableService;
    }
 
    /**
@@ -439,6 +454,331 @@ public class WizTabularController {
       return Map.of("duplicate", datasourcesService.checkDuplicate(name));
    }
 
+   // ─── Browsing a file-based connector, and probing what a target holds ─────────────────────
+
+   /**
+    * List one folder of a file-based connector.
+    *
+    * <p>The wiz twin of {@code TabularQueryDialogController.browse}, and deliberately a separate
+    * method rather than a call into it. What is shared is the mechanism — a query created with
+    * {@code TabularUtil.createQuery}, its layout, and the {@code relativeTo}/{@code foldersOnly}/
+    * {@code acceptTypes} editor properties the connector declares on its file property. What is not
+    * shared is the way in: {@code TabularQueryDialogController} extends {@code WorksheetController}
+    * and authorizes through a composer session, which a wiz caller carrying a bearer token does not
+    * have. So the gate here is the one every other method on this class uses.</p>
+    *
+    * <p>No {@code runtimeId}: the browse rules come off a freshly created query bean, which is why
+    * the composer's own version does not need one either.</p>
+    *
+    * <p>Sheets of a workbook are NOT expanded here. Listing them would mean opening every workbook
+    * in the tree just to answer "what is here", and the answer is needed only for the files that go
+    * on to be probed — {@code probe/table} names them when it needs them.</p>
+    *
+    * @param request   which data source, which folder, and how much of it.
+    * @param principal the current user.
+    *
+    * @return the folder's contents, with paths relative to the connector's root folder.
+    */
+   @PostMapping(value = "/tabular/browse", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizTabularBrowseResult browseTabularFiles(@RequestBody WizTabularBrowseRequest request,
+                                                    Principal principal)
+      throws Exception
+   {
+      String datasource = request == null ? null : emptyToNull(request.datasource());
+
+      if(datasource == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "datasource is required");
+      }
+
+      // READ, not WRITE: this reads what the data source points at, it does not reconfigure it.
+      // The same action buildTable checks before a tabular table may reach a connector at all.
+      requireDataSourcePermission(datasource, ResourceAction.READ, principal);
+      requireTabularDataSource(datasource);
+
+      String path = normalizeBrowsePath(request.path());
+
+      // callEditorMethods below runs the connector's own editor methods, which is exactly the reach
+      // refreshTabularView is bracketed for — TabularUtil.sessionId is a ThreadLocal nothing clears,
+      // so on a pooled thread "leave it alone" means "inherit the previous request's", possibly
+      // another user's.
+      beginConnectorSession(principal);
+
+      try {
+         return browse(datasource, path, request);
+      }
+      finally {
+         endConnectorSession();
+      }
+   }
+
+   /**
+    * Open a temporary worksheet to probe a data source's targets with.
+    *
+    * <p>One per annotation run, not one per file. The runtime never touches
+    * {@code AssetRepository} — nothing is persisted at any point — so the only thing it costs is a
+    * live session, and the only obligation it creates is {@code probe/close}.</p>
+    *
+    * @return a single-key object carrying the {@code runtimeId} to pass to the other two calls.
+    */
+   @PostMapping(value = "/tabular/probe/open", produces = MediaType.APPLICATION_JSON_VALUE)
+   public Map<String, String> openProbeWorksheet(
+      @RequestBody(required = false) WizTabularProbeOpenRequest request, Principal principal)
+      throws Exception
+   {
+      String datasource = request == null ? null : emptyToNull(request.datasource());
+
+      // Checked here rather than left to the first probe: a caller that may not read the data
+      // source should not get a runtime to try it with, and the probe's own gate would only say so
+      // after a session had been opened that the caller then has to remember to close.
+      if(datasource != null) {
+         requireDataSourcePermission(datasource, ResourceAction.READ, principal);
+      }
+
+      return Map.of("runtimeId", worksheetTableService.openProbeWorksheet(principal));
+   }
+
+   /**
+    * Build one target in the probe worksheet and report its columns and sample rows.
+    *
+    * <p>Answers in the same {@code WorksheetTableResponse} {@code POST /api/wiz/ws/table} does,
+    * including its {@code success}/{@code errorMessage} pair: a failure here is a 200 carrying the
+    * reason, not a 4xx, because the caller is a loop over a directory and one unreadable file must
+    * not end the walk. It is also how a multi-sheet workbook reports its sheets — the build refuses
+    * to guess which one was meant and lists them in the message.</p>
+    */
+   @PostMapping(value = "/tabular/probe/table", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WorksheetTableResponse probeTable(@RequestBody WizTabularProbeTableRequest request,
+                                            Principal principal)
+      throws Exception
+   {
+      if(request == null || request.table() == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "table is required");
+      }
+
+      // The datasource READ gate itself lives in the service, on the same line createTables checks
+      // it, so the probe and the real build cannot come to different answers about who may reach a
+      // connector.
+      return worksheetTableService.probeTable(request.runtimeId(), request.table(), principal);
+   }
+
+   /** Release the probe runtime. Nothing was persisted, so nothing is left behind to clean up. */
+   @PostMapping("/tabular/probe/close")
+   @ResponseStatus(HttpStatus.NO_CONTENT)
+   public void closeProbeWorksheet(@RequestBody WizTabularProbeCloseRequest request,
+                                   Principal principal)
+      throws Exception
+   {
+      if(request == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "runtimeId is required");
+      }
+
+      worksheetTableService.closeProbeWorksheet(request.runtimeId(), principal);
+   }
+
+   /**
+    * The browse itself, with the connector session already bound.
+    *
+    * <p>Reads the browse rules off the file property's editor the way the composer dialog does:
+    * {@code relativeTo} is the connector's root folder (a method on the query bean, which is why
+    * the layout has to be built and its editor methods run first), {@code foldersOnly} hides files,
+    * and {@code acceptTypes} is the connector's own extension whitelist — {@code .txt,.csv,.xls,
+    * .xlsx} for ServerFile. Reusing the connector's list rather than hard-coding one is what keeps
+    * this honest when a connector adds a format.</p>
+    */
+   private WizTabularBrowseResult browse(String datasource, String path,
+                                         WizTabularBrowseRequest request)
+   {
+      TabularQuery query = TabularUtil.createQuery(datasource);
+
+      if(query == null) {
+         throw new ResponseStatusException(
+            HttpStatus.UNPROCESSABLE_ENTITY, "Could not create a query for data source \"" +
+            datasource + "\" — its connector plugin may not be loaded.");
+      }
+
+      TabularView view = new LayoutCreator().createLayout(query);
+      TabularUtil.callEditorMethods(view.getViews(), query);
+
+      TabularView fileView = findFileView(view, request.property());
+
+      if(fileView == null) {
+         throw new ResponseStatusException(
+            HttpStatus.UNPROCESSABLE_ENTITY, "Data source \"" + datasource + "\" has no browsable " +
+            "file property" + (request.property() == null ? "" : " named \"" + request.property() +
+            "\"") + ", so there is nothing to browse. It is not a file-based connector.");
+      }
+
+      TabularEditor editor = fileView.getEditor();
+      String[] names = editor.getEditorPropertyNames();
+      String[] values = editor.getEditorPropertyValues();
+      String relativeTo = null;
+      boolean foldersOnly = false;
+      List<String> acceptTypes = new ArrayList<>();
+
+      if(names != null) {
+         for(int i = 0; i < names.length; i++) {
+            if("relativeTo".equals(names[i])) {
+               relativeTo = values[i] == null || values[i].isEmpty() ? null : values[i];
+            }
+            else if("foldersOnly".equals(names[i])) {
+               foldersOnly = Boolean.parseBoolean(values[i]);
+            }
+            else if("acceptTypes".equals(names[i]) && !request.all() && values[i] != null) {
+               acceptTypes.addAll(Arrays.asList(values[i].split(",")));
+            }
+         }
+      }
+
+      // Unlike the composer's version, a missing root is refused rather than answered with a listing
+      // of the server's drive roots. The dialog can do that because a human is configuring the
+      // source and has to find one; here the root IS the grant, and reading outside it is the one
+      // thing this endpoint must not do.
+      if(relativeTo == null) {
+         throw new ResponseStatusException(
+            HttpStatus.UNPROCESSABLE_ENTITY, "Data source \"" + datasource + "\" has no root " +
+            "folder configured, so there is nothing to browse.");
+      }
+
+      List<WizTabularBrowseResult.WizTabularBrowseEntry> entries = new ArrayList<>();
+      boolean truncated = collect(new File(relativeTo), path, foldersOnly, acceptTypes,
+                                  request.recursive(), entries);
+
+      // Folders first, then files, each alphabetical — a stable order, so re-browsing an unchanged
+      // directory produces an unchanged answer.
+      entries.sort(Comparator.comparing(
+            WizTabularBrowseResult.WizTabularBrowseEntry::folder, Comparator.reverseOrder())
+         .thenComparing(WizTabularBrowseResult.WizTabularBrowseEntry::path,
+                        String.CASE_INSENSITIVE_ORDER));
+
+      return new WizTabularBrowseResult(datasource, path, entries, truncated);
+   }
+
+   /**
+    * Collect one folder's entries, optionally walking into sub-folders.
+    *
+    * <p>Capped rather than unbounded. A recursive walk is what an annotation pass wants — the
+    * alternative is one request per directory — but a root pointed at a large tree would otherwise
+    * build a response nobody can use, so the walk stops and says it stopped.</p>
+    *
+    * @return true when the cap stopped the walk short.
+    */
+   private boolean collect(File root, String path, boolean foldersOnly, List<String> acceptTypes,
+                           boolean recursive,
+                           List<WizTabularBrowseResult.WizTabularBrowseEntry> entries)
+   {
+      File folder = path.isEmpty() ? root : new File(root, path);
+      File[] children = folder.listFiles();
+
+      if(children == null) {
+         return false;
+      }
+
+      for(File child : children) {
+         if(entries.size() >= MAX_BROWSE_ENTRIES) {
+            return true;
+         }
+
+         if(child.isHidden() || !Files.isReadable(child.toPath())) {
+            continue;
+         }
+
+         String childPath = path.isEmpty() ? child.getName() : path + "/" + child.getName();
+
+         if(child.isDirectory()) {
+            entries.add(new WizTabularBrowseResult.WizTabularBrowseEntry(
+               childPath, child.getName(), true));
+
+            if(recursive && collect(root, childPath, foldersOnly, acceptTypes, true, entries)) {
+               return true;
+            }
+         }
+         else if(!foldersOnly && accepts(acceptTypes, child.getName())) {
+            entries.add(new WizTabularBrowseResult.WizTabularBrowseEntry(
+               childPath, child.getName(), false));
+         }
+      }
+
+      return false;
+   }
+
+   /** Whether a file name matches the connector's own extension whitelist; empty accepts all. */
+   private static boolean accepts(List<String> acceptTypes, String name) {
+      if(acceptTypes.isEmpty()) {
+         return true;
+      }
+
+      for(String type : acceptTypes) {
+         if(!type.isBlank() && name.toLowerCase().endsWith(type.trim().toLowerCase())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * The view of the named property, or — when none was named — the connector's file property.
+    *
+    * <p>Resolved by editor TYPE rather than by the name {@code "fileFolder"}, so a caller that does
+    * not know the connector does not have to guess one, and the next file-based connector needs no
+    * change here. {@code TabularUtil.getEditorType} keys {@code FILE} on a {@code java.io.File}
+    * property, which is the same signal {@code WorksheetTableService.fileTargetProperty} resolves
+    * the build target with — the two have to agree, or a file could be browsed under one property
+    * and bound through another.</p>
+    */
+   private static TabularView findFileView(TabularView view, String property) {
+      if(view.getEditor() != null && view.getValue() != null) {
+         boolean match = property == null || property.isEmpty()
+            ? view.getEditor().getType() == TabularEditor.Type.FILE
+            : property.equals(view.getValue());
+
+         if(match) {
+            return view;
+         }
+      }
+
+      for(TabularView child : view.getViews()) {
+         TabularView found = findFileView(child, property);
+
+         if(found != null) {
+            return found;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * The folder to list, relative to the connector's root and provably inside it.
+    *
+    * <p>The same rule {@code WorksheetTableService.resolveTargetFile} applies to a build target, and
+    * for the same reason: the root folder is the whole of what a {@code ServerFileDataSource}
+    * grants, so an absolute path or a {@code ".."} segment is not a path to resolve leniently — it
+    * is a request to read outside the grant.</p>
+    */
+   private static String normalizeBrowsePath(String path) {
+      if(path == null || path.isEmpty() || "/".equals(path)) {
+         return "";
+      }
+
+      String normalized = path.replace('\\', '/').replaceAll("^/+", "").replaceAll("/+$", "");
+
+      if(new File(normalized).isAbsolute() || normalized.matches("^[A-Za-z]:.*")) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "path must be relative to the data source's root folder: \"" + path + "\"");
+      }
+
+      for(String segment : normalized.split("/")) {
+         if("..".equals(segment)) {
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST, "path must not contain '..': \"" + path + "\"");
+         }
+      }
+
+      return normalized;
+   }
+
    /**
     * Maps a business failure onto a stable code.
     *
@@ -647,8 +987,16 @@ public class WizTabularController {
    /** Marks a connector session as this controller's, so it cannot collide with the portal's. */
    private static final String SESSION_PREFIX = "wiz:";
 
+   /**
+    * Ceiling on a single browse answer. A recursive walk of a root pointed at a large tree would
+    * otherwise build a response no caller can use; the walk stops and reports that it stopped, so
+    * the remainder stays reachable by browsing sub-folders individually.
+    */
+   private static final int MAX_BROWSE_ENTRIES = 2000;
+
    private final DatasourcesService datasourcesService;
    private final SecurityEngine securityEngine;
    private final XRepository xrepository;
+   private final WorksheetTableService worksheetTableService;
    private static final Logger LOG = LoggerFactory.getLogger(WizTabularController.class);
 }

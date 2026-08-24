@@ -34,6 +34,7 @@ import inetsoft.web.wiz.model.WizTabularListings;
 import inetsoft.web.wiz.model.WizTabularSaveResult;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
+import inetsoft.web.wiz.service.WorksheetTableService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,7 @@ class WizTabularControllerTest {
    private DatasourcesService datasourcesService;
    private SecurityEngine securityEngine;
    private XRepository xrepository;
+   private WorksheetTableService worksheetTableService;
    private WizTabularController controller;
    private Principal principal;
 
@@ -66,7 +68,9 @@ class WizTabularControllerTest {
       datasourcesService = mock(DatasourcesService.class);
       securityEngine = mock(SecurityEngine.class);
       xrepository = mock(XRepository.class);
-      controller = new WizTabularController(datasourcesService, securityEngine, xrepository);
+      worksheetTableService = mock(WorksheetTableService.class);
+      controller = new WizTabularController(datasourcesService, securityEngine, xrepository,
+                                            worksheetTableService);
       principal = mock(Principal.class);
 
       when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
