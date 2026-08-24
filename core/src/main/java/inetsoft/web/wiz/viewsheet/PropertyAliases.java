@@ -348,6 +348,12 @@ public final class PropertyAliases {
     */
    private static void outputGeneral(Map<String, String> aliases, String prefix) {
       basicGeneral(aliases, prefix + ".outputGeneralPaneModel.generalPropPaneModel");
+      // Only gauge/text/image (the outputGeneral() family) ever apply shadow back to the real
+      // assembly -- see VSFloatable.isShadow(), consulted only for OutputVSAssemblyInfo/
+      // ShapeVSAssemblyInfo. The dataGeneral() family (chart, table, submit, ...) inherits an
+      // unused field from the class hierarchy that no dialog service or renderer ever reads.
+      aliases.put("shadow",
+         prefix + ".outputGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.shadow");
    }
 
    /**
@@ -382,7 +388,6 @@ public final class PropertyAliases {
       // wrote somewhere no one reads. The live switch is GeneralPropPaneModel.enabled, which
       // every property dialog service fills from VSAssemblyInfo.getEnabledValue().
       aliases.put("enabled", generalPrefix + ".enabled");
-      aliases.put("shadow", basic + ".shadow");
       aliases.put("primary", basic + ".primary");
       aliases.put("refresh", basic + ".refresh");
    }
