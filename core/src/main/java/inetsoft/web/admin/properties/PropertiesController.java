@@ -193,9 +193,10 @@ public class PropertiesController {
 
    private static final String FLUENTD_PREFIX = "log.fluentd.";
    private static final Set<String> UNUSED_LOG_LEVELS = Set.of(
-      // NOTE: "intesoft" is a pre-existing typo in this key, corrected separately in bug-76047 /
-      // PR #4662. Left as-is here so this change stays scoped to the log.fluentd.* family.
-      "log.level.intesoft.storage.aws.com.amazonaws",
+      // Both AWS keys name packages shaded into inetsoft.storage.aws.* by the enterprise AWS
+      // integration module, and both are set in PropertiesEngine.initLogging(), so they belong
+      // on the same side of this filter.
+      "log.level.inetsoft.storage.aws.com.amazonaws",
       "log.level.inetsoft.storage.aws.org.apache",
       "log.level.inetsoft.web.portal.controller.ControllerErrorHandler",
       "log.level.inetsoft_audit");

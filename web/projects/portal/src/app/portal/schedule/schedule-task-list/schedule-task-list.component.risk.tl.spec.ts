@@ -380,5 +380,32 @@ describe("ScheduleTaskListComponent — risk tests", () => {
             spy.mockRestore();
          }
       });
+
+      // The preference is stored server-side, so a failed PUT must not leave the view
+      // showing something that was never saved.
+      it("reverts showTasksAsList when the PUT fails", async () => {
+         const { comp, fixture } = await renderScheduleTaskList();
+         server.use(
+            http.put("*/api/portal/schedule/change-show-type", () => {
+               return new HttpResponse(null, { status: 500 });
+            }),
+         );
+         const spy = vi.spyOn(comp, "loadTasks").mockImplementation(() => {});
+
+         try {
+            expect(comp.showTasksAsList).toBe(true);
+            comp.changeShowType(false);
+            // optimistic local change is applied first
+            expect(comp.showTasksAsList).toBe(false);
+
+            await waitFor(() => expect(comp.showTasksAsList).toBe(true));
+            expect(comp.INIT_TREE_PANE_SIZE).toBe(0);
+            expect(spy).not.toHaveBeenCalled();
+            await fixture.whenStable();
+         }
+         finally {
+            spy.mockRestore();
+         }
+      });
    });
 });

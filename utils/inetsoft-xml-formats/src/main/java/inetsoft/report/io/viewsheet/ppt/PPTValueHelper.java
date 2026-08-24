@@ -459,14 +459,6 @@ public class PPTValueHelper {
          }
 
          if(type != 0 && PPTVSUtil.getBorderWidth(type) != 0) {
-            // Table/crosstab cells are written as individual shapes with their own
-            // (non-rounded) borders, so the single rounded outline drawn on top doesn't
-            // automatically hide the square cell content that sticks out past the curve
-            // near each corner (PPT has no Graphics2D-style clip to lean on, unlike
-            // PDF/SVG). Mask it with a plain white square first, mirroring
-            // PoiExcelVSExporter's corner mask for the same underlying limitation.
-            maskTableCorners(x, y, width, height, format.getRoundCorner());
-
             XSLFAutoShape roundBorder = slide.createAutoShape();
             roundBorder.setAnchor(new Rectangle(x, y, width, height));
             PPTVSUtil.applyRoundCorner(roundBorder, format.getRoundCorner(), bounds);
@@ -539,31 +531,6 @@ public class PPTValueHelper {
             }
          }
       }
-   }
-
-   /**
-    * Paint over the four radius x radius corners with a plain white square, hiding
-    * whatever square cell content is underneath so it reads as clipped by the rounded
-    * corner instead of poking out past it.
-    */
-   private void maskTableCorners(int x, int y, int width, int height, int roundCorner) {
-      int r = (int) Math.min(roundCorner * PPTVSUtil.PIXEL_TO_POINT,
-                             Math.min(width, height) / 2d);
-
-      if(r <= 0) {
-         return;
-      }
-
-      maskCorner(x, y, r);
-      maskCorner(x + width - r, y, r);
-      maskCorner(x, y + height - r, r);
-      maskCorner(x + width - r, y + height - r, r);
-   }
-
-   private void maskCorner(int x, int y, int size) {
-      XSLFAutoShape mask = slide.createAutoShape();
-      mask.setAnchor(new Rectangle(x, y, size, size));
-      mask.setFillColor(Color.WHITE);
    }
 
    private Rectangle2D bounds = null;

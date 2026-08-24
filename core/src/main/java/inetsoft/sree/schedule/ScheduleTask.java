@@ -51,6 +51,37 @@ import java.util.stream.Stream;
  * @author InetSoft Technology Corp
  */
 public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
+   /**
+    * The default schedule task timeout, in milliseconds. Matches the value shipped in
+    * defaults.properties; used when schedule.task.timeout is missing or not a number.
+    */
+   public static final long DEFAULT_TASK_TIMEOUT = 600000L;
+
+   /**
+    * Gets the configured schedule.task.timeout, in milliseconds. A missing or non-numeric
+    * value logs a warning and falls back to DEFAULT_TASK_TIMEOUT.
+    *
+    * <p>The value is returned as configured; no meaning is imposed on zero or a negative
+    * number here, because the call sites do not agree on one. The three that wait on a
+    * future or a latch (doRun below, MVAction.createMV, ScheduleTaskCloudJob.execute) treat
+    * 0 or less as "wait without a timeout", whereas Scheduler.runTask uses the value only as
+    * a staleness window and does not special-case it.
+    *
+    * @return the configured task timeout in milliseconds.
+    */
+   public static long getTaskTimeout() {
+      String value = SreeEnv.getProperty("schedule.task.timeout");
+
+      try {
+         return Long.parseLong(value);
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Invalid schedule.task.timeout value \"{}\", using the default of {} ms",
+                  value, DEFAULT_TASK_TIMEOUT);
+         return DEFAULT_TASK_TIMEOUT;
+      }
+   }
+
    public ScheduleTask() {
    }
 
@@ -530,14 +561,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       List<Future> futures = new ArrayList<>();
       boolean waited = false;
       long startTime = System.currentTimeMillis();
-      long timeout;
-
-      try {
-         timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
-      }
-      catch(NumberFormatException e) {
-         timeout = 600000L;
-      }
+      long timeout = getTaskTimeout();
 
       for(int i = 0; i < acts.size(); i++) {
          final ScheduleAction act = acts.elementAt(i);

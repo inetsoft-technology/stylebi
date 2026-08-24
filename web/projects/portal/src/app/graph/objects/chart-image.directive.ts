@@ -30,10 +30,17 @@ export class ChartImageDirective implements OnDestroy {
    set chartImage(value: string | SafeValue) {
       if(value !== this._chartImage) {
          this._chartImage = value;
+         this.resetRetry();
 
          if(this._loadTimer !== null) {
             clearTimeout(this._loadTimer);
             this._loadTimer = null;
+         }
+
+         // a retry armed for the previous address must not fire after the address changed.
+         if(this.retryTimer !== null) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
          }
 
          if(!!value) {
@@ -56,6 +63,14 @@ export class ChartImageDirective implements OnDestroy {
    private currentBlobUrl: string = null;
    private loadSubscription: Subscription = null;
    private retryTimer: ReturnType<typeof setTimeout> | null = null;
+   private retryCount = 0;
+   private retryStart = 0;
+   // the server answers with Retry-After while the chart graph is still being generated.
+   // give up only after a generous wall-clock budget: a large/slow graph (big dataset, mv
+   // build, web map) may legitimately take a long time, and the facet/legend/title areas
+   // don't listen to onError, so giving up early leaves those tiles permanently blank.
+   private readonly MAX_RETRY_TIME = 300000;
+   private readonly MAX_RETRY_INTERVAL = 5000;
 
    constructor(private element: ElementRef, private http: HttpClient, private renderer: Renderer2) {
    }
@@ -80,6 +95,11 @@ export class ChartImageDirective implements OnDestroy {
       }
    }
 
+   private resetRetry(): void {
+      this.retryCount = 0;
+      this.retryStart = 0;
+   }
+
    private loadImage(reloading = false): void {
       if(this.retryTimer != null) {
          clearTimeout(this.retryTimer);
@@ -99,14 +119,43 @@ export class ChartImageDirective implements OnDestroy {
          this.loadSubscription = this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
             response => {
                if(response.headers?.has("Retry-After")) {
-                  const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
+                  // ignore a late response for an address we no longer want, so it doesn't
+                  // consume the current address's retry budget or reload the wrong image.
+                  if(requestedImage != this.chartImage) {
+                     return;
+                  }
+
+                  const now = Date.now();
+
+                  if(this.retryCount == 0) {
+                     this.retryStart = now;
+                  }
+                  else if(now - this.retryStart >= this.MAX_RETRY_TIME) {
+                     console.warn("Giving up loading image after " + this.retryCount +
+                                  " retries " + this.chartImage);
+                     this.resetRetry();
+                     this.onError.emit();
+                     return;
+                  }
+
+                  this.retryCount++;
+                  const seconds = parseInt(response.headers.get("Retry-After"), 10);
+                  // a missing/malformed header must not turn the retry into a busy loop.
+                  const interval = isNaN(seconds) ? 1000 : Math.max(seconds, 1) * 1000;
+                  // escalate up to MAX_RETRY_INTERVAL, but never poll faster than the
+                  // server asked for.
+                  const delay = Math.max(
+                     interval, Math.min(interval * this.retryCount, this.MAX_RETRY_INTERVAL));
+
                   this.retryTimer = setTimeout(() => {
                      this.retryTimer = null;
                      this.loadImage(true);
-                  }, interval);
+                  }, delay);
                }
                else if(requestedImage == this.chartImage) {
                   // Do not set if image address changed before the request returned
+                  this.resetRetry();
+
                   if(this.currentBlobUrl) {
                      URL.revokeObjectURL(this.currentBlobUrl);
                   }

@@ -1168,9 +1168,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          color = bcolors == null ? null : bcolors.bottomColor;
       }
       else {
-         // No border configured at all: there's no outline to compensate the mask with a
-         // curve, so skip masking too rather than leaving an unrounded white square with
-         // no border and no explanation.
+         // No border configured at all: the rounded outline shape is the only thing drawn
+         // here, so there is nothing to round.
          return;
       }
 
@@ -1179,13 +1178,6 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       if(lineStyle == ExcelVSUtil.EXCEL_NO_BORDER) {
          return;
       }
-
-      // Mask the square cell background/content that would otherwise stick out past the
-      // curve at each corner (e.g. a shaded title-row fill, or the corner-most cell's
-      // text) with a plain white square, the same way the viewer's overflow:hidden clips
-      // it. This must happen before the border outline below so the outline's curve is
-      // drawn on top of the mask, not under it.
-      maskTableCorners(pixelBounds, radius);
 
       XSSFSimpleShape shape = patriarch.createSimpleShape(
          (XSSFClientAnchor) getAnchorFromPixelRect(pixelBounds));
@@ -1202,29 +1194,6 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       else {
          shape.setLineStyleColor(0, 0, 0);
       }
-   }
-
-   /**
-    * Paint over the four radius x radius corners of the given bounds with a plain white
-    * square, hiding whatever square cell content is underneath so it reads as clipped by
-    * the rounded corner instead of poking out past it.
-    */
-   private void maskTableCorners(Rectangle2D pixelBounds, int radius) {
-      double x = pixelBounds.getX();
-      double y = pixelBounds.getY();
-      double w = pixelBounds.getWidth();
-      double h = pixelBounds.getHeight();
-
-      maskCorner(x, y, radius);
-      maskCorner(x + w - radius, y, radius);
-      maskCorner(x, y + h - radius, radius);
-      maskCorner(x + w - radius, y + h - radius, radius);
-   }
-
-   private void maskCorner(double x, double y, double size) {
-      XSSFSimpleShape mask = patriarch.createSimpleShape((XSSFClientAnchor)
-         getAnchorFromPixelRect(new Rectangle2D.Double(x, y, size, size)));
-      mask.setFillColor(255, 255, 255);
    }
 
    private void fixAlignment(XSSFTextBox tb, int align) {
