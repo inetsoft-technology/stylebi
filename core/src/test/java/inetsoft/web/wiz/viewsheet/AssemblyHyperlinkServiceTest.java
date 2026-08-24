@@ -494,6 +494,167 @@ class AssemblyHyperlinkServiceTest {
                                                     !sel.matches(AssetEntry.Type.WORKSHEET)));
    }
 
+   // ── regressions for the four hyperlink defects ────────────────────────
+
+   /**
+    * The read half of the sentinel mismatch. {@code LINK_TYPES} mapped {@code "none"} to 0, but
+    * the dialog service carries its own private {@code NONE = 9}, so a never-linked assembly --
+    * which is every assembly until someone links it -- reported itself as {@code "unknown(9)"}.
+    * That is the first thing a caller sees on any assembly, and it read as a bug in the tool.
+    */
+   @Test
+   void aNeverLinkedAssemblyReadsBackAsNoneNotAnUnknownConstant() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals("none", read.get("linkType"));
+   }
+
+   /** The token the read reports has to be the one {@link AssemblyHyperlinkService#set} accepts. */
+   @Test
+   void theNoneTokenRoundTripsBetweenReadAndWrite() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+      Harness h = harness(model);
+
+      Object token = h.service.read("tok", principal(), "Chart1", null).get("linkType");
+      h.service.set("tok", principal(), "Chart1", null, link("linkType", token), "");
+
+      assertEquals(HyperlinkDialogService.NONE, capture(h.links).getLinkType());
+   }
+
+   /**
+    * A cleared link must not keep its destination fields. Tooltip and target frame surviving a
+    * clear is what made a cleared link read differently from a never-linked one.
+    */
+   @Test
+   void clearingDropsTheTooltipAndTargetFrameToo() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setWebLink("https://old.example.com");
+      model.setTooltip("stale tooltip");
+      model.setTargetFrame("_blank");
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null, link("linkType", "none"), "");
+
+      HyperlinkDialogModel posted = capture(h.links);
+      assertNull(posted.getTooltip(), "a stale tooltip beside a cleared link reads wrong");
+      assertNull(posted.getTargetFrame());
+      assertNull(posted.getAssetLinkId());
+      assertNull(posted.getAssetLinkPath());
+   }
+
+   /**
+    * A viewsheet link is stored by {@code assetLinkId}, and nothing ever set it -- it reached
+    * {@code VSUtil.getBookmarks} as null and surfaced as a raw NPE. Asserting the link type alone
+    * would still pass with the id left null, which is exactly the state that crashed.
+    */
+   @Test
+   void aViewsheetLinkCarriesTheResolvedAssetIdNotJustThePath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail"), "");
+
+      HyperlinkDialogModel posted = capture(h.links);
+      assertNotNull(posted.getAssetLinkId(), "the id is the half getHyperlink actually stores");
+      assertEquals("Reports/Detail", posted.getAssetLinkPath(), "the path is the display half");
+   }
+
+   /**
+    * An explicit id short-circuits resolution, for a caller that already holds the identifier --
+    * the Composer's own dialog works that way, from its asset tree. {@code assetLinkPath} is still
+    * required, because it is the display half of the same link.
+    */
+   @Test
+   void anExplicitAssetLinkIdIsUsedVerbatimWithoutConsultingTheRepository() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                         "assetLinkId", "1^128^__NULL__^Reports/Detail"), "");
+
+      assertEquals("1^128^__NULL__^Reports/Detail", capture(h.links).getAssetLinkId());
+      verify(h.repository, never()).containsEntry(any());
+   }
+
+   /**
+    * <b>The assertion that matters most in this file.</b> Resolving the target inside
+    * {@code sessions.mutate} meant an unresolvable path threw with the model already half-written,
+    * leaving the assembly carrying {@code linkType=viewsheet} and a null destination -- worse than
+    * the refusal it was trying to report. Resolution now runs first, so nothing is mutated.
+    */
+   @Test
+   void anUnresolvablePathIsRefusedWithoutMutatingAnything() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any())).thenReturn(false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Gone"), ""));
+
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(h.links);
+      assertTrue(thrown.getMessage().contains("Reports/Gone"), "name the path that was not found");
+   }
+
+   /** The refusal names both scopes it looked in, so the caller knows where to put the sheet. */
+   @Test
+   void theRefusalNamesBothScopesItSearched() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any())).thenReturn(false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Gone"), ""));
+
+      assertTrue(thrown.getMessage().contains("global"), "name the global scope");
+      assertTrue(thrown.getMessage().contains("admin"), "name the caller's own scope");
+   }
+
+   /**
+    * The dialog service does not echo {@code colName} back into the model, so a caller that
+    * addressed a cell BY NAME read back null and could not confirm it had read the cell it wrote.
+    * Falling back to what was asked for is the honest answer.
+    */
+   @Test
+   void echoesBackTheColNameTheReadWasScopedTo() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      Map<String, Object> read = h.service.read(
+         "tok", principal(), "Table1",
+         new AssemblyHyperlinkService.Region(2, 1, "Sales", false, false, false, false));
+
+      assertEquals("Sales", read.get("colName"),
+                   "the model does not carry it; the name this read was scoped to is the answer");
+   }
+
+   /** The model's own value wins when it has one -- the fallback must not overwrite it. */
+   @Test
+   void theModelsOwnColNameTakesPrecedenceOverTheRequested() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setColName("Revenue");
+
+      Map<String, Object> read = harness(model).service.read(
+         "tok", principal(), "Table1",
+         new AssemblyHyperlinkService.Region(2, 1, "Sales", false, false, false, false));
+
+      assertEquals("Revenue", read.get("colName"));
+   }
+
+   /** No region, no name asked for, nothing to fall back to -- null, not a fabricated value. */
+   @Test
+   void reportsANullColNameWhenNoneWasAskedForOrCarried() throws Exception {
+      Map<String, Object> read = harness(new HyperlinkDialogModel())
+         .service.read("tok", principal(), "Chart1", null);
+
+      assertNull(read.get("colName"));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyHyperlinkService service, ViewsheetSessionService sessions,
