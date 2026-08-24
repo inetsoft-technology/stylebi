@@ -77,6 +77,15 @@ public class VisualFrameModelFactoryService {
       }
 
       VisualFrameWrapper nwrapper = getVisualFrameWrapper(wrapper, model);
+
+      // Null when the model produces no VisualFrame, and also when VisualFrameWrapper.wrap()
+      // threw and was swallowed below with a null wrapper passed in. getFactory() dereferences
+      // its argument, so both would come back as an NPE from three frames down rather than as
+      // the "nothing to update" this is.
+      if(nwrapper == null) {
+         return null;
+      }
+
       VisualFrameModelFactory<V, F> factory = getFactory(nwrapper);
 
       return factory.updateVisualFrameWrapper((V) nwrapper, model);

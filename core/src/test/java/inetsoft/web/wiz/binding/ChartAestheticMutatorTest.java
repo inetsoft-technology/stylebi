@@ -363,6 +363,71 @@ class ChartAestheticMutatorTest {
       assertEquals("#123456", frame.get("color"));
    }
 
+   // ── ...but only on the chart types whose renderer reads that slot ─────────
+
+   /**
+    * The broadcast above is right for an ordinary {@code DefaultVSChartInfo} chart and wrong for
+    * the ones whose {@code VSFrameVisitor} strategy answers {@code supportsFieldFrame()} false:
+    * {@code MergedVSChartInfo} (candle, stock, relation, map) for colour and shape,
+    * {@code RadarVSChartInfo} also for size, and {@code AbstractChartInfo} for all three on a
+    * contour chart. There {@code createFrame()} falls through to {@code getGeneralFrame()}, which
+    * reads the chart-level property — so writing the aggregate slot would put the frame somewhere
+    * nothing renders from, the same defect the aggregate branch exists to fix, mirrored.
+    *
+    * <p>{@code ChartAestheticAgentService} asks the real {@code VSChartInfo} which channels those
+    * are; this pins that the mutator honours the answer instead of assuming all five.
+    */
+   @Test
+   void writesAFieldLessFrameToTheChartLevelSlotWhenThisChartTypeDoesNotUsePerMeasureFrames() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      // What perMeasureFrameChannels() returns for a candle/stock chart: colour and shape (and
+      // therefore line/texture) read the chart-level slot, size reads the per-measure one.
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"),
+                                     false, Set.of("size"));
+
+      StaticColorModel onModel = assertInstanceOf(StaticColorModel.class, model.getColorFrame(),
+         "a chart type whose renderer reads the chart-level colour slot must be written there");
+      assertEquals("#CC2222", onModel.getColor());
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertNull(agg.getColorFrame(),
+                 "and not also into the per-measure slot this chart type never reads");
+   }
+
+   /** The channel that <em>is</em> per-measure on the same chart still goes to the aggregate. */
+   @Test
+   void stillWritesThePerMeasureChannelsThatThisChartTypeDoesUse() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "size", spec("type", "static", "size", 5.0),
+                                     false, Set.of("size"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(StaticSizeModel.class, agg.getSizeFrame());
+      assertNull(model.getSizeFrame());
+   }
+
+   /** The read has to be given the same set, or get_chart_aesthetics reports the dead slot. */
+   @Test
+   void describesAFieldLessFrameFromTheChartLevelSlotForTheSameChartType() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#123456"),
+                                     false, Set.of("size"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color = (Map<String, Object>)
+         ChartAestheticMutator.describe(model, false, Set.of("size")).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> frame = (Map<String, Object>) color.get("frame");
+
+      assertEquals("static", frame.get("type"));
+      assertEquals("#123456", frame.get("color"));
+   }
+
    // ── preservation, both ways ───────────────────────────────────────────────
 
    @Test

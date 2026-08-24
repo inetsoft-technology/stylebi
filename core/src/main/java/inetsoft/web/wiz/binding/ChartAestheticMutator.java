@@ -29,6 +29,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,22 @@ public final class ChartAestheticMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
+      setField(model, channel, field, relationChart, rvs, source, refModelService,
+               AestheticChannels.FRAME_CHANNELS);
+   }
+
+   /**
+    * @param perMeasureFrameChannels see
+    *        {@link #setFrame(ChartBindingModel, String, Map, boolean, Collection)}. Needed here
+    *        because the carry-forward below has to read the frame from whichever slot
+    *        {@code setFrame} would have written it to.
+    */
+   public static void setField(ChartBindingModel model, String channel, FieldRef field,
+                               boolean relationChart, RuntimeViewsheet rvs, SourceInfo source,
+                               DataRefModelFactoryService refModelService,
+                               Collection<String> perMeasureFrameChannels)
+      throws Exception
+   {
       String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
       if(field == null) {
@@ -95,7 +112,8 @@ public final class ChartAestheticMutator {
       // time, silently shadowing whatever the caller had already set.
       AestheticInfo existing = read(model, name);
       AestheticInfo info = existing != null ? existing : new AestheticInfo();
-      VisualFrameModel carriedFrame = info.getFrame() != null ? info.getFrame() : frameOf(model, name);
+      VisualFrameModel carriedFrame = info.getFrame() != null
+         ? info.getFrame() : frameOf(model, name, perMeasureFrameChannels);
       info.setFullName(field.column());
       info.setDataInfo(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
       info.setFrame(carriedFrame);
@@ -123,6 +141,29 @@ public final class ChartAestheticMutator {
    public static void setFrame(ChartBindingModel model, String channel,
                                Map<String, Object> spec, boolean relationChart)
    {
+      setFrame(model, channel, spec, relationChart, AestheticChannels.FRAME_CHANNELS);
+   }
+
+   /**
+    * @param perMeasureFrameChannels the frame channels this chart renders from each measure's own
+    *        frame property rather than from the chart-level one — i.e. the channels whose
+    *        {@code VSFrameVisitor} strategy answers {@code supportsFieldFrame()} true for this
+    *        chart info. It is <b>not</b> the same set for every chart type, which is why it is a
+    *        parameter rather than a constant: {@code MergedVSChartInfo} (candle, stock, relation,
+    *        map) answers false for colour and shape, {@code RadarVSChartInfo} also for size, and
+    *        {@code AbstractChartInfo} answers false for all three on a contour chart. On those
+    *        charts the chart-level property is what {@code createFrame()} falls back to, so
+    *        broadcasting to the aggregates would store the frame in a slot the renderer never
+    *        reads — the very defect this method's aggregate branch exists to fix, mirrored.
+    *        {@code ChartAestheticAgentService} builds the set by asking the real {@code
+    *        VSChartInfo}; callers with no chart in hand pass
+    *        {@link AestheticChannels#FRAME_CHANNELS}, correct for every ordinary
+    *        {@code DefaultVSChartInfo} chart.
+    */
+   public static void setFrame(ChartBindingModel model, String channel,
+                               Map<String, Object> spec, boolean relationChart,
+                               Collection<String> perMeasureFrameChannels)
+   {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
       VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
       AestheticInfo field = acceptsField(name) ? read(model, name) : null;
@@ -149,8 +190,12 @@ public final class ChartAestheticMutator {
       // on the Y shelf (or the X shelf, mirroring VSFrameVisitor.getAggregates()' own fallback,
       // if Y has none) -- the common single-measure chart makes this unambiguous, and a
       // multi-measure chart gets the same frame on every measure rather than silently only one.
+      //
+      // Gated on perMeasureFrameChannels, not on FRAME_CHANNELS: whether the renderer reads the
+      // per-measure slot or the chart-level one is a property of the chart type, not of the
+      // channel (see the parameter's javadoc).
       List<ChartAggregateRefModel> aggregates =
-         AestheticChannels.FRAME_CHANNELS.contains(name) ? aggregates(model) : List.of();
+         perMeasureFrameChannels.contains(name) ? aggregates(model) : List.of();
 
       if(!aggregates.isEmpty()) {
          switch(name) {
@@ -166,9 +211,10 @@ public final class ChartAestheticMutator {
          return;
       }
 
-      // No aggregate to target (e.g. a chart with zero Y/X measures) or a node channel, which has
-      // no per-aggregate slot -- these are the genuine cases where the top-level property is what
-      // the render path (still) consults.
+      // No aggregate to target (a chart with zero Y/X measures), a node channel, which has no
+      // per-aggregate slot, or a chart type whose renderer reads the chart-level slot for this
+      // channel anyway -- these are the genuine cases where the top-level property is what the
+      // render path (still) consults.
       switch(name) {
          case "color" -> model.setColorFrame((ColorFrameModel) frame);
          case "shape" -> model.setShapeFrame((ShapeFrameModel) frame);
@@ -220,19 +266,31 @@ public final class ChartAestheticMutator {
     *                      channel this chart cannot render.
     */
    public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart) {
+      return describe(model, relationChart, AestheticChannels.FRAME_CHANNELS);
+   }
+
+   /**
+    * @param perMeasureFrameChannels see
+    *        {@link #setFrame(ChartBindingModel, String, Map, boolean, Collection)}. The read must
+    *        be given the same set as the write, or it reports a slot the chart does not render
+    *        from.
+    */
+   public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart,
+                                              Collection<String> perMeasureFrameChannels)
+   {
       Map<String, Object> out = new LinkedHashMap<>();
 
       for(String channel : AestheticChannels.FIELD_CHANNELS) {
-         out.put(channel, channelView(model, channel));
+         out.put(channel, channelView(model, channel, perMeasureFrameChannels));
       }
 
       for(String channel : AestheticChannels.FRAME_CHANNELS) {
-         out.computeIfAbsent(channel, name -> channelView(model, name));
+         out.computeIfAbsent(channel, name -> channelView(model, name, perMeasureFrameChannels));
       }
 
       if(relationChart) {
          for(String channel : AestheticChannels.NODE_CHANNELS) {
-            out.put(channel, channelView(model, channel));
+            out.put(channel, channelView(model, channel, perMeasureFrameChannels));
          }
       }
 
@@ -288,12 +346,15 @@ public final class ChartAestheticMutator {
          AestheticChannels.NODE_CHANNELS.contains(channel);
    }
 
-   private static Map<String, Object> channelView(ChartBindingModel model, String channel) {
+   private static Map<String, Object> channelView(ChartBindingModel model, String channel,
+                                                  Collection<String> perMeasureFrameChannels)
+   {
       Map<String, Object> view = new LinkedHashMap<>();
       AestheticInfo info = acceptsField(channel) ? read(model, channel) : null;
 
       view.put("field", fieldNameOf(info));
-      view.put("frame", VisualFrameAliases.describe(frameOf(model, channel)));
+      view.put("frame",
+               VisualFrameAliases.describe(frameOf(model, channel, perMeasureFrameChannels)));
       view.put("acceptsField", acceptsField(channel));
       view.put("acceptsFrame", acceptsFrame(channel));
       return view;
@@ -330,17 +391,20 @@ public final class ChartAestheticMutator {
     * {@link #setField}'s carry-forward of a frame set before any field was bound.
     *
     * <p>Must mirror {@link #setFrame}'s write side exactly: for an unbound
-    * {@link AestheticChannels#FRAME_CHANNELS} channel with at least one Y/X measure, that is where
+    * {@code perMeasureFrameChannels} channel with at least one Y/X measure, that is where
     * {@code setFrame} wrote and where the render path ({@code VSFrameVisitor.createFrame}) reads
     * — not the top-level {@code ChartBindingModel} property. Reading the top-level property here
     * while the renderer consults the per-measure one would report a value the chart never shows,
-    * exactly the "reads the dead slot" defect this method exists to avoid.
+    * exactly the "reads the dead slot" defect this method exists to avoid. The gate is the same
+    * chart-type-derived set the write side takes, for the same reason.
     *
     * <p>When several measures disagree (only possible from state {@code setFrame} did not itself
     * produce — it always writes the same frame to every measure), the first measure's frame is
     * reported; there is no "mixed" sentinel in the agent vocabulary to report disagreement with.
     */
-   private static VisualFrameModel frameOf(ChartBindingModel model, String channel) {
+   private static VisualFrameModel frameOf(ChartBindingModel model, String channel,
+                                           Collection<String> perMeasureFrameChannels)
+   {
       AestheticInfo field = acceptsField(channel) ? read(model, channel) : null;
 
       if(field != null) {
@@ -348,7 +412,7 @@ public final class ChartAestheticMutator {
       }
 
       List<ChartAggregateRefModel> aggregates =
-         AestheticChannels.FRAME_CHANNELS.contains(channel) ? aggregates(model) : List.of();
+         perMeasureFrameChannels.contains(channel) ? aggregates(model) : List.of();
 
       if(!aggregates.isEmpty()) {
          return aggregateFrameOf(aggregates.get(0), channel);

@@ -22,6 +22,8 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -206,7 +211,7 @@ class ChangeChartTypeProcessorTest {
       info.setColorField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
 
       assertThrows(IllegalArgumentException.class,
-                   () -> changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info));
+                   () -> changeTypeStrictly(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info));
 
       assertEquals(1, info.getXFieldCount(), "x must be untouched after the refusal");
       assertEquals("Month", info.getXField(0).getName());
@@ -240,7 +245,7 @@ class ChangeChartTypeProcessorTest {
       info.setSizeField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
 
       assertThrows(IllegalArgumentException.class,
-                   () -> changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info));
+                   () -> changeTypeStrictly(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info));
 
       assertEquals(1, info.getXFieldCount(), "x must be untouched after the refusal");
       assertEquals(1, info.getYFieldCount(), "y must be untouched after the refusal");
@@ -298,16 +303,50 @@ class ChangeChartTypeProcessorTest {
 
       info = changeType(GraphTypes.CHART_GANTT, GraphTypes.CHART_MEKKO, info);
 
-      java.util.Set<String> bound = allBoundNames(info);
+      Set<String> bound = allBoundNames(info);
       assertTrue(bound.contains("Start"), "start must not be silently dropped: " + bound);
       assertTrue(bound.contains("End"), "end must not be silently dropped: " + bound);
       assertTrue(bound.contains("Milestone"), "milestone must not be silently dropped: " + bound);
    }
 
    /**
-    * Guards the {@code copyToRelation()} branch that the Gantt fix reorders around: a plain
-    * (non-Gantt) source retyping to network must still migrate exactly as it did before.
+    * The lenient default, which every caller but {@code ChangeChartTypeService} keeps. A script
+    * doing {@code chart.chartStyle = PIE}, a report chart element or a date-comparison rebuild is
+    * running inside someone else's operation: there is no dispatcher to report a refusal through
+    * and nothing to catch it, so an exception would turn a chart that used to render imperfectly
+    * into a script error. The measure is dropped, as it always was, but now with a LOG.warn.
     */
+   @Test
+   void barToPieWithMeasureOnColorDegradesRatherThanThrowsForNonInteractiveCallers() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
+
+      ChartInfo result =
+         assertDoesNotThrow(() -> changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info));
+
+      assertNotNull(result.getColorField(), "the migration still runs on the lenient path");
+      assertEquals("Month", result.getColorField().getDataRef().getName());
+   }
+
+   /** The treemap half of the same contract. */
+   @Test
+   void barToTreemapWithNoFreeChannelDegradesRatherThanThrowsForNonInteractiveCallers() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorField(aestheticRef(dimension("Year")));
+      info.setShapeField(aestheticRef(dimension("Quarter")));
+      info.setSizeField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
+
+      ChartInfo result = assertDoesNotThrow(
+         () -> changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info));
+
+      assertEquals(1, result.getGroupFieldCount(),
+                   "the dimension must still move onto group on the lenient path");
+   }
+
    /**
     * Finding 16 sibling (Site A, fixPieDimensions): a categorical color frame the caller
     * already planted on the top-level "color" slot while the channel was unbound (e.g. via
@@ -451,6 +490,18 @@ class ChangeChartTypeProcessorTest {
       return new ChangeChartTypeProcessor(oldType, newType, null, info).process();
    }
 
+   /**
+    * A retype made the way {@code ChangeChartTypeService} makes it — the one caller that asked for
+    * this retype on someone's behalf and can report a refusal back to them, so the only one that
+    * turns strict field placement on. Every other caller (script, report element, date comparison)
+    * keeps the lenient default, which drops rather than throws.
+    */
+   private static ChartInfo changeTypeStrictly(int oldType, int newType, ChartInfo info) {
+      return new ChangeChartTypeProcessor(oldType, newType, null, info)
+         .setStrictFieldPlacement(true)
+         .process();
+   }
+
    private static ChartInfo ganttInfo(String start, String end, String milestone) {
       GanttVSChartInfo info = new GanttVSChartInfo();
       info.setStartField(dimension(start));
@@ -463,10 +514,10 @@ class ChangeChartTypeProcessorTest {
       return aref == null ? null : aref.getDataRef().getName();
    }
 
-   private static java.util.Set<String> allBoundNames(ChartInfo info) {
-      java.util.Set<String> names = new java.util.HashSet<>();
+   private static Set<String> allBoundNames(ChartInfo info) {
+      Set<String> names = new HashSet<>();
 
-      for(inetsoft.uql.viewsheet.VSDataRef field : info.getFields()) {
+      for(VSDataRef field : info.getFields()) {
          names.add(field.getName());
       }
 
@@ -497,7 +548,7 @@ class ChangeChartTypeProcessorTest {
       return agg;
    }
 
-   private static AestheticRef aestheticRef(inetsoft.uql.erm.DataRef dataRef) {
+   private static AestheticRef aestheticRef(DataRef dataRef) {
       VSAestheticRef aref = new VSAestheticRef();
       aref.setDataRef(dataRef);
       return aref;

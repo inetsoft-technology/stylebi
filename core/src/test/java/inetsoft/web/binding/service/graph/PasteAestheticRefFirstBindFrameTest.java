@@ -22,6 +22,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel;
@@ -84,5 +85,25 @@ class PasteAestheticRefFirstBindFrameTest {
                      + "not the CategoricalColorFrame class default of true");
       assertEquals(Tool.getColorFromHexString("#111111"), runtime.getColor(0));
       assertEquals(Tool.getColorFromHexString("#222222"), runtime.getColor(1));
+   }
+
+   /**
+    * The other half of the same branch, which the first-bind repair must not change. A ref that
+    * already carries a wrapper, paired with a model carrying no frame, is an explicit clear and
+    * has always been one — {@code createAestheticInfo} deliberately sends no frame model for the
+    * text field ("textfield is edited by set and gettextformat request"), so this is the shape
+    * the interactive Composer's own binding dialog produces, not a hypothetical.
+    */
+   @Test
+   void pastingAModelWithNoFrameOntoARefThatHasOneStillClearsIt() {
+      VSAestheticRef ref = new VSAestheticRef();
+      ref.setVisualFrame(new CategoricalColorFrame());
+      assertNotNull(ref.getVisualFrameWrapper(), "precondition: the ref carries a wrapper");
+
+      AestheticRef pasted = factory.pasteAestheticRef(null, ref, new AestheticInfo());
+
+      assertNull(pasted.getVisualFrameWrapper(),
+                 "a model with no frame is a clear, and must stay one: the first-bind repair "
+                    + "only concerns a ref that had no wrapper to begin with");
    }
 }

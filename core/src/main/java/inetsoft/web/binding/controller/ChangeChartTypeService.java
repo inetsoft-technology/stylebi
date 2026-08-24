@@ -175,8 +175,43 @@ public class ChangeChartTypeService {
          chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
       }
 
-      cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType,
-                                                         omulti, nmulti, ref, cinfo, false, desc).process();
+      try {
+         cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType, omulti, nmulti, ref,
+                                                            cinfo, false, desc)
+            .setStrictFieldPlacement(true)
+            .process();
+      }
+      catch(IllegalArgumentException e) {
+         // ChangeChartTypeProcessor refuses a retype that has nowhere to put a bound field (a
+         // measure on colour heading for a pie, measures with no free aesthetic channel heading
+         // for a treemap) rather than destroying it silently. Three things have to happen here and
+         // none of them can be left to the caller.
+         //
+         // First, the refusal is not atomic on its own. It lands before any field is moved, but
+         // fixChartInfo() has already run by then and stamps the new type onto the live info when
+         // the two types share a ChartInfo class (bar -> pie), so the assembly is left claiming a
+         // type whose binding it never got. Restoring the clone taken at the top of this method is
+         // the only way to make the whole call a no-op, which is what a refusal has to be.
+         //
+         // Second, clearRuntime() ran above, before we knew the retype would be refused. Unwinding
+         // without updateAssembly() would leave the chart exactly as the same-type branch above
+         // used to: aesthetics reported by every read and absent from what renders.
+         //
+         // Third, composer services report failure by dispatching a MessageCommand, not by
+         // throwing -- see the permission refusal above. Doing the same here means the browser
+         // gets a dialog naming the field instead of a 500, and the agent tier gets a loud error
+         // for free: CapturingCommandDispatcher turns an ERROR command into a
+         // CommandErrorException.
+         chart.setVSAssemblyInfo(oinfo);
+         box.get().updateAssembly(chart.getAbsoluteName());
+
+         MessageCommand command = new MessageCommand();
+         command.setMessage(e.getMessage());
+         command.setType(MessageCommand.Type.ERROR);
+         dispatcher.sendCommand(command);
+         return null;
+      }
+
       SourceInfo sourceInfo = ninfo.getSourceInfo();
       new ChangeChartProcessor().fixParetoSorting(cinfo);
 

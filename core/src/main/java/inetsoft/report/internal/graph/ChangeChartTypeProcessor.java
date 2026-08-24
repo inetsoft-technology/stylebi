@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Fix information when the chart type is changed.
@@ -80,6 +81,28 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       this.oinfo = info;
       this.forced = forced;
       this.desc = desc;
+   }
+
+   /**
+    * Whether a retype that cannot place a bound field anywhere is refused or degrades.
+    *
+    * <p>Off by default, which is the behaviour every caller had before the refusals were added:
+    * the field is dropped, now with a {@code LOG.warn} instead of in silence. On, the retype
+    * throws {@link IllegalArgumentException} before mutating anything, so the caller can report
+    * the problem and leave the chart alone.
+    *
+    * <p>Only {@code ChangeChartTypeService} turns it on, because it is the only caller where a
+    * <em>person or an agent asked for this retype</em> and can be told no: it dispatches the
+    * message as a {@code MessageCommand}, which the browser shows as a dialog and the agent tier
+    * receives as an error. The other callers — {@code ChartVSAssemblyInfo.setChartStyle} (the
+    * script and property path), {@code ChartElementDef}, {@code ChartDcProcessor},
+    * {@code DateComparisonDialogService} — are running inside someone else's operation, with no
+    * dispatcher and nothing to catch an exception, so throwing there would turn a chart that used
+    * to render imperfectly into a script error or a failed render.
+    */
+   public ChangeChartTypeProcessor setStrictFieldPlacement(boolean strict) {
+      this.strictFieldPlacement = strict;
+      return this;
    }
 
    /**
@@ -455,12 +478,20 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          // displaced category. Refuse before touching anything rather than silently destroy it,
          // which is what used to happen: createAestheticRef/setColorField below would overwrite
          // it with no error.
-         if((xHasDim || yHasDim) && colorFld != null && !colorHasDim) {
+         boolean measureOnColor = (xHasDim || yHasDim) && colorFld != null && !colorHasDim;
+
+         if(measureOnColor && strictFieldPlacement) {
             throw new IllegalArgumentException(
                "Cannot change to a pie chart: 'color' is bound to the measure '" +
                colorFld.getFullName() + "', and pie charts have no aesthetic channel to move " +
                "it to. Clear the color field, or bind '" + colorFld.getFullName() +
                "' elsewhere, before retyping to pie.");
+         }
+
+         if(measureOnColor) {
+            LOG.warn("Changing to a pie chart discards the measure '{}' bound to color: " +
+                     "the dimension migrating onto color has nowhere else to go.",
+                     colorFld.getFullName());
          }
 
          if(xHasDim || yHasDim) {
@@ -510,19 +541,32 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
     * field is a measure, x otherwise. Shared by the pie-reversal branch above and the forward
     * pie migration, which uses the same placement to displace a color dimension that a newly
     * migrated dimension is about to replace.
+    *
+    * <p>A dataRef that is not a {@code ChartRef} cannot be placed on a shelf at all, so the
+    * colour field is left where it is rather than cast and thrown at. The reverse branch has
+    * always cast unconditionally, but only ever saw refs the interactive Composer built; the
+    * forward migration now reaches this with whatever an agent planted on the channel.
     */
    private void moveColorDimensionToShelf(ChartInfo info, ChartBindable bindable,
                                           AestheticRef colorFld)
    {
+      if(!(colorFld.getDataRef() instanceof ChartRef cref)) {
+         LOG.warn("Leaving the color field '{}' bound: it is a {}, which cannot be placed on a " +
+                  "shelf.", colorFld.getFullName(),
+                  colorFld.getDataRef() == null ? "null ref"
+                     : colorFld.getDataRef().getClass().getSimpleName());
+         return;
+      }
+
       int xcnt = info.getXFieldCount();
       boolean xagg = xcnt > 0 && GraphUtil.isMeasure(info.getXField(xcnt - 1));
       bindable.setColorField(null);
 
       if(xagg) {
-         info.addYField((ChartRef) colorFld.getDataRef());
+         info.addYField(cref);
       }
       else {
-         info.addXField((ChartRef) colorFld.getDataRef());
+         info.addXField(cref);
       }
    }
 
@@ -1257,7 +1301,10 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          (info.getShapeField() == null ? 1 : 0);
 
       if(measures.size() > freeAestheticSlots) {
-         List<ChartRef> stranded = measures.subList(freeAestheticSlots, measures.size());
+         // Copied, not a subList view: the list it would be a view of is mutated below by the
+         // placements' own measures.remove(0).
+         List<ChartRef> stranded =
+            new ArrayList<>(measures.subList(freeAestheticSlots, measures.size()));
          List<String> occupied = new ArrayList<>();
 
          if(info.getSizeField() != null) {
@@ -1272,21 +1319,21 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             occupied.add("shape");
          }
 
-         StringBuilder strandedNames = new StringBuilder();
+         String strandedNames = stranded.stream()
+            .map(ChartRef::getFullName)
+            .collect(Collectors.joining(", "));
 
-         for(ChartRef m : stranded) {
-            if(strandedNames.length() > 0) {
-               strandedNames.append(", ");
-            }
-
-            strandedNames.append(m.getFullName());
+         if(strictFieldPlacement) {
+            throw new IllegalArgumentException(
+               "Cannot change to a treemap: " + String.join(", ", occupied) +
+               " already have fields bound, leaving no aesthetic channel for the measure(s) " +
+               strandedNames + ". Free a channel (color, shape or size), or remove the " +
+               "measure(s), before retyping to treemap.");
          }
 
-         throw new IllegalArgumentException(
-            "Cannot change to a treemap: " + String.join(", ", occupied) +
-            " already have fields bound, leaving no aesthetic channel for the measure(s) " +
-            strandedNames + ". Free a channel (color, shape or size), or remove the measure(s), " +
-            "before retyping to treemap.");
+         LOG.warn("Changing to a treemap discards the measure(s) {}: {} already have fields " +
+                  "bound, leaving no aesthetic channel free.",
+                  strandedNames, String.join(", ", occupied));
       }
 
       if(treeDims.isEmpty()) {
@@ -1832,6 +1879,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
    private ChartInfo info, oinfo;
    private ChartDescriptor desc;
    private boolean forced = true; // forced change to auto if without measure
+   private boolean strictFieldPlacement = false;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ChangeChartTypeProcessor.class);
