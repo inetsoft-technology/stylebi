@@ -38,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -75,25 +76,87 @@ public abstract class RuntimeSheet {
    }
 
    /**
+    * The default heartbeat timeout, in milliseconds (3 minutes). This is also the minimum: a
+    * runtime sheet is reaped by WorksheetEngine.RecycleTask, which sweeps every three minutes,
+    * so a shorter window cannot be honoured any more precisely than the sweep and is raised to
+    * this value. No viewsheet.heartbeat.timeout entry ships in defaults.properties, so this
+    * constant is the only place the default lives.
+    */
+   public static final long DEFAULT_HEARTBEAT_TIMEOUT = 180000L;
+
+   /**
     * Get the heartbeat timeout in milliseconds. A runtime sheet is considered
     * timed out if no heartbeat has been received within this window. Defaults
-    * to 180000 (3 minutes); configurable via the "viewsheet.heartbeat.timeout"
+    * to DEFAULT_HEARTBEAT_TIMEOUT; configurable via the "viewsheet.heartbeat.timeout"
     * property. Read on each call so it can be retuned without a restart.
+    *
+    * <p>A value that is not a number, and one that is below DEFAULT_HEARTBEAT_TIMEOUT, are both
+    * reported and replaced by DEFAULT_HEARTBEAT_TIMEOUT. The property can therefore only ever
+    * lengthen the window; see DEFAULT_HEARTBEAT_TIMEOUT for why a shorter one is not honoured.
+    *
+    * @return the heartbeat timeout in milliseconds, never less than DEFAULT_HEARTBEAT_TIMEOUT.
     */
    public static long getHeartbeatTimeout() {
       String property = SreeEnv.getProperty("viewsheet.heartbeat.timeout");
 
       if(property != null) {
          try {
-            return Math.max(180000L, Long.parseLong(property));
+            long configured = Long.parseLong(property);
+
+            if(configured < DEFAULT_HEARTBEAT_TIMEOUT) {
+               // the silently-overridden case is the one an operator is more likely to hit,
+               // since shortening the timeout is the usual reason to touch the property at all
+               warnHeartbeatTimeout(
+                  property,
+                  "viewsheet.heartbeat.timeout value \"{}\" is below the minimum of {} ms, " +
+                  "using {} ms; the heartbeat window cannot be shorter than the recycle sweep " +
+                  "interval",
+                  property, DEFAULT_HEARTBEAT_TIMEOUT, DEFAULT_HEARTBEAT_TIMEOUT);
+
+               return DEFAULT_HEARTBEAT_TIMEOUT;
+            }
+
+            forgetHeartbeatTimeoutWarning();
+            return configured;
          }
          catch(NumberFormatException ex) {
-            LOG.warn("Invalid value for viewsheet.heartbeat.timeout: '{}', using default 180000ms",
-               property);
+            warnHeartbeatTimeout(
+               property,
+               "Invalid viewsheet.heartbeat.timeout value \"{}\", using the default of {} ms",
+               property, DEFAULT_HEARTBEAT_TIMEOUT);
+
+            return DEFAULT_HEARTBEAT_TIMEOUT;
          }
       }
 
-      return 180000;
+      forgetHeartbeatTimeoutWarning();
+      return DEFAULT_HEARTBEAT_TIMEOUT;
+   }
+
+   /**
+    * Report a viewsheet.heartbeat.timeout value that is not being used as configured, but only
+    * when it differs from the value most recently reported. getHeartbeatTimeout() is reached
+    * from isTimeout(), which RecycleTask calls once per open sheet on every sweep, so an
+    * unconditional warning repeats in proportion to the number of open sheets.
+    *
+    * @param property the raw property value, used to suppress a repeat of the same complaint.
+    */
+   private static void warnHeartbeatTimeout(String property, String format, Object... args) {
+      if(!Objects.equals(lastWarnedHeartbeatTimeout.getAndSet(property), property)) {
+         LOG.warn(format, args);
+      }
+   }
+
+   /**
+    * Drop the suppression state once the property is honoured again, so that a value which is
+    * corrected and later reintroduced is reported a second time rather than applied in silence.
+    * Guarded on a read: this runs on every heartbeat check, and the write is only needed on the
+    * transition back to a usable value.
+    */
+   private static void forgetHeartbeatTimeoutWarning() {
+      if(lastWarnedHeartbeatTimeout.get() != null) {
+         lastWarnedHeartbeatTimeout.set(null);
+      }
    }
 
    /**
@@ -1198,6 +1261,11 @@ public abstract class RuntimeSheet {
    volatile long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
+
+   // the viewsheet.heartbeat.timeout value most recently complained about; see
+   // warnHeartbeatTimeout
+   private static final AtomicReference<String> lastWarnedHeartbeatTimeout =
+      new AtomicReference<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeSheet.class);
