@@ -233,10 +233,17 @@ public final class PropertyPath {
 
       // Checked before the pass-through below, which would otherwise hand a String straight to a
       // String setter without ever consulting the value domain.
-      requireAllowedValue(text, value, target, path);
+      //
+      // The result is also the CANONICAL spelling from that domain, not just a yes/no. The check
+      // is deliberately case-insensitive, so a token differing only in case passes it -- and then
+      // used to be written through verbatim, which is no better than not checking: StyleBI matches
+      // these tokens case-sensitively and silently keeps the default for anything it does not
+      // recognise. Live, trendLineType: "LINEAR" passed the check, stored "LINEAR", and left the
+      // chart on "NONE" while reporting success.
+      String canonical = requireAllowedValue(text, value, target, path);
 
       if(target.isInstance(value) && !(value instanceof Number && target != value.getClass())) {
-         return value;
+         return target == String.class ? canonical : value;
       }
 
       if(target == boolean.class || target == Boolean.class) {
@@ -277,7 +284,7 @@ public final class PropertyPath {
       }
 
       if(target == String.class) {
-         return text;
+         return canonical;
       }
 
       if(target.isEnum()) {
@@ -338,11 +345,26 @@ public final class PropertyPath {
             continue;
          }
 
-         if(method.getName().equals("get" + suffix) || method.getName().equals("is" + suffix)) {
+         String name = method.getName();
+
+         if(name.equals("get" + suffix) || name.equals("is" + suffix)) {
             return method;
          }
 
-         if(method.getName().equals(property)) {
+         // The same either-spelling match writerFor makes, for the same reason: a reader whose
+         // name carries a lowercase letter straight after get/is is what propertiesOf enumerated
+         // the property from, so it has to be findable by the name that enumeration produced.
+         // Fixing only the writer would leave a property that can be set but not read back by
+         // path, which is a worse state than the one this repaired.
+         if((name.startsWith("get") && name.length() > 3 &&
+             decapitalize(name.substring(3)).equals(property)) ||
+            (name.startsWith("is") && name.length() > 2 &&
+             decapitalize(name.substring(2)).equals(property)))
+         {
+            return method;
+         }
+
+         if(name.equals(property)) {
             bare = method;
          }
       }
@@ -355,22 +377,47 @@ public final class PropertyPath {
     * than mutating this one.
     */
    private static Method witherFor(Class<?> type, String property) {
-      String name = "with" + capitalize(property);
-
-      for(Method method : type.getMethods()) {
-         if(method.getParameterCount() == 1 && method.getName().equals(name)) {
-            return method;
-         }
-      }
-
-      return null;
+      return writerFor(type, "with", property);
    }
 
    private static Method setterFor(Class<?> type, String property) {
-      String name = "set" + capitalize(property);
+      return writerFor(type, "set", property);
+   }
+
+   /**
+    * Finds a one-argument writer, accepting <b>either</b> spelling of the accessor name.
+    *
+    * <p>Rebuilding the name as {@code prefix + capitalize(property)} is not the inverse of the
+    * way {@link #propertiesOf} produced it — strip the prefix, decapitalize — and a model with a
+    * lowercase letter straight after the prefix fell through the gap between them.
+    * {@code ChartLinePaneModel} declares {@code getxGridLineStyle}/{@code setxGridLineStyle}, so
+    * {@code propertiesOf} offered {@code xGridLineStyle} while this lookup asked for
+    * {@code setXGridLineStyle} and found nothing: the property was refused as unwritable and
+    * listed as available in the very same sentence. Four real, writable properties were
+    * unreachable that way — {@code xGridLineStyle}, {@code xGridLineColor},
+    * {@code yGridLineStyle}, {@code yGridLineColor}.
+    *
+    * <p><b>Both derivations are accepted rather than replacing one with the other</b>, because
+    * neither covers the whole tree on its own. Accessors that begin with two capitals —
+    * {@code getRTChartType}, {@code getVSChartInfo}, {@code getLTableDescriptions} — resolve only
+    * through the rebuilt form, since decapitalizing {@code RTChartType} yields
+    * {@code rTChartType}. Matching either way is a strict superset of the old behaviour, so no
+    * name that resolved before can stop resolving now.
+    */
+   private static Method writerFor(Class<?> type, String prefix, String property) {
+      String rebuilt = prefix + capitalize(property);
 
       for(Method method : type.getMethods()) {
-         if(method.getParameterCount() == 1 && method.getName().equals(name)) {
+         String name = method.getName();
+
+         if(method.getParameterCount() != 1) {
+            continue;
+         }
+
+         if(name.equals(rebuilt) ||
+            (name.length() > prefix.length() && name.startsWith(prefix) &&
+             decapitalize(name.substring(prefix.length())).equals(property)))
+         {
             return method;
          }
       }
@@ -422,21 +469,29 @@ public final class PropertyPath {
     * produces the worst outcome available — a clean "ok" for a setting that was never applied.
     * Live, {@code visible: "no"} stored "no" and left the assembly on screen.
     */
-   private static void requireAllowedValue(String text, Object value, Class<?> target,
-                                           String path)
+   private static String requireAllowedValue(String text, Object value, Class<?> target,
+                                             String path)
    {
       if(target != String.class) {
-         return;
+         return text;
       }
 
       Set<String> allowed = CONSTRAINED_STRINGS.get(leafName(path));
 
-      if(allowed != null && allowed.stream().noneMatch(v -> v.equalsIgnoreCase(text))) {
-         throw new IllegalArgumentException(
+      if(allowed == null) {
+         return text;
+      }
+
+      // Returns the domain's own spelling rather than the caller's. Matching case-insensitively
+      // and then storing what the caller typed is the worst of both: the value looks accepted and
+      // StyleBI, which compares these tokens exactly, keeps the default.
+      return allowed.stream()
+         .filter(v -> v.equalsIgnoreCase(text))
+         .findFirst()
+         .orElseThrow(() -> new IllegalArgumentException(
             "'" + path + "' accepts only " + new TreeSet<>(allowed) + "; '" + value + "' is not " +
             "one of them. StyleBI ignores an unrecognised value and keeps the default, so this " +
-            "would have reported success without changing anything.");
-      }
+            "would have reported success without changing anything."));
    }
 
    /** The last segment of a dotted path — the property's own name. */
@@ -454,5 +509,9 @@ public final class PropertyPath {
     * reported success for {@code visible: "no"} and the assembly stayed on screen.
     */
    private static final Map<String, Set<String>> CONSTRAINED_STRINGS = Map.of(
-      "visible", Set.of("true", "show", "false", "hide", "hide on print and export"));
+      "visible", Set.of("true", "show", "false", "hide", "hide on print and export"),
+      // ChartLinePaneModel.getIndexByName walks TRENDLINE_NAMES with equals() and starts its
+      // index at 0, so anything it does not match exactly becomes "NONE" with no complaint.
+      "trendLineType", Set.of("NONE", "Linear", "Quadratic", "Cubic", "Exponential",
+                              "Logarithmic", "Power"));
 }

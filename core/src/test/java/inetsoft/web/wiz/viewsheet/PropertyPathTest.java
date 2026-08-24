@@ -439,4 +439,117 @@ class PropertyPathTest {
       assertTrue(properties.contains("title"));
       assertFalse(properties.contains("class"), "Object's own getters are not properties");
    }
+
+   // ── accessor-name spellings (the writer/reader lookup fix) ────────────────
+   //
+   // propertiesOf derives a name by stripping get/is and decapitalizing; the writer lookup used
+   // to rebuild it with capitalize. Those are not inverses when a lowercase letter follows the
+   // prefix, so ChartLinePaneModel.setxGridLineStyle was invisible: xGridLineStyle was refused as
+   // unwritable and listed as available in the same message. Both derivations are accepted now,
+   // which has to stay a strict superset -- a name that resolved before must not stop resolving.
+
+   /**
+    * Mirrors {@code ChartLinePaneModel}: a lowercase letter straight after the prefix
+    * ({@code getxGridLineStyle}) alongside a two-capital accessor ({@code getRTChartType}) that
+    * only the rebuilt spelling can reach, since decapitalizing {@code RTChartType} yields
+    * {@code rTChartType}.
+    */
+   public static class AwkwardAccessors {
+      public String getxGridLineStyle() { return xGridLineStyle; }
+      public void setxGridLineStyle(String style) { this.xGridLineStyle = style; }
+      public String getRTChartType() { return rtChartType; }
+      public void setRTChartType(String type) { this.rtChartType = type; }
+
+      private String xGridLineStyle = "";
+      private String rtChartType = "";
+   }
+
+   @Test
+   void writesThroughAnAccessorWhoseNameIsLowercaseAfterThePrefix() {
+      AwkwardAccessors target = new AwkwardAccessors();
+
+      PropertyPath.set(target, "xGridLineStyle", "THIN_LINE");
+
+      assertEquals("THIN_LINE", target.getxGridLineStyle(),
+                   "setxGridLineStyle is the real writer; asking for setXGridLineStyle found nothing");
+   }
+
+   @Test
+   void readsBackTheSameLowercaseAfterPrefixPropertyItCanWrite() {
+      AwkwardAccessors target = new AwkwardAccessors();
+      target.setxGridLineStyle("THIN_LINE");
+
+      assertEquals("THIN_LINE", PropertyPath.get(target, "xGridLineStyle"),
+                   "writable but unreadable by path would be worse than the bug this repaired");
+   }
+
+   @Test
+   void theAwkwardNameIsTheOnePropertiesOfAdvertises() {
+      assertTrue(PropertyPath.propertiesOf(AwkwardAccessors.class).contains("xGridLineStyle"),
+                 "the lookup must accept the spelling the enumeration hands out");
+   }
+
+   @Test
+   void aTwoCapitalAccessorStillResolvesThroughTheRebuiltSpelling() {
+      AwkwardAccessors target = new AwkwardAccessors();
+
+      PropertyPath.set(target, "RTChartType", "BAR");
+
+      assertEquals("BAR", target.getRTChartType(),
+                   "decapitalizing RTChartType gives rTChartType, so only the rebuilt form reaches it");
+   }
+
+   // ── constrained strings return the domain's own spelling ──────────────────
+
+   /** Mirrors {@code ChartLinePaneModel.trendLineType}. */
+   public static class TrendLine {
+      public String getTrendLineType() { return trendLineType; }
+      public void setTrendLineType(String type) { this.trendLineType = type; }
+
+      private String trendLineType = "NONE";
+   }
+
+   /**
+    * The check is case-insensitive, so {@code "LINEAR"} passes it. Storing the caller's spelling
+    * anyway is no better than not checking: {@code getIndexByName} compares with {@code equals}
+    * and starts at 0, so the chart stayed on {@code NONE} while the write reported success.
+    */
+   @Test
+   void storesTheDomainsSpellingNotTheCallersForAConstrainedString() {
+      TrendLine target = new TrendLine();
+
+      PropertyPath.set(target, "trendLineType", "LINEAR");
+
+      assertEquals("Linear", target.getTrendLineType(),
+                   "StyleBI matches this token exactly; 'LINEAR' would have silently meant NONE");
+   }
+
+   @Test
+   void anExactlySpelledConstrainedStringIsUnchanged() {
+      TrendLine target = new TrendLine();
+
+      PropertyPath.set(target, "trendLineType", "Quadratic");
+
+      assertEquals("Quadratic", target.getTrendLineType());
+   }
+
+   @Test
+   void refusesATrendLineTypeOutsideTheDomainListingTheValid() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new TrendLine(), "trendLineType", "spline"));
+
+      assertTrue(thrown.getMessage().contains("trendLineType"), "name the property");
+      assertTrue(thrown.getMessage().contains("Linear"), "list the tokens that do work");
+   }
+
+   @Test
+   void anUnconstrainedStringKeepsTheCallersSpelling() {
+      Leaf leaf = new Leaf();
+
+      PropertyPath.set(leaf, "title", "MiXeD Case");
+
+      assertEquals("MiXeD Case", leaf.getTitle(),
+                   "only names with a declared domain get canonicalized");
+   }
 }
