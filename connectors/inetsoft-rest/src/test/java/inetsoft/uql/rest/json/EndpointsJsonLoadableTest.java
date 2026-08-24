@@ -161,6 +161,11 @@ class EndpointsJsonLoadableTest {
       int declaredResponseSchemas = 0;
       int boundResponseSchemas = 0;
 
+      // The counts above compare the corpus against itself, so they stay green if every curated tree
+      // is deleted at once -- which is exactly what a regenerated endpoints.json would do. Stripe is
+      // the connector those trees were written for, so its count standing at zero means they are gone.
+      int stripeResponseSchemas = 0;
+
       for(Path file : files) {
          String connector = file.getParent().getFileName().toString();
 
@@ -172,7 +177,12 @@ class EndpointsJsonLoadableTest {
                continue;
             }
 
-            declaredResponseSchemas += countDeclaredResponseSchemas(file);
+            int declaredHere = countDeclaredResponseSchemas(file);
+            declaredResponseSchemas += declaredHere;
+
+            if("stripe".equals(connector)) {
+               stripeResponseSchemas = declaredHere;
+            }
 
             boolean hasSuffix = false;
             boolean hasDescription = false;
@@ -249,6 +259,10 @@ class EndpointsJsonLoadableTest {
          failures.add("responseSchema: " + declaredResponseSchemas + " declared across the corpus but "
                          + boundResponseSchemas + " bound to a non-null "
                          + "WizEndpointCatalogEntry.responseSchema()");
+      }
+
+      if(stripeResponseSchemas == 0) {
+         failures.add("stripe: no entry declares a responseSchema");
       }
 
       assertTrue(failures.isEmpty(),
