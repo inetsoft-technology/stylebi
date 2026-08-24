@@ -243,7 +243,8 @@ class AssemblyHighlightServiceTest {
     * (1,1) gave PRODUCT_NAME and Sum(PRICE).
     *
     * <p>With no region named, the caller means the assembly's data, so the read falls forward to
-    * the first data cell.
+    * the first data cell, addressed by {@link HighlightDialogService#getFirstDataCell} rather
+    * than a literal.
     */
    @Test
    void fallsForwardToADataCellWhenNoRegionWasNamedAndTheHeaderHasNoFields() throws Exception {
@@ -263,6 +264,33 @@ class AssemblyHighlightServiceTest {
 
       assertEquals(List.of("Region", "Revenue"), listed.get("fields"),
                    "the data cell's fields, not the header's empty list");
+   }
+
+   /**
+    * A crosstab with 2+ aggregates inserts an extra header row or column labeling each
+    * aggregate, shifting the real first data cell past {@code (1, 1)} -- which was itself still a
+    * HEADER cell there, so falling forward to a hardcoded {@code (1, 1)} reproduced the same empty
+    * vocabulary. The fall-forward must use whatever cell {@code getFirstDataCell} reports, not
+    * assume it is {@code (1, 1)}.
+    */
+   @Test
+   void fallsForwardToTheRealFirstDataCellWhenItIsNotOneOne() throws Exception {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+
+      HighlightDialogModel dataCell = model();
+      Harness h = harness(header);
+      when(h.highlights.getFirstDataCell(anyString(), eq("Crosstab1"), any(Principal.class)))
+         .thenReturn(new int[]{ 1, 2 });
+      when(h.highlights.getHighlightDialogModel(anyString(), anyString(), eq(1), eq(2), any(),
+                                                anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(dataCell);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Crosstab1", null);
+
+      assertEquals(List.of("Region", "Revenue"), listed.get("fields"),
+                   "must fall forward to (1, 2), the cell getFirstDataCell actually reported");
    }
 
    /** An explicit region is never second-guessed — moving it would highlight the wrong cell. */
@@ -474,6 +502,8 @@ class AssemblyHighlightServiceTest {
                                                  anyBoolean(), anyBoolean(),
                                                  any(Principal.class)))
             .thenReturn(model);
+         when(highlights.getFirstDataCell(anyString(), anyString(), any(Principal.class)))
+            .thenReturn(new int[]{ 1, 1 });
       }
       catch(Exception e) {
          throw new IllegalStateException(e);

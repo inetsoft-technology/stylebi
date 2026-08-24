@@ -110,6 +110,7 @@ export class VSTableActionHandler extends AbstractActionHandler {
          dialog.openToScript = openToScript;
          dialog.runtimeId = this.viewsheetClient.runtimeId;
          dialog.socketConnection = this.viewsheetClient;
+         dialog.assemblyName = model.absoluteName;
          dialog.scriptTreeModel = loadingScriptTreeModel;
          this.modelService.getModel(scriptUri, params).subscribe(res => dialog.scriptTreeModel = res);
       });

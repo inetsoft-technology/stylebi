@@ -92,8 +92,14 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       if(!GraphTypes.isTreemap(oldType) && GraphTypes.isTreemap(newType)) {
          copyToTreemap();
       }
+      else if(GraphTypes.isTreemap(oldType) && !GraphTypes.isTreemap(newType)) {
+         copyFromTreemap();
+      }
       else if(!GraphTypes.isMekko(oldType) && GraphTypes.isMekko(newType)) {
          copyToMekko();
+      }
+      else if(GraphTypes.isMekko(oldType) && !GraphTypes.isMekko(newType)) {
+         copyFromMekko();
       }
       else if(!GraphTypes.isRelation(oldType) && GraphTypes.isRelation(newType)) {
          copyToRelation();
@@ -166,7 +172,10 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             info.setColorFrame(new BluesColorFrame());
          }
       }
-      else if(!(info.getColorFrame() instanceof StaticColorFrame)) {
+      else if(GraphTypes.isContour(oldType) && info.getColorFrame() instanceof LinearColorFrame) {
+         // Linear/Blues frames only make sense for contour; migrating away from contour with
+         // one still set needs to fall back to something ordinary charts can render. Any other
+         // frame the user explicitly set is valid on non-contour types and must not be touched.
          info.setColorFrame(new StaticColorFrame());
       }
    }
@@ -399,7 +408,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       fixShapeField(newInfo, newInfo, getChartType(newInfo, ref));
       fixSizeField(newInfo, getChartType(newInfo, ref));
       fixSizeFrame(newInfo);
-      fixPieDimensions(info);
+      fixPieDimensions(newInfo);
       fixAggregateRefs(newInfo);
       fixMapDimensionRefs(newInfo);
       GraphDefault.setDefaultFormulas(info, newInfo);
@@ -550,6 +559,12 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       ninfo.setMeasureMapType(oinfo.getMapType());
       ninfo.setAxisDescriptor(info.getAxisDescriptor());
       ninfo.setAxisDescriptor2(info.getAxisDescriptor2());
+
+      ninfo.setColorFrameWrapper(oinfo.getColorFrameWrapper());
+      ninfo.setShapeFrameWrapper(oinfo.getShapeFrameWrapper());
+      ninfo.setSizeFrameWrapper(oinfo.getSizeFrameWrapper());
+      ninfo.setLineFrameWrapper(oinfo.getLineFrameWrapper());
+      ninfo.setTextureFrameWrapper(oinfo.getTextureFrameWrapper());
    }
 
    /**
@@ -1279,6 +1294,52 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          AestheticRef aref = createAestheticRef(ref);
          aref.setVisualFrame(ref.isMeasure() ? new LinearSizeFrame() : new CategoricalSizeFrame());
          info.setSizeField(aref);
+      }
+   }
+
+   // copy the group dims (tree-dims) back to x, and a synthesized size/color measure back to y
+   private void copyFromTreemap() {
+      moveGroupFieldsToX();
+
+      if(info.getYFieldCount() == 0) {
+         moveMeasureAestheticToY();
+      }
+   }
+
+   // copy the group dim mekko may have added back to x; the y measure is already in place
+   private void copyFromMekko() {
+      moveGroupFieldsToX();
+   }
+
+   private void moveGroupFieldsToX() {
+      for(int i = info.getGroupFieldCount(); i > 0; i--) {
+         info.addXField(info.getGroupField(0));
+         info.removeGroupField(0);
+      }
+   }
+
+   // if copyToTreemap() synthesized a size/color/shape field from a measure, move it back to y
+   private void moveMeasureAestheticToY() {
+      AestheticRef size = info.getSizeField();
+      AestheticRef color = info.getColorField();
+      AestheticRef shape = info.getShapeField();
+      DataRef dataRef = null;
+
+      if(size != null && GraphUtil.isMeasure(size.getDataRef())) {
+         dataRef = size.getDataRef();
+         info.setSizeField(null);
+      }
+      else if(color != null && GraphUtil.isMeasure(color.getDataRef())) {
+         dataRef = color.getDataRef();
+         info.setColorField(null);
+      }
+      else if(shape != null && GraphUtil.isMeasure(shape.getDataRef())) {
+         dataRef = shape.getDataRef();
+         info.setShapeField(null);
+      }
+
+      if(dataRef instanceof ChartRef) {
+         info.addYField((ChartRef) dataRef);
       }
    }
 

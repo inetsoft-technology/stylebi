@@ -265,7 +265,7 @@ public class AssetNamedGroupInfo implements XNamedGroupInfo, XMLSerializable, Co
     */
    @Override
    public void writeXML(PrintWriter writer) {
-      writer.print("<namedgroups type=\"" + getType() + "\"");
+      writer.print("<namedgroups class=\"" + getClass().getName() + "\" type=\"" + getType() + "\"");
       writer.print(" source=\"" + Tool.escape(entry.toIdentifier()) + "\"");
       writer.println(">");
 

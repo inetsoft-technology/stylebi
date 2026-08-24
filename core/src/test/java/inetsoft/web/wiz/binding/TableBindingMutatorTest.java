@@ -17,17 +17,37 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.NamedGroupInfo;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @Tag("core")
 class TableBindingMutatorTest {
@@ -630,5 +650,94 @@ class TableBindingMutatorTest {
       assertTrue(String.valueOf(vocabulary.get("crosstab")).contains("rowTotals"));
       assertEquals(List.of(), vocabulary.get("table"),
                    "a table has no options this write path can actually apply");
+   }
+
+   // ── namedGroup resolution (rvs-aware setShelf) ────────────────────────────
+
+   private static final SourceInfo QUERY1_SOURCE =
+      new SourceInfo(SourceInfo.ASSET, null, "Query1");
+
+   private static FieldRef dimWithNamedGroup(String column, String namedGroup) {
+      return new FieldRef(column, "dimension", null, null, namedGroup);
+   }
+
+   private static RuntimeViewsheet rvsWithWorksheet(Worksheet ws) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static DataRefModelFactoryService refModelService() {
+      DataRefModelFactoryService service = mock(DataRefModelFactoryService.class);
+      when(service.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+      return service;
+   }
+
+   @Test
+   void setShelfResolvesAWorksheetLocalNamedGroupAndForcesSortSpecific() throws Exception {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Coastal")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      BDimensionRefModel dim = model.getRows().get(0);
+      assertEquals(XConstants.SORT_SPECIFIC, dim.getOrder());
+      assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, dim.getNamedGroupInfo().getType());
+      assertEquals(1, dim.getNamedGroupInfo().getConditions().size());
+      assertEquals("West", dim.getNamedGroupInfo().getConditions().get(0).getName());
+   }
+
+   @Test
+   void setShelfRefusesAnUnrecognizedNamedGroupNamingTheFieldAndColumn() {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(null);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> TableBindingMutator.setShelf(
+               model, "rows", List.of(dimWithNamedGroup("REGION", "NoSuchGroup")),
+               rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService()));
+
+         assertTrue(thrown.getMessage().contains("NoSuchGroup"));
+         assertTrue(thrown.getMessage().contains("REGION"));
+      }
+   }
+
+   /**
+    * The 3-arg {@code setShelf} used by {@link TableBindingMutator#addField}/{@link
+    * TableBindingMutator#moveField} to reapply a whole shelf has no runtime context, so a field
+    * carrying {@code namedGroup} through that path is left unresolved rather than throwing --
+    * the same, pre-existing gap as before this class learned to resolve named groups at all.
+    */
+   @Test
+   void theThreeArgSetShelfLeavesANamedGroupUnresolved() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setShelf(model, "rows",
+                                   List.of(dimWithNamedGroup("REGION", "Coastal")));
+
+      assertNull(model.getRows().get(0).getNamedGroupInfo());
    }
 }

@@ -31,6 +31,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -85,5 +87,54 @@ public class SubmitVSAScriptableTest {
          assertFalse(submitVSAScriptable.isPublicProperty(property));
       }
       assertTrue(submitVSAScriptable.isPublicProperty("visible"));
+   }
+
+   /**
+    * "label" is not a wired scriptable property for Submit (SubmitVSAScriptable's
+    * addOutputProperties() is a no-op), so the write falls back to the expando map in
+    * putMember() and must be recorded as unrecognized instead of persisting.
+    */
+   @Test
+   void testPutMemberOnUnregisteredPropertyRecordedAsUnrecognizedAndNotApplied() {
+      submitVSAScriptable.putMember("label", "ClauseTest42");
+
+      assertEquals(List.of("label"), submitVSAScriptable.getUnrecognizedWrites());
+      assertEquals("Submit", submitVSAssemblyInfo.getLabelName());
+   }
+
+   @Test
+   void testPutMemberOnRegisteredPropertyNotRecordedAsUnrecognizedAndIsApplied() {
+      assertTrue(submitVSAssemblyInfo.isEnabled());
+
+      submitVSAScriptable.putMember("enabled", false);
+
+      assertEquals(List.of(), submitVSAScriptable.getUnrecognizedWrites());
+      assertFalse(submitVSAssemblyInfo.isEnabled());
+   }
+
+   /**
+    * resetUnrecognizedWrites() must scope tracking to a single execution, not accumulate
+    * across calls.
+    */
+   @Test
+   void testResetUnrecognizedWritesClearsPriorTracking() {
+      submitVSAScriptable.putMember("label", "ClauseTest42");
+      assertEquals(List.of("label"), submitVSAScriptable.getUnrecognizedWrites());
+
+      submitVSAScriptable.resetUnrecognizedWrites();
+      assertEquals(List.of(), submitVSAScriptable.getUnrecognizedWrites());
+   }
+
+   /**
+    * A genuinely ad hoc scratch var (not shadowing any real property) must still execute
+    * cleanly via the same expando fallback -- this instrumentation is additive only and must
+    * not turn legitimate expando usage into an error.
+    */
+   @Test
+   void testPutMemberOnAdHocScratchVarStillSucceeds() {
+      assertDoesNotThrow(() -> submitVSAScriptable.putMember("myScratchFlag", true));
+
+      assertEquals(List.of("myScratchFlag"), submitVSAScriptable.getUnrecognizedWrites());
+      assertEquals(true, submitVSAScriptable.getMember("myScratchFlag"));
    }
 }

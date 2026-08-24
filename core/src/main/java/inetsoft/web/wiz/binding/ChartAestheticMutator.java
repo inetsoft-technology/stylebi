@@ -17,10 +17,13 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.aesthetic.*;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
@@ -51,6 +54,28 @@ public final class ChartAestheticMutator {
    public static void setField(ChartBindingModel model, String channel, FieldRef field,
                                boolean relationChart)
    {
+      try {
+         setField(model, channel, field, relationChart, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireFieldChannel's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * @param rvs            the runtime viewsheet, so a field's {@code namedGroup} can be
+    *                       resolved against a worksheet-local named group.
+    * @param source         the chart's own {@code SourceInfo}.
+    * @param refModelService needed to resolve a worksheet-local named group's conditions.
+    */
+   public static void setField(ChartBindingModel model, String channel, FieldRef field,
+                               boolean relationChart, RuntimeViewsheet rvs, SourceInfo source,
+                               DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = AestheticChannels.requireFieldChannel(channel, relationChart);
 
       if(field == null) {
@@ -62,7 +87,7 @@ public final class ChartAestheticMutator {
 
       AestheticInfo info = new AestheticInfo();
       info.setFullName(field.column());
-      info.setDataInfo(FieldRefFactory.toChartRef(field));
+      info.setDataInfo(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
       assign(model, name, info);
    }
 
@@ -89,6 +114,18 @@ public final class ChartAestheticMutator {
    {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
       VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
+      AestheticInfo field = acceptsField(name) ? read(model, name) : null;
+
+      // A bound field carries its own frame (AestheticInfo.frame) -- that, not the top-level
+      // ChartBindingModel.xxxFrame property, is what the interactive Composer's own dialog writes
+      // (ColorFieldMc.changeColorFrame et al.) and what the render path
+      // (VSFrameVisitor.createVisualFrame -> AestheticRef.getVisualFrame) reads at paint time.
+      // Writing only the top-level property round-trips cleanly through get_chart_aesthetics/
+      // set_visual_frame -- both read and write the same wrong place -- but never reaches the chart.
+      if(field != null) {
+         field.setFrame(frame);
+         return;
+      }
 
       switch(name) {
          case "color" -> model.setColorFrame((ColorFrameModel) frame);
@@ -223,6 +260,12 @@ public final class ChartAestheticMutator {
    }
 
    private static VisualFrameModel frameOf(ChartBindingModel model, String channel) {
+      AestheticInfo field = acceptsField(channel) ? read(model, channel) : null;
+
+      if(field != null) {
+         return field.getFrame();
+      }
+
       return switch(channel) {
          case "color" -> model.getColorFrame();
          case "shape" -> model.getShapeFrame();

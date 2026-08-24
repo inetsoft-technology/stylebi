@@ -37,6 +37,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.uql.viewsheet.internal.NamedGroupConditionUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
@@ -722,7 +723,7 @@ public abstract class VSAQuery {
          ConditionList gconds = null;
          boolean grouped = false;
          VSDimensionRef dim = null;
-         SNamedGroupInfo groups = null;
+         XNamedGroupInfo groups = null;
 
          for(DataRef ref : arr) {
             if(!(ref instanceof VSDimensionRef)) {
@@ -739,7 +740,7 @@ public abstract class VSAQuery {
 
             if(dim.isNameGroup()) {
                grouped = true;
-               groups = (SNamedGroupInfo) dim.getNamedGroupInfo();
+               groups = dim.getNamedGroupInfo();
                break;
             }
          }
@@ -757,7 +758,11 @@ public abstract class VSAQuery {
 
          if(grouped && cexpr.getOperation() == XCondition.ONE_OF) {
             HashSet values = new HashSet<>();
-            String dtype = groups.getDataRef().getDataType();
+            // dim.getDataRef() is the actual column being grouped, already in scope from the
+            // loop above -- the more correct source for this dtype regardless of groups' own
+            // concrete type (groups' own embedded DataRef, where it exists at all, is a
+            // separate, occasionally-stale copy of the same information).
+            String dtype = dim.getDataRef().getDataType();
 
             for(int j = 0; j < cexpr.getValueCount(); j++) {
                Object val = cexpr.getValue(j);
@@ -765,6 +770,12 @@ public abstract class VSAQuery {
                ConditionList agconds = groups.getGroupCondition(nval);
 
                if(agconds != null && agconds.getSize() != 0) {
+                  if(NamedGroupConditionUtil.needsColumnResolution(groups)) {
+                     agconds = (ConditionList) agconds.clone();
+                     NamedGroupConditionUtil.resolveConditionColumn(
+                        agconds, dim.getDataRef().getAttribute());
+                  }
+
                   if(negated) {
                      agconds = (ConditionList) agconds.clone();
                      agconds.negate();
@@ -826,6 +837,11 @@ public abstract class VSAQuery {
          String nval = getGroupName(cexpr.getValue(0));
          gconds = grouped && !isNull ? groups.getGroupCondition(nval) : null;
 
+         if(gconds != null && !gconds.isEmpty() && NamedGroupConditionUtil.needsColumnResolution(groups)) {
+            gconds = (ConditionList) gconds.clone();
+            NamedGroupConditionUtil.resolveConditionColumn(gconds, dim.getDataRef().getAttribute());
+         }
+
          if(gconds != null && !gconds.isEmpty() && negated) {
             gconds = (ConditionList) gconds.clone();
             gconds.negate();
@@ -836,7 +852,9 @@ public abstract class VSAQuery {
                citem.setAttribute(cref);
 
                if(!isNull) {
-                  String dtype = groups.getDataRef().getDataType();
+                  // dim.getDataRef() is the actual column being grouped -- see the ONE_OF
+                  // branch's identical note above.
+                  String dtype = dim.getDataRef().getDataType();
 
                   if(!XSchema.STRING.equals(dtype)) {
                      cexpr.setType(dtype);
@@ -875,7 +893,17 @@ public abstract class VSAQuery {
 
                if(gitem instanceof ConditionItem) {
                   ConditionItem gcond = (ConditionItem) gitem;
-                  gcond.setAttribute(cref);
+
+                  // Only SNamedGroupInfo's own per-group conditions are single-value, always
+                  // against the grouped column itself -- forcing every item onto cref is safe
+                  // for it. An Expert group's conditions may genuinely reference other columns
+                  // (e.g. group by revenue tier using a different column's value), already
+                  // correctly attributed by the time they get here -- forcing them onto cref
+                  // would corrupt a compound, multi-column condition.
+                  if(groups instanceof SNamedGroupInfo) {
+                     gcond.setAttribute(cref);
+                  }
+
                   gcond.setLevel(item.getLevel());
 
                   ConditionItem gcond0 = (ConditionItem) gcond.clone();
@@ -896,7 +924,11 @@ public abstract class VSAQuery {
 
                if(gitem instanceof ConditionItem) {
                   ConditionItem gcond = (ConditionItem) gitem;
-                  gcond.setAttribute(cref);
+
+                  // See the drillThrough branch's identical note above.
+                  if(groups instanceof SNamedGroupInfo) {
+                     gcond.setAttribute(cref);
+                  }
                }
 
                gitem.setLevel(gitem.getLevel() + citem.getLevel() + 1);

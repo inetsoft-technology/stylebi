@@ -77,17 +77,6 @@ public class AssemblyHighlightService {
       public static Region whole() {
          return new Region(0, 0, null, false, false);
       }
-
-      /**
-       * The first data cell of a table-type assembly.
-       *
-       * <p>Cell (0,0) is the header, which exposes no highlightable fields. Used only as a
-       * fall-forward when the caller named no region and the header exposed nothing — see
-       * {@code read}.
-       */
-      public static Region firstDataCell() {
-         return new Region(1, 1, null, false, false);
-      }
    }
 
    /** One highlight in the agent vocabulary. Colours are {@code #RRGGBB}. */
@@ -300,7 +289,7 @@ public class AssemblyHighlightService {
       // answer, and re-reading a different cell of it would only produce the same null.
       if(region == null && model != null && fieldNames(model).isEmpty()) {
          HighlightDialogModel atData =
-            readAt(runtimeId, assemblyName, Region.firstDataCell(), user);
+            readAt(runtimeId, assemblyName, firstDataCell(runtimeId, assemblyName, user), user);
 
          if(!fieldNames(atData).isEmpty()) {
             return atData;
@@ -308,6 +297,24 @@ public class AssemblyHighlightService {
       }
 
       return model;
+   }
+
+   /**
+    * The first genuine DATA cell of a table-type assembly, not a guessed literal.
+    *
+    * <p>A crosstab with 2+ aggregates inserts one extra header row (side by side) or column
+    * (stacked, the default) labeling each aggregate, which shifts the real first data cell past
+    * {@code (1, 1)} on whichever axis carries it -- {@code (1, 1)} was itself still a HEADER cell
+    * for a 2-aggregate crosstab with no column dimension, so falling forward to it reported the
+    * same empty vocabulary the caller was already falling forward from. {@link
+    * HighlightDialogService#getFirstDataCell} reads the assembly's own header row/col counts
+    * instead of assuming either is 1.
+    */
+   private Region firstDataCell(String runtimeId, String assemblyName, Principal user)
+      throws Exception
+   {
+      int[] headerSize = highlightService.getFirstDataCell(runtimeId, assemblyName, user);
+      return new Region(headerSize[0], headerSize[1], null, false, false);
    }
 
    private HighlightDialogModel readAt(String runtimeId, String assemblyName, Region target,
@@ -338,8 +345,9 @@ public class AssemblyHighlightService {
          (region == null ? "the default region" :
             "row " + region.row() + ", col " + region.col()) +
          ". For a crosstab or table this usually means a header cell: highlights attach to DATA " +
-         "cells, so pass 'row' and 'col' of one (row 1, col 1 is the first). Call list_highlights " +
-         "with that region to see the fields it exposes.");
+         "cells, not header rows/columns -- and for a crosstab with 2+ aggregates the first data " +
+         "cell is not always (1, 1). Call list_highlights with no region at all; it resolves to " +
+         "the first data cell automatically.");
    }
 
    /**

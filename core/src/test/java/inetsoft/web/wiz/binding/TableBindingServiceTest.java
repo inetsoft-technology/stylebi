@@ -313,7 +313,8 @@ class TableBindingServiceTest {
    {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
-      return new TableBindingService(sessions, binding, bindings);
+      return new TableBindingService(sessions, binding, bindings,
+                                     mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
    }
 
    private static Principal principal() {

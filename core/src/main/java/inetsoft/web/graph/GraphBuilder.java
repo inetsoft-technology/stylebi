@@ -43,6 +43,7 @@ import inetsoft.uql.XCube;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -1294,22 +1295,24 @@ public class GraphBuilder {
 
          if(ref instanceof VSChartDimensionRef) {
             VSChartDimensionRef dimRef = (VSChartDimensionRef) ref;
-            SNamedGroupInfo groupInfo = (SNamedGroupInfo)
-               dimRef.getNamedGroupInfo();
+            XNamedGroupInfo groupInfo = dimRef.getNamedGroupInfo();
             String label = (childArea instanceof DimensionLabelArea)
                ? ((DimensionLabelArea) childArea).getValue() : null;
+            // getGroups() membership is the type-agnostic equivalent of SNamedGroupInfo's own
+            // getGroupValue(label) != null check -- provably equivalent for SNamedGroupInfo too,
+            // since addGroupName/values.put happen together in setGroupValue.
             grouped = groupInfo != null && !(groupInfo instanceof DCNamedGroupInfo) &&
-               label != null && groupInfo.getGroupValue(label) != null;
+               label != null && Arrays.asList(groupInfo.getGroups()).contains(label);
             isPeriod = dimRef.getDates() != null && dimRef.getDates().length >= 2;
          }
          else if(ref instanceof AestheticRef) {
             DataRef dataRef =((AestheticRef) ref).getDataRef();
 
             if(dataRef instanceof VSChartDimensionRef) {
-               SNamedGroupInfo groupInfo =
-                  (SNamedGroupInfo) ((VSChartDimensionRef) dataRef).getNamedGroupInfo();
+               XNamedGroupInfo groupInfo = ((VSChartDimensionRef) dataRef).getNamedGroupInfo();
+               String label = ((LegendItemArea) childArea).getValue();
                grouped = groupInfo != null && !(groupInfo instanceof DCNamedGroupInfo) &&
-                  groupInfo.getGroupValue(((LegendItemArea) childArea).getValue()) != null;
+                  label != null && Arrays.asList(groupInfo.getGroups()).contains(label);
             }
          }
 

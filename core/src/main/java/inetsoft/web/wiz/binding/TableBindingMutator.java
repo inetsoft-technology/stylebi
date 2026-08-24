@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.web.binding.drm.AttributeRefModel;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -27,6 +29,7 @@ import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.*;
@@ -102,6 +105,28 @@ public final class TableBindingMutator {
    }
 
    public static void setShelf(BaseTableBindingModel model, String shelf, List<FieldRef> fields) {
+      try {
+         setShelf(model, shelf, fields, null, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e; // preserve e.g. requireShelf/requireCompatible's IllegalArgumentException as-is
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * @param rvs            the runtime viewsheet, so a dimension's {@code namedGroup} can be
+    *                       resolved against a worksheet-local named group.
+    * @param source         the crosstab's or table's own {@code SourceInfo}.
+    * @param refModelService needed to resolve a worksheet-local named group's conditions.
+    */
+   public static void setShelf(BaseTableBindingModel model, String shelf, List<FieldRef> fields,
+                               RuntimeViewsheet rvs, SourceInfo source,
+                               DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = requireShelf(model, shelf);
       List<FieldRef> refs = fields == null ? List.of() : fields;
 
@@ -110,9 +135,12 @@ public final class TableBindingMutator {
       }
 
       switch(name) {
-         case "rows" -> ((CrosstabBindingModel) model).setRows(dimensions(refs));
-         case "cols" -> ((CrosstabBindingModel) model).setCols(dimensions(refs));
-         case "groups" -> ((TableBindingModel) model).setGroups(dimensions(refs));
+         case "rows" -> ((CrosstabBindingModel) model).setRows(
+            dimensions(refs, rvs, source, refModelService));
+         case "cols" -> ((CrosstabBindingModel) model).setCols(
+            dimensions(refs, rvs, source, refModelService));
+         case "groups" -> ((TableBindingModel) model).setGroups(
+            dimensions(refs, rvs, source, refModelService));
          case "details" -> ((TableBindingModel) model).setDetails(details(refs));
          default -> model.setAggregates(aggregates(refs));
       }
@@ -247,7 +275,19 @@ public final class TableBindingMutator {
 
    // ── conversions ───────────────────────────────────────────────────────────
 
+   /**
+    * @implNote {@link #addField}/{@link #moveField} reapply a shelf through this overload with
+    * no runtime context -- a field carrying {@code namedGroup} through that path is left
+    * unresolved, same as before this method learned to resolve it at all.
+    */
    private static List<BDimensionRefModel> dimensions(List<FieldRef> fields) {
+      return dimensions(fields, null, null, null);
+   }
+
+   private static List<BDimensionRefModel> dimensions(List<FieldRef> fields, RuntimeViewsheet rvs,
+                                                       SourceInfo source,
+                                                       DataRefModelFactoryService refModelService)
+   {
       List<BDimensionRefModel> out = new ArrayList<>();
 
       for(FieldRef field : fields) {
@@ -257,6 +297,21 @@ public final class TableBindingMutator {
 
          if(field.dateLevel() != null) {
             ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
+         }
+
+         if(field.namedGroup() != null && rvs != null) {
+            try {
+               ref.setNamedGroupInfo(FieldRefFactory.resolveNamedGroupInfo(
+                  field.namedGroup(), rvs, source, field.column(), refModelService));
+            }
+            catch(RuntimeException e) {
+               throw e; // preserve IllegalArgumentException's loud, field-named message as-is
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+
+            ref.setOrder(XConstants.SORT_SPECIFIC);
          }
 
          out.add(ref);

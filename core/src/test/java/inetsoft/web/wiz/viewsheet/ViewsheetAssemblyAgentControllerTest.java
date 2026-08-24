@@ -577,7 +577,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void getLayoutDelegatesToTheReadService() throws Exception {
       LayoutReadService readService = mock(LayoutReadService.class);
-      LayoutModel expected = new LayoutModel("Print Layout", "print", null, null, List.of());
+      LayoutModel expected =
+         new LayoutModel("Print Layout", "print", null, null, null, List.of());
       when(readService.get(eq("tok"), any(Principal.class), eq("Print Layout")))
          .thenReturn(expected);
 

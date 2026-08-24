@@ -253,7 +253,8 @@ public class ExpertNamedGroupInfo implements XNamedGroupInfo, XMLSerializable {
       String[] names = getGroups(false);
 
       if(names.length > 0) {
-         writer.println("<namedgroups type=\"" + getType() + "\">");
+         writer.println("<namedgroups class=\"" + getClass().getName() + "\" type=\"" +
+            getType() + "\">");
 
          for(int i = 0; i < names.length; i++) {
             writer.print("<namedGroup><![CDATA[" +

@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartAestheticService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -53,11 +54,13 @@ public class ChartAestheticAgentService {
    @Autowired
    public ChartAestheticAgentService(ViewsheetSessionService sessions,
                                 VSBindingService binding,
-                                ChangeChartAestheticService aestheticService)
+                                ChangeChartAestheticService aestheticService,
+                                DataRefModelFactoryService refModelService)
    {
       this.sessions = sessions;
       this.binding = binding;
       this.aestheticService = aestheticService;
+      this.refModelService = refModelService;
    }
 
    /**
@@ -71,13 +74,24 @@ public class ChartAestheticAgentService {
    {
       // Validated before the runtime is touched, so a bad channel costs nothing and does not
       // open a checkpoint the caller then has to undo. This still needs the chart itself — node
-      // channels are only valid on a relation chart — so it costs a resolve, not a mutate.
+      // channels are only valid on a relation chart, and size only on chart types that render
+      // it — so it costs a resolve, not a mutate.
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
+      boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
 
-      apply(sessionToken, user, assemblyName, name, linkUri, model -> {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
-         ChartAestheticMutator.setField(model, name, field, relationChart);
+         ChartAestheticMutator.setField(
+            model, name, field, relationChart, rvs, chart.getSourceInfo(), refModelService);
+
+         ChangeChartRefEvent event = new ChangeChartRefEvent();
+         event.setName(assemblyName);
+         event.setFieldType(name);
+         event.setModel(model);
+         aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
       });
    }
 
@@ -85,7 +99,8 @@ public class ChartAestheticAgentService {
                           String channel, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
+      boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             model -> ChartAestheticMutator.clearField(model, name, relationChart));
@@ -147,6 +162,19 @@ public class ChartAestheticAgentService {
       return info != null && GraphTypes.isRelation(info.getChartType());
    }
 
+   private boolean isSizeSupported(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return isSizeSupported(requireChart(rvs, assemblyName));
+   }
+
+   /** No chart type yet (unbound chart) means no type is forbidding the size channel. */
+   private static boolean isSizeSupported(ChartVSAssembly chart) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return info == null || GraphTypes.supportsSize(info.getChartType());
+   }
+
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,
                       String linkUri, java.util.function.Consumer<ChartBindingModel> mutation)
       throws Exception
@@ -184,4 +212,5 @@ public class ChartAestheticAgentService {
    private final ViewsheetSessionService sessions;
    private final VSBindingService binding;
    private final ChangeChartAestheticService aestheticService;
+   private final DataRefModelFactoryService refModelService;
 }

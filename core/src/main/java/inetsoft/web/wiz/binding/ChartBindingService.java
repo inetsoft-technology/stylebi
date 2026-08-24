@@ -36,6 +36,7 @@ import inetsoft.web.binding.event.ChangeChartTypeEvent;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
@@ -67,7 +68,8 @@ public class ChartBindingService {
                               ChangeChartRefService refService,
                               ChangeChartTypeService typeService,
                               SwapXYBindingService swapService,
-                              ChangeSeparateStatusService separateStatusService)
+                              ChangeSeparateStatusService separateStatusService,
+                              DataRefModelFactoryService refModelService)
    {
       this.sessions = sessions;
       this.binding = binding;
@@ -75,6 +77,7 @@ public class ChartBindingService {
       this.typeService = typeService;
       this.swapService = swapService;
       this.separateStatusService = separateStatusService;
+      this.refModelService = refModelService;
    }
 
    /**
@@ -90,7 +93,8 @@ public class ChartBindingService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
-         ChartBindingMutator.setShelf(model, shelf, fields);
+         ChartBindingMutator.setShelf(
+            model, shelf, fields, rvs, chart.getSourceInfo(), refModelService);
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -235,7 +239,8 @@ public class ChartBindingService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
-         ChartBindingMutator.setSingleShelf(model, shelf, field);
+         ChartBindingMutator.setSingleShelf(
+            model, shelf, field, rvs, chart.getSourceInfo(), refModelService);
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -539,4 +544,5 @@ public class ChartBindingService {
    private final ChangeChartTypeService typeService;
    private final SwapXYBindingService swapService;
    private final ChangeSeparateStatusService separateStatusService;
+   private final DataRefModelFactoryService refModelService;
 }

@@ -237,12 +237,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
     */
    @Override
    public void setNamedGroupInfo(XNamedGroupInfo info) {
-      if(info == null || info instanceof SNamedGroupInfo) {
-         this.groupInfo = (SNamedGroupInfo) info;
-      }
-      else {
-         throw new IllegalArgumentException("Please set SNamedGroupInfo for VSDimensionRef.");
-      }
+      this.groupInfo = info;
    }
 
    /**
@@ -319,18 +314,26 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
       ref0.setDataType(XSchema.STRING);
       ref0.setRefType(getRefType());
 
-      // backward compatibility
-      if((getRefType() & DataRef.CUBE) == DataRef.CUBE) {
-         processGroupInfo(getRefType(), groupInfo);
+      // backward compatibility -- CUBE display-value translation only applies to the literal
+      // value-list carrier; Expert/Asset conditions are already fully-typed Condition values,
+      // nothing to translate.
+      if((getRefType() & DataRef.CUBE) == DataRef.CUBE && groupInfo instanceof SNamedGroupInfo) {
+         processGroupInfo(getRefType(), (SNamedGroupInfo) groupInfo);
       }
 
       ref0.setNamedGroupInfo(groupInfo);
       ColumnRef column = new ColumnRef(ref0);
       column.setDataType(XSchema.STRING);
-      DataRef nref = groupInfo.getDataRef();
 
-      if(nref instanceof AttributeRef) {
-         ((AttributeRef) nref).setDataType(dtype);
+      // Only SNamedGroupInfo carries its own embedded DataRef needing a backfilled data type
+      // (used later by SNamedGroupInfo.getGroupCondition's own value-typing). Expert/Asset
+      // conditions carry pre-typed Condition values and have no equivalent embedded ref.
+      if(groupInfo instanceof SNamedGroupInfo) {
+         DataRef nref = ((SNamedGroupInfo) groupInfo).getDataRef();
+
+         if(nref instanceof AttributeRef) {
+            ((AttributeRef) nref).setDataType(dtype);
+         }
       }
 
       GroupRef groupRef = new GroupRef(column);
@@ -1089,9 +1092,9 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(node != null) {
          String cls = Tool.getAttribute(node, "class");
-         groupInfo = cls != null ? (SNamedGroupInfo) Class.forName(cls).newInstance() :
+         groupInfo = cls != null ? (XNamedGroupInfo) Class.forName(cls).newInstance() :
             new SNamedGroupInfo();
-         groupInfo.parseXML(node);
+         ((XMLSerializable) groupInfo).parseXML(node);
       }
 
       String comboTypeString = Tool.getChildValueByTagName(elem, "comboType");
@@ -1266,7 +1269,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
       }
 
       if(groupInfo != null) {
-         groupInfo.writeXML(writer);
+         ((XMLSerializable) groupInfo).writeXML(writer);
       }
 
       if(comboType != null) {
@@ -1746,7 +1749,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
       }
 
       if(groupInfo != null) {
-         dim.groupInfo = (SNamedGroupInfo) groupInfo.clone();
+         dim.groupInfo = (XNamedGroupInfo) groupInfo.clone();
       }
 
       return dim;
@@ -1941,7 +1944,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
    private DataRef group;
    private RankingCondition ranking;
    private String[] dates;
-   private SNamedGroupInfo groupInfo;
+   private XNamedGroupInfo groupInfo;
    private int runtimeID = (byte) -1;
    private ComboMode comboType = ComboMode.VALUE;
    private Integer oldRuntimeDateLevel; // old runtime date level value

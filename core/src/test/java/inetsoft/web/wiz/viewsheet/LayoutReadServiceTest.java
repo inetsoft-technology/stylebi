@@ -24,12 +24,17 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
+import inetsoft.web.composer.model.vs.ScreensPaneModel;
+import inetsoft.web.composer.model.vs.VSPrintLayoutDialogModel;
+import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.viewsheet.model.DeviceCatalogEntry;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.LayoutObjectModel;
+import inetsoft.web.wiz.viewsheet.model.PrintLayoutSettingsModel;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -123,6 +128,8 @@ class LayoutReadServiceTest {
       assertEquals("print", model.type());
       assertNull(model.mobileOnly(), "a print layout has no mobileOnly flag");
       assertNull(model.selectedDevices(), "a print layout has no device selection");
+      assertNull(model.printSettings(),
+                 "installPrintLayout's LayoutInfo has no screensPane print settings configured");
       assertEquals(2, model.objects().size());
 
       LayoutObjectModel text = model.objects().stream()
@@ -147,6 +154,89 @@ class LayoutReadServiceTest {
       assertEquals(60, table.viewsheetY());
       assertTrue(table.supportsTableLayout(),
                  "a TableDataVSAssembly-backed object supports table layout");
+   }
+
+   @Test
+   void getPopulatesPrintSettingsWhenTheViewsheetsPrintLayoutIsConfigured() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      VSPrintLayoutDialogModel configured = new VSPrintLayoutDialogModel();
+      configured.setPaperSize("Letter");
+      configured.setScaleFont(0.8f);
+      configured.setMarginTop(1.0);
+      configured.setLandscape(true);
+      ScreensPaneModel screensPane = new ScreensPaneModel();
+      screensPane.setPrintLayout(configured);
+      fx.withScreensPane(screensPane);
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      PrintLayoutSettingsModel printSettings = model.printSettings();
+      assertNotNull(printSettings);
+      assertEquals("Letter", printSettings.paperSize());
+      assertEquals(0.8f, printSettings.scaleFont(), 0.0001f);
+      assertEquals(1.0, printSettings.marginTop(), 0.0001);
+      assertTrue(printSettings.landscape());
+   }
+
+   @Test
+   void getReturnsNullPrintSettingsRatherThanAZeroedOutRecordWhenNeverConfigured()
+      throws Exception
+   {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      // Fixture's default screensPane has no print layout configured -- see its constructor.
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      assertNull(model.printSettings());
+   }
+
+   @Test
+   void getRoundTripsWhatSetPrintLayoutActuallyWrote() throws Exception {
+      // The exact scenario live-caught during L11 testing: set_print_layout claims success but
+      // get_layout has no field to verify it against. Wires PrintDeviceLayoutPropertyService and
+      // LayoutReadService against the SAME ViewsheetPropertyDialogService mock, letting a
+      // setViewsheetInfo call feed back into the next getViewsheetInfo call, so this is a genuine
+      // write-then-read round trip rather than two independently-stubbed halves.
+      ViewsheetSessionService writeSessions = mock(ViewsheetSessionService.class);
+      ViewsheetPropertyDialogService dialogService = mock(ViewsheetPropertyDialogService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      PrintDeviceLayoutPropertyService writeService = new PrintDeviceLayoutPropertyService(
+         writeSessions, dialogService, mock(DeviceRegistry.class));
+
+      ScreensPaneModel[] screensPaneHolder = { new ScreensPaneModel() };
+      when(dialogService.getViewsheetInfo(eq("rt1"), eq(AGENT))).thenAnswer(
+         invocation -> ViewsheetPropertyDialogModel.builder()
+            .screensPane(screensPaneHolder[0]).build());
+      doAnswer(invocation -> {
+         ViewsheetPropertyDialogModel written = invocation.getArgument(1);
+         screensPaneHolder[0] = written.screensPane();
+         return null;
+      }).when(dialogService).setViewsheetInfo(eq("rt1"), any(), eq(AGENT), any(), anyString(),
+                                              any());
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(writeSessions).mutate(anyString(), eq(AGENT), any());
+
+      writeService.setPrintLayout("tok1", AGENT, Map.of("paperSize", "Letter", "scaleFont", 0.8f),
+                                  "");
+
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      when(fx.viewsheetSessions.runtimeId(eq("tok1"), eq(AGENT))).thenReturn("rt1");
+      LayoutReadService readService = new LayoutReadService(fx.viewsheetSessions,
+         fx.layoutSessions, fx.vsLayoutService, fx.deviceRegistry, dialogService);
+
+      LayoutModel model = readService.get("tok1", AGENT, PRINT_LAYOUT);
+
+      PrintLayoutSettingsModel printSettings = model.printSettings();
+      assertNotNull(printSettings);
+      assertEquals("Letter", printSettings.paperSize());
+      assertEquals(0.8f, printSettings.scaleFont(), 0.0001f);
    }
 
    @Test
@@ -176,8 +266,10 @@ class LayoutReadServiceTest {
       final LayoutSessionService layoutSessions = mock(LayoutSessionService.class);
       final VSLayoutService vsLayoutService = new VSLayoutService();
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
-      final LayoutReadService service =
-         new LayoutReadService(viewsheetSessions, layoutSessions, vsLayoutService, deviceRegistry);
+      final ViewsheetPropertyDialogService dialogService =
+         mock(ViewsheetPropertyDialogService.class);
+      final LayoutReadService service = new LayoutReadService(
+         viewsheetSessions, layoutSessions, vsLayoutService, deviceRegistry, dialogService);
 
       final Viewsheet masterVs = new Viewsheet();
       final RuntimeViewsheet masterRvs = mock(RuntimeViewsheet.class);
@@ -185,11 +277,15 @@ class LayoutReadServiceTest {
       Fixture() throws Exception {
          when(masterRvs.getViewsheet()).thenReturn(masterVs);
          when(viewsheetSessions.resolve(eq("tok1"), eq(AGENT))).thenReturn(masterRvs);
+         when(viewsheetSessions.runtimeId(eq("tok1"), eq(AGENT))).thenReturn("rt1");
          // resolveForRead's own clone content is never used by LayoutReadService -- both
          // coordinate-space readings come off the master directly (see the class doc) -- so a
          // bare mock standing in for "the layout name is known" is enough here.
          when(layoutSessions.resolveForRead(anyString(), eq(AGENT), anyString()))
             .thenReturn(mock(RuntimeViewsheet.class));
+         // No print layout configured by default -- individual tests override this via
+         // withPrintSettings below.
+         withScreensPane(new ScreensPaneModel());
 
          DeviceInfo mobile = new DeviceInfo();
          mobile.setId("wiz-mobile");
@@ -197,6 +293,13 @@ class LayoutReadServiceTest {
          mobile.setMinWidth(0);
          mobile.setMaxWidth(767);
          when(deviceRegistry.getDevices()).thenReturn(new DeviceInfo[] { mobile });
+      }
+
+      /** Stubs {@code dialogService.getViewsheetInfo} to read back {@code screensPane}. */
+      void withScreensPane(ScreensPaneModel screensPane) throws Exception {
+         ViewsheetPropertyDialogModel model =
+            ViewsheetPropertyDialogModel.builder().screensPane(screensPane).build();
+         when(dialogService.getViewsheetInfo(eq("rt1"), eq(AGENT))).thenReturn(model);
       }
 
       /**

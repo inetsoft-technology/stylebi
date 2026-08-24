@@ -58,7 +58,7 @@ public final class AestheticChannels {
    }
 
    public static String requireFieldChannel(String channel) {
-      return requireFieldChannel(channel, false);
+      return requireFieldChannel(channel, false, true);
    }
 
    /**
@@ -67,6 +67,19 @@ public final class AestheticChannels {
     *                      binding that this chart type never renders.
     */
    public static String requireFieldChannel(String channel, boolean relationChart) {
+      return requireFieldChannel(channel, relationChart, true);
+   }
+
+   /**
+    * @param relationChart see {@link #requireFieldChannel(String, boolean)}.
+    * @param sizeSupported whether the target chart type renders a {@code size} aesthetic (e.g.
+    *                      false for mekko/stock) — {@code GraphTypes.supportsSize(chartType)}.
+    *                      Accepting {@code size} on such a chart would store a binding that is
+    *                      silently never rendered.
+    */
+   public static String requireFieldChannel(String channel, boolean relationChart,
+                                            boolean sizeSupported)
+   {
       String name = normalize(channel);
 
       if(NODE_CHANNELS.contains(name)) {
@@ -77,6 +90,13 @@ public final class AestheticChannels {
          throw new IllegalArgumentException(
             "Channel '" + channel + "' only applies to relation charts (network, tree, chord) " +
             "— this chart is not one. Field channels: " + String.join(", ", FIELD_CHANNELS) + ".");
+      }
+
+      if("size".equals(name) && !sizeSupported) {
+         throw new IllegalArgumentException(
+            "Channel 'size' is not supported on this chart type — it accepts no size aesthetic " +
+            "and a binding here would never be rendered. Field channels: " +
+            String.join(", ", FIELD_CHANNELS) + ".");
       }
 
       if(FIELD_CHANNELS.contains(name)) {

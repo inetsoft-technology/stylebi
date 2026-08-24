@@ -55,6 +55,12 @@ import static org.mockito.Mockito.when;
  * [EditorContext: missing]   mint refuses an editorContext naming an assembly the runtime
  *                            does not have, at mint time
  * [EditorContext: kind]      mint refuses an editorContext with a blank kind
+ * [EditorContext: blank assembly] mint refuses assemblyMain/assemblyOnClick with a blank
+ *                            assembly rather than silently treating it as a whole-viewsheet
+ *                            kind (the server-side half of the missing dialog.assemblyName bug
+ *                            class -- see docs/superpowers/plans/2026-08-22-follow-focus-missing-assembly-name-fix-plan.md)
+ * [EditorContext: viewsheetOnInit] mint still accepts a genuinely assembly-less
+ *                            viewsheetOnInit/viewsheetOnLoad context
  * [EditorContext: calc ok]   mint accepts a calcField editorContext whose table+name exist
  *                            (table aliased from 'assembly', matching the real browser wiring)
  * [EditorContext: calc miss] mint refuses a calcField editorContext naming a field the
@@ -205,6 +211,36 @@ class SheetPairingServiceTest {
       when(vs.getAssembly("Chart1")).thenReturn(mock(VSAssembly.class));
       SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
       EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
+
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAnAssemblyOnClickEditorContextWithABlankAssembly() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyOnClick", null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+   }
+
+   @Test
+   void refusesAnAssemblyMainEditorContextWithABlankAssembly() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("assemblyMain", "  ", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+   }
+
+   @Test
+   void mintsAViewsheetOnInitEditorContextWithNoAssembly() throws PairingException {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("viewsheetOnInit", null, null, null);
 
       String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
 

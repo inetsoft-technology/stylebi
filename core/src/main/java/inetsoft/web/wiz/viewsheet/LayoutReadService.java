@@ -22,10 +22,13 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
+import inetsoft.web.composer.model.vs.VSPrintLayoutDialogModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.wiz.viewsheet.model.DeviceCatalogEntry;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.LayoutObjectModel;
+import inetsoft.web.wiz.viewsheet.model.PrintLayoutSettingsModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -62,12 +65,14 @@ public class LayoutReadService {
    public LayoutReadService(ViewsheetSessionService viewsheetSessions,
                              LayoutSessionService layoutSessions,
                              VSLayoutService vsLayoutService,
-                             DeviceRegistry deviceRegistry)
+                             DeviceRegistry deviceRegistry,
+                             ViewsheetPropertyDialogService dialogService)
    {
       this.viewsheetSessions = viewsheetSessions;
       this.layoutSessions = layoutSessions;
       this.vsLayoutService = vsLayoutService;
       this.deviceRegistry = deviceRegistry;
+      this.dialogService = dialogService;
    }
 
    /**
@@ -130,9 +135,45 @@ public class LayoutReadService {
       Boolean mobileOnly = print ? null : ((ViewsheetLayout) layout).isMobileOnly();
       List<String> selectedDevices = print ? null
          : Arrays.asList(((ViewsheetLayout) layout).getDeviceIds());
+      PrintLayoutSettingsModel printSettings = print ? readPrintSettings(sessionToken, agent)
+         : null;
 
       return new LayoutModel(layoutName, print ? "print" : "device", mobileOnly, selectedDevices,
-                              objects);
+                              printSettings, objects);
+   }
+
+   /**
+    * {@code null} when this viewsheet's print layout has never been configured -- {@code
+    * screensPane().getPrintLayout()} reads back {@code null} in that case, exactly as {@link
+    * PrintDeviceLayoutPropertyService#setPrintLayout} finds it before seeding a fresh one -- so a
+    * caller of {@code get_layout} can tell "unconfigured" apart from "configured with every field
+    * at its default" rather than seeing a zeroed-out {@link PrintLayoutSettingsModel} either way.
+    *
+    * <p>Goes through {@link ViewsheetSessionService#runtimeId}, not the raw {@code
+    * RuntimeViewsheet} {@link #get} already resolved -- {@link
+    * ViewsheetPropertyDialogService#getViewsheetInfo} is a composer service that re-resolves the
+    * sheet and enforces ownership against the agent's principal itself, the same seam {@link
+    * PrintDeviceLayoutPropertyService#setPrintLayout} calls through {@code sessions.mutate}'s
+    * {@code runtimeId} callback parameter; {@code runtimeId} grants the matching ownership bypass
+    * as a side effect (see its own doc).
+    */
+   private PrintLayoutSettingsModel readPrintSettings(String sessionToken, Principal agent)
+      throws Exception
+   {
+      String runtimeId = viewsheetSessions.runtimeId(sessionToken, agent);
+      VSPrintLayoutDialogModel printLayout =
+         dialogService.getViewsheetInfo(runtimeId, agent).screensPane().getPrintLayout();
+
+      if(printLayout == null) {
+         return null;
+      }
+
+      return new PrintLayoutSettingsModel(
+         printLayout.getPaperSize(), printLayout.getMarginTop(), printLayout.getMarginLeft(),
+         printLayout.getMarginBottom(), printLayout.getMarginRight(),
+         printLayout.getFooterFromEdge(), printLayout.getHeaderFromEdge(),
+         printLayout.isLandscape(), printLayout.getScaleFont(), printLayout.getNumberingStart(),
+         printLayout.getCustomWidth(), printLayout.getCustomHeight(), printLayout.getUnits());
    }
 
    private LayoutObjectModel toObjectModel(Viewsheet masterVs, VSAssemblyLayout assemblyLayout) {
@@ -186,4 +227,5 @@ public class LayoutReadService {
    private final LayoutSessionService layoutSessions;
    private final VSLayoutService vsLayoutService;
    private final DeviceRegistry deviceRegistry;
+   private final ViewsheetPropertyDialogService dialogService;
 }

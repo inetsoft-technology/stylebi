@@ -27,6 +27,7 @@ import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -55,18 +56,31 @@ public class TableBindingService {
    @Autowired
    public TableBindingService(ViewsheetSessionService sessions,
                               VSBindingService binding,
-                              VSBindingModelService bindingModelService)
+                              VSBindingModelService bindingModelService,
+                              DataRefModelFactoryService refModelService)
    {
       this.sessions = sessions;
       this.binding = binding;
       this.bindingModelService = bindingModelService;
+      this.refModelService = refModelService;
    }
 
    public void setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
                         List<FieldRef> fields) throws Exception
    {
-      apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.setShelf(model, shelf, fields));
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly assembly = vs.getAssembly(assemblyName);
+         inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
+            ? data.getSourceInfo() : null;
+         TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
+
+         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
+         event.setName(assemblyName);
+         event.setBinding(model);
+         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+      });
    }
 
    /**
@@ -376,4 +390,5 @@ public class TableBindingService {
    private final ViewsheetSessionService sessions;
    private final VSBindingService binding;
    private final VSBindingModelService bindingModelService;
+   private final DataRefModelFactoryService refModelService;
 }
