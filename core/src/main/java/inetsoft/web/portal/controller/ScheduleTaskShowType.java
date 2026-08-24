@@ -18,11 +18,14 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.UserEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 public class ScheduleTaskShowType {
@@ -35,8 +38,8 @@ public class ScheduleTaskShowType {
       )
    })
    @GetMapping("/api/portal/schedule/change-show-type")
-   public boolean getScheduleTaskShowType() {
-      return SreeEnv.getBooleanProperty("schedule.show.tasks.as.list", "true");
+   public boolean getScheduleTaskShowType(Principal principal) {
+      return getShowTasksAsList(principal);
    }
 
    @Secured({
@@ -48,7 +51,37 @@ public class ScheduleTaskShowType {
       )
    })
    @PutMapping("/api/portal/schedule/change-show-type")
-   public void setConfiguration(@RequestParam("showTasksAsList") String showTasksAsList) {
-      SreeEnv.setProperty("schedule.show.tasks.as.list", showTasksAsList);
+   public void setConfiguration(@RequestParam("showTasksAsList") String showTasksAsList,
+                                Principal principal)
+   {
+      setShowTasksAsList(principal, showTasksAsList);
    }
+
+   /**
+    * Gets the list/folder view preference of the given user. The view is a per-user
+    * preference; the property is only the installation-wide default used until the
+    * user toggles the view themselves. That default is folder view, since
+    * getBooleanProperty() yields false for a property that is not set.
+    */
+   private boolean getShowTasksAsList(Principal principal) {
+      Object userSetting = UserEnv.getProperty(principal, SHOW_TYPE_USER_PROPERTY, null);
+
+      return userSetting != null ? Boolean.parseBoolean(String.valueOf(userSetting))
+         : SreeEnv.getBooleanProperty(SHOW_TYPE_PROPERTY);
+   }
+
+   /**
+    * Saves the list/folder view preference of the given user. Anonymous users only get a
+    * persisted preference if anonymous.userdata.save is enabled; otherwise UserEnv
+    * discards the write and the installation-wide default keeps applying.
+    */
+   private void setShowTasksAsList(Principal principal, String showTasksAsList) {
+      // normalize so that only "true"/"false" is stored, and so that an empty value is
+      // never passed to UserEnv.setProperty(), which treats it as a removal
+      UserEnv.setProperty(principal, SHOW_TYPE_USER_PROPERTY,
+                          Boolean.parseBoolean(showTasksAsList) + "");
+   }
+
+   private static final String SHOW_TYPE_PROPERTY = "schedule.show.tasks.as.list";
+   private static final String SHOW_TYPE_USER_PROPERTY = "portal.schedule.showTasksAsList";
 }

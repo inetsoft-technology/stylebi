@@ -273,8 +273,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
          },
          (error) => {
             this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
-               "Failed to load tasks: " + error.error ? error.error.message : "",
+               "Failed to load tasks: " + (error.error?.message || ""),
                MessageDialogType.ERROR));
+            // fall back to the default view so that the task list still loads
+            this.loadTasks();
          },
          () => {
             this.loading = false;
@@ -1070,10 +1072,23 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    showAllTasks(showAll: boolean): void {
+      const oldValue = this.showTasksAsList;
       this.showTasksAsList = showAll;
       let params = new HttpParams().set("showTasksAsList", showAll + "");
-      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe(() => {
-         this.loadTasks();
+      this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe({
+         next: () => this.loadTasks(),
+         error: (error) => {
+            // the request never reached the preference, so don't leave the view showing
+            // a state that was not stored. Ignore a stale failure that a later toggle
+            // has already superseded.
+            if(this.showTasksAsList === showAll) {
+               this.showTasksAsList = oldValue;
+            }
+
+            this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+               "Failed to change the schedule task view: " + (error.error?.message || ""),
+               MessageDialogType.ERROR));
+         }
       });
    }
 
