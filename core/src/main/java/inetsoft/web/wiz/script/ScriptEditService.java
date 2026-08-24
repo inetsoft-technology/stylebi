@@ -143,6 +143,12 @@ public class ScriptEditService {
 
       mutation.accept(rvs);
 
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs != null) {
+         rvs.addCheckpoint(vs.prepareCheckpoint());
+      }
+
       // Write coordination: this is a direct live write, not routed through any
       // XxxPropertyDialogService, so it must bump the shared counter itself -- otherwise a
       // property dialog with an embedded script pane (Gauge, Chart, ... -- 15 of the 18
