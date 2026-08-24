@@ -1549,6 +1549,54 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * PR #4765 review follow-up: {@code sourceTable}/{@code attribute}/{@code logicalModel}/
+    * {@code schema}/{@code catalog} must require {@code datasource} server-side too, not only in
+    * the plugin's own client-side validation -- without this guard, omitting {@code datasource}
+    * (by mistake, or via any caller that bypasses the plugin) fell through to the legacy
+    * {@code Editor.addNamedGroup(table, column, type, ...)} path with everything null, silently
+    * creating a standalone string-typed grouping and discarding what the caller asked for.
+    */
+   @Test
+   void addNamedGroupRejectsSourceTableWithoutDatasource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "G", null, null, null, null, "Customer", "State", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD9", req, agent));
+      assertTrue(ex.getMessage().contains("datasource"));
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addNamedGroupRejectsAttributeWithoutDatasource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "G", null, null, null, null, null, "State", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD10", req, agent));
+      assertTrue(ex.getMessage().contains("datasource"));
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   /**
     * End-to-end regression for Bug #76097: {@code add_named_group} with {@code datasource} +
     * {@code logicalModel} + {@code sourceTable} (entity) + {@code attribute} must produce the
     * same kind of {@code attachedSource}/{@code attachedAttribute} a human creates via the

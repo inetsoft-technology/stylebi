@@ -257,17 +257,29 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
    /**
     * A named group assembly in the worksheet.
     *
-    * @param name          assembly name
-    * @param table         the source table the grouping is attached to
-    * @param column        the column the grouping is attached to
+    * @param name        assembly name
+    * @param table       worksheet table this group is attached to via {@code table}+{@code column}
+    *                    (mutually exclusive with {@code datasource} — never both non-null)
+    * @param column      column on {@code table} (see {@code table})
+    * @param datasource  datasource this group is scoped to via the datasource-scoped mode
+    *                    (mutually exclusive with {@code table} — never both non-null)
+    * @param logicalModel logical model name within {@code datasource}, when scoped to a logical-model
+    *                     entity attribute rather than a physical table column
+    * @param sourceTable entity name (when {@code logicalModel} is present) or physical table name,
+    *                    within {@code datasource}
+    * @param attribute   attribute/column name within {@code sourceTable}
     * @param groupMappings list of group name to values mappings
-    * @param groupOthers   {@code true} if unmapped values are grouped as "Others"
+    * @param groupOthers {@code true} if unmapped values are grouped as "Others"
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record NamedGroupModel(
       String name,
       String table,
       String column,
+      String datasource,
+      String logicalModel,
+      String sourceTable,
+      String attribute,
       List<GroupMappingModel> groupMappings,
       boolean groupOthers
    ) {}
@@ -277,7 +289,10 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *
     * @param groupName the name of the group
     * @param values    the values assigned to this group
+    * @param operation how {@code values} is matched — any operator {@code add_named_group}'s
+    *                  {@code operation} accepts (e.g. {@code STARTING_WITH}), or {@code null} when
+    *                  it could not be determined from the underlying condition
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
-   public record GroupMappingModel(String groupName, List<String> values) {}
+   public record GroupMappingModel(String groupName, List<String> values, String operation) {}
 }

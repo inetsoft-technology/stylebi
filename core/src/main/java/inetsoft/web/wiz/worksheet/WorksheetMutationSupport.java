@@ -34,6 +34,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
 
@@ -161,7 +162,7 @@ public final class WorksheetMutationSupport {
     * differs.</p>
     */
    static ConditionList buildGroupConditionList(
-      String conditionType, DataRef conditionRef, GroupMapping m)
+      String conditionType, DataRef conditionRef, GroupMapping m) throws PairingException
    {
       String operation = m.operation();
       int op = parseOperation(operation);
@@ -180,6 +181,16 @@ public final class WorksheetMutationSupport {
       boolean negatedEquality = op == XCondition.EQUAL_TO && negate;
 
       if(op == XCondition.ONE_OF || negatedEquality) {
+         // Condition.evaluate() for ONE_OF/BETWEEN reads the raw values list directly (no
+         // per-value OR'ing like the fallback branch below), so an empty or wrong-sized list here
+         // is not "no values matched" -- it is a silently wrong condition. An empty ONE_OF matches
+         // nothing; a NEGATED empty ONE_OF (e.g. "!=" with no values) matches EVERYTHING.
+         if(m.values() == null || m.values().isEmpty()) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": operation \"" + operation +
+                  "\" requires at least one value.");
+         }
+
          Condition c = new Condition(conditionType);
          c.setOperation(XCondition.ONE_OF);
          c.setNegated(negate);
@@ -193,6 +204,12 @@ public final class WorksheetMutationSupport {
       }
 
       if(op == XCondition.BETWEEN) {
+         if(m.values() == null || m.values().size() != 2) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": BETWEEN requires exactly two values (low, high), got " +
+                  (m.values() == null ? 0 : m.values().size()) + ".");
+         }
+
          Condition c = new Condition(conditionType);
          c.setOperation(op);
          c.setNegated(negate);

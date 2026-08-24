@@ -255,6 +255,20 @@ public class WorksheetAgentController {
          return;
       }
 
+      // add_named_group's datasource-scoped fields require 'datasource' -- without this guard,
+      // a caller that supplies sourceTable/attribute/logicalModel/schema/catalog but omits (or
+      // blanks) datasource would silently fall through to the plain Editor.addNamedGroup(table,
+      // column, type, ...) below with table/column/type all null, creating a standalone
+      // string-typed grouping and discarding what the caller actually asked for, with no error.
+      if("add_named_group".equals(req.op()) &&
+         (req.sourceTable() != null || req.attribute() != null || req.logicalModel() != null ||
+            req.schema() != null || req.catalog() != null))
+      {
+         throw new PairingException(
+            "add_named_group: sourceTable/attribute/logicalModel/schema/catalog require " +
+               "'datasource' to be set.");
+      }
+
       // set_variable_values needs AssetQuerySandbox, not just Editor.
       if("set_variable_values".equals(req.op())) {
          setVariableValues(sessionToken, req, user);
@@ -400,23 +414,7 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
-         // Position below existing assemblies.
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
@@ -505,22 +503,7 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
@@ -693,25 +676,36 @@ public class WorksheetAgentController {
          assembly.setAttachedSource(sinfo);
          assembly.setAttachedAttribute(ref);
 
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
+   }
+
+   /**
+    * Positions a newly-created assembly below every existing one on the canvas, left-aligned at
+    * the same column every other agent-created assembly starts at. Shared by every {@code add_*}
+    * op that builds its own assembly directly (rather than going through {@code Editor}, which
+    * has its own {@code placeAssembly}): {@link #addBoundTable}, {@link #addLogicalModelTable},
+    * {@link #addDatasourceScopedNamedGroup}, and {@code addSqlQuery}.
+    */
+   private static void positionBelowExisting(Worksheet ws, AbstractWSAssembly assembly) {
+      int maxY = 0;
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(!(a instanceof AbstractWSAssembly wa)) {
+            continue;
+         }
+
+         Point p = wa.getPixelOffset();
+         Dimension d = wa.getPixelSize();
+
+         if(p != null && d != null) {
+            maxY = Math.max(maxY, p.y + d.height);
+         }
+      }
+
+      assembly.setPixelOffset(new Point(25, maxY + 40));
    }
 
    /**
@@ -2439,23 +2433,7 @@ public class WorksheetAgentController {
          info.setSourceInfo(new SourceInfo(
             SourceInfo.PHYSICAL_TABLE, body.datasource(), body.datasource()));
 
-         // Position below existing assemblies.
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          assembly.setSQLEdited(true);
 
          // Populate columns from the parsed SQL or by executing the query.

@@ -453,4 +453,73 @@ class WorksheetEditServiceTest {
       assertEquals(1, c.getValueCount());
       assertEquals("N", c.getValue(0));
    }
+
+   /**
+    * PR #4765 review follow-up: {@code BETWEEN} with any value count other than 2 is not "no
+    * matches" the way it silently was before -- {@link Condition#evaluate} only ever reads
+    * {@code values.get(0)}/{@code values.get(1)}, so a 1- or 3-value BETWEEN mapping is a
+    * malformed request that should fail loud, not be built into a condition that quietly never
+    * matches.
+    */
+   @Test
+   void addNamedGroupRejectsBetweenWithWrongValueCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Mid", List.of("10"), "BETWEEN"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addNamedGroup("G", null, null, "string", mappings, false)));
+      assertTrue(ex.getMessage().contains("BETWEEN"));
+      assertNull(ws.getAssembly("G"), "a rejected group must not be partially created");
+   }
+
+   /**
+    * PR #4765 review follow-up: an empty value list for {@code ONE_OF} matches nothing, but a
+    * NEGATED empty {@code ONE_OF} (e.g. {@code "!="} with no values) matches EVERYTHING -- both
+    * are almost certainly caller mistakes, not an intentional "match nothing"/"match everything"
+    * grouping, so they fail loud instead of silently building a useless or over-broad condition.
+    */
+   @Test
+   void addNamedGroupRejectsEmptyValuesForSetBasedOperation() throws Exception {
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("NotAnything", List.of(), "!="));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addNamedGroup("G2", null, null, "string", mappings, false)));
+      assertTrue(ex.getMessage().contains("at least one value"));
+      assertNull(ws.getAssembly("G2"), "a rejected group must not be partially created");
+   }
 }
