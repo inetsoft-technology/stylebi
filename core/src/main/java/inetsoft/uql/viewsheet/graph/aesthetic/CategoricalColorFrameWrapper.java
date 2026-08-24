@@ -236,7 +236,9 @@ public class CategoricalColorFrameWrapper extends ColorFrameWrapper {
       for(Object dim : frame.getStaticValues()) {
          Color col = frame.getColor(dim);
 
-         if(col != null) {
+         // a render-derived color is not saved: it must follow the palette, and writing it per
+         // value would keep the old colors after the palette changes
+         if(col != null && !frame.isDerived(dim)) {
             dim = (dim == null) ? GTool.toString(dim)
                : StringEscapeUtils.escapeXml((String) dim);
 

@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -24,6 +25,8 @@ import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -436,6 +439,110 @@ class SeedChromeDefaultsTest {
       assertEquals(0.0, plot.getBarCornerRadius(), 0.0001,
                    "an unmarked context writes the legacy radius");
       assertFalse(plot.isSmoothLines(), "and the legacy smoothing");
+   }
+
+   @Test
+   void chartColorPaletteIsWrittenOnTheLegacyBranchToo() {
+      // Revert calls this on a chart that was already rendered modern at least once, so the
+      // frame holds modern colours coming in; the hook must overwrite them, not leave them alone
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(frame);
+      info.getVSChartInfo().setColorField(colorRef);
+
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "the render-time applier leaves the modern palette on the frame");
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(VSChartPaletteDefaults.legacyPalette()[0], frame.getDefaultColor(0),
+                   "an unmarked context must re-seed the classic legacy palette onto the colour frame");
+   }
+
+   @Test
+   void chartColorPaletteIsWrittenOnTheModernBranchToo() {
+      // nothing else in this file exercises the hook writing the modern direction; a seed that
+      // dropped the modern write (or had its ternary inverted) would still pass every other
+      // palette test here
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(frame);
+      info.getVSChartInfo().setColorField(colorRef);
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "a modern context must seed the modern palette onto the colour frame");
+   }
+
+   @Test
+   void multiStylesChartColorPaletteIsWrittenOnTheLegacyBranchToo() {
+      // a multi-styles chart stores its aesthetics on each aggregate, not on the info; the hook
+      // must reach the same set AbstractChartInfo.getAggregateAestheticRefs() does, or an
+      // aggregate's colour frame would keep rendering modern after Revert
+      ChartVSAssemblyInfo info = newChart();
+      info.getVSChartInfo().setMultiStyles(true);
+
+      VSChartAggregateRef aggr = new VSChartAggregateRef();
+      aggr.setColumnValue("Measure1");
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(frame);
+      aggr.setColorField(colorRef);
+      info.getVSChartInfo().addYField(aggr);
+
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "the render-time applier leaves the modern palette on the aggregate's frame");
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(VSChartPaletteDefaults.legacyPalette()[0], frame.getDefaultColor(0),
+                   "an unmarked context must re-seed the legacy palette onto the aggregate-level " +
+                   "frame too");
+   }
+
+   /**
+    * A render derives a color per value from the palette, and a per-value color outranks the
+    * palette - so re-seeding the palette alone leaves the old colors rendering for the rest of the
+    * session. This is what a live composer session, its preview and its exports all showed.
+    */
+   @Test
+   void revertAlsoDropsThePerValueColorsARenderDerived() {
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(frame);
+      info.getVSChartInfo().setColorField(colorRef);
+
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.of(VizMark.MODERN_LIGHT));
+      frame.setDerivedColor("Business", frame.getColor(0));
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getColor("Business"),
+                   "precondition: the render derived the modern color for this value");
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertFalse(frame.isDerived("Business"), "the derived color is dropped with the palette");
+      assertNotEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getColor("Business"),
+                      "so it no longer shadows the legacy palette");
+   }
+
+   @Test
+   void revertKeepsAPerValueColorSomebodyAssigned() {
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(frame);
+      info.getVSChartInfo().setColorField(colorRef);
+      frame.setColor("Business", Color.RED);
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(Color.RED, frame.getColor("Business"),
+                   "an author's own per-value color is not collateral damage");
    }
 
    // ---- creation seeds from the assembly's own mark, not the org gate -------------------------

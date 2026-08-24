@@ -67,6 +67,13 @@ public final class VizModernizeUtil {
          info.seedChromeDefaults(ctx);
       }
 
+      if(!targets.isEmpty()) {
+         // seeding rewrote chart colour frames, and a render clones the sheet's shared frame in
+         // preference to an assembly's own, so the stale one has to go or the old palette survives
+         vs.clearSharedFrames();
+         vs.clearDimensionColors();
+      }
+
       return targets.size();
    }
 
@@ -101,6 +108,13 @@ public final class VizModernizeUtil {
       for(VSAssemblyInfo info : targets) {
          info.setVizMark(null);
          info.seedChromeDefaults(ctx);
+      }
+
+      if(!targets.isEmpty()) {
+         // seeding rewrote chart colour frames, and a render clones the sheet's shared frame in
+         // preference to an assembly's own, so the stale one has to go or the modern palette survives
+         vs.clearSharedFrames();
+         vs.clearDimensionColors();
       }
 
       return targets.size();
