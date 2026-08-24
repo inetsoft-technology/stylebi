@@ -61,6 +61,11 @@ class EndpointsJsonLoadableTest {
       ObjectMapper mapper = EndpointJsonQuery.Endpoints.createObjectMapper();
       List<String> failures = new ArrayList<>();
 
+      // Guards the same silent failure as the field-level checks below, but for responseSchema
+      // specifically: a renamed or misspelled JSON key would leave AbstractEndpoint.responseSchema
+      // null for every stripe entry while every other assertion here stayed green.
+      boolean sawStripeResponseSchema = false;
+
       for(Path file : files) {
          Path dir = file.getParent();
          String connector = dir.getFileName().toString();
@@ -87,10 +92,24 @@ class EndpointsJsonLoadableTest {
             if(list == null || list.isEmpty()) {
                failures.add(connector + ": parsed but declares no endpoints");
             }
+
+            if("stripe".equals(connector) && list != null) {
+               for(Object endpoint : list) {
+                  if(endpoint instanceof AbstractEndpoint
+                     && ((AbstractEndpoint) endpoint).getResponseSchema() != null)
+                  {
+                     sawStripeResponseSchema = true;
+                  }
+               }
+            }
          }
          catch(Exception e) {
             failures.add(connector + ": " + e.getMessage());
          }
+      }
+
+      if(!sawStripeResponseSchema) {
+         failures.add("stripe: no entry bound a non-null responseSchema");
       }
 
       assertTrue(failures.isEmpty(),
@@ -124,6 +143,11 @@ class EndpointsJsonLoadableTest {
       boolean sawStripeLookupWithEndpointsArray = false;
       boolean sawGithubLookupWithSingularEndpoint = false;
 
+      // Guards the silent-drop failure mode described in the class javadoc, specific to
+      // responseSchema: WizEndpointCatalogEntry ignores unknown properties, so a renamed or
+      // misspelled key would leave every entry's responseSchema() null with no error anywhere.
+      boolean sawStripeResponseSchema = false;
+
       for(Path file : files) {
          String connector = file.getParent().getFileName().toString();
 
@@ -152,6 +176,10 @@ class EndpointsJsonLoadableTest {
 
                if(entry.description() != null && !entry.description().isBlank()) {
                   hasDescription = true;
+               }
+
+               if("stripe".equals(connector) && entry.responseSchema() != null) {
+                  sawStripeResponseSchema = true;
                }
 
                if(entry.lookups() != null) {
@@ -200,6 +228,10 @@ class EndpointsJsonLoadableTest {
 
       if(!sawGithubLookupWithSingularEndpoint) {
          failures.add("github: no lookup bound a non-blank singular \"endpoint\"");
+      }
+
+      if(!sawStripeResponseSchema) {
+         failures.add("stripe: no entry's responseSchema() was non-null");
       }
 
       assertTrue(failures.isEmpty(),
