@@ -17,6 +17,9 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
+import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -314,6 +317,44 @@ class PropertyAliasesTest {
    @Test
    void visibleStillResolvesOntoTheBasicGeneralPane() {
       assertTrue(PropertyAliases.resolve("chart", "visible").endsWith("basicGeneralPaneModel.visible"));
+   }
+
+   // ── 'shadow' is only real for the outputGeneral() family ──────────────────
+
+   /**
+    * shadow is only ever applied back to the real assembly by gauge/text/image's dialog services
+    * (VSFloatable.isShadow() is consulted only for OutputVSAssemblyInfo/ShapeVSAssemblyInfo). The
+    * dataGeneral() family (chart, table, crosstab, submit, the selection/input types, ...)
+    * inherits an unused field from the class hierarchy that no dialog service or renderer ever
+    * reads -- aliasing it there let set_assembly_properties(Submit1, {shadow: true}) return a
+    * fake {"ok":true} that always read back false.
+    */
+   @Test
+   void shadowIsOnlyAliasedForTheOutputAssemblyTypesThatApplyIt() {
+      for(String type : java.util.List.of("gauge", "text", "image")) {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("shadow"),
+                    type + " should expose 'shadow'");
+      }
+
+      for(String type : java.util.List.of("submit", "chart", "table", "crosstab", "selectionlist")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("shadow"),
+                     type + " should not expose 'shadow' -- it is never applied to the real assembly");
+      }
+   }
+
+   /** Guards against over-correcting: the 3 genuinely-working cases must not regress. */
+   @Test
+   void shadowRoundTripsOnEveryOutputAssembly() {
+      assertShadowRoundTrips("gauge", new GaugePropertyDialogModel());
+      assertShadowRoundTrips("text", new TextPropertyDialogModel());
+      assertShadowRoundTrips("image", ImagePropertyDialogModel.builder().build());
+   }
+
+   private static void assertShadowRoundTrips(String type, Object model) {
+      String path = PropertyAliases.resolve(type, "shadow");
+      model = PropertyPath.set(model, path, true);
+
+      assertEquals(true, PropertyPath.get(model, path), type + "'s shadow should round-trip");
    }
 
    // ── the chart line pane's read-only capability flags ──────────────────────
