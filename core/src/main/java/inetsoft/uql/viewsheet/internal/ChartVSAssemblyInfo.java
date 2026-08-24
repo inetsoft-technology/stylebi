@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.Hyperlink;
@@ -115,6 +116,33 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // smoothLines also has a chart-type default, so the legacy value is type-dependent: a
          // constant false would straight-line an Area chart no legacy Area chart ever was.
          plotDesc.setSmoothLines(legacySmoothLines());
+      }
+
+      // seedPalette is total across the mark, so no ctx.modern check is needed here
+      seedColorPalette(ctx);
+   }
+
+   /**
+    * Writes the mark-appropriate categorical palette onto every bound colour aesthetic, so
+    * Modernize and Revert keep the chart's colours in step with the rest of its chrome.
+    */
+   private void seedColorPalette(VizContext ctx) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(AestheticRef ref : info.getAestheticRefs(runtime)) {
+            if(ref != null && ref.getVisualFrame() instanceof CategoricalColorFrame) {
+               CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
+               ccf.setDefaultColors(VSChartPaletteDefaults.seedPalette(ctx));
+               // a per-value color outranks the palette, so the ones a render derived from the old
+               // palette have to go or they keep rendering for the rest of the session
+               ccf.clearDerivedColors();
+            }
+         }
       }
    }
 

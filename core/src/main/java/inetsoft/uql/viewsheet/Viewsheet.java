@@ -3750,6 +3750,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    }
 
    /**
+    * Clear the per-value dimension colors shared across this sheet's charts. Call this whenever the
+    * palette those colors came from changes: a render reloads this map into the color frame context
+    * and writes every entry back onto the frame, so a stale entry outranks the new palette and
+    * survives until the sheet is reloaded.
+    */
+   public void clearDimensionColors() {
+      dimensionColors.clear();
+   }
+
+   /**
     * Get the calculate field of one table.
     * @param name the table name.
     */

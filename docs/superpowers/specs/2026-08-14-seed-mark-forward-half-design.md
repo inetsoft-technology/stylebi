@@ -694,6 +694,166 @@ because the caller could not consult a private predicate without either exposing
 duplicating the type list in a second file — the exact drift `isCornerSeedTarget()`'s own comment already
 warns against.
 
+**A third category, found by the 2026-08-24 sweep: the read-time applier with a memory.** Correction 1
+above names the whole "static, read-time, non-mutating" family as three classes. A fourth pre-existing
+static method in the same picture is not non-mutating at all: `VSChartPaletteDefaults.applyModernPalette`
+(`:85-89`) is gated `if(frame != null && ctx.modern)`, no `else`, and its body — `frame.setDefaultColors(
+activePalette(ctx))` — mutates the frame handed in rather than returning a value. It runs at read time like
+the family above, but instead of computing an answer fresh each call it writes into state the frame carries
+forward, and only the modern direction is ever written; nothing calls it to write the legacy direction back.
+That is a third shape this section's two-category account — a persisting creation-time seed, keyed on
+`ctx.modern` and owned by `seedChromeDefaults`, vs. a resolving read that recomputes and returns — never
+named. It was invisible here because nothing in this design surveyed for it; the sweep that found it was
+prompted by the palette bug itself, not by this document. Task 1 of the 2026-08-24 plan closes the palette's
+own instance — not by making `applyModernPalette` bidirectional, which it deliberately stays forward-only,
+so as not to disturb its existing render-time callers — but by giving `ChartVSAssemblyInfo.seedChromeDefaults`
+its own bidirectional write, `seedColorPalette` (`:129-144`), which overwrites every bound
+`CategoricalColorFrame`'s stored colours on every Modernize and Revert regardless of `ctx.modern`, the same
+way the persisted-seed category already does for border colour and corner radius.
+
+`grep -rn "ctx.modern\|ctx.dark" --include=*.java core/src/main | grep -vE "return |\? "` — the sweep this
+finding motivated — returns 30 hits, exactly one of them a comment rather than code: `ChartVSAssemblyInfo
+.java:121`, the `// seedPalette is total across the mark, so no ctx.modern check is needed here` line Task
+1 added above its own seed. The two the plan named to check first, `VSObjectChromeDefaults
+.applyDarkForeground` (`:77-92`) and `VSOutputChromeDefaults`'s pair of `if(!ctx.modern) return` methods
+(`:90-105`, `:112-118`), are exactly the family correction 1 already describes: each returns a fresh value,
+or (the `…InPlace` half) mutates only a clone the caller made immediately beforehand for export or the
+format-painter picker, never the persisted format. The other two members of that three-class family carry
+hits too: `VSCalendarChromeDefaults.applyModernDefaults` (`:45-61`) returns the format unchanged or a clone
+with the DEFAULT tier substituted — its own javadoc: "never mutated or serialized"; and `VSTitleChromeDefaults
+.applyModernDefaults`/`applyModernDefaultsInPlace` (`:66-89`, `:90-98`, plus a local `boolean dark = ctx.dark`
+at `:100` inside the shared `applyTo` helper) split the same way, the former returning a clone and the latter
+mutating only the export copy, "never touches a persisted format (export clones upstream)" by its own
+javadoc. `AbstractVSExporter.java:1410` guards the same shape at its export title-draw call site — a private
+object-format copy built off an already-cloned chart, commented in-source as "gated + defaults-only,
+gate-off is byte-identical." The remaining hits split the same two ways: the
+`AxisDescriptor`/`ChartRefImpl`/`Legend(s)Descriptor`/`TitleDescriptor
+.initDefaultFormat(ctx)` family writes both ternary branches unconditionally on every render (`VGraphPair`
+calls all of them from its per-render formatting pass), so even where the write lands on the persisted
+descriptor it is total rather than forward-only and self-corrects the next render; `CSSChartStyles.apply`
+(`:104-156`) resets the CSS tier immediately before conditionally setting it, and the CSS tier is not
+serialized; `VGraphPair.java:1338-1341` re-syncs a runtime axis-descriptor clone that
+`resetRuntimeValues()` nulls every render cycle; and the row-height and table-structure hits
+(`BaseTableService`, `VSTableLens`, `DataVSAQuery`)
+compute into a local variable or a value already cloned before the gate check runs. `ChartVSAssemblyInfo
+.seedChromeDefaults` (`:108-119`) and the base `VSAssemblyInfo.seedChromeDefaults` (`:1253-1258`) are the
+persisted-seed category itself — both branches write, which is what makes Revert's re-call safe. The palette
+was the only forward-only mutator Task 1 fixed; `VGraphPair.java:1367-1382` is a second instance, found by
+this same sweep and since closed by Task 3's un-gating, below.
+
+**A second forward-only mutator of the same shape, closed by un-gating: `VGraphPair`'s measure axis
+per-column label format.** It sits inside the same `copyDefaultFormat(VSCompositeFormat, ArrayList,
+AxisDescriptor, VizContext)` helper as `:1338-1341` but is a different block with a different target, and it
+is not a resolver. The helper runs against the *persisted, design-time* `axisDesc` from `:1329-1333` as well
+as against the RT clones from `:1338-1341`; inside it, the per-column loop (`:1368-1381`) used to sit behind
+`if(ctx.modern) {` with no `else`, so a cleared mark left a column's DEFAULT-tier colour and font stuck on
+whatever a prior modern render had last written — the gate was the defect, not the write it guarded. Task 3
+removed that gate, so the loop now runs unconditionally on every render, matching the per-ref loop at
+`:1235-1250`, which has always done so.
+
+Un-gating was accepted with a known, deliberate side effect: on a gate-off render the loop now also runs
+three writes it previously never reached at all — the axis-wide font copy (`:1372-1375`), `copyDefaultFormat`
+(`:1378`), and `setParentCSSParams` (`:1379`) — alongside the colour write. These are inert wherever the
+per-column format was cloned from the axis-wide one, the normal case: `GraphFormatUtil.java:327-328` and
+`AxisPropertyDialogModel.java:158-159` both create a column's format as `(CompositeTextFormat)
+axisDesc.getAxisLabelTextFormat().clone()`, so the font and CSS parent params the loop copies back are
+already identical. They are live for CSS-created bare formats
+(`CSSChartStyles.setAxisDescriptorColumnFormat`, which starts from `new CompositeTextFormat()` with no such
+clone) and for older persisted formats that predate the cloning. The decision was full consistency with the
+per-ref loop at `:1235-1250`, which has always run all four unconditionally. The font itself is unaffected
+either way: `AxisDescriptor.initDefaultFormat(ctx)` (`:64-71`) picks it by `ctx != VizContext.LEGACY`
+(`:69`), an identity test against the `VizContext.LEGACY` singleton that a mark-derived context — modern or
+unmarked — never satisfies as false, so the same font is written whichever side of the (now removed) gate
+reaches it.
+
+The per-column format is persisted the same way the palette is: `AxisDescriptor.writeXML` writes a
+`<formats>` element (`:818-830`) holding each column's `CompositeTextFormat`, whose own `writeContents`
+writes `deffmt` inside `<defaultFormat>` (`CompositeTextFormat.java:296-301`), parsed back at
+`AxisDescriptor.java:724`. The map is populated by real chart-authoring flows, not just tests —
+`AxisPropertyDialogModel.java:159` seeds a column's entry the first time a user opens the axis-label
+properties dialog for that column, and `GraphFormatUtil.java:328` seeds one when a format is applied to a
+column's axis label on a separated (multi-style) graph.
+
+**The palette is persisted — correcting both this document's premise and `VSChartPaletteDefaults`'s own
+javadoc.** `CategoricalColorFrameWrapper.writeContents()` (`:182-201`) writes a `<colors>` element from
+`frame.getDefaultColor(i)` for every index; `parseContents()` (`:265+`) reads it back onto the frame's
+default-colour list. The class javadoc called the modern palette "applied to a render-time color frame only,
+never serialized" — false, and corrected 2026-08-24. The filtered grep above would not have surfaced this on
+its own: `applyModernPalette`'s mutating statement has no `return`/`?` on its line, so the grep does find it,
+but nothing at that call site says "persisted" — only reading `CategoricalColorFrameWrapper`'s XML methods
+directly does, which is what this note is for.
+
+**A second leak of the same defect, now fixed at the factory's guard rather than at the colour pane's Reset
+button.** `categorical-color-pane.component.ts`'s `reset()` (`:194-203`) sets, for every index,
+`colors[i] = cssColors[i] || defaultColors[i]` (`:200-201`) — it copies the frame model's *current* default
+colour into the user colour at that index. Before the fix, Apply's `ColorFrameModelFactory
+.CategoricalColorFactory.updateVisualFrameWrapper0` (`:86-124`) wrote `wrapper.setUserColor(i, ncolor)`
+whenever the submitted colour differed from a freshly-substituted wrapper's colour, which for a chart marked
+modern is exactly the colour Reset produces — so pressing Reset pinned the *modern* palette into
+`userColors`, a USER-tier map serialized separately in its own `<userColors>` element
+(`CategoricalColorFrameWrapper.writeContents()`, `:219-232`) and consulted before the DEFAULT tier that
+Revert re-seeds, so the modern colour survived Revert. The fix does not touch `reset()`:
+`updateVisualFrameWrapper0` now compares the submitted colour against what the index resolves to with an
+empty user tier — `cssColors[i]` if set, else `defaultColors[i]` (`:100-107`) — rather than against the
+fresh wrapper. `reset()` already sets `colors[i]` to exactly that resolved value, so the comparison is
+always equal after a Reset, nothing gets written, and the fresh wrapper's already-empty user tier stays
+empty. No `resetDefaults` flag was needed on either side.
+
+**A third, unfixed leak of the same defect: `seedColorPalette` enumerates a state-dependent set, and
+multi-styles toggling can outrun it.** `seedColorPalette` (`ChartVSAssemblyInfo.java:129-144`) calls
+`info.getAestheticRefs(runtime)` for both `runtime` values, which is exactly what the render path consults —
+so for a *fixed* chart state, Modernize and Revert cannot drift from what renders. But
+`AbstractChartInfo.getAestheticRefs(boolean)` (`:240-259`) branches on `isMultiAesthetic()` (`:593-595`,
+which is just `isMultiStyles()`): the multi branch returns `getAggregateAestheticRefs(runtime)` —
+aggregate-level frames only, one per `ChartAggregateRef` — and the single branch returns
+`getAestheticRefs(this)` — the info-level frame only. The two are disjoint; `getAggregateAestheticRefs`
+itself returns empty whenever `isMultiAesthetic()` is false (`:268-270`), so switching multi-styles off does
+not merely change which frame is *active*, it changes which frame `seedColorPalette` can even see. Both
+frames can hold live colours at once: `ChangeSeparateStatusProcessor.process`
+(`core/src/main/java/inetsoft/report/internal/graph/ChangeSeparateStatusProcessor.java:46-152`) flips
+`setMultiStyles` (`:51`) and, in the `multiChanged` block (`:82-143`), copies `TextFormat` and
+`LegendDescriptor` between the plot-level and aggregate-level objects — but it never touches the aggregate's
+`AestheticRef`/`CategoricalColorFrame` itself, so whatever colours were sitting on the aggregate-level frame
+before the toggle are still sitting there after it, untouched and unseeded. The leak this opens: render a
+chart marked modern while multi-styles is on (the aggregate-level frames take the modern palette and it
+persists) → the author turns multi-styles off → Revert runs and seeds only the now-visible info-level frame
+back to legacy, because the aggregate-level frames are unreachable through `getAestheticRefs(false)` while
+multi is off → the author turns multi-styles back on → the aggregate-level frames re-emerge still carrying
+the stale modern colours from before, and since Revert cleared the mark, `applyModernPalette`'s `ctx.modern`
+check is false at render time too, so nothing overwrites them — the stale modern defaults render. No code
+change is proposed here: closing it would require `seedColorPalette` to enumerate *more* than the render
+path does — reaching into both the info-level and every aggregate-level frame regardless of the chart's
+current multi-styles state — which trades this documented, narrow residual for undocumented drift in the
+other direction (seeding a frame the render path itself does not consult yet). Recorded here as an open
+item; not attempted.
+
+**A fourth, unfixed leak of the same defect, in a different feature: the target-lines band-fill path pins
+the palette on every apply, unconditionally.** `ChartPropertyService.updateCategoricalColor`
+(`core/src/main/java/inetsoft/web/viewsheet/service/ChartPropertyService.java:860-875`) loops every index
+and calls `cCFWrapper.setColor(i, Tool.getColorFromHexString(colors[i]))` at `:871`, with no difference
+guard — and the same loop writes the other two tiers unconditionally alongside it, `setDefaultColor(i, ...)`
+at `:872` and `cssmap.put(i, ...)` at `:873`. Contrast the binding pane's own path, `ColorFrameModelFactory
+.CategoricalColorFactory.updateVisualFrameWrapper0` (`:86-124`), which guards its write by resolving what
+the index would render with an empty user tier — `cssColors[i]` if set, else `defaultColors[i]`
+(`:100-107`) — and comparing that against the submitted colour, so it only writes an index the user
+actually moved off its resolved default. That comparison is against the model's reported tiers rather than
+`nwrapper.getColor(i)` because `nwrapper` here is always a fresh instance carrying the legacy palette and an
+empty user tier, never the chart's live wrapper — `VisualFrameModelFactoryService.shouldRefresh`
+(`:137-145`) returns true unconditionally for a `CategoricalColorFrameWrapper` by operator precedence, so
+`getVisualFrameWrapper` (`:107-132`) always substitutes it before the factory ever sees it.
+`CategoricalColorFrameWrapper
+.setColor` (`:142-149`) delegates to `frame.setColor`, which is `CategoricalColorFrame.setColor` (`:383-385`)
+→ `setUserColor` (`:418-420`) → `userColors.put`. `userColors` is serialized in its own `<userColors>`
+element (`CategoricalColorFrameWrapper.writeContents()`, `:219-232`) and is consulted before the default
+tier in `CategoricalColorFrame.getColor` (`:305`). It is reached from `ChartPropertyService:818` via
+`targetInfo.getBandFill()`. Every apply of a target-line band fill therefore writes all of that frame's
+colours into the USER tier whether or not the user touched any of them, so those colours outrank the
+defaults permanently and no Revert restores them. This is pre-existing, a separate feature area — chart
+target lines, not the aesthetic binding pane — and recorded rather than fixed. Unlike the Reset-button leak
+above, which the binding pane's guard fix closed as a side effect, this path calls its own `setColor`/
+`setDefaultColor`/`cssmap.put` directly rather than going through `ColorFrameModelFactory`, so that fix does
+not reach it. Not attempted.
+
 ### Modernize
 
 Per-dashboard, composer-only, gate-on only, write permission required, applying modern defaults wholesale to

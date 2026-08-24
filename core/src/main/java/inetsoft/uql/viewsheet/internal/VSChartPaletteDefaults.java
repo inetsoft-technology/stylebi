@@ -33,7 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Gated modern default categorical chart palette (visualization Phase 8). Rides the org-scoped
- * modern gate; applied to a render-time color frame only, never serialized. User series colors and
+ * modern gate; applied to a chart's color frame, whose default colors are serialized as part of
+ * the frame (CategoricalColorFrameWrapper.writeContents()/parseContents()). User series colors and
  * a customer format.css ChartPalette rule still win (checked before defaults in
  * CategoricalColorFrame.getColor). The palettes resolve from the Modern/Modern Dark ChartPalette
  * rules in defaults.css (or an org's format.css override), with the head constants below as the
@@ -62,9 +63,24 @@ public final class VSChartPaletteDefaults {
     * The 40 colors a chart color picker should offer for the current gate state.
     */
    public static Color[] pickerPalette(VizContext ctx) {
-      return ctx.modern
-         ? activePalette(ctx)
-         : fromFrame(getPaletteSafely(DEFAULT_NAME), CategoricalColorFrame.COLOR_PALETTE);
+      return seedPalette(ctx);
+   }
+
+   /**
+    * The categorical palette a chart should hold for the given context: total across the mark, so
+    * it is safe to write unconditionally at Modernize, Revert, or creation. Never touches a frame
+    * itself - callers write the result on, so nothing is clobbered by calling this alone.
+    */
+   public static Color[] seedPalette(VizContext ctx) {
+      return ctx.modern ? activePalette(ctx) : legacyPalette();
+   }
+
+   /**
+    * The classic 40-color palette, honoring a customer's format.css Default ChartPalette rule
+    * (unlike the raw COLOR_PALETTE constant, which does not).
+    */
+   static Color[] legacyPalette() {
+      return fromFrame(getPaletteSafely(DEFAULT_NAME), CategoricalColorFrame.COLOR_PALETTE);
    }
 
    public static void applyModernPalette(CategoricalColorFrame frame, VizContext ctx) {

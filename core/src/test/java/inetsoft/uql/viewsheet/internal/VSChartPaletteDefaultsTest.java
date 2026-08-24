@@ -238,6 +238,16 @@ class VSChartPaletteDefaultsTest {
       assertEquals(new Color(0x22D3EE), VSChartPaletteDefaults.pickerPalette(VizContext.ofGate())[0]);
    }
 
+   @Test
+   void seedPaletteIsTotalAcrossTheMark() {
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0],
+                   VSChartPaletteDefaults.seedPalette(VizContext.of(VizMark.MODERN_LIGHT))[0],
+                   "a marked context seeds the modern palette");
+      assertEquals(VSChartPaletteDefaults.legacyPalette()[0],
+                   VSChartPaletteDefaults.seedPalette(VizContext.of((VizMark) null))[0],
+                   "an unmarked context seeds the classic legacy palette");
+   }
+
    // Repeated calls with unchanged CSS must resolve to the same colors every time, but resolve()
    // clones on both a memo hit and a miss, so no caller can ever mutate the shared cached entry.
    @Test

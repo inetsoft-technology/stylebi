@@ -1362,22 +1362,21 @@ public class VGraphPair {
          axisDesc.getAxisLabelTextFormat().getCSSFormat().setParentCSSParams(parentParams);
 
          // the measure axis resolves its labels through a per-column format, not the axis-wide one;
-         // under the modern gate, seed those too or they keep the legacy default color (mirrors the
-         // per-ref loop). Gated so gate-off leaves the value-axis per-column formats exactly as today.
-         if(ctx.modern) {
-            for(String col : axisDesc.getColumnLabelTextFormatColumns()) {
-               CompositeTextFormat colFmt = axisDesc.getColumnLabelTextFormat(col);
+         // seed those too, unconditionally, or they keep the legacy default color (mirrors the
+         // per-ref loop). initDefaultFormat writes the context's own value on both branches, so a
+         // cleared mark restores the legacy label color here on the next render, same as per-ref.
+         for(String col : axisDesc.getColumnLabelTextFormatColumns()) {
+            CompositeTextFormat colFmt = axisDesc.getColumnLabelTextFormat(col);
 
-               if(colFmt != null) {
-                  if(StyleFont.isDefaultFont(colFmt.getDefaultFormat().getFont())) {
-                     colFmt.getDefaultFormat().setFont(
-                        axisDesc.getAxisLabelTextFormat().getDefaultFormat().getFont());
-                  }
-
-                  initDefaultFormat(colFmt, ctx);
-                  copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
-                  colFmt.getCSSFormat().setParentCSSParams(parentParams);
+            if(colFmt != null) {
+               if(StyleFont.isDefaultFont(colFmt.getDefaultFormat().getFont())) {
+                  colFmt.getDefaultFormat().setFont(
+                     axisDesc.getAxisLabelTextFormat().getDefaultFormat().getFont());
                }
+
+               initDefaultFormat(colFmt, ctx);
+               copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
+               colFmt.getCSSFormat().setParentCSSParams(parentParams);
             }
          }
       }

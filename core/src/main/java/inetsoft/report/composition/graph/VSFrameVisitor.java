@@ -747,7 +747,9 @@ public class VSFrameVisitor {
                   continue;
                }
 
-               frame.setColor(vals[i], clr);
+               // derived from the palette by index, not assigned - kept out of the saved
+               // asset so the color follows the palette instead of freezing at first render
+               frame.setDerivedColor(vals[i], clr);
             }
          }
       }
