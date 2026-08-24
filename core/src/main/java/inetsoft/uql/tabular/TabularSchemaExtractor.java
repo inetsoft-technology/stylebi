@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.tabular;
 
+import inetsoft.uql.XDataSource;
 import inetsoft.uql.util.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,9 +117,53 @@ public class TabularSchemaExtractor {
       }
 
       schema.setParams(params);
-      schema.setDependencyMatrix(buildDependencyMatrix(cls, params));
+      schema.setDependencyMatrix(buildDependencyMatrix(cls, prototype.getDataSource(), params));
 
       return schema;
+   }
+
+   /**
+    * Of the named parameters, those that do not apply to the query as it currently stands.
+    *
+    * <p>The counterpart of the dependency matrix, asked of one configured query rather than of a
+    * class: it answers "given what is already set, is this parameter read?". Setting one that is
+    * not is the failure mode a caller cannot see — the value is stored on the bean and never looked
+    * at, so the request goes out as though it had never been given and the result is a plausible
+    * wrong answer rather than an error.
+    *
+    * <p>A name this class does not recognize is not reported here. Whether a parameter exists is a
+    * different question from whether it applies, and the caller checks it against the schema.
+    */
+   public Set<String> findInapplicable(TabularQuery query, Collection<String> names) {
+      Set<String> inapplicable = new LinkedHashSet<>();
+
+      if(names == null || names.isEmpty()) {
+         return inapplicable;
+      }
+
+      try {
+         TabularView root = new LayoutCreator().createLayout(query);
+         TabularUtil.callViewMethods(root.getViews(), query);
+
+         Probe visible = new Probe();
+         collectVisible(root.getViews(), true, false, visible);
+
+         for(String name : names) {
+            // Only parameters the layout actually places can be judged. One the @View annotation
+            // never references has no visibility condition to evaluate, so there is no ground to
+            // call it inapplicable.
+            if(visible.known.contains(name) && !visible.allVisible.contains(name)) {
+               inapplicable.add(name);
+            }
+         }
+      }
+      catch(Exception ex) {
+         // Reporting nothing is the safe direction: this check exists to warn, and a check that
+         // could not run must not turn into a claim that every parameter is wrong.
+         LOG.debug("Failed to evaluate parameter applicability for " + query.getClass(), ex);
+      }
+
+      return inapplicable;
    }
 
    /**
@@ -144,11 +189,11 @@ public class TabularSchemaExtractor {
     * that axis: they are not gated on it.
     */
    Map<String, Map<String, List<String>>> buildDependencyMatrix(
-      Class<?> cls, List<TabularQuerySchema.Param> params)
+      Class<?> cls, XDataSource dataSource, List<TabularQuerySchema.Param> params)
    {
       Map<String, Map<String, List<String>>> matrix = new LinkedHashMap<>();
       List<Axis> axes = findAxes(params);
-      Probe baseline = probe(cls, Collections.emptyMap());
+      Probe baseline = probe(cls, dataSource, Collections.emptyMap());
 
       if(axes.isEmpty() || baseline == null) {
          return matrix;
@@ -160,7 +205,7 @@ public class TabularSchemaExtractor {
          Map<String, Set<String>> raw = new LinkedHashMap<>();
 
          for(Object value : axis.values) {
-            Probe result = probe(cls, Collections.singletonMap(axis.name, value));
+            Probe result = probe(cls, dataSource, Collections.singletonMap(axis.name, value));
 
             if(result == null || isSelfGating(axis.name, baseline, result)) {
                raw = null;
@@ -178,7 +223,7 @@ public class TabularSchemaExtractor {
       }
 
       matrix.putAll(firstPass);
-      addCombinationGates(cls, params, axes, firstPass, matrix);
+      addCombinationGates(cls, dataSource, params, axes, firstPass, matrix);
 
       return matrix;
    }
@@ -201,8 +246,8 @@ public class TabularSchemaExtractor {
     * and the condition is not described here" rather than claiming it never
     * applies.
     */
-   private void addCombinationGates(Class<?> cls, List<TabularQuerySchema.Param> params,
-                                    List<Axis> axes,
+   private void addCombinationGates(Class<?> cls, XDataSource dataSource,
+                                    List<TabularQuerySchema.Param> params, List<Axis> axes,
                                     Map<String, Map<String, List<String>>> firstPass,
                                     Map<String, Map<String, List<String>>> matrix)
    {
@@ -239,7 +284,7 @@ public class TabularSchemaExtractor {
                   Map<String, Object> combo = new LinkedHashMap<>();
                   combo.put(outer.getKey(), row.getKey());
                   combo.put(inner.name, value);
-                  Probe result = probe(cls, combo);
+                  Probe result = probe(cls, dataSource, combo);
 
                   if(result == null) {
                      continue;
@@ -284,9 +329,17 @@ public class TabularSchemaExtractor {
     * @return what is visible under those values, or {@code null} if the probe could
     *         not be run
     */
-   private Probe probe(Class<?> cls, Map<String, Object> values) {
+   private Probe probe(Class<?> cls, XDataSource dataSource, Map<String, Object> values) {
       try {
          Object probe = cls.getDeclaredConstructor().newInstance();
+
+         // The probe has to stand where the real query stands. A visibility condition may read the
+         // data source -- a connector varies what it offers by which account it is pointed at --
+         // and a probe built without one would answer for a query nobody is going to run.
+         if(dataSource != null && probe instanceof TabularQuery) {
+            ((TabularQuery) probe).setDataSource(dataSource);
+         }
+
          Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(cls);
 
          for(Map.Entry<String, Object> e : values.entrySet()) {
@@ -332,13 +385,17 @@ public class TabularSchemaExtractor {
          boolean conditional = ancestorConditional || method != null && !method.isEmpty();
          boolean visible = ancestorVisible && view.isVisible();
 
-         if(visible && view.getEditor() != null && view.getValue() != null) {
-            out.allVisible.add(view.getValue());
+         if(view.getEditor() != null && view.getValue() != null) {
+            out.known.add(view.getValue());
 
-            // a parameter with no condition anywhere above it applies regardless, so
-            // listing it under every value of an axis would say nothing
-            if(conditional) {
-               out.conditionalVisible.add(view.getValue());
+            if(visible) {
+               out.allVisible.add(view.getValue());
+
+               // a parameter with no condition anywhere above it applies regardless, so
+               // listing it under every value of an axis would say nothing
+               if(conditional) {
+                  out.conditionalVisible.add(view.getValue());
+               }
             }
          }
 
@@ -570,6 +627,8 @@ public class TabularSchemaExtractor {
     * What one probe saw.
     */
    private static final class Probe {
+      /** every parameter the layout places, whether or not it is currently shown */
+      private final Set<String> known = new LinkedHashSet<>();
       private final Set<String> allVisible = new LinkedHashSet<>();
       private final Set<String> conditionalVisible = new LinkedHashSet<>();
    }

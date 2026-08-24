@@ -45,6 +45,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.PropertyMeta;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -441,6 +442,11 @@ public class WorksheetTableService {
          return 0;
       }
 
+      // File only, and the query kind is deliberately not added to it. Sampling here means running
+      // the table a second time, which is free for a local file and is a second metered call for
+      // anything else; the query kind addresses any connector at all, so it cannot be assumed to be
+      // the free case. A connector whose runner samples its own response still reports rows through
+      // that path, exactly as an endpoint does.
       if(!TARGET_KIND_FILE.equals(kind)) {
          return 0;
       }
@@ -1420,7 +1426,12 @@ public class WorksheetTableService {
 
       String targetKind = targetKindOf(src);
 
-      if(src.getTarget() == null || src.getTarget().isBlank()) {
+      // Not asked of the query kind, which has no separate target to name: there, the parameters
+      // ARE what is being addressed, and demanding a target as well would mean inventing a value
+      // for a field that nothing on that path reads.
+      if(!TARGET_KIND_QUERY.equals(targetKind) &&
+         (src.getTarget() == null || src.getTarget().isBlank()))
+      {
          throw new IllegalArgumentException(
             "tabularSource.target is required for tabular table — " +
             (TARGET_KIND_FILE.equals(targetKind)
@@ -1506,6 +1517,7 @@ public class WorksheetTableService {
       String probeDesc = switch(targetKind) {
          case TARGET_KIND_ENDPOINT -> applyEndpointContract(query, pmap, src);
          case TARGET_KIND_FILE -> applyFileContract(query, pmap, src);
+         case TARGET_KIND_QUERY -> applyQueryContract(query, pmap, src);
          // Unreachable: targetKindOf refuses anything else. Present so a third kind added to the
          // enum without a contract fails here rather than silently building an unconfigured query.
          default -> throw new IllegalStateException(
@@ -1562,6 +1574,17 @@ public class WorksheetTableService {
          // sent and the first thing to check; repeating it for a file would hand whoever is
          // debugging a URL that was never built and say nothing about the path, the sheet, or the
          // delimiter — the three things that actually produce an empty parse.
+         if(TARGET_KIND_QUERY.equals(targetKind)) {
+            // Neither of the other two texts fits: there is no URL to re-read and no file to
+            // check. What was sent is the parameter set, so that is what is named back.
+            throw new IllegalArgumentException(
+               "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
+               ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
+               "one applies to the others, since one that does not is stored and never read — and " +
+               "that the data source's credentials are valid; the underlying cause is in the " +
+               "server log for this request.");
+         }
+
          throw new IllegalArgumentException(TARGET_KIND_FILE.equals(targetKind)
             ? "Reading " + probeDesc + " of '" + dsName + "' produced no columns. Check that the " +
               "file exists at that path, is not empty, and that the parsing options in " +
@@ -1637,13 +1660,225 @@ public class WorksheetTableService {
 
       String normalized = kind.trim().toLowerCase();
 
-      if(!TARGET_KIND_ENDPOINT.equals(normalized) && !TARGET_KIND_FILE.equals(normalized)) {
+      if(!TARGET_KIND_ENDPOINT.equals(normalized) && !TARGET_KIND_FILE.equals(normalized) &&
+         !TARGET_KIND_QUERY.equals(normalized))
+      {
          throw new IllegalArgumentException(
-            "tabularSource.targetKind must be \"" + TARGET_KIND_ENDPOINT + "\" or \"" +
-            TARGET_KIND_FILE + "\", got \"" + kind + "\".");
+            "tabularSource.targetKind must be \"" + TARGET_KIND_ENDPOINT + "\", \"" +
+            TARGET_KIND_FILE + "\" or \"" + TARGET_KIND_QUERY + "\", got \"" + kind + "\".");
       }
 
       return normalized;
+   }
+
+   /**
+    * Configure a tabular query from the connector's own declared parameters, and return a
+    * description of what it will run.
+    *
+    * <p>THE GENERAL CONTRACT, where {@link #applyEndpointContract} and {@link #applyFileContract}
+    * are two special ones. Those two know in advance which properties matter — an endpoint name and
+    * its URL tokens, a file path and its parsing options — which is what makes them short, and also
+    * what makes them apply to two kinds of connector out of the many StyleBI ships. A document
+    * store, a cloud analytics API and a search index have neither an endpoint nor a file, and no
+    * amount of either contract binds one. This one takes the names from the connector instead, so
+    * it fits whatever the connector declares. The two older kinds are untouched and keep their own
+    * contracts; this is where they are headed, not something they now go through.</p>
+    *
+    * <p>THREE CHECKS, and each exists because the failure it catches is invisible. A name the
+    * connector does not declare would be dropped, and the query would run without whatever it was
+    * meant to say. A value the bean refuses would leave the connector's default in place, because
+    * {@code PropertyMeta.setValue} reports a failed invocation with {@code LOG.error} and returns
+    * normally. And a parameter that does not apply to the rest of what was sent is stored and never
+    * read — an offset written under link-following pagination changes nothing, and the answer comes
+    * back looking like the first page of a correct result.</p>
+    *
+    * <p>THE THIRD IS A WARNING, NOT A REFUSAL. Applicability is decided by running the connector's
+    * own visibility methods, and those answer for the form, which is a narrower question than
+    * whether the runner reads the property. A connector is free to read something its form hides.
+    * Refusing on that basis would block correct requests, so the request proceeds and the finding
+    * is logged.</p>
+    *
+    * @return a description of the parameters that were set.
+    */
+   private String applyQueryContract(TabularQuery query,
+                                     Map<String, PropertyMeta> pmap,
+                                     WorksheetTable.TabularSource src)
+   {
+      Map<String, Object> requested = src.getQueryParams();
+
+      if(requested == null || requested.isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.queryParams is required for targetKind \"" + TARGET_KIND_QUERY +
+            "\" — it is the whole of what addresses the data. Ask " +
+            "GET /api/wiz/tabular/query-schema for the names this data source accepts.");
+      }
+
+      rejectForeignFields(src);
+
+      List<String> applied = new ArrayList<>();
+
+      for(Map.Entry<String, Object> entry : requested.entrySet()) {
+         String name = entry.getKey();
+         PropertyMeta prop = pmap.get(name);
+
+         if(prop == null) {
+            // Named rather than counted, and answered with the alternatives: the caller is working
+            // from a schema, and the useful reply to a name that is not in it is the set that is.
+            throw new IllegalArgumentException(
+               "'" + name + "' is not a parameter of data source '" + src.getDatasourcePath() +
+               "'. It accepts: " + String.join(", ", new TreeSet<>(pmap.keySet())) + ".");
+         }
+
+         Object value = coerce(prop, name, entry.getValue());
+         prop.setValue(query, value);
+
+         // setValue swallows a failed invocation, so the write is confirmed by reading it back
+         // rather than assumed. A setter that normalizes — trimming, or resolving an alias — is
+         // expected and allowed; what is not is the value never arriving at all.
+         Object stored = prop.getValue(query);
+
+         if(value != null && stored == null) {
+            throw new IllegalArgumentException(
+               "Setting '" + name + "' to " + describe(entry.getValue()) + " did not take effect " +
+               "on data source '" + src.getDatasourcePath() + "'. The server log for this request " +
+               "carries the reason.");
+         }
+
+         applied.add(name + "=" + describe(stored));
+      }
+
+      warnInapplicable(query, requested.keySet(), src);
+
+      return String.join(", ", applied);
+   }
+
+   /**
+    * Refuse the older kinds' fields on a query-kind request.
+    *
+    * <p>They address the same properties by other names, so accepting both would let one request
+    * carry two answers for one parameter and silently keep whichever ran last. Refused rather than
+    * merged, in the same spirit as the endpoint/file contracts refusing each other's fields.
+    */
+   private void rejectForeignFields(WorksheetTable.TabularSource src) {
+      if(src.getParameters() != null && !src.getParameters().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.parameters applies to targetKind \"" + TARGET_KIND_ENDPOINT +
+            "\" only — for \"" + TARGET_KIND_QUERY + "\", put every value in queryParams.");
+      }
+
+      if(src.getParams() != null && !src.getParams().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.params applies to targetKind \"" + TARGET_KIND_FILE +
+            "\" only — for \"" + TARGET_KIND_QUERY + "\", put every value in queryParams.");
+      }
+   }
+
+   /**
+    * Log the parameters that were set but do not apply to the rest of the request.
+    *
+    * <p>Kept out of the response deliberately. {@code WorksheetTableResponse} reports success and a
+    * column list, and a table that built correctly must not come back looking like it failed; the
+    * caller that wants to know beforehand asks the schema, whose dependency matrix says which
+    * parameters each choice turns on.</p>
+    */
+   private void warnInapplicable(TabularQuery query, Set<String> names,
+                                 WorksheetTable.TabularSource src)
+   {
+      Set<String> inapplicable = new TabularSchemaExtractor().findInapplicable(query, names);
+
+      if(!inapplicable.isEmpty()) {
+         LOG.warn("Tabular query on '{}' was given parameters that do not apply to the rest of " +
+                     "the request and will not be read: {}. See the dependency matrix in " +
+                     "GET /api/wiz/tabular/query-schema for what each choice turns on.",
+                  src.getDatasourcePath(), String.join(", ", inapplicable));
+      }
+   }
+
+   /**
+    * Convert a JSON value to what the bean property takes.
+    *
+    * <p>WHY THIS IS NEEDED AT ALL: {@code PropertyMeta.setValue} converts a string to an enum and
+    * fills a primitive for null, but does nothing for the case that actually arrives here — JSON
+    * carries {@code 100} as an {@code Integer} and {@code "100"} as a {@code String}, and a
+    * property that takes {@code int} accepts neither reliably. Handed the wrong one, the reflective
+    * invocation fails, {@code setValue} logs it, and the connector's default survives into a query
+    * that reports success.</p>
+    *
+    * <p>Only scalars are converted. A composite parameter — a list of HTTP headers, a set of column
+    * definitions — is refused by name rather than half-built from a map, because a partially
+    * populated composite is exactly the silent wrong answer this contract exists to prevent.</p>
+    */
+   private Object coerce(PropertyMeta prop, String name, Object value) {
+      Class<?> type = prop.getDescriptor().getPropertyType();
+
+      if(value == null || type == null || type.isInstance(value)) {
+         return value;
+      }
+
+      // left to setValue, which resolves the constant and reports an unknown one
+      if(type.isEnum() || type == String.class) {
+         return value;
+      }
+
+      String text = String.valueOf(value).trim();
+
+      try {
+         if(type == boolean.class || type == Boolean.class) {
+            if(value instanceof Boolean) {
+               return value;
+            }
+
+            // Boolean.parseBoolean would read "yes" and "1" as false, quietly turning a flag the
+            // caller meant to set into one it did not.
+            if("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text)) {
+               return Boolean.valueOf(text);
+            }
+
+            throw new NumberFormatException(text);
+         }
+
+         if(type == int.class || type == Integer.class) {
+            return value instanceof Number ? ((Number) value).intValue() : Integer.valueOf(text);
+         }
+
+         if(type == long.class || type == Long.class) {
+            return value instanceof Number ? ((Number) value).longValue() : Long.valueOf(text);
+         }
+
+         if(type == short.class || type == Short.class) {
+            return value instanceof Number ? ((Number) value).shortValue() : Short.valueOf(text);
+         }
+
+         if(type == byte.class || type == Byte.class) {
+            return value instanceof Number ? ((Number) value).byteValue() : Byte.valueOf(text);
+         }
+
+         if(type == double.class || type == Double.class) {
+            return value instanceof Number ? ((Number) value).doubleValue() : Double.valueOf(text);
+         }
+
+         if(type == float.class || type == Float.class) {
+            return value instanceof Number ? ((Number) value).floatValue() : Float.valueOf(text);
+         }
+      }
+      catch(NumberFormatException ex) {
+         throw new IllegalArgumentException(
+            "'" + name + "' takes " + type.getSimpleName() + ", and " + describe(value) +
+            " is not one.");
+      }
+
+      throw new IllegalArgumentException(
+         "'" + name + "' takes " + type.getSimpleName() + ", which this contract cannot build from " +
+         "a JSON value. Composite parameters are set through the connector's own editor, not here.");
+   }
+
+   /** A value as it should appear in a message: quoted if text, bare otherwise, and never null. */
+   private String describe(Object value) {
+      if(value == null) {
+         return "null";
+      }
+
+      return value instanceof String ? "'" + value + "'" : String.valueOf(value);
    }
 
    /**
@@ -3578,6 +3813,11 @@ public class WorksheetTableService {
    private static final String TARGET_KIND_ENDPOINT = "endpoint";
    /** {@code tabularSource.targetKind} for a path-addressed connector's file. */
    private static final String TARGET_KIND_FILE = "file";
+   /**
+    * {@code tabularSource.targetKind} for any connector, addressed through its own declared
+    * parameters rather than through a target the two older kinds recognize.
+    */
+   private static final String TARGET_KIND_QUERY = "query";
    /** ServerFile's name for the property that carries the file; preferred when a connector has it. */
    private static final String FILE_TARGET_PROPERTY = "fileFolder";
    /** The property a workbook's sheet is selected through. */

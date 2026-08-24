@@ -180,6 +180,7 @@ public class WorksheetTable {
       private String target;
       private Map<String, String> params;
       private Map<String, String> parameters;
+      private Map<String, Object> queryParams;
       private String jsonPath;
       private Boolean expanded;
       private String expandedPath;
@@ -261,6 +262,29 @@ public class WorksheetTable {
        */
       public Map<String, String> getParameters() { return parameters; }
       public void setParameters(Map<String, String> parameters) { this.parameters = parameters; }
+
+      /**
+       * The whole query, by the connector's own property names, for {@code targetKind == "query"}.
+       *
+       * <p>Where {@link #getParams()} and {@link #getParameters()} each carry one slice of one kind
+       * of connector, this carries all of any connector: the names and the values come from the
+       * parameter contract {@code GET /api/wiz/tabular/query-schema} publishes for this data source,
+       * which is derived from the connector's own {@code @Property} declarations. That is what lets
+       * a connector with neither endpoints nor files — a document store, a cloud analytics API, a
+       * search index — be bound at all, and it is where the two older kinds are headed. Until they
+       * move they are untouched and keep their own contracts.</p>
+       *
+       * <p>TYPED, unlike the two older maps. A parameter can be a number, a flag, or one of a fixed
+       * set of names, and the schema says which. Declaring everything a string would put the
+       * conversion in the caller and, worse, make a wrong guess indistinguishable from a value the
+       * connector chose to ignore.</p>
+       *
+       * <p>Three things are checked before the query runs, because each of them otherwise fails
+       * quietly: a name the connector does not declare, a value that does not reach the bean, and a
+       * parameter that does not apply to the rest of what was sent.</p>
+       */
+      public Map<String, Object> getQueryParams() { return queryParams; }
+      public void setQueryParams(Map<String, Object> queryParams) { this.queryParams = queryParams; }
 
       /** JSON path to the row array, e.g. "$.data[*]". Null keeps the connector's default. */
       public String getJsonPath() { return jsonPath; }
