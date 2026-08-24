@@ -243,5 +243,33 @@ public final class FieldRefFactory {
             String.join(" or ", TYPES) + ", got '" +
             (ref == null ? "null" : String.valueOf(ref.type())) + "'.");
       }
+
+      requireNoInboundChartType(ref);
+   }
+
+   /**
+    * Refuses a field that arrived carrying a chart type.
+    *
+    * <p>The chart read reports one per measure on a multi-style chart, which makes handing one of
+    * its field refs straight back to a write the obvious next move — and no write takes it. Writing
+    * a per-measure type is {@code set_chart_type}'s {@code field} argument.
+    *
+    * <p>Here rather than only in the plugin. The plugin refuses it too, but that is the outermost
+    * tier and the most bypassable one: wiz-services, a script, or any future client reaching
+    * {@code POST chart/shelf} directly would get the silent drop this whole surface is written
+    * against. Placed on {@code requireType} because every inbound ref passes through it — the chart
+    * path through {@code toChartRef}, the table and calc paths on their own — so one check covers
+    * all six writes instead of six checks drifting apart.
+    */
+   private static void requireNoInboundChartType(FieldRef ref) {
+      if(ref.chartType() == null && ref.runtimeChartType() == null) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "Field '" + ref.column() + "' carries a chart type, which no binding write can set — " +
+         "that is set_chart_type's 'field' argument, on a multi-style chart. The chart read " +
+         "reports it, so a ref read from there has to have it removed before it is written back; " +
+         "accepting it here would drop it silently and report success.");
    }
 }

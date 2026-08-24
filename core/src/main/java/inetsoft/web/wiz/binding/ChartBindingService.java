@@ -258,6 +258,36 @@ public class ChartBindingService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          String ref = requireTypeableField(chart, assemblyName, field);
 
+         // requireTypeableField reads the chart's *current* multi-style state, so on a multi-style
+         // chart this pair sails through it: the per-measure type lands, then applyMultiStyle turns
+         // off the flag that renders it. Stored where nothing draws from it, reported as success —
+         // the shape that method exists to prevent, arriving through a door it cannot watch.
+         if(ref != null && Boolean.FALSE.equals(multi)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "': a per-measure type and multi: false cancel each other out. " +
+               "Only a multi-style chart renders per-measure types, so this would store one on '" +
+               field + "' and then switch off the mode that draws it. Drop 'field' to retype the " +
+               "whole chart, or drop 'multi' to leave multi-style on.");
+         }
+
+         // Hoisted above the retype, and narrowed to an explicit request. It used to run inside
+         // applyMultiStyle, after changeChartType had already landed, so asking to merge a treemap
+         // returned an error *and* left the chart retyped — a mutation followed by a refusal, which
+         // is the one failure shape this lane has spent its length removing. It needs only the
+         // requested type, so nothing forced it to sit downstream. Gating on FALSE rather than on
+         // the resolved value also stops it refusing a merge the caller never asked for: an omitted
+         // separate means "not asked about", and a forced-separate type is then simply obeyed.
+         if(Boolean.FALSE.equals(separate)) {
+            String forcedTypeName = forcedSeparateTypeName(type);
+
+            if(forcedTypeName != null) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is being set to a " + forcedTypeName + " chart, which " +
+                  "cannot be merged — StyleBI always renders it as separated graphs regardless of " +
+                  "this setting. Call with separate: true, or leave it unset.");
+            }
+         }
+
          ChangeChartTypeEvent event = new ChangeChartTypeEvent();
          event.setName(assemblyName);
          event.setType(type);
@@ -326,15 +356,11 @@ public class ChartBindingService {
 
       // Separated travels with multi through this service — it sets both — so an unstated separate
       // preserves what the chart has rather than pushing it either way.
+      //
+      // The forced-separate refusal that used to sit here now runs in setChartType, before the
+      // retype: raising it at this point meant the chart had already been retyped by the time the
+      // caller was told no.
       boolean separated = separate == null ? info.isSeparatedGraph() : separate;
-      String forcedTypeName = separated ? null : forcedSeparateTypeName(info.getChartType());
-
-      if(forcedTypeName != null) {
-         throw new IllegalArgumentException(
-            "'" + assemblyName + "' is a " + forcedTypeName + " chart, which cannot be merged — " +
-            "StyleBI always renders it as separated graphs regardless of this setting. Call with " +
-            "separate: true, or leave it unset.");
-      }
 
       ChangeSeparateStatusEvent event =
          new ChangeSeparateStatusEvent(assemblyName, multi, separated);
@@ -438,9 +464,28 @@ public class ChartBindingService {
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ChartVSAssembly chart = requireChart(rvs, assemblyName);
-      ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
 
-      return new ChartTypeState(assemblyName, model.getChartType(), model.getRTChartType(),
+      // Pattern-matched rather than cast, the way BindingReadService.read does on the same call. A
+      // hard cast would surface a ClassCastException as a 500, where requireChart's own refusal for
+      // a non-chart assembly is a sentence the caller can act on — and losing that message on an
+      // assembly this method already checked would be a strange place to give it up.
+      if(!(binding.createModel(chart) instanceof ChartBindingModel model)) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' did not produce a chart binding, so it has no chart type. " +
+            "get_binding reports what an assembly is bound to.");
+      }
+
+      // Null unless the assembly-level runtime type is maintained: only the separated branch of
+      // AbstractChartInfo.updateChartType sets it, and CHART_AUTO is its unset default rather than
+      // a resolved answer. Reporting it regardless would hand the plugin — which treats a divergence
+      // as proof the renderer chose something else — a stale zero to draw that conclusion from, on
+      // merged charts, which is exactly the multi-style case. FieldRef.runtimeChartType carries the
+      // per-measure runtime type that *is* maintained there.
+      int runtime = model.getRTChartType();
+      Integer reportedRuntime =
+         model.isSeparated() && runtime != GraphTypes.CHART_AUTO ? runtime : null;
+
+      return new ChartTypeState(assemblyName, model.getChartType(), reportedRuntime,
                                 model.isMultiStyles(), model.isSeparated(),
                                 model.isStackMeasures());
    }
@@ -508,7 +553,16 @@ public class ChartBindingService {
       return info != null && info.isMultiStyles();
    }
 
-   /** Defaults to separated, which is what the event's own null coercion did. */
+   /**
+    * Defaults to separated, unlike the two flags either side of it, and deliberately.
+    *
+    * <p>All three answer "what does the chart have now" so that an omitted argument can be sent
+    * back unchanged. When there is no info to ask, the honest fallback is the product default, and
+    * StyleBI's is separated — a fresh chart reads {@code separated: true}. Answering false to match
+    * the other two would flip a default rather than preserve one, which is the opposite of what
+    * these helpers are for. (The null branch is close to unreachable: {@code requireChart} has
+    * already established the assembly is a chart.)
+    */
    private static boolean isSeparatedGraph(ChartVSAssembly chart) {
       VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
       return info == null || info.isSeparatedGraph();

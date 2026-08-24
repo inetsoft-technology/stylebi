@@ -36,6 +36,8 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.web.wiz.binding.model.FieldRef;
 
 @Tag("core")
 class BindingReadServiceTest {
@@ -143,6 +145,47 @@ class BindingReadServiceTest {
    }
 
    /**
+    * The case a design-time-only read serves worst: a measure left at {@code auto} answers
+    * {@code auto} forever, and the runtime type is the only thing that says what it drew. This is
+    * also the runtime type that survives on a merged chart, where the assembly-level one is not
+    * maintained — and merged is the multi-style case.
+    */
+   @Test
+   void reportsWhatAMeasureActuallyDrewWhenThatDiffersFromWhatWasStored() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      model.setYFields(List.of(
+         withTypes(aggregate("PAID", "Sum"), GraphTypes.CHART_AUTO, GraphTypes.CHART_BAR)));
+
+      FieldRef ref = read(model).shelves().get("y").get(0);
+
+      assertEquals(Integer.valueOf(GraphTypes.CHART_AUTO), ref.chartType());
+      assertEquals(Integer.valueOf(GraphTypes.CHART_BAR), ref.runtimeChartType());
+   }
+
+   /** Divergence-only: reported on every field it would be noise rather than a signal. */
+   @Test
+   void withholdsTheRuntimeTypeWhenItMatchesWhatWasStored() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      model.setYFields(List.of(withTypes(aggregate("PAID", "Sum"), 5, 5)));
+
+      assertNull(read(model).shelves().get("y").get(0).runtimeChartType());
+   }
+
+   @Test
+   void neverClaimsARuntimeTypeWhereItWithholdsTheStoredOne() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(false);
+      model.setYFields(List.of(withTypes(aggregate("PAID", "Sum"), 1, 5)));
+
+      FieldRef ref = read(model).shelves().get("y").get(0);
+
+      assertNull(ref.chartType());
+      assertNull(ref.runtimeChartType());
+   }
+
+   /**
     * With multi-style off the per-field value is inert — the chart draws as one type — so reporting
     * it would hand back a setting that does not describe what renders. That is the shape of the
     * inert-frame finding this lane already recorded against set_visual_frame.
@@ -165,7 +208,7 @@ class BindingReadServiceTest {
       model.setXFields(List.of(new ChartDimensionRefModel()));
 
       assertNull(read(model).shelves().get("x").get(0).chartType());
-    }
+   }
 
    /**
     * The write side searches x and y only — {@code ChangeChartTypeProcessor} loops
@@ -198,6 +241,17 @@ class BindingReadServiceTest {
 
    private static ChartAggregateRefModel withChartType(ChartAggregateRefModel ref, int type) {
       ref.setChartType(type);
+      // Runtime mirrors design time unless a test says otherwise, so the divergence-only rule does
+      // not add a runtime type to every fixture that only cares about the stored one.
+      ref.setRTChartType(type);
+      return ref;
+   }
+
+   private static ChartAggregateRefModel withTypes(ChartAggregateRefModel ref, int type,
+                                                   int runtime)
+   {
+      ref.setChartType(type);
+      ref.setRTChartType(runtime);
       return ref;
    }
 

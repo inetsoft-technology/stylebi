@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import inetsoft.web.wiz.binding.model.ChartTypeState;
 
 @Tag("core")
 class BindingAgentControllerTest {
@@ -118,6 +119,20 @@ class BindingAgentControllerTest {
                                         mock(CalcTableService.class));
    }
 
+   private static BindingAgentController controllerWith(SheetAgentFeature feature,
+                                                        ChartBindingService chartService)
+   {
+      return new BindingAgentController(feature, mock(SheetJoinService.class),
+                                        mock(SheetSessionService.class),
+                                        mock(ViewsheetSessionService.class),
+                                        mock(BindableFieldsService.class),
+                                        mock(BindingReadService.class),
+                                        chartService,
+                                        mock(ChartAestheticAgentService.class),
+                                        mock(TableBindingService.class),
+                                        mock(CalcTableService.class));
+   }
+
    private static Principal principal() {
       return () -> "admin";
    }
@@ -193,4 +208,36 @@ class BindingAgentControllerTest {
                                          mock(SheetAgentBroadcastService.class));
    }
 
+   // ---------------------------------------------------------------------------
+   // GET chart/type. The mapping itself was untested while both downstream tiers
+   // got route tests, and the read is the half a caller reaches first.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void chartTypeRefusesWhenTheFeatureIsDisabled() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(false);
+      ChartBindingService chartService = mock(ChartBindingService.class);
+
+      assertThrows(ResponseStatusException.class,
+                   () -> controllerWith(feature, chartService).chartType("tok", "Chart1",
+                                                                        principal()));
+      verifyNoInteractions(chartService);
+   }
+
+   @Test
+   void chartTypeReturnsWhatTheServiceRead() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ChartTypeState state =
+         new ChartTypeState("Chart1", 1, 5, true, true, false);
+      ChartBindingService chartService = mock(ChartBindingService.class);
+      when(chartService.readChartType("tok", null, "Chart1")).thenReturn(state);
+      when(chartService.readChartType(eq("tok"), any(), eq("Chart1"))).thenReturn(state);
+
+      ChartTypeState read =
+         controllerWith(feature, chartService).chartType("tok", "Chart1", principal());
+
+      assertSame(state, read, "the controller is a passthrough; it must not rebuild the state");
+   }
 }

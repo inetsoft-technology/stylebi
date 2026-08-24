@@ -133,13 +133,29 @@ public class BindingReadService {
             FieldRef ref = FieldRefFactory.from(model);
 
             refs.add(withChartType && model instanceof ChartAestheticModel aesthetic
-                        ? new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
-                                       ref.namedGroup(), aesthetic.getChartType())
+                        ? withTypes(ref, aesthetic)
                         : ref);
          }
       }
 
       return refs;
+   }
+
+   /**
+    * Copies a measure's own chart type onto its ref, plus the runtime type when it differs.
+    *
+    * <p>Divergence-only, matching {@code ChartTypeState}: reported every time it would be noise,
+    * reported never and a measure left at {@code auto} would answer {@code auto} while drawing
+    * something else. The runtime value is the one that survives here — the assembly-level runtime
+    * type is maintained only on the separated branch of
+    * {@code AbstractChartInfo.updateChartType}, and merged is the multi-style case.
+    */
+   private static FieldRef withTypes(FieldRef ref, ChartAestheticModel aesthetic) {
+      int stored = aesthetic.getChartType();
+      int runtime = aesthetic.getRTChartType();
+
+      return new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
+                          ref.namedGroup(), stored, runtime == stored ? null : runtime);
    }
 
    private final VSBindingService binding;

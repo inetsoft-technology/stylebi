@@ -39,6 +39,18 @@ package inetsoft.web.wiz.binding.model;
  * renderer used something else — {@code ChangeChartTypeProcessor} clears runtime types on a
  * per-ref write for exactly that reason, so the two genuinely diverge.
  *
+ * <p><b>It is null unless the assembly-level runtime type is actually maintained</b>, which is
+ * narrower than it looks. {@code AbstractChartInfo.updateChartType} sets it only on the
+ * {@code separated} branch; the merged branch calls {@code updateFieldChartTypes} and leaves the
+ * assembly-level value untouched, and the whole method returns early when no x/y refs are
+ * populated. So on a merged chart, or one that has not rendered, the field would hold a stale or
+ * never-set {@code 0} — and a caller told to read its presence as "the renderer resolved to
+ * something else" would read that as an answer. Merged is the multi-style case, so this is the
+ * common path rather than a corner; the runtime type that survives there is the per-measure one on
+ * {@link FieldRef#runtimeChartType()}. {@code CHART_AUTO} is treated as unresolved for the same
+ * reason: a render always resolves to a concrete type, so {@code auto} is the default rather than
+ * an answer.
+ *
  * <p>The types are the raw {@code GraphTypes} codes. Naming them is the plugin's job: the
  * code↔name vocabulary already exists in three copies on this side
  * ({@code WizAutoBindingService} twice, {@code WizVsService} once) and a fourth would be one more
@@ -47,10 +59,11 @@ package inetsoft.web.wiz.binding.model;
  *
  * @param assembly         the chart's name
  * @param chartType        the assembly-level GraphTypes code
- * @param runtimeChartType the code the last render resolved to
+ * @param runtimeChartType the code the last render resolved to, or null where the assembly-level
+ *                         value is not maintained
  * @param multiStyles      whether each measure carries its own type
  * @param separated        separated rather than merged graphs
  * @param stackMeasures    whether measures are stacked
  */
-public record ChartTypeState(String assembly, int chartType, int runtimeChartType,
+public record ChartTypeState(String assembly, int chartType, Integer runtimeChartType,
                              boolean multiStyles, boolean separated, boolean stackMeasures) {}

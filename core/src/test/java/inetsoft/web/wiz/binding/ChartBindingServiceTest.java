@@ -53,6 +53,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.binding.model.BindingModel;
 
 @Tag("core")
 class ChartBindingServiceTest {
@@ -562,6 +564,88 @@ class ChartBindingServiceTest {
       verifyNoInteractions(types);
    }
 
+   /**
+    * requireTypeableField reads the chart's *current* multi-style state, so this pair passes it on
+    * a multi-style chart: the per-measure type lands, then applyMultiStyle switches off the flag
+    * that renders it. Stored where nothing draws it, reported as success — the very shape that
+    * method exists to prevent, reached through a door it cannot watch. Refused as a combination
+    * rather than by making requireTypeableField aware of the requested flag, because the two
+    * arguments are individually valid and it is only together that they cancel.
+    */
+   @Test
+   void refusesAPerMeasureTypeAskedForAlongsideTurningMultiStyleOff() {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      ChartBindingService service = multiStyleChart(types);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, false, null,
+                                    null, "Sum(PAID)", ""));
+
+      assertTrue(thrown.getMessage().contains("Sum(PAID)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("multi"), thrown.getMessage());
+      verifyNoInteractions(types);
+   }
+
+   @Test
+   void stillAcceptsAPerMeasureTypeWhenMultiStyleIsLeftAlone() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      multiStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null,
+                       "Sum(PAID)", "");
+
+      verify(types).changeChartType(any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void stillAcceptsTurningMultiStyleOffForTheWholeChart() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      multiStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, false, null, null, null,
+                       "");
+
+      verify(types).changeChartType(any(), any(), any(), any(), any());
+   }
+
+   /**
+    * The forced-separate refusal used to live in applyMultiStyle, which runs *after*
+    * changeChartType, so asking to merge a treemap returned an error and left the chart retyped —
+    * a mutation followed by a refusal. It needs only the requested type, so nothing forced it
+    * downstream. This test is about the ordering, which is why it asserts on the type service
+    * having been left alone rather than only on the message.
+    */
+   @Test
+   void refusesAMergeOfAForcedSeparateTypeBeforeRetypingAnything() {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      ChartBindingService service = multiStyleChart(types);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setChartType("tok", principal(), "Chart1", GraphTypes.CHART_TREEMAP, true,
+                                    null, false, null, ""));
+
+      assertTrue(thrown.getMessage().contains("treemap"), thrown.getMessage());
+      verifyNoInteractions(types);
+   }
+
+   /**
+    * An omitted separate is "not asked about", so a forced-separate type is simply obeyed. The old
+    * check resolved the null against the chart's current state and could therefore refuse a merge
+    * nobody had requested.
+    */
+   @Test
+   void doesNotRefuseAForcedSeparateTypeWhenTheCallerSaidNothingAboutMerging() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      multiStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_TREEMAP, null, null, null,
+                       null, "");
+
+      verify(types).changeChartType(any(), any(), any(), any(), any());
+   }
+
    private static ChartBindingService multiStyleChart(ChangeChartTypeService types) {
       return chartWithFields(types, true);
    }
@@ -767,21 +851,79 @@ class ChartBindingServiceTest {
       // becomes a "stored but inert" mirror of what the renderer actually used.
       model.setRTChartType(5);
       model.setMultiStyles(true);
-      model.setSeparated(false);
+      model.setSeparated(true);
       model.setStackMeasures(true);
 
-      ChartTypeState state = harness(model, mock(ChangeChartRefService.class),
-                                     mock(ChangeChartTypeService.class),
-                                     mock(SwapXYBindingService.class),
-                                     mock(ChangeSeparateStatusService.class))
-         .readChartType("tok", principal(), "Chart1");
+      ChartTypeState state = readTypeOf(model);
 
       assertEquals("Chart1", state.assembly());
       assertEquals(1, state.chartType());
       assertEquals(5, state.runtimeChartType());
       assertTrue(state.multiStyles(), "multiStyles decides whether the type is per-measure");
-      assertFalse(state.separated());
+      assertTrue(state.separated());
       assertTrue(state.stackMeasures());
+   }
+
+   /**
+    * {@code AbstractChartInfo.updateChartType} sets the assembly-level runtime type only on its
+    * {@code separated} branch; the merged branch updates the per-measure types and leaves this one
+    * alone. So on a merged chart the field holds whatever it last held, and the plugin — which
+    * reads a divergence as proof the renderer chose something else — would draw that conclusion
+    * from a stale value. Merged is the multi-style case, so this is the common path.
+    */
+   @Test
+   void withholdsTheAssemblyRuntimeTypeOnAMergedChartWhereNothingMaintainsIt() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(1);
+      model.setRTChartType(5);
+      model.setSeparated(false);
+
+      ChartTypeState state = readTypeOf(model);
+
+      assertEquals(1, state.chartType(), "the stored type is still reported");
+      assertNull(state.runtimeChartType(),
+                 "a merged chart's assembly-level runtime type is not maintained");
+   }
+
+   /**
+    * A render always resolves to a concrete type, so CHART_AUTO in this field is its unset default
+    * rather than an answer — and reporting it would make the plugin announce that the renderer
+    * resolved to "auto".
+    */
+   @Test
+   void withholdsTheRuntimeTypeWhenItIsStillTheUnresolvedDefault() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_BAR);
+      model.setRTChartType(GraphTypes.CHART_AUTO);
+      model.setSeparated(true);
+
+      assertNull(readTypeOf(model).runtimeChartType());
+   }
+
+   /**
+    * A hard cast would have surfaced as a ClassCastException and a 500, throwing away the sentence
+    * the sibling read produces for the same situation.
+    */
+   @Test
+   void refusesAnAssemblyWhoseModelIsNotAChartBinding() {
+      ChartBindingService service = harness(new TableBindingModel(),
+                                            mock(ChangeChartRefService.class),
+                                            mock(ChangeChartTypeService.class),
+                                            mock(SwapXYBindingService.class),
+                                            mock(ChangeSeparateStatusService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.readChartType("tok", principal(), "Chart1"));
+
+      assertTrue(thrown.getMessage().contains("chart type"), thrown.getMessage());
+   }
+
+   private static ChartTypeState readTypeOf(ChartBindingModel model) throws Exception {
+      return harness(model, mock(ChangeChartRefService.class),
+                     mock(ChangeChartTypeService.class),
+                     mock(SwapXYBindingService.class),
+                     mock(ChangeSeparateStatusService.class))
+         .readChartType("tok", principal(), "Chart1");
    }
 
    /**
@@ -824,7 +966,7 @@ class ChartBindingServiceTest {
                  "must say it is not a chart, got: " + thrown.getMessage());
    }
 
-   private static ChartBindingService harness(ChartBindingModel model,
+   private static ChartBindingService harness(BindingModel model,
                                               ChangeChartRefService refs,
                                               ChangeChartTypeService types,
                                               SwapXYBindingService swap,
@@ -839,7 +981,7 @@ class ChartBindingServiceTest {
     * so these tests exercise the read-modify-write without a live runtime.
     */
    private static ChartBindingService harnessWithAssembly(VSAssembly assembly,
-                                                          ChartBindingModel model,
+                                                          BindingModel model,
                                                           ChangeChartRefService refs,
                                                           ChangeChartTypeService types,
                                                           SwapXYBindingService swap,

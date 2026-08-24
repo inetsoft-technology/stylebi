@@ -310,4 +310,41 @@ class FieldRefFactoryTest {
          assertTrue(thrown.getMessage().contains("NoSuchGroup"));
       }
    }
+
+   /**
+    * The chart read reports a per-measure chart type, which makes handing one of its refs straight
+    * back to a write the obvious next move — and no write takes one. Refused here rather than only
+    * in the plugin: that is the outermost tier and the most bypassable one, and anything reaching
+    * these endpoints directly would otherwise get the silent drop this surface is written against.
+    */
+   @Test
+   void refusesAnInboundChartTypeRatherThanDroppingIt() {
+      FieldRef field = new FieldRef("PAID", "measure", "Sum", null, null, 5);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> FieldRefFactory.requireType(field));
+
+      assertTrue(thrown.getMessage().contains("PAID"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_chart_type"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesAnInboundRuntimeChartTypeToo() {
+      FieldRef field = new FieldRef("PAID", "measure", "Sum", null, null, null, 1);
+
+      assertThrows(IllegalArgumentException.class, () -> FieldRefFactory.requireType(field));
+   }
+
+   /** The guard sits on requireType, so it covers the chart path through toChartRef as well. */
+   @Test
+   void refusesAnInboundChartTypeOnTheChartWritePathToo() {
+      FieldRef field = new FieldRef("PAID", "measure", "Sum", null, null, 5);
+
+      assertThrows(IllegalArgumentException.class, () -> FieldRefFactory.toChartRef(field));
+   }
+
+   @Test
+   void stillAcceptsARefThatCarriesNoChartType() {
+      FieldRefFactory.requireType(new FieldRef("PAID", "measure", "Sum", null, null));
+   }
 }
