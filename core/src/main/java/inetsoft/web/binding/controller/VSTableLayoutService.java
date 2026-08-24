@@ -316,13 +316,17 @@ public class VSTableLayoutService {
    public Void getNamedGroup(@ClusterProxyKey String id, GetPredefinedNamedGroupEvent event,
                              Principal principal, CommandDispatcher dispatcher) throws Exception
    {
-      if(!quickCheckForCalc(id, event.getName(), principal)) {
-         return null;
-      }
-
       String name = event.getName();
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
+
+      // Unlike the calc-cell operations above, a predefined named group is a property of the
+      // assembly's bound source/column, not of calc-table cells -- any DataVSAssembly (chart,
+      // crosstab, table, calc table) resolves one the same way.
+      if(!(rvs.getViewsheet().getAssembly(name) instanceof DataVSAssembly)) {
+         return null;
+      }
+
       AssetNamedGroupInfo[] infos = getPredefinedNamedGroup(rvs, name, event.getColumn());
 
       if(infos == null) {
@@ -531,11 +535,15 @@ public class VSTableLayoutService {
    private AssetNamedGroupInfo[] getPredefinedNamedGroup(RuntimeViewsheet rvs,
                                                          String name, String colName) throws Exception
    {
-      CalcTableVSAssembly assembly = getCalcTableVSAssembly(rvs, name);
-      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
-      SourceInfo sinfo = info.getSourceInfo();
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(name);
 
-      if(info == null || sinfo == null) {
+      if(!(assembly instanceof DataVSAssembly dataAssembly)) {
+         return null;
+      }
+
+      SourceInfo sinfo = dataAssembly.getSourceInfo();
+
+      if(sinfo == null) {
          return null;
       }
 

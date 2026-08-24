@@ -336,6 +336,10 @@ class CalcTableServiceTest {
       when(layout.getColCount()).thenReturn(cols);
       when(info.getTableLayout()).thenReturn(layout);
       when(assembly.getInfo()).thenReturn(info);
+      // Real DataVSAssembly#getSourceInfo() delegates to getInfo().getSourceInfo() -- keep this
+      // mock consistent with that so stubbing info.getSourceInfo() (as the named-group tests do)
+      // is reflected on the generalized assembly.getSourceInfo() path too.
+      when(assembly.getSourceInfo()).thenAnswer(invocation -> info.getSourceInfo());
       return harnessFor(assembly, info, rows, cols);
    }
 
@@ -470,6 +474,64 @@ class CalcTableServiceTest {
       when(h.viewsheet().getBaseWorksheet()).thenReturn(ws);
 
       Map<String, Object> read = h.service.namedGroups("tok", principal(), "Calc1", "REGION");
+
+      @SuppressWarnings("unchecked")
+      List<String> groups = (List<String>) read.get("namedGroups");
+      assertTrue(groups.contains("Regions"), "expected worksheet-local group in: " + groups);
+   }
+
+   /**
+    * Fix: {@code namedGroups()} previously required a {@code CalcTableVSAssembly}
+    * ({@code requireCalcTable} rejected anything else, pointing the caller at
+    * get_table_binding/get_binding -- which report current bindings, not the catalog of
+    * available named groups). Named groups are a property of the assembly's bound
+    * source/column, so a chart/crosstab/table dimension must be discoverable the same way.
+    */
+   @Test
+   void namedGroupsWorksForANonCalcDataAssemblyLikeACrosstab() throws Exception {
+      Harness h = harnessFor(mock(CrosstabVSAssembly.class), 0, 0);
+      GetPredefinedNamedGroupCommand command = new GetPredefinedNamedGroupCommand(
+         new AssetNamedGroupInfo[0]);
+      command.setNamedGroups(new String[]{ "Regions" });
+      doAnswer(invocation -> {
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("Crosstab1", command);
+         return null;
+      }).when(h.layoutService).getNamedGroup(anyString(),
+                                             any(GetPredefinedNamedGroupEvent.class),
+                                             any(Principal.class), any());
+
+      Map<String, Object> read =
+         h.service.namedGroups("tok", principal(), "Crosstab1", "REGION");
+
+      assertEquals(List.of("Regions"), read.get("namedGroups"));
+   }
+
+   /**
+    * Same generalization for the worksheet-local ({@code add_named_group}) discovery path,
+    * which now resolves the assembly's {@code SourceInfo} directly via
+    * {@code DataVSAssembly#getSourceInfo()} rather than casting to
+    * {@code CalcTableVSAssemblyInfo}.
+    */
+   @Test
+   void namedGroupsIncludesWorksheetLocalGroupsForANonCalcDataAssembly() throws Exception {
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      Harness h = harnessFor(assembly, 0, 0);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Regions");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      when(h.viewsheet().getBaseWorksheet()).thenReturn(ws);
+
+      Map<String, Object> read =
+         h.service.namedGroups("tok", principal(), "Crosstab1", "REGION");
 
       @SuppressWarnings("unchecked")
       List<String> groups = (List<String>) read.get("namedGroups");

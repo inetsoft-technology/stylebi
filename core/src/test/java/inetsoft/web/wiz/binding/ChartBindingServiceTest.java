@@ -803,7 +803,8 @@ class ChartBindingServiceTest {
 
       new ChartBindingService(sessions, binding, mock(ChangeChartRefService.class),
                               mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
-                              mock(ChangeSeparateStatusService.class))
+                              mock(ChangeSeparateStatusService.class),
+                              mock(inetsoft.web.binding.service.DataRefModelFactoryService.class))
          .readChartType("tok", principal(), "Chart1");
 
       verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
