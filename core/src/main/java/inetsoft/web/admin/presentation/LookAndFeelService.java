@@ -55,12 +55,10 @@ public class LookAndFeelService {
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort", false, !globalProperty));
-      boolean customLogoEnabled = SreeEnv.getBooleanProperty("portal.customLogo.enabled", false, !globalProperty);
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();
-      boolean defaultLogo = !customLogoEnabled ||
-         !manager.hasCustomLogo(globalProperty ? null : orgID);
-      boolean defaultFavicon = !customLogoEnabled || !manager.isFaviconStyle();
+      boolean defaultLogo = !manager.hasCustomLogo(globalProperty ? null : orgID);
+      boolean defaultFavicon = !manager.isFaviconStyle();
       boolean defaultViewsheet = !manager.getCSSStyle(); // method returns true for custom
       boolean defaultFont = !manager.getFontStyle(); // method returns true for custom
 
@@ -118,7 +116,6 @@ public class LookAndFeelService {
          .ascending(asc)
          .repositoryTree(repositoryTree)
          .expand(expand)
-         .customLogoEnabled(customLogoEnabled)
          .defaultLogo(defaultLogo)
          .logoName(logo)
          .defaultFavicon(defaultFavicon)
@@ -505,7 +502,9 @@ public class LookAndFeelService {
 
             if(file != null) {
                manager.removeLogoEntry(orgID);
-               space.delete(directory, file);
+               // the entry is stored as a full path (see addLogoEntry below), so it must not
+               // be resolved against directory again or it would become portal/portal/<org>/...
+               space.delete(null, file);
             }
          }
       }
@@ -586,7 +585,9 @@ public class LookAndFeelService {
 
             if(file != null) {
                manager.removeFaviconEntry(orgID);
-               space.delete(directory, file);
+               // the entry is stored as a full path (see addFaviconEntry above), so it must not
+               // be resolved against directory again or it would become portal/portal/<org>/...
+               space.delete(null, file);
             }
          }
       }

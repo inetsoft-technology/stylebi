@@ -49,7 +49,7 @@ export namespace PropertiesTool {
       "scheduler.restart.auto", "security.cache", "sort.crosstab.aggregate",
       "sort.crosstab.dimension", "sree.find.backward", "string.compare.casesensitive",
       "text.break.pages", "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
-      "schedule.time.12hours", "portal.customLogo.enabled", "calendar.dateCompare.enabled"
+      "schedule.time.12hours", "calendar.dateCompare.enabled"
    ];
 
    export const boolean_options = [
