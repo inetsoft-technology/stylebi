@@ -232,7 +232,6 @@ class BindingAgentControllerTest {
       ChartTypeState state =
          new ChartTypeState("Chart1", 1, 5, true, true, false);
       ChartBindingService chartService = mock(ChartBindingService.class);
-      when(chartService.readChartType("tok", null, "Chart1")).thenReturn(state);
       when(chartService.readChartType(eq("tok"), any(), eq("Chart1"))).thenReturn(state);
 
       ChartTypeState read =
