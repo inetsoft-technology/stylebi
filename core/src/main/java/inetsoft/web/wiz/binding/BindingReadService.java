@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
@@ -142,20 +143,36 @@ public class BindingReadService {
    }
 
    /**
-    * Copies a measure's own chart type onto its ref, plus the runtime type when it differs.
+    * Copies a measure's own chart type onto its ref, plus the runtime type where that says
+    * something the stored one does not.
     *
-    * <p>Divergence-only, matching {@code ChartTypeState}: reported every time it would be noise,
-    * reported never and a measure left at {@code auto} would answer {@code auto} while drawing
-    * something else. The runtime value is the one that survives here — the assembly-level runtime
-    * type is maintained only on the separated branch of
-    * {@code AbstractChartInfo.updateChartType}, and merged is the multi-style case.
+    * <p>Divergence-only, matching {@code ChartTypeState}: reported on every field it would be
+    * noise, reported never and a measure left at {@code auto} would answer {@code auto} while
+    * drawing something else. These are the runtime types that survive where it matters —
+    * {@code AbstractChartInfo.updateChartType} maintains the assembly-level value only while
+    * multi-style is <em>off</em> and delegates to {@code updateFieldChartTypes} while it is on, so
+    * the per-measure ones are available exactly when per-measure types are what render. Its
+    * parameter is named {@code separated} and its javadoc describes it backwards; the call sites
+    * are what settle it, and {@link inetsoft.web.wiz.binding.model.ChartTypeState} records them so
+    * this does not have to be re-derived twice.
+    *
+    * <p>{@code CHART_AUTO} is withheld for the reason it is withheld at the assembly level: a
+    * render resolves to something concrete, so {@code auto} in the runtime slot is the unset
+    * default rather than an answer. It has to be excluded <em>here</em> as well, because
+    * {@code updateFieldChartTypes} does not reach every measure — it runs only when the last x or y
+    * field is a measure, walks only the trailing run of aggregates on that shelf (it {@code break}s
+    * at the first non-aggregate), and {@code updateChartType} returns early altogether when no
+    * runtime x/y fields are populated. A measure missed by any of those keeps {@code 0}, and
+    * reporting that against a stored {@code bar} would announce a render as {@code auto} that never
+    * happened — the stale-read shape this pair of records exists to close, one level down.
     */
    private static FieldRef withTypes(FieldRef ref, ChartAestheticModel aesthetic) {
       int stored = aesthetic.getChartType();
       int runtime = aesthetic.getRTChartType();
+      boolean resolved = runtime != stored && runtime != GraphTypes.CHART_AUTO;
 
       return new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
-                          ref.namedGroup(), stored, runtime == stored ? null : runtime);
+                          ref.namedGroup(), stored, resolved ? runtime : null);
    }
 
    private final VSBindingService binding;

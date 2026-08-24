@@ -147,8 +147,9 @@ class BindingReadServiceTest {
    /**
     * The case a design-time-only read serves worst: a measure left at {@code auto} answers
     * {@code auto} forever, and the runtime type is the only thing that says what it drew. This is
-    * also the runtime type that survives on a merged chart, where the assembly-level one is not
-    * maintained — and merged is the multi-style case.
+    * also the runtime type that survives while multi-style is on, which is exactly when the
+    * assembly-level one is not maintained — {@code multiStyles} selects between the two branches of
+    * {@code AbstractChartInfo.updateChartType}, not the chart's {@code separated} setting.
     */
    @Test
    void reportsWhatAMeasureActuallyDrewWhenThatDiffersFromWhatWasStored() {
@@ -171,6 +172,32 @@ class BindingReadServiceTest {
       model.setYFields(List.of(withTypes(aggregate("PAID", "Sum"), 5, 5)));
 
       assertNull(read(model).shelves().get("y").get(0).runtimeChartType());
+   }
+
+   /**
+    * The per-measure mirror of {@code withholdsTheRuntimeTypeWhenItIsStillTheUnresolvedDefault} on
+    * the assembly level, and the direction the two fixtures above leave uncovered: a stored
+    * {@code bar} with a runtime slot nothing ever assigned.
+    *
+    * <p>A real state rather than a hypothetical. {@code updateFieldChartTypes} does not reach every
+    * measure — it runs only when the last x or y field is a measure, and walks only the trailing
+    * run of aggregates on that shelf — and {@code updateChartType} returns early when no runtime
+    * x/y fields are populated. A measure missed by any of those keeps {@code CHART_AUTO}, and
+    * reporting it would tell a caller the measure drew as {@code auto} when no render said so.
+    */
+   @Test
+   void withholdsAPerMeasureRuntimeTypeThatIsStillTheUnresolvedDefault() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      model.setYFields(List.of(
+         withTypes(aggregate("PAID", "Sum"), GraphTypes.CHART_BAR, GraphTypes.CHART_AUTO)));
+
+      FieldRef ref = read(model).shelves().get("y").get(0);
+
+      assertEquals(Integer.valueOf(GraphTypes.CHART_BAR), ref.chartType(),
+                   "the stored type is still reported");
+      assertNull(ref.runtimeChartType(),
+                 "an unassigned runtime type must not be reported as what the measure drew");
    }
 
    @Test

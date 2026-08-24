@@ -56,6 +56,14 @@ package inetsoft.web.wiz.binding.model;
  * concrete, so {@code auto} here is the unset default rather than an answer — and note it catches
  * only never-set, never stale, which is why the gate above cannot be loosened.
  *
+ * <p>One residual, recorded rather than papered over: {@code updateChartType} returns early when no
+ * runtime x/y fields are populated, so on a chart that is bound but has not produced data neither
+ * branch runs and this value is whatever it last held. Since {@code != CHART_AUTO} rejects only
+ * never-set, the honest reading of this field is that it describes a render once the chart has
+ * produced one; there is no in-band way to ask "has this rendered", and an open, executed viewsheet
+ * — which is what an agent session holds — populates those fields. The per-measure types on
+ * {@link FieldRef#runtimeChartType()} are bounded the same way, for the same reason.
+ *
  * <p>The types are the raw {@code GraphTypes} codes. Naming them is the plugin's job: the
  * code↔name vocabulary already exists in three copies on this side
  * ({@code WizAutoBindingService} twice, {@code WizVsService} once) and a fourth would be one more
