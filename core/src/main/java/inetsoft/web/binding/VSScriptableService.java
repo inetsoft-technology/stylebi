@@ -816,6 +816,7 @@ public class VSScriptableService {
          ScriptPropertyTool.fixPropertyLink(scriptable, null, name, child);
          object.set("graph", child);
          createProperties0(mapper, library, child, scriptable, ids, "Chart.graph.");
+         bindToGeneratedType(library, child, "EGraph");
       }
       else if("highlighted".equals(name)) {
          createHighlightedDefinitions(mapper, library, object, scriptable);
@@ -1339,6 +1340,33 @@ public class VSScriptableService {
    }
 
 
+
+   /**
+    * Bind a definition node to a generated @TernClass definition so that tern can infer
+    * types through it. The scriptable member lists backing these nodes are plain name
+    * strings with no type information, so every call on them was typed "?" - which stopped
+    * tern resolving anything past the first assignment and broke auto-complete for chained
+    * graph API calls such as graph.getCoordinate().getXScale().getAxisSpec() (Bug #75694).
+    * The untyped duplicates are removed so they cannot shadow the generated members; names
+    * that exist only on the scriptable (bean-style aliases such as "coordinate") are kept.
+    */
+   private void bindToGeneratedType(ObjectNode library, ObjectNode node, String type) {
+      JsonNode definition = library.get(type);
+
+      if(!(definition instanceof ObjectNode)) {
+         return;
+      }
+
+      JsonNode members = definition.get("prototype");
+
+      if(members instanceof ObjectNode) {
+         List<String> names = new ArrayList<>();
+         members.fieldNames().forEachRemaining(names::add);
+         node.remove(names);
+      }
+
+      node.put("!type", "+" + type);
+   }
 
    private String getScriptType(ObjectMapper mapper, ObjectNode library, Object value) {
       if(value instanceof ScriptScope) {

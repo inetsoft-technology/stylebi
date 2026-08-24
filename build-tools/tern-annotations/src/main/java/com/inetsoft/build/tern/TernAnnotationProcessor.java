@@ -19,7 +19,7 @@ package com.inetsoft.build.tern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.*;
 import com.google.auto.common.*;
 
 import javax.annotation.processing.*;
@@ -61,7 +61,6 @@ public class TernAnnotationProcessor extends AbstractProcessor {
 
    private void processAnnotations(RoundEnvironment roundEnv) {
       String baseUrl = processingEnv.getOptions().get("tern.baseUrl");
-      Map<String, Set<String>> superClasses = new HashMap<>();
 
       for(Element element : roundEnv.getElementsAnnotatedWith(TernClass.class)) {
          TypeElement classType = MoreElements.asType(element);
@@ -75,6 +74,7 @@ public class TernAnnotationProcessor extends AbstractProcessor {
 
          ClassDef classDef = new ClassDef(className, url.isEmpty() ? null : baseUrl + url);
          definitions.put(fullClassName, classDef);
+         ternClasses.add(fullClassName);
 
          TypeMirror superType = classType.getSuperclass();
 
@@ -125,7 +125,7 @@ public class TernAnnotationProcessor extends AbstractProcessor {
             classDef.addStaticMethod(methodDef);
          }
          else {
-            for(ClassDef classDef : getEnclosingClasses(element, superClasses)) {
+            for(ClassDef classDef : getEnclosingClasses(element)) {
                classDef.addMemberMethod(methodDef);
             }
          }
@@ -149,7 +149,7 @@ public class TernAnnotationProcessor extends AbstractProcessor {
             classDef.addStaticField(fieldDef);
          }
          else {
-            for(ClassDef classDef : getEnclosingClasses(element, superClasses)) {
+            for(ClassDef classDef : getEnclosingClasses(element)) {
                classDef.addMemberField(fieldDef);
             }
          }
@@ -178,10 +178,13 @@ public class TernAnnotationProcessor extends AbstractProcessor {
          // prior file and simply starts fresh. Trade-off: a class removed or renamed leaves a
          // stale entry in an incrementally-built file until the next clean build.
          ObjectNode definitionRoot = readExistingDefinitions(mapper, file);
+         Set<String> priorUnions = readUnionMarkers(definitionRoot);
 
          for(Map.Entry<String, ClassDef> e : definitions.entrySet()) {
             definitionRoot.set(e.getKey(), e.getValue().toJson(mapper));
          }
+
+         addUnionDefinitions(mapper, definitionRoot, priorUnions);
 
          try(OutputStream output = file.openOutputStream()) {
             mapper.writerWithDefaultPrettyPrinter().writeValue(output, definitionRoot);
@@ -211,6 +214,135 @@ public class TernAnnotationProcessor extends AbstractProcessor {
       }
 
       return mapper.createObjectNode();
+   }
+
+   /**
+    * Emit a synthetic definition for each unannotated base class that is referenced as a
+    * type, merging into it the members of every @TernClass subclass. Without this a method
+    * declared to return an abstract base - EGraph.getCoordinate(), RectCoord.getXScale() -
+    * is typed "?", so tern resolves nothing past it and auto-complete breaks for the whole
+    * chain (Bug #75694). Members that do not apply to the concrete instance are included by
+    * design: the alternative is offering nothing at all.
+    *
+    * This runs against the merged definition set (the previously generated definitions plus
+    * this round's) so an incremental compile cannot shrink a union down to only the
+    * subclasses that happened to be recompiled.
+    */
+   private void addUnionDefinitions(ObjectMapper mapper, ObjectNode definitionRoot,
+                                    Set<String> priorUnions)
+   {
+      Set<String> unions = new TreeSet<>(priorUnions);
+
+      for(String base : unionBases) {
+         // a real @TernClass definition always takes precedence over a synthetic union
+         if(isTernClass(base, definitionRoot, priorUnions)) {
+            continue;
+         }
+
+         Set<String> subclasses = superClasses.get(base);
+
+         if(subclasses == null) {
+            continue;
+         }
+
+         ObjectNode prototype = mapper.createObjectNode();
+
+         // sorted so that which subclass wins a name collision stays stable between builds
+         for(String subclass : new TreeSet<>(subclasses)) {
+            JsonNode subclassNode = definitionRoot.get(subclass);
+
+            if(subclassNode == null) {
+               continue;
+            }
+
+            JsonNode members = subclassNode.get("prototype");
+
+            if(!(members instanceof ObjectNode)) {
+               continue;
+            }
+
+            for(Iterator<Map.Entry<String, JsonNode>> it = members.fields(); it.hasNext(); ) {
+               Map.Entry<String, JsonNode> member = it.next();
+
+               if(!prototype.has(member.getKey())) {
+                  prototype.set(member.getKey(), member.getValue().deepCopy());
+               }
+            }
+         }
+
+         if(prototype.size() == 0) {
+            continue;
+         }
+
+         JsonNode existing = definitionRoot.get(base);
+         ObjectNode node;
+
+         if(existing instanceof ObjectNode) {
+            node = (ObjectNode) existing;
+         }
+         else {
+            node = mapper.createObjectNode();
+            node.put("!type", "fn()");
+            definitionRoot.set(base, node);
+         }
+
+         JsonNode declared = node.get("prototype");
+
+         // anything already declared on the base itself wins over a subclass member
+         if(declared instanceof ObjectNode) {
+            prototype.setAll((ObjectNode) declared);
+         }
+
+         node.set("prototype", prototype);
+         unions.add(base);
+      }
+
+      if(!unions.isEmpty()) {
+         ArrayNode marker = mapper.createArrayNode();
+         unions.forEach(marker::add);
+         definitionRoot.set(UNION_MARKER, marker);
+      }
+   }
+
+   /**
+    * Check whether a name belongs to a class declared with @TernClass, whose own definition
+    * must never be replaced by a synthetic union.
+    *
+    * @TernClass has SOURCE retention, so a base class whose source was not recompiled in this
+    * round cannot be tested for the annotation directly - it is not even in this round's
+    * definitions. A definition carried over from a previous build that this processor did not
+    * synthesize is therefore treated as a real @TernClass definition and left alone; without
+    * that check an incremental compile could overwrite, say, LinearScale with a union built
+    * from whichever of its subclasses happened to be recompiled.
+    */
+   private boolean isTernClass(String base, ObjectNode definitionRoot, Set<String> priorUnions) {
+      if(ternClasses.contains(base)) {
+         return true;
+      }
+
+      if(definitions.containsKey(base)) {
+         // known this round, and not annotated: the entry exists only because it was
+         // auto-created to carry static members (@TernField on an unannotated base)
+         return false;
+      }
+
+      return definitionRoot.has(base) && !priorUnions.contains(base);
+   }
+
+   /**
+    * Read back the names this processor previously emitted as synthetic unions. tern ignores
+    * the marker, which has to live in the definition file itself so that the distinction
+    * between a synthesized definition and a real @TernClass one survives across builds.
+    */
+   private Set<String> readUnionMarkers(ObjectNode definitionRoot) {
+      Set<String> markers = new TreeSet<>();
+      JsonNode marker = definitionRoot.get(UNION_MARKER);
+
+      if(marker != null && marker.isArray()) {
+         marker.forEach(name -> markers.add(name.asText()));
+      }
+
+      return markers;
    }
 
    private void logInfo(String message) {
@@ -266,7 +398,7 @@ public class TernAnnotationProcessor extends AbstractProcessor {
       return getClassName(element.getEnclosingElement());
    }
 
-   private Set<ClassDef> getEnclosingClasses(Element element, Map<String, Set<String>> superClasses) {
+   private Set<ClassDef> getEnclosingClasses(Element element) {
       Set<ClassDef> results = new HashSet<>();
 
       String className = getEnclosingClassName(element);
@@ -352,9 +484,42 @@ public class TernAnnotationProcessor extends AbstractProcessor {
       case "Double":
          return "number";
       default:
-         return definitions.containsKey(name) ? "+" + name : "?";
+         if(definitions.containsKey(name)) {
+            return "+" + name;
+         }
+
+         // The type has no @TernClass of its own - typically an abstract base such as
+         // Scale or Coordinate - so it would be emitted as "?", leaving tern unable to
+         // infer anything past it and killing auto-complete for the rest of the call
+         // chain (Bug #75694). If annotated classes extend it, record it here so a
+         // synthetic union definition carrying every subclass member is emitted for it,
+         // making it a real tern type.
+         if(!isPlatformType(mirror) && superClasses.containsKey(name)) {
+            unionBases.add(name);
+            return "+" + name;
+         }
+
+         return "?";
       }
    }
 
+   /**
+    * Check whether a type is a JDK type. Unioning the annotated subclasses of, say,
+    * java.lang.Object would produce a meaningless definition holding every annotated
+    * class in the project.
+    */
+   private boolean isPlatformType(TypeMirror mirror) {
+      String name = MoreTypes.asTypeElement(mirror).getQualifiedName().toString();
+      return name.startsWith("java.") || name.startsWith("javax.");
+   }
+
    private final Map<String, ClassDef> definitions = new TreeMap<>();
+   // supertype simple name -> full names of the @TernClass classes extending it
+   private final Map<String, Set<String>> superClasses = new HashMap<>();
+   // names declared with @TernClass, as opposed to entries auto-created for static members
+   private final Set<String> ternClasses = new HashSet<>();
+   // unannotated supertypes referenced as a type, emitted as synthetic union definitions
+   private final Set<String> unionBases = new TreeSet<>();
+
+   private static final String UNION_MARKER = "!unions";
 }
