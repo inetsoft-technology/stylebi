@@ -29,6 +29,12 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.XAttribute;
+import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.XEntity;
+import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.schema.XSchema;
@@ -136,6 +142,7 @@ class WorksheetAgentControllerTest {
          null, null, null, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, datasource, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
          null, null
       );
    }
@@ -151,6 +158,7 @@ class WorksheetAgentControllerTest {
          null, null, null, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
          null, null
       );
    }
@@ -162,6 +170,7 @@ class WorksheetAgentControllerTest {
          null, null, null, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
          null, null
       );
    }
@@ -173,6 +182,7 @@ class WorksheetAgentControllerTest {
          null, null, expression, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
          null, null
       );
    }
@@ -362,7 +372,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null,
          null, null,
          null, null,
-         null, null, null);
+         null, null, null,
+         null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -451,7 +462,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null,
          null, null,
          null, null,
-         null, null, null);
+         null, null, null,
+         null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -497,7 +509,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null,
          null, null,
          null, null,
-         null, null, null);
+         null, null, null,
+         null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -540,7 +553,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null,
          null, null,
          null, null,
-         null, null, null);
+         null, null, null,
+         null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -582,7 +596,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null,
          null, null,
          null, null,
-         null, null, null);
+         null, null, null,
+         null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -603,7 +618,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null,
          null, null,
          null, null,
-         null, null, null
+         null, null, null,
+         null, null
       );
    }
 
@@ -687,6 +703,7 @@ class WorksheetAgentControllerTest {
          null, null, null, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
          null, null
       );
    }
@@ -698,6 +715,7 @@ class WorksheetAgentControllerTest {
          null, null, null, false, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
          null, null
       );
    }
@@ -1341,6 +1359,268 @@ class WorksheetAgentControllerTest {
 
       // The READ denial must short-circuit before any JDBC metadata probe.
       verifyNoInteractions(metadataApiService);
+   }
+
+   // ---------------------------------------------------------------------------
+   // add_named_group — datasource-scoped "Only For" mode (Bug #76097)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Builds an {@code add_named_group} EditRequest scoped to a datasource/logical-model or
+    * physical-table path, routing to {@code addDatasourceScopedNamedGroup()}.
+    */
+   private static EditRequest namedGroupDatasourceRequest(
+      String name, String datasource, String logicalModel, String schema, String catalog,
+      String sourceTable, String attribute,
+      List<WorksheetMutationSupport.GroupMapping> groupMappings, Boolean groupOthers)
+   {
+      return new EditRequest(
+         "add_named_group",   // op
+         null,                 // table
+         null,                 // column
+         name,                 // name
+         null,                 // type
+         null,                 // newName
+         null,                 // field
+         null,                 // operation
+         null,                 // values
+         null,                 // direction
+         null,                 // groups
+         null,                 // aggregates
+         null,                 // expression
+         false,                // sql
+         null,                 // leftTable
+         null,                 // leftKey
+         null,                 // rightTable
+         null,                 // rightKey
+         null,                 // joinType
+         null,                 // visible
+         null,                 // tables
+         null,                 // source
+         null,                 // concatType
+         null,                 // conditions
+         null,                 // ranking
+         null,                 // headerColumns
+         null,                 // dateOption
+         null,                 // boundaries
+         datasource,           // datasource
+         schema,               // schema
+         catalog,              // catalog
+         logicalModel,         // logicalModel
+         null,                 // leftKeys
+         null,                 // rightKeys
+         null,                 // row
+         null,                 // col
+         null,                 // value
+         null,                 // index
+         null,                 // alias
+         null,                 // description
+         null,                 // maxRows
+         null,                 // distinct
+         null,                 // columnOrder
+         groupMappings,        // groupMappings
+         groupOthers,          // groupOthers
+         null,                 // variableValues
+         null,                 // x
+         null,                 // y
+         null,                 // label
+         null,                 // defaultValue
+         null,                 // mode
+         null,                 // insert
+         null,                 // subtables
+         sourceTable,          // sourceTable
+         attribute             // attribute
+      );
+   }
+
+   @Test
+   void addNamedGroupRejectsDatasourceCombinedWithTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = new EditRequest(
+         "add_named_group",   // op
+         "Customer1",          // table
+         "State",              // column
+         "G",                  // name
+         null,                 // type
+         null,                 // newName
+         null,                 // field
+         null,                 // operation
+         null,                 // values
+         null,                 // direction
+         null,                 // groups
+         null,                 // aggregates
+         null,                 // expression
+         false,                // sql
+         null,                 // leftTable
+         null,                 // leftKey
+         null,                 // rightTable
+         null,                 // rightKey
+         null,                 // joinType
+         null,                 // visible
+         null,                 // tables
+         null,                 // source
+         null,                 // concatType
+         null,                 // conditions
+         null,                 // ranking
+         null,                 // headerColumns
+         null,                 // dateOption
+         null,                 // boundaries
+         "Examples/Orders",    // datasource
+         null,                 // schema
+         null,                 // catalog
+         "Order Model",        // logicalModel
+         null,                 // leftKeys
+         null,                 // rightKeys
+         null,                 // row
+         null,                 // col
+         null,                 // value
+         null,                 // index
+         null,                 // alias
+         null,                 // description
+         null,                 // maxRows
+         null,                 // distinct
+         null,                 // columnOrder
+         List.<WorksheetMutationSupport.GroupMapping>of(), // groupMappings
+         false,                // groupOthers
+         null,                 // variableValues
+         null,                 // x
+         null,                 // y
+         null,                 // label
+         null,                 // defaultValue
+         null,                 // mode
+         null,                 // insert
+         null,                 // subtables
+         "Customer",           // sourceTable
+         "State"               // attribute
+      );
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD1", req, agent));
+      assertTrue(ex.getMessage().contains("mutually exclusive"));
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addNamedGroupRequiresSourceTableWhenDatasourceGiven() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "G", "Examples/Orders", "Order Model", null, null, null, "State", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD2", req, agent));
+      assertTrue(ex.getMessage().contains("sourceTable"));
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addNamedGroupRequiresAttributeWhenDatasourceGiven() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "G", "Examples/Orders", "Order Model", null, null, "Customer", null, List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD3", req, agent));
+      assertTrue(ex.getMessage().contains("attribute"));
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   /**
+    * End-to-end regression for Bug #76097: {@code add_named_group} with {@code datasource} +
+    * {@code logicalModel} + {@code sourceTable} (entity) + {@code attribute} must produce the
+    * same kind of {@code attachedSource}/{@code attachedAttribute} a human creates via the
+    * Composer's own "Add Grouping" dialog — {@code SourceInfo(MODEL, datasource, logicalModel)},
+    * and an {@code AttributeRef(entity, attribute)} — so "Only For" and "Attribute" resolve
+    * correctly, unlike the {@code table}+{@code column} worksheet-attached mode.
+    */
+   @Test
+   void addNamedGroupWithLogicalModelBuildsRealDatasourceSourceInfo() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      XAttribute stateAttr = new XAttribute("State", "SA.CUSTOMERS", "STATE", XSchema.STRING);
+      XEntity customerEntity = new XEntity("Customer");
+      customerEntity.addAttribute(stateAttr);
+      XLogicalModel orderModel = new XLogicalModel("Order Model");
+      orderModel.addEntity(customerEntity);
+
+      // XDataModel.addLogicalModel() reaches for a Spring-managed DataSourceRegistry bean
+      // (via XDataModel.getRegistry()) that isn't available outside a running application
+      // context, so the model is mocked and getLogicalModel() stubbed directly instead of
+      // actually registering orderModel on a real XDataModel.
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(orderModel);
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-NGD4"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("N", List.of("NJ", "NY", "NV")));
+      EditRequest req = namedGroupDatasourceRequest(
+         "State N Group", "Examples/Orders", "Order Model", null, null,
+         "Customer", "State", mappings, true);
+
+      ctrl.edit("TOK-NGD4", req, agent);
+
+      DefaultNamedGroupAssembly nga = (DefaultNamedGroupAssembly) ws.getAssembly("State N Group");
+      assertNotNull(nga, "the datasource-scoped grouping must be created in the worksheet");
+
+      SourceInfo attached = nga.getAttachedSource();
+      assertEquals(SourceInfo.MODEL, attached.getType());
+      assertEquals("Examples/Orders", attached.getPrefix());
+      assertEquals("Order Model", attached.getSource());
+
+      DataRef ref = nga.getAttachedAttribute();
+      assertInstanceOf(AttributeRef.class, ((ColumnRef) ref).getDataRef());
+      AttributeRef attrRef = (AttributeRef) ((ColumnRef) ref).getDataRef();
+      assertEquals("Customer", attrRef.getEntity());
+      assertEquals("State", attrRef.getAttribute());
+      assertEquals(XSchema.STRING, ref.getDataType());
+
+      assertEquals(AttachedAssembly.COLUMN_ATTACHED, nga.getAttachedType());
+      assertNotNull(nga.getNamedGroupInfo().getGroupCondition("N"),
+         "group mappings must still be applied");
    }
 
    // ---------------------------------------------------------------------------

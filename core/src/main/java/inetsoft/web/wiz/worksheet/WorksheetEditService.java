@@ -1809,25 +1809,10 @@ public class WorksheetEditService {
             ? XConstants.GROUP_OTHERS
             : XConstants.LEAVE_OTHERS);
 
-         // Build condition lists from simple value mappings.
-         // Each group maps to a ONE_OF condition on the column.
          if(mappings != null) {
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
-               ConditionList conds = new ConditionList();
-
-               for(int i = 0; i < m.values().size(); i++) {
-                  if(i > 0) {
-                     JunctionOperator junc = new JunctionOperator(JunctionOperator.OR, 0);
-                     conds.append(junc);
-                  }
-
-                  Condition c = new Condition(conditionType);
-                  c.setOperation(XCondition.EQUAL_TO);
-                  c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(conditionRef, c, 0));
-               }
-
-               ngi.setGroupCondition(m.name(), conds);
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
             }
          }
 
@@ -2130,21 +2115,8 @@ public class WorksheetEditService {
             DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
-               ConditionList conds = new ConditionList();
-
-               for(int i = 0; i < m.values().size(); i++) {
-                  if(i > 0) {
-                     JunctionOperator junc = new JunctionOperator(JunctionOperator.OR, 0);
-                     conds.append(junc);
-                  }
-
-                  Condition c = new Condition(conditionType);
-                  c.setOperation(XCondition.EQUAL_TO);
-                  c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(conditionRef, c, 0));
-               }
-
-               ngi.setGroupCondition(m.name(), conds);
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
             }
          }
 
