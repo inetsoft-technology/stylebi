@@ -1313,7 +1313,14 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
    private void moveGroupFieldsToX() {
       for(int i = info.getGroupFieldCount(); i > 0; i--) {
-         info.addXField(info.getGroupField(0));
+         ChartRef gfield = info.getGroupField(0);
+         boolean alreadyOnX = Arrays.stream(info.getXFields())
+            .anyMatch(xfield -> Tool.equals(xfield.getFullName(), gfield.getFullName()));
+
+         if(!alreadyOnX) {
+            info.addXField(gfield);
+         }
+
          info.removeGroupField(0);
       }
    }

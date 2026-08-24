@@ -73,6 +73,41 @@ class ChangeChartTypeProcessorTest {
                    "the dimension must not be left stranded on the group shelf bar never reads");
    }
 
+   /**
+    * If a chart is already left with the same dimension on both {@code x} and {@code group}
+    * (e.g. from an earlier, separately-caused inconsistency) when it transitions out of
+    * treemap, {@code moveGroupFieldsToX} must not blindly append the group copy onto x --
+    * that would duplicate the dimension on x while still emptying group.
+    */
+   @Test
+   void treemapToBarDoesNotDuplicateADimensionAlreadyOnXAndGroup() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addGroupField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      info = changeType(GraphTypes.CHART_TREEMAP, GraphTypes.CHART_BAR, info);
+
+      assertEquals(1, info.getXFieldCount(),
+                   "must not duplicate a dimension already present on x");
+      assertEquals(0, info.getGroupFieldCount());
+   }
+
+   /** Same defect, same fix, the other merged type that shares {@code moveGroupFieldsToX}. */
+   @Test
+   void mekkoToBarDoesNotDuplicateADimensionAlreadyOnXAndGroup() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addGroupField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      info = changeType(GraphTypes.CHART_MEKKO, GraphTypes.CHART_BAR, info);
+
+      assertEquals(1, info.getXFieldCount(),
+                   "must not duplicate a dimension already present on x");
+      assertEquals(0, info.getGroupFieldCount());
+   }
+
    @Test
    void treemapToBarPreservesGradientColorFrame() {
       ChartInfo info = new DefaultVSChartInfo();
