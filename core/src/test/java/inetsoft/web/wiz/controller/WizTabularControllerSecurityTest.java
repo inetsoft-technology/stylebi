@@ -29,6 +29,7 @@ import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
+import inetsoft.web.wiz.service.WorksheetTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -89,7 +90,11 @@ class WizTabularControllerSecurityTest {
                 "/api/wiz/tabular/refresh",
                 "/api/wiz/tabular/create",
                 "/api/wiz/tabular/update",
-                "/api/wiz/tabular/check-duplicate"),
+                "/api/wiz/tabular/check-duplicate",
+                "/api/wiz/tabular/browse",
+                "/api/wiz/tabular/probe/open",
+                "/api/wiz/tabular/probe/table",
+                "/api/wiz/tabular/probe/close"),
          new HashSet<>(mappedPaths()));
    }
 
@@ -357,12 +362,14 @@ class WizTabularControllerSecurityTest {
          // The update path refuses anything that is not tabular, so the stored source has to be one
          // for every test whose subject is something else.
          when(xrepository.getDataSource(anyString())).thenReturn(mock(TabularDataSource.class));
-         controller = new WizTabularController(datasourcesService, securityEngine, xrepository);
+         controller = new WizTabularController(datasourcesService, securityEngine, xrepository,
+                                               worksheetTableService);
       }
 
       final DatasourcesService datasourcesService = mock(DatasourcesService.class);
       final SecurityEngine securityEngine = mock(SecurityEngine.class);
       final XRepository xrepository = mock(XRepository.class);
+      final WorksheetTableService worksheetTableService = mock(WorksheetTableService.class);
       final Principal principal = mock(Principal.class);
       final WizTabularController controller;
    }

@@ -19,6 +19,8 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -27,11 +29,13 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.model.DeleteWorksheetTablesRequest;
+import inetsoft.web.wiz.model.WorksheetTable;
 import inetsoft.web.wiz.model.WorksheetTableRequest;
 import inetsoft.web.wiz.model.WorksheetTableResponse;
 import inetsoft.web.wiz.model.WorksheetTablesResponse;
@@ -43,9 +47,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -383,6 +391,108 @@ class WorksheetTableServicePermissionTest {
 
       verifyNoInteractions(deps.xrepository);
    }
+
+   // ─── createTable -> buildTabularTable: which contract the target is read under ─────────────
+
+   /**
+    * The kind selects the contract — which properties carry the target, whether a row cap is
+    * demanded, how a failure is worded — so an unrecognized value cannot be resolved to either
+    * side. Refused by name rather than defaulted, which would build the table against a contract
+    * the caller did not ask for and report success.
+    *
+    * <p>Asserted before the data source is resolved, because the check has to precede everything
+    * the contract then does with it.</p>
+    */
+   @Test
+   void createTableTabularTableRejectsAnUnknownTargetKind() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(anyString(), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "targetKind": "table", "target": "q1.csv" }
+         }
+         """);
+
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("targetKind"),
+                 "the error should name the field, got: " + table.getErrorMessage());
+
+      verifyNoInteractions(deps.xrepository);
+   }
+
+   /** Case and surrounding space are the caller's spelling, not a different request. */
+   @Test
+   void createTableTabularTableAcceptsATargetKindInAnyCase() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(anyString(), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      WorksheetTableRequest request = batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "targetKind": " File ", "target": "q1.csv" }
+         }
+         """);
+
+      // Past the kind check and into the build, where the unstubbed repository ends it.
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("Data source not found"),
+                 "should fail past the kind check, got: " + table.getErrorMessage());
+
+      verify(deps.xrepository).getDataSource(eq("myds"));
+   }
+
+   /**
+    * A target is required whichever kind it is, and the message has to say which THING is missing —
+    * an endpoint name and a file path are not the same thing to go and find.
+    */
+   @Test
+   void createTableTabularTableRequiresATargetAndSaysWhatKindOfOne() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(anyString(), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      WorksheetTableResponse asFile = only(deps.service().createTables(batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "targetKind": "file" }
+         }
+         """), USER));
+      assertFalse(asFile.isSuccess());
+      assertTrue(asFile.getErrorMessage().contains("tabularSource.target is required") &&
+                    asFile.getErrorMessage().contains("file path"),
+                 "the file wording should name a path, got: " + asFile.getErrorMessage());
+
+      WorksheetTableResponse asEndpoint = only(deps.service().createTables(batchOf("""
+         {
+           "tableName": "t1",
+           "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds" }
+         }
+         """), USER));
+      assertFalse(asEndpoint.isSuccess());
+      assertTrue(asEndpoint.getErrorMessage().contains("tabularSource.target is required") &&
+                    asEndpoint.getErrorMessage().contains("endpoint"),
+                 "an absent kind is the endpoint one, got: " + asEndpoint.getErrorMessage());
+   }
+
    // ─── createTable -> buildTable: sql query table FREE_FORM_SQL gate ─────────
 
    @Test
@@ -447,5 +557,222 @@ class WorksheetTableServicePermissionTest {
       verify(deps.securityEngine).checkPermission(eq(USER), eq(ResourceType.FREE_FORM_SQL), eq("*"),
                                                   eq(ResourceAction.ACCESS));
       verify(deps.metadataApiService).getJDBCDatasource(eq("myds"));
+   }
+
+   // ─── probeTable: the annotation probe, and the sample it exists for ────────────────────────
+
+   @Test
+   void probeTableThrowsWhenWorksheetAccessDenied() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(false);
+
+      WorksheetTable table = MAPPER.readValue(
+         "{ \"tableName\": \"t1\", \"tableType\": \"tabular table\" }", WorksheetTable.class);
+
+      assertThrows(SecurityException.class,
+                   () -> deps.service().probeTable("Worksheet-1", table, USER));
+
+      // Nothing is opened or looked up before the gate answers.
+      verifyNoInteractions(deps.viewsheetService);
+   }
+
+   /**
+    * A build failure comes back as a failed RESULT, not an exception. The caller is a loop over a
+    * directory and one unreadable file must not end the walk — the same contract a table inside a
+    * createTables batch has.
+    */
+   @Test
+   void probeTableReportsABuildFailureWithoutThrowingAndLeavesNoAssembly() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(deps.dataSourceService.checkPermission(anyString(), eq(ResourceAction.READ), eq(USER)))
+         .thenReturn(true);
+
+      Worksheet worksheet = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(deps.viewsheetService.getWorksheet(eq("Worksheet-1"), eq(USER))).thenReturn(rws);
+
+      // xrepository is unstubbed, so the data source resolves to null and the build fails.
+      WorksheetTable table = MAPPER.readValue("""
+         { "tableName": "t1", "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "myds", "targetKind": "file",
+                              "target": "q1.csv", "sampleRows": 5 } }
+         """, WorksheetTable.class);
+
+      WorksheetTableResponse response = deps.service().probeTable("Worksheet-1", table, USER);
+
+      assertFalse(response.isSuccess());
+      assertTrue(response.getErrorMessage().contains("Data source not found"),
+                 "expected the build's own reason, got: " + response.getErrorMessage());
+
+      // Each file is an independent question; nothing may accumulate in the shared worksheet.
+      assertNull(worksheet.getAssembly("t1"),
+                 "the probe assembly must not survive the call that built it");
+   }
+
+   /** A caller that did not name the table gets one, because the name has no consequence. */
+   @Test
+   void probeTableNamesAnUnnamedTableRatherThanFailing() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      Worksheet worksheet = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(deps.viewsheetService.getWorksheet(eq("Worksheet-1"), eq(USER))).thenReturn(rws);
+
+      WorksheetTable table = MAPPER.readValue(
+         "{ \"tableType\": \"tabular table\" }", WorksheetTable.class);
+
+      WorksheetTableResponse response = deps.service().probeTable("Worksheet-1", table, USER);
+
+      assertNotNull(response.getTableName(), "an unnamed probe table must still be named");
+      assertFalse(response.isSuccess());
+   }
+
+   @Test
+   void probeTableRequiresARuntimeId() throws Exception {
+      Deps deps = new Deps();
+      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
+                                               eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      WorksheetTable table = MAPPER.readValue(
+         "{ \"tableName\": \"t1\", \"tableType\": \"tabular table\" }", WorksheetTable.class);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> deps.service().probeTable("  ", table, USER));
+      assertTrue(ex.getMessage().contains("runtimeId"), ex.getMessage());
+   }
+
+   // ─── sandboxSampleLimit: the rule that keeps the endpoint path untouched ───────────────────
+
+   private static WorksheetTableResponse built() {
+      WorksheetTableResponse response = new WorksheetTableResponse();
+      response.setSuccess(true);
+      return response;
+   }
+
+   private static WorksheetTable tabular(String json) throws Exception {
+      return MAPPER.readValue(json, WorksheetTable.class);
+   }
+
+   /**
+    * THE assertion of this section. An endpoint's sample is taken by the runner from the one
+    * request it had to make; asking for it again here would send a second request to a metered API
+    * for data already accounted for. Keyed on the kind, not on "the response has no sample yet" —
+    * an endpoint whose first page came back empty also has none.
+    */
+   @Test
+   void sampleLimitIsZeroForAnEndpointEvenWhenRowsWereAskedForAndNoneCameBack() throws Exception {
+      WorksheetTable explicit = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "endpoint",
+                              "target": "Charges", "sampleRows": 10 } }
+         """);
+      assertEquals(0, WorksheetTableService.sandboxSampleLimit(explicit, built()));
+
+      // And with the kind omitted, which is how every pre-existing endpoint caller spells it.
+      WorksheetTable implied = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "endpoint": "Charges", "sampleRows": 10 } }
+         """);
+      assertEquals(0, WorksheetTableService.sandboxSampleLimit(implied, built()));
+   }
+
+   @Test
+   void sampleLimitIsTheRequestedCountForAFileTarget() throws Exception {
+      WorksheetTable table = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "file",
+                              "target": "q1.csv", "sampleRows": 7 } }
+         """);
+
+      assertEquals(7, WorksheetTableService.sandboxSampleLimit(table, built()));
+   }
+
+   /** Opt-in, unchanged: a caller that only wanted the column list runs no extra query. */
+   @Test
+   void sampleLimitIsZeroWhenNoRowsWereAskedFor() throws Exception {
+      WorksheetTable absent = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "file", "target": "q1.csv" } }
+         """);
+      assertEquals(0, WorksheetTableService.sandboxSampleLimit(absent, built()));
+
+      WorksheetTable zero = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "file",
+                              "target": "q1.csv", "sampleRows": 0 } }
+         """);
+      assertEquals(0, WorksheetTableService.sandboxSampleLimit(zero, built()));
+   }
+
+   /** A sample already on the response is never replaced, whatever produced it. */
+   @Test
+   void sampleLimitIsZeroWhenTheResponseAlreadyCarriesASample() throws Exception {
+      WorksheetTable table = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "file",
+                              "target": "q1.csv", "sampleRows": 7 } }
+         """);
+
+      WorksheetTableResponse response = built();
+      response.setSampleRows(List.of(Map.of("a", 1)));
+
+      assertEquals(0, WorksheetTableService.sandboxSampleLimit(table, response));
+   }
+
+   /** Nothing to sample from a table that was not built. */
+   @Test
+   void sampleLimitIsZeroForAFailedTable() throws Exception {
+      WorksheetTable table = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "file",
+                              "target": "q1.csv", "sampleRows": 7 } }
+         """);
+
+      WorksheetTableResponse failed = new WorksheetTableResponse();
+      failed.setSuccess(false);
+
+      assertEquals(0, WorksheetTableService.sandboxSampleLimit(table, failed));
+   }
+
+   /**
+    * {@code rest.sample.rows} is the deployment's ceiling on sampled customer data leaving a
+    * tabular connector, and 0 is the switch that stops it. A different KIND of target reaching the
+    * same data must not get around it.
+    */
+   @Test
+   void sampleLimitIsClampedByTheDeploymentCeilingAndSwitchedOffAtZero() throws Exception {
+      WorksheetTable table = tabular("""
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "ds", "targetKind": "file",
+                              "target": "q1.csv", "sampleRows": 50 } }
+         """);
+
+      String original = SreeEnv.getProperty("rest.sample.rows");
+
+      try {
+         SreeEnv.setProperty("rest.sample.rows", "3");
+         assertEquals(3, WorksheetTableService.sandboxSampleLimit(table, built()));
+
+         SreeEnv.setProperty("rest.sample.rows", "0");
+         assertEquals(0, WorksheetTableService.sandboxSampleLimit(table, built()));
+
+         // Not a number: no sample, rather than a guess about a knob governing customer data.
+         SreeEnv.setProperty("rest.sample.rows", "lots");
+         assertEquals(0, WorksheetTableService.sandboxSampleLimit(table, built()));
+      }
+      finally {
+         SreeEnv.setProperty("rest.sample.rows", original);
+      }
    }
 }
