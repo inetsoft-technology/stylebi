@@ -476,6 +476,10 @@ public final class VisualFrameAliases {
 
       StaticSizeModel model = new StaticSizeModel();
       model.setSize(size);
+      // StaticSizeFrameModelFactory is the only static factory that gates on isChanged():
+      // when false it resets the USER-tier composite value instead of applying the size,
+      // so this write must mark itself as a deliberate change or it is silently discarded.
+      model.setChanged(true);
       return model;
    }
 

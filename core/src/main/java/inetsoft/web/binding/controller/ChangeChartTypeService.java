@@ -153,6 +153,15 @@ public class ChangeChartTypeService {
          handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
 
          if(ostackMeasures == nstackMeasures) {
+            // clearRuntime() above discarded the runtime aesthetic fields, and this is the only
+            // exit that does not go on to rebuild them -- every other path below reaches
+            // updateAssembly. Without this, setting a chart to the type it already has leaves its
+            // colour, shape and size bindings in the design-time info, where every read reports
+            // them, and absent from what renders: the chart draws as though nothing were bound to
+            // those channels, and stays that way until some later call happens to take the full
+            // path. Found by asserting a chart's current type, which is the cheapest no-op a
+            // caller can make and the most likely one to be made "just to be sure".
+            box.get().updateAssembly(chart.getAbsoluteName());
             return null;
          }
       }

@@ -89,6 +89,21 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       processMultiChanged();
       info = fixChartInfo();
 
+      // copyFromGantt() is the only place that reads start/end/milestone off a Gantt source;
+      // it is normally reached via the else-if chain below when nothing earlier matches, but
+      // leaving Gantt for treemap/mekko/relation(network) matches one of those earlier branches
+      // first, so the else-if would otherwise skip copyFromGantt() entirely and the three fields
+      // are lost. Run it once, up front, only for this leaving-Gantt case so the fields land on
+      // a shelf/aesthetic before the existing to-branch below runs; every other transition
+      // (including gantt -> radar/funnel, which already reaches copyFromGantt() via the else-if
+      // chain unchanged) is untouched.
+      if(GraphTypes.isGantt(oldType) && !GraphTypes.isGantt(newType) &&
+         (GraphTypes.isTreemap(newType) || GraphTypes.isMekko(newType) ||
+          GraphTypes.isRelation(newType)))
+      {
+         copyFromGantt();
+      }
+
       if(!GraphTypes.isTreemap(oldType) && GraphTypes.isTreemap(newType)) {
          copyToTreemap();
       }
@@ -426,34 +441,50 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       // change to pie, move a dimension to aesthetic
       if(GraphTypes.isPie(newType) && !GraphTypes.isPie(oldType)) {
          AestheticRef colorFld = bindable.getColorField();
-         AestheticRef shapeFld = bindable.getShapeField();
-         AestheticRef sizeFld = bindable.getSizeField();
-         boolean hasDim = colorFld != null &&
-            GraphUtil.isDimension(colorFld.getDataRef()) ||
-            shapeFld != null &&
-            GraphUtil.isDimension(shapeFld.getDataRef()) ||
-            sizeFld != null &&
-            GraphUtil.isDimension(sizeFld.getDataRef());
+         boolean colorHasDim = colorFld != null && GraphUtil.isDimension(colorFld.getDataRef());
 
-         if(!hasDim) {
-            int xcnt = info.getXFieldCount();
-            int ycnt = info.getYFieldCount();
-            DataRef dim = null;
+         int xcnt = info.getXFieldCount();
+         int ycnt = info.getYFieldCount();
+         boolean xHasDim = xcnt > 0 && GraphUtil.isDimension(info.getXField(xcnt - 1));
+         boolean yHasDim = !xHasDim && ycnt > 0 && GraphUtil.isDimension(info.getYField(ycnt - 1));
 
-            if(xcnt > 0 && GraphUtil.isDimension(info.getXField(xcnt - 1))) {
+         // A measure on color has no safe place to go: unlike the dimension case below, there is
+         // no precedent in this class for relocating a measure off color, and color's own frame
+         // convention (categorical for a dimension, gradient for a measure -- see
+         // copyToTreemap's BluesColorFrame) means a measure there plays a different role than a
+         // displaced category. Refuse before touching anything rather than silently destroy it,
+         // which is what used to happen: createAestheticRef/setColorField below would overwrite
+         // it with no error.
+         if((xHasDim || yHasDim) && colorFld != null && !colorHasDim) {
+            throw new IllegalArgumentException(
+               "Cannot change to a pie chart: 'color' is bound to the measure '" +
+               colorFld.getFullName() + "', and pie charts have no aesthetic channel to move " +
+               "it to. Clear the color field, or bind '" + colorFld.getFullName() +
+               "' elsewhere, before retyping to pie.");
+         }
+
+         if(xHasDim || yHasDim) {
+            DataRef dim;
+
+            if(xHasDim) {
                dim = info.getXField(xcnt - 1);
                info.removeXField(xcnt - 1);
             }
-            else if(ycnt > 0 && GraphUtil.isDimension(info.getYField(ycnt - 1))) {
+            else {
                dim = info.getYField(ycnt - 1);
                info.removeYField(ycnt - 1);
             }
 
-            if(dim != null) {
-               colorFld = createAestheticRef(dim);
-               colorFld.setVisualFrame(new CategoricalColorFrame());
-               bindable.setColorField(colorFld);
+            // color already holds a different dimension -- displace it back to x/y (the same
+            // placement the reverse branch below uses) instead of silently overwriting it.
+            if(colorHasDim) {
+               moveColorDimensionToShelf(info, bindable, colorFld);
             }
+
+            colorFld = createAestheticRef(dim);
+            colorFld.setVisualFrame(carryOrDefault(bindable.getColorFrame(), CategoricalFrame.class,
+                                                    new CategoricalColorFrame()));
+            bindable.setColorField(colorFld);
          }
       }
       // reverse the pie operation
@@ -464,21 +495,34 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          int ycnt = info.getYFieldCount();
          boolean xdim = xcnt > 0 && GraphUtil.isDimension(info.getXField(xcnt - 1));
          boolean ydim = ycnt > 0 && GraphUtil.isDimension(info.getYField(ycnt - 1));
-         boolean xagg = xcnt > 0 && GraphUtil.isMeasure(info.getXField(xcnt - 1));
          AestheticRef colorFld = bindable.getColorField();
 
          if(!xdim && !ydim &&
             colorFld != null && GraphUtil.isDimension(colorFld.getDataRef()))
          {
-            bindable.setColorField(null);
-
-            if(xagg) {
-               info.addYField((ChartRef) colorFld.getDataRef());
-            }
-            else {
-               info.addXField((ChartRef) colorFld.getDataRef());
-            }
+            moveColorDimensionToShelf(info, bindable, colorFld);
          }
+      }
+   }
+
+   /**
+    * Move a dimension off the color aesthetic and back onto a shelf: y if the current last x
+    * field is a measure, x otherwise. Shared by the pie-reversal branch above and the forward
+    * pie migration, which uses the same placement to displace a color dimension that a newly
+    * migrated dimension is about to replace.
+    */
+   private void moveColorDimensionToShelf(ChartInfo info, ChartBindable bindable,
+                                          AestheticRef colorFld)
+   {
+      int xcnt = info.getXFieldCount();
+      boolean xagg = xcnt > 0 && GraphUtil.isMeasure(info.getXField(xcnt - 1));
+      bindable.setColorField(null);
+
+      if(xagg) {
+         info.addYField((ChartRef) colorFld.getDataRef());
+      }
+      else {
+         info.addXField((ChartRef) colorFld.getDataRef());
       }
    }
 
@@ -888,21 +932,32 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       AestheticRef text = info.getTextField();
       boolean measure = cref.isMeasure();
 
+      // consult oinfo (the chart as it was before this retype started), not info (the freshly
+      // created target chart being assembled here) -- info's own top-level frame slots are
+      // still at their just-constructed defaults at this point; any frame the caller had
+      // already set before the retype only survives on oinfo until copyGeneralValues() copies
+      // the wrappers across, which happens after this method runs.
       if(color == null) {
          color = createAestheticRef(cref);
-         color.setVisualFrame(measure ? new BluesColorFrame() : new CategoricalColorFrame());
+         color.setVisualFrame(measure
+            ? carryOrDefault(oinfo.getColorFrame(), LinearColorFrame.class, new BluesColorFrame())
+            : carryOrDefault(oinfo.getColorFrame(), CategoricalFrame.class, new CategoricalColorFrame()));
          info.setColorField(color);
       }
       else if(shape == null) {
          shape = createAestheticRef(cref);
-         shape.setVisualFrame(measure ? new FillShapeFrame() : new CategoricalShapeFrame());
+         shape.setVisualFrame(measure
+            ? carryOrDefault(oinfo.getShapeFrame(), LinearShapeFrame.class, new FillShapeFrame())
+            : carryOrDefault(oinfo.getShapeFrame(), CategoricalFrame.class, new CategoricalShapeFrame()));
          info.setShapeField(shape);
       }
       // now geo ref is not auto detected, we can not know if supported, size
       // frame will be fixed in ChangeChartTypeEvent after auto detect
       else if(size == null) {
          size = createAestheticRef(cref);
-         size.setVisualFrame(measure ? new LinearSizeFrame() : new CategoricalSizeFrame());
+         size.setVisualFrame(measure
+            ? carryOrDefault(oinfo.getSizeFrame(), LinearSizeFrame.class, new LinearSizeFrame())
+            : carryOrDefault(oinfo.getSizeFrame(), CategoricalFrame.class, new CategoricalSizeFrame()));
          info.setSizeField(size);
       }
       else if(text == null) {
@@ -919,6 +974,23 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       AestheticRef aestheticRef = new VSAestheticRef();
       aestheticRef.setDataRef(cref);
       return aestheticRef;
+   }
+
+   /**
+    * Reuse an existing top-level frame for a field about to occupy a newly-relevant aesthetic
+    * channel, if it already has the shape that channel needs (e.g. a caller-set
+    * CategoricalColorFrame sitting on an unbound color channel, planted via set_visual_frame
+    * before any field was ever bound there). Falls back to the caller's own default otherwise,
+    * which is what every state reachable through the interactive Composer already produces --
+    * its own drag-and-drop first-bind path never writes a type-matching frame onto an unbound
+    * channel's top-level slot in the first place (see ChartDndHandler), so this is a no-op for
+    * every human-reachable state and only changes behavior for a caller-planted frame the UI
+    * itself could never have produced.
+    */
+   private static VisualFrame carryOrDefault(VisualFrame existing, Class<?> requiredFamily,
+                                             VisualFrame fallback)
+   {
+      return requiredFamily.isInstance(existing) ? existing : fallback;
    }
 
    /**
@@ -1175,6 +1247,48 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          }
       }
 
+      // The three placements below each only fire when their channel is free, so any measure
+      // past the number of free channels would be dropped: it was already pulled out of x/y/group
+      // into this local list, above, before this point, so unlike a shelf field there is nowhere
+      // it silently "stays". Check and refuse before any mutation runs, rather than discover
+      // afterwards that a measure has nowhere to land.
+      int freeAestheticSlots = (info.getSizeField() == null ? 1 : 0) +
+         (info.getColorField() == null ? 1 : 0) +
+         (info.getShapeField() == null ? 1 : 0);
+
+      if(measures.size() > freeAestheticSlots) {
+         List<ChartRef> stranded = measures.subList(freeAestheticSlots, measures.size());
+         List<String> occupied = new ArrayList<>();
+
+         if(info.getSizeField() != null) {
+            occupied.add("size");
+         }
+
+         if(info.getColorField() != null) {
+            occupied.add("color");
+         }
+
+         if(info.getShapeField() != null) {
+            occupied.add("shape");
+         }
+
+         StringBuilder strandedNames = new StringBuilder();
+
+         for(ChartRef m : stranded) {
+            if(strandedNames.length() > 0) {
+               strandedNames.append(", ");
+            }
+
+            strandedNames.append(m.getFullName());
+         }
+
+         throw new IllegalArgumentException(
+            "Cannot change to a treemap: " + String.join(", ", occupied) +
+            " already have fields bound, leaving no aesthetic channel for the measure(s) " +
+            strandedNames + ". Free a channel (color, shape or size), or remove the measure(s), " +
+            "before retyping to treemap.");
+      }
+
       if(treeDims.isEmpty()) {
          if(xdims.size() > 0) {
             treeDims.addAll(xdims);
@@ -1196,21 +1310,24 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       if(info.getSizeField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new LinearSizeFrame());
+         aref.setVisualFrame(carryOrDefault(info.getSizeFrame(), LinearSizeFrame.class,
+                                             new LinearSizeFrame()));
          info.setSizeField(aref);
          measures.remove(0);
       }
 
       if(info.getColorField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new BluesColorFrame());
+         aref.setVisualFrame(carryOrDefault(info.getColorFrame(), LinearColorFrame.class,
+                                             new BluesColorFrame()));
          info.setColorField(aref);
          measures.remove(0);
       }
 
       if(info.getShapeField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new GridTextureFrame());
+         aref.setVisualFrame(carryOrDefault(info.getTextureFrame(), LinearTextureFrame.class,
+                                             new GridTextureFrame()));
          info.setShapeField(aref);
          measures.remove(0);
       }
@@ -1277,22 +1394,27 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       if(info.getColorField() == null && (dims.size() > 0 || measures.size() > 0)) {
          ChartRef ref = dims.size() > 0 ? dims.remove(0) : measures.remove(0);
          AestheticRef aref = createAestheticRef(ref);
-         aref.setVisualFrame(ref.isMeasure() ? new BluesColorFrame() : new CategoricalColorFrame());
+         aref.setVisualFrame(ref.isMeasure()
+            ? carryOrDefault(info.getColorFrame(), LinearColorFrame.class, new BluesColorFrame())
+            : carryOrDefault(info.getColorFrame(), CategoricalFrame.class, new CategoricalColorFrame()));
          info.setColorField(aref);
       }
 
       if(info.getShapeField() == null && (dims.size() > 0 || measures.size() > 0)) {
          ChartRef ref = dims.size() > 0 ? dims.remove(0) : measures.remove(0);
          AestheticRef aref = createAestheticRef(ref);
-         aref.setVisualFrame(ref.isMeasure() ? new GridTextureFrame()
-                                : new CategoricalTextureFrame());
+         aref.setVisualFrame(ref.isMeasure()
+            ? carryOrDefault(info.getTextureFrame(), LinearTextureFrame.class, new GridTextureFrame())
+            : carryOrDefault(info.getTextureFrame(), CategoricalFrame.class, new CategoricalTextureFrame()));
          info.setShapeField(aref);
       }
 
       if(info.getSizeField() == null && (dims.size() > 0 || measures.size() > 0)) {
          ChartRef ref = dims.size() > 0 ? dims.remove(0) : measures.remove(0);
          AestheticRef aref = createAestheticRef(ref);
-         aref.setVisualFrame(ref.isMeasure() ? new LinearSizeFrame() : new CategoricalSizeFrame());
+         aref.setVisualFrame(ref.isMeasure()
+            ? carryOrDefault(info.getSizeFrame(), LinearSizeFrame.class, new LinearSizeFrame())
+            : carryOrDefault(info.getSizeFrame(), CategoricalFrame.class, new CategoricalSizeFrame()));
          info.setSizeField(aref);
       }
    }
@@ -1417,21 +1539,24 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       if(info.getSizeField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new LinearSizeFrame());
+         aref.setVisualFrame(carryOrDefault(info.getSizeFrame(), LinearSizeFrame.class,
+                                             new LinearSizeFrame()));
          info.setSizeField(aref);
          measures.remove(0);
       }
 
       if(info.getColorField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new BluesColorFrame());
+         aref.setVisualFrame(carryOrDefault(info.getColorFrame(), LinearColorFrame.class,
+                                             new BluesColorFrame()));
          info.setColorField(aref);
          measures.remove(0);
       }
 
       if(info.getShapeField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new GridTextureFrame());
+         aref.setVisualFrame(carryOrDefault(info.getTextureFrame(), LinearTextureFrame.class,
+                                             new GridTextureFrame()));
          info.setShapeField(aref);
          measures.remove(0);
       }
@@ -1500,21 +1625,24 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       if(startField != null) {
          if(startField.getColorField() == null && measures.size() > 0) {
             AestheticRef aref = createAestheticRef(measures.get(0));
-            aref.setVisualFrame(new BluesColorFrame());
+            aref.setVisualFrame(carryOrDefault(startField.getColorFrame(), LinearColorFrame.class,
+                                                new BluesColorFrame()));
             startField.setColorField(aref);
             measures.remove(0);
          }
 
          if(startField.getShapeField() == null && measures.size() > 0) {
             AestheticRef aref = createAestheticRef(measures.get(0));
-            aref.setVisualFrame(new GridTextureFrame());
+            aref.setVisualFrame(carryOrDefault(startField.getTextureFrame(), LinearTextureFrame.class,
+                                                new GridTextureFrame()));
             startField.setShapeField(aref);
             measures.remove(0);
          }
 
          if(startField.getSizeField() == null && measures.size() > 0) {
             AestheticRef aref = createAestheticRef(measures.get(0));
-            aref.setVisualFrame(new LinearSizeFrame());
+            aref.setVisualFrame(carryOrDefault(startField.getSizeFrame(), LinearSizeFrame.class,
+                                                new LinearSizeFrame()));
             startField.setSizeField(aref);
             measures.remove(0);
          }

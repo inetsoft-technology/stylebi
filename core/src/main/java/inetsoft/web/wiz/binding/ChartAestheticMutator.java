@@ -22,6 +22,8 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -85,9 +87,18 @@ public final class ChartAestheticMutator {
             "explicit clear.");
       }
 
-      AestheticInfo info = new AestheticInfo();
+      // A channel's frame can already exist before any field is bound to it -- either on the
+      // channel's own AestheticInfo (rebinding a field that already had one) or on the top-level
+      // ChartBindingModel.xxxFrame property setFrame() writes to when the channel is unbound (see
+      // setFrame() above). Without carrying it forward here, the new AestheticInfo's frame stays
+      // null and GraphUtil.fixVisualFrame fabricates a fresh default (useGlobal=true) at render
+      // time, silently shadowing whatever the caller had already set.
+      AestheticInfo existing = read(model, name);
+      AestheticInfo info = existing != null ? existing : new AestheticInfo();
+      VisualFrameModel carriedFrame = info.getFrame() != null ? info.getFrame() : frameOf(model, name);
       info.setFullName(field.column());
       info.setDataInfo(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
+      info.setFrame(carriedFrame);
       assign(model, name, info);
    }
 
@@ -127,6 +138,37 @@ public final class ChartAestheticMutator {
          return;
       }
 
+      // A field-less color/shape/size/line/texture frame renders from each Y/X measure's own
+      // frame property (VSChartAggregateRef.getColorFrame() et al.), not from the top-level
+      // ChartBindingModel property -- VSFrameVisitor.createFrame() only falls back to the
+      // top-level slot for MergedChartInfo charts (Candle/Gantt/Radar/Relation/Map), which
+      // DefaultVSChartInfo -- built for every ordinary bar/line/point/pie/area chart -- is not.
+      // The interactive Composer's own aesthetic dialogs (ColorFieldMc/ShapeFieldMc) confirm this
+      // is the real per-measure home for a field-less frame, not an edge case. A field-less
+      // request has no way to name a single measure, so it is broadcast to every aggregate found
+      // on the Y shelf (or the X shelf, mirroring VSFrameVisitor.getAggregates()' own fallback,
+      // if Y has none) -- the common single-measure chart makes this unambiguous, and a
+      // multi-measure chart gets the same frame on every measure rather than silently only one.
+      List<ChartAggregateRefModel> aggregates =
+         AestheticChannels.FRAME_CHANNELS.contains(name) ? aggregates(model) : List.of();
+
+      if(!aggregates.isEmpty()) {
+         switch(name) {
+            case "color" -> aggregates.forEach(agg -> agg.setColorFrame((ColorFrameModel) frame));
+            case "shape" -> aggregates.forEach(agg -> agg.setShapeFrame((ShapeFrameModel) frame));
+            case "size" -> aggregates.forEach(agg -> agg.setSizeFrame((SizeFrameModel) frame));
+            case "line" -> aggregates.forEach(agg -> agg.setLineFrame((LineFrameModel) frame));
+            case "texture" ->
+               aggregates.forEach(agg -> agg.setTextureFrame((TextureFrameModel) frame));
+            default -> throw new IllegalArgumentException("Unhandled frame channel '" + name + "'.");
+         }
+
+         return;
+      }
+
+      // No aggregate to target (e.g. a chart with zero Y/X measures) or a node channel, which has
+      // no per-aggregate slot -- these are the genuine cases where the top-level property is what
+      // the render path (still) consults.
       switch(name) {
          case "color" -> model.setColorFrame((ColorFrameModel) frame);
          case "shape" -> model.setShapeFrame((ShapeFrameModel) frame);
@@ -137,6 +179,30 @@ public final class ChartAestheticMutator {
          case "node-size" -> model.setNodeSizeFrame((SizeFrameModel) frame);
          default -> throw new IllegalArgumentException("Unhandled frame channel '" + name + "'.");
       }
+   }
+
+   /**
+    * The Y/X-axis measures a field-less frame channel targets, mirroring
+    * {@code VSFrameVisitor.getAggregates()}'s own Y-then-X fallback: prefer the Y shelf, and only
+    * consult X if Y has no measures at all (an inverted or measures-on-X chart).
+    */
+   private static List<ChartAggregateRefModel> aggregates(ChartBindingModel model) {
+      List<ChartAggregateRefModel> yAggregates = aggregatesOf(model.getYFields());
+      return !yAggregates.isEmpty() ? yAggregates : aggregatesOf(model.getXFields());
+   }
+
+   private static List<ChartAggregateRefModel> aggregatesOf(List<ChartRefModel> refs) {
+      List<ChartAggregateRefModel> aggregates = new ArrayList<>();
+
+      if(refs != null) {
+         for(ChartRefModel ref : refs) {
+            if(ref instanceof ChartAggregateRefModel agg) {
+               aggregates.add(agg);
+            }
+         }
+      }
+
+      return aggregates;
    }
 
    /**
@@ -259,11 +325,33 @@ public final class ChartAestheticMutator {
       return info.getFullName();
    }
 
+   /**
+    * A channel's current frame, for {@link #describe}/{@link #channelView} and for
+    * {@link #setField}'s carry-forward of a frame set before any field was bound.
+    *
+    * <p>Must mirror {@link #setFrame}'s write side exactly: for an unbound
+    * {@link AestheticChannels#FRAME_CHANNELS} channel with at least one Y/X measure, that is where
+    * {@code setFrame} wrote and where the render path ({@code VSFrameVisitor.createFrame}) reads
+    * — not the top-level {@code ChartBindingModel} property. Reading the top-level property here
+    * while the renderer consults the per-measure one would report a value the chart never shows,
+    * exactly the "reads the dead slot" defect this method exists to avoid.
+    *
+    * <p>When several measures disagree (only possible from state {@code setFrame} did not itself
+    * produce — it always writes the same frame to every measure), the first measure's frame is
+    * reported; there is no "mixed" sentinel in the agent vocabulary to report disagreement with.
+    */
    private static VisualFrameModel frameOf(ChartBindingModel model, String channel) {
       AestheticInfo field = acceptsField(channel) ? read(model, channel) : null;
 
       if(field != null) {
          return field.getFrame();
+      }
+
+      List<ChartAggregateRefModel> aggregates =
+         AestheticChannels.FRAME_CHANNELS.contains(channel) ? aggregates(model) : List.of();
+
+      if(!aggregates.isEmpty()) {
+         return aggregateFrameOf(aggregates.get(0), channel);
       }
 
       return switch(channel) {
@@ -274,6 +362,19 @@ public final class ChartAestheticMutator {
          case "texture" -> model.getTextureFrame();
          case "node-color" -> model.getNodeColorFrame();
          case "node-size" -> model.getNodeSizeFrame();
+         default -> null;
+      };
+   }
+
+   private static VisualFrameModel aggregateFrameOf(ChartAggregateRefModel aggregate,
+                                                     String channel)
+   {
+      return switch(channel) {
+         case "color" -> aggregate.getColorFrame();
+         case "shape" -> aggregate.getShapeFrame();
+         case "size" -> aggregate.getSizeFrame();
+         case "line" -> aggregate.getLineFrame();
+         case "texture" -> aggregate.getTextureFrame();
          default -> null;
       };
    }

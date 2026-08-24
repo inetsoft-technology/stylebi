@@ -175,6 +175,194 @@ class ChartAestheticMutatorTest {
       assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, onField.getColors());
    }
 
+   /**
+    * Live-repro of the shadowing defect: a frame set on an unbound channel is stored on
+    * {@code ChartBindingModel.colorFrame} (the top-level slot, see {@code setFrame}), not on any
+    * {@link AestheticInfo}. Binding a field afterwards must carry that frame onto the field's own
+    * {@code AestheticInfo.frame} rather than leaving it null (which {@code GraphUtil.fixVisualFrame}
+    * would then fabricate a fresh default frame for at render time).
+    */
+   @Test
+   void aFrameSetBeforeAnyFieldIsBoundCarriesOntoTheFieldWhenOneIsBound() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222")));
+
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      CategoricalColorModel onField =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame(),
+                          "the field's own frame must be the caller's custom frame, not a fabricated default");
+      assertArrayEquals(new String[]{"#111111", "#222222"}, onField.getColors());
+   }
+
+   /** Rebinding a channel's field must not discard the frame already set on that channel. */
+   @Test
+   void rebindingAChannelsFieldPreservesItsExistingFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#333333", "#444444")));
+
+      ChartAestheticMutator.setField(model, "color", dimension("Category"));
+
+      CategoricalColorModel onField =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame(),
+                          "rebinding the field must preserve the channel's existing frame");
+      assertArrayEquals(new String[]{"#333333", "#444444"}, onField.getColors());
+   }
+
+   // ── field-less frames target the aggregate slot, not the dead top-level property ──────────
+
+   /**
+    * The render path ({@code VSFrameVisitor.createFrame}) builds a field-less colour from each
+    * Y/X measure's own {@code getColorFrame()} (Bug 76102) -- {@code ChartBindingModel.colorFrame}
+    * is only consulted for {@code MergedChartInfo} charts (Candle/Gantt/Radar/Relation/Map), which
+    * {@code DefaultVSChartInfo} -- built for every ordinary chart -- is not. A frame written only
+    * to the top-level property round-trips through {@code get_chart_aesthetics} but never renders.
+    */
+   @Test
+   void setsAFieldLessColorFrameOnTheYAxisAggregateNotTheTopLevelProperty() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticColorModel onAggregate = assertInstanceOf(StaticColorModel.class, agg.getColorFrame());
+      assertEquals("#CC2222", onAggregate.getColor());
+      assertNull(model.getColorFrame(),
+                 "the top-level property is dead storage for an ordinary chart -- the render " +
+                 "path never reads it, so leaving a value there too would just be a second lie");
+   }
+
+   /** {@code line} has {@code acceptsField: false} -- a field-less frame is its only rendering path. */
+   @Test
+   void setsAFieldLessLineFrameOnTheYAxisAggregate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "line", spec("type", "static", "line", 3.0));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticLineModel onAggregate = assertInstanceOf(StaticLineModel.class, agg.getLineFrame());
+      assertEquals(3, onAggregate.getLine());
+      assertNull(model.getLineFrame());
+   }
+
+   /** {@code texture} has {@code acceptsField: false} -- a field-less frame is its only rendering path. */
+   @Test
+   void setsAFieldLessTextureFrameOnTheYAxisAggregate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "texture", spec("type", "static", "texture", 2.0));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticTextureModel onAggregate =
+         assertInstanceOf(StaticTextureModel.class, agg.getTextureFrame());
+      assertEquals(2, onAggregate.getTexture());
+      assertNull(model.getTextureFrame());
+   }
+
+   @Test
+   void setsAFieldLessShapeFrameOnTheYAxisAggregate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "shape", spec("type", "static", "shape", "triangle"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticShapeModel onAggregate = assertInstanceOf(StaticShapeModel.class, agg.getShapeFrame());
+      assertEquals("triangle", onAggregate.getShape());
+      assertNull(model.getShapeFrame());
+   }
+
+   @Test
+   void setsAFieldLessSizeFrameOnTheYAxisAggregate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "size", spec("type", "static", "size", 5.0));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticSizeModel onAggregate = assertInstanceOf(StaticSizeModel.class, agg.getSizeFrame());
+      assertEquals(5.0, onAggregate.getSize(), 0.0);
+      assertNull(model.getSizeFrame());
+   }
+
+   /**
+    * {@code set_visual_frame} has no way to name a single measure -- it is scoped to
+    * {@code {assembly, channel}}, not a specific Y-axis aggregate. Broadcasting to every measure
+    * matches the tool's existing chart-level semantics and does not silently apply the caller's
+    * frame to only one of several measures.
+    */
+   @Test
+   void broadcastsAFieldLessFrameToEveryYAxisAggregate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#00ff00"));
+
+      for(ChartRefModel ref : model.getYFields()) {
+         ChartAggregateRefModel agg = (ChartAggregateRefModel) ref;
+         StaticColorModel onAggregate =
+            assertInstanceOf(StaticColorModel.class, agg.getColorFrame());
+         assertEquals("#00FF00", onAggregate.getColor());
+      }
+   }
+
+   /**
+    * Mirrors {@code VSFrameVisitor.getAggregates()}'s own fallback: when the Y shelf has no
+    * measure (e.g. an inverted chart with the aggregate on X), a field-less frame must still land
+    * where the renderer looks, not on the top-level property.
+    */
+   @Test
+   void setsAFieldLessFrameOnTheXAxisAggregateWhenYHasNone() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getXFields().get(0);
+      StaticColorModel onAggregate = assertInstanceOf(StaticColorModel.class, agg.getColorFrame());
+      assertEquals("#CC2222", onAggregate.getColor());
+      assertNull(model.getColorFrame());
+   }
+
+   /** With no Y/X measure at all (e.g. a contour chart), the top-level property is genuinely what renders. */
+   @Test
+   void setsAFieldLessFrameOnTheTopLevelPropertyWhenThereIsNoAggregateToTarget() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      StaticColorModel frame = assertInstanceOf(StaticColorModel.class, model.getColorFrame());
+      assertEquals("#CC2222", frame.getColor());
+   }
+
+   /**
+    * {@code get_chart_aesthetics} must report what will actually render, not the dead top-level
+    * property -- reading the wrong slot here would be a second, independent lie on top of the
+    * write-side defect (Bug 76102's second-order finding).
+    */
+   @Test
+   void describesAFieldLessFrameFromTheAggregateSlotItActuallyRenders() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#123456"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> frame = (Map<String, Object>) color.get("frame");
+
+      assertEquals("static", frame.get("type"));
+      assertEquals("#123456", frame.get("color"));
+   }
+
    // ── preservation, both ways ───────────────────────────────────────────────
 
    @Test

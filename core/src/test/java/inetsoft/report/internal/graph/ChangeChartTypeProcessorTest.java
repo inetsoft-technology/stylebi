@@ -163,8 +163,324 @@ class ChangeChartTypeProcessorTest {
                         "to a static color frame");
    }
 
+   @Test
+   void barToPieWithDimensionOnColorDisplacesItToAShelf() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorField(aestheticRef(dimension("Year")));
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info);
+
+      assertNotNull(info.getColorField(), "the migration must still fire and bind color");
+      assertEquals("Month", info.getColorField().getDataRef().getName(),
+                   "the x dimension is the one that migrates onto color");
+      assertTrue(info.getXFieldCount() > 0 || info.getYFieldCount() > 0,
+                 "the displaced color dimension ('Year') must land on a shelf, not vanish");
+      assertFalse(
+         info.getXFieldCount() > 0 && "Month".equals(info.getXField(0).getName()),
+         "the migrated field must not also be left behind on x");
+   }
+
+   @Test
+   void barToPieWithDimensionOnShapeStillMigrates() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setShapeField(aestheticRef(dimension("Quarter")));
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info);
+
+      assertEquals(0, info.getXFieldCount(),
+                   "a dimension on shape must not block the x -> color migration");
+      assertNotNull(info.getColorField());
+      assertEquals("Month", info.getColorField().getDataRef().getName());
+      assertNotNull(info.getShapeField(), "shape's own dimension must survive untouched");
+   }
+
+   @Test
+   void barToPieWithMeasureOnColorRefusesAndMutatesNothing() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info));
+
+      assertEquals(1, info.getXFieldCount(), "x must be untouched after the refusal");
+      assertEquals("Month", info.getXField(0).getName());
+      assertEquals(1, info.getYFieldCount(), "y must be untouched after the refusal");
+      assertNotNull(info.getColorField(), "color must still hold its original measure");
+      assertEquals("Discount", info.getColorField().getDataRef().getName());
+   }
+
+   @Test
+   void barToPieWithMeasureOnShapeMigratesAndLeavesItUntouched() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setShapeField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info);
+
+      assertNotNull(info.getColorField());
+      assertEquals("Month", info.getColorField().getDataRef().getName());
+      assertNotNull(info.getShapeField(), "the measure on shape is never at risk, only color is");
+      assertEquals("Discount", info.getShapeField().getDataRef().getName());
+   }
+
+   @Test
+   void barToTreemapWithAllAestheticChannelsOccupiedRefusesAndMutatesNothing() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setColorField(aestheticRef(dimension("Year")));
+      info.setShapeField(aestheticRef(dimension("Quarter")));
+      info.setSizeField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info));
+
+      assertEquals(1, info.getXFieldCount(), "x must be untouched after the refusal");
+      assertEquals(1, info.getYFieldCount(), "y must be untouched after the refusal");
+      assertEquals(0, info.getGroupFieldCount(), "group must be untouched after the refusal");
+      assertEquals("Year", info.getColorField().getDataRef().getName());
+      assertEquals("Quarter", info.getShapeField().getDataRef().getName());
+      assertEquals("Discount", info.getSizeField().getDataRef().getName());
+   }
+
+   @Test
+   void barToTreemapWithFreeChannelsStillMigrates() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info);
+
+      assertEquals(1, info.getGroupFieldCount(), "the x dimension must move onto group");
+      assertEquals("Month", info.getGroupField(0).getName());
+      assertNotNull(info.getSizeField(), "the leftover measure must land on the free size channel");
+      assertEquals("Sales", info.getSizeField().getDataRef().getName());
+   }
+
+   @Test
+   void ganttToNetworkPreservesStartEndMilestone() {
+      ChartInfo info = ganttInfo("Start", "End", "Milestone");
+
+      info = changeType(GraphTypes.CHART_GANTT, GraphTypes.CHART_NETWORK, info);
+
+      assertEquals("Start", nameOrNull(info.getColorField()),
+                   "start must land on an aesthetic channel, not vanish");
+      assertEquals("End", nameOrNull(info.getShapeField()),
+                   "end must land on an aesthetic channel, not vanish");
+      assertEquals("Milestone", nameOrNull(info.getSizeField()),
+                   "milestone must land on an aesthetic channel, not vanish");
+   }
+
+   @Test
+   void ganttToTreemapPreservesStartEndMilestone() {
+      ChartInfo info = ganttInfo("Start", "End", "Milestone");
+
+      info = changeType(GraphTypes.CHART_GANTT, GraphTypes.CHART_TREEMAP, info);
+
+      assertEquals("Start", nameOrNull(info.getColorField()),
+                   "start must land on an aesthetic channel, not vanish");
+      assertEquals("End", nameOrNull(info.getShapeField()),
+                   "end must land on an aesthetic channel, not vanish");
+      assertEquals("Milestone", nameOrNull(info.getSizeField()),
+                   "milestone must land on an aesthetic channel, not vanish");
+   }
+
+   @Test
+   void ganttToMekkoPreservesStartEndMilestone() {
+      ChartInfo info = ganttInfo("Start", "End", "Milestone");
+
+      info = changeType(GraphTypes.CHART_GANTT, GraphTypes.CHART_MEKKO, info);
+
+      java.util.Set<String> bound = allBoundNames(info);
+      assertTrue(bound.contains("Start"), "start must not be silently dropped: " + bound);
+      assertTrue(bound.contains("End"), "end must not be silently dropped: " + bound);
+      assertTrue(bound.contains("Milestone"), "milestone must not be silently dropped: " + bound);
+   }
+
+   /**
+    * Guards the {@code copyToRelation()} branch that the Gantt fix reorders around: a plain
+    * (non-Gantt) source retyping to network must still migrate exactly as it did before.
+    */
+   /**
+    * Finding 16 sibling (Site A, fixPieDimensions): a categorical color frame the caller
+    * already planted on the top-level "color" slot while the channel was unbound (e.g. via
+    * set_visual_frame) must carry onto the dimension the pie migration is about to bind to
+    * color, not be silently replaced by a bare default.
+    */
+   @Test
+   void barToPieCarriesForwardAnExistingTopLevelCategoricalColorFrame() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      CategoricalColorFrame custom = new CategoricalColorFrame();
+      info.setColorFrame(custom);
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info);
+
+      assertNotNull(info.getColorField());
+      assertSame(custom, info.getColorField().getVisualFrame(),
+                 "a categorical frame already sitting in the top-level slot before any field " +
+                 "was bound to color must carry onto the field the retype just bound, not be " +
+                 "silently replaced by a bare default");
+   }
+
+   /**
+    * Finding 16 sibling (Site B, addAestheticField via changeToMap): a linear/gradient color
+    * frame already sitting in the ORIGINAL chart's top-level "color" slot must carry onto the
+    * measure that changeToMap displaces from x/y onto the newly-created map's color channel.
+    */
+   @Test
+   void barToMapCarriesForwardAnExistingTopLevelGradientColorFrameOntoTheDisplacedMeasure() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Region"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      GradientColorFrame custom = new GradientColorFrame();
+      info.setColorFrame(custom);
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_MAP, info);
+
+      assertNotNull(info.getColorField(),
+                     "the measure displaced off x/y by the map conversion must land on color");
+      assertEquals("Sales", info.getColorField().getDataRef().getName());
+      assertSame(custom, info.getColorField().getVisualFrame(),
+                 "a gradient frame already sitting in the chart's top-level color slot before " +
+                 "the map conversion must carry onto the measure it just bound to color, not be " +
+                 "silently replaced by a bare BluesColorFrame default");
+   }
+
+   /**
+    * Finding 16 sibling (Site C, copyToMekko): same defect shape as Site A, reached via the
+    * mekko assembly's own first-bind-into-a-free-color-channel branch.
+    */
+   @Test
+   void barToMekkoCarriesForwardAnExistingTopLevelCategoricalColorFrame() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Region"));
+      info.addXField(dimension("Category"));
+      info.addXField(dimension("Segment"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      CategoricalColorFrame custom = new CategoricalColorFrame();
+      info.setColorFrame(custom);
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_MEKKO, info);
+
+      assertNotNull(info.getColorField(), "the leftover dimension must land on the free color channel");
+      assertEquals("Segment", info.getColorField().getDataRef().getName());
+      assertSame(custom, info.getColorField().getVisualFrame(),
+                 "a categorical frame already sitting in the top-level slot before any field " +
+                 "was bound to color must carry onto the dimension mekko assembly just bound, " +
+                 "not be silently replaced by a bare default");
+   }
+
+   /**
+    * Finding 16 sibling (Class 2, copyToTreemap): the measure-overflow placements construct a
+    * frame just as directly as the dimension sites above, and a gradient is exactly as
+    * user-customizable for a measure as a categorical frame is for a dimension.
+    */
+   @Test
+   void barToTreemapCarriesForwardAnExistingTopLevelGradientColorFrameOntoTheOverflowMeasure() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setSizeField(aestheticRef(dimension("Region")));
+
+      GradientColorFrame custom = new GradientColorFrame();
+      info.setColorFrame(custom);
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info);
+
+      assertNotNull(info.getColorField(), "the leftover measure must land on the free color channel");
+      assertEquals("Sales", info.getColorField().getDataRef().getName());
+      assertSame(custom, info.getColorField().getVisualFrame(),
+                 "a gradient frame already sitting in the top-level slot before any field was " +
+                 "bound to color must carry onto the overflow measure the treemap conversion " +
+                 "just bound, not be silently replaced by a bare BluesColorFrame default");
+   }
+
+   /** Same Class 2 defect shape as copyToTreemap above, reached via copyToRelation instead. */
+   @Test
+   void barToNetworkCarriesForwardAnExistingTopLevelGradientColorFrameOntoTheOverflowMeasure() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Region"));
+      info.addGroupField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+      info.setSizeField(aestheticRef(dimension("Segment")));
+
+      GradientColorFrame custom = new GradientColorFrame();
+      info.setColorFrame(custom);
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_NETWORK, info);
+
+      assertInstanceOf(RelationChartInfo.class, info);
+      assertNotNull(info.getColorField(), "the leftover measure must land on the free color channel");
+      assertEquals("Sales", info.getColorField().getDataRef().getName());
+      assertSame(custom, info.getColorField().getVisualFrame(),
+                 "a gradient frame already sitting in the top-level slot before any field was " +
+                 "bound to color must carry onto the overflow measure the relation conversion " +
+                 "just bound, not be silently replaced by a bare BluesColorFrame default");
+   }
+
+   @Test
+   void barToNetworkStillMovesDimensionsToSourceAndTarget() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Region"));
+      info.addGroupField(dimension("Category"));
+      info.addYField(aggregate("Sales", AggregateFormula.SUM));
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_NETWORK, info);
+
+      assertInstanceOf(RelationChartInfo.class, info);
+      RelationChartInfo relation = (RelationChartInfo) info;
+      assertNotNull(relation.getSourceField(), "a dimension must migrate to source");
+      assertNotNull(relation.getTargetField(), "a dimension must migrate to target");
+      assertNotNull(info.getSizeField(), "the leftover measure must land on the free size channel");
+      assertEquals("Sales", info.getSizeField().getDataRef().getName());
+   }
+
    private static ChartInfo changeType(int oldType, int newType, ChartInfo info) {
       return new ChangeChartTypeProcessor(oldType, newType, null, info).process();
+   }
+
+   private static ChartInfo ganttInfo(String start, String end, String milestone) {
+      GanttVSChartInfo info = new GanttVSChartInfo();
+      info.setStartField(dimension(start));
+      info.setEndField(dimension(end));
+      info.setMilestoneField(dimension(milestone));
+      return info;
+   }
+
+   private static String nameOrNull(AestheticRef aref) {
+      return aref == null ? null : aref.getDataRef().getName();
+   }
+
+   private static java.util.Set<String> allBoundNames(ChartInfo info) {
+      java.util.Set<String> names = new java.util.HashSet<>();
+
+      for(inetsoft.uql.viewsheet.VSDataRef field : info.getFields()) {
+         names.add(field.getName());
+      }
+
+      for(String name : new String[] {
+         nameOrNull(info.getColorField()), nameOrNull(info.getShapeField()),
+         nameOrNull(info.getSizeField()), nameOrNull(info.getTextField())
+      })
+      {
+         if(name != null) {
+            names.add(name);
+         }
+      }
+
+      return names;
    }
 
    private static VSChartDimensionRef dimension(String field) {
@@ -179,5 +495,11 @@ class ChangeChartTypeProcessorTest {
       agg.setFormula(formula);
       agg.setAggregated(true);
       return agg;
+   }
+
+   private static AestheticRef aestheticRef(inetsoft.uql.erm.DataRef dataRef) {
+      VSAestheticRef aref = new VSAestheticRef();
+      aref.setDataRef(dataRef);
+      return aref;
    }
 }

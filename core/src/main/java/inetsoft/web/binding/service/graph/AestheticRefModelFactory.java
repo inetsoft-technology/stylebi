@@ -43,8 +43,9 @@ public class AestheticRefModelFactory {
          return null;
       }
 
+      VisualFrameWrapper wrapper = aref.getVisualFrameWrapper();
       VisualFrameModel frameModel =
-         vFactoryService.createVisualFrameModel(aref.getVisualFrameWrapper());
+         wrapper == null ? null : vFactoryService.createVisualFrameModel(wrapper);
 
       // textfield is edited by set and gettextformat request,
       // don't need to send model for textframe.
@@ -81,15 +82,11 @@ public class AestheticRefModelFactory {
          ref.setDataRef(dataRef);
       }
 
-      VisualFrameWrapper wrapper = ref.getVisualFrameWrapper();
+      VisualFrameWrapper nwrapper =
+         vFactoryService.updateVisualFrameWrapper(ref.getVisualFrameWrapper(), model.getFrame());
 
-      if(wrapper != null) {
-         VisualFrameWrapper nwrapper =
-            vFactoryService.updateVisualFrameWrapper(wrapper, model.getFrame());
+      if(nwrapper != null) {
          ref.setVisualFrameWrapper(nwrapper);
-      }
-      else if(model.getFrame() != null) {
-         ref.setVisualFrame(model.getFrame().createVisualFrame());
       }
 
       return ref;
