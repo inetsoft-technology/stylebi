@@ -165,6 +165,13 @@ public class BindingReadService {
     * runtime x/y fields are populated. A measure missed by any of those keeps {@code 0}, and
     * reporting that against a stored {@code bar} would announce a render as {@code auto} that never
     * happened — the stale-read shape this pair of records exists to close, one level down.
+    *
+    * <p>Nor is there a second source to fall back on, though the model-building code looks like
+    * there is: {@code ChartAestheticService.loadVisualFrames} sets the runtime type from
+    * {@code bindable.getRTChartType()} and then overrides it from {@code getAggregateRtType}, which
+    * returns an empty map unless the chart has an applied date comparison. Outside that case the
+    * design-time ref is the only maintainer of this value, so the guard above carries the whole
+    * weight rather than backing up a second opinion.
     */
    private static FieldRef withTypes(FieldRef ref, ChartAestheticModel aesthetic) {
       int stored = aesthetic.getChartType();

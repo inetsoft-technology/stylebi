@@ -36,8 +36,15 @@ package inetsoft.web.wiz.binding.model;
  *
  * <p>{@code runtimeChartType} is reported alongside {@code chartType} rather than instead of it. A
  * read that returns only the stored value is how a caller ends up shown what it wrote while the
- * renderer used something else — {@code ChangeChartTypeProcessor} clears runtime types on a
- * per-ref write for exactly that reason, so the two genuinely diverge.
+ * renderer used something else, and the two do genuinely diverge: {@code updateFieldChartTypes}
+ * derives the runtime type from the stored one through
+ * {@code getRTChartType(ctype, xref, measure, mcount)}, which coerces it — the polar, stacked and
+ * merged rules — so a stored {@code bar} can render as something else without anything having
+ * rewritten it. (Not to be confused with the loop in {@code ChangeChartTypeProcessor.fixChartInfo}
+ * commented "clear rt charttype": that calls {@code setChartType(0)} on the objects in
+ * {@code getRTFields()}, clearing the design-time type on the runtime refs rather than any runtime
+ * type, and this read is built from the design-time fields, so it is not the mechanism at work
+ * here.)
  *
  * <p><b>It is null unless the assembly-level runtime type is actually maintained, and
  * {@code multiStyles} is what decides that.</b> Not {@code separated} — that is an independent
@@ -61,8 +68,15 @@ package inetsoft.web.wiz.binding.model;
  * branch runs and this value is whatever it last held. Since {@code != CHART_AUTO} rejects only
  * never-set, the honest reading of this field is that it describes a render once the chart has
  * produced one; there is no in-band way to ask "has this rendered", and an open, executed viewsheet
- * — which is what an agent session holds — populates those fields. The per-measure types on
- * {@link FieldRef#runtimeChartType()} are bounded the same way, for the same reason.
+ * — which is what an agent session holds — populates those fields.
+ *
+ * <p>The per-measure types on {@link FieldRef#runtimeChartType()} are bounded the same way, and
+ * more tightly than they look. {@code ChartAestheticService.loadVisualFrames} appears to give them
+ * two sources — {@code bindable.getRTChartType()} and an override from
+ * {@code getAggregateRtType} — but that override returns an empty map unless the chart has an
+ * applied date comparison, so outside that case it never fires. The design-time ref's own runtime
+ * type is therefore the single maintainer of the per-measure value, with no fallback behind it,
+ * which is why its own {@code CHART_AUTO} guard is not belt-and-braces either.
  *
  * <p>The types are the raw {@code GraphTypes} codes. Naming them is the plugin's job: the
  * code↔name vocabulary already exists in three copies on this side
