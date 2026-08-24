@@ -100,5 +100,8 @@ class ComposerGroupColumnsServiceTest {
       Exception thrown = assertThrows(MessageException.class,
          () -> service.group("runtime1", groupEvent(), "/", null, null));
       assertNotNull(thrown.getMessage());
+      // The message must resolve to real prose from the catalog, not fall back to the raw
+      // resource key (which happens silently when a key has no entry in srinter.properties).
+      assertNotEquals("composer.vs.group.namedGroupNotSupported", thrown.getMessage());
    }
 }
