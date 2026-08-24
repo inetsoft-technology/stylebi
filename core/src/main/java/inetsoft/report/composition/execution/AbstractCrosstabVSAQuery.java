@@ -1057,6 +1057,33 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          if(colname.equals(aggrs[i].getAttribute())) {
             return i;
          }
+
+         // getAttribute() above still isn't enough for a normal (non-cube) crosstab: its
+         // aggregates go through VSAggregateRef#update() with aalias=true (CrossBaseVSAssemblyInfo
+         // only ever passes false for a cube other than SQL Server Analysis Services), which --
+         // whenever the aggregate's full name differs from its bare column, i.e. any aggregate
+         // with a real formula -- wraps the resolved column in an AliasDataRef named after that
+         // full name (e.g. "Count(ORDER_ID)"). AbstractCrosstabVSAQuery#createAggregates() then
+         // rebuilds the runtime aggregate again for pivot-cell re-aggregation (aggregate-on-
+         // aggregate) and carries that same alias-wrapping ref forward as its data ref, while
+         // overwriting the new ref's own design-time column value with the query's computed
+         // column name too -- so neither getAttribute()/getName() (the alias) nor getColumnValue()
+         // (now also the alias, post-rebuild) ever reflect the bare source column. The alias'
+         // wrapped base ref is the only place that original bare name still lives.
+         DataRef aggDataRef = aggrs[i] instanceof VSAggregateRef ?
+            ((VSAggregateRef) aggrs[i]).getDataRef() : null;
+
+         if(aggDataRef instanceof ColumnRef) {
+            aggDataRef = ((ColumnRef) aggDataRef).getDataRef();
+         }
+
+         if(aggDataRef instanceof AliasDataRef) {
+            DataRef base = ((AliasDataRef) aggDataRef).getDataRef();
+
+            if(base != null && colname.equals(base.getAttribute())) {
+               return i;
+            }
+         }
       }
 
       return -1;
