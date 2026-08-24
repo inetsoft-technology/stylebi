@@ -19,6 +19,7 @@ package inetsoft.report.gui.viewsheet;
 
 import inetsoft.report.internal.Graphics2DWrapper;
 import inetsoft.report.io.viewsheet.ExportUtil;
+import inetsoft.report.io.viewsheet.ShapeShadowUtil;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
@@ -56,7 +57,17 @@ public abstract class VSFloatable extends VSObject {
       int w = size.width;
       int h = size.height;
 
-      if(isShadow()) {
+      // a shape's shadow is configurable and can be cast in any direction, so
+      // grow the canvas on whichever sides it actually falls on. text, image
+      // and gauge shadows are still the fixed 6px down-and-right.
+      Insets shadowInsets = ShapeShadowUtil.isShapeShadow(getAssemblyInfo())
+         ? ShapeShadowUtil.getScaledShadowInsets(getAssemblyInfo()) : null;
+
+      if(shadowInsets != null) {
+         w += shadowInsets.left + shadowInsets.right;
+         h += shadowInsets.top + shadowInsets.bottom;
+      }
+      else if(isShadow()) {
          w += 6;
          h += 6;
       }
@@ -73,6 +84,13 @@ public abstract class VSFloatable extends VSObject {
 
       if(!isHighDPI() && isExport) {
          g.scale(2, 2);
+      }
+
+      // shift the origin so the shape keeps its own position while the shadow
+      // occupies the margin that was just added. everything paint() draws --
+      // background, content and borders -- moves together.
+      if(shadowInsets != null) {
+         g.translate(shadowInsets.left, shadowInsets.top);
       }
 
       VSFloatable.isExport.set(isExport);

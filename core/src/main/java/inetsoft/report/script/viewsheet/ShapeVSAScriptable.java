@@ -19,6 +19,7 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.GradientColor;
+import inetsoft.uql.viewsheet.ShapeShadow;
 import inetsoft.uql.viewsheet.internal.ShapeVSAssemblyInfo;
 
 /**
@@ -75,6 +76,8 @@ public class ShapeVSAScriptable extends VSAScriptable {
                      GradientColor.class, getClass(), this);
          addProperty("shadow", "isShadow", "setShadow",
                      boolean.class, info.getClass(), info);
+         addProperty("shadowInfo", "getShadowInfo", "setShadowInfo",
+                     ShapeShadow.class, info.getClass(), info);
       }
 
       addProperty("lineStyle", "getLineStyle", "setLineStyle",

@@ -1994,6 +1994,21 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          size = (Dimension) newInfo[1];
       }
 
+      // a shape's shadow can fall outside the assembly's own bounds. this runs
+      // after the line branch above, which replaces position/size outright.
+      // excel anchors to the cell grid, so the offset lands on the nearest
+      // column or row boundary rather than exactly.
+      if(ShapeShadowUtil.isShapeShadow(info)) {
+         Insets insets = ShapeShadowUtil.getShadowInsets(info);
+         // clamp at the sheet edge without stretching the anchor: whatever the
+         // shift cannot take off the position comes off the size instead
+         int left = Math.min(insets.left, Math.max(0, position.x));
+         int top0 = Math.min(insets.top, Math.max(0, position.y));
+         position = new Point(position.x - left, position.y - top0);
+         size = new Dimension(size.width + left + insets.right,
+                              size.height + top0 + insets.bottom);
+      }
+
       Point top = new Point();
       Point bottom = new Point();
       position.y = Math.max(position.y, 0);

@@ -79,8 +79,7 @@ public class RectanglePropertyDialogService {
       basicGeneralPaneModel.setName(rectangleAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setVisible(rectangleAssemblyInfo.getVisibleValue());
       basicGeneralPaneModel.setPrimary(rectangleAssemblyInfo.isPrimary());
-      basicGeneralPaneModel.setShowShadowCheckbox(true);
-      basicGeneralPaneModel.setShadow(rectangleAssemblyInfo.getShadowValue());
+      basicGeneralPaneModel.setShowShadowCheckbox(false);
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(vs, rectangleAssemblyInfo.getAbsoluteName()));
 
       Point pos = dialogService.getAssemblyPosition(rectangleAssemblyInfo, vs);
@@ -130,6 +129,15 @@ public class RectanglePropertyDialogService {
          fillPropPaneModel.setGradientColor(gradientColor);
       }
 
+      ShadowPropPaneModel shadowPropPaneModel = rectanglePropertyPaneModel.getShadowPropPaneModel();
+      ShapeShadow shadow0 = rectangleAssemblyInfo.getShadowInfo();
+      shadowPropPaneModel.setApply(rectangleAssemblyInfo.getShadowValue());
+      shadowPropPaneModel.setColor(shadow0.getColor());
+      shadowPropPaneModel.setAlpha(shadow0.getAlpha());
+      shadowPropPaneModel.setDirection(shadow0.getDirection());
+      shadowPropPaneModel.setDistance(shadow0.getDistance());
+      shadowPropPaneModel.setBlur(shadow0.getBlur());
+
       vsAssemblyScriptPaneModel.scriptEnabled(rectangleAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(rectangleAssemblyInfo.getScript() == null ?
                                               "" : rectangleAssemblyInfo.getScript());
@@ -169,7 +177,15 @@ public class RectanglePropertyDialogService {
 
       rectangleAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
       rectangleAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
-      rectangleAssemblyInfo.setShadowValue(basicGeneralPaneModel.isShadow());
+      ShadowPropPaneModel shadowPropPaneModel = rectanglePropertyPaneModel.getShadowPropPaneModel();
+      rectangleAssemblyInfo.setShadowValue(shadowPropPaneModel.isApply());
+      ShapeShadow shadow0 = new ShapeShadow();
+      shadow0.setColor(shadowPropPaneModel.getColor());
+      shadow0.setAlpha(shadowPropPaneModel.getAlpha());
+      shadow0.setDirection(shadowPropPaneModel.getDirection());
+      shadow0.setDistance(shadowPropPaneModel.getDistance());
+      shadow0.setBlur(shadowPropPaneModel.getBlur());
+      rectangleAssemblyInfo.setShadowInfo(shadow0);
 
       dialogService.setAssemblySize(rectangleAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(rectangleAssemblyInfo, sizePositionPaneModel);

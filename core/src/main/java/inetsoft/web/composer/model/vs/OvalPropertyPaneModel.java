@@ -51,14 +51,30 @@ public class OvalPropertyPaneModel implements Serializable {
       this.fillPropPaneModel = fillPropPaneModel;
    }
 
+   public ShadowPropPaneModel getShadowPropPaneModel() {
+      if(shadowPropPaneModel == null) {
+         shadowPropPaneModel = new ShadowPropPaneModel();
+      }
+
+      return shadowPropPaneModel;
+   }
+
+   public void setShadowPropPaneModel(
+      ShadowPropPaneModel shadowPropPaneModel)
+   {
+      this.shadowPropPaneModel = shadowPropPaneModel;
+   }
+
    @Override
    public String toString() {
       return "OvalPropertyPaneModel{" +
          "linePropPaneModel=" + linePropPaneModel +
          ", fillPropPaneModel=" + fillPropPaneModel +
+         ", shadowPropPaneModel=" + shadowPropPaneModel +
          '}';
    }
 
    private LinePropPaneModel linePropPaneModel;
    private FillPropPaneModel fillPropPaneModel;
+   private ShadowPropPaneModel shadowPropPaneModel;
 }
