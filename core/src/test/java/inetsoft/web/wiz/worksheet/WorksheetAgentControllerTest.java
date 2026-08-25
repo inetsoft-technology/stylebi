@@ -421,6 +421,114 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Confirms {@code crosstab} on a {@code set_group_aggregate} {@link EditRequest} reaches
+    * {@link AggregateInfo#isCrosstab} through the controller's dispatch switch, not just at the
+    * {@code WorksheetEditService.Editor} layer already covered by
+    * {@code WorksheetEditServiceMutatorsTest#setGroupAggregateCrosstabTogglesAggregateInfo}.
+    */
+   @Test
+   void editDispatchesSetGroupAggregateWithCrosstab() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = session("TOK-XTAB");
+      when(sessions.resolve(eq("TOK-XTAB"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      List<WorksheetMutationSupport.GroupSpec> groups = List.of(
+         new WorksheetMutationSupport.GroupSpec("cust", null),
+         new WorksheetMutationSupport.GroupSpec("store", null));
+      List<WorksheetMutationSupport.AggregateSpec> aggregates = List.of(
+         new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null));
+
+      EditRequest req = new EditRequest(
+         "set_group_aggregate", // op
+         "T",                   // table
+         null,                  // column
+         null,                  // name
+         null,                  // type
+         null,                  // newName
+         null,                  // field
+         null,                  // operation
+         null,                  // values
+         null,                  // direction
+         groups,                // groups
+         aggregates,            // aggregates
+         null,                  // expression
+         false,                 // sql
+         null,                  // leftTable
+         null,                  // leftKey
+         null,                  // rightTable
+         null,                  // rightKey
+         null,                  // joinType
+         null,                  // visible
+         null,                  // tables
+         null,                  // source
+         null,                  // concatType
+         null,                  // conditions
+         null,                  // ranking
+         null,                  // headerColumns
+         null,                  // dateOption
+         null,                  // boundaries
+         null,                  // datasource
+         null,                  // schema
+         null,                  // catalog
+         null,                  // logicalModel
+         null,                  // leftKeys
+         null,                  // rightKeys
+         null,                  // row
+         null,                  // col
+         null,                  // value
+         null,                  // index
+         null,                  // alias
+         null,                  // description
+         null,                  // maxRows
+         null,                  // distinct
+         null,                  // columnOrder
+         null,                  // groupMappings
+         null,                  // groupOthers
+         null,                  // variableValues
+         null,                  // x
+         null,                  // y
+         null,                  // label
+         null,                  // defaultValue
+         null,                  // mode
+         null,                  // insert
+         null,                  // subtables
+         null,                  // sourceTable
+         null,                  // attribute
+         null,                  // endpoint
+         null,                  // parameters
+         null,                  // lookup
+         null,                  // lookupExpandArrays
+         null,                  // lookupTopLevelOnly
+         null,                  // suffix
+         null,                  // customLookups
+         true                   // crosstab
+      );
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-XTAB", req, agent);
+
+      assertTrue(t.getAggregateInfo().isCrosstab(),
+                 "crosstab on the EditRequest should reach AggregateInfo through the controller");
+   }
+
+   /**
     * The snapshot guard for {@code insert_column}, pinned here rather than in
     * {@code WorksheetEditServiceMutatorsTest} because this op is the one that does not live in
     * the {@code Editor}: it manipulates {@link inetsoft.uql.util.XEmbeddedTable} directly from
