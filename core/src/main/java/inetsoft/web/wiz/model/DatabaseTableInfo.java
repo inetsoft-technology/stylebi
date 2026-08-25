@@ -20,6 +20,8 @@ package inetsoft.web.wiz.model;
 
 import inetsoft.uql.asset.AssetEntry;
 
+import java.util.List;
+
 public class DatabaseTableInfo {
    public String getType() {
       return type;
@@ -69,10 +71,19 @@ public class DatabaseTableInfo {
       this.assetData = assetData;
    }
 
+   public List<String> getPrimaryKeyColumns() {
+      return primaryKeyColumns;
+   }
+
+   public void setPrimaryKeyColumns(List<String> primaryKeyColumns) {
+      this.primaryKeyColumns = primaryKeyColumns;
+   }
+
    private String type;
    private String database;
    private String catalog;
    private String schema;
    private String table;
    private AssetEntry assetData;
+   private List<String> primaryKeyColumns;
 }

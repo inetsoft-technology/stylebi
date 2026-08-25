@@ -185,6 +185,9 @@ public class WorksheetTable {
       private String expandedPath;
       private Integer maxRows;
       private Integer sampleRows;
+      private List<String> lookup;
+      private Boolean lookupExpandArrays;
+      private Boolean lookupTopLevelOnly;
 
       /** Full repository path of the connector INSTANCE, e.g. "SaaS/Stripe Prod". */
       public String getDatasourcePath() { return datasourcePath; }
@@ -291,6 +294,36 @@ public class WorksheetTable {
        */
       public Integer getSampleRows() { return sampleRows; }
       public void setSampleRows(Integer sampleRows) { this.sampleRows = sampleRows; }
+
+      /**
+       * Ordered "Join With" lookup chain to graft onto the endpoint named by {@link #getTarget()}
+       * (only meaningful for {@code targetKind == "endpoint"}), one pre-built connector lookup
+       * name per nesting level, e.g. {@code ["Issue Event"]}, or
+       * {@code ["Repositories", "Contributors"]} for a two-level chain. Each name must be one of
+       * the CURRENT position's valid choices, which the connector's own endpoint catalogue
+       * declares. Max depth 5.
+       */
+      public List<String> getLookup() { return lookup; }
+      public void setLookup(List<String> lookup) { this.lookup = lookup; }
+
+      /**
+       * Only meaningful with {@link #getLookup()}: whether the LAST lookup's matched array
+       * expands into extra rows. Null keeps the connector's own default ({@code true}).
+       */
+      public Boolean getLookupExpandArrays() { return lookupExpandArrays; }
+      public void setLookupExpandArrays(Boolean lookupExpandArrays) {
+         this.lookupExpandArrays = lookupExpandArrays;
+      }
+
+      /**
+       * Only meaningful with {@link #getLookup()} and {@link #getLookupExpandArrays()}: whether
+       * only the top-level array is expanded. Null keeps the connector's own default
+       * ({@code true}).
+       */
+      public Boolean getLookupTopLevelOnly() { return lookupTopLevelOnly; }
+      public void setLookupTopLevelOnly(Boolean lookupTopLevelOnly) {
+         this.lookupTopLevelOnly = lookupTopLevelOnly;
+      }
    }
 
    // ─── Nested: column info ─────────────────────────────────────────────────
