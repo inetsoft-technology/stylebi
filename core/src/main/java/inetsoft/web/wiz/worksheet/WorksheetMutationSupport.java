@@ -250,21 +250,18 @@ public final class WorksheetMutationSupport {
    // =========================================================================
 
    /**
-    * Builds a simple equality pre-condition and appends it (AND-joined) to the
-    * table's existing pre-condition list.
+    * Builds a pre-condition and appends it (AND-joined) to the table's existing
+    * pre-condition list.
     *
-    * <p>Only a single {@code operation} string is currently recognised:
-    * <ul>
-    *   <li>{@code "="} or {@code "EQUAL_TO"} — equality (default)</li>
-    *   <li>{@code "!="} or {@code "NOT_EQUAL_TO"} — not-equal</li>
-    *   <li>{@code "<"} or {@code "LESS_THAN"} — less-than</li>
-    *   <li>{@code ">"} or {@code "GREATER_THAN"} — greater-than</li>
-    * </ul>
-    * Unrecognised strings fall back to equality.</p>
+    * <p>{@link #parseOperation} owns the operator vocabulary and is the single place it is
+    * written down -- deliberately not restated here, since the copy that used to live in this
+    * javadoc listed four of the fifteen forms and said unrecognised strings fell back to
+    * equality, which is the defect parseOperation now refuses. An <i>absent</i> operator still
+    * means equality; a supplied one that is not recognised throws.</p>
     *
     * @param t         the table assembly to mutate
     * @param field     the column name to filter on
-    * @param operation the comparison operator (see above)
+    * @param operation the comparison operator; see {@link #parseOperation} for the accepted forms
     * @param values    one or more literal string values
     */
    public static void addFilter(TableAssembly t, String field,
