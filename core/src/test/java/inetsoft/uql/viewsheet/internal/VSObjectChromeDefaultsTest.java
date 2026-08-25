@@ -206,7 +206,7 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void cardCornerRadiusConstant() {
-      assertEquals(12, VSObjectChromeDefaults.cardCornerRadius());
+      assertEquals(6, VSObjectChromeDefaults.cardCornerRadius());
    }
 
    private int seededRadius(VSAssemblyInfo info) {
@@ -217,15 +217,17 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void cardCornerSeededForDataAndSelectionTypesUnderGate() {
+      int card = VSObjectChromeDefaults.cardCornerRadius();
+
       withGate("true", () -> {
-         assertEquals(12, seededRadius(new ChartVSAssemblyInfo()), "chart");
-         assertEquals(12, seededRadius(new TableVSAssemblyInfo()), "table");
-         assertEquals(12, seededRadius(new CrosstabVSAssemblyInfo()), "crosstab");
-         assertEquals(12, seededRadius(new CalcTableVSAssemblyInfo()), "calc table");
-         assertEquals(12, seededRadius(new EmbeddedTableVSAssemblyInfo()), "embedded table");
-         assertEquals(12, seededRadius(new SelectionListVSAssemblyInfo()), "selection list");
-         assertEquals(12, seededRadius(new SelectionTreeVSAssemblyInfo()), "selection tree");
-         assertEquals(12, seededRadius(new CurrentSelectionVSAssemblyInfo()), "current selection");
+         assertEquals(card, seededRadius(new ChartVSAssemblyInfo()), "chart");
+         assertEquals(card, seededRadius(new TableVSAssemblyInfo()), "table");
+         assertEquals(card, seededRadius(new CrosstabVSAssemblyInfo()), "crosstab");
+         assertEquals(card, seededRadius(new CalcTableVSAssemblyInfo()), "calc table");
+         assertEquals(card, seededRadius(new EmbeddedTableVSAssemblyInfo()), "embedded table");
+         assertEquals(card, seededRadius(new SelectionListVSAssemblyInfo()), "selection list");
+         assertEquals(card, seededRadius(new SelectionTreeVSAssemblyInfo()), "selection tree");
+         assertEquals(card, seededRadius(new CurrentSelectionVSAssemblyInfo()), "current selection");
       });
    }
 
@@ -264,12 +266,14 @@ class VSObjectChromeDefaultsTest {
    @Test
    void cardCornerSeedSurvivesTheGateTurningOff() {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      int card = VSObjectChromeDefaults.cardCornerRadius();
+
       withGate("true", () -> {
          info.setVizMark(VizMark.fromGate());
          info.initDefaultFormat();
       });
-      withGate("true", () -> assertEquals(12, info.getFormat().getRoundCorner(), "rounded while on"));
-      withGate("false", () -> assertEquals(12, info.getFormat().getRoundCorner(),
+      withGate("true", () -> assertEquals(card, info.getFormat().getRoundCorner(), "rounded while on"));
+      withGate("false", () -> assertEquals(card, info.getFormat().getRoundCorner(),
                                            "a seeded card keeps its radius; Revert is the only "
                                               + "route back to square"));
    }

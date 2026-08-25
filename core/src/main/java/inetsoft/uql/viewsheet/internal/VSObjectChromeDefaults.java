@@ -54,7 +54,7 @@ public final class VSObjectChromeDefaults {
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
-   /** Object-card corner radius default, in pixels. Matches the annotation-rectangle radius. */
+   /** Object-card corner radius default, in pixels; the top step of the DOM radius scale. */
    public static int cardCornerRadius() {
       return CARD_CORNER_RADIUS;
    }
@@ -103,6 +103,6 @@ public final class VSObjectChromeDefaults {
    // dark object text = strong light neutral (matches table body / calendar text)
    private static final Color TEXT_FG_DARK = new Color(0xE6E0E9);
 
-   // modern object-card corner radius, px; = the annotation-rectangle radius
-   private static final int CARD_CORNER_RADIUS = 12;
+   // modern object-card corner radius, px; = --inet-radius-xl, the DOM scale's top step
+   private static final int CARD_CORNER_RADIUS = 6;
 }
