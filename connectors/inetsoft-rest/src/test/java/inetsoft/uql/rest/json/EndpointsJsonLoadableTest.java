@@ -92,8 +92,13 @@ class EndpointsJsonLoadableTest {
          // method reads SreeEnv, which needs a Spring context this test has no reason to stand up,
          // and it converts the very failure being hunted here into an empty map. Reading directly
          // lets the exception surface with the offending property named.
-         try(InputStream input = Files.newInputStream(file)) {
-            Object parsed = mapper.readValue(input, endpointsClass);
+         try {
+            // Read once and bound twice from the same bytes: the strict binding below and the raw
+            // count share the file, but not the parse -- they target different types, and routing the
+            // strict one through a JsonNode would change the very input path this test exists to
+            // exercise.
+            byte[] source = Files.readAllBytes(file);
+            Object parsed = mapper.readValue(source, endpointsClass);
             @SuppressWarnings("rawtypes")
             List list = ((EndpointJsonQuery.Endpoints) parsed).getEndpoints();
 
@@ -101,7 +106,7 @@ class EndpointsJsonLoadableTest {
                failures.add(connector + ": parsed but declares no endpoints");
             }
 
-            declaredResponseSchemas += countDeclaredResponseSchemas(file);
+            declaredResponseSchemas += countDeclaredResponseSchemas(mapper, source);
 
             if(list != null) {
                for(Object endpoint : list) {
@@ -169,15 +174,16 @@ class EndpointsJsonLoadableTest {
       for(Path file : files) {
          String connector = file.getParent().getFileName().toString();
 
-         try(InputStream input = Files.newInputStream(file)) {
-            WizEndpointCatalog catalog = mapper.readValue(input, WizEndpointCatalog.class);
+         try {
+            byte[] source = Files.readAllBytes(file);
+            WizEndpointCatalog catalog = mapper.readValue(source, WizEndpointCatalog.class);
 
             if(catalog.endpoints() == null || catalog.endpoints().isEmpty()) {
                failures.add(connector + ": parsed but declares no endpoints");
                continue;
             }
 
-            int declaredHere = countDeclaredResponseSchemas(file);
+            int declaredHere = countDeclaredResponseSchemas(mapper, source);
             declaredResponseSchemas += declaredHere;
 
             if("stripe".equals(connector)) {
@@ -302,9 +308,14 @@ class EndpointsJsonLoadableTest {
     * <p>Read straight off the JSON tree rather than off either bound model, because it is the
     * baseline both bindings are checked against: a count taken from a bound object could only ever
     * agree with itself.</p>
+    *
+    * <p>Takes the caller's mapper and the already-read bytes rather than opening the file again with
+    * a mapper of its own. {@code readTree} does no bean binding, so the strictness that separates the
+    * two callers' mappers cannot affect this count — which is what makes a third mapper here pure
+    * duplication.</p>
     */
-   private int countDeclaredResponseSchemas(Path file) throws IOException {
-      JsonNode root = RAW_MAPPER.readTree(file.toFile());
+   private int countDeclaredResponseSchemas(ObjectMapper mapper, byte[] source) throws IOException {
+      JsonNode root = mapper.readTree(source);
       JsonNode endpoints = root.path("endpoints");
       int declared = 0;
 
@@ -362,7 +373,5 @@ class EndpointsJsonLoadableTest {
       return null;
    }
 
-   /** Plain mapper used only to count declarations off the raw JSON. */
-   private static final ObjectMapper RAW_MAPPER = new ObjectMapper();
    private static final String DATASOURCE_PACKAGE = "/inetsoft/uql/rest/datasource";
 }
