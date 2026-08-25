@@ -100,6 +100,7 @@ class CalcTableServiceTest {
       info.setType(CellBinding.BIND_COLUMN);
       info.setBtype(CellBinding.GROUP);
       info.setExpansion(GroupableCellBinding.EXPAND_V);
+      info.setRuntimeName("SomeName");
       when(h.layoutService.getCellBindingInfo(any(), eq(1), eq(0))).thenReturn(info);
 
       Map<String, Object> read = h.service.readCell("tok", principal(), "Calc1", 1, 0);
@@ -109,6 +110,7 @@ class CalcTableServiceTest {
       assertEquals("column", binding.get("content"));
       assertEquals("group", binding.get("grouping"));
       assertEquals("vertical", binding.get("expand"));
+      assertEquals("SomeName", binding.get("runtimeName"));
    }
 
    @Test
