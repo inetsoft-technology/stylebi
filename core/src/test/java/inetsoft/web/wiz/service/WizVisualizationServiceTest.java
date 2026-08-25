@@ -34,9 +34,11 @@ import inetsoft.util.MessageException;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.model.WizFolderSaveResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
+import inetsoft.web.wiz.request.WizFolderCreateRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -160,6 +162,102 @@ class WizVisualizationServiceTest {
          any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class));
       verify(viewsheetService).setViewsheet(
          any(Viewsheet.class), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+   }
+
+   // ── createVisualizationFolder ─────────────────────────────────────────────────
+
+   @Test
+   void createFolderRejectsBlankName() throws Exception {
+      WizVisualizationService service = createService(mock(ViewsheetService.class), mock(AssetRepository.class));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.createVisualizationFolder(
+                      new WizFolderCreateRequest(null, "  "), mock(Principal.class)));
+   }
+
+   @Test
+   void createFolderRejectsNameWithPathSeparator() throws Exception {
+      WizVisualizationService service = createService(mock(ViewsheetService.class), mock(AssetRepository.class));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.createVisualizationFolder(
+                      new WizFolderCreateRequest(null, "a/b"), mock(Principal.class)));
+   }
+
+   @Test
+   void createFolderRejectsParentPathOutsideManagedFolder() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.createVisualizationFolder(
+                      new WizFolderCreateRequest("some/unmanaged/folder", "Sales"), mock(Principal.class)));
+
+      // The folder-scope check must happen before any asset is touched.
+      verifyNoInteractions(assetRepository);
+   }
+
+   @Test
+   void createFolderDefaultsBlankParentPathToTheManagedRoot() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      when(assetRepository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      WizFolderSaveResult result = service.createVisualizationFolder(
+         new WizFolderCreateRequest(null, "Sales"), mock(Principal.class));
+
+      String expectedPath = WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/Sales";
+      assertTrue(result.ok());
+      assertEquals(expectedPath, result.path());
+      verify(assetRepository).addFolder(
+         argThat(e -> expectedPath.equals(e.getPath())), any(Principal.class));
+   }
+
+   @Test
+   void createFolderChecksWritePermissionOnTheParent() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      when(assetRepository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      String parentPath = WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/Region";
+      Principal principal = mock(Principal.class);
+      service.createVisualizationFolder(new WizFolderCreateRequest(parentPath, "Sales"), principal);
+
+      verify(assetRepository).checkAssetPermission(
+         eq(principal), argThat(e -> parentPath.equals(e.getPath())), eq(ResourceAction.WRITE));
+   }
+
+   @Test
+   void createFolderPropagatesPermissionDenial() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      doThrow(new MessageException("Write access denied"))
+         .when(assetRepository).checkAssetPermission(
+            any(Principal.class), any(AssetEntry.class), eq(ResourceAction.WRITE));
+
+      assertThrows(MessageException.class,
+                   () -> service.createVisualizationFolder(
+                      new WizFolderCreateRequest(null, "Sales"), mock(Principal.class)));
+
+      verify(assetRepository, never()).addFolder(any(AssetEntry.class), any(Principal.class));
+   }
+
+   @Test
+   void createFolderReturnsDuplicateNameWithoutCallingAddFolder() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      when(assetRepository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      WizFolderSaveResult result = service.createVisualizationFolder(
+         new WizFolderCreateRequest(null, "Sales"), mock(Principal.class));
+
+      assertFalse(result.ok());
+      assertEquals(WizFolderSaveResult.DUPLICATE_NAME, result.reason());
+      verify(assetRepository, never()).addFolder(any(AssetEntry.class), any(Principal.class));
    }
 
    // ── renderVisualization: guard + permission branches ─────────────────────────

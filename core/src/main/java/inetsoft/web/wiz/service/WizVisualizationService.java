@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -36,10 +37,12 @@ import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.model.WizFolderSaveResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
+import inetsoft.web.wiz.request.WizFolderCreateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -432,6 +435,52 @@ public class WizVisualizationService {
       }
 
       return result;
+   }
+
+   /**
+    * Creates a real folder under {@link #VISUALIZATION_COMPONENTS_FOLDER_PATH} immediately —
+    * unlike {@link #saveVisualization}'s {@code targetFolderPath}, which only creates the target
+    * folder as a side effect of writing a viewsheet into it, this is the folder's entire job.
+    * Mirrors {@code WizDatabaseController#createFolder}'s shape (advisory duplicate check, then
+    * create), reusing the same {@link WizFolderCreateRequest}/{@link WizFolderSaveResult} pair.
+    */
+   public WizFolderSaveResult createVisualizationFolder(WizFolderCreateRequest request, Principal principal)
+      throws Exception
+   {
+      if(request == null || Tool.isEmptyString(request.name())) {
+         throw new IllegalArgumentException("name is required");
+      }
+
+      String name = SUtil.removeControlChars(request.name().trim());
+
+      if(name.isEmpty() || name.contains("/") || ".".equals(name) || "..".equals(name)) {
+         throw new IllegalArgumentException("name must be a single path segment");
+      }
+
+      String parentPath = Tool.isEmptyString(request.parentPath())
+         ? VISUALIZATION_COMPONENTS_FOLDER_PATH : request.parentPath();
+
+      if(!parentPath.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
+         throw new IllegalArgumentException(
+            "parentPath must be under the visualization components folder");
+      }
+
+      AssetEntry parentEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, parentPath, null);
+      assetRepository.checkAssetPermission(principal, parentEntry, ResourceAction.WRITE);
+
+      String path = parentPath + "/" + name;
+      AssetEntry newEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, path, null);
+
+      // Advisory, not atomic with the addFolder call below — the same race every other wiz
+      // create-folder endpoint (e.g. WizDatabaseController#createFolder) already accepts.
+      if(assetRepository.containsEntry(newEntry)) {
+         return WizFolderSaveResult.failed(WizFolderSaveResult.DUPLICATE_NAME);
+      }
+
+      assetRepository.addFolder(newEntry, principal);
+      return WizFolderSaveResult.ok(path);
    }
 
    /**

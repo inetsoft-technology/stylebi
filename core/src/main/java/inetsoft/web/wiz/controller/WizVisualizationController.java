@@ -22,10 +22,12 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.model.WizDashboardEvent;
 import inetsoft.web.wiz.model.WizDashboardResult;
+import inetsoft.web.wiz.model.WizFolderSaveResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
+import inetsoft.web.wiz.request.WizFolderCreateRequest;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.WizDashboardService;
 import inetsoft.web.wiz.service.WizVisualizationService;
@@ -76,6 +78,31 @@ public class WizVisualizationController {
       }
       catch(Exception e) {
          LOG.error("Failed to save visualization", e);
+         return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
+      }
+   }
+
+   /**
+    * Creates a real folder under "Visualization Components" immediately, so the WIZ Save
+    * dialog's "New Folder" action behaves like a normal file manager: the folder exists on the
+    * server as soon as it is created, even if the dialog is closed before anything is ever saved
+    * into it. Unlike {@link #saveVisualization}, whose {@code targetFolderPath} only creates the
+    * folder as a side effect of writing a viewsheet there, this endpoint's only job is the
+    * folder itself.
+    */
+   @PostMapping(value = "/folders/create", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> createFolder(
+      @RequestBody WizFolderCreateRequest request, Principal principal)
+   {
+      try {
+         WizFolderSaveResult result = wizVisualizationService.createVisualizationFolder(request, principal);
+         return ResponseEntity.ok(result);
+      }
+      catch(IllegalArgumentException e) {
+         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to create visualization folder", e);
          return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
    }
