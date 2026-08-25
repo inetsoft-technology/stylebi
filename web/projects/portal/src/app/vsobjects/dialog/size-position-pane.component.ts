@@ -37,6 +37,8 @@ export class SizePositionPane implements OnInit {
    @Input() showScaleVertical: boolean = false;
    showCellHeight: boolean;
    showTitleHeight: boolean;
+   showTitleHeightFollow: boolean;
+   showCellHeightFollow: boolean;
    _titleHeightEnable: boolean = true;
 
    @Input() set titleHeightEnable(enable: boolean) {
@@ -46,12 +48,8 @@ export class SizePositionPane implements OnInit {
          return;
       }
 
-      if(enable) {
-         this.form.controls["titleHeight"].enable();
-      }
-      else {
-         this.form.controls["titleHeight"].disable();
-      }
+      // a control following the density default stays disabled whatever this input says
+      this.setEnabled("titleHeight", enable && this.model.titleHeightFollowsDensity !== true);
    }
 
    get titleHeightEnable() {
@@ -86,7 +84,8 @@ export class SizePositionPane implements OnInit {
 
       if(this.showTitleHeight) {
          this.form.addControl("titleHeight", new UntypedFormControl(
-            {value: this.model.titleHeight, disabled: !this.titleHeightEnable}, [
+            {value: this.model.titleHeight,
+             disabled: !this.titleHeightEnable || this.model.titleHeightFollowsDensity === true}, [
             Validators.required,
             FormValidators.isInteger(),
             FormValidators.positiveNonZeroIntegerInRange
@@ -94,7 +93,9 @@ export class SizePositionPane implements OnInit {
       }
 
       if(this.showCellHeight) {
-         this.form.addControl("cellHeight", new UntypedFormControl(this.model.cellHeight, [
+         this.form.addControl("cellHeight", new UntypedFormControl(
+            {value: this.model.cellHeight,
+             disabled: this.model.cellHeightFollowsDensity === true}, [
             Validators.required,
             FormValidators.isInteger(),
             FormValidators.positiveNonZeroIntegerInRange
@@ -107,9 +108,36 @@ export class SizePositionPane implements OnInit {
       }
    }
 
+   titleHeightFollowChanged(follows: boolean): void {
+      this.model.titleHeightFollowsDensity = follows;
+      this.setEnabled("titleHeight", !follows && this.titleHeightEnable);
+   }
+
+   cellHeightFollowChanged(follows: boolean): void {
+      this.model.cellHeightFollowsDensity = follows;
+      this.setEnabled("cellHeight", !follows);
+   }
+
+   private setEnabled(name: string, enabled: boolean): void {
+      const control = this.form.controls[name];
+
+      if(!control) {
+         return;
+      }
+
+      if(enabled) {
+         control.enable();
+      }
+      else {
+         control.disable();
+      }
+   }
+
    ngOnInit(): void {
       this.showCellHeight = !!this.model.cellHeight;
       this.showTitleHeight = !!this.model.titleHeight;
+      this.showTitleHeightFollow = this.model.titleHeightFollowsDensity != null;
+      this.showCellHeightFollow = this.model.cellHeightFollowsDensity != null;
       this.initForm();
    }
 

@@ -102,9 +102,10 @@ public interface TitledVSAssemblyInfo {
    public void setTitleHeightValue(int value);
 
    /**
-    * Get the default title height for this assembly type.
+    * The assembly type's title height before any density row applies. AssetUtil.defh for every
+    * type except the calendar, whose lane has always been taller.
     */
-   default int getDefaultTitleHeight() {
+   default int getLegacyTitleHeight() {
       return AssetUtil.defh;
    }
 

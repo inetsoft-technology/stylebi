@@ -99,7 +99,11 @@ public class CalendarPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(calendarAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(calendarAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(calendarAssemblyInfo, calendarAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         calendarAssemblyInfo.getVizMark() == null ? null :
+            !calendarAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(calendarAssembly.getContainer() != null);
 
       generalPropPaneModel.setShowEnabledGroup(true);
@@ -233,7 +237,19 @@ public class CalendarPropertyDialogService {
 
       dialogService.setAssemblySize(info, sizePositionPaneModel);
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
-      if(sizePositionPaneModel.getTitleHeight() != info.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != info.getTitleHeightValue()) {
+            info.setUserTitleHeight(true);
+            info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         info.setUserTitleHeight(false);
+         info.setTitleHeightValue(info.getLegacyTitleHeight());
+      }
+      else {
          info.setUserTitleHeight(true);
          info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }

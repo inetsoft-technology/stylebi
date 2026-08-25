@@ -111,7 +111,10 @@ public class TableViewPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(tableAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(tableAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(tableAssemblyInfo, tableAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         tableAssemblyInfo.getVizMark() == null ? null : !tableAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(tableAssembly.getContainer() != null);
 
       boolean embeddedSource = this.vsObjectPropertyService.isEmbeddedEnabled(rvs, tableAssemblyInfo);
@@ -202,7 +205,19 @@ public class TableViewPropertyDialogService {
 
       dialogService.setAssemblySize(tableAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(tableAssemblyInfo, sizePositionPaneModel);
-      if(sizePositionPaneModel.getTitleHeight() != tableAssemblyInfo.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != tableAssemblyInfo.getTitleHeightValue()) {
+            tableAssemblyInfo.setUserTitleHeight(true);
+            tableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         tableAssemblyInfo.setUserTitleHeight(false);
+         tableAssemblyInfo.setTitleHeightValue(tableAssemblyInfo.getLegacyTitleHeight());
+      }
+      else {
          tableAssemblyInfo.setUserTitleHeight(true);
          tableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }
