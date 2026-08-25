@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
@@ -58,7 +59,7 @@ class DateComparisonServiceTest {
 
    private static DateComparisonService.Comparison comparison(String endDate, boolean endToday) {
       return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null,
-                                                  null);
+                                                  null, null);
    }
 
    /**
@@ -96,7 +97,78 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison facetOnly() {
-      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null);
+      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null,
+                                                  null);
+   }
+
+   private static DateComparisonService.Comparison comparisonOption(String comparisonOption) {
+      return new DateComparisonService.Comparison(null, null, null, false, null, null, null,
+                                                  comparisonOption, null);
+   }
+
+   // ── comparisonOption ──────────────────────────────────────────────────────
+
+   @Test
+   void setsComparisonOptionForEachToken() throws Exception {
+      Map<String, Integer> tokens = Map.of(
+         "value", Calculator.VALUE, "change", Calculator.CHANGE, "percentChange", Calculator.PERCENT);
+
+      for(Map.Entry<String, Integer> entry : tokens.entrySet()) {
+         DateComparisonPaneModel model = model();
+         harness(model).service.set("tok", principal(), "Chart1", comparisonOption(entry.getKey()),
+                                    "");
+
+         assertEquals(entry.getValue().intValue(), model.getComparisonOption(),
+                      entry.getKey() + " should map to " + entry.getValue());
+      }
+   }
+
+   @Test
+   void refusesAnUnrecognizedComparisonOption() {
+      Harness h = harness(model());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparisonOption("percent"), ""));
+
+      assertTrue(thrown.getMessage().contains("comparisonOption"), thrown.getMessage());
+   }
+
+   @Test
+   void leavesComparisonOptionUntouchedWhenNotMentioned() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.CHANGE);
+
+      harness(model).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertEquals(Calculator.CHANGE, model.getComparisonOption(),
+                  "a call that omits comparisonOption must not reset it");
+   }
+
+   @Test
+   void readsComparisonOptionAsAName() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.PERCENT);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertEquals("percentChange", read.get("comparisonOption"));
+   }
+
+   /**
+    * Not reachable through {@code apply()} — {@link Calculator}'s other constants never end up
+    * on a date-comparison model in practice. Confirms the invariant explicitly rather than
+    * leaving it implicit: no raw magic number reaches the caller, even for an option this
+    * vocabulary does not name.
+    */
+   @Test
+   void readsAnOutOfVocabularyComparisonOptionAsNullRatherThanARawInt() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.CUSTOM);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertNull(read.get("comparisonOption"));
    }
 
    // ── the recorded defect ───────────────────────────────────────────────────
@@ -164,7 +236,7 @@ class DateComparisonServiceTest {
       assertThrows(IllegalArgumentException.class,
                    () -> DateComparisonService.requireEndAnchor(
                       new DateComparisonService.Comparison(0, "year", null, true, null, null,
-                                                           null, null)));
+                                                           null, null, null)));
    }
 
    @Test
