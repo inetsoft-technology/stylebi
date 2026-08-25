@@ -269,7 +269,7 @@ public class LogSettingService {
             "log.fluentd.security.userAuthenticationEnabled",
             Boolean.toString(model.userAuthenticationEnabled()));
          SreeEnv.setProperty("log.fluentd.security.username", sanitizeProperty(model.username()));
-         SreeEnv.setProperty("log.fluentd.security.password", sanitizeProperty(model.password()));
+         SreeEnv.setProperty("log.fluentd.security.password", toPassword(model.password()));
          SreeEnv.setProperty("log.fluentd.tlsEnabled", Boolean.toString(model.tlsEnabled()));
          SreeEnv.setProperty(
             "log.fluentd.tls.caCertificateFile", sanitizeProperty(model.caCertificateFile()));

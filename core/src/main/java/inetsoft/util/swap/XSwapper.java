@@ -343,6 +343,19 @@ public final class XSwapper {
          criticalWait = true;
          criticalWaitCount.incrementAndGet();
 
+         // Cap the total time spent waiting here, measured from the moment the wait starts so
+         // that it also covers the uninterruptible waitLock.lock() below. The criticalNoSwap
+         // escape further down only fires when a swap sweep frees nothing at all; if the
+         // swapper keeps evicting something on every round but memory never recovers, the
+         // loop never terminates and the thread parks indefinitely -- together with any lock
+         // it already holds, which wedges the viewsheet (a sandbox read lock held here blocks
+         // every writer and, since that lock is non-fair, every reader queued behind them).
+         // Proceeding under critical memory is a risk, but a bounded risk beats hanging
+         // forever, and this generalizes the escape criticalNoSwap already provides.
+         final long maxWait = getMaxCriticalWait();
+         final long deadline = System.currentTimeMillis() + maxWait;
+         boolean timedOut = false;
+
          final Thread curr = Thread.currentThread();
          // waiting for memory in swapper thread, could deadlock
          boolean deadlock = curr instanceof XSwapperThread;
@@ -377,7 +390,12 @@ public final class XSwapper {
          try {
             // if critical mode and nothing to swap, let one thread to proceed
             // otherwise there is a 'deadlock' and the process would wait forever
-            while(getMemoryState() == CRITICAL_MEM && criticalNoSwap < 3) {
+            while(getMemoryState() == CRITICAL_MEM && criticalNoSwap.get() < 3) {
+               if(System.currentTimeMillis() >= deadline) {
+                  timedOut = true;
+                  break;
+               }
+
                synchronized(swapLock) {
                   swapLock.notifyAll();
                }
@@ -413,9 +431,14 @@ public final class XSwapper {
             }
          }
          finally {
-            if(criticalNoSwap > 0) {
+            if(criticalNoSwap.getAndSet(0) > 0) {
                doGC();
-               criticalNoSwap = 0;
+            }
+
+            if(timedOut) {
+               LOG.warn("Timed out after {}ms waiting for memory to be swapped out; " +
+                           "proceeding under critical memory. waiting={}, critical={}",
+                        maxWait, getWaitingThreadCount(), getCriticalWaitingThreadCount());
             }
 
             if(!deadlock) {
@@ -467,6 +490,37 @@ public final class XSwapper {
     */
    public void start() {
       stopped = false;
+   }
+
+   /**
+    * Get the maximum time, in milliseconds, that waitForMemory() may block a thread while
+    * the memory state stays critical.
+    */
+   long getMaxCriticalWait() {
+      // test override
+      if(maxCriticalWait >= 0) {
+         return maxCriticalWait;
+      }
+
+      // read every time so a property change takes effect without a restart. don't let a
+      // malformed value throw out of waitForMemory(), which runs in the middle of data fetches
+      try {
+         return Long.parseLong(
+            SreeEnv.getProperty("swapper.critical.max.wait",
+                                Long.toString(DEFAULT_CRITICAL_WAIT)));
+      }
+      catch(NumberFormatException ex) {
+         LOG.warn("Invalid swapper.critical.max.wait value, using {}ms",
+                  DEFAULT_CRITICAL_WAIT, ex);
+         return DEFAULT_CRITICAL_WAIT;
+      }
+   }
+
+   /**
+    * Set the maximum critical-memory wait. For tests.
+    */
+   void setMaxCriticalWait(long maxCriticalWait) {
+      this.maxCriticalWait = maxCriticalWait;
    }
 
    /**
@@ -695,7 +749,7 @@ public final class XSwapper {
                   swaplist.clear();
 
                   if(swapCnt == 0 && state == CRITICAL_MEM) {
-                     criticalNoSwap++;
+                     criticalNoSwap.incrementAndGet();
                   }
 
                   // get an acurate memory state after swapping
@@ -811,6 +865,8 @@ public final class XSwapper {
    private static final Logger LOG =
       LoggerFactory.getLogger(XSwapper.class);
 
+   // default cap on how long waitForMemory() blocks while the memory state stays critical
+   private static final long DEFAULT_CRITICAL_WAIT = 30000L;
    // swapping thresholds for [critical, bad, low, norm, good]
    private static final int[] PRIORITY = {1, 5, 20, 50, 200};
    // swapping percentage for [critical, bad, low, norm, good]
@@ -863,7 +919,8 @@ public final class XSwapper {
 
    private boolean stopped = false;
    private XSwapperThread[] threads = null;
-   private int criticalNoSwap = 0;
+   private final AtomicInteger criticalNoSwap = new AtomicInteger(0);
+   private volatile long maxCriticalWait = -1L;
    private int circle = 0;
    private int tcount = 0;
    private final long seed = Math.abs(System.currentTimeMillis());
