@@ -230,19 +230,57 @@ class WizVisualizationServiceTest {
    }
 
    @Test
-   void createFolderPropagatesPermissionDenial() throws Exception {
+   void createFolderConvertsPermissionDenialToSecurityException() throws Exception {
       AssetRepository assetRepository = mock(AssetRepository.class);
       WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
 
+      // checkAssetPermission signals a WRITE denial via MessageException (see
+      // AbstractAssetEngine#checkAssetPermission0) — the service must convert this to
+      // SecurityException so it reaches WizVisualizationController#createFolder's
+      // catch(SecurityException) branch (a real 403) instead of falling into catch(Exception)
+      // as a misleading "unexpected error" 500.
       doThrow(new MessageException("Write access denied"))
          .when(assetRepository).checkAssetPermission(
             any(Principal.class), any(AssetEntry.class), eq(ResourceAction.WRITE));
 
-      assertThrows(MessageException.class,
+      assertThrows(inetsoft.sree.security.SecurityException.class,
                    () -> service.createVisualizationFolder(
                       new WizFolderCreateRequest(null, "Sales"), mock(Principal.class)));
 
       verify(assetRepository, never()).addFolder(any(AssetEntry.class), any(Principal.class));
+   }
+
+   @Test
+   void createFolderTreatsSlashParentPathAsRoot() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      when(assetRepository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      // WizFolderCreateRequest.parentPath's javadoc documents "/" as meaning root, same as
+      // null/empty — matching WizDatabaseController#normalizePath's handling of the same input.
+      WizFolderSaveResult result = service.createVisualizationFolder(
+         new WizFolderCreateRequest("/", "Sales"), mock(Principal.class));
+
+      String expectedPath = WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/Sales";
+      assertTrue(result.ok());
+      assertEquals(expectedPath, result.path());
+   }
+
+   @Test
+   void createFolderRejectsASiblingPathSharingOnlyAPrefix() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(mock(ViewsheetService.class), assetRepository);
+
+      // A path that merely starts with the same characters as the managed root (but is not
+      // actually under it) must not pass the "under the visualization components folder" guard.
+      String siblingPath = WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "-evil";
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.createVisualizationFolder(
+                      new WizFolderCreateRequest(siblingPath, "Sales"), mock(Principal.class)));
+
+      verifyNoInteractions(assetRepository);
    }
 
    @Test

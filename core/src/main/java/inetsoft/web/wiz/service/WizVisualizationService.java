@@ -31,6 +31,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.service.BinaryTransferService;
@@ -457,17 +458,33 @@ public class WizVisualizationService {
          throw new IllegalArgumentException("name must be a single path segment");
       }
 
-      String parentPath = Tool.isEmptyString(request.parentPath())
-         ? VISUALIZATION_COMPONENTS_FOLDER_PATH : request.parentPath();
+      // "/" means root too, matching the shared WizFolderCreateRequest.parentPath javadoc and
+      // WizDatabaseController#normalizePath's handling of the same convention.
+      String rawParentPath = request.parentPath();
+      String parentPath = (Tool.isEmptyString(rawParentPath) || "/".equals(rawParentPath))
+         ? VISUALIZATION_COMPONENTS_FOLDER_PATH : rawParentPath;
 
-      if(!parentPath.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
+      if(!parentPath.equals(VISUALIZATION_COMPONENTS_FOLDER_PATH) &&
+         !parentPath.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))
+      {
          throw new IllegalArgumentException(
             "parentPath must be under the visualization components folder");
       }
 
       AssetEntry parentEntry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, parentPath, null);
-      assetRepository.checkAssetPermission(principal, parentEntry, ResourceAction.WRITE);
+
+      // checkAssetPermission signals a WRITE denial via MessageException (see
+      // AbstractAssetEngine#checkAssetPermission0), not SecurityException — convert it so this
+      // reaches the controller's existing catch(SecurityException) branch (matching render/
+      // dashboard in the same controller) instead of falling into catch(Exception) as a
+      // misleading "unexpected error" 500.
+      try {
+         assetRepository.checkAssetPermission(principal, parentEntry, ResourceAction.WRITE);
+      }
+      catch(MessageException e) {
+         throw new SecurityException(e.getMessage());
+      }
 
       String path = parentPath + "/" + name;
       AssetEntry newEntry = new AssetEntry(

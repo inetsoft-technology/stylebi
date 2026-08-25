@@ -101,6 +101,9 @@ public class WizVisualizationController {
       catch(IllegalArgumentException e) {
          return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
       }
+      catch(SecurityException e) {
+         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+      }
       catch(Exception e) {
          LOG.error("Failed to create visualization folder", e);
          return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
