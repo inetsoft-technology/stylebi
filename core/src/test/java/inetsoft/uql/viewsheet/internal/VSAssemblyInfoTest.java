@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,7 +35,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.*;
 
 /**
  * Covers VSAssemblyInfo.getDefaultFont(), which reads viewsheet.font.size.
@@ -177,12 +178,71 @@ class VSAssemblyInfoTest {
                    "suppressing a repeat must not suppress a newly configured bad value");
    }
 
+   @Test
+   void aSecondOrganizationWithTheSameBadValueIsStillWarnedAbout() {
+      // viewsheet.font.size is resolved through an inetsoft.org.<orgid>. override and every
+      // organization's viewsheets are laid out in the same server, so a suppression key that
+      // did not name the organization would let whichever one reported "12pt" first silence
+      // every other organization that had typed the same thing -- the same "silent failure
+      // indistinguishable from correct configuration" this accessor exists to remove, moved
+      // onto the org axis
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         sizeWith("org-a", "12pt");
+         return sizeWith("org-b", "12pt");
+      });
+
+      assertEquals(2, events.size(),
+                   "each organization must be told about its own misconfiguration");
+   }
+
+   @Test
+   void oneOrganizationRepeatingItsBadValueStillWarnsOnce() {
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         sizeWith("org-c", "13pt");
+         sizeWith("org-d", "13pt");
+         sizeWith("org-c", "13pt");
+         return sizeWith("org-d", "13pt");
+      });
+
+      assertEquals(2, events.size(),
+                   "keying on the organization must still suppress a repeat within one");
+   }
+
+   @Test
+   void correctingOneOrganizationDoesNotReArmAnother() {
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         sizeWith("org-e", "14pt");
+         sizeWith("org-f", "14pt");
+         // org-e is honoured again, which clears org-e's state and must leave org-f's alone
+         sizeWith("org-e", "14");
+         return sizeWith("org-f", "14pt");
+      });
+
+      assertEquals(2, events.size(),
+                   "clearing one organization's suppression must not re-arm another's");
+   }
+
    /**
-    * Resolves the default font size for an 11pt caller under the given viewsheet.font.size.
+    * Resolves the default font size for an 11pt caller under the given viewsheet.font.size, as
+    * seen by one fixed organization. Every test pins an organization so that the suppression
+    * state, which is keyed on it, is not left to whatever the ambient context resolves to.
     */
    private static int sizeWith(String propertyValue) {
-      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+      return sizeWith(DEFAULT_TEST_ORG, propertyValue);
+   }
+
+   /**
+    * As sizeWith(String), for a caller in the named organization.
+    */
+   private static int sizeWith(String orgId, String propertyValue) {
+      OrganizationManager manager = mock(OrganizationManager.class);
+      when(manager.getCurrentOrgID()).thenReturn(orgId);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class);
+          MockedStatic<OrganizationManager> orgManager = mockStatic(OrganizationManager.class))
+      {
          sreeEnv.when(() -> SreeEnv.getProperty("viewsheet.font.size")).thenReturn(propertyValue);
+         orgManager.when(OrganizationManager::getInstance).thenReturn(manager);
 
          return VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11).getSize();
       }
@@ -207,4 +267,6 @@ class VSAssemblyInfoTest {
          logger.detachAppender(appender);
       }
    }
+
+   private static final String DEFAULT_TEST_ORG = "host-org";
 }

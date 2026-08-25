@@ -23,6 +23,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AbstractSheet;
 import org.junit.jupiter.api.*;
@@ -53,6 +54,7 @@ class RuntimeSheetTest {
    @AfterEach
    void restoreProperty() {
       SreeEnv.setProperty("viewsheet.heartbeat.timeout", saved);
+      OrganizationContextHolder.clear();
    }
 
    @Test
@@ -192,6 +194,66 @@ class RuntimeSheetTest {
 
       assertEquals(2, events.size(),
                    "suppressing a repeat must not suppress a newly configured bad value");
+   }
+
+   @Test
+   void aSecondOrganizationWithTheSameBadValueIsStillWarnedAbout() {
+      // viewsheet.heartbeat.timeout is resolved through an inetsoft.org.<orgid>. override when
+      // one exists, and RecycleTask sweeps every open sheet of every organization in the same
+      // pass, so a suppression key that did not name the organization would let whichever one
+      // was swept first silence every other organization holding the same bad value
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "shared-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         OrganizationContextHolder.setCurrentOrgId("orga");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgb");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "each organization must be told about its own misconfiguration");
+   }
+
+   @Test
+   void oneOrganizationRepeatingItsBadValueStillWarnsOnce() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "per-org-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         OrganizationContextHolder.setCurrentOrgId("orgc");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgd");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgc");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgd");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "keying on the organization must still suppress a repeat within one");
+   }
+
+   @Test
+   void correctingOneOrganizationDoesNotReArmAnother() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "one-org-corrected");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         OrganizationContextHolder.setCurrentOrgId("orge");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgf");
+         RuntimeSheet.getHeartbeatTimeout();
+         // orge reads a usable value, which clears orge's state and must leave orgf's alone
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "600000");
+         OrganizationContextHolder.setCurrentOrgId("orge");
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "one-org-corrected");
+         OrganizationContextHolder.setCurrentOrgId("orgf");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "clearing one organization's suppression must not re-arm another's");
    }
 
    @Test

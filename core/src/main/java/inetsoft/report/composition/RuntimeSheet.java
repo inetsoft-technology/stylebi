@@ -21,6 +21,7 @@ import com.davidehrmann.vcdiff.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -37,8 +38,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -135,27 +136,46 @@ public abstract class RuntimeSheet {
 
    /**
     * Report a viewsheet.heartbeat.timeout value that is not being used as configured, but only
-    * when it differs from the value most recently reported. getHeartbeatTimeout() is reached
-    * from isTimeout(), which RecycleTask calls once per open sheet on every sweep, so an
-    * unconditional warning repeats in proportion to the number of open sheets.
+    * when it differs from the value most recently reported for the current organization.
+    * getHeartbeatTimeout() is reached from isTimeout(), which RecycleTask calls once per open
+    * sheet on every sweep, so an unconditional warning repeats in proportion to the number of
+    * open sheets.
+    *
+    * <p>The suppression is per organization because the property is: SreeEnv resolves it
+    * through an inetsoft.org.&lt;orgid&gt;. override when one exists, and RecycleTask sweeps
+    * every open sheet of every organization in the same pass. A single global key would let the
+    * first organization to report a value silence every other organization that happens to have
+    * configured the same one.
     *
     * @param property the raw property value, used to suppress a repeat of the same complaint.
     */
    private static void warnHeartbeatTimeout(String property, String format, Object... args) {
-      if(!Objects.equals(lastWarnedHeartbeatTimeout.getAndSet(property), property)) {
+      if(!Objects.equals(lastWarnedHeartbeatTimeout.put(warningOrgId(), property), property)) {
          LOG.warn(format, args);
       }
    }
 
    /**
-    * Drop the suppression state once the property is honoured again, so that a value which is
-    * corrected and later reintroduced is reported a second time rather than applied in silence.
-    * Guarded on a read: this runs on every heartbeat check, and the write is only needed on the
-    * transition back to a usable value.
+    * Drop the current organization's suppression state once the property is honoured again, so
+    * that a value which is corrected and later reintroduced is reported a second time rather
+    * than applied in silence. This runs on every heartbeat check; removing an absent key is a
+    * lookup that touches no lock.
     */
    private static void forgetHeartbeatTimeoutWarning() {
-      if(lastWarnedHeartbeatTimeout.get() != null) {
-         lastWarnedHeartbeatTimeout.set(null);
+      lastWarnedHeartbeatTimeout.remove(warningOrgId());
+   }
+
+   /**
+    * The organization the warning state is keyed on. Only ever a suppression key, so a context
+    * that cannot produce one must not fail the timeout read that asked for it.
+    */
+   private static String warningOrgId() {
+      try {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         return orgId == null ? "" : orgId;
+      }
+      catch(Exception ex) {
+         return "";
       }
    }
 
@@ -1262,10 +1282,9 @@ public abstract class RuntimeSheet {
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
 
-   // the viewsheet.heartbeat.timeout value most recently complained about; see
-   // warnHeartbeatTimeout
-   private static final AtomicReference<String> lastWarnedHeartbeatTimeout =
-      new AtomicReference<>();
+   // the viewsheet.heartbeat.timeout value most recently complained about, per organization,
+   // since the property itself is organization-scoped; see warnHeartbeatTimeout
+   private static final Map<String, String> lastWarnedHeartbeatTimeout = new ConcurrentHashMap<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeSheet.class);

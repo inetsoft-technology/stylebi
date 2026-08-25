@@ -38,7 +38,7 @@ import java.awt.geom.Point2D;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * VSAssemblyInfo, the assembly info of a view sheet assembly. It implements
@@ -1556,27 +1556,47 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
    /**
     * Report a viewsheet.font.size value that is not being used as configured, but only when it
-    * differs from the value most recently reported. getDefaultFont() is called upwards of thirty
-    * times per sheet -- once per assembly default format and once per chart descriptor -- so an
-    * unconditional warning would repeat for every object on every viewsheet opened.
+    * differs from the value most recently reported for the current organization.
+    * getDefaultFont() is called upwards of thirty times per sheet -- once per assembly default
+    * format and once per chart descriptor -- so an unconditional warning would repeat for every
+    * object on every viewsheet opened.
+    *
+    * <p>The suppression is per organization because the property is: SreeEnv resolves it through
+    * an inetsoft.org.&lt;orgid&gt;. override when one exists, and every organization's viewsheets
+    * are laid out in the same server. A single global key would let the first organization to
+    * report a value silence every other organization that happens to have configured the same
+    * one -- the empty string and "12pt" being exactly the values several would share.
     *
     * @param fontSize the raw property value, used to suppress a repeat of the same complaint.
     */
    private static void warnFontSize(String fontSize, String format, Object... args) {
-      if(!Objects.equals(lastWarnedFontSize.getAndSet(fontSize), fontSize)) {
+      if(!Objects.equals(lastWarnedFontSize.put(warningOrgId(), fontSize), fontSize)) {
          LOG.warn(format, args);
       }
    }
 
    /**
-    * Drop the suppression state once the property is honoured again -- including when it is
-    * removed altogether -- so that a value which is corrected and later reintroduced is reported
-    * a second time rather than applied in silence. Guarded on a read: this runs on every default
-    * format built, and the write is only needed on the transition back to a usable value.
+    * Drop the current organization's suppression state once the property is honoured again --
+    * including when it is removed altogether -- so that a value which is corrected and later
+    * reintroduced is reported a second time rather than applied in silence. This runs on every
+    * default format built; removing an absent key is a lookup that touches no lock.
     */
    private static void forgetFontSizeWarning() {
-      if(lastWarnedFontSize.get() != null) {
-         lastWarnedFontSize.set(null);
+      lastWarnedFontSize.remove(warningOrgId());
+   }
+
+   /**
+    * The organization the warning state is keyed on. Only ever a suppression key, so a context
+    * that cannot produce one must not fail the font lookup that asked for it -- the whole point
+    * of routing this property through an accessor is that getDefaultFont() cannot throw.
+    */
+   private static String warningOrgId() {
+      try {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         return orgId == null ? "" : orgId;
+      }
+      catch(Exception ex) {
+         return "";
       }
    }
 
@@ -1630,7 +1650,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * the caller's size to zero or below, which is not a font any renderer can use.
     */
    private static final int MIN_FONT_SIZE = 1;
-   // the viewsheet.font.size value most recently complained about; see warnFontSize
-   private static final AtomicReference<String> lastWarnedFontSize = new AtomicReference<>();
+   // the viewsheet.font.size value most recently complained about, per organization, since the
+   // property itself is organization-scoped; see warnFontSize
+   private static final Map<String, String> lastWarnedFontSize = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSAssemblyInfo.class);
 }
