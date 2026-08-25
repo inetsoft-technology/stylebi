@@ -1624,6 +1624,8 @@ public class WorksheetTableService {
             "tabularSource.parameters, keyed by the endpoint's own parameter names.");
       }
 
+      rejectQueryParams(src, TARGET_KIND_ENDPOINT, "tabularSource.parameters");
+
       String endpoint = src.getTarget().trim();
       String suffix = TabularEndpointBindingSupport.applyEndpointContract(
          query, pmap, endpoint, src.getParameters(), src.getJsonPath(), src.getExpanded(),
@@ -1752,7 +1754,8 @@ public class WorksheetTableService {
     * carry two answers for one parameter and silently keep whichever ran last. Refused rather than
     * merged, in the same spirit as the endpoint/file contracts refusing each other's fields.
     */
-   private void rejectForeignFields(WorksheetTable.TabularSource src) {
+   // Package-private so the test that pins the rejections can call it, the way shouldProbe is.
+   void rejectForeignFields(WorksheetTable.TabularSource src) {
       if(src.getParameters() != null && !src.getParameters().isEmpty()) {
          throw new IllegalArgumentException(
             "tabularSource.parameters applies to targetKind \"" + TARGET_KIND_ENDPOINT +
@@ -1776,11 +1779,43 @@ public class WorksheetTableService {
             "\", set those properties by name in queryParams.");
       }
 
+      // The lookup chain is addressed by endpoint NAME at each level, which is the one thing this
+      // kind does not have -- it is why a query request has no target either. A connector that
+      // chains lookups through properties sets them like any other property, in queryParams.
+      if(src.getLookup() != null && !src.getLookup().isEmpty() ||
+         src.getLookupExpandArrays() != null || src.getLookupTopLevelOnly() != null)
+      {
+         throw new IllegalArgumentException(
+            "tabularSource.lookup/lookupExpandArrays/lookupTopLevelOnly apply to targetKind \"" +
+            TARGET_KIND_ENDPOINT + "\" only — each level names an endpoint, and \"" +
+            TARGET_KIND_QUERY + "\" addresses the data by parameter instead.");
+      }
+
       // Nothing on this path reads it, so a target here names something that will not be used.
       if(src.getTarget() != null && !src.getTarget().isBlank()) {
          throw new IllegalArgumentException(
             "tabularSource.target does not apply to targetKind \"" + TARGET_KIND_QUERY +
             "\" — queryParams is what addresses the data.");
+      }
+   }
+
+   /**
+    * Refuse a query-kind parameter map on a request that is not query-kind.
+    *
+    * <p>The mirror of {@link #rejectForeignFields}, and the half that field points at. Only
+    * {@code applyQueryContract} reads {@code queryParams}, so on either older kind the whole map
+    * would be dropped and the table would build and report success having ignored everything the
+    * caller put in it -- a request half-migrated between kinds, or one that named the wrong kind,
+    * looking exactly like a request that worked.</p>
+    *
+    * @param instead the field this kind expects the values in, named so the message says where to
+    *                move them rather than only what is wrong.
+    */
+   void rejectQueryParams(WorksheetTable.TabularSource src, String kind, String instead) {
+      if(src.getQueryParams() != null && !src.getQueryParams().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.queryParams applies to targetKind \"" + TARGET_KIND_QUERY +
+            "\" only — for \"" + kind + "\", put the values in " + instead + ".");
       }
    }
 
@@ -1886,6 +1921,8 @@ public class WorksheetTableService {
             "tabularSource.jsonPath/expanded/expandedPath apply to targetKind \"" +
             TARGET_KIND_ENDPOINT + "\" only — they describe a JSON response, and a file has none.");
       }
+
+      rejectQueryParams(src, TARGET_KIND_FILE, "tabularSource.params");
 
       PropertyMeta fileProp = fileTargetProperty(pmap, query, dsName);
 
