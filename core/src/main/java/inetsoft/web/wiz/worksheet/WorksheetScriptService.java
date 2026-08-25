@@ -520,7 +520,7 @@ public class WorksheetScriptService {
          null, null, null, null,         // x, y, label, defaultValue
          null, null, null,               // mode, insert, subtables
          null, null,                     // sourceTable, attribute
-         null, null, null, null, null, null  // endpoint, lookup, lookupExpandArrays,
+         null, null, null, null, null, null, null  // endpoint, parameters, lookup, lookupExpandArrays,
                                               // lookupTopLevelOnly, suffix, customLookups
       );
    }
@@ -603,7 +603,7 @@ public class WorksheetScriptService {
          null, null, null, null,         // x, y, label, defaultValue
          null, null, null,               // mode, insert, subtables
          null, null,                     // sourceTable, attribute
-         null, null, null, null, null, null  // endpoint, lookup, lookupExpandArrays,
+         null, null, null, null, null, null, null  // endpoint, parameters, lookup, lookupExpandArrays,
                                               // lookupTopLevelOnly, suffix, customLookups
       );
    }
@@ -680,7 +680,7 @@ public class WorksheetScriptService {
          null, null, null, null,         // x, y, label, defaultValue
          null, null, null,               // mode, insert, subtables
          null, null,                     // sourceTable, attribute
-         null, null, null, null, null, null  // endpoint, lookup, lookupExpandArrays,
+         null, null, null, null, null, null, null  // endpoint, parameters, lookup, lookupExpandArrays,
                                               // lookupTopLevelOnly, suffix, customLookups
       );
    }

@@ -612,8 +612,7 @@ public class WorksheetAgentController {
          }
 
          suffix = TabularEndpointBindingSupport.applyEndpointContract(query, pmap, req.endpoint(),
-            null /* no parameters on this op yet -- see the design doc's flagged decision */,
-            null, null, null, dsName);
+            req.parameters(), null, null, null, dsName);
          TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.endpoint(), dsName);
 
          if(req.lookup() != null && !req.lookup().isEmpty()) {
