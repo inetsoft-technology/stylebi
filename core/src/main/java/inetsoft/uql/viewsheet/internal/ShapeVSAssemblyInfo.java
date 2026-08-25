@@ -168,7 +168,7 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
       ShapeShadow shadow0 = getShadowInfo();
       writer.print("<shadowInfo color=\"" + Tool.escape(shadow0.getColor() + "") +
                    "\" alpha=\"" + shadow0.getAlpha() +
-                   "\" direction=\"" + shadow0.getDirection() +
+                   "\" direction=\"" + Tool.escape(shadow0.getDirection() + "") +
                    "\" distance=\"" + shadow0.getDistance() +
                    "\" blur=\"" + shadow0.getBlur() + "\"/>");
 

@@ -101,7 +101,7 @@ public class ShapeShadow implements Cloneable, Serializable {
     * Set the shadow opacity, 0-100.
     */
    public void setAlpha(int alpha) {
-      this.alpha = alpha;
+      this.alpha = Math.max(0, Math.min(100, alpha));
    }
 
    /**
@@ -127,10 +127,13 @@ public class ShapeShadow implements Cloneable, Serializable {
    }
 
    /**
-    * Set how far the shadow is offset, in pixels.
+    * Set how far the shadow is offset, in pixels. Clamped to the range the
+    * dialog allows: these values size the exported shadow image, so an
+    * out-of-range value arriving from a script or a raw dialog save must not
+    * be able to inflate the allocation.
     */
    public void setDistance(int distance) {
-      this.distance = distance;
+      this.distance = Math.max(0, Math.min(MAX_LENGTH, distance));
    }
 
    /**
@@ -141,10 +144,10 @@ public class ShapeShadow implements Cloneable, Serializable {
    }
 
    /**
-    * Set the blur radius, in pixels.
+    * Set the blur radius, in pixels. Clamped, see setDistance.
     */
    public void setBlur(int blur) {
-      this.blur = blur;
+      this.blur = Math.max(0, Math.min(MAX_LENGTH, blur));
    }
 
    /**
@@ -292,4 +295,9 @@ public class ShapeShadow implements Cloneable, Serializable {
    public static final int DEFAULT_ALPHA = 30;
    public static final int DEFAULT_DISTANCE = 5;
    public static final int DEFAULT_BLUR = 6;
+   /**
+    * The largest distance/blur the dialog allows, in pixels. Mirrors
+    * MAX_LENGTH in shadow-prop-pane.component.ts.
+    */
+   public static final int MAX_LENGTH = 50;
 }
