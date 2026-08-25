@@ -2520,9 +2520,14 @@ class WorksheetEditServiceMutatorsTest {
       assertInstanceOf(UserVariable.class, v, "a $(name) value must stay a variable");
       assertEquals("Floor", ((UserVariable) v).getName());
       // Passes on either side of the shared-helper change, and pinned for that reason: the
-      // refactor must not alter the type a variable arrives with. Typing was never the defect
-      // here -- UserVariable's type node defaults to StringType rather than null, and the
-      // condition's own type reaches the variable on both paths.
+      // refactor must not alter the type a variable arrives with. Typing was never the defect,
+      // and the reason is not the bare constructor -- which does leave the declaration-site
+      // StringType default (UserVariable:689) -- but Condition.addValue, which routes every value
+      // through convertType, whose `else if(val instanceof UserVariable)` branch
+      // (Condition:2129-2149) sets the type node from the condition's OWN type. The variable was
+      // therefore typed from the column by the time it was stored, whichever way it was built.
+      // Measured rather than reasoned: with this file's fix reverted and the sibling "$()" test
+      // failing as the canary that the revert had compiled, the type still read "double".
       assertEquals(XSchema.DOUBLE, ((UserVariable) v).getTypeNode().getType(),
          "the variable must carry the column's type, as it does through add_filter");
    }

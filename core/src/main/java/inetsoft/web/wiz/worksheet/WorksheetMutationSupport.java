@@ -1315,9 +1315,11 @@ public final class WorksheetMutationSupport {
                for(String v : spec.values()) {
                   // Shared with addFilter rather than parsed a second time here. The local copy
                   // had no lower bound on the name, so "$()" became a variable named "" -- one
-                  // nothing can ever resolve, reported as ok. Typing was NOT the difference: a
-                  // bare UserVariable still reaches the prompt with the condition's own type, so
-                  // both spellings already agreed there.
+                  // nothing can ever resolve, reported as ok. Typing was NOT the difference,
+                  // though the bare constructor reads as though it would be: Condition.addValue
+                  // routes every value through convertType, whose UserVariable branch
+                  // (Condition:2129-2149) sets the type node from the condition's own type, so
+                  // the variable was typed from the column either way.
                   c.addValue(conditionValue(dtype, v));
                }
             }
