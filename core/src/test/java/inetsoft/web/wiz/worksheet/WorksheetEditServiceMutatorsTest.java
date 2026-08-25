@@ -2296,6 +2296,26 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("just a note", ((TableAssembly) ws.getAssembly("T")).getDescription());
    }
 
+   /**
+    * Worksheet.renameAssembly checks only that the old name exists and the new one is free, so a
+    * blank name passes both of its guards and leaves a table nothing can address afterwards.
+    */
+   @Test
+   void aBlankNameIsRefusedRatherThanLeavingTheTableUnaddressable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.setTableProperties("T", "   ", "should not land", null, null)));
+
+      assertNotNull(ws.getAssembly("T"), "the table keeps its name");
+      assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
+                 "nothing else in the patch may be applied either");
+   }
+
    /** Passing the name it already has is a no-op rename, not a collision with itself. */
    @Test
    void passingTheSameNameIsNotTreatedAsACollision() throws Exception {

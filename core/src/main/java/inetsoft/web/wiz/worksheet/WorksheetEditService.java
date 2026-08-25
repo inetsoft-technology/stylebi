@@ -1530,6 +1530,16 @@ public class WorksheetEditService {
          String name = table;
 
          if(newName != null && !newName.equals(table)) {
+            // Worksheet.renameAssembly checks only that the old name exists and the new one is
+            // free -- a blank name passes both and leaves a table nothing can address afterwards.
+            // Guarded here rather than only in the plugin, since this endpoint is reachable
+            // without it.
+            if(newName.trim().isEmpty()) {
+               throw new PairingException(
+                  "Cannot rename  + table +  to a blank name. Omit newName to leave the name " +
+                  "alone; a blank one would be accepted and leave the table unaddressable.");
+            }
+
             renameTable(table, newName);
             name = newName;
          }
