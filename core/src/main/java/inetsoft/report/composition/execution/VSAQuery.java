@@ -1058,9 +1058,7 @@ public abstract class VSAQuery {
       }
 
       try {
-         TableLens lens = AssetDataCache.getCache().getData(
-            box.getID(), table, wbox, ignored, mode,
-            limited, box.getTouchTimestamp(), qmgr);
+         TableLens lens = getDataWithoutSandboxLock(table, wbox, ignored, mode, limited, qmgr);
 
          List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
@@ -1068,8 +1066,7 @@ public abstract class VSAQuery {
             tryIgnoring)
          {
             wbox.setIgnoreFiltering(true);
-            lens = AssetDataCache.getCache().getData(box.getID(), table, wbox, null, mode,
-                                          true, box.getTouchTimestamp(), qmgr);
+            lens = getDataWithoutSandboxLock(table, wbox, null, mode, true, qmgr);
             exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
             if(exs != null) {
@@ -1099,6 +1096,40 @@ public abstract class VSAQuery {
       }
       finally {
          XUtil.VS_ASSEMBLY.set(null);
+      }
+   }
+
+   /**
+    * Fetch data from the asset data cache without holding a sandbox lock.
+    *
+    * <p>AssetDataCache.getData() blocks until the query has fully executed (it joins the
+    * processor thread) and, while computing the cache key, may fault swapped-out data back
+    * into memory by way of XSwapper.waitForMemory(), which can wait for as long as the
+    * memory state stays critical. Holding a sandbox read lock across that blocks every
+    * thread waiting for the write lock and -- because the sandbox lock is non-fair -- every
+    * reader queued behind those writers, which wedges the entire viewsheet and leaves the
+    * chart loading forever.
+    *
+    * <p>ViewsheetSandbox.doExecuteData() already releases all locks before calling
+    * query.getData() for exactly this reason (74001), but the VSAQuery subclasses re-acquire
+    * a read lock inside the fetch (ChartVSAQuery/TableVSAQuery/CrosstabVSAQuery
+    * getTableLens()), which defeats it. Releasing here restores that invariant regardless of
+    * which path reached the cache. The assembly mutations happen before this call and the
+    * fetch itself does not mutate assembly state, so it is safe to release.
+    */
+   private TableLens getDataWithoutSandboxLock(TableAssembly table, AssetQuerySandbox wbox,
+                                               Set ignored, int mode, boolean limited,
+                                               QueryManager qmgr)
+      throws Exception
+   {
+      box.unlockAll();
+
+      try {
+         return AssetDataCache.getCache().getData(
+            box.getID(), table, wbox, ignored, mode, limited, box.getTouchTimestamp(), qmgr);
+      }
+      finally {
+         box.restoreLocks();
       }
    }
 
