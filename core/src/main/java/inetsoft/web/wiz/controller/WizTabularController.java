@@ -28,6 +28,8 @@ import inetsoft.uql.tabular.LayoutCreator;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularEditor;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularQuerySchema;
+import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.tabular.TabularView;
 import inetsoft.util.Catalog;
@@ -224,6 +226,79 @@ public class WizTabularController {
     *                                        a JDBC database has no form here and would render as an
     *                                        empty one.
     */
+   /**
+    * The parameters a data source's query takes, what each one means, and which of them apply when.
+    *
+    * <p>WHAT THIS ANSWERS THAT NOTHING ELSE DOES. A caller building a tabular table has to decide
+    * what to put in {@code tabularSource.queryParams}, and until now there was nowhere to learn it.
+    * {@code /tabular/definition} describes the DATA SOURCE's form — the connection — not the
+    * query's. And the structure that does describe a query, {@code TabularView}, is a form layout:
+    * two thirds of every node is row, column, span and padding, and nothing in it says that an
+    * offset parameter is read under one pagination strategy and ignored under another.</p>
+    *
+    * <p>THE DEPENDENCY MATRIX IS THE PART WORTH READING. Most of a connector's parameters are
+    * conditional, and a parameter that does not apply is not refused — it is stored on the query
+    * and never looked at, so the request goes out as though it had never been given. The matrix
+    * says which choice turns on which parameters, so that can be got right before the call rather
+    * than diagnosed after it.</p>
+    *
+    * <p>DERIVED, NEVER STORED. Every field comes from the connector's own {@code @Property} and
+    * {@code @View} declarations, so a connector that adds a parameter is described correctly with
+    * no change here. Two things it does not carry: what each value of an enumerated parameter
+    * actually does, which lives in the runner rather than in any annotation, and which parameters a
+    * given choice makes mandatory, which the annotations have no way to express.</p>
+    *
+    * <p>Gated on READ, unlike {@code /tabular/definition} next to it. That one returns stored
+    * credentials and so demands WRITE; this returns a description of the connector's shape and no
+    * value the user configured.</p>
+    *
+    * @param path      the data source's full repository path.
+    * @param principal the current user.
+    *
+    * @return the parameter contract for that data source's query.
+    */
+   @GetMapping(value = "/tabular/query-schema", produces = MediaType.APPLICATION_JSON_VALUE)
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.READ
+      )
+   })
+   public TabularQuerySchema getQuerySchema(
+      @PermissionPath @RequestParam("path") String path, Principal principal) throws Exception
+   {
+      requireTabularDataSource(path);
+
+      // Extraction runs the connector's own visibility methods, which is the same capability
+      // /tabular/refresh gates on. Those methods are the connector's code and this decides how many
+      // times they are invoked, so the session is bound the way every other such call binds it.
+      beginConnectorSession(principal);
+
+      try {
+         // Built through createQuery rather than from the type alone, so the query carries the data
+         // source it will actually run against. A visibility condition is free to read it — a
+         // connector can offer different parameters for different accounts — and a schema extracted
+         // from a datasource-less query would then describe a query nobody is going to run.
+         TabularQuery query = TabularUtil.createQuery(path);
+
+         if(query == null) {
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST,
+               "Could not create a query for '" + path + "' — its connector plugin may not be loaded.");
+         }
+
+         XDataSource dataSource = xrepository.getDataSource(path);
+
+         // Not null-checked: this overload describes the instance it is handed and always answers.
+         // Only the one that resolves the query class itself can fail to produce a query, and that
+         // case is the guard above.
+         return new TabularSchemaExtractor()
+            .extract(query, dataSource == null ? null : dataSource.getType());
+      }
+      finally {
+         endConnectorSession();
+      }
+   }
+
    @GetMapping(value = "/tabular/definition", produces = MediaType.APPLICATION_JSON_VALUE)
    @Secured({
       @RequiredPermission(
