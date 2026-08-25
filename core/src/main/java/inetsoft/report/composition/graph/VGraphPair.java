@@ -2616,8 +2616,12 @@ public class VGraphPair {
     */
    public boolean isChangedByScript() {
       // fix customer bug1365805534414
-      return isStructureChanged && !"true".equals(
-         SreeEnv.getProperty("graph.script.action.support", "false"));
+      // read without a call-site default so the graph.script.action.support line in
+      // defaults.properties is the single source of the shipped default. DefaultProperties
+      // .getProperty(key, def) returns the caller's default without consulting the defaults
+      // layer, so passing one here would make that declaration unreachable at runtime.
+      return isStructureChanged &&
+         !"true".equals(SreeEnv.getProperty("graph.script.action.support"));
    }
 
    /**
