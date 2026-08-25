@@ -352,6 +352,17 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
     */
    public boolean addAssembly(WSAssembly assembly) {
       String name = assembly.getName();
+
+      // A null/blank name can never be looked back up: getAssembly() short-circuits null to
+      // null (harmless), but createCache()'s ConcurrentHashMap.put(null, ...) throws NPE
+      // partway through the rebuild loop, which permanently poisons the lazy name cache (amap
+      // never gets reassigned) for every assembly in this worksheet, not just this one -- so
+      // this must be refused before it ever reaches the assemblies list.
+      if(name == null || name.isBlank()) {
+         LOG.error("Could not add assembly " + assembly + ", name must not be empty");
+         return false;
+      }
+
       final boolean contained;
 
       synchronized(this) {

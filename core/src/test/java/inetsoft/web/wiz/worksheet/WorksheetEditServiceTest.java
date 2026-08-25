@@ -278,6 +278,42 @@ class WorksheetEditServiceTest {
    }
 
    @Test
+   void addJoinRejectsMissingNameAndDoesNotPoisonAssemblyLookup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "CUSTOMERS1", "REGION_ID");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "REGIONS1", "REGION_ID");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      // Mirrors the real repro: leftKey/rightKey/joinType supplied but name omitted.
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin(null, "CUSTOMERS1", "REGION_ID",
+                                          "REGIONS1", "REGION_ID", "INNER", null, null)));
+
+      // The rejected join must never have reached Worksheet.addAssembly(), so the name cache
+      // is never poisoned: lookups for the pre-existing tables still resolve.
+      assertSame(left, ws.getAssembly("CUSTOMERS1"));
+      assertSame(right, ws.getAssembly("REGIONS1"));
+      assertEquals(2, ws.getAssemblies().length);
+   }
+
+   @Test
    void editNamedGroupOnStandaloneGroupSurvivesClone() throws Exception {
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
