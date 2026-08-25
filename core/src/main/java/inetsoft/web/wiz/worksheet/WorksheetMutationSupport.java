@@ -1583,7 +1583,7 @@ public final class WorksheetMutationSupport {
          case "NOT_NULL"                 -> XCondition.NULL;    // negated via setNegated
          default -> throw new IllegalArgumentException(
             "'" + operation + "' is not a condition operator. Accepted: =, !=, <, <=, >, >=, " +
-            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, NULL, NOT_NULL. Omit the " +
+            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, LIKE, NULL, NOT_NULL. Omit the " +
             "operator entirely to mean equals -- an unrecognised one used to be applied as " +
             "equals, which quietly returns a different data set.");
       };

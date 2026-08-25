@@ -2579,7 +2579,9 @@ class WorksheetEditServiceMutatorsTest {
 
    /**
     * Defaulting an unrecognised operator to equals returns a different data set with nothing on
-    * screen marking it -- a greater-than quietly becomes an equality test.
+    * screen marking it -- "gt", a shape a caller reaches for when it does not know the vocabulary,
+    * used to become an equality test. Not spelled ">": that always had its own case and never
+    * reached the default branch, so it could not demonstrate this at all.
     */
    @Test
    void anUnrecognisedOperatorIsRefusedRatherThanAppliedAsEquals() throws Exception {
@@ -2590,13 +2592,34 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       Exception thrown = assertThrows(Exception.class, () -> svc.apply(
-         "TOK", agent, ed -> ed.addFilter("T", "a", "&gt;", "1")));
+         "TOK", agent, ed -> ed.addFilter("T", "a", "gt", "1")));
 
-      assertTrue(thrown.getMessage().contains("&gt;") ||
-                 thrown.getCause() != null && thrown.getCause().getMessage().contains("&gt;"),
+      assertTrue(thrown.getMessage().contains("gt") ||
+                 thrown.getCause() != null && thrown.getCause().getMessage().contains("gt"),
                  "the refusal must name the operator it rejected");
       assertNull(t.getPreConditionList() == null ? null : firstConditionOrNull(t),
                  "nothing may be written when the operator is refused");
+   }
+
+   /**
+    * The refusal exists so a caller can self-correct from it, which only works if it offers
+    * everything the parser takes. LIKE was accepted by the switch and absent from the message, and
+    * nothing caught it because nothing tied the two together -- this does, in both directions.
+    */
+   @Test
+   void everyAcceptedOperatorIsOfferedByTheRefusalMessage() {
+      String message = assertThrows(IllegalArgumentException.class,
+         () -> WorksheetMutationSupport.parseOperation("nonsense")).getMessage();
+
+      for(String op : List.of("=", "!=", "<", "<=", ">", ">=", "BETWEEN", "ONE_OF", "NOT_ONE_OF",
+                              "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL"))
+      {
+         assertDoesNotThrow(() -> WorksheetMutationSupport.parseOperation(op),
+                            op + " must be a recognised operator");
+         assertTrue(message.contains(op),
+                    "the refusal must offer " + op + " -- a caller reading it to self-correct "
+                    + "cannot discover an operator the message leaves out");
+      }
    }
 
    private static Object firstConditionOrNull(TableAssembly t) {
