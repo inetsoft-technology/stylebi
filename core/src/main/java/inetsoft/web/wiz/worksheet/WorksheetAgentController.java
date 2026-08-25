@@ -1508,8 +1508,19 @@ public class WorksheetAgentController {
             editor.deleteRow(req.table(), req.index());
          }
          case "set_table_properties" ->
+            // 'alias' is accepted as a spelling of 'newName' rather than dropped: a worksheet table
+            // has no display name apart from its name, so an alias request is a rename request. It
+            // used to be discarded behind a comment while the call returned success.
+            //
+            // This looks redundant, because the only client of this endpoint is the composer plugin
+            // and that already normalises name/alias to newName before sending. It is here for the
+            // version it CANNOT normalise: a plugin bundle predating that change sends alias alone,
+            // and dist/bin.js ships inside the repo, so a server can outrun the bundle running
+            // against it. Drop this fallback and that pairing silently stops renaming again --
+            // which is the whole defect this op was fixed for.
             editor.setTableProperties(
-               req.table(), req.alias(), req.description(), req.maxRows(), req.distinct());
+               req.table(), req.newName() != null ? req.newName() : req.alias(),
+               req.description(), req.maxRows(), req.distinct());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->

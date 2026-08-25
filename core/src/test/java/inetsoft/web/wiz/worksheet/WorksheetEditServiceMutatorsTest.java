@@ -2221,4 +2221,112 @@ class WorksheetEditServiceMutatorsTest {
 
       assertFalse(mirror.isAutoUpdate());
    }
+
+   // =========================================================================
+   // set_table_properties -- renaming is a table property
+   // =========================================================================
+
+   // A worksheet table has no display name apart from its name, so setting one is a rename. This
+   // used to take an "alias" argument and drop it behind a comment, returning success unchanged.
+
+   @Test
+   void setTablePropertiesRenamesTheTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "Scores", null, null, null));
+
+      assertNotNull(ws.getAssembly("Scores"));
+      assertNull(ws.getAssembly("T"));
+   }
+
+   @Test
+   void setTablePropertiesAppliesTheOtherFieldsToTheRenamedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", "Scores", "the description", 25, true));
+
+      TableAssembly renamed = (TableAssembly) ws.getAssembly("Scores");
+      assertEquals("the description", renamed.getDescription());
+      assertEquals(25, renamed.getMaxRows());
+      assertTrue(renamed.isDistinct());
+   }
+
+   /**
+    * The rename runs first precisely so this holds: a name already in use fails the whole call and
+    * leaves the other fields alone, rather than half-writing the patch.
+    */
+   @Test
+   void aRenameOntoAnExistingNameChangesNothingAtAll() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      TableAssembly other = TestWorksheets.nonEmbeddedTableWithColumns(ws, "Taken", "a");
+      ws.addAssembly(t);
+      ws.addAssembly(other);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.setTableProperties("T", "Taken", "should not land", 9, true)));
+
+      TableAssembly untouched = (TableAssembly) ws.getAssembly("T");
+      assertNotNull(untouched, "the table must keep its original name");
+      assertNull(untouched.getDescription(), "no property may be applied when the rename fails");
+   }
+
+   @Test
+   void omittingTheNameLeavesItAloneAndStillAppliesTheRest() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", null, "just a note", null, null));
+
+      assertNotNull(ws.getAssembly("T"));
+      assertEquals("just a note", ((TableAssembly) ws.getAssembly("T")).getDescription());
+   }
+
+   /**
+    * Worksheet.renameAssembly checks only that the old name exists and the new one is free, so a
+    * blank name passes both of its guards and leaves a table nothing can address afterwards.
+    */
+   @Test
+   void aBlankNameIsRefusedRatherThanLeavingTheTableUnaddressable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.setTableProperties("T", "   ", "should not land", null, null)));
+
+      assertNotNull(ws.getAssembly("T"), "the table keeps its name");
+      assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
+                 "nothing else in the patch may be applied either");
+   }
+
+   /** Passing the name it already has is a no-op rename, not a collision with itself. */
+   @Test
+   void passingTheSameNameIsNotTreatedAsACollision() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "T", "kept", null, null));
+
+      assertEquals("kept", ((TableAssembly) ws.getAssembly("T")).getDescription());
+   }
 }
