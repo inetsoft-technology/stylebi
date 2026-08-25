@@ -1508,8 +1508,12 @@ public class WorksheetAgentController {
             editor.deleteRow(req.table(), req.index());
          }
          case "set_table_properties" ->
+            // 'alias' is accepted as a spelling of 'newName' rather than dropped: a worksheet table
+            // has no display name apart from its name, so an alias request is a rename request. It
+            // used to be discarded behind a comment while the call returned success.
             editor.setTableProperties(
-               req.table(), req.alias(), req.description(), req.maxRows(), req.distinct());
+               req.table(), req.newName() != null ? req.newName() : req.alias(),
+               req.description(), req.maxRows(), req.distinct());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->

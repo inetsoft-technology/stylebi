@@ -63,7 +63,8 @@ import java.util.Map;
  *   <li>{@code edit_cell} — {@code table}, {@code row}, {@code col}, {@code value}</li>
  *   <li>{@code insert_row} — {@code table}, {@code index}</li>
  *   <li>{@code delete_row} — {@code table}, {@code index}</li>
- *   <li>{@code set_table_properties} — {@code table}, {@code alias}, {@code description}, {@code maxRows}, {@code distinct}</li>
+ *   <li>{@code set_table_properties} — {@code table}; any of {@code newName} (or {@code alias},
+ *       its accepted spelling), {@code description}, {@code maxRows}, {@code distinct}</li>
  *   <li>{@code add_cross_join} — {@code name}, {@code leftTable}, {@code rightTable}</li>
  *   <li>{@code add_merge_join} — {@code name}, {@code tables}</li>
  *   <li>{@code reorder_columns} — {@code table}, {@code columnOrder}</li>
@@ -116,7 +117,12 @@ public record EditRequest(
    String name,
    /** Data type string, e.g. {@code "string"}, {@code "integer"} (add_column, add_expression_column). */
    String type,
-   /** New alias for rename_column. */
+   /**
+    * The new name for a rename: the column's for {@code rename_column}, the table's for
+    * {@code set_table_properties} -- where it is a rename because a worksheet table has no display
+    * name of its own, the same shape as the Composer's table-properties dialog, whose model carries
+    * {@code newName}/{@code oldName} beside the other properties.
+    */
    String newName,
    /** Column name for filter / sort operations. */
    String field,
@@ -187,7 +193,11 @@ public record EditRequest(
    String value,
    /** Row index for insert_row / delete_row (0-based data row). */
    Integer index,
-   /** Table alias for set_table_properties. */
+   /**
+    * Accepted spelling of {@code newName} for {@code set_table_properties}, kept because callers
+    * reach for it. A worksheet table has no display name apart from its name, so setting an alias
+    * is a rename; {@code newName} wins when both are given.
+    */
    String alias,
    /** Table description for set_table_properties. */
    String description,

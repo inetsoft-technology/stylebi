@@ -1504,14 +1504,37 @@ public class WorksheetEditService {
        * @param distinct    distinct flag, or {@code null} to leave unchanged
        * @throws PairingException if the table is not found
        */
-      public void setTableProperties(String table, String alias, String description,
+      /**
+       * Applies the table properties, renaming the table when {@code newName} is given.
+       *
+       * <p>A worksheet table has no display name separate from its name -- the field exists on
+       * {@code AssetEntry}, {@code ColumnRef} and {@code WorksheetInfo}, on no {@code TableAssembly}
+       * -- so setting one is a rename. That is the shape the Composer's own table-properties dialog
+       * already has: {@code TablePropertyDialogModel} carries {@code newName}/{@code oldName} beside
+       * description, maxRows and distinct, and its service applies the properties and then renames
+       * through {@code refreshAssembly}. This used to accept an {@code alias} argument and drop it
+       * behind a comment, returning success while changing nothing.
+       *
+       * <p><b>The rename runs first, so a failure leaves everything untouched.</b> Renaming can fail
+       * on a name already in use, and applying the other properties before finding that out would
+       * half-write the patch -- the outcome this service refuses everywhere else. The remaining
+       * setters cannot fail, so ordering it this way makes the whole call all-or-nothing.
+       */
+      public void setTableProperties(String table, String newName, String description,
                                       Integer maxRows, Boolean distinct)
          throws PairingException
       {
-         TableAssembly t = requireTable(table);
+         // Resolved before the rename so an unknown table is reported against the name the caller
+         // passed, not against a name that does not exist yet.
+         requireTable(table);
+         String name = table;
 
-         // Table-level alias is not supported in the worksheet assembly model.
-         // Column-level aliases are set via rename_column instead.
+         if(newName != null && !newName.equals(table)) {
+            renameTable(table, newName);
+            name = newName;
+         }
+
+         TableAssembly t = requireTable(name);
 
          if(description != null) {
             t.setDescription(description);
