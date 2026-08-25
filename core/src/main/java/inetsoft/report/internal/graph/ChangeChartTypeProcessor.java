@@ -117,13 +117,16 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
     * success-with-a-reason. It still extends {@code IllegalArgumentException} so a caller that
     * does not know about the refusal contract sees no behaviour change.
     *
-    * <p>Carries the catalog key and arguments rather than only the formatted string, so the caller
-    * can render the message in the user's own language. {@link #getMessage()} stays English for
-    * the log and for any caller that does not localise.
+    * <p>Carries the catalog key and its arguments rather than a formatted string, so the caller
+    * renders the message in the user's own language. There is deliberately no second English copy
+    * of that sentence here: {@link #getMessage()} is a short diagnostic for the log and for a
+    * caller that does not localise, and the user-facing wording lives once, in
+    * {@code srinter.properties}. Two copies of the same sentence with nothing tying them drift,
+    * and the pair this replaced already had.
     */
    public static final class FieldPlacementException extends IllegalArgumentException {
-      FieldPlacementException(String catalogKey, String message, Object... arguments) {
-         super(message);
+      FieldPlacementException(String catalogKey, String diagnostic, Object... arguments) {
+         super(diagnostic);
          this.catalogKey = catalogKey;
          this.arguments = arguments;
       }
@@ -139,6 +142,8 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       private final String catalogKey;
       private final Object[] arguments;
+
+      private static final long serialVersionUID = 1L;
    }
 
    /**
@@ -519,10 +524,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          if(measureOnColor && strictFieldPlacement) {
             throw new FieldPlacementException(
                "chartTypes.user.pieMeasureOnColor",
-               "Cannot change to a pie chart: 'color' is bound to the measure '" +
-               colorFld.getFullName() + "', and pie charts have no aesthetic channel to move " +
-               "it to. Clear the color field, or bind '" + colorFld.getFullName() +
-               "' elsewhere, before retyping to pie.",
+               "pie retype refused: measure '" + colorFld.getFullName() + "' on color",
                colorFld.getFullName());
          }
 
@@ -1370,10 +1372,8 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          if(strictFieldPlacement) {
             throw new FieldPlacementException(
                "chartTypes.user.treemapNoFreeChannel",
-               "Cannot change to a treemap: " + String.join(", ", occupied) +
-               " already have fields bound, leaving no aesthetic channel for the measure(s) " +
-               strandedNames + ". Free a channel (color, shape or size), or remove the " +
-               "measure(s), before retyping to treemap.",
+               "treemap retype refused: " + String.join(", ", occupied) + " bound, no channel " +
+               "for " + strandedNames,
                String.join(", ", occupied), strandedNames);
          }
 

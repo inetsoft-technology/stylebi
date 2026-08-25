@@ -201,7 +201,8 @@ public final class ChartAestheticMutator {
       // The interactive Composer's own aesthetic dialogs (ColorFieldMc/ShapeFieldMc) confirm this
       // is the real per-measure home for a field-less frame, not an edge case. A field-less
       // request has no way to name a single measure, so it is broadcast to every aggregate
-      // aggregates() finds -- the common single-measure chart makes this unambiguous, and a
+      // aggregates() finds -- which is every aggregate the renderer will build the combined frame
+      // from, no more and no less. The common single-measure chart makes this unambiguous, and a
       // multi-measure chart gets the same frame on every measure rather than silently only one.
       //
       // Gated on perMeasureFrameChannels, not on FRAME_CHANNELS: whether the renderer reads the
@@ -247,41 +248,86 @@ public final class ChartAestheticMutator {
    }
 
    /**
-    * The measures a field-less frame channel targets, mirroring
-    * {@code VSFrameVisitor.getAggregates()} branch for branch — the write has to land on the same
-    * refs the renderer reads the frame back off, and that is not always the X/Y shelves.
+    * The measures a field-less frame channel targets — a port of
+    * {@code VSFrameVisitor.getAggregates()}, because the write has to land on the same refs the
+    * renderer reads the frame back off, and a paraphrase of that method is not close enough.
     *
-    * <p>A Gantt chart is the exception, and it is the one the chart-type gate cannot catch:
-    * {@code GanttVSChartInfo} overrides all three {@code supports*FieldFrame()} predicates back to
-    * {@code true}, so it takes this branch, but its X/Y shelves hold only dimensions — {@code
+    * <p>Ported rather than paraphrased for three reasons, each of which produced a frame in a slot
+    * nothing renders from when this took the shape its name suggests instead:
+    *
+    * <ul>
+    *   <li>the Y-or-X choice is made by {@code containsMeasure}, which despite the name tests
+    *       only the <em>last</em> ref on the shelf — {@code [Sum(Sales), Region]} sends the
+    *       renderer to X, however many measures Y holds;</li>
+    *   <li>within a shelf, {@code getAggregates(ChartRef...)} walks <em>backwards</em> and breaks
+    *       at the first non-measure, so it sees only the trailing contiguous run —
+    *       {@code [Sum(Sales), Region, Sum(Profit)]} renders from {@code Sum(Profit)} alone, and
+    *       reporting the shelf's first aggregate instead would name a measure the chart ignores;
+    *       </li>
+    *   <li>"measure" there is {@code ChartAggregateRef.isMeasure()}, which is {@code !isDiscrete()}
+    *       — a discrete aggregate ends the run and fails the last-ref test, so it must not be
+    *       counted here either.</li>
+    * </ul>
+    *
+    * <p>A Gantt chart is the one branch the chart-type gate cannot catch: {@code GanttVSChartInfo}
+    * overrides all three {@code supports*FieldFrame()} predicates back to {@code true}, so it
+    * arrives here, but its X/Y shelves hold only dimensions — {@code
     * ChangeChartTypeProcessor.copyToGantt} routes every measure onto {@code startField}'s own
     * aesthetic channels and every remaining dimension onto Y. {@code getAggregates()} reads
-    * start/milestone for exactly that reason, and so does this.
+    * start/milestone for exactly that reason, through the same backwards walk, and so does this.
     *
-    * <p>Everything else is the Y-then-X fallback {@code getAggregates()} uses: prefer the Y shelf,
-    * and only consult X if Y has no measures at all (an inverted or measures-on-X chart).
+    * <p>What is <b>not</b> mirrored, because it cannot be from here: {@code getAggregates()} reads
+    * the runtime refs ({@code getRTYFields()}, {@code getRTStartField()}) and a
+    * {@code ChartBindingModel} carries the design-time ones. That is the right side for a write —
+    * design time is what persists and what the runtime is rebuilt from — but it means this mirrors
+    * the algorithm, not its inputs.
     */
    private static List<ChartAggregateRefModel> aggregates(ChartBindingModel model) {
       if(GraphTypes.isGantt(model.getChartType())) {
-         return aggregatesOf(Arrays.asList(model.getStartField(), model.getMilestoneField()));
+         return trailingMeasures(Arrays.asList(model.getStartField(), model.getMilestoneField()));
       }
 
-      List<ChartAggregateRefModel> yAggregates = aggregatesOf(model.getYFields());
-      return !yAggregates.isEmpty() ? yAggregates : aggregatesOf(model.getXFields());
+      List<ChartRefModel> yFields = model.getYFields();
+      return endsWithMeasure(yFields)
+         ? trailingMeasures(yFields) : trailingMeasures(model.getXFields());
    }
 
-   private static List<ChartAggregateRefModel> aggregatesOf(List<ChartRefModel> refs) {
+   /** {@code VSFrameVisitor.containsMeasure}: the last ref on the shelf, and only that one. */
+   private static boolean endsWithMeasure(List<ChartRefModel> refs) {
+      return refs != null && !refs.isEmpty() && isMeasure(refs.get(refs.size() - 1));
+   }
+
+   /**
+    * {@code VSFrameVisitor.getAggregates(ChartRef...)}: walk from the end, skip a null slot, and
+    * stop at the first ref that is not a measure.
+    */
+   private static List<ChartAggregateRefModel> trailingMeasures(List<ChartRefModel> refs) {
       List<ChartAggregateRefModel> aggregates = new ArrayList<>();
 
-      if(refs != null) {
-         for(ChartRefModel ref : refs) {
-            if(ref instanceof ChartAggregateRefModel agg) {
-               aggregates.add(agg);
-            }
+      if(refs == null) {
+         return aggregates;
+      }
+
+      for(int i = refs.size() - 1; i >= 0; i--) {
+         ChartRefModel ref = refs.get(i);
+
+         if(ref == null) {
+            continue;
          }
+
+         if(!isMeasure(ref)) {
+            break;
+         }
+
+         aggregates.add(0, (ChartAggregateRefModel) ref);
       }
 
       return aggregates;
+   }
+
+   /** {@code ChartAggregateRef.isMeasure()}, which is {@code !isDiscrete()}. */
+   private static boolean isMeasure(ChartRefModel ref) {
+      return ref instanceof ChartAggregateRefModel aggregate && !aggregate.isDiscrete();
    }
 
    /**
@@ -433,8 +479,12 @@ public final class ChartAestheticMutator {
     * chart-type-derived set the write side takes, for the same reason.
     *
     * <p>When several measures disagree (only possible from state {@code setFrame} did not itself
-    * produce — it always writes the same frame to every measure), the first measure's frame is
-    * reported; there is no "mixed" sentinel in the agent vocabulary to report disagreement with.
+    * produce — it always writes the same frame to every measure), the first of {@link #aggregates}
+    * is reported; there is no "mixed" sentinel in the agent vocabulary to report disagreement
+    * with. That is the first measure the renderer itself combines, not merely the first on the
+    * shelf, which is the reason {@code aggregates} is a port of {@code getAggregates()} rather
+    * than a paraphrase — reporting a measure the chart ignores would be the same "reads the dead
+    * slot" defect one step removed.
     */
    private static VisualFrameModel frameOf(ChartBindingModel model, String channel,
                                            Collection<String> perMeasureFrameChannels)

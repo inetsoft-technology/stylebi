@@ -315,6 +315,102 @@ class ChartAestheticMutatorTest {
    }
 
    /**
+    * {@code VSFrameVisitor.containsMeasure} despite its name tests only the <em>last</em> ref on
+    * the shelf, so a dimension after a measure on Y sends the renderer to X however many measures
+    * Y holds. Choosing Y here because it "has an aggregate somewhere" would write the frame to
+    * {@code Sum(Sales)} while the chart renders from {@code Sum(Profit)}.
+    */
+   @Test
+   void aDimensionLastOnYSendsTheFrameToTheXAggregateTheRendererUses() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), dimension("Region")));
+      ChartBindingMutator.setShelf(model, "x", List.of(measure("Profit", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      ChartAggregateRefModel onX = (ChartAggregateRefModel) model.getXFields().get(0);
+      assertInstanceOf(StaticColorModel.class, onX.getColorFrame(),
+                       "the renderer reads X when Y does not end in a measure");
+      ChartAggregateRefModel onY = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertNull(onY.getColorFrame(),
+                 "and Y's own measure is not one of the refs it combines");
+      assertNull(model.getColorFrame());
+   }
+
+   /**
+    * {@code getAggregates(ChartRef...)} walks backwards and breaks at the first non-measure, so it
+    * sees only the trailing contiguous run. Writing the whole shelf would put the frame on a
+    * measure the chart ignores, and — the half that actually shows — {@code frameOf} would report
+    * that measure's frame rather than the one being rendered.
+    */
+   @Test
+   void onlyTheTrailingRunOfMeasuresIsTargeted() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y",
+         List.of(measure("Sales", "Sum"), dimension("Region"), measure("Profit", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#123456"));
+
+      ChartAggregateRefModel leading = (ChartAggregateRefModel) model.getYFields().get(0);
+      ChartAggregateRefModel trailing = (ChartAggregateRefModel) model.getYFields().get(2);
+      assertNull(leading.getColorFrame(),
+                 "the dimension between them ends the run the renderer walks");
+      assertInstanceOf(StaticColorModel.class, trailing.getColorFrame());
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> frame = (Map<String, Object>) color.get("frame");
+      assertEquals("#123456", frame.get("color"),
+                   "and the read reports the measure that renders, not the shelf's first");
+   }
+
+   /**
+    * {@code ChartAggregateRef.isMeasure()} is {@code !isDiscrete()}, so a discrete aggregate ends
+    * the run and fails the last-ref test just as a dimension does. With it last on Y the renderer
+    * finds no aggregate at all and {@code createFrame()} returns null — so there is nothing to
+    * target, and the write falls back to the chart-level slot the read also consults.
+    */
+   @Test
+   void aDiscreteAggregateIsNotAMeasureForThisPurpose() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Quantity", "Sum")));
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setDiscrete(true);
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getColorFrame());
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(1)).getColorFrame());
+      assertInstanceOf(StaticColorModel.class, model.getColorFrame(),
+                       "no aggregate to target, so the chart-level slot is where write and read " +
+                       "can at least agree");
+   }
+
+   /**
+    * The Gantt branch goes through the same backwards walk, so a milestone bound to something that
+    * is not a measure hides the start field from the renderer too — and must hide it from the
+    * write for the same reason.
+    */
+   @Test
+   void aNonMeasureMilestoneEndsTheGanttRunBeforeTheStartField() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_GANTT);
+      ChartBindingMutator.setSingleShelf(model, "start", measure("Ship Date", "Max"));
+      ChartBindingMutator.setSingleShelf(model, "milestone", dimension("Phase"));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      ChartAggregateRefModel start = (ChartAggregateRefModel) model.getStartField();
+      assertNull(start.getColorFrame(),
+                 "getAggregates() breaks at milestone before it ever reaches start");
+      assertInstanceOf(StaticColorModel.class, model.getColorFrame());
+   }
+
+   /**
     * Mirrors {@code VSFrameVisitor.getAggregates()}'s own fallback: when the Y shelf has no
     * measure (e.g. an inverted chart with the aggregate on X), a field-less frame must still land
     * where the renderer looks, not on the top-level property.
