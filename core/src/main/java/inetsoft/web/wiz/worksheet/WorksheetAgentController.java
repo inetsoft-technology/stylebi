@@ -38,6 +38,10 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.tabular.PropertyMeta;
+import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -54,6 +58,7 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
@@ -205,6 +210,45 @@ public class WorksheetAgentController {
       throws Exception
    {
       requireEnabled();
+
+      // add_table with endpoint (named connector) or suffix (generic/custom REST-JSON) binds a
+      // TabularTableAssembly instead of a physical table or logical-model entity. Checked before
+      // every other add_table branch below so its own contradiction errors fire first -- in
+      // particular before the plain "add_table with a datasource" branch, which would otherwise
+      // route a request carrying both datasource and endpoint/suffix into addBoundTable.
+      if("add_table".equals(req.op()) &&
+         ((req.endpoint() != null && !req.endpoint().isBlank()) ||
+          (req.suffix() != null && !req.suffix().isBlank())))
+      {
+         boolean hasEndpoint = req.endpoint() != null && !req.endpoint().isBlank();
+         boolean hasSuffix = req.suffix() != null && !req.suffix().isBlank();
+
+         if(hasEndpoint && hasSuffix) {
+            throw new PairingException("add_table cannot carry both endpoint and suffix -- " +
+               "choose the named-connector form (endpoint) or the custom form (suffix), not both.");
+         }
+
+         if(req.datasource() == null || req.datasource().isBlank()) {
+            throw new PairingException(
+               "datasource is required when " + (hasEndpoint ? "endpoint" : "suffix") +
+               " is specified.");
+         }
+
+         if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
+            throw new PairingException("add_table cannot carry both " +
+               (hasEndpoint ? "endpoint" : "suffix") + " and logicalModel -- choose one.");
+         }
+
+         if(req.schema() != null || req.catalog() != null) {
+            throw new PairingException("add_table cannot carry schema/catalog together with " +
+               (hasEndpoint ? "endpoint" : "suffix") + " -- those name a physical table; " +
+               (hasEndpoint ? "an endpoint" : "a custom REST-JSON suffix") +
+               " has no schema/catalog.");
+         }
+
+         addTabularTable(sessionToken, req, user);
+         return;
+      }
 
       // add_table with logicalModel requires datasource.
       if("add_table".equals(req.op()) && req.logicalModel() != null
@@ -505,6 +549,130 @@ public class WorksheetAgentController {
 
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Create a {@link TabularTableAssembly} bound either to a named REST/JSON connector's
+    * pre-built endpoint (+ optional pre-built lookup chain), or to a generic/custom REST-JSON
+    * datasource's hand-authored URL suffix (+ optional hand-authored custom lookup chain).
+    *
+    * <p>A datasource resolves to exactly one {@code TabularQuery} concrete class via
+    * {@link TabularUtil#createQuery}, never both shapes for the same datasource -- so which of
+    * the two this method builds is decided by which property the RESOLVED query class actually
+    * exposes ({@code pmap.get("endpoint")}), cross-checked against which field the CALLER
+    * supplied, rather than trusting the caller's field choice alone: setting {@code suffix}
+    * directly on a named connector's query is a silent no-op (its suffix is derived from
+    * {@code endpoint} instead), so a caller confusing the two forms is refused here rather than
+    * silently building a table against a contract nobody asked for.</p>
+    *
+    * <p>Shares {@link TabularEndpointBindingSupport} with
+    * {@link WorksheetTableService#buildTabularTable} (the wiz-services {@code /ws/table} write
+    * path), which already builds the same kind of {@code TabularTableAssembly} from its own
+    * {@code TabularSource} request shape.</p>
+    */
+   private void addTabularTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String dsName = req.datasource();
+
+      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, user)) {
+         throw new PairingException("Access denied: no READ permission on datasource " + dsName);
+      }
+
+      XDataSource dataSource = xrepository.getDataSource(dsName);
+
+      if(dataSource == null) {
+         throw new PairingException("Data source not found: " + dsName);
+      }
+
+      if(!(dataSource instanceof TabularDataSource)) {
+         throw new PairingException("'" + dsName + "' is a " + dataSource.getType() +
+            " data source, not a tabular/REST one, so it has no endpoints to call. Use " +
+            "datasource+schema+table for a physical table, or datasource+logicalModel for a " +
+            "logical model entity.");
+      }
+
+      TabularQuery query = TabularUtil.createQuery(dsName);
+
+      if(query == null) {
+         throw new PairingException("Could not create a query for data source '" + dsName +
+            "' -- its connector plugin may not be loaded.");
+      }
+
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      boolean namedConnector = pmap.get("endpoint") != null;
+      String suffix;
+
+      if(req.endpoint() != null && !req.endpoint().isBlank()) {
+         if(!namedConnector) {
+            throw new PairingException("'" + dsName + "' has no predefined endpoint catalogue " +
+               "-- use suffix (+ optional customLookups) instead of endpoint.");
+         }
+
+         suffix = TabularEndpointBindingSupport.applyEndpointContract(query, pmap, req.endpoint(),
+            null /* no parameters on this op yet -- see the design doc's flagged decision */,
+            null, null, null, dsName);
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.endpoint(), dsName);
+
+         if(req.lookup() != null && !req.lookup().isEmpty()) {
+            TabularEndpointBindingSupport.applyLookupChain(query, pmap, req.lookup(),
+               req.lookupExpandArrays(), req.lookupTopLevelOnly(), req.endpoint(), dsName);
+         }
+      }
+      else {
+         if(namedConnector) {
+            throw new PairingException("'" + dsName + "' has a predefined endpoint catalogue -- " +
+               "use endpoint (+ optional lookup) instead of suffix; see list_endpoint_lookups.");
+         }
+
+         suffix = TabularEndpointBindingSupport.applyCustomSuffix(query, pmap, req.suffix(), null,
+            dsName);
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.suffix(), dsName);
+
+         if(req.customLookups() != null && !req.customLookups().isEmpty()) {
+            TabularEndpointBindingSupport.applyCustomLookupChain(query, pmap, req.customLookups(),
+               dsName);
+         }
+      }
+
+      String tableName = req.table();
+
+      if(tableName == null || tableName.isBlank()) {
+         throw new PairingException("table (the desired worksheet table name) is required for " +
+            "add_table with endpoint/suffix.");
+      }
+
+      String target = namedConnector ? req.endpoint() : req.suffix();
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String assemblyName = AssetUtil.getNextName(ws, AssetUtil.normalizeTable(tableName));
+         TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
+         TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
+         info.setQuery(query);
+         info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, dsName, dsName));
+
+         positionBelowExisting(ws, assembly);
+         ws.addAssembly(assembly);
+
+         // The live HTTP call -- same call TabularQueryDialogService.setUpTable and
+         // WorksheetTableService.buildTabularTable both make; a tabular query has no columns
+         // until one response has been parsed.
+         assembly.loadColumnSelection(new VariableTable(), true, null);
+
+         ColumnSelection columns = assembly.getColumnSelection(false);
+
+         if(columns == null || columns.getAttributeCount() == 0) {
+            // Mirrors WorksheetTableService.buildTabularTable's empty-column check -- without this
+            // the assembly persists with zero columns and the agent is told "success" for a table
+            // nothing can bind to.
+            throw new PairingException("The request to '" + target + "' of '" + dsName +
+               "' returned no columns. URL suffix sent: " + suffix + ". Check the parameter " +
+               "values and datasource credentials -- see the server log for the cause.");
+         }
+
          return null;
       });
    }

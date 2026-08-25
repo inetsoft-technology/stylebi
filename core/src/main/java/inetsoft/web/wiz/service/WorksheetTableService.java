@@ -43,8 +43,6 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.PropertyMeta;
-import inetsoft.uql.tabular.RestParameter;
-import inetsoft.uql.tabular.RestParameters;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularUtil;
@@ -1525,7 +1523,7 @@ public class WorksheetTableService {
       // per-call bill — so demanding a row cap there would refuse a correct request for a cost that
       // does not exist.
       else if(TARGET_KIND_ENDPOINT.equals(targetKind)) {
-         requireRowCapWhenPaged(query, src.getTarget(), dsName);
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(query, src.getTarget(), dsName);
       }
 
       // How many rows to report back, carried ON THE QUERY because the runner is the only place that
@@ -1581,21 +1579,14 @@ public class WorksheetTableService {
 
    /**
     * Set the endpoint and its parameter values on a tabular query, and return the URL suffix that
-    * results.
+    * results. Also applies {@code src}'s lookup chain, if any, once the base endpoint is set.
     *
-    * <p>ORDER IS NOT INTERCHANGEABLE. {@code getParameters()} derives the contract from the endpoint
-    * currently set on the bean ({@code EndpointQueryDelegate.createParameters} scans that endpoint's
-    * suffix template with {@code RestParameter.fromToken}), so setting the endpoint has to come
-    * first — reversed, the contract comes back empty and every supplied value is reported as
-    * unknown. Setting the endpoint also does more than record a name: the connector's
-    * {@code updatePagination} runs from inside the setter and is what establishes the pagination
-    * spec, the request method and the content type.</p>
-    *
-    * <p>NOTHING HERE TRUSTS THAT A WRITE HAPPENED. {@code PropertyMeta.setValue} reports a failed
-    * invocation with {@code LOG.error} and returns, and {@code createParameters} skips a token its
-    * parser rejects with a {@code LOG.warn}. Both are silent to the caller, and the observable
-    * result of either is a request that goes out narrower than the one that was asked for. So every
-    * write is checked, by read-back where possible and by the suffix at the end.</p>
+    * <p>Delegates the connector-agnostic reflection machinery to
+    * {@link TabularEndpointBindingSupport#applyEndpointContract}, which
+    * {@code WorksheetAgentController.addTabularTable} (the composer plugin's write path) shares —
+    * this method's own job is just translating {@code src} into that shared contract's plain
+    * parameters, plus the one check ({@code params} is the FILE contract's option bag, not this
+    * one) that has no equivalent on the plugin path, which has no file target at all.</p>
     *
     * @return the built URL suffix, with every parameter substituted.
     */
@@ -1604,15 +1595,6 @@ public class WorksheetTableService {
                                         WorksheetTable.TabularSource src)
       throws Exception
    {
-      PropertyMeta endpointProp = pmap.get("endpoint");
-
-      if(endpointProp == null) {
-         throw new IllegalArgumentException(
-            "Data source '" + src.getDatasourcePath() + "' (type '" + query.getType() +
-            "') is tabular but not endpoint-based, so it has no endpoint to select. Only connectors " +
-            "that ship an endpoint catalogue can be used as a tabular table this way.");
-      }
-
       // Refused rather than ignored, same rule as an unknown parameter name below: params is the
       // file contract's option bag, nothing on this path reads it, and dropping it would parse the
       // caller's request differently from how they wrote it and report success.
@@ -1623,98 +1605,17 @@ public class WorksheetTableService {
       }
 
       String endpoint = src.getTarget().trim();
-      assertKnownEndpoint(query, endpoint, src.getDatasourcePath());
-      endpointProp.setValue(query, endpoint);
+      String suffix = TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, endpoint, src.getParameters(), src.getJsonPath(), src.getExpanded(),
+         src.getExpandedPath(), src.getDatasourcePath());
 
-      // Read back, because setValue swallows a failed invocation. Everything below derives from the
-      // endpoint being set, so an unnoticed failure here produces an empty contract and a null
-      // suffix, both of which are much harder to attribute than this line.
-      if(!endpoint.equals(endpointProp.getValue(query))) {
-         throw new IllegalStateException(
-            "Failed to select endpoint '" + endpoint + "' on the query for '" +
-            src.getDatasourcePath() + "'; see the server log for the reflection failure.");
+      if(src.getLookup() != null && !src.getLookup().isEmpty()) {
+         TabularEndpointBindingSupport.applyLookupChain(query, pmap, src.getLookup(),
+            src.getLookupExpandArrays(), src.getLookupTopLevelOnly(), endpoint,
+            src.getDatasourcePath());
       }
 
-      // Read AFTER the endpoint is set, because that is when the connector's updatePagination has
-      // decided it. A POST endpoint is refused rather than attempted: the body it needs is carried
-      // on a private field of the connector's query and is only moved into the request body by
-      // populateRequestBodyTemplate, a dialog BUTTON method this property-based path never runs.
-      // Attempting one sends an empty body, which most APIs answer with a 400 and some with an
-      // unfiltered full result.
-      PropertyMeta requestTypeProp = pmap.get("requestType");
-
-      if(requestTypeProp != null && "POST".equals(requestTypeProp.getValue(query))) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' of '" + src.getDatasourcePath() + "' is a POST endpoint, " +
-            "which cannot be created this way yet: its request body comes from a template that only " +
-            "the connector's own dialog populates. Choose a GET endpoint.");
-      }
-
-      PropertyMeta paramProp = pmap.get("parameters");
-      Object contract = paramProp == null ? null : paramProp.getValue(query);
-
-      if(!(contract instanceof RestParameters params)) {
-         throw new IllegalStateException(
-            "Could not read the parameter contract for endpoint '" + endpoint + "' of '" +
-            src.getDatasourcePath() + "'.");
-      }
-
-      Map<String, String> supplied = src.getParameters() == null
-         ? new LinkedHashMap<>() : new LinkedHashMap<>(src.getParameters());
-      List<String> missing = new ArrayList<>();
-
-      for(RestParameter parameter : params.getParameters()) {
-         String value = supplied.remove(parameter.getName());
-
-         if(value != null && !value.isBlank()) {
-            parameter.setValue(value.trim());
-         }
-         else if(parameter.isRequired()) {
-            missing.add(parameter.getName());
-         }
-      }
-
-      // Every missing required name at once. SuffixTemplate.build() does raise a clear
-      // IllegalStateException for a missing required parameter, but only for the FIRST one it walks
-      // into, so a caller filling three of five would need three round trips to learn all of them —
-      // and every round trip past this point is a metered request.
-      if(!missing.isEmpty()) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' requires parameter(s) with no value supplied: " +
-            String.join(", ", missing) + ". Supply them; do not guess an identifier.");
-      }
-
-      // A name the endpoint does not declare is an error, not something to drop. Dropping it runs a
-      // DIFFERENT query than the one that was asked for and reports success — and the likeliest
-      // cause is a caller using another endpoint's contract, which no later step can detect.
-      if(!supplied.isEmpty()) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' has no parameter(s) named: " +
-            String.join(", ", supplied.keySet()) + ". Its parameters are: " +
-            params.getParameters().stream()
-               .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
-               .collect(Collectors.joining(", ")) + ".");
-      }
-
-      paramProp.setValue(query, params);
-      setOptionalProperty(pmap, query, "jsonPath", src.getJsonPath());
-      setOptionalProperty(pmap, query, "expanded", src.getExpanded());
-      setOptionalProperty(pmap, query, "expandedPath", src.getExpandedPath());
-
-      // The one end-to-end check, and the reason it is worth a line of its own: reading "suffix"
-      // back invokes the connector's getSuffix(), which rebuilds the URL from the endpoint template
-      // and the values just set. A null means one of the silent paths above fired after all — the
-      // endpoint name resolved to no template, or a parameter never made it onto the bean.
-      PropertyMeta suffixProp = pmap.get("suffix");
-      Object suffix = suffixProp == null ? null : suffixProp.getValue(query);
-
-      if(!(suffix instanceof String s) || s.isBlank()) {
-         throw new IllegalStateException(
-            "Endpoint '" + endpoint + "' of '" + src.getDatasourcePath() + "' produced no URL " +
-            "suffix after its parameters were set; see the server log.");
-      }
-
-      return s;
+      return suffix;
    }
 
    /**
@@ -2213,96 +2114,6 @@ public class WorksheetTableService {
             "Setting '" + prop.getName() + "' to \"" + value + "\" failed: " +
             (cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage()),
             cause);
-      }
-   }
-
-   /**
-    * Refuse an unbounded row limit on an endpoint that paginates.
-    *
-    * <p>{@code XQuery.rowlimit} defaults to 0, meaning unlimited, and on a paginated connector that
-    * is not "read a lot" — it is "keep requesting pages until the service runs out", on every render
-    * of the table, against an API that bills per call. Neither obvious remedy is right: requiring a
-    * cap unconditionally makes a caller invent a number for an endpoint like {@code /v1/balance} that
-    * issues one request and returns one object, and defaulting silently trades a slow answer for a
-    * wrong one — a table that quietly returns 100 of 5000 rows answers "how many are there"
-    * incorrectly, with nothing in the response saying so.</p>
-    *
-    * <p>So the condition checked is the one that actually matters, and it is accurate by now:
-    * {@code setEndpoint} ran the connector's {@code updatePagination}, which is what establishes the
-    * pagination spec. {@code isPaged()} is public but not a {@code @Property}, so it is reached by
-    * name — the same reflection {@link #assertKnownEndpoint} uses for {@code getEndpoints}. A
-    * connector that does not answer it is left alone rather than blocked: this check exists to stop a
-    * known-unbounded query, not to reject an unfamiliar one.</p>
-    */
-   private void requireRowCapWhenPaged(TabularQuery query, String endpoint, String dsName) {
-      boolean paged;
-
-      try {
-         paged = (Boolean) query.getClass().getMethod("isPaged").invoke(query);
-      }
-      catch(Exception ex) {
-         LOG.debug("Could not determine whether endpoint '{}' of '{}' paginates; not requiring a " +
-                   "row cap", endpoint, dsName, ex);
-         return;
-      }
-
-      if(paged) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' of '" + dsName + "' is paginated, so tabularSource.maxRows " +
-            "is required: without it every render of this table requests pages until the service runs " +
-            "out of data. Choose a row cap for the question being asked.");
-      }
-   }
-
-   /** Set a property only when a value was supplied, leaving the connector's default otherwise. */
-   private void setOptionalProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
-                                    String name, Object value)
-   {
-      PropertyMeta prop = value == null ? null : pmap.get(name);
-
-      if(prop != null) {
-         prop.setValue(query, value);
-      }
-   }
-
-   /**
-    * Fail on an unknown endpoint name, listing what the connector does offer.
-    *
-    * <p>Without this the name simply resolves to no suffix template and the failure surfaces as
-    * "produced no URL suffix", which does not say that the name was wrong. The tags method is
-    * reached by name because the interface declaring it lives in the connector plugin and is not
-    * visible from core; each row it returns is {@code {label, name}}.</p>
-    */
-   private void assertKnownEndpoint(TabularQuery query, String endpoint, String dsName) {
-      String[][] endpoints;
-
-      try {
-         endpoints = (String[][]) query.getClass().getMethod("getEndpoints").invoke(query);
-      }
-      catch(Exception ex) {
-         // Not fatal: a connector without this method still works, and applyEndpointContract's
-         // suffix check catches a bad name — just with a vaguer message.
-         LOG.debug("Could not list endpoints for '{}'; skipping the name check", dsName, ex);
-         return;
-      }
-
-      if(endpoints == null) {
-         return;
-      }
-
-      List<String> names = new ArrayList<>();
-
-      for(String[] tag : endpoints) {
-         if(tag != null && tag.length > 1 && tag[1] != null) {
-            names.add(tag[1]);
-         }
-      }
-
-      if(!names.isEmpty() && !names.contains(endpoint)) {
-         List<String> sample = names.stream().sorted().limit(20).toList();
-         throw new IllegalArgumentException(
-            "Data source '" + dsName + "' has no endpoint named '" + endpoint + "'. It has " +
-            names.size() + " endpoint(s), for example: " + String.join(", ", sample) + ".");
       }
    }
 
