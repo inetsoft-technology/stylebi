@@ -1313,13 +1313,12 @@ public final class WorksheetMutationSupport {
 
             if(spec.values() != null) {
                for(String v : spec.values()) {
-                  // $(varName) syntax maps to a UserVariable reference.
-                  if(v != null && v.startsWith("$(") && v.endsWith(")")) {
-                     c.addValue(new UserVariable(v.substring(2, v.length() - 1)));
-                  }
-                  else {
-                     c.addValue(v);
-                  }
+                  // Shared with addFilter rather than parsed a second time here. The local copy
+                  // had no lower bound on the name, so "$()" became a variable named "" -- one
+                  // nothing can ever resolve, reported as ok. Typing was NOT the difference: a
+                  // bare UserVariable still reaches the prompt with the condition's own type, so
+                  // both spellings already agreed there.
+                  c.addValue(conditionValue(dtype, v));
                }
             }
 

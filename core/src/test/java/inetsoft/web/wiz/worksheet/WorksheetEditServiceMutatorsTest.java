@@ -2494,6 +2494,71 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("Floor", ((UserVariable) v).getName());
    }
 
+   /** One condition through set_conditions, so the $(name) handling can be compared to addFilter's. */
+   private static void setOneCondition(WorksheetEditService svc, Principal agent, String value)
+      throws Exception
+   {
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", ">", List.of(value), false, null), null, 0))));
+   }
+
+   /** A $(name) through set_conditions must stay a variable, typed from its column. */
+   @Test
+   void aVariableThroughSetConditionsCarriesItsColumnType() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ((ColumnRef) t.getColumnSelection().getAttribute("a")).setDataType(XSchema.DOUBLE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      setOneCondition(svc, agent, "$(Floor)");
+
+      Object v = firstCondition(t).getValue(0);
+      assertInstanceOf(UserVariable.class, v, "a $(name) value must stay a variable");
+      assertEquals("Floor", ((UserVariable) v).getName());
+      // Passes on either side of the shared-helper change, and pinned for that reason: the
+      // refactor must not alter the type a variable arrives with. Typing was never the defect
+      // here -- UserVariable's type node defaults to StringType rather than null, and the
+      // condition's own type reaches the variable on both paths.
+      assertEquals(XSchema.DOUBLE, ((UserVariable) v).getTypeNode().getType(),
+         "the variable must carry the column's type, as it does through add_filter");
+   }
+
+   /**
+    * The real difference between the two paths: set_conditions had no lower bound on the name, so
+    * "$()" became a variable named "" -- one nothing can ever resolve, accepted without complaint.
+    */
+   @Test
+   void anEmptyVariableNameIsNotTreatedAsAVariableThroughSetConditions() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      setOneCondition(svc, agent, "$()");
+
+      assertEquals("$()", firstCondition(t).getValue(0),
+         "an empty name is a literal, not a variable nothing can ever resolve");
+   }
+
+   /** The non-variable path must be untouched: a plain value still arrives as itself. */
+   @Test
+   void anOrdinaryValueThroughSetConditionsIsUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      setOneCondition(svc, agent, "hello");
+
+      assertEquals("hello", firstCondition(t).getValue(0));
+   }
+
    @Test
    void anOrdinaryValueIsStillCoercedToTheColumnType() throws Exception {
       Worksheet ws = new Worksheet();
