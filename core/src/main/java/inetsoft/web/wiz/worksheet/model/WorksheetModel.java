@@ -207,9 +207,13 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *
     * @param groups     group-by dimensions
     * @param aggregates measure aggregate definitions
+    * @param crosstab   whether the table is displayed as a crosstab (row/column headers)
+    *                   rather than a flat grouped table — set via set_group_aggregate's
+    *                   {@code crosstab} option
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
-   public record AggregateModel(List<GroupModel> groups, List<AggregateRefModel> aggregates) {
+   public record AggregateModel(
+      List<GroupModel> groups, List<AggregateRefModel> aggregates, boolean crosstab) {
 
       /**
        * A single group-by dimension.

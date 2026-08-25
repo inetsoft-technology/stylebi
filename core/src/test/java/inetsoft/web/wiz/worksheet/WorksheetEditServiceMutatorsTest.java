@@ -322,6 +322,32 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateCrosstabTogglesAggregateInfo() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)), true));
+      assertTrue(t.getAggregateInfo().isCrosstab());
+
+      // Switching back off must clear it again, matching the Composer dialog's own toggle.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)), false));
+      assertFalse(t.getAggregateInfo().isCrosstab());
+
+      // The 3-arg overload (no explicit crosstab) must default to false.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+      assertFalse(t.getAggregateInfo().isCrosstab());
+   }
+
+   @Test
    void renameAliasSurvivesReAggregation() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");

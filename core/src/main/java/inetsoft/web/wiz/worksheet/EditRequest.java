@@ -38,7 +38,14 @@ import java.util.Map;
  *   <li>{@code add_filter} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code remove_filter} — {@code table}, {@code field}</li>
  *   <li>{@code set_group_aggregate} — {@code table}, {@code groups} (each a column name or
- *       {@code {field, dateLevel}}), {@code aggregates}</li>
+ *       {@code {field, dateLevel}}), {@code aggregates}, optional {@code crosstab} (true =
+ *       display as a crosstab, matching the Group and Aggregate dialog's "Switch to
+ *       Crosstab" toggle; defaults to false). Per
+ *       {@link inetsoft.uql.asset.AggregateInfo#isCrosstab}, the
+ *       request is accepted either way but the crosstab actually takes effect only with at
+ *       least 2 {@code groups} and at least 1 {@code aggregates} entry — fewer than that and
+ *       the table silently reads back as a non-crosstab table on the next read, with no
+ *       error from this call.</li>
  *   <li>{@code add_expression_column} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
@@ -297,5 +304,46 @@ public record EditRequest(
     * suffix appended to the datasource's base URL). Max 5 entries. Only valid together with
     * {@code suffix}.
     */
-   List<WorksheetMutationSupport.CustomLookupSpec> customLookups
-) {}
+   List<WorksheetMutationSupport.CustomLookupSpec> customLookups,
+   /**
+    * {@code true} to display set_group_aggregate's result as a crosstab (row/column
+    * headers) rather than a flat grouped table — the Composer's own Group and Aggregate
+    * dialog "Switch to Crosstab" toggle. Defaults to {@code false} when omitted. Takes visible
+    * effect only once {@code groups} has at least 2 entries and {@code aggregates} at least 1;
+    * with fewer, it is accepted but silently has no effect (same as the Composer dialog itself).
+    */
+   Boolean crosstab
+) {
+   /**
+    * Compatibility constructor for callers built before {@code crosstab} was added —
+    * defaults it to {@code null} (treated as {@code false}).
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, null);
+   }
+}

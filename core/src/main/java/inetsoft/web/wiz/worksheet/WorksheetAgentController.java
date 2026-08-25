@@ -1595,7 +1595,8 @@ public class WorksheetAgentController {
                                             .map(a -> new WorksheetMutationSupport.AggregateSpec(
                                                 a.field(), a.formula(), a.alias()))
                                             .toList()
-                                        : List.of());
+                                        : List.of(),
+                                     Boolean.TRUE.equals(req.crosstab()));
          case "add_expression_column" -> {
             if(req.name() == null || req.name().isBlank()) {
                throw new PairingException("name is required for add_expression_column.");

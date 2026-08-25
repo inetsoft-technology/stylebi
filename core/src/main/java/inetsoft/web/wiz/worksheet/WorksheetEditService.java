@@ -487,7 +487,28 @@ public class WorksheetEditService {
                                     List<WorksheetMutationSupport.AggregateSpec> aggregates)
          throws PairingException
       {
-         WorksheetMutationSupport.applyAggregateInfo(requireTable(table), groups, aggregates);
+         setGroupAggregate(table, groups, aggregates, false);
+      }
+
+      /**
+       * Builds and sets a new {@link AggregateInfo} on the named table.
+       *
+       * @param table      the assembly name
+       * @param groups     group-by column specs (name, plus optional date grouping level)
+       * @param aggregates aggregate measures to apply
+       * @param crosstab   {@code true} to display the result as a crosstab (row/column
+       *                   headers) rather than a flat grouped table — the Composer's own
+       *                   Group and Aggregate dialog "Switch to Crosstab" toggle. Takes visible
+       *                   effect only once {@code groups} has at least 2 entries and
+       *                   {@code aggregates} at least 1 — see {@link AggregateInfo#isCrosstab}
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void setGroupAggregate(String table, List<WorksheetMutationSupport.GroupSpec> groups,
+                                    List<WorksheetMutationSupport.AggregateSpec> aggregates,
+                                    boolean crosstab)
+         throws PairingException
+      {
+         WorksheetMutationSupport.applyAggregateInfo(requireTable(table), groups, aggregates, crosstab);
       }
 
       // -----------------------------------------------------------------------
