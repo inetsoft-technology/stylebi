@@ -124,11 +124,32 @@ public final class DateLevels {
       levels.put("hour", XConstants.HOUR_DATE_GROUP);
       levels.put("minute", XConstants.MINUTE_DATE_GROUP);
       levels.put("second", XConstants.SECOND_DATE_GROUP);
+      levels.put("am_pm", XConstants.AM_PM_DATE_GROUP);
       levels.put("millisecond", XConstants.MILLISECOND_DATE_GROUP);
 
-      // The "part" levels — quarter of year, month of year, day of week and so on — group by a
-      // component rather than truncating to it, which is a different question from this one and
-      // is not offered here rather than being half-supported under a similar name.
+      // The "part" levels — quarter of year, month of year, day of week and so on. They group by a
+      // component rather than truncating to it: {@code month} puts 2026-08-24 in "Aug 2026", while
+      // {@code month_of_year} puts every August of every year together.
+      //
+      // They were left out at first, on the reasoning that a different question deserves a
+      // deliberate answer rather than a half-supported name. That was wrong for one specific
+      // reason: they are already reachable. The Composer offers them on its own date-level menu, so
+      // a chart can hold one, and the agent surface reads a binding back before writing it — which
+      // made a field read out of get_binding unwritable, refused as "'514' is not a date level" for
+      // a level the read had just reported. A vocabulary the read can produce is a vocabulary the
+      // write has to accept.
+      levels.put("quarter_of_year", XConstants.QUARTER_OF_YEAR_DATE_GROUP);
+      levels.put("month_of_year", XConstants.MONTH_OF_YEAR_DATE_GROUP);
+      levels.put("week_of_year", XConstants.WEEK_OF_YEAR_DATE_GROUP);
+      levels.put("week_of_month", XConstants.WEEK_OF_MONTH_DATE_GROUP);
+      levels.put("day_of_year", XConstants.DAY_OF_YEAR_DATE_GROUP);
+      levels.put("day_of_month", XConstants.DAY_OF_MONTH_DATE_GROUP);
+      levels.put("day_of_week", XConstants.DAY_OF_WEEK_DATE_GROUP);
+      levels.put("am_pm_of_day", XConstants.AM_PM_OF_DAY_DATE_GROUP);
+      levels.put("hour_of_day", XConstants.HOUR_OF_DAY_DATE_GROUP);
+      levels.put("minute_of_hour", XConstants.MINUTE_OF_HOUR_DATE_GROUP);
+      levels.put("second_of_minute", XConstants.SECOND_OF_MINUTE_DATE_GROUP);
+
       return levels;
    }
 }

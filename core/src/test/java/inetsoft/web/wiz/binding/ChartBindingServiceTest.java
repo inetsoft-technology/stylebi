@@ -646,6 +646,131 @@ class ChartBindingServiceTest {
       verify(types).changeChartType(any(), any(), any(), any(), any());
    }
 
+   /**
+    * A request for the type the chart already has changes nothing, and used not to be harmless:
+    * ChangeChartTypeService clears the runtime aesthetic fields before deciding what to do, and the
+    * no-change branch returned without rebuilding them, so asserting a chart's current type left
+    * its colour binding reported by every read and gone from the render. Confirmed live on
+    * 2026-08-24, both with and without flags, and repaired only by a later call that happened to
+    * take the full path.
+    */
+   @Test
+   void setChartTypeSkipsARequestThatWouldChangeNothing() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      singleStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, null, null, null,
+                       "");
+
+      verifyNoInteractions(types);
+   }
+
+   /**
+    * separate cannot apply unless multi flips, so passing it alongside the chart's current type
+    * still changes nothing. This is the exact call that first surfaced the defect live, which is
+    * why it is pinned rather than left to the general case above.
+    */
+   @Test
+   void setChartTypeSkipsTheSameTypeEvenWhenSeparateIsPassed() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      singleStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, null, true, null,
+                       "");
+
+      verifyNoInteractions(types);
+   }
+
+   /** The direction that matters more: the guard must not swallow a real change. */
+   @Test
+   void setChartTypeStillSendsTheSameTypeWhenMultiStyleIsChanging() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      singleStyleChart(types)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, true, null, null, null,
+                       "");
+
+      verify(types).changeChartType(any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void setChartTypeStillSendsTheSameTypeWhenStackMeasuresIsChanging() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      // Stacking lives on the plot descriptor, so the flag this call changes is not on the info.
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      PlotDescriptor plot = mock(PlotDescriptor.class);
+      when(chart.getChartDescriptor()).thenReturn(descriptor);
+      when(descriptor.getPlotDescriptor()).thenReturn(plot);
+      when(plot.isStackMeasures()).thenReturn(false);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class), types,
+                          mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, true, null, null,
+                       "");
+
+      verify(types).changeChartType(any(), any(), any(), any(), any());
+   }
+
+   /** A per-measure request took the same branch, so it needs the same guard. */
+   @Test
+   void setChartTypeSkipsAPerMeasureRequestForTheTypeThatMeasureAlreadyHas() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      VSChartAggregateRef paid = mock(VSChartAggregateRef.class);
+      when(paid.getFullName()).thenReturn("Sum(PAID)");
+      when(paid.getChartType()).thenReturn(GraphTypes.CHART_LINE);
+
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(info.getXFieldCount()).thenReturn(1);
+      when(info.getXField(0)).thenReturn(paid);
+      when(info.getFieldByName("Sum(PAID)", true)).thenReturn(paid);
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class), types,
+                          mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null,
+                       "Sum(PAID)", "");
+
+      verifyNoInteractions(types);
+   }
+
+   /**
+    * The measure carries line while the chart carries bar, so a per-measure request for bar is a
+    * real change. Comparing against the chart's type instead of the measure's would read it as a
+    * no-op and drop it — and a skipped write is a silent one.
+    */
+   @Test
+   void setChartTypeComparesThePerMeasureTypeRatherThanTheChartsOwn() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      VSChartAggregateRef paid = mock(VSChartAggregateRef.class);
+      when(paid.getFullName()).thenReturn("Sum(PAID)");
+      when(paid.getChartType()).thenReturn(GraphTypes.CHART_LINE);
+
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(info.getXFieldCount()).thenReturn(1);
+      when(info.getXField(0)).thenReturn(paid);
+      when(info.getFieldByName("Sum(PAID)", true)).thenReturn(paid);
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class), types,
+                          mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, null, null,
+                       "Sum(PAID)", "");
+
+      verify(types).changeChartType(any(), any(), any(), any(), any());
+   }
+
    private static ChartBindingService multiStyleChart(ChangeChartTypeService types) {
       return chartWithFields(types, true);
    }
@@ -708,7 +833,12 @@ class ChartBindingServiceTest {
       harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
                           types, mock(SwapXYBindingService.class),
                           mock(ChangeSeparateStatusService.class))
-         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, null, null, null, null, "");
+         // A differing type on purpose. The live repro quoted above was a same-type call, and that
+         // door is now shut earlier — such a request changes nothing and is skipped before an event
+         // is built, because taking it cost the chart its runtime aesthetics. The coercion this
+         // test pins is still reachable through any real retype, which is what it now exercises.
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null, null,
+                       "");
 
       ArgumentCaptor<ChangeChartTypeEvent> event =
          ArgumentCaptor.forClass(ChangeChartTypeEvent.class);

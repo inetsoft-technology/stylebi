@@ -288,6 +288,22 @@ public class ChartBindingService {
             }
          }
 
+         // A request for the type the target already has, changing no flag either, is a no-op --
+         // and it used not to be a harmless one. ChangeChartTypeService clears the runtime
+         // aesthetic fields before it works out what to do, and the branch a no-change call takes
+         // returned without rebuilding them, so asserting a chart's current type stopped its
+         // colour, shape and size bindings from rendering while every read went on reporting them.
+         // That hole is closed at the source as well; this keeps the cheapest call a caller can
+         // make from re-executing the assembly for nothing.
+         //
+         // separate is deliberately not consulted. It cannot apply unless multi flips --
+         // handleMulti only reaches the separate-status path when omulti != nmulti -- so a call
+         // that changes nothing else changes nothing by passing it, which is what
+         // set_chart_separate_status exists for. Confirmed live twice: separated never moved.
+         if(isNoOpRetype(chart, type, ref, multi, stackMeasures)) {
+            return;
+         }
+
          ChangeChartTypeEvent event = new ChangeChartTypeEvent();
          event.setName(assemblyName);
          event.setType(type);
@@ -559,6 +575,52 @@ public class ChartBindingService {
       if(ref instanceof ChartAggregateRef aggregate && aggregate.getFullName() != null) {
          names.add(aggregate.getFullName());
       }
+   }
+
+   /**
+    * Whether this request would change anything at all.
+    *
+    * <p>An omitted flag means "leave it alone", so it cannot make a call a change; a flag equal to
+    * what the chart already has cannot either. What is left is the type, compared at the level the
+    * request addresses.
+    */
+   private static boolean isNoOpRetype(ChartVSAssembly chart, int type, String ref, Boolean multi,
+                                       Boolean stackMeasures)
+   {
+      Integer current = currentChartType(chart, ref);
+
+      return current != null && current == type &&
+         (multi == null || multi == isMultiStyles(chart)) &&
+         (stackMeasures == null || stackMeasures == isStackMeasures(chart));
+   }
+
+   /**
+    * The type this request would replace: the named measure's own where a measure was named, the
+    * chart's otherwise, and null where it cannot be established.
+    *
+    * <p>Mirrors {@code ChangeChartTypeService}, which reassigns its own {@code oldType} from the ref
+    * for the same reason — a per-measure retype to the type that measure already carries is as much
+    * a no-op as a whole-chart one, and took the same branch that dropped the runtime aesthetics.
+    *
+    * <p>Null rather than the chart's type when a named measure cannot be found. Falling back would
+    * compare the request against a type it was not addressing, and the failure would be silent in
+    * the one direction that matters: a call classified as a no-op is a call that does not happen.
+    * {@code requireTypeableField} has already established the name is a measure on x or y, so a
+    * miss here means those two disagree — grounds to let the write proceed, not to skip it.
+    */
+   private static Integer currentChartType(ChartVSAssembly chart, String ref) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+
+      if(info == null) {
+         return null;
+      }
+
+      if(ref == null) {
+         return info.getChartType();
+      }
+
+      return info.getFieldByName(ref, true) instanceof ChartAggregateRef aggregate
+         ? aggregate.getChartType() : null;
    }
 
    private static boolean isMultiStyles(ChartVSAssembly chart) {

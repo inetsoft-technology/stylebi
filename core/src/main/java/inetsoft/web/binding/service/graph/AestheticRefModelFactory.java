@@ -43,8 +43,9 @@ public class AestheticRefModelFactory {
          return null;
       }
 
+      VisualFrameWrapper wrapper = aref.getVisualFrameWrapper();
       VisualFrameModel frameModel =
-         vFactoryService.createVisualFrameModel(aref.getVisualFrameWrapper());
+         wrapper == null ? null : vFactoryService.createVisualFrameModel(wrapper);
 
       // textfield is edited by set and gettextformat request,
       // don't need to send model for textframe.
@@ -82,14 +83,25 @@ public class AestheticRefModelFactory {
       }
 
       VisualFrameWrapper wrapper = ref.getVisualFrameWrapper();
+      VisualFrameWrapper nwrapper =
+         vFactoryService.updateVisualFrameWrapper(wrapper, model.getFrame());
 
-      if(wrapper != null) {
-         VisualFrameWrapper nwrapper =
-            vFactoryService.updateVisualFrameWrapper(wrapper, model.getFrame());
+      // A null result means the model carried no frame. What that means depends on what was
+      // already there, and the two cases are not the same request:
+      //
+      //   - the ref already had a wrapper: this is the clear it always was. Writing null keeps
+      //     the behaviour every caller of this method has had, including the model builder's
+      //     text-field path, where createAestheticInfo deliberately sends no frame model.
+      //   - the ref is brand new (first bind): there is nothing to clear, and the frame will be
+      //     supplied by GraphUtil.fixVisualFrame. Writing null here would be a no-op with a
+      //     different name.
+      //
+      // The first-bind case with a frame present is the one this method used to get wrong: it
+      // called model.getFrame().createVisualFrame() directly, which builds a bare default of the
+      // right class and copies none of the model's values. It now takes the same
+      // updateVisualFrameWrapper path as a rebind, which does copy them.
+      if(nwrapper != null || wrapper != null) {
          ref.setVisualFrameWrapper(nwrapper);
-      }
-      else if(model.getFrame() != null) {
-         ref.setVisualFrame(model.getFrame().createVisualFrame());
       }
 
       return ref;
