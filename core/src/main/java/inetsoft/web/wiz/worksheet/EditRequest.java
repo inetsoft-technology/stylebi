@@ -43,7 +43,7 @@ import java.util.Map;
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
  *   <li>{@code remove_join} — {@code name}</li>
- *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model)</li>
+ *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys}</li>
@@ -239,5 +239,63 @@ public record EditRequest(
     * Attribute/column name within {@code sourceTable} for add_named_group's datasource-scoped
     * mode (see {@code sourceTable}).
     */
-   String attribute
+   String attribute,
+   /**
+    * Endpoint name for add_table when binding a NAMED REST/JSON connector's pre-built endpoint
+    * catalogue (see {@code list_endpoint_lookups}) — a pre-built endpoint from that connector's
+    * own catalogue. When provided, {@code datasource} must name a tabular/REST datasource with
+    * an endpoint catalogue, {@code table} is used as the NEW worksheet table's name (not a
+    * physical table path — an endpoint has no physical path), and {@code schema}/{@code catalog}/
+    * {@code logicalModel}/{@code suffix} must be absent.
+    */
+   String endpoint,
+   /**
+    * Parameter values for {@code endpoint}, keyed by the endpoint's own parameter name (e.g.
+    * {@code {"owner": "inetsoft-technology", "repo": "stylebi"}} for GitHub's
+    * {@code Repository Issue Events}). Only meaningful with {@code endpoint} set; a name the
+    * endpoint does not declare is rejected rather than dropped, and a required parameter with no
+    * supplied value is rejected rather than guessed. Not yet supported on the generic/custom
+    * {@code suffix} path -- see {@code suffix}'s own doc comment.
+    */
+   Map<String, String> parameters,
+   /**
+    * Ordered "Join With" lookup chain to graft onto {@code endpoint}, one pre-built connector
+    * lookup name per nesting level (e.g. {@code ["Issue Event"]}, or
+    * {@code ["Repositories", "Contributors"]} for a two-level chain). Each name must be one of
+    * the CURRENT position's valid choices — {@code list_endpoint_lookups} reports them. Max
+    * depth 5. Only for add_table with {@code endpoint} set; authoring a brand-new lookup a
+    * connector does not already ship uses {@code customLookups} instead.
+    */
+   List<String> lookup,
+   /**
+    * Only meaningful with {@code lookup}: whether the LAST lookup's matched array expands into
+    * extra rows. Omit to keep the connector's own default ({@code true}).
+    */
+   Boolean lookupExpandArrays,
+   /**
+    * Only meaningful with {@code lookup} and {@code lookupExpandArrays}: whether only the
+    * top-level array is expanded. Omit to keep the connector's own default ({@code true}).
+    */
+   Boolean lookupTopLevelOnly,
+   /**
+    * URL suffix template for add_table on a GENERIC/CUSTOM REST-JSON datasource (one with no
+    * predefined endpoint catalogue — see {@code list_endpoint_lookups}' {@code hasEndpointCatalog}
+    * flag). Mutually exclusive with {@code endpoint}; use exactly one of the two. Unlike
+    * {@code endpoint}, this path has no declared parameter contract to validate against, so
+    * {@code parameters} does not apply here -- any {@code {name}} placeholder must already be
+    * filled in {@code suffix} itself.
+    */
+   String suffix,
+   /**
+    * Ordered custom "Join With" lookup chain for a GENERIC/CUSTOM REST-JSON datasource's
+    * {@code suffix}-defined endpoint. Unlike {@code lookup} (named-connector chains, by name),
+    * each entry here hand-authors one level: {@code url} (must contain the literal placeholder
+    * {@code {param1}} for level 0, {@code {param2}} for level 1, etc. — 1-indexed by position —
+    * to receive the id extracted from the parent row), {@code jsonPath} (selects the parent
+    * row's array/entity to iterate), {@code key} (extracts each item's id from that
+    * {@code jsonPath}), {@code ignoreBaseUrl} (true if {@code url} is a full URL rather than a
+    * suffix appended to the datasource's base URL). Max 5 entries. Only valid together with
+    * {@code suffix}.
+    */
+   List<WorksheetMutationSupport.CustomLookupSpec> customLookups
 ) {}

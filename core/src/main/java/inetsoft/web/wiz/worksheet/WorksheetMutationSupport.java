@@ -1369,6 +1369,25 @@ public final class WorksheetMutationSupport {
       t.setRankingConditionList(cl);
    }
 
+   /**
+    * Describes one hand-authored "Join With" lookup level for a GENERIC/CUSTOM REST-JSON
+    * datasource's {@code add_table} binding (see {@code TabularEndpointBindingSupport
+    * #applyCustomLookupChain}), as opposed to {@code lookup} (a named connector's pre-built
+    * lookup chain, selected by endpoint name only).
+    *
+    * @param url          URL template for this level. Must contain the literal placeholder
+    *                     {@code {paramN}} (1-indexed by this level's position in the chain,
+    *                     e.g. {@code {param1}} for the first level) so the id extracted via
+    *                     {@code jsonPath}/{@code key} from the PARENT level's row lands in the
+    *                     request StyleBI issues for this level.
+    * @param jsonPath     selects the parent row's array/entity to iterate for this level.
+    * @param key          extracts each item's id from that {@code jsonPath}.
+    * @param ignoreBaseUrl {@code true} if {@code url} is a full URL rather than a suffix
+    *                     appended to the datasource's base URL; omit/{@code null} for
+    *                     {@code false}.
+    */
+   public record CustomLookupSpec(String url, String jsonPath, String key, Boolean ignoreBaseUrl) {}
+
    // =========================================================================
    // Internal helpers
    // =========================================================================
