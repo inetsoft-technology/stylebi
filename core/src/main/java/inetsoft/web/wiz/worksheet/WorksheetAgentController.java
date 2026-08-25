@@ -984,14 +984,14 @@ public class WorksheetAgentController {
    public record ImportCsvRequest(String name, String csv, String encoding, String delimiter,
                                   Boolean delimiterTab, Boolean detectType,
                                   Boolean firstRowAsHeader, Boolean removeQuotes,
-                                  Boolean unpivot, Integer headerCols)
+                                  Boolean unpivot, Integer headerCols, String replaceTable)
    {
       /**
        * The common case: text plus an optional name, every setting left to its default. Spelling
-       * out eight nulls at each call site would bury which ones a caller actually meant to set.
+       * out nine nulls at each call site would bury which ones a caller actually meant to set.
        */
       public ImportCsvRequest(String name, String csv) {
-         this(name, csv, null, null, null, null, null, null, null, null);
+         this(name, csv, null, null, null, null, null, null, null, null, null);
       }
    }
    public record ImportCsvResponse(String tableName, int rows, int columns) {}
@@ -1135,7 +1135,7 @@ public class WorksheetAgentController {
       byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
       checkImportFileSize(bytes.length, "CSV");
 
-      return importCsvBytes(sessionToken, user, body.name(), bytes, settings);
+      return importCsvBytes(sessionToken, user, body.name(), body.replaceTable(), bytes, settings);
    }
 
    /**
@@ -1160,6 +1160,7 @@ public class WorksheetAgentController {
                                           @RequestParam(required = false) Boolean removeQuotes,
                                           @RequestParam(required = false) Boolean unpivot,
                                           @RequestParam(required = false) Integer headerCols,
+                                          @RequestParam(required = false) String replaceTable,
                                           Principal user) throws Exception
    {
       requireEnabled();
@@ -1174,7 +1175,7 @@ public class WorksheetAgentController {
       CsvSettings settings = csvSettings(encoding, delimiter, delimiterTab, detectType,
                                          firstRowAsHeader, removeQuotes, unpivot, headerCols);
 
-      return importCsvBytes(sessionToken, user, name, file.getBytes(), settings);
+      return importCsvBytes(sessionToken, user, name, replaceTable, file.getBytes(), settings);
    }
 
    /**
@@ -1193,9 +1194,11 @@ public class WorksheetAgentController {
     * snapshot, so turning this into a snapshot would quietly remove the only workaround there is.
     */
    private ImportCsvResponse importCsvBytes(String sessionToken, Principal user, String name,
-                                            byte[] bytes, CsvSettings settings)
+                                            String replaceTable, byte[] bytes, CsvSettings settings)
       throws Exception
    {
+      requireNotBothNameAndReplaceTarget(name, replaceTable);
+
       // The product's cache directory rather than java.io.tmpdir: the bytes are the caller's data,
       // and the system temp dir is shared with whatever else runs on the host, at whatever
       // permissions the umask gives. This is the same convention the import dialog's own file
@@ -1252,13 +1255,31 @@ public class WorksheetAgentController {
             table = new XEmbeddedTable(types.toArray(new String[0]), loaded);
          }
 
-         return createEmbeddedTable(sessionToken, user, name, table,
-                                    table.getRowCount(), table.getColCount());
+         return replaceTable != null && !replaceTable.isBlank()
+            ? replaceEmbeddedTable(sessionToken, user, replaceTable, table,
+                                   table.getRowCount(), table.getColCount())
+            : createEmbeddedTable(sessionToken, user, name, table,
+                                  table.getRowCount(), table.getColCount());
       }
       finally {
          if(!temp.delete()) {
             temp.deleteOnExit();
          }
+      }
+   }
+
+   /**
+    * A caller meaning to create a new table has no use for {@code replaceTable}, and a caller
+    * meaning to replace one has no use for {@code name} -- the replaced table keeps its existing
+    * name. Refused up front rather than silently picking one, the same way csv/filePath
+    * exclusivity is refused on the plugin side.
+    */
+   private void requireNotBothNameAndReplaceTarget(String name, String replaceTable) {
+      if(name != null && !name.isBlank() && replaceTable != null && !replaceTable.isBlank()) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Provide either name (to create a new table) or replaceTable (to replace an " +
+            "existing table's data in place), not both.");
       }
    }
 
@@ -1290,19 +1311,22 @@ public class WorksheetAgentController {
                                         @RequestParam(required = false) String fileType,
                                         @RequestParam(required = false) String sheet,
                                         @RequestParam(required = false) String name,
+                                        @RequestParam(required = false) String replaceTable,
                                         Principal user) throws Exception
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
 
-      LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}",
+      LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}, replaceTable={}",
                 file != null ? sanitizeForLog(file.getOriginalFilename()) : null,
                 file != null ? file.getSize() : null, sanitizeForLog(fileType),
-                sanitizeForLog(sheet), sanitizeForLog(name));
+                sanitizeForLog(sheet), sanitizeForLog(name), sanitizeForLog(replaceTable));
 
       if(file == null || file.isEmpty()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
       }
+
+      requireNotBothNameAndReplaceTarget(name, replaceTable);
 
       boolean xls = "XLS".equalsIgnoreCase(fileType);
       boolean xlsx = "XLSX".equalsIgnoreCase(fileType);
@@ -1409,7 +1433,10 @@ public class WorksheetAgentController {
       int nrows = dataRows.size();
       Object[][] data = dataRows.toArray(new Object[0][]);
 
-      return createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
+      return replaceTable != null && !replaceTable.isBlank()
+         ? replaceEmbeddedTable(sessionToken, user, replaceTable,
+                                new XEmbeddedTable(types, data), nrows, ncols)
+         : createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
    }
 
    private void checkImportFileSize(long size, String what) {
@@ -1501,6 +1528,101 @@ public class WorksheetAgentController {
 
          return new ImportCsvResponse(tableName, nrows - 1, ncols);
       });
+   }
+
+   /**
+    * Replaces the data of an existing {@link EmbeddedTableAssembly} in place -- the same
+    * assembly object keeps its name, position, size, and (when the new file has the same
+    * columns) its column selection, so joins, filters and bindings built on top of the table
+    * keep working after the swap. Mirrors the {@code !isNewTable} branch of
+    * {@link inetsoft.web.composer.ws.dialog.ImportCSVDialogService#importCSV}, which is what the
+    * Composer's own "Import Data File" dialog uses to re-import over a table you already have.
+    *
+    * <p>Two things that branch does are intentionally not ported: reusing the old columns' types
+    * as a hint for the new parse ({@code oldTypes}), and the lower 10,000-row / 1,000-column cap
+    * the dialog applies only when replacing a plain (non-snapshot) embedded table. Both require
+    * resolving the target assembly before the file is parsed, which would mean duplicating the
+    * session/runtime lookup {@link WorksheetEditService#applyOnRuntime} already does here; the
+    * agent's own table-creation path has neither of those refinements today either, so skipping
+    * them is a gap to close later, not a regression.
+    *
+    * <p>Also not ported: the dialog's {@code syncDataTypes} call, which re-types a
+    * {@link SnapshotEmbeddedTableAssembly}'s dependent joins and needs a
+    * {@link inetsoft.web.viewsheet.service.CommandDispatcher} this REST endpoint has none of.
+    * {@link WorksheetEditService#applyOnRuntime} already reloads every table in the sheet after
+    * this mutation returns, which covers a plain {@link EmbeddedTableAssembly}'s dependents -- the
+    * only kind of table this agent ever creates or replaces. Nor is
+    * {@code SnapshotEmbeddedTableAssembly#setOriginalSTable} -- it takes the raw
+    * {@code XSwappableTable} the dialog still has in hand at that point, which this method, taking
+    * only the already-built {@link XEmbeddedTable}, has no equivalent of. Replacing a table that
+    * happens to be a snapshot (created by the dialog rather than this agent) still lands the new
+    * data via {@code setEmbeddedData} below; only {@code getOriginalTable()}'s bookkeeping of the
+    * pre-replace import is left stale.
+    *
+    * @throws PairingException if {@code tableName} does not name an existing embedded table --
+    *                          unlike the dialog, which silently does nothing in that case, an
+    *                          agent call needs a loud error to act on
+    */
+   private ImportCsvResponse replaceEmbeddedTable(String sessionToken, Principal user,
+                                                   String tableName, XEmbeddedTable table,
+                                                   int nrows, int ncols)
+      throws Exception
+   {
+      return editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(tableName);
+
+         if(!(a instanceof EmbeddedTableAssembly assembly)) {
+            throw new PairingException(
+               "No embedded table named '" + tableName + "' exists in this worksheet to " +
+               "replace. Omit replaceTable (optionally passing name) to create a new table " +
+               "instead.");
+         }
+
+         // Only reset the column selection -- and therefore anything bound to it -- when the
+         // shape actually changed; otherwise every join/filter/binding on this table survives
+         // the swap untouched, which is the entire point of replacing rather than recreating.
+         if(!isSameColumns(assembly.getColumnSelection(false), table)) {
+            assembly.setColumnSelection(new ColumnSelection(), false);
+            assembly.setAggregate(assembly.getAggregateInfo() != null &&
+                                     !assembly.getAggregateInfo().isEmpty());
+         }
+
+         assembly.setEmbeddedData(table);
+         assembly.refreshColumnType(table);
+
+         try {
+            AssetEventUtil.initColumnSelection(rws, assembly);
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to initialize column selection: " + e.getMessage());
+         }
+
+         return new ImportCsvResponse(tableName, nrows - 1, ncols);
+      });
+   }
+
+   /**
+    * Whether newly imported data has exactly the existing table's columns, by name and order.
+    * Ported from the private helper of the same name and logic in
+    * {@link inetsoft.web.composer.ws.dialog.ImportCSVDialogService}: it decides whether
+    * {@link #replaceEmbeddedTable} can leave the column selection alone or must reset it because
+    * the shape changed underneath it.
+    */
+   private static boolean isSameColumns(ColumnSelection cols, XEmbeddedTable table) {
+      if(cols.getAttributeCount() != table.getColCount()) {
+         return false;
+      }
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         ColumnRef col = (ColumnRef) cols.getAttribute(i);
+
+         if(!Objects.equals(table.getObject(0, i), col.getDataRef().getName())) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
