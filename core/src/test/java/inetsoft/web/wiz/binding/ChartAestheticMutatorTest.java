@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.*;
 import inetsoft.web.binding.model.graph.aesthetic.*;
@@ -408,6 +409,51 @@ class ChartAestheticMutatorTest {
       ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
       assertInstanceOf(StaticSizeModel.class, agg.getSizeFrame());
       assertNull(model.getSizeFrame());
+   }
+
+   /**
+    * A Gantt chart answers {@code true} to all three {@code supports*FieldFrame()} predicates, so
+    * it takes the per-measure branch — but its measures are not on X or Y. {@code
+    * ChangeChartTypeProcessor.copyToGantt} routes every measure onto {@code startField}'s own
+    * aesthetic channels and every leftover dimension onto Y, and {@code
+    * VSFrameVisitor.getAggregates()} reads start/milestone for exactly that reason. Targeting the
+    * Y shelf here would find only dimensions, fall through to the chart-level slot, and land the
+    * frame where a Gantt chart never reads it — the same defect the per-measure branch exists to
+    * fix, one chart type further along.
+    */
+   @Test
+   void setsAFieldLessFrameOnAGanttChartsStartFieldNotItsYShelf() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_GANTT);
+      ChartBindingMutator.setSingleShelf(model, "start", measure("Ship Date", "Max"));
+      ChartBindingMutator.setShelf(model, "y", List.of(dimension("Task")));
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
+
+      ChartAggregateRefModel start = (ChartAggregateRefModel) model.getStartField();
+      StaticColorModel onStart = assertInstanceOf(StaticColorModel.class, start.getColorFrame());
+      assertEquals("#CC2222", onStart.getColor());
+      assertNull(model.getColorFrame(),
+                 "the chart-level slot is dead for Gantt too: supportsColorFieldFrame() is true, " +
+                 "so createFrame() never reaches getGeneralFrame()");
+   }
+
+   /** The read side of the same, so get_chart_aesthetics reports what a Gantt chart renders. */
+   @Test
+   void describesAGanttChartsFieldLessFrameFromItsStartField() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_GANTT);
+      ChartBindingMutator.setSingleShelf(model, "start", measure("Ship Date", "Max"));
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#123456"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> frame = (Map<String, Object>) color.get("frame");
+
+      assertEquals("static", frame.get("type"));
+      assertEquals("#123456", frame.get("color"));
    }
 
    /** The read has to be given the same set, or get_chart_aesthetics reports the dead slot. */

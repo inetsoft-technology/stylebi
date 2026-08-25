@@ -181,11 +181,15 @@ public class ChangeChartTypeService {
             .setStrictFieldPlacement(true)
             .process();
       }
-      catch(IllegalArgumentException e) {
+      catch(ChangeChartTypeProcessor.FieldPlacementException e) {
          // ChangeChartTypeProcessor refuses a retype that has nowhere to put a bound field (a
          // measure on colour heading for a pie, measures with no free aesthetic channel heading
          // for a treemap) rather than destroying it silently. Three things have to happen here and
          // none of them can be left to the caller.
+         //
+         // Caught by its own type, not by IllegalArgumentException: process() is a long chain and
+         // an unrelated argument failure anywhere in it would otherwise be rolled back silently
+         // and reported to the user as though it were a considered refusal.
          //
          // First, the refusal is not atomic on its own. It lands before any field is moved, but
          // fixChartInfo() has already run by then and stamps the new type onto the live info when
@@ -201,12 +205,15 @@ public class ChangeChartTypeService {
          // throwing -- see the permission refusal above. Doing the same here means the browser
          // gets a dialog naming the field instead of a 500, and the agent tier gets a loud error
          // for free: CapturingCommandDispatcher turns an ERROR command into a
-         // CommandErrorException.
+         // CommandErrorException. And like that refusal, the text is catalogued rather than a raw
+         // literal: the exception carries the key and its arguments so the dialog arrives in the
+         // user's own language.
          chart.setVSAssemblyInfo(oinfo);
          box.get().updateAssembly(chart.getAbsoluteName());
 
          MessageCommand command = new MessageCommand();
-         command.setMessage(e.getMessage());
+         command.setMessage(
+            Catalog.getCatalog().getString(e.getCatalogKey(), e.getArguments()));
          command.setType(MessageCommand.Type.ERROR);
          dispatcher.sendCommand(command);
          return null;

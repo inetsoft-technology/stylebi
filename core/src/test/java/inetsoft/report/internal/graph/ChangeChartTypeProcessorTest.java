@@ -32,6 +32,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Color;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -210,7 +211,7 @@ class ChangeChartTypeProcessorTest {
       info.addYField(aggregate("Sales", AggregateFormula.SUM));
       info.setColorField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
 
-      assertThrows(IllegalArgumentException.class,
+      assertThrows(ChangeChartTypeProcessor.FieldPlacementException.class,
                    () -> changeTypeStrictly(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info));
 
       assertEquals(1, info.getXFieldCount(), "x must be untouched after the refusal");
@@ -244,7 +245,7 @@ class ChangeChartTypeProcessorTest {
       info.setShapeField(aestheticRef(dimension("Quarter")));
       info.setSizeField(aestheticRef(aggregate("Discount", AggregateFormula.SUM)));
 
-      assertThrows(IllegalArgumentException.class,
+      assertThrows(ChangeChartTypeProcessor.FieldPlacementException.class,
                    () -> changeTypeStrictly(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info));
 
       assertEquals(1, info.getXFieldCount(), "x must be untouched after the refusal");
@@ -360,15 +361,16 @@ class ChangeChartTypeProcessorTest {
       info.addYField(aggregate("Sales", AggregateFormula.SUM));
 
       CategoricalColorFrame custom = new CategoricalColorFrame();
+      custom.setColor(0, CUSTOM);
       info.setColorFrame(custom);
 
       info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_PIE, info);
 
       assertNotNull(info.getColorField());
-      assertSame(custom, info.getColorField().getVisualFrame(),
-                 "a categorical frame already sitting in the top-level slot before any field " +
-                 "was bound to color must carry onto the field the retype just bound, not be " +
-                 "silently replaced by a bare default");
+      assertCarried(custom, info.getColorField().getVisualFrame(),
+                    "a categorical frame already sitting in the top-level slot before any field " +
+                    "was bound to color must carry onto the field the retype just bound, not be " +
+                    "silently replaced by a bare default");
    }
 
    /**
@@ -383,6 +385,7 @@ class ChangeChartTypeProcessorTest {
       info.addYField(aggregate("Sales", AggregateFormula.SUM));
 
       GradientColorFrame custom = new GradientColorFrame();
+      custom.setFromColor(CUSTOM);
       info.setColorFrame(custom);
 
       info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_MAP, info);
@@ -390,10 +393,10 @@ class ChangeChartTypeProcessorTest {
       assertNotNull(info.getColorField(),
                      "the measure displaced off x/y by the map conversion must land on color");
       assertEquals("Sales", info.getColorField().getDataRef().getName());
-      assertSame(custom, info.getColorField().getVisualFrame(),
-                 "a gradient frame already sitting in the chart's top-level color slot before " +
-                 "the map conversion must carry onto the measure it just bound to color, not be " +
-                 "silently replaced by a bare BluesColorFrame default");
+      assertCarried(custom, info.getColorField().getVisualFrame(),
+                    "a gradient frame already sitting in the chart's top-level color slot before " +
+                    "the map conversion must carry onto the measure it just bound to color, not " +
+                    "be silently replaced by a bare BluesColorFrame default");
    }
 
    /**
@@ -409,16 +412,17 @@ class ChangeChartTypeProcessorTest {
       info.addYField(aggregate("Sales", AggregateFormula.SUM));
 
       CategoricalColorFrame custom = new CategoricalColorFrame();
+      custom.setColor(0, CUSTOM);
       info.setColorFrame(custom);
 
       info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_MEKKO, info);
 
       assertNotNull(info.getColorField(), "the leftover dimension must land on the free color channel");
       assertEquals("Segment", info.getColorField().getDataRef().getName());
-      assertSame(custom, info.getColorField().getVisualFrame(),
-                 "a categorical frame already sitting in the top-level slot before any field " +
-                 "was bound to color must carry onto the dimension mekko assembly just bound, " +
-                 "not be silently replaced by a bare default");
+      assertCarried(custom, info.getColorField().getVisualFrame(),
+                    "a categorical frame already sitting in the top-level slot before any field " +
+                    "was bound to color must carry onto the dimension mekko assembly just bound, " +
+                    "not be silently replaced by a bare default");
    }
 
    /**
@@ -434,16 +438,17 @@ class ChangeChartTypeProcessorTest {
       info.setSizeField(aestheticRef(dimension("Region")));
 
       GradientColorFrame custom = new GradientColorFrame();
+      custom.setFromColor(CUSTOM);
       info.setColorFrame(custom);
 
       info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_TREEMAP, info);
 
       assertNotNull(info.getColorField(), "the leftover measure must land on the free color channel");
       assertEquals("Sales", info.getColorField().getDataRef().getName());
-      assertSame(custom, info.getColorField().getVisualFrame(),
-                 "a gradient frame already sitting in the top-level slot before any field was " +
-                 "bound to color must carry onto the overflow measure the treemap conversion " +
-                 "just bound, not be silently replaced by a bare BluesColorFrame default");
+      assertCarried(custom, info.getColorField().getVisualFrame(),
+                    "a gradient frame already sitting in the top-level slot before any field was " +
+                    "bound to color must carry onto the overflow measure the treemap conversion " +
+                    "just bound, not be silently replaced by a bare BluesColorFrame default");
    }
 
    /** Same Class 2 defect shape as copyToTreemap above, reached via copyToRelation instead. */
@@ -456,6 +461,7 @@ class ChangeChartTypeProcessorTest {
       info.setSizeField(aestheticRef(dimension("Segment")));
 
       GradientColorFrame custom = new GradientColorFrame();
+      custom.setFromColor(CUSTOM);
       info.setColorFrame(custom);
 
       info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_NETWORK, info);
@@ -463,10 +469,10 @@ class ChangeChartTypeProcessorTest {
       assertInstanceOf(RelationChartInfo.class, info);
       assertNotNull(info.getColorField(), "the leftover measure must land on the free color channel");
       assertEquals("Sales", info.getColorField().getDataRef().getName());
-      assertSame(custom, info.getColorField().getVisualFrame(),
-                 "a gradient frame already sitting in the top-level slot before any field was " +
-                 "bound to color must carry onto the overflow measure the relation conversion " +
-                 "just bound, not be silently replaced by a bare BluesColorFrame default");
+      assertCarried(custom, info.getColorField().getVisualFrame(),
+                    "a gradient frame already sitting in the top-level slot before any field was " +
+                    "bound to color must carry onto the overflow measure the relation conversion " +
+                    "just bound, not be silently replaced by a bare BluesColorFrame default");
    }
 
    @Test
@@ -488,6 +494,30 @@ class ChangeChartTypeProcessorTest {
 
    private static ChartInfo changeType(int oldType, int newType, ChartInfo info) {
       return new ChangeChartTypeProcessor(oldType, newType, null, info).process();
+   }
+
+   /**
+    * The carry-forward keeps the frame's <em>values</em>, not its identity: the chart-level slot it
+    * came from is not cleared, so handing the same instance to the AestheticRef would leave one
+    * mutable frame reachable from both. Asserting the distinctive colour rather than {@code
+    * assertSame} is what distinguishes a carried frame from the bare default it used to be
+    * replaced by — a fresh {@code CategoricalColorFrame}/{@code GradientColorFrame} does not carry
+    * {@link #CUSTOM}.
+    */
+   private static void assertCarried(VisualFrame expected, VisualFrame actual, String message) {
+      assertNotNull(actual, message);
+      assertNotSame(expected, actual,
+                    "carried as a clone, so editing the field's frame cannot edit the chart's");
+      assertEquals(expected.getClass(), actual.getClass(), message);
+      assertEquals(customColorOf(expected), customColorOf(actual), message);
+   }
+
+   private static Color customColorOf(VisualFrame frame) {
+      if(frame instanceof CategoricalColorFrame categorical) {
+         return categorical.getColor(0);
+      }
+
+      return ((GradientColorFrame) frame).getFromColor();
    }
 
    /**
@@ -553,4 +583,7 @@ class ChangeChartTypeProcessorTest {
       aref.setDataRef(dataRef);
       return aref;
    }
+
+   /** Distinctive enough that no frame's own default palette produces it by accident. */
+   private static final Color CUSTOM = new Color(0x8A2BE2);
 }

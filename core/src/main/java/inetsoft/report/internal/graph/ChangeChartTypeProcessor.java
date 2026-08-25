@@ -88,7 +88,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
     *
     * <p>Off by default, which is the behaviour every caller had before the refusals were added:
     * the field is dropped, now with a {@code LOG.warn} instead of in silence. On, the retype
-    * throws {@link IllegalArgumentException} before mutating anything, so the caller can report
+    * throws {@link FieldPlacementException} before mutating anything, so the caller can report
     * the problem and leave the chart alone.
     *
     * <p>Only {@code ChangeChartTypeService} turns it on, because it is the only caller where a
@@ -103,6 +103,42 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
    public ChangeChartTypeProcessor setStrictFieldPlacement(boolean strict) {
       this.strictFieldPlacement = strict;
       return this;
+   }
+
+   /**
+    * A strict retype refusing to place a bound field, thrown before anything is mutated.
+    *
+    * <p>Its own type rather than a bare {@code IllegalArgumentException}: {@code process()} is a
+    * long chain — {@code fixChartInfo}, six {@code copyTo*}/{@code copyFrom*} methods,
+    * {@code GraphUtil.fixVisualFrames}, {@code ChangeChartDataProcessor.sortRefs} — and a caller
+    * catching the supertype would also catch an unrelated argument failure from anywhere in it,
+    * roll the assembly back, and show the user that exception's internal text as though it were a
+    * considered refusal. That is a worse failure than the 500 it replaces, because it reads as
+    * success-with-a-reason. It still extends {@code IllegalArgumentException} so a caller that
+    * does not know about the refusal contract sees no behaviour change.
+    *
+    * <p>Carries the catalog key and arguments rather than only the formatted string, so the caller
+    * can render the message in the user's own language. {@link #getMessage()} stays English for
+    * the log and for any caller that does not localise.
+    */
+   public static final class FieldPlacementException extends IllegalArgumentException {
+      FieldPlacementException(String catalogKey, String message, Object... arguments) {
+         super(message);
+         this.catalogKey = catalogKey;
+         this.arguments = arguments;
+      }
+
+      /** The {@code srinter.properties} key whose value formats {@link #getArguments()}. */
+      public String getCatalogKey() {
+         return catalogKey;
+      }
+
+      public Object[] getArguments() {
+         return arguments.clone();
+      }
+
+      private final String catalogKey;
+      private final Object[] arguments;
    }
 
    /**
@@ -481,11 +517,13 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          boolean measureOnColor = (xHasDim || yHasDim) && colorFld != null && !colorHasDim;
 
          if(measureOnColor && strictFieldPlacement) {
-            throw new IllegalArgumentException(
+            throw new FieldPlacementException(
+               "chartTypes.user.pieMeasureOnColor",
                "Cannot change to a pie chart: 'color' is bound to the measure '" +
                colorFld.getFullName() + "', and pie charts have no aesthetic channel to move " +
                "it to. Clear the color field, or bind '" + colorFld.getFullName() +
-               "' elsewhere, before retyping to pie.");
+               "' elsewhere, before retyping to pie.",
+               colorFld.getFullName());
          }
 
          if(measureOnColor) {
@@ -1030,11 +1068,17 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
     * channel's top-level slot in the first place (see ChartDndHandler), so this is a no-op for
     * every human-reachable state and only changes behavior for a caller-planted frame the UI
     * itself could never have produced.
+    *
+    * <p>Carried as a clone, not as the same instance: the chart-level slot it came from is not
+    * cleared, so returning {@code existing} would leave one mutable {@code VisualFrame} reachable
+    * from both the chart and the {@code AestheticRef} this is about to be installed on, where
+    * editing either edits the other. The values are what the caller asked to keep; the identity
+    * is not.
     */
    private static VisualFrame carryOrDefault(VisualFrame existing, Class<?> requiredFamily,
                                              VisualFrame fallback)
    {
-      return requiredFamily.isInstance(existing) ? existing : fallback;
+      return requiredFamily.isInstance(existing) ? (VisualFrame) existing.clone() : fallback;
    }
 
    /**
@@ -1324,11 +1368,13 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             .collect(Collectors.joining(", "));
 
          if(strictFieldPlacement) {
-            throw new IllegalArgumentException(
+            throw new FieldPlacementException(
+               "chartTypes.user.treemapNoFreeChannel",
                "Cannot change to a treemap: " + String.join(", ", occupied) +
                " already have fields bound, leaving no aesthetic channel for the measure(s) " +
                strandedNames + ". Free a channel (color, shape or size), or remove the " +
-               "measure(s), before retyping to treemap.");
+               "measure(s), before retyping to treemap.",
+               String.join(", ", occupied), strandedNames);
          }
 
          LOG.warn("Changing to a treemap discards the measure(s) {}: {} already have fields " +

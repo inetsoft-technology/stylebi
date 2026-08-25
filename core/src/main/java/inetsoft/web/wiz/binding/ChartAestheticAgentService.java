@@ -145,8 +145,18 @@ public class ChartAestheticAgentService {
     *
     * <p>A chart with no binding yet has no info and no measures either, so the empty set is right
     * for it: nothing is rendered per measure when there are no measures.
+    *
+    * <p>Note that answering true is not the same as "the measures are on X or Y" — a Gantt chart
+    * answers true for all three and keeps its measures on start/milestone. Which refs the frame is
+    * then written to is {@code ChartAestheticMutator.aggregates}' job, and it mirrors
+    * {@code VSFrameVisitor.getAggregates()} for exactly that reason.
+    *
+    * <p>Package-private rather than private so {@code ChartAestheticAgentServiceTest} can pin the
+    * mapping directly. It is the linchpin of the write/read agreement in
+    * {@code ChartAestheticMutator}, and its whole reason for asking the info rather than deriving
+    * from the type is a case (point radar vs. line radar) that no caller can reach by accident.
     */
-   private static Collection<String> perMeasureFrameChannels(ChartVSAssembly chart) {
+   static Collection<String> perMeasureFrameChannels(ChartVSAssembly chart) {
       VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
 
       if(info == null) {

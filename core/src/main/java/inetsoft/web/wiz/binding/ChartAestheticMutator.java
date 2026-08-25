@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
@@ -29,6 +30,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -151,14 +153,23 @@ public final class ChartAestheticMutator {
     *        chart info. It is <b>not</b> the same set for every chart type, which is why it is a
     *        parameter rather than a constant: {@code MergedVSChartInfo} (candle, stock, relation,
     *        map) answers false for colour and shape, {@code RadarVSChartInfo} also for size, and
-    *        {@code AbstractChartInfo} answers false for all three on a contour chart. On those
-    *        charts the chart-level property is what {@code createFrame()} falls back to, so
-    *        broadcasting to the aggregates would store the frame in a slot the renderer never
-    *        reads — the very defect this method's aggregate branch exists to fix, mirrored.
+    *        {@code AbstractChartInfo} answers false for all three on a contour chart. Broadcasting
+    *        to the aggregates on those would store the frame in a slot the renderer never reads —
+    *        the very defect this method's aggregate branch exists to fix, mirrored.
     *        {@code ChartAestheticAgentService} builds the set by asking the real {@code
     *        VSChartInfo}; callers with no chart in hand pass
     *        {@link AestheticChannels#FRAME_CHANNELS}, correct for every ordinary
     *        {@code DefaultVSChartInfo} chart.
+    *
+    *        <p>Note that "not per measure" does not always mean "the chart-level slot renders
+    *        instead". {@code createFrame()} falls back to {@code getGeneralFrame()} only when the
+    *        strategy's {@code supportsGeneralFrame()} is true, and for colour, shape, line and
+    *        texture that is {@code info instanceof MergedChartInfo} — true for candle, stock,
+    *        relation and map, false for a <em>scatter</em> contour, which is a
+    *        {@code DefaultVSChartInfo}. On that one chart neither slot is read and a field-less
+    *        frame renders from nowhere; the chart-level slot is still where this method writes it,
+    *        because that is at least the slot {@link #frameOf} reports from, but it is a slot the
+    *        renderer ignores rather than a working fallback.
     */
    public static void setFrame(ChartBindingModel model, String channel,
                                Map<String, Object> spec, boolean relationChart,
@@ -179,16 +190,18 @@ public final class ChartAestheticMutator {
          return;
       }
 
-      // A field-less color/shape/size/line/texture frame renders from each Y/X measure's own
-      // frame property (VSChartAggregateRef.getColorFrame() et al.), not from the top-level
+      // A field-less color/shape/size/line/texture frame renders from each measure's own frame
+      // property (VSChartAggregateRef.getColorFrame() et al.), not from the top-level
       // ChartBindingModel property -- VSFrameVisitor.createFrame() only falls back to the
-      // top-level slot for MergedChartInfo charts (Candle/Gantt/Radar/Relation/Map), which
+      // top-level slot for MergedChartInfo charts (Candle/Stock/Radar/Relation/Map), which
       // DefaultVSChartInfo -- built for every ordinary bar/line/point/pie/area chart -- is not.
+      // (Gantt is a MergedVSChartInfo but not one of them: it overrides all three
+      // supports*FieldFrame() predicates back to true, so it renders per measure like an ordinary
+      // chart. aggregates() handles where its measures actually live.)
       // The interactive Composer's own aesthetic dialogs (ColorFieldMc/ShapeFieldMc) confirm this
       // is the real per-measure home for a field-less frame, not an edge case. A field-less
-      // request has no way to name a single measure, so it is broadcast to every aggregate found
-      // on the Y shelf (or the X shelf, mirroring VSFrameVisitor.getAggregates()' own fallback,
-      // if Y has none) -- the common single-measure chart makes this unambiguous, and a
+      // request has no way to name a single measure, so it is broadcast to every aggregate
+      // aggregates() finds -- the common single-measure chart makes this unambiguous, and a
       // multi-measure chart gets the same frame on every measure rather than silently only one.
       //
       // Gated on perMeasureFrameChannels, not on FRAME_CHANNELS: whether the renderer reads the
@@ -211,10 +224,16 @@ public final class ChartAestheticMutator {
          return;
       }
 
-      // No aggregate to target (a chart with zero Y/X measures), a node channel, which has no
-      // per-aggregate slot, or a chart type whose renderer reads the chart-level slot for this
-      // channel anyway -- these are the genuine cases where the top-level property is what the
-      // render path (still) consults.
+      // A node channel, which has no per-aggregate slot; a chart type whose renderer reads the
+      // chart-level slot for this channel (a MergedChartInfo chart -- candle, stock, radar,
+      // relation, map); or no measure to target at all.
+      //
+      // Only the middle case is a fallback the renderer honours. With no measure, createFrame()
+      // leaves the frame null without consulting getGeneralFrame() -- the arr.length > 0 test is
+      // nested inside the supportsFieldFrame() branch, not chained after it -- and a scatter
+      // contour reads neither slot (see the perMeasureFrameChannels javadoc). Writing here is
+      // still right for both: it is the slot frameOf() reports from, so the read keeps agreeing
+      // with the write, and a chart with no measure renders nothing to disagree about.
       switch(name) {
          case "color" -> model.setColorFrame((ColorFrameModel) frame);
          case "shape" -> model.setShapeFrame((ShapeFrameModel) frame);
@@ -228,11 +247,25 @@ public final class ChartAestheticMutator {
    }
 
    /**
-    * The Y/X-axis measures a field-less frame channel targets, mirroring
-    * {@code VSFrameVisitor.getAggregates()}'s own Y-then-X fallback: prefer the Y shelf, and only
-    * consult X if Y has no measures at all (an inverted or measures-on-X chart).
+    * The measures a field-less frame channel targets, mirroring
+    * {@code VSFrameVisitor.getAggregates()} branch for branch — the write has to land on the same
+    * refs the renderer reads the frame back off, and that is not always the X/Y shelves.
+    *
+    * <p>A Gantt chart is the exception, and it is the one the chart-type gate cannot catch:
+    * {@code GanttVSChartInfo} overrides all three {@code supports*FieldFrame()} predicates back to
+    * {@code true}, so it takes this branch, but its X/Y shelves hold only dimensions — {@code
+    * ChangeChartTypeProcessor.copyToGantt} routes every measure onto {@code startField}'s own
+    * aesthetic channels and every remaining dimension onto Y. {@code getAggregates()} reads
+    * start/milestone for exactly that reason, and so does this.
+    *
+    * <p>Everything else is the Y-then-X fallback {@code getAggregates()} uses: prefer the Y shelf,
+    * and only consult X if Y has no measures at all (an inverted or measures-on-X chart).
     */
    private static List<ChartAggregateRefModel> aggregates(ChartBindingModel model) {
+      if(GraphTypes.isGantt(model.getChartType())) {
+         return aggregatesOf(Arrays.asList(model.getStartField(), model.getMilestoneField()));
+      }
+
       List<ChartAggregateRefModel> yAggregates = aggregatesOf(model.getYFields());
       return !yAggregates.isEmpty() ? yAggregates : aggregatesOf(model.getXFields());
    }
@@ -391,7 +424,8 @@ public final class ChartAestheticMutator {
     * {@link #setField}'s carry-forward of a frame set before any field was bound.
     *
     * <p>Must mirror {@link #setFrame}'s write side exactly: for an unbound
-    * {@code perMeasureFrameChannels} channel with at least one Y/X measure, that is where
+    * {@code perMeasureFrameChannels} channel with at least one measure in {@link #aggregates},
+    * that is where
     * {@code setFrame} wrote and where the render path ({@code VSFrameVisitor.createFrame}) reads
     * — not the top-level {@code ChartBindingModel} property. Reading the top-level property here
     * while the renderer consults the per-measure one would report a value the chart never shows,

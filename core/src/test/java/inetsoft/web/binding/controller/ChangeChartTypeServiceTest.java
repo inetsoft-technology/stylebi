@@ -97,6 +97,53 @@ class ChangeChartTypeServiceTest {
                  command.getValue().getMessage());
    }
 
+   /**
+    * The other refusal, and it is not the same code path: {@code fixPieDimensions} refuses from
+    * inside {@code fixChartInfo()}, {@code copyToTreemap} from the dispatch chain after it. The
+    * restore has to hold for both, and the message has to name what is in the way rather than
+    * being the pie text with different words.
+    */
+   @Test
+   void aRefusedTreemapRetypeAlsoReportsAnErrorAndRestoresTheChart() throws Exception {
+      ChartVSAssembly chart = noFreeChannelBarChart();
+      Harness harness = new Harness(chart);
+
+      harness.retypeTo(GraphTypes.CHART_TREEMAP);
+
+      ArgumentCaptor<MessageCommand> command = ArgumentCaptor.forClass(MessageCommand.class);
+      verify(harness.dispatcher).sendCommand(command.capture());
+      assertEquals(MessageCommand.Type.ERROR, command.getValue().getType());
+      assertTrue(command.getValue().getMessage().contains("Sales"),
+                 "the message has to name the stranded measure: " +
+                 command.getValue().getMessage());
+
+      VSChartInfo info = chart.getVSChartInfo();
+      assertEquals(GraphTypes.CHART_BAR, info.getChartType(), "the type must not have changed");
+      assertEquals(1, info.getXFieldCount());
+      assertEquals(1, info.getYFieldCount());
+      assertEquals("Year", info.getColorField().getDataRef().getName());
+      assertEquals("Quarter", info.getShapeField().getDataRef().getName());
+      assertEquals("Region", info.getSizeField().getDataRef().getName());
+   }
+
+   /**
+    * The refusal messages come from {@code srinter.properties} rather than from the exception's
+    * own English literal, so a non-English Composer gets a translated dialog. A missing key would
+    * show the key itself, which is what this asserts against.
+    */
+   @Test
+   void aRefusalMessageIsCatalogued() throws Exception {
+      Harness harness = new Harness(measureOnColorBarChart());
+
+      harness.retypeTo(GraphTypes.CHART_PIE);
+
+      ArgumentCaptor<MessageCommand> command = ArgumentCaptor.forClass(MessageCommand.class);
+      verify(harness.dispatcher).sendCommand(command.capture());
+      assertNotEquals("chartTypes.user.pieMeasureOnColor", command.getValue().getMessage(),
+                      "Catalog returns the key verbatim when it is not defined — the entry has " +
+                      "to exist in srinter.properties");
+   }
+
    @Test
    void aRefusedRetypeRebuildsTheRuntimeItAlreadyCleared() throws Exception {
       Harness harness = new Harness(measureOnColorBarChart());
@@ -138,6 +185,18 @@ class ChangeChartTypeServiceTest {
       info.addXField(dimension("Month"));
       info.addYField(aggregate("Sales"));
       info.setColorField(aestheticRef(aggregate("Discount")));
+      return chartWith(info);
+   }
+
+   /** Bar, with colour, shape and size all bound: the treemap conversion has no free channel. */
+   private static ChartVSAssembly noFreeChannelBarChart() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales"));
+      info.setColorField(aestheticRef(dimension("Year")));
+      info.setShapeField(aestheticRef(dimension("Quarter")));
+      info.setSizeField(aestheticRef(dimension("Region")));
       return chartWith(info);
    }
 
