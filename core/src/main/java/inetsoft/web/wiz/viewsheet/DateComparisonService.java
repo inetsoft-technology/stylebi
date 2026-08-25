@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -70,13 +71,26 @@ public class DateComparisonService {
    /**
     * A date-comparison request in the agent vocabulary.
     *
-    * @param periods  how many periods back to compare
-    * @param level    the period level — the date level token, e.g. year, quarter, month
-    * @param endDate  the range end. Required unless {@code endToday} is set.
-    * @param endToday anchor the range on today instead of an explicit end
+    * @param periods          how many periods back to compare
+    * @param level            the period level — the date level token, e.g. year, quarter, month
+    * @param endDate          the range end. Required unless {@code endToday} is set.
+    * @param endToday         anchor the range on today instead of an explicit end
+    * @param comparisonOption what the numbers mean — one of: value, change, percentChange. Does
+    *                         not cover {@link inetsoft.uql.viewsheet.internal.DateComparisonInfo
+    *                         #CHANGE_VALUE}/{@code #PERCENT_VALUE} ("Change and Value" / "Percent
+    *                         Change and Value" in the interactive Composer's own dialog) — those
+    *                         two settings are not settable through this tool yet, and {@link
+    *                         #read} reports them as a {@code null} comparisonOption rather than a
+    *                         name, same as any other value outside this vocabulary. Tracked as a
+    *                         follow-on, not covered by this fix.
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
-                            String interval, Boolean useFacet, Boolean onlyShowMostRecentDate) {}
+                            String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
+                            String comparisonOption) {}
+
+   /** The agent vocabulary's comparisonOption tokens, mapped to {@link Calculator}'s constants. */
+   private static final Map<String, Integer> COMPARISON_OPTIONS = Map.of(
+      "value", Calculator.VALUE, "change", Calculator.CHANGE, "percentChange", Calculator.PERCENT);
 
    /** The current settings, normalized. Never echoes the raw cell format. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -101,7 +115,7 @@ public class DateComparisonService {
       }
 
       out.put("enabled", true);
-      out.put("comparisonOption", model.getComparisonOption());
+      out.put("comparisonOption", describeComparisonOption(model.getComparisonOption()));
       out.put("useFacet", model.isUseFacet());
       out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
       out.put("period", describePeriod(model.getPeriodPaneModel()));
@@ -360,6 +374,18 @@ public class DateComparisonService {
          model.setOnlyShowMostRecentDate(comparison.onlyShowMostRecentDate());
       }
 
+      if(comparison.comparisonOption() != null) {
+         Integer option = COMPARISON_OPTIONS.get(comparison.comparisonOption());
+
+         if(option == null) {
+            throw new IllegalArgumentException(
+               "comparisonOption must be one of: value, change, percentChange. Got " +
+               comparison.comparisonOption() + ".");
+         }
+
+         model.setComparisonOption(option);
+      }
+
       PeriodPaneModel periods = model.getPeriodPaneModel();
 
       if(periods == null) {
@@ -501,6 +527,22 @@ public class DateComparisonService {
 
    private static Object value(DynamicValueModel model) {
       return model == null ? null : model.getValue();
+   }
+
+   /**
+    * Never echoes the raw int; an option this vocabulary does not name is reported as null. This
+    * includes {@link inetsoft.uql.viewsheet.internal.DateComparisonInfo#CHANGE_VALUE}/
+    * {@code #PERCENT_VALUE} ("Change and Value" / "Percent Change and Value" in the interactive
+    * Composer's own dialog) — real, reachable settings this tool does not yet name or accept.
+    * Extending this vocabulary to cover them is tracked as a follow-on, not done here.
+    */
+   private static String describeComparisonOption(int option) {
+      return switch(option) {
+         case Calculator.VALUE -> "value";
+         case Calculator.CHANGE -> "change";
+         case Calculator.PERCENT -> "percentChange";
+         default -> null;
+      };
    }
 
    private final ViewsheetSessionService sessions;

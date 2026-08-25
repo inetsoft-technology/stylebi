@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -65,7 +66,8 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison comparison(String endDate, boolean endToday) {
-      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null);
+      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null,
+                                                  null);
    }
 
    /**
@@ -103,7 +105,105 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison facetOnly() {
-      return new DateComparisonService.Comparison(null, null, null, false, null, true, null);
+      return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null);
+   }
+
+   private static DateComparisonService.Comparison comparisonOption(String comparisonOption) {
+      return new DateComparisonService.Comparison(null, null, null, false, null, null, null,
+                                                  comparisonOption);
+   }
+
+   // ── comparisonOption ──────────────────────────────────────────────────────
+
+   @Test
+   void setsComparisonOptionForEachToken() throws Exception {
+      Map<String, Integer> tokens = Map.of(
+         "value", Calculator.VALUE, "change", Calculator.CHANGE, "percentChange", Calculator.PERCENT);
+
+      for(Map.Entry<String, Integer> entry : tokens.entrySet()) {
+         DateComparisonPaneModel model = model();
+         harness(model).service.set("tok", principal(), "Chart1", comparisonOption(entry.getKey()),
+                                    "");
+
+         assertEquals(entry.getValue().intValue(), model.getComparisonOption(),
+                      entry.getKey() + " should map to " + entry.getValue());
+      }
+   }
+
+   @Test
+   void refusesAnUnrecognizedComparisonOption() {
+      Harness h = harness(model());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparisonOption("percent"), ""));
+
+      assertTrue(thrown.getMessage().contains("comparisonOption"), thrown.getMessage());
+   }
+
+   @Test
+   void leavesComparisonOptionUntouchedWhenNotMentioned() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.CHANGE);
+
+      harness(model).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertEquals(Calculator.CHANGE, model.getComparisonOption(),
+                  "a call that omits comparisonOption must not reset it");
+   }
+
+   @Test
+   void readsComparisonOptionAsAName() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.PERCENT);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertEquals("percentChange", read.get("comparisonOption"));
+   }
+
+   /**
+    * Not reachable through {@code apply()} — {@link Calculator}'s other constants never end up
+    * on a date-comparison model in practice. Confirms the invariant explicitly rather than
+    * leaving it implicit: no raw magic number reaches the caller, even for an option this
+    * vocabulary does not name.
+    */
+   @Test
+   void readsAnOutOfVocabularyComparisonOptionAsNullRatherThanARawInt() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(Calculator.CUSTOM);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      assertNull(read.get("comparisonOption"));
+   }
+
+   /**
+    * Review round-1 finding on the original PR: this vocabulary is a known, documented gap, not
+    * an oversight. {@link inetsoft.uql.viewsheet.internal.DateComparisonInfo#CHANGE_VALUE}/
+    * {@code #PERCENT_VALUE} ("Change and Value" / "Percent Change and Value") are 2 of the 5 real
+    * options in the interactive Composer's own date-comparison dialog — a viewsheet a human
+    * configured that way reads back with a null comparisonOption, and this tool has no way to set
+    * either. Pinning that explicitly here rather than leaving it indistinguishable from the
+    * generic "unreachable {@code Calculator} type" case above.
+    */
+   @Test
+   void reportsTheTwoCompositeComposerOptionsAsNullNotYetHavingNamesForThem() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.setComparisonOption(inetsoft.uql.viewsheet.internal.DateComparisonInfo.CHANGE_VALUE);
+
+      Map<String, Object> changeValueRead =
+         harness(model).service.read("tok", principal(), "Chart1");
+      assertNull(changeValueRead.get("comparisonOption"), "Change and Value has no name yet");
+
+      DateComparisonPaneModel percentModel = model();
+      percentModel.setComparisonOption(
+         inetsoft.uql.viewsheet.internal.DateComparisonInfo.PERCENT_VALUE);
+
+      Map<String, Object> percentValueRead =
+         harness(percentModel).service.read("tok", principal(), "Chart1");
+      assertNull(percentValueRead.get("comparisonOption"),
+                 "Percent Change and Value has no name yet");
    }
 
    // ── the recorded defect ───────────────────────────────────────────────────
@@ -171,7 +271,7 @@ class DateComparisonServiceTest {
       assertThrows(IllegalArgumentException.class,
                    () -> DateComparisonService.requireEndAnchor(
                       new DateComparisonService.Comparison(0, "year", null, true, null, null,
-                                                           null)));
+                                                           null, null)));
    }
 
    @Test
@@ -221,7 +321,8 @@ class DateComparisonServiceTest {
    {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null);
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+                                              null);
 
       harness(model).service.set("tok", principal(), "Chart1", comparison, "");
 
@@ -235,7 +336,8 @@ class DateComparisonServiceTest {
    void refusesAnUnrecognizedPeriodLevel(String word) {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null);
+         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+                                              null);
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
