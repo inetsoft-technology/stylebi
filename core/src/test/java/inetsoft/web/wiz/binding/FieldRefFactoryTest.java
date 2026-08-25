@@ -110,6 +110,47 @@ class FieldRefFactoryTest {
       assertNull(DateLevels.normalize(null));
    }
 
+   /**
+    * The "part" levels — {@code n | PART_DATE_GROUP} — extract a component instead of truncating
+    * to one, and they are on the Composer's own date-level menu as "Month of Year", "Day of Week"
+    * and so on. They were deliberately left out of this table at first. That was wrong, and the
+    * failure was measured live: the agent surface reads a binding before writing it back, so a
+    * chart already grouped by one of them read back a level this method then refused, with
+    * {@code '514' is not a date level} naming a list the read had not been held to.
+    */
+   @Test
+   void normalizesThePartLevels() {
+      assertEquals("513", DateLevels.normalize("quarter_of_year"));
+      assertEquals("514", DateLevels.normalize("MONTH_OF_YEAR"));
+      assertEquals("519", DateLevels.normalize("Day_Of_Week"));
+      assertEquals("523", DateLevels.normalize("second_of_minute"));
+   }
+
+   /** AM/PM was missing from the interval half of the same table, with the same consequence. */
+   @Test
+   void normalizesAmPm() {
+      assertEquals("9", DateLevels.normalize("am_pm"));
+      assertEquals("520", DateLevels.normalize("am_pm_of_day"));
+   }
+
+   /**
+    * The round trip this pair exists for, in the direction that was broken: every level this
+    * method accepts by name has to survive being read back as a number and written again.
+    */
+   @Test
+   void roundTripsEveryPartLevelAsANumber() {
+      for(String named : new String[] { "quarter_of_year", "month_of_year", "week_of_year",
+                                        "week_of_month", "day_of_year", "day_of_month",
+                                        "day_of_week", "am_pm_of_day", "hour_of_day",
+                                        "minute_of_hour", "second_of_minute", "am_pm" })
+      {
+         String stored = DateLevels.normalize(named);
+
+         assertEquals(stored, DateLevels.normalize(stored), named + " must survive a round trip");
+         assertEquals(named, DateLevels.name(stored), stored + " must read back as its name");
+      }
+   }
+
    @Test
    void readsADimensionAsItsColumnAndDateLevel() {
       BDimensionRefModel model = new BDimensionRefModel();
