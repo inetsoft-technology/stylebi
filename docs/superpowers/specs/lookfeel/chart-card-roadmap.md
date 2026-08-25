@@ -1,6 +1,17 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-21 (twelfth revision — **P6 has been built, and its four automated gates are clean; the
+**Date:** 2026-08-25 (thirteenth revision — **the seed mark is finished. All six phases are shipped,
+committed and seen in a browser; P6's ten manual checks and the P0 pre-mark-cohort confirmation have run and
+passed, confirmed by a human partner on 2026-08-25.** Two things landed after the twelfth revision was
+written and neither was in any plan: `1b8eb3cea`, five bug-fix rounds because Revert did not carry a chart's
+colours, and the card radius constant, 12 → 6. **The release gate now has exactly one item left, and it is
+unbuilt: bookmarks, decision 10.** It is confirmed unbuilt against the code, and its surface is wider than
+decision 10 costed — `<state_info>` carries the whole `VSChartInfo` and therefore the colour frames, so a
+stale bookmark un-reverts the palette as well as the chrome. **Also: the branch has been rewritten a THIRD
+time and every hash the twelfth revision cited is unreachable, including the ones it had itself re-resolved
+after the second rebase.** The Done table has been re-derived by matching commit subjects and its
+dead-hash column is deleted rather than updated; see that section. "What to pick up next" was re-derived from
+the dependency picture, not repaired. The twelfth revision's note follows: **P6 has been built, and its four automated gates are clean; the
 whole phase is uncommitted, and none of its ten manual checks nor the P0 pre-mark-cohort confirmation has
 run.** Task 8 ran `core` (4904 tests, 0 failures, 0 errors, 67 skipped), `portal` (1329/1329), `em`
 (356/356) and the cross-module `-Pcommunity,enterprise` build (BUILD SUCCESS, 3:55 min) — all four clean.
@@ -26,7 +37,10 @@ that day, **decision 13, overrules the org-wide revert sweep**: disabling the ga
 per-dashboard Revert action mirrors Modernize. That collapses most of the release gate into one phase, P6.
 The seventh revision's P4 note, the sixth's P3 note, the fifth's P2 note and the fourth's rebase note are all
 retained below)
-**Verified against:** community `viz-updates` @ `8ef511e45`, which is `HEAD` and carries P4. The seventh
+**Verified against:** community `viz-updates` @ `1b8eb3cea`, which is `HEAD`, plus this commit's own working
+tree for the card radius. Every hash in this file was re-checked at this revision with
+`git merge-base --is-ancestor <hash> HEAD`; the ones that failed are named in the Done section. The twelfth
+revision's "verified against `8ef511e45`" is one of the failures — that hash is no longer reachable. The seventh
 revision verified against `cd06da9b1` plus P4's then-uncommitted working tree; that has since committed
 unchanged. A commit-approval gate denied every one of P3's nine tasks its own commit while P3 was in progress, so
 this file's sixth revision verified against `a38cb6957` with P3 only on disk — but `cd06da9b1` (**"feat(viewsheet):
@@ -49,7 +63,7 @@ sync — the 2026-08-12 regeneration overwrote four of them. This pointer lives 
 **Verify before trusting.** This branch moves daily. Every claim below cites a commit or a file so it can be
 checked rather than believed. If a claim and the branch disagree, the branch is right.
 
-**Hashes go stale when the branch is rewritten, and it has happened twice.** The 2026-08-14 rebase moved
+**Hashes go stale when the branch is rewritten, and it has now happened three times.** The 2026-08-14 rebase moved
 all 62 commits onto `e7ef501fb` and rewrote every hash this file cited at the third revision — checked,
 and **not one of `8357e05d8`, `952614aa7`, `1c0ace705`, `55c3bad1a`, `07c91926e` or `307a6ee09` is an
 ancestor of `HEAD` any more.** They still resolve with `git show`, because the old objects linger in the
@@ -59,6 +73,30 @@ carries the post-rebase hashes. When checking any hash in this tree, use
 Every other file under `docs/superpowers/` still carries pre-rebase hashes and should be read with that in
 mind — the design docs' *file and line* citations were re-derived and are current, but their commit hashes
 were not.
+
+**The third rebase, and how to read the dead hashes still in this file's prose.** A third rewrite happened
+before 2026-08-25 and killed every hash the twelfth revision carried, including the nine it had itself
+re-resolved after the second rebase. The dependency picture, the Done table and "What to pick up next" carry
+current hashes. **The narrative sections below still cite the dead ones ~38 times, deliberately** — they are
+historical prose, and rewriting a hash inside a sentence about what a phase found is how prose gets broken.
+Resolve them here instead:
+
+| Cited in prose below | Current | What it is |
+|---|---|---|
+| `8f75872a6` | `da34d78a7` | M-P1 — the mark's field, persistence, creation stamps |
+| `119bfdaac` | `37667c1bc` | M-P2 — `VizContext` threaded, four sub-gates deleted |
+| `be0e3c664` | `6db87680c` | M-P1's null-guard |
+| `cd06da9b1` | `f07ea96d2` | M-P3 — enumeration point and Modernize |
+| `8ef511e45` | `b2e2d56dc` | M-P4 — server reads follow the mark |
+| `4c237a7dd` | `6d8d5da04` | M-P5 — browser reads follow the mark |
+| `380705bc1` | `f5f568f12` | L — strip density gating (also in two section headings) |
+| `1d26dbefb` | `df3044734` | N — `userTitleHeight`, the flag |
+| `d4d0d5d48` | `5d0c7782f` | N — `userTitleHeight`, the stamps |
+
+Hashes from earlier revisions — `8357e05d8`, `952614aa7`, `1c0ace705`, `55c3bad1a`, `07c91926e`,
+`307a6ee09`, `a38cb6957`, `e7ef501fb`, `881a9b049`, `ef42a6c65`, `35ca4fce0`, `27ea5fdd5` — are two or three
+rewrites dead and are not worth resolving; read them as "some earlier commit". **When this branch is rebased
+again, update this one table rather than the prose.**
 
 ## How to read this
 
@@ -76,67 +114,86 @@ rather than repairing it — the whole of its content is one reading of the two 
 
 ```
   L. Strip density gating ──→ F. Rollout slices 4–5
-     SHIPPED 380705bc1          NO LONGER BLOCKED · container, calendar
+     SHIPPED f5f568f12          NO LONGER BLOCKED · container, calendar
      the interim · L'' replaces it
 
   N. userTitleHeight flag ──┐
-     SHIPPED 1d26dbefb      │
-     d4d0d5d48              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
+     SHIPPED df3044734      │
+     5d0c7782f              ├──→ L'. Title lane height row ──→ L''. Geometric suppression
                             │    DESIGN ANSWERED, STARTABLE       DECIDED 2026-08-13
   M-P4. Read paths ─────────┘    20/26/30 · titleHeight() exists  MUST NOT PRECEDE L'
-        BUILT, uncommitted       resolver reads the mark now      replaces L's density test
+        SHIPPED b2e2d56dc        resolver reads the mark now      replaces L's density test
 
      N answers "did the author choose this height" · the MARK answers "is this assembly modern"
      The row needs both. On the flag alone it resizes every dashboard ever saved.
      P1 and P2 landing did NOT free it: the row must READ the mark, and P4 is what makes that read exist.
-     L' is unblocked now, not "when P5 lands" — its read path is a server read, P4's subject, not P5's.
+     L' has been unblocked since P4 — its read path is a server read, P4's subject, not P5's.
 
-  M. Seed mark — SIX phases now. P1–P5 SHIPPED; P6 BUILT 2026-08-21, uncommitted.
+  M. Seed mark — SIX phases, ALL SHIPPED, ALL SEEN IN A BROWSER as of 2026-08-25.
      design: ../2026-08-14-seed-mark-forward-half-design.md · decisions 1–13
-     ALSO THE RELEASE GATE — and the gate SHRANK on 2026-08-19: decision 13 overruled the
-     sweep (decisions 6+7), so release needs P6 + bookmarks, not an async org-wide sweep
-     with a restore point, scheduler blocking and composer-session blocking
+     ALSO THE RELEASE GATE — and after P6 the gate has exactly ONE item left: BOOKMARKS.
+     Decision 13 overruled the sweep (decisions 6+7) on 2026-08-19, so release needs
+     P6 + bookmarks rather than an async org-wide sweep with a restore point, scheduler
+     blocking and composer-session blocking. P6 is done. Bookmarks is not.
 
-     P1  the field, persisted, stamped at creation      SHIPPED 8f75872a6 — nothing reads it
+     P1  the field, persisted, stamped at creation      SHIPPED da34d78a7 — nothing reads it
       │
-     P2  VizContext threaded, 71 files, ofGate()        SHIPPED 119bfdaac
+     P2  VizContext threaded, 71 files, ofGate()        SHIPPED 37667c1bc
       │  + all four sub-gate properties deleted         verified behaviour-neutral, suite green
-     P3  decision 11's enumeration point + Modernize    SHIPPED cd06da9b1
-      │  the only route in for old content              eleven manual checks still outstanding
-     P4  server reads follow the mark                   SHIPPED 8ef511e45 · THE BEHAVIOUR REVERSAL
-      │  43 read sites + the creation site              unblocks L' now · nine manual checks PASSED
-     P5  browser reads follow the mark                  SHIPPED 4c237a7dd · 61 files
+     P3  decision 11's enumeration point + Modernize    SHIPPED f07ea96d2
+      │  the only route in for old content              its eleven checks ran inside P5's pass
+     P4  server reads follow the mark                   SHIPPED b2e2d56dc · THE BEHAVIOUR REVERSAL
+      │  43 read sites + the creation site              unblocked L' · nine manual checks PASSED
+     P5  browser reads follow the mark                  SHIPPED 6d8d5da04 · 61 files
       │  resolved modern/dark on the model · 15         4905 core / 1316+356 portal / full
       │  bindings across 7 templates · body class       cross-module build · ALL manual
       │  renamed viz-shell · isVizModern() deleted      checks passed, incl. P3's eleven
-      │  ✗ getTooltipStyle NOT done — deferred, R20     P4's interim state is closed
+      │  ✗ getTooltipStyle NOT done — accepted, R20     P4's interim state is closed
       ├──┬──→ §07 derived selection, retire the teal family
       │  │         └──→ Range slider — painter half
       │  └──→ Outlined text conversion (also behind G)
       │
-     P6  Revert — the per-dashboard mirror of         BUILT 2026-08-21 · uncommitted
-         Modernize; deletes the gate && term,         (commit gate refused all 8 tasks,
-         both PlotDescriptor seed booleans AND        same as P3/P4 before a human
-         resolveSeededCorner, all in one commit       partner committed those later)
-      └──→ Card radius 12→6 (the constant only)       4 automated gates GREEN · 10 manual
-                                                       checks + P0 cohort check OUTSTANDING
+     P6  Revert — the per-dashboard mirror of         SHIPPED 47521e72c · 4 automated gates
+      │  Modernize; deletes the gate && term,         green · TEN MANUAL CHECKS + THE P0
+      │  both PlotDescriptor seed booleans AND        COHORT CONFIRMATION ALL PASSED
+      │  resolveSeededCorner, all in one commit       2026-08-25
+      │
+      ├──→ Card radius 12→6 (the constant only)      SHIPPED · no migration and no cohort
+      │                                              check needed: branch unreleased and
+      │                                              unmerged, so every marked asset is a
+      │                                              test asset
+      │
+      └──→ Palette carried by Revert                 SHIPPED 1b8eb3cea · NOT a planned phase.
+                                                     Revert did not carry a chart's colours;
+                                                     five defects, each visible only once the
+                                                     one before it was fixed. 6 new test
+                                                     classes. Four narrower colour defects
+                                                     recorded and deliberately unfixed
 
-     P4 unblocks the first of the six — L' — directly, ahead of P5. P5 gates four of the other five. P1 and
+  BOOKMARKS. Decision 10 — resolve chrome on restore, never rewrite    UNBUILT · THE RELEASE GATE
+     Confirmed unbuilt 2026-08-25: TableVSAssembly.parseStateContent (:173-194) parses
+     state_tableformat into a fresh FormatInfo and calls setFormatInfo, with no re-resolution
+     against the mark; neither TableVSAssembly nor ChartVSAssembly names seedChromeDefaults or
+     VizModernizeUtil at all. So a bookmark taken before a Revert silently un-reverts.
+     WIDER THAN DECISION 10 COSTED: ChartVSAssembly.writeStateContent also emits <state_info>,
+     the whole VSChartInfo (:457-470), which carries the aesthetic refs and therefore the COLOUR
+     FRAMES — so a stale bookmark un-reverts the palette too, the same class of defect 1b8eb3cea
+     spent five rounds closing everywhere else. The card radius rides in the same
+     VSCompositeFormat. Re-derive the property list from the code, not from decision 10's table.
+
+     P4 unblocked the first of the six — L' — directly, ahead of P5. P5 gated four of the other five. P1 and
      P2 unblocked none of the six, by design; P3 unblocked P4's testability rather than any of the six; P4
-     is the first phase whose landing moves one.
+     was the first phase whose landing moved one.
 
-     The card radius moved off P5 and onto P6 on 2026-08-19. It never needed the sweep specifically — it
-     needed A reversal path for resolveSeededCorner's retirement to fall back on, and Revert is one.
-
-     Split again on 2026-08-20 by the P6 review, and this is the sharper version: retiring
-     resolveSeededCorner is REQUIRED BY P6, not unblocked by it. Its gate read strands a marked
-     assembly's card radius the moment the gate && term goes — the same stranding the design already
-     calls non-negotiable for the PlotDescriptor booleans, on a more visible property. So it is inside
-     P6's same-commit set. Only the 12→6 CONSTANT is a follow-on, and it needs its own sign-off.
-
-     Amended 2026-08-21: P6 built, uncommitted, automated gates green. The constant now has an actual
-     reversal path sitting in the working tree, not merely a planned one — but its own sign-off still
-     needs P6's ten manual checks, none of which has run.
+     The card radius history, kept because it explains why the item took three revisions to become one line:
+     it moved off P5 onto P6 on 2026-08-19 — it never needed the sweep specifically, only A reversal path for
+     resolveSeededCorner's retirement, and Revert is one. The 2026-08-20 P6 review then sharpened that:
+     retiring resolveSeededCorner was REQUIRED BY P6 rather than unblocked by it, because its gate read
+     stranded a marked assembly's card radius the moment the gate && term went. That put the retirement inside
+     P6's same-commit set and left only the 12→6 CONSTANT as a follow-on. Landed 2026-08-25 with the
+     annotation-rectangle question answered (unrelated, USER tier, left alone) and §01's cohort instruction
+     found void rather than satisfied — resolveSeededCorner, the equality test the instruction protects
+     against, no longer exists.
 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
@@ -145,8 +202,9 @@ rather than repairing it — the whole of its content is one reading of the two 
            Resize Plot sliders · nav bar · data-tip registry remainder · chart colour
            literals · drill and DC tips · zoom naming · dead menu icons · title band
 
-  Cheaper AFTER P5, not ungated: dark (four DOM surfaces) — decision 4 turns viz-dark
-           from a body class into a per-assembly scope, so doing it first means doing it twice
+  Ungated since P5 shipped: dark (four DOM surfaces). Decision 4 turned viz-dark from a
+           body class into a per-assembly scope, and P5 (6d8d5da04) did that, so the
+           do-it-twice cost this line used to warn about is paid. CSS only.
 ```
 
 **The one hard sequencing rule in this picture: L'' must not ship before L'.** Geometric suppression
@@ -183,193 +241,91 @@ Four corrections this picture carries against the external set, all recorded in
 
 ## What to pick up next
 
-**Re-derived 2026-08-19, from the dependency picture above rather than by editing the 2026-08-18 ranking in
-place — this file's own instructions say to re-derive rather than repair. Two things changed: P4 committed,
-and decision 13 turned the release gate's largest unbuilt item into a phase small enough to rank.** This is a
-reading of the picture, not a new decision; it goes stale as things land. Effort is relative to this track,
-not absolute.
+**Re-derived 2026-08-25, from the dependency picture above rather than by editing the 2026-08-21 ranking in
+place — this file's own instructions say to re-derive rather than repair.** Every prior revision's ranking is
+gone rather than amended; what follows is one reading of the picture at this commit. Four things changed
+since the last one, and the fourth is the reason the table below has a new first row:
 
-**Re-derived 2026-08-20, after P5 shipped and its manual checks passed** — from the picture above rather
-than by editing the previous ranking, per this file's own instruction. The previous revision put P5's manual
-checks at the top because nothing in the track could be trusted until they ran. They have, and they passed,
-so the item is gone rather than demoted.
-
-**Re-derived 2026-08-21, after P6's automated gates went green** — from the picture above rather than by
-editing the 2026-08-20 ranking in place, per this file's own instruction. P6 is built: Revert, the `gate &&`
-term, both `PlotDescriptor` seed booleans and `resolveSeededCorner` are all deleted together in the working
-tree, and all four automated gates are clean (`core` 4904/0/0, `portal` 1329/1329, `em` 356/356, the
-cross-module build — see "P6 built 2026-08-21" above for the exact numbers). **It comes off this table for
-that, not because it has been seen working: it is uncommitted, and none of its ten manual checks nor the P0
-cohort confirmation has run.** M-P6 is dropped rather than demoted, the same disposition P5's manual checks
-got in the prior revision — but this time the drop records finished-and-unverified-in-a-browser, not
-finished-and-confirmed. The two things it frees are the card-radius constant, newly rankable because Revert
-gives `resolveSeededCorner`'s retirement the reversal path it needed, and L′, which does not move: it was
-first before P6 and P6 landing changes nothing about why.
+- **P6 committed** as `47521e72c`, and **its ten manual checks plus the P0 cohort confirmation have run and
+  passed**, confirmed by a human partner on 2026-08-25. M-P6 is therefore *shipped and seen*, not merely
+  built — the distinction the 2026-08-21 revision was careful to draw, now closed in the good direction.
+- **The palette work committed** as `1b8eb3cea` — five bug-fix rounds after Revert turned out not to carry a
+  chart's colours. Not a phase anyone planned; it is what P6's first browser pass found.
+- **The card radius shipped** (this commit), which empties the "Decided, unscheduled" section's only
+  mark-dependent entry. It needed no migration and no cohort check: the branch is unreleased and unmerged, so
+  every marked asset in existence is a test asset, confirmed by a human partner on 2026-08-25.
+- **Decision 10 — bookmarks — is the last release-gate item, and it is unbuilt.** The dependency picture has
+  said "release needs P6 + bookmarks" since 2026-08-19 and P6 has absorbed all the attention since. It is
+  first now by elimination as much as by weight: nothing else is between this branch and a release.
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **L′ — the title lane height row** | the highest-value visible item, startable since P4, and still first — P6 landing changes nothing about it | **M–L** (decision 2, four L' design questions) | L″ next | none new — it is the item the mark and the flag exist to free |
-| 2 | **Card radius 12→6 (the constant only)** | small, visible polish — the last thing the seed-mark track was blocking | **S**, plus its own sign-off | nothing further downstream | needs P6's ten manual checks run first. They are the only evidence that a marked assembly in a gate-off org actually keeps its card radius now that `resolveSeededCorner` is gone in the working tree — none of them has run yet |
+| 1 | **Decision 10 — resolve chrome on bookmark restore** | the last release-gate item, and a correctness defect rather than a polish one: a bookmark taken before a Revert silently un-reverts the assembly | **M** — two call sites, reusing P3's shared path | the release | see the three notes below; the surface is wider than decision 10 was written against |
+| 2 | **L-prime — the title lane height row** | the highest-value visible item, startable since P4, and demoted only because #1 gates a release and it does not | **M-L** (decision 2, the four L-prime design questions) | L-double-prime next | none new — it is the item the mark and the flag exist to free |
 | 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
 
-**The binding-pane dead buttons are off this table because they are built** — both predicates landed
-2026-08-20. **They are built but not yet verified in a running app** — the manual pass on 2026-08-20 ran
-against a bundle built before the change (`target/classes` chunk at 11:07, source edited at 14:16) and so
-tested pre-fix code. Rebuild the web module before re-running it. See "What P5 left behind" item 1. The
-overlap defect recorded beside them was **not** folded in and is not XS; it is recorded there too.
+**Decision 10 is confirmed unbuilt, not merely unrecorded.** `TableVSAssembly.parseStateContent` (`:173-194`)
+parses `state_tableformat` into a fresh `FormatInfo` and calls `setFormatInfo` — no re-resolution against the
+mark anywhere in the method, and neither `TableVSAssembly` nor `ChartVSAssembly` mentions
+`seedChromeDefaults` or `VizModernizeUtil` at all. So the defect decision 10 describes is live: restore a
+pre-Revert bookmark and the table's chrome comes back modern on an unmarked assembly.
 
-**P6's ordering constraint is satisfied — P5 is built, so P6 is unblocked.** The reasoning is retained
-because it explains why the order mattered: P6 makes gate-off mean
-"marked content stays modern" on the server, while the browser's `viz-modern` body class is still toggled
-from the org gate until P5 lands — so P6-before-P5 would put legacy CSS over modern server chrome for every
-gate-off org. Nothing else couples them: P6 is server plus composer wiring and touches none of P5's files.
+**And its surface is wider than decision 10 costed, because of what shipped after it was written.** Decision
+10 enumerates `barCornerRadius`, `smoothLines`, the two seed booleans and `roundCorners` from
+`<state_descriptor>`, plus the chart's `VSCompositeFormat` from `<state_format>`. Two additions:
+`ChartVSAssembly.writeStateContent` also emits **`<state_info>`**, the whole `VSChartInfo`
+(`ChartVSAssembly.java:457-470`), which carries the aesthetic refs and therefore **the colour frames** — so a
+stale bookmark un-reverts the *palette* as well, the exact class of defect `1b8eb3cea` spent five rounds
+closing on every other path. And the card radius now sits in the same `VSCompositeFormat` the bookmark
+restores. Whoever takes this should re-derive the property list from the code rather than from decision 10's
+table.
 
-**Amended 2026-08-21: P6 has since been built** (uncommitted — see the Done table and "P6 built 2026-08-21"
-below). This paragraph is retained as the record of why the ordering mattered, not as a live status; P6 is
-off the ranking table below for that reason, not because the ordering question above is still open.
+**Two things decision 10 already settled that are worth not re-litigating.** The mark is *not* in the
+bookmark — `AbstractVSAssembly.writeState` emits only class, name and `writeStateContent`, while the mark
+lives in `writeAttributes`, which is asset XML — so restore can replace the formats while the assembly's
+correct mark stays put, and the decision-11 path recomputes against it. And USER-tier entries are *not*
+cleared on restore, because after a Revert clears the mark, "unmarked" cannot tell *never modern* from
+*reverted*, and clearing would strip a designer's deliberate value from a dashboard that was never modern.
 
-**M-P3 and M-P4 are off this table because they are built.** P3 shipped in `cd06da9b1` and P4 in
-`8ef511e45`, both committed outside the sessions that built them. **P4's nine manual checks all passed on
-2026-08-19**, per its commit message: an unmarked dashboard rendering legacy chrome under an open gate, a
-Modernized copy rendering modern, export agreeing with view across PDF, PNG and Excel for both, a property
-dialog on a legacy chart previewing legacy chrome, and a mixed dashboard rendering each assembly by its own
-mark. **P3's eleven have not**, and nothing in P4's pass substitutes for them. They need a built server, a
-browser and a legacy dashboard. Running them is a real prerequisite for anyone continuing this track, even
-though it is not a ranked item in the sense the table means: there is no design work or code left to write.
+**M-P6's manual checks are off this table because they have run and passed** — including the four that no
+prior pass had exercised: a marked assembly in a gate-off org keeping card radius and bar corners, density
+applying there, the EM's unhidden density control, and the confirmation that legacy tooltip chrome and the
+absent inline-SVG animation are the *only* two surfaces staying legacy. That last one closes the two accepted
+costs negatively, as P6's plan intended. **P3's eleven were covered by P5's pass**, per the dependency
+picture; the prose further down this file that still says they are outstanding predates that and is wrong.
 
-**M-P6 is off this table for the same reason, and it is the newest addition, added 2026-08-21 — read this
-before treating it as shipped.** It is built, and its four automated gates are clean (see "P6 built
-2026-08-21" below for the exact numbers). It is **not** committed: the commit-approval gate refused all
-eight of its task commits, exactly as it refused P3's and P4's before those landed later outside the
-building session — so unlike P3 and P4, there is no commit hash to cite yet, only a working tree. **And
-unlike P4, none of P6's own manual checks have run — ten of them, plus the P0 pre-mark-cohort confirmation**
-— because they need a built server, a browser and exported PDF/PNG/Excel files, which this pass could not
-produce. Do not read the clean automated gates as a substitute for having watched a marked chart in a
-gate-off org keep its card radius. That is exactly the gap P3's still-outstanding eleven checks illustrate
-one phase over: code and tests can be clean for a long time before anyone looks at a screen.
+**The card radius is off this table because it shipped.** What it needed was not the cohort check the v3
+spec's section 01 asks for — that instruction died with `resolveSeededCorner` in P6 — but a sign-off on the
+value, which it has. See [the corrections doc](./chart-card-source-doc-corrections.md) section 3.4, closed in
+the same commit.
 
-**P5 also inherits one server-side reader P4 deferred.** `AbstractChartInfo.getTooltipStyle` resolves AUTO to
-CARD from the org gate; threading it changes the `ChartInfo` interface getter and ripples through four
-classes, and its most visible consumer ships `tooltipStyle` to a browser that still reads org-gated flags
-until P5. Fixing the server half alone would have bought nothing visible. Recorded in P4's commit message and
-in the design's P4 section.
+**L-prime has not moved for any reason of its own.** `VSDensityDefaults.titleHeight()` still resolves
+defh/26/30 and is still uncalled by the resolver itself; `userTitleHeight` still tells an author's height from
+a default one; P4 still supplies the read path. It is second rather than first only because #1 stands between
+this branch and a release and L-prime does not. If the release is not imminent, swap them — the argument for
+L-prime first is that it is the item the whole mark investment exists to free, and it is a fair argument.
 
-**L′ is first because P4 is what was missing, and P4 is now built.** The row needed a read path that
-consults the mark at the title-height resolver, and nothing supplied one until this phase — see "the seed
-mark" section below for the 43 sites and the creation-site flip. `userTitleHeight` has been sitting shipped
-since `1d26dbefb`/`d4d0d5d48` with nothing to pair it with; that pairing exists now. P5, by contrast, still
-only unblocks other things rather than shipping one of the six itself.
+**The seed mark is complete.** All six phases are shipped, committed and — as of 2026-08-25 — seen in a
+browser. What used to be "M, XL, six items" is closed, and the five items it gated are ordinary work with no
+phase in front of them. The one thing it left behind is the bookmark path, which was never one of the six.
 
-**The seed mark is no longer one XL item, and four of its five phases are now behind us.** P1 shipped the
-field; P2 shipped the carrier; P3 built the only route existing content has to modern chrome; P4 flipped the
-reads. The first three deliberately unblocked **nothing** for the six items downstream — P3 unblocked P4's
-testability instead — but P4 is different: it is the phase that turns the mark from a fact nothing consults
-into one L′ can read, so it unblocks the first of the six directly. What used to be "M, XL, six items" is one
-remaining phase, P5, and it frees the other five.
+**Two gate reads survive by decision, not by omission**, and they are confirmed to be the only two:
+`AbstractChartInfo.getTooltipStyle` and `VSChartInteractionDefaults.isInlineSvg()`. Each makes a marked chart
+in a gate-off org modern everywhere except one surface — legacy tooltip chrome, and no inline-SVG animation or
+hover dimming. Threading the tooltip means widening five `ChartArea` constructor overloads reached by the
+report painter, the exporter, annotations and the scheduler, which is larger than the whole of P6;
+`isInlineSvg()` is interaction rather than chrome and carries a `graph.svg.inline` override, which is the
+workaround for release notes.
 
-**P3's design was re-checked against the code on 2026-08-18 and carries five corrections, and P3 has since
-shipped to exactly that shape.** They are in the forward-half design's §4, and none of them changes the shape:
-one virtual method that creation and Modernize share. What they change is that the method takes no
-`VSCompositeFormat` (four of the values it must carry live on `PlotDescriptor`, not on any format), that it
-carries only the gate-dependent values (the overrides mix those with unconditional defaults, and re-running
-those would reset an author's padding, table style and fonts), that its per-path contract has to name
-TITLEPATH and DETAIL as well as OBJECTPATH (the base and two subclasses install *fresh* composites at
-seventeen other paths, dropping the author's USER tier at each), that one of the three seeding overrides sits
-on a different overload, and that `applyModernDefaults` is not available as a name. The two decisions it
-raised were settled the same day and are recorded in that document's items 6 and 7: the hook is
-`seedChromeDefaults(VizContext)`, and it does write the title border colour at TITLEPATH, by mutating the
-composite already installed there.
+**Four colour defects are recorded and deliberately unfixed**, all found while closing `1b8eb3cea` and all
+narrower than what it fixed: the target-line band fill pins all three colour tiers on every apply (separate
+code path, pre-existing); toggling multi-styles off and back on around a Revert can strand modern colours on
+the per-measure frames; `applyGlobalColors` writes a derived colour back without its provenance mark; and the
+value axis's runtime clone (`VGraphPair:1338-1341`) is intentionally still gated. They live in
+[the forward-half design](../2026-08-14-seed-mark-forward-half-design.md)'s dated 2026-08-24 block. Do not
+report them as new.
 
-**Building P3 found three more bypass cases the corrections above had not, all closed before the phase was
-called done.** Seven types — `CheckBoxVSAssemblyInfo`, `ComboBoxVSAssemblyInfo`, `RadioButtonVSAssemblyInfo`,
-`SpinnerVSAssemblyInfo`, `SubmitVSAssemblyInfo`, `TextInputVSAssemblyInfo` and `TextVSAssemblyInfo` — override
-`setDefaultFormat` without calling `super` and hardcode the legacy border colour directly, so the hook never
-ran for them at creation and must not run for them under Modernize either; `CalendarVSAssemblyInfo` reaches
-the same place by never calling `setDefaultFormat` at all. `ChartVSAssemblyInfo` and
-`SelectionBaseVSAssemblyInfo` replace the whole title composite after `super` returns, discarding whatever
-border colour the base wrote, so the hook must not write one they will only throw away. Both findings became
-private predicates on `VSAssemblyInfo` (`bypassesBaseChrome()`, `installsOwnTitleFormat()`), consulted by the
-hook itself for the same reason `isCornerSeedTarget()` already lives there rather than in a caller. Full
-citations are in the forward-half design's §4.
-
-**P3 built 2026-08-18, and shipped in `cd06da9b1` — see "the seed mark" section below for the
-detail.** `seedChromeDefaults(VizContext)` on `VSAssemblyInfo`, three overrides, `VizModernizeUtil`'s
-enumeration and stamp-then-seed loop, the composer endpoint and its `@ClusterProxy` service, the
-`modernizable` flag on `SetViewsheetInfoCommand`, and the dismissable bar with its permanent menu entry. The
-one thing this phase's own verification claim could not check without a live composer is left explicitly
-outstanding: the eleven manual checks the plan calls for, plus a twelfth added while building, covering
-what an empty undo checkpoint does to Ctrl+Z. None of them has run.
-
-**P2 shipped: `VizContext` is threaded and all four sub-gates are gone.** Every `VS*Defaults` value method
-now takes a context; every call site passes `VizContext.ofGate()`, which reads exactly what the statics read
-before, so nothing renders differently. `viewsheet.modernObjectChrome`, `modernChartChrome`,
-`modernChartPalette` and `modernTableStructure` are read nowhere in `core/src` — main, test and comments
-alike — and exactly one `public static boolean isModern()` survives, `VSDensityDefaults`', as the master-gate
-reader. Sizing note for anyone budgeting a comparable sweep: the design guessed ~90 call sites, this file
-previously recorded an audited 115, and the landed change is **71 files** (56 production, 15 test) — the
-count that matters is files touched per class, not raw call sites, because a single method often holds
-several.
-
-**P2 answered both of the design's open plumbing questions, and P4 has since settled both the way it
-described as most likely.**
-
-- **The three composer dialog models had no route to an assembly** — `ChartLinePaneModel`,
-  `AxisPropertyDialogModel`, `LegendFormatDialogModel` see only `ChartInfo`, `PlotDescriptor`,
-  `AxisDescriptor` or `ChartArea`. `ChartPropertyDialogService` and `RegionPropertyDialogService` each held a
-  `ChartVSAssemblyInfo` one or two call-hops up without forwarding it. **P4 threaded it down** rather than
-  falling back to `ofGate()`: both services now resolve the dialog's own chart by object id and pass its
-  context through four widened `ChartRegionHandler` methods, so a property dialog opened on an unmarked
-  chart previews legacy chrome and agrees with the canvas behind it.
-- **`CSSProcessor.applyCSS` has no route structurally, not merely today.** Every hop back from it stays inside
-  the legacy report / `ReportSheet` / `ChartElementDef` model, which never carries a `VSAssembly` — and
-  `applyCSS(ReportSheet)` has no callers anywhere in `core/src` or the enterprise modules. **P4 confirmed there
-  is no route to thread and passed `VizContext.LEGACY`** at `CSSProcessor.java:474` and at its own `ofGate()`
-  site, exactly as this paragraph predicted.
-- **The dialog models were not the whole of the threading problem** — added 2026-08-18, closed by P4. Five
-  chart-pipeline sites see a `ChartInfo` or a descriptor and never a `VSAssemblyInfo`: `GraphGenerator`,
-  `CSSChartStyles.apply` (called from `VGraphPair`, `CSSProcessor` and `VSChartDndService`) and
-  `ChangeChartProcessor`. **P4 gave `GraphGenerator` a `VizContext` field set at construction** — `of(chart)`
-  on the constructor taking a `ChartVSAssemblyInfo`, `LEGACY` on the one taking a bare `ChartInfo` — which
-  also gives the LEGACY-identity axis a real home instead of a convention two tests defend.
-  `CSSChartStyles.apply` takes the context as a parameter, `of(info)` from its viewsheet callers and `LEGACY`
-  from `CSSProcessor`. One site had no assembly at all — `ChartColorPaletteController.getChartColorPalette()`,
-  a bootstrap fetch with no parameters — and **P4 decided it stays org-gated**, with a comment on the one
-  surviving `ofGate()` call explaining why: a global swatch list is not per-assembly chrome, and a
-  per-assembly endpoint would put a client change and an uncacheable fetch inside a server-only phase.
-
-**One thing P2 introduced that P4 had to carry rather than resolve.** `VizContext` still carries an implicit
-fourth axis — *is this a viewsheet chart at all* — encoded as **identity** against `VizContext.LEGACY`. Seven
-chart descriptors' font lines read `ctx != VizContext.LEGACY`, which is what the old bare `vs` boolean meant,
-and identity is the only faithful encoding: with the gate off, `ofGate()` returns a context *value-equal* to
-`LEGACY` that must still count as a viewsheet chart. No factory may return the `LEGACY` instance, and P4's
-own `GraphGenerator` field is built on that identity rather than replacing it with an explicit `viewsheet`
-field — the convention became a fact rather than being retired. Related: the design says the context is
-each method's **first** parameter; landed signatures across P2 and P4 alike take it **trailing**, which is
-the better shape and what the plans' own snippets did.
-
-**L' is still the highest-value visible item, and P4 is what frees it.** `VSDensityDefaults.titleHeight()`
-resolves defh/26/30 and is still uncalled by the resolver itself, and `userTitleHeight` has told an author's
-height from a default one since `1d26dbefb`/`d4d0d5d48`. That is one half of what the row needs. The other
-half was *reading* the mark at the title-height resolver — not there yet at P1, not there yet at P3, and
-supplied now that P4's 43 sites and its creation-site flip exist. A mark that exists but is never consulted
-moves nothing; P4 is what makes it consulted.
-
-**The other half is the seed mark, and it is the correction this ranking previously got wrong.** An
-earlier revision called the flag a cheaper alternative to the mark. They answer different questions:
-the flag says *did an author choose this height*, so the row does not overwrite a deliberate choice; the
-mark says *is this assembly modern*, so the row does not reach dashboards nobody opted in.
-[Seeded-value decisions](./seeded-value-reversibility-decisions.md) decision 4 keys the density heights
-off the mark, and decision 2 protects unmarked content from every automatic behaviour. **Shipping the row
-on the flag alone would resize fifteen years of saved dashboards on next open.**
-
-**Decided 2026-08-13: L' waits for M** ([strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md)
-decision 8) **— and the wait is over now that M-P4 is built.** Shipping it dormant would have looked like
-free parallelism and would not have been — nothing would have been marked, so the manual export pass could
-not have run, the checkbox would have shipped doing nothing observable, and the only question a dormant
-build answers early is the cheapest part of the work. That cost no longer needs accepting: the mark exists,
-P4 reads it, and Modernize gives existing content a route onto it, so L' can be picked up as a live resolver
-change rather than a dormant one. The anchored strip's density approximation (`380705bc1`) still stands in
-for L'' until the row itself lands.
+---
 
 ### The four L' design questions — answered 2026-08-13
 
@@ -1195,58 +1151,77 @@ title-hidden decisions, costed in
 the seed mark. Server-rendered and therefore export-affecting, so budget the manual pass, and show it to the
 sibling project first: it breaks the title-bar/table-header equality their §05 endorses.
 
-**The card radius drops 12px → 6px** — `Chart Card Spec v3.dc.html` §01. Sequenced behind the mark, because
-retiring `resolveSeededCorner` without it leaves no reversal path. Confirm the seeded 12px cohort is empty
-before either constant moves — `resolveSeededCorner` keys on exact equality, so already-seeded assets stop
-being stripped the moment the constant changes.
-
-**Amended 2026-08-20: this entry is now only about the constant, and its cohort caveat dissolves.** The P6
-review moved the *retirement* of `resolveSeededCorner` inside P6, because its gate read strands a marked
-assembly's card radius the moment the `gate &&` term goes. So what is left here is `CARD_CORNER_RADIUS`
-12 → 6 and the sign-off it needs. The caveat above described a stripping behaviour that no longer exists
-after P6, so there is no cohort question to answer — the constant can move on its own schedule.
+**The card radius dropped 12px to 6px — SHIPPED 2026-08-25, so this entry is closed.**
+`CARD_CORNER_RADIUS` is now 6 (`VSObjectChromeDefaults.java:107`), matching `--inet-radius-xl`
+(`_variables.scss:584`), the top of the DOM radius scale. Two notes for the record, because this entry
+accreted three revisions of caveats and only one of them turned out to be real. The **cohort caveat was
+void, not satisfied**: it protected against `resolveSeededCorner`, whose exact-equality test would have
+stopped stripping already-seeded assets the moment the constant moved, and P6 deleted that method. And
+the **annotation rectangle was the one travelling item that needed an answer** — the spec asked whether
+12px was shared and never read the value. It is not shared structurally: `VSAnnotationService:54` writes
+`setRoundCornerValue(12)` into an annotation rectangle's USER tier at creation, a different assembly
+type, not gate-dependent, untouched by Modernize or Revert. The annotation keeps 12px and the constant
+comment that asserted the equality now cites the DOM token. Full disposition in [the corrections
+doc](./chart-card-source-doc-corrections.md) section 3.4.
 
 ---
 
 ## Done
 
-Hashes re-resolved 2026-08-14 after the second rebase; each was checked with
-`git merge-base --is-ancestor <hash> HEAD`. The third-revision column is kept only to help anyone reading an
-older copy of this file recognise what moved — **none of those hashes is reachable from `HEAD` any more.**
+**Hashes re-resolved 2026-08-25, after a THIRD rebase — and this is the important part: every hash the
+twelfth revision carried was stale, including the ones it had itself re-resolved on 2026-08-14 after the
+second rebase.** Checked with `git merge-base --is-ancestor <hash> HEAD`: `8f75872a6`, `119bfdaac`,
+`be0e3c664`, `cd06da9b1`, `8ef511e45`, `4c237a7dd`, `380705bc1`, `1d26dbefb` and `d4d0d5d48` are **none of
+them** reachable from `HEAD` any more. They still resolve under `git show`, which is exactly why that command
+must not be used to check them. The table below was re-derived by matching commit *subjects*, not by trusting
+any prior column — subjects survive a rebase and hashes do not. **Do not add a "cited at revision N" column
+again**: three rebases in, a history of dead hashes is a history of things a reader may not use, and it grew
+this file for no benefit. Cite by subject and re-resolve.
 
-| Item | Commit | Cited at the third revision |
-|---|---|---|
-| Phase 9B dark mode — every server-rendered surface, chart included | `fc15df1da` | `8f138595a` |
-| Inline-SVG chart rendering coupled to the modern gate | `1124bf6f7` | `6e803a702` |
-| Data-mark-anchored tooltip tail | `4104c80a2` | `c4cfa342b` |
-| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `f4ddb2ea2` | `8b6b006ae` |
-| Selection vocabulary — chart-owned surfaces and the annotation border | `a7ec8796d` | `d627ec403` |
-| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `ef690e83e` | `6da9c024f` |
-| Right-click reaches max mode on tables | `de765242d` | `0db62036f` |
-| Rollout slice 2 — table, crosstab, calc table | `1e74918af` | `931bdb02b` |
-| Max-mode mini-toolbar positioning fix | `f6c87eda4` | `f3a299cd0` |
-| Rollout slice 3 — selection list and tree, kebab-only at any width | `5a0d3e254` | `5ed02f6ed` |
-| Strip suppression where the lane cannot hold it — L, density-approximated | `380705bc1` | `55c3bad1a` |
-| `userTitleHeight` — N, the flag and its per-type default | `1d26dbefb` | `07c91926e` |
-| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `d4d0d5d48` | `307a6ee09` |
-| **M-P1 — the seed mark's field, persistence and creation stamps** | `8f75872a6` | postdates the third revision |
-| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | `119bfdaac` | postdates the third revision |
-| M-P1's null-guard — a mocked host viewsheet with no assembly info | `be0e3c664` | postdates the third revision |
-| **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the fifth revision |
-| **M-P4 — the 43 read-path sites and the creation site flipped from `ofGate()` to the mark, one documented survivor left** | *uncommitted — working tree, blocked by a commit-approval gate* | postdates the sixth revision |
-| **M-P6 — Revert (the per-dashboard mirror of Modernize), plus the `gate &&` term in `VizContext.of(VizMark)`, both `PlotDescriptor` seed booleans and `VSObjectChromeDefaults.resolveSeededCorner` all deleted in one commit** | *uncommitted — working tree, blocked by a commit-approval gate, same as M-P3 and M-P4 above.* **Unlike them, none of its manual checks have run yet** — see "P6 built 2026-08-21" below | postdates the eleventh revision |
+| Item | Commit |
+|---|---|
+| Phase 9B dark mode — every server-rendered surface, chart included | `38c36aba1` |
+| Inline-SVG chart rendering coupled to the modern gate | `e39516e40` |
+| Data-mark-anchored tooltip tail | `4077f9099` |
+| Shell tooltip retokenize + CARD ramp + data-tip layer declaration | `cc2948231` |
+| Selection vocabulary — chart-owned surfaces and the annotation border | `9dbc9857e` |
+| Menu-action reachability, the §06 ladder, and rollout slice 1 — chart | `5c7e106f2` |
+| Right-click reaches max mode on tables | `2736113df` |
+| Rollout slice 2 — table, crosstab, calc table | `39239784b` |
+| Max-mode mini-toolbar positioning fix | `9881350c1` |
+| Rollout slice 3 — selection list and tree, kebab-only at any width | `65e249e91` |
+| Strip suppression where the lane cannot hold it — L, density-approximated | `f5f568f12` |
+| `userTitleHeight` — N, the flag and its per-type default | `df3044734` |
+| `userTitleHeight` — N, the thirteen stamps, the propagate and the reset un-stamp | `5d0c7782f` |
+| **M-P1 — the seed mark's field, persistence and creation stamps** | `da34d78a7` |
+| **M-P2 — `VizContext` threaded, the six `isModern()` predicates and all four sub-gates deleted** | `37667c1bc` |
+| M-P1's null-guard — a mocked host viewsheet with no assembly info | `6db87680c` |
+| **M-P3 — the enumeration point, `seedChromeDefaults`'s bypass predicates, `VizModernizeUtil`, the endpoint and the composer bar** | `f07ea96d2` |
+| **M-P4 — the 43 read-path sites and the creation site flipped from `ofGate()` to the mark, one documented survivor left** | `b2e2d56dc` |
+| **M-P5 — browser reads follow the mark; 61 files, the body class renamed `viz-shell`, `isVizModern()` deleted** | `6d8d5da04` |
+| The modern strip no longer draws controls that do nothing | `f4e4c4498` |
+| **M-P6 — Revert (the per-dashboard mirror of Modernize), plus the `gate &&` term in `VizContext.of(VizMark)`, both `PlotDescriptor` seed booleans and `VSObjectChromeDefaults.resolveSeededCorner` all deleted in one commit** | `47521e72c` |
+| **Revert carries a chart's colours with the assembly** — the palette seeded in `seedChromeDefaults`, derived per-value colours marked and dropped, the two sheet-level colour caches cleared, the binding pane's Apply comparing against the reported tier state, and the value axis's per-column label gate removed. Five bug-fix rounds, six new test classes | `1b8eb3cea` |
+| **Card radius 12 → 6** — `CARD_CORNER_RADIUS` onto `--inet-radius-xl`, the top of the DOM radius scale | *this commit* |
 
-**Why P2 landed as two commits.** `be0e3c664` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
+**Why P2 landed as two commits.** `6db87680c` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
 regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole
 cause of ten suite errors at P2's baseline. It belongs to P1's subject, not P2's, so it was split out rather
-than folded in. `119bfdaac` carries the phase itself — 71 files under `core/src` — plus its plan, the design
+than folded in. `37667c1bc` carries the phase itself — 71 files under `core/src` — plus its plan, the design
 doc's sub-gate decision and this roadmap.
 
-The docs commits, also re-resolved: the v3 design set and the seeded-value decisions in `d4ef55100`, the
-strip and lane decisions in `ef42a6c65`, the `userTitleHeight` plan and strip-and-lane decision 5 in
-`e47bd207a`, the title-lane answers in `b7bf79157`, what the flag changed for the mark in `74c8638a6`, and
-the seed mark's forward-half design plus its P1 plan in `e670744c1`. `91a7babce`, `d1042fd2f` and `e7ca3c69b`
-carry the roadmap, the open-item decisions and the design sets.
+**Why the palette work is one commit and not six.** P6 shipped Revert, and Revert immediately failed on
+colour: the modern palette was copied into several stores on the way to the screen and each held a copy that
+outranked the re-seeded one. The seed, the per-value provenance mark, the two sheet-level caches, the binding
+pane's Apply and the axis-label gate are five distinct defects, but each was only observable once the one
+before it was fixed, so they were verified together and committed together rather than shipping four states
+in which Revert visibly did not work.
+
+**The docs-only commits are no longer listed here.** All nine hashes this paragraph used to carry —
+`d4ef55100`, `ef42a6c65`, `e47bd207a`, `b7bf79157`, `74c8638a6`, `e670744c1`, `91a7babce`, `d1042fd2f`,
+`e7ca3c69b` — went stale in the third rebase along with every other hash in this section. A documentation
+commit is also the one thing a hash is least needed for:
+`git log --oneline -- docs/superpowers/specs/lookfeel/` answers it exactly and cannot go stale. Use that.
 
 ## Still undecided
 
