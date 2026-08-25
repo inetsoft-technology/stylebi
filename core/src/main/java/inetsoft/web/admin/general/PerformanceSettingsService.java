@@ -42,8 +42,8 @@ public class PerformanceSettingsService {
          .maxQueryPreviewRowCount(Integer.parseInt(SreeEnv.getProperty("query.preview.maxrow")))
          .maxTableRowCount(Integer.parseInt(SreeEnv.getProperty("table.output.maxrow", "0")))
          .dataSetCaching(Boolean.valueOf(SreeEnv.getProperty("query.cache.data")))
-         .dataCacheSize(Long.parseLong(SreeEnv.getProperty("query.cache.limit")))
-         .dataCacheTimeout(Long.parseLong(SreeEnv.getProperty("query.cache.timeout")))
+         .dataCacheSize(QueryCacheSettings.getLimit())
+         .dataCacheTimeout(QueryCacheSettings.getTimeout())
          .build();
    }
 

@@ -170,7 +170,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
     * @return the size of Data Cache Size.
     */
    public long getDataCacheSize() {
-      return Long.parseLong(SreeEnv.getProperty("query.cache.limit"));
+      return QueryCacheSettings.getLimit();
    }
 
    /**
@@ -234,7 +234,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
     * @return the timeout of Data Cache Timeout.
     */
    public long getDataCacheTimeout() {
-      return Long.parseLong(SreeEnv.getProperty("query.cache.timeout"));
+      return QueryCacheSettings.getTimeout();
    }
 
    /**
