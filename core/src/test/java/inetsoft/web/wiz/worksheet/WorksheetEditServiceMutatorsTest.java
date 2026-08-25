@@ -350,6 +350,134 @@ class WorksheetEditServiceMutatorsTest {
          "a rename_column alias on an aggregated column must survive re-aggregation");
    }
 
+   /** Finds a column by its base attribute name, which an alias on it would otherwise shadow. */
+   private static ColumnRef columnByAttribute(TableAssembly t, String attribute) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr && attribute.equals(cr.getAttribute())) {
+            return cr;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * A preview between the aggregate and the clear used to strand the output alias for good.
+    *
+    * <p>clearAggregateAliases nulls the alias on the ColumnRef inside the OLD AggregateInfo, which
+    * is normally the very object the column selection holds. WorksheetPreviewService snapshots and
+    * restores the AggregateInfo around RUNTIME_MODE execution -- necessary, since
+    * AbstractTableAssembly.replaceVariables rewrites it in place -- and AggregateInfo.clone()
+    * deep-clones every DataRef. Afterwards the two are separate objects, so the clear nulled an
+    * alias nothing reads and the column the model reports kept a name like "total" over
+    * un-aggregated rows. Live-confirmed 2026-08-25 (L2 Finding 20): the alias survived a clear only
+    * when a preview had run in between. The clone here is that preview, reduced to the one step
+    * that matters.
+    */
+   @Test
+   void aggregateAliasIsClearedEvenAfterTheAggregateInfoHasBeenCloned() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+      assertEquals("total", columnByAttribute(t, "amount").getAlias(),
+         "precondition: the aggregate labelled its output column");
+
+      // What a preview does: execute against a cloned AggregateInfo, then install the clone.
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      ColumnRef base = columnByAttribute(t, "amount");
+      assertNotNull(base, "the raw column must still be there after the clear");
+      assertNull(base.getAlias(),
+         "an aggregate output alias must not outlive the aggregate that created it");
+   }
+
+   /** Same separation, but the second call re-aggregates rather than clearing outright. */
+   @Test
+   void aggregateAliasIsClearedOnReAggregationAfterTheAggregateInfoHasBeenCloned()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      // Chaining on the prior output alias must still fail loud: that refusal is only correct
+      // because the alias is gone, and it was reachable again once a clone stranded it.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", groups("store"),
+               List.of(new WorksheetMutationSupport.AggregateSpec("total", "AVG", "avg_total")))));
+      assertTrue(ex.getMessage().contains("total"));
+      assertNull(columnByAttribute(t, "amount").getAlias(),
+         "the prior output alias must be gone even though the AggregateInfo was cloned");
+   }
+
+   /** The negative control: the clear must not reach a deliberate rename_column alias. */
+   @Test
+   void renameAliasSurvivesAClearAfterTheAggregateInfoHasBeenCloned() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      assertEquals("revenue", columnByAttribute(t, "amount").getAlias(),
+         "a rename_column alias must survive a clear that follows a preview");
+   }
+
+   /**
+    * The clear now reaches into the column selection by name, so it has to be narrow: matching on
+    * the alias alone would strip an unrelated column that happens to carry the same one.
+    */
+   @Test
+   void clearingAnAggregateAliasLeavesAnotherColumnCarryingTheSameAliasAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+
+      // Set by hand rather than through renameColumn, which would refuse the collision -- the
+      // point is that the sweep is bounded by the base attribute, not that this state is reachable.
+      columnByAttribute(t, "store").setAlias("total");
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      assertNull(columnByAttribute(t, "amount").getAlias(), "the aggregated column loses its alias");
+      assertEquals("total", columnByAttribute(t, "store").getAlias(),
+         "a different column sharing the alias must be left alone");
+   }
+
    @Test
    void renameAliasSurvivesReAggregationAfterFailedIntermediateCall() throws Exception {
       Worksheet ws = new Worksheet();

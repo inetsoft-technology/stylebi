@@ -868,6 +868,17 @@ public final class WorksheetMutationSupport {
     * property (AggregateInfo of unknown provenance, e.g. set through the Composer UI)
     * every aggregate alias is cleared, preferring a loud unresolved-column failure over
     * a silently wrong chained aggregate.</p>
+    *
+    * <p>The alias is cleared on the column selection by name as well as on the
+    * AggregateInfo's own ref, because the two are only the same object until something
+    * clones the AggregateInfo and installs the copy. A preview does exactly that --
+    * {@code WorksheetPreviewService} snapshots and restores the AggregateInfo around
+    * RUNTIME_MODE execution, since {@code replaceVariables} rewrites it in place -- and
+    * {@link AggregateInfo#clone()} deep-clones every DataRef. Clearing only the
+    * AggregateInfo's ref then nulls an alias nothing reads, and the column the model
+    * reports keeps a name like {@code SUM_REVENUE} over un-aggregated rows for good.
+    * Live-confirmed 2026-08-25 (L2 Finding 20): the alias survived a clear only when a
+    * preview had run in between.</p>
     */
    private static void clearAggregateAliases(TableAssembly t) {
       AggregateInfo old = t.getAggregateInfo();
@@ -886,11 +897,40 @@ public final class WorksheetMutationSupport {
       Set<String> ownAliases = recorded == null ? null :
          new HashSet<>(Arrays.asList(recorded.split("\n", -1)));
 
+      ColumnSelection cs = t.getColumnSelection(false);
+
       for(int i = 0; i < old.getAggregateCount(); i++) {
          AggregateRef ar = old.getAggregate(i);
 
          if(ar.getDataRef() instanceof ColumnRef cr &&
             (ownAliases == null || ownAliases.contains(cr.getAlias())))
+         {
+            String alias = cr.getAlias();
+            cr.setAlias(null);
+            clearAliasInSelection(cs, cr, alias);
+         }
+      }
+   }
+
+   /**
+    * Clears {@code alias} from the column selection's own ref for the same base column.
+    *
+    * <p>A no-op in the ordinary case, where the column selection holds the very ref just
+    * cleared. It earns its place when the two have been separated by a clone -- matching
+    * on the base attribute AND the exact alias, so it cannot reach a different column
+    * that merely shares one of the two.</p>
+    */
+   private static void clearAliasInSelection(ColumnSelection cs, ColumnRef cleared,
+                                             String alias)
+   {
+      if(cs == null || alias == null || alias.isEmpty()) {
+         return;
+      }
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr && cr != cleared &&
+            alias.equals(cr.getAlias()) &&
+            Objects.equals(cr.getAttribute(), cleared.getAttribute()))
          {
             cr.setAlias(null);
          }
