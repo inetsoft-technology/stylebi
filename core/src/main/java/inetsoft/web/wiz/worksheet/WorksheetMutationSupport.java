@@ -1551,6 +1551,7 @@ public final class WorksheetMutationSupport {
 
       return value;
    }
+
    /**
     * Maps an operator token to its XCondition constant.
     *

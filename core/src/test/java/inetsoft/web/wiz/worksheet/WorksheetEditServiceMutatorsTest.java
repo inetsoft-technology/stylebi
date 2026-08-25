@@ -2622,6 +2622,18 @@ class WorksheetEditServiceMutatorsTest {
       }
    }
 
+   /**
+    * "Absent" has to include whitespace, not just null. add_named_group omits the operator on
+    * purpose and the contract says an absent one means equals, so a blank string reaching the
+    * refusal would break a caller that had done nothing wrong.
+    */
+   @Test
+   void aBlankOperatorStillMeansEquals() {
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation("   "));
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(""));
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(null));
+   }
+
    private static Object firstConditionOrNull(TableAssembly t) {
       ConditionListWrapper w = t.getPreConditionList();
       return w == null || w.isEmpty() ? null : firstCondition(t);
