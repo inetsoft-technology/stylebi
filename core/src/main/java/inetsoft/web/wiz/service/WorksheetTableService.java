@@ -2341,7 +2341,6 @@ public class WorksheetTableService {
    }
 
    /**
-   /**
     * Whether a target kind has to justify building a table with no row cap.
     *
     * <p>Everything but a file. A local file is read whole in one pass — no pages to walk, no
