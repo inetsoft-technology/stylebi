@@ -1686,11 +1686,12 @@ public class WorksheetTableService {
     *
     * <p>THREE CHECKS, and each exists because the failure it catches is invisible. A name the
     * connector does not declare would be dropped, and the query would run without whatever it was
-    * meant to say. A value the bean refuses would leave the connector's default in place, because
-    * {@code PropertyMeta.setValue} reports a failed invocation with {@code LOG.error} and returns
-    * normally. And a parameter that does not apply to the rest of what was sent is stored and never
-    * read — an offset written under link-following pagination changes nothing, and the answer comes
-    * back looking like the first page of a correct result.</p>
+    * meant to say. A value the bean refuses would leave the connector's DEFAULT in place — not
+    * null, the previous value — because {@code PropertyMeta.setValue} reports a failed invocation
+    * with {@code LOG.error} and returns normally; that is why the setter is invoked directly here
+    * instead, so the failure is one. And a parameter that does not apply to the rest of what was
+    * sent is stored and never read — an offset written under link-following pagination changes
+    * nothing, and the answer comes back looking like the first page of a correct result.</p>
     *
     * <p>THE THIRD IS A WARNING, NOT A REFUSAL. Applicability is decided by running the connector's
     * own visibility methods, and those answer for the form, which is a narrower question than
@@ -1703,6 +1704,7 @@ public class WorksheetTableService {
    private String applyQueryContract(TabularQuery query,
                                      Map<String, PropertyMeta> pmap,
                                      WorksheetTable.TabularSource src)
+      throws Exception
    {
       Map<String, Object> requested = src.getQueryParams();
 
@@ -1729,22 +1731,16 @@ public class WorksheetTableService {
                "'. It accepts: " + String.join(", ", new TreeSet<>(pmap.keySet())) + ".");
          }
 
-         Object value = coerce(prop, name, entry.getValue());
-         prop.setValue(query, value);
+         // NOT PropertyMeta.setValue. That swallows a failed invocation with LOG.error and
+         // returns, leaving the PREVIOUS value in place -- so a rejected value is indistinguishable
+         // from an accepted one for any property with a non-null default, which is most of them.
+         // Reading the property back afterwards does not close that gap either: the old value comes
+         // back non-null and looks like a successful write. Invoking the setter directly is what
+         // makes a failure a failure, and it is what the file contract above does for the same
+         // reason.
+         invokeWriteMethod(prop, query, coerceParam(prop, name, text(entry.getValue()), "Parameter"));
 
-         // setValue swallows a failed invocation, so the write is confirmed by reading it back
-         // rather than assumed. A setter that normalizes — trimming, or resolving an alias — is
-         // expected and allowed; what is not is the value never arriving at all.
-         Object stored = prop.getValue(query);
-
-         if(value != null && stored == null) {
-            throw new IllegalArgumentException(
-               "Setting '" + name + "' to " + describe(entry.getValue()) + " did not take effect " +
-               "on data source '" + src.getDatasourcePath() + "'. The server log for this request " +
-               "carries the reason.");
-         }
-
-         applied.add(name + "=" + describe(stored));
+         applied.add(name + "=" + describe(prop, prop.getValue(query)));
       }
 
       warnInapplicable(query, requested.keySet(), src);
@@ -1771,6 +1767,24 @@ public class WorksheetTableService {
             "tabularSource.params applies to targetKind \"" + TARGET_KIND_FILE +
             "\" only — for \"" + TARGET_KIND_QUERY + "\", put every value in queryParams.");
       }
+
+      // These three are endpoint-kind shorthands for properties this contract addresses by their
+      // own names. Only applyEndpointContract reads them, so on a query request they would be
+      // accepted and then ignored -- and if the caller ALSO named them in queryParams, one request
+      // would carry two answers for one property with no way to tell which won.
+      if(src.getJsonPath() != null || src.getExpanded() != null || src.getExpandedPath() != null) {
+         throw new IllegalArgumentException(
+            "tabularSource.jsonPath/expanded/expandedPath apply to targetKind \"" +
+            TARGET_KIND_ENDPOINT + "\" only — for \"" + TARGET_KIND_QUERY +
+            "\", set those properties by name in queryParams.");
+      }
+
+      // Nothing on this path reads it, so a target here names something that will not be used.
+      if(src.getTarget() != null && !src.getTarget().isBlank()) {
+         throw new IllegalArgumentException(
+            "tabularSource.target does not apply to targetKind \"" + TARGET_KIND_QUERY +
+            "\" — queryParams is what addresses the data.");
+      }
    }
 
    /**
@@ -1795,85 +1809,39 @@ public class WorksheetTableService {
    }
 
    /**
-    * Convert a JSON value to what the bean property takes.
+    * A JSON value as the text {@link #coerceParam} converts.
     *
-    * <p>WHY THIS IS NEEDED AT ALL: {@code PropertyMeta.setValue} converts a string to an enum and
-    * fills a primitive for null, but does nothing for the case that actually arrives here — JSON
-    * carries {@code 100} as an {@code Integer} and {@code "100"} as a {@code String}, and a
-    * property that takes {@code int} accepts neither reliably. Handed the wrong one, the reflective
-    * invocation fails, {@code setValue} logs it, and the connector's default survives into a query
-    * that reports success.</p>
+    * <p>Jackson hands back an {@code Integer} for {@code 100} and a {@code String} for
+    * {@code "100"}, and the property behind either may be an {@code int}, an enum or a string. Going
+    * through text is what lets one conversion serve all of those, and it is the conversion the file
+    * contract already uses; the alternative is a second one that has to agree with it forever.</p>
     *
-    * <p>Only scalars are converted. A composite parameter — a list of HTTP headers, a set of column
-    * definitions — is refused by name rather than half-built from a map, because a partially
-    * populated composite is exactly the silent wrong answer this contract exists to prevent.</p>
+    * <p>A composite arrives as a list or a map and is passed through as its own text, which
+    * {@code coerceParam} then refuses by name. That is deliberate: a composite half-built from a
+    * map is exactly the silent wrong answer this contract exists to prevent, so it is refused
+    * rather than approximated.</p>
     */
-   private Object coerce(PropertyMeta prop, String name, Object value) {
-      Class<?> type = prop.getDescriptor().getPropertyType();
-
-      if(value == null || type == null || type.isInstance(value)) {
-         return value;
-      }
-
-      // left to setValue, which resolves the constant and reports an unknown one
-      if(type.isEnum() || type == String.class) {
-         return value;
-      }
-
-      String text = String.valueOf(value).trim();
-
-      try {
-         if(type == boolean.class || type == Boolean.class) {
-            if(value instanceof Boolean) {
-               return value;
-            }
-
-            // Boolean.parseBoolean would read "yes" and "1" as false, quietly turning a flag the
-            // caller meant to set into one it did not.
-            if("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text)) {
-               return Boolean.valueOf(text);
-            }
-
-            throw new NumberFormatException(text);
-         }
-
-         if(type == int.class || type == Integer.class) {
-            return value instanceof Number ? ((Number) value).intValue() : Integer.valueOf(text);
-         }
-
-         if(type == long.class || type == Long.class) {
-            return value instanceof Number ? ((Number) value).longValue() : Long.valueOf(text);
-         }
-
-         if(type == short.class || type == Short.class) {
-            return value instanceof Number ? ((Number) value).shortValue() : Short.valueOf(text);
-         }
-
-         if(type == byte.class || type == Byte.class) {
-            return value instanceof Number ? ((Number) value).byteValue() : Byte.valueOf(text);
-         }
-
-         if(type == double.class || type == Double.class) {
-            return value instanceof Number ? ((Number) value).doubleValue() : Double.valueOf(text);
-         }
-
-         if(type == float.class || type == Float.class) {
-            return value instanceof Number ? ((Number) value).floatValue() : Float.valueOf(text);
-         }
-      }
-      catch(NumberFormatException ex) {
-         throw new IllegalArgumentException(
-            "'" + name + "' takes " + type.getSimpleName() + ", and " + describe(value) +
-            " is not one.");
-      }
-
-      throw new IllegalArgumentException(
-         "'" + name + "' takes " + type.getSimpleName() + ", which this contract cannot build from " +
-         "a JSON value. Composite parameters are set through the connector's own editor, not here.");
+   private static String text(Object value) {
+      return value == null ? null : String.valueOf(value);
    }
 
-   /** A value as it should appear in a message: quoted if text, bare otherwise, and never null. */
-   private String describe(Object value) {
+   /**
+    * A value as it should appear in a message — and never a secret.
+    *
+    * <p>What is built here is joined into {@code probeDesc}, which is embedded verbatim in the
+    * exception thrown when a query returns no columns. Zero columns is an ordinary failure — wrong
+    * filter, expired credential — and {@code WizControllerErrorHandler} turns the exception into a
+    * response, so a connector declaring an API key as a query parameter would have it printed to
+    * the caller and into the log. The two sibling contracts cannot leak this way because neither
+    * returns raw property values: the endpoint one returns a URL suffix and the file one a path.</p>
+    */
+   private static String describe(PropertyMeta prop, Object value) {
+      if(prop != null && prop.getProperty() != null && prop.getProperty().password()) {
+         // Reported as set rather than omitted: whether a secret was supplied at all is exactly
+         // what someone reading this message needs to know.
+         return value == null ? "null" : "***";
+      }
+
       if(value == null) {
          return "null";
       }
@@ -2130,12 +2098,24 @@ public class WorksheetTableService {
     * write for "one" or "yes".</p>
     */
    private static Object coerceParam(PropertyMeta prop, String name, String raw) {
+      return coerceParam(prop, name, raw, "Parsing option");
+   }
+
+   /**
+    * The same conversion for a caller that is not supplying parsing options.
+    *
+    * <p>Only the noun in the messages differs. The query contract sends a whole query rather than a
+    * file's parsing options, so "Parsing option 'suffix'" would name the wrong thing; which
+    * conversions are legal is identical, and duplicating the method to change one word is how the
+    * two would drift apart.</p>
+    */
+   private static Object coerceParam(PropertyMeta prop, String name, String raw, String noun) {
       Class<?> type = prop.getDescriptor().getWriteMethod().getParameterTypes()[0];
 
       if(raw == null) {
          if(type.isPrimitive()) {
             throw new IllegalArgumentException(
-               "Parsing option '" + name + "' has no value, and it cannot be cleared: it is a " +
+               noun + " '" + name + "' has no value, and it cannot be cleared: it is a " +
                type.getSimpleName() + ".");
          }
 
@@ -2183,14 +2163,19 @@ public class WorksheetTableService {
          }
       }
       catch(IllegalArgumentException ex) {
+         // Enum.valueOf throws this for a constant that does not exist, and it is worth naming the
+         // ones that do: a caller working from the schema has the list, and one that guessed does
+         // not.
+         String expected = type.isEnum()
+            ? "one of " + Arrays.toString(type.getEnumConstants()) : "a " + type.getSimpleName();
+
          throw new IllegalArgumentException(
-            "Parsing option '" + name + "' expects a " + type.getSimpleName() + ", got \"" + raw +
-            "\".");
+            noun + " '" + name + "' expects " + expected + ", got \"" + raw + "\".");
       }
 
       throw new IllegalArgumentException(
-         "Parsing option '" + name + "' is a " + type.getSimpleName() +
-         ", which cannot be supplied as text in tabularSource.params.");
+         noun + " '" + name + "' is a " + type.getSimpleName() +
+         ", which cannot be supplied as text.");
    }
 
    /**
@@ -2345,8 +2330,14 @@ public class WorksheetTableService {
       catch(InvocationTargetException ex) {
          Throwable cause = ex.getCause() == null ? ex : ex.getCause();
 
+         // The value is redacted when the property is a secret. This message reaches the caller
+         // through WizControllerErrorHandler, and a setter that rejects a password would otherwise
+         // print it on the way out.
+         String shown = prop.getProperty() != null && prop.getProperty().password()
+            ? "***" : String.valueOf(value);
+
          throw new IllegalArgumentException(
-            "Setting '" + prop.getName() + "' to \"" + value + "\" failed: " +
+            "Setting '" + prop.getName() + "' to \"" + shown + "\" failed: " +
             (cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage()),
             cause);
       }
