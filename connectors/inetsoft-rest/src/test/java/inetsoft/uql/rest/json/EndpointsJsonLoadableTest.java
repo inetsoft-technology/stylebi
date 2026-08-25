@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.rest.json;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.wiz.model.WizEndpointCatalog;
 import inetsoft.web.wiz.model.WizEndpointCatalogEntry;
@@ -61,6 +62,18 @@ class EndpointsJsonLoadableTest {
       ObjectMapper mapper = EndpointJsonQuery.Endpoints.createObjectMapper();
       List<String> failures = new ArrayList<>();
 
+      // Guards the same silent failure as the field-level checks below, but for responseSchema
+      // specifically: a renamed field or getter would leave AbstractEndpoint.responseSchema null for
+      // every entry that declares one, while every other assertion here stayed green.
+      //
+      // Stated as "every declaration binds" rather than "at least one exists", because the two guard
+      // different things and only one of them belongs in this file. Whether the CORPUS carries any
+      // curated tree is a property of endpoints.json, asserted where those trees are written; whether
+      // a declared tree REACHES the bean is a property of this binding, which is what this test is
+      // for. Written the other way round, this file would have to fail until the corpus caught up.
+      int declaredResponseSchemas = 0;
+      int boundResponseSchemas = 0;
+
       for(Path file : files) {
          Path dir = file.getParent();
          String connector = dir.getFileName().toString();
@@ -79,18 +92,40 @@ class EndpointsJsonLoadableTest {
          // method reads SreeEnv, which needs a Spring context this test has no reason to stand up,
          // and it converts the very failure being hunted here into an empty map. Reading directly
          // lets the exception surface with the offending property named.
-         try(InputStream input = Files.newInputStream(file)) {
-            Object parsed = mapper.readValue(input, endpointsClass);
+         try {
+            // Read once and bound twice from the same bytes: the strict binding below and the raw
+            // count share the file, but not the parse -- they target different types, and routing the
+            // strict one through a JsonNode would change the very input path this test exists to
+            // exercise.
+            byte[] source = Files.readAllBytes(file);
+            Object parsed = mapper.readValue(source, endpointsClass);
             @SuppressWarnings("rawtypes")
             List list = ((EndpointJsonQuery.Endpoints) parsed).getEndpoints();
 
             if(list == null || list.isEmpty()) {
                failures.add(connector + ": parsed but declares no endpoints");
             }
+
+            declaredResponseSchemas += countDeclaredResponseSchemas(mapper, source);
+
+            if(list != null) {
+               for(Object endpoint : list) {
+                  if(endpoint instanceof AbstractEndpoint
+                     && ((AbstractEndpoint) endpoint).getResponseSchema() != null)
+                  {
+                     boundResponseSchemas++;
+                  }
+               }
+            }
          }
          catch(Exception e) {
             failures.add(connector + ": " + e.getMessage());
          }
+      }
+
+      if(boundResponseSchemas != declaredResponseSchemas) {
+         failures.add("responseSchema: " + declaredResponseSchemas + " declared across the corpus but "
+                         + boundResponseSchemas + " bound to a non-null AbstractEndpoint.responseSchema");
       }
 
       assertTrue(failures.isEmpty(),
@@ -124,15 +159,35 @@ class EndpointsJsonLoadableTest {
       boolean sawStripeLookupWithEndpointsArray = false;
       boolean sawGithubLookupWithSingularEndpoint = false;
 
+      // Guards the silent-drop failure mode described in the class javadoc, specific to
+      // responseSchema: WizEndpointCatalogEntry ignores unknown properties, so a renamed record
+      // component would leave every declared tree's responseSchema() null with no error anywhere.
+      // Counted rather than sampled, for the reason given on the same pair in the test above.
+      int declaredResponseSchemas = 0;
+      int boundResponseSchemas = 0;
+
+      // The counts above compare the corpus against itself, so they stay green if every curated tree
+      // is deleted at once -- which is exactly what a regenerated endpoints.json would do. Stripe is
+      // the connector those trees were written for, so its count standing at zero means they are gone.
+      int stripeResponseSchemas = 0;
+
       for(Path file : files) {
          String connector = file.getParent().getFileName().toString();
 
-         try(InputStream input = Files.newInputStream(file)) {
-            WizEndpointCatalog catalog = mapper.readValue(input, WizEndpointCatalog.class);
+         try {
+            byte[] source = Files.readAllBytes(file);
+            WizEndpointCatalog catalog = mapper.readValue(source, WizEndpointCatalog.class);
 
             if(catalog.endpoints() == null || catalog.endpoints().isEmpty()) {
                failures.add(connector + ": parsed but declares no endpoints");
                continue;
+            }
+
+            int declaredHere = countDeclaredResponseSchemas(mapper, source);
+            declaredResponseSchemas += declaredHere;
+
+            if("stripe".equals(connector)) {
+               stripeResponseSchemas = declaredHere;
             }
 
             boolean hasSuffix = false;
@@ -152,6 +207,10 @@ class EndpointsJsonLoadableTest {
 
                if(entry.description() != null && !entry.description().isBlank()) {
                   hasDescription = true;
+               }
+
+               if(entry.responseSchema() != null) {
+                  boundResponseSchemas++;
                }
 
                if(entry.lookups() != null) {
@@ -202,6 +261,16 @@ class EndpointsJsonLoadableTest {
          failures.add("github: no lookup bound a non-blank singular \"endpoint\"");
       }
 
+      if(boundResponseSchemas != declaredResponseSchemas) {
+         failures.add("responseSchema: " + declaredResponseSchemas + " declared across the corpus but "
+                         + boundResponseSchemas + " bound to a non-null "
+                         + "WizEndpointCatalogEntry.responseSchema()");
+      }
+
+      if(stripeResponseSchemas == 0) {
+         failures.add("stripe: no entry declares a responseSchema");
+      }
+
       assertTrue(failures.isEmpty(),
                  "endpoints.json failed to parse as a catalog for " + failures.size()
                     + " connector(s):\n  " + String.join("\n  ", failures));
@@ -231,6 +300,34 @@ class EndpointsJsonLoadableTest {
 
       assertFalse(roots.isEmpty(), "resource package not on the classpath: " + DATASOURCE_PACKAGE);
       return roots;
+   }
+
+   /**
+    * How many entries in one file carry a {@code responseSchema} key with a non-null value.
+    *
+    * <p>Read straight off the JSON tree rather than off either bound model, because it is the
+    * baseline both bindings are checked against: a count taken from a bound object could only ever
+    * agree with itself.</p>
+    *
+    * <p>Takes the caller's mapper and the already-read bytes rather than opening the file again with
+    * a mapper of its own. {@code readTree} does no bean binding, so the strictness that separates the
+    * two callers' mappers cannot affect this count — which is what makes a third mapper here pure
+    * duplication.</p>
+    */
+   private int countDeclaredResponseSchemas(ObjectMapper mapper, byte[] source) throws IOException {
+      JsonNode root = mapper.readTree(source);
+      JsonNode endpoints = root.path("endpoints");
+      int declared = 0;
+
+      for(JsonNode endpoint : endpoints) {
+         JsonNode schema = endpoint.get("responseSchema");
+
+         if(schema != null && !schema.isNull()) {
+            declared++;
+         }
+      }
+
+      return declared;
    }
 
    private List<Path> findEndpointFiles(List<Path> roots) throws Exception {
