@@ -1037,7 +1037,7 @@ class WorksheetAgentControllerTest {
    {
       return new WorksheetAgentController.ImportCsvRequest(
          name, csv, encoding, delimiter, tab, detectType, firstRow, removeQuotes, unpivot,
-         headerCols);
+         headerCols, null);
    }
 
    private static EmbeddedTableAssembly importedTable(Worksheet ws, String name) {
@@ -1073,6 +1073,89 @@ class WorksheetAgentControllerTest {
       EmbeddedTableAssembly t = importedTable(ws, "Plain");
       assertFalse(t instanceof SnapshotEmbeddedTableAssembly,
          "an agent import must remain editable; a snapshot refuses edit_cell/insert_row/delete_row");
+   }
+
+   /**
+    * Bug #76080: the agent had no way to replace an existing table's data, only create new
+    * ones. Replacing must reuse the same assembly object rather than swap in a new one under
+    * the same name -- {@link Worksheet#addAssembly} would do that silently -- so anything built
+    * on top of the table (a join, a filter, a chart binding) keeps pointing at something real.
+    */
+   @Test
+   void importCsvReplaceTableOverwritesAnExistingEmbeddedTableInPlace() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ctrl.importCsv("TOK-REPLACE",
+         new WorksheetAgentController.ImportCsvRequest("Query1", "a,b\n1,x\n2,y"), agent);
+      EmbeddedTableAssembly before = importedTable(ws, "Query1");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-REPLACE",
+         new WorksheetAgentController.ImportCsvRequest(
+            null, "a,b\n9,z", null, null, null, null, null, null, null, null, "Query1"),
+         agent);
+
+      assertEquals("Query1", resp.tableName());
+      assertEquals(1, resp.rows());
+      assertEquals(1, ws.getAssemblies().length, "replacing must not leave a second table behind");
+
+      EmbeddedTableAssembly after = importedTable(ws, "Query1");
+      assertSame(before, after,
+         "a replace must keep the same assembly instance, not swap in a new one under the same name");
+      assertEquals("9", String.valueOf(after.getEmbeddedData().getObject(1, 0)),
+         "the new file's data must have landed on the table");
+   }
+
+   @Test
+   void importCsvReplaceTableWithDifferentColumnsUpdatesTheColumnSelection() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE-SHAPE");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ctrl.importCsv("TOK-REPLACE-SHAPE",
+         new WorksheetAgentController.ImportCsvRequest("Query1", "a,b\n1,2"), agent);
+      ctrl.importCsv("TOK-REPLACE-SHAPE",
+         new WorksheetAgentController.ImportCsvRequest(
+            null, "x,y,z\n1,2,3", null, null, null, null, null, null, null, null, "Query1"),
+         agent);
+
+      ColumnSelection cols = importedTable(ws, "Query1").getColumnSelection(false);
+      assertEquals(3, cols.getAttributeCount());
+      assertNotNull(cols.getAttribute("x"));
+      assertNotNull(cols.getAttribute("z"));
+   }
+
+   @Test
+   void importCsvReplaceTableFailsLoudWhenTheNamedTableDoesNotExist() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE-MISS");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.importCsv("TOK-REPLACE-MISS",
+            new WorksheetAgentController.ImportCsvRequest(
+               null, "a,b\n1,2", null, null, null, null, null, null, null, null, "NoSuchTable"),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertTrue(ex.getMessage().contains("NoSuchTable"), ex.getMessage());
+   }
+
+   @Test
+   void importCsvRejectsBothNameAndReplaceTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE-BOTH");
+
+      ctrl.importCsv("TOK-REPLACE-BOTH",
+         new WorksheetAgentController.ImportCsvRequest("Query1", "a,b\n1,2"),
+         TestPrincipals.user("alice", "host-org"));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-REPLACE-BOTH",
+            new WorksheetAgentController.ImportCsvRequest(
+               "Other", "a,b\n1,2", null, null, null, null, null, null, null, null, "Query1"),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertEquals(400, ex.getStatusCode().value());
    }
 
    @Test
@@ -1188,7 +1271,7 @@ class WorksheetAgentControllerTest {
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> ctrl.importCsvFile("TOK-ENC",
             new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
-            "Bad", "NOT-A-CHARSET", null, null, null, null, null, null, null,
+            "Bad", "NOT-A-CHARSET", null, null, null, null, null, null, null, null,
             TestPrincipals.user("alice", "host-org")));
 
       assertEquals(400, ex.getStatusCode().value());
@@ -1209,7 +1292,7 @@ class WorksheetAgentControllerTest {
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> ctrl.importCsvFile("TOK-BADENC",
             new MockMultipartFile("file", "d.csv", "text/csv", "a,b\n1,2".getBytes()),
-            "Bad", "not a charset", null, null, null, null, null, null, null,
+            "Bad", "not a charset", null, null, null, null, null, null, null, null,
             TestPrincipals.user("alice", "host-org")));
 
       assertEquals(400, ex.getStatusCode().value());
@@ -1283,7 +1366,7 @@ class WorksheetAgentControllerTest {
 
       ctrl.importCsvFile("TOK-GBK",
          new MockMultipartFile("file", "d.csv", "text/csv", utf16),
-         "Encoded", "UTF-16LE", null, null, null, null, null, null, null,
+         "Encoded", "UTF-16LE", null, null, null, null, null, null, null, null,
          TestPrincipals.user("alice", "host-org"));
 
       ColumnSelection cs = importedTable(ws, "Encoded").getColumnSelection(false);
@@ -1333,7 +1416,7 @@ class WorksheetAgentControllerTest {
          mock(WorksheetService.class));
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.importExcel("TOK", null, "XLSX", null, null,
+         () -> ctrl.importExcel("TOK", null, "XLSX", null, null, null,
                                 TestPrincipals.user("alice", "host-org")));
       assertEquals(400, ex.getStatusCode().value());
    }
@@ -1348,7 +1431,7 @@ class WorksheetAgentControllerTest {
       MockMultipartFile file = excelFile(new byte[]{1, 2, 3, 4});
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.importExcel("TOK", file, "PDF", null, null,
+         () -> ctrl.importExcel("TOK", file, "PDF", null, null, null,
                                 TestPrincipals.user("alice", "host-org")));
       assertEquals(400, ex.getStatusCode().value());
    }
@@ -1366,7 +1449,7 @@ class WorksheetAgentControllerTest {
          sreeEnv.when(() -> SreeEnv.getProperty("excel.import.max")).thenReturn("5");
 
          ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-            () -> ctrl.importExcel("TOK", file, "XLSX", null, null,
+            () -> ctrl.importExcel("TOK", file, "XLSX", null, null, null,
                                    TestPrincipals.user("alice", "host-org")));
          assertEquals(400, ex.getStatusCode().value());
       }
