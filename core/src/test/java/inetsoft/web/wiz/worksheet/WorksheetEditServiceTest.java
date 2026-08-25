@@ -314,6 +314,36 @@ class WorksheetEditServiceTest {
    }
 
    @Test
+   void addNamedGroupRejectsMissingNameAndDoesNotPoisonAssemblyLookup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addNamedGroup(null, null, null, "string", List.of(), false)));
+
+      // The rejected named group must never have reached Worksheet.addAssembly(), so the name
+      // cache is never poisoned: lookups for the pre-existing table still resolve.
+      assertSame(t, ws.getAssembly("T"));
+      assertEquals(1, ws.getAssemblies().length);
+   }
+
+   @Test
    void editNamedGroupOnStandaloneGroupSurvivesClone() throws Exception {
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);

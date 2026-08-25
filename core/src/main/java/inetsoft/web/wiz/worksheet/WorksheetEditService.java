@@ -1794,6 +1794,10 @@ public class WorksheetEditService {
                                 List<WorksheetMutationSupport.GroupMapping> mappings,
                                 boolean groupOthers) throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Named group requires a name.");
+         }
+
          if((table == null) != (column == null)) {
             throw new PairingException(
                "table and column must both be specified, or both omitted for a standalone grouping");
