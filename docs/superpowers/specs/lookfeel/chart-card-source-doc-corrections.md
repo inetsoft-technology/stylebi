@@ -600,7 +600,25 @@ site cannot be written yet.
 
 ---
 
-### 3.4 The card radius is decided, and the code still seeds the old value
+### 3.4 ~~The card radius is decided, and the code still seeds the old value~~ — CLOSED 2026-08-25
+
+**Closed by the constant landing at 6.** `VSObjectChromeDefaults.CARD_CORNER_RADIUS` is now `6` (`:107`),
+so the seed and `--inet-radius-xl` (`_variables.scss:584`) agree and the card sits on the shipped radius
+scale. The original finding is retained below as the record of what the mismatch was.
+
+**§01's cohort instruction is void, not satisfied — and anyone reading the set will still find it.** The
+third item §01 says travels with the constant asks for the 12px cohort to be confirmed empty first, because
+`resolveSeededCorner` keys on exact equality with the seed and an already-seeded asset would stop being
+stripped. **That method no longer exists**: P6 deleted it in `47521e72c`, which is what made the constant
+rankable at all. With no equality test left there is no stranding to avoid and no cohort to confirm. §01 was
+written before P6 and the set has not been synced since, so the instruction reads as live and is not.
+
+**The travelling item that was real, and its disposition.** §01 also asks whether the annotation rectangle
+shares the 12px value, noting the spec never read it and the constant's comment was the only evidence. It
+does not share it structurally: `VSAnnotationService:54` writes `setRoundCornerValue(12)` into an annotation
+rectangle's **USER** tier at creation — a different assembly type, not gate-dependent, untouched by
+Modernize or Revert. The 12 was a coincidence of value, so the annotation keeps its radius and the
+constant's comment, which had asserted the equality, now cites the DOM token instead.
 
 **What the docs decide.** `Chart Card Spec v3.dc.html` §01 states the server seed drops to 6px, matching
 `--inet-radius-xl`. `Seeded value reversibility - ticket.md` attributes the decision to §01 correctly and
@@ -608,13 +626,10 @@ adds the consequence: `resolveSeededCorner` keys on exact equality with the seed
 already-seeded 12px asset stops being stripped the moment the constant moves. It asks for the seeded cohort
 to be confirmed empty before either change lands.
 
-**What the code says.** `VSObjectChromeDefaults.CARD_CORNER_RADIUS` is still `12` (`:129`), and
-`resolveSeededCorner` still reads `radius == CARD_CORNER_RADIUS && !isModern() ? 0 : radius` (`:80`).
-`--inet-radius-xl: 6px` is at `_variables.scss:523`, as cited.
-
-**Effect on the plan.** Unchanged from last edition and now better documented by the source set than by this
-file. Sequenced behind the mark. The cohort check is the new instruction and it is cheap — do it before
-either constant moves, not after.
+**What the code said when this finding was written.** `VSObjectChromeDefaults.CARD_CORNER_RADIUS` was still
+`12` (`:129` at that revision), and `resolveSeededCorner` still read
+`radius == CARD_CORNER_RADIUS && !isModern() ? 0 : radius` (`:80`). `--inet-radius-xl: 6px` was at
+`_variables.scss:523`. All three citations have since moved; the current ones are in the closure above.
 
 ---
 
