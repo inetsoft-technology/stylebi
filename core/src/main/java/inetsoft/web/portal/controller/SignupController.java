@@ -17,7 +17,6 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
@@ -66,13 +65,10 @@ public class SignupController {
                               !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
 
-      boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
-
-      if(googleSignInEnabled) {
-         model.addObject("gClientId", SreeEnv.getProperty("styleBI.google.openid.client.id"));
+      if(GoogleSignInSupport.isEnabled()) {
+         model.addObject("gClientId", GoogleSignInSupport.getClientId());
          model.addObject("gLoginUri", linkUri + "login/googleSSO");
-         model.addObject("gScopes",
-            SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile"));
+         model.addObject("gScopes", GoogleSignInSupport.getScopes());
       }
 
       String header = CacheControl.noCache()
