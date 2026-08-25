@@ -400,6 +400,28 @@ public final class WorksheetMutationSupport {
                                          List<AggregateSpec> aggregates)
       throws inetsoft.web.wiz.pairing.PairingException
    {
+      applyAggregateInfo(t, groups, aggregates, false);
+   }
+
+   /**
+    * Builds and sets a new {@link AggregateInfo} on the table from the supplied
+    * group and aggregate specs, optionally in crosstab mode — the same "Switch to
+    * Crosstab" toggle as the Composer's own Group and Aggregate dialog.
+    *
+    * @param t          the table assembly to mutate
+    * @param groups     group-by column specs (name, plus optional date grouping level);
+    *                   {@code null} is treated as empty
+    * @param aggregates aggregate measures to apply; {@code null} is treated as empty
+    * @param crosstab   {@code true} to display the result as a crosstab (row/column
+    *                   headers) rather than a flat grouped table. {@link AggregateInfo#isCrosstab}
+    *                   only reports {@code true} back once the table has at least 2 groups and 1
+    *                   aggregate — with fewer, this is accepted but silently has no visible
+    *                   effect, matching the Composer dialog's own {@code setCrosstab} call
+    */
+   public static void applyAggregateInfo(TableAssembly t, List<GroupSpec> groups,
+                                         List<AggregateSpec> aggregates, boolean crosstab)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
       // Callers (e.g. WorksheetAgentController) may pass a null groups or aggregates
       // list when the request omits that key entirely; normalize before either the
       // emptiness check below or the per-spec loops run, so a null groups list paired
@@ -708,6 +730,7 @@ public final class WorksheetMutationSupport {
       // a rename_column alias on an aggregated column survives re-aggregation.
       t.setProperty(AGGREGATE_OUTPUT_ALIASES,
                     appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
+      ainfo.setCrosstab(crosstab);
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
    }

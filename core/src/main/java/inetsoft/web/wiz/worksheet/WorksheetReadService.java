@@ -706,7 +706,7 @@ public class WorksheetReadService {
          aggregates.add(readAggregateRef(ar));
       }
 
-      return new WorksheetModel.AggregateModel(groups, aggregates);
+      return new WorksheetModel.AggregateModel(groups, aggregates, info.isCrosstab());
    }
 
    private WorksheetModel.AggregateModel.AggregateRefModel readAggregateRef(AggregateRef ar) {
