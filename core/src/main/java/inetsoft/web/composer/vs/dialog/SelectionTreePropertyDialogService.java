@@ -115,11 +115,18 @@ public class SelectionTreePropertyDialogService {
       Dimension size = dialogService.getAssemblySize(selectionTreeAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(selectionTreeAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(selectionTreeAssemblyInfo, selectionTreeAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         selectionTreeAssemblyInfo.getVizMark() == null ? null :
+            !selectionTreeAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(selectionTreeAssembly.getContainer() != null);
 
       int cellHeight = selectionTreeAssemblyInfo.getEffectiveCellHeight();
       sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+      sizePositionPaneModel.setCellHeightFollowsDensity(
+         selectionTreeAssemblyInfo.getVizMark() == null ? null :
+            !selectionTreeAssemblyInfo.isUserCellHeight());
 
       basicGeneralPaneModel.setName(selectionTreeAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setPrimary(selectionTreeAssemblyInfo.isPrimary());
@@ -240,14 +247,36 @@ public class SelectionTreePropertyDialogService {
 
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);
-      if(sizePositionPaneModel.getTitleHeight() != streeInfo.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != streeInfo.getTitleHeightValue()) {
+            streeInfo.setUserTitleHeight(true);
+            streeInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         streeInfo.setUserTitleHeight(false);
+         streeInfo.setTitleHeightValue(streeInfo.getLegacyTitleHeight());
+      }
+      else {
          streeInfo.setUserTitleHeight(true);
          streeInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }
 
-      // store + mark user-set only when the value differs from the displayed effective height, so
-      // accepting the org density default leaves the stored height at its default and the flag clean
-      if(sizePositionPaneModel.getCellHeight() != streeInfo.getEffectiveCellHeight()) {
+      Boolean cellFollowsDensity = sizePositionPaneModel.getCellHeightFollowsDensity();
+
+      if(cellFollowsDensity == null) {
+         if(sizePositionPaneModel.getCellHeight() != streeInfo.getEffectiveCellHeight()) {
+            streeInfo.setUserCellHeight(true);
+            streeInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+         }
+      }
+      else if(cellFollowsDensity) {
+         streeInfo.setUserCellHeight(false);
+         streeInfo.setCellHeight(AssetUtil.defh);
+      }
+      else {
          streeInfo.setUserCellHeight(true);
          streeInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
       }

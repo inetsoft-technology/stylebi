@@ -640,7 +640,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          timeSliderSelection.parseXML(tslnode, slist);
       }
 
-      titleInfo.parseXML(elem, getDefaultTitleHeight());
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
    }
 
    /**

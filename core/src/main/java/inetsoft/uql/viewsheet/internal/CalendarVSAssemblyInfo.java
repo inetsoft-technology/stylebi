@@ -92,7 +92,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
    }
 
    @Override
-   public int getDefaultTitleHeight() {
+   public int getLegacyTitleHeight() {
       return 36;
    }
 
@@ -632,7 +632,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -930,7 +930,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       }
 
       titleInfo = new TitleInfo();
-      titleInfo.parseXML(elem, getDefaultTitleHeight());
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
    }
 
    /**

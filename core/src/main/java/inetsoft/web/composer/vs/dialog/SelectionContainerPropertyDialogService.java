@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
@@ -85,7 +86,11 @@ public class SelectionContainerPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(selectionContainerAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(selectionContainerAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(selectionContainerAssemblyInfo, selectionContainerAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         selectionContainerAssemblyInfo.getVizMark() == null ? null :
+            !selectionContainerAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(selectionContainerAssembly.getContainer() != null);
 
       generalPropPaneModel.setShowEnabledGroup(true);
@@ -146,7 +151,19 @@ public class SelectionContainerPropertyDialogService {
       //When moving selection container, also move  selection container children
       dialogService.setContainerPosition(selectionContainerAssemblyInfo, sizePositionPaneModel,
                                          selectionContainerAssembly.getAssemblies(), vs);
-      if(sizePositionPaneModel.getTitleHeight() != selectionContainerAssemblyInfo.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != selectionContainerAssemblyInfo.getTitleHeightValue()) {
+            selectionContainerAssemblyInfo.setUserTitleHeight(true);
+            selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         selectionContainerAssemblyInfo.setUserTitleHeight(false);
+         selectionContainerAssemblyInfo.setTitleHeightValue(selectionContainerAssemblyInfo.getLegacyTitleHeight());
+      }
+      else {
          selectionContainerAssemblyInfo.setUserTitleHeight(true);
          selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }

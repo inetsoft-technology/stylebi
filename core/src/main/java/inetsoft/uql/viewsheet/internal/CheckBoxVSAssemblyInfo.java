@@ -346,7 +346,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem, getDefaultTitleHeight());
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
 
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObjects");
 

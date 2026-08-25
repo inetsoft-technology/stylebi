@@ -114,11 +114,18 @@ public class SelectionListPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(selectionListAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(selectionListAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(selectionListAssemblyInfo, selectionListAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         selectionListAssemblyInfo.getVizMark() == null ? null :
+            !selectionListAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(selectionListAssembly.getContainer() != null);
 
       int cellHeight = selectionListAssemblyInfo.getEffectiveCellHeight();
       sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+      sizePositionPaneModel.setCellHeightFollowsDensity(
+         selectionListAssemblyInfo.getVizMark() == null ? null :
+            !selectionListAssemblyInfo.isUserCellHeight());
 
       basicGeneralPaneModel.setName(selectionListAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setPrimary(selectionListAssemblyInfo.isPrimary());
@@ -214,14 +221,36 @@ public class SelectionListPropertyDialogService {
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
-      if(sizePositionPaneModel.getTitleHeight() != selectionListAssemblyInfo.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != selectionListAssemblyInfo.getTitleHeightValue()) {
+            selectionListAssemblyInfo.setUserTitleHeight(true);
+            selectionListAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         selectionListAssemblyInfo.setUserTitleHeight(false);
+         selectionListAssemblyInfo.setTitleHeightValue(selectionListAssemblyInfo.getLegacyTitleHeight());
+      }
+      else {
          selectionListAssemblyInfo.setUserTitleHeight(true);
          selectionListAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }
 
-      // store + mark user-set only when the value differs from the displayed effective height, so
-      // accepting the org density default leaves the stored height at its default and the flag clean
-      if(sizePositionPaneModel.getCellHeight() != selectionListAssemblyInfo.getEffectiveCellHeight()) {
+      Boolean cellFollowsDensity = sizePositionPaneModel.getCellHeightFollowsDensity();
+
+      if(cellFollowsDensity == null) {
+         if(sizePositionPaneModel.getCellHeight() != selectionListAssemblyInfo.getEffectiveCellHeight()) {
+            selectionListAssemblyInfo.setUserCellHeight(true);
+            selectionListAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+         }
+      }
+      else if(cellFollowsDensity) {
+         selectionListAssemblyInfo.setUserCellHeight(false);
+         selectionListAssemblyInfo.setCellHeight(AssetUtil.defh);
+      }
+      else {
          selectionListAssemblyInfo.setUserCellHeight(true);
          selectionListAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
       }

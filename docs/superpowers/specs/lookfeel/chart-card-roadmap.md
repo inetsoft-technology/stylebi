@@ -1,6 +1,9 @@
 # Chart Card — Roadmap
 
-**Date:** 2026-08-25 (thirteenth revision — **the seed mark is finished. All six phases are shipped,
+**Date:** 2026-08-25 (fifteenth revision — **L′, the title lane height row, has shipped, and with it the last of the six items the seed mark existed to free.** The mark has now paid for all six. Nine included assembly types take the 20/26/30 lane at their org's density, the three excluded types are confirmed unmoved, and title and selection cell height each gained a follow-the-default-density checkbox that replaces the value comparison the dialogs used to infer authorship from. It is off the ranking, in the Done table, and it makes L″ startable for the first time — under decision 3's one-directional rule, which is the thing not to get wrong next. The fourteenth revision's note follows: **§04, the card's sizing and spacing model, is now tracked
+here.** It is the largest body of design in the external set with no roadmap entry, no plan and no audit,
+and it is a server-side geometry change rather than a token sweep — see "The next long pole" below.
+Nothing else in the ranking moved. The thirteenth revision's note follows: **the seed mark is finished. All six phases are shipped,
 committed and seen in a browser; P6's ten manual checks and the P0 pre-mark-cohort confirmation have run and
 passed, confirmed by a human partner on 2026-08-25.** Two things landed after the twelfth revision was
 written and neither was in any plan: `1b8eb3cea`, five bug-fix rounds because Revert did not carry a chart's
@@ -198,6 +201,14 @@ rather than repairing it — the whole of its content is one reading of the two 
   G. Chart type scale ──→ H. Outlined text conversion
      needs one measurement
 
+  S. Card geometry — §04 sizing and spacing            NEWLY TRACKED · UNAUDITED · XL
+     one 12px card inset · interior 4 / 8 / 16 · zero the graph's own outer margin ·
+     legend panel border and fill · the plot as the remainder
+     Server-rendered and export-affecting, so it must be mark-conditioned or it reflows every
+     saved chart. Buildable only since P4 supplied the read path, the same reason L' became
+     startable. Its title-lane-height rule is the part L' is already answering — do not build
+     it twice. AUDIT AND MEASURE BEFORE COSTING.
+
   Ungated: chart interior dark palette · affordance sweep · selection list interior ·
            Resize Plot sliders · nav bar · data-tip registry remainder · chart colour
            literals · drill and DC tips · zoom naming · dead menu icons · title band
@@ -241,6 +252,12 @@ Four corrections this picture carries against the external set, all recorded in
 
 ## What to pick up next
 
+**Re-derived a second time on 2026-08-25, to place §04 — the card's sizing and spacing model — which had
+never been on this list at all.** It enters at #3: it does not gate the release and it is not in flight, so
+it sits behind bookmarks and L', but it is much larger than either and it is what most of the external
+set's mockups are actually drawing. Nothing else moved, and the reasoning below still holds. The first
+re-derivation's note follows.
+
 **Re-derived 2026-08-25, from the dependency picture above rather than by editing the 2026-08-21 ranking in
 place — this file's own instructions say to re-derive rather than repair.** Every prior revision's ranking is
 gone rather than amended; what follows is one reading of the picture at this commit. Four things changed
@@ -260,9 +277,13 @@ since the last one, and the fourth is the reason the table below has a new first
 
 | # | Item | Impact | Effort | Unblocks | Risk |
 |---|---|---|---|---|---|
-| 1 | **Decision 10 — resolve chrome on bookmark restore** | the last release-gate item, and a correctness defect rather than a polish one: a bookmark taken before a Revert silently un-reverts the assembly | **M** — two call sites, reusing P3's shared path | the release | see the three notes below; the surface is wider than decision 10 was written against |
-| 2 | **L-prime — the title lane height row** | the highest-value visible item, startable since P4, and demoted only because #1 gates a release and it does not | **M-L** (decision 2, the four L-prime design questions) | L-double-prime next | none new — it is the item the mark and the flag exist to free |
+| 1 | **Decision 10 — resolve chrome on bookmark restore** | the last release-gate item, and a correctness defect rather than a polish one: a bookmark taken before a Revert silently un-reverts the assembly | **M** — four restore points across three classes, not the two this row used to claim: `ChartVSAssembly` writes `state_info` (`:470`), `state_descriptor` (`:479`) and `state_format` (`:488`), `TableVSAssembly` writes `state_tableformat` (`:161`) and `CrosstabVSAssembly` writes `state_crosstabformat` (`:362`). `CalcTableVSAssembly` writes only `state_calctable` (`:503`) and carries no format, so it is out of scope | the release | see the three notes below; the surface is wider than decision 10 was written against |
+| 2 | **§04 — the card's sizing and spacing** | the largest unbuilt piece of the chart card design, and what most of the external set's mockups are actually drawing; the card is modern today in colour, radius and chrome but not in geometry | **XL** — an audit and a render measurement first, then three or four sequenced commits | nothing downstream, but it is what "the chart reads as a card" finally means | **high** — server-rendered, export-affecting, and it reflows existing charts unless mark-conditioned. Also the least verified item on this list |
 | 3 | The ungated cheap items | low each, additive | **S** each | nothing | none |
+
+**Re-derived a third time on 2026-08-25, after L′ shipped in this commit.** L′ comes off the table because it is built, reviewed and seen in a browser — nine included assembly types checked at three densities, the three excluded types confirmed unmoved, export agreement across PDF, PNG and Excel, and the composer round-trip for the new checkbox. It is the last of the six items the seed mark existed to free, so **the mark has now paid for all six**. §04 and the cheap items each move up one; nothing else changed, and bookmarks stays first because it is still the only thing between this branch and a release.
+
+**What L′ unblocks, and the one rule that governs it.** L″, the geometric suppression that replaces the density-keyed strip test, is startable for the first time — its threshold compares a real lane against 26px, and until this commit every assembly carried a 20px lane at every density, so the test would have failed everywhere and stripped the toolbar from the whole anchored set. **The sequencing rule in [the strip and lane decisions](./chart-card-anchored-strip-lane-decisions.md) decision 3 is one-directional: L″ must follow L′, never accompany it.** It did not, and it must not be folded into a follow-up that also touches the lane. L′ also retires the interim's approximation rather than the interim itself: `f5f568f12` keyed suppression off density as a stand-in for a 26px lane, and at compact the lane now actually is 26.
 
 **Decision 10 is confirmed unbuilt, not merely unrecorded.** `TableVSAssembly.parseStateContent` (`:173-194`)
 parses `state_tableformat` into a fresh `FormatInfo` and calls `setFormatInfo` — no re-resolution against the
@@ -1108,6 +1129,72 @@ the set is trying to delete. Specify it before scheduling it.
 
 ---
 
+## The next long pole: §04, the card's sizing and spacing
+
+**Newly tracked at the fourteenth revision. Nothing here is built, nothing here is planned, and — the part
+that matters most before anyone costs it — none of it has been audited against the code.** `Chart Card Spec
+v3.dc.html` §04 carries more numbers than any other section in the external set, and
+[the corrections doc](./chart-card-source-doc-corrections.md)'s audit scope covers `Chart Card Spec v3.dc.html`
+**§01 and §06 only**. Every number below is the spec's claim, not a verified one.
+
+**What §04 specifies.** Five nested boxes and only one of them elastic: axis label bands, axis title bands
+and the legend column size to their own content; the title lane takes the greater of its type box and the
+toolbar strip; the plot is whatever is left. One 12px card inset governs all four edges, and no nested region
+adds edge padding of its own inside it. Interior gaps are 4px (axis title → labels), 8px (labels → plot) and
+16px (plot → legend), and a hidden element contributes no height, no width and no gap — the chain closes up
+rather than leaving an empty stub.
+
+**The one source edit it names, and where it lands.** §04 asks that the graph's own outer margin go to zero so
+the card's 12px is the only edge inset, on the argument that the two stack today and the axis sides therefore
+read looser than the title side, which sits inside the lane and escapes the doubling. In code that margin is
+the chart assembly's padding: `ChartVSAssemblyInfo.java:88` seeds `new Insets(10, 10, 10, 10)` inside
+`setDefaultFormat`, **unconditionally** — it is one of the creation defaults P3 deliberately left outside
+`seedChromeDefaults`, so it is not gate-dependent and neither Modernize nor Revert touches it. It persists as
+four XML attributes on `VSAssemblyInfo` (`:867-871` write, `:913-917` parse) and is consumed by `VGraphPair`
+at `:282-285` and `:2946`. And there is no card inset on the server side at all today. So this is not a
+retokenize: it is new geometry, it is persisted, and making it modern-only means moving it into
+`seedChromeDefaults`, which adds a fifth seeded value for Revert to carry and puts it under
+[seeded-value reversibility](./seeded-value-reversibility-decisions.md).
+
+**Why the interior gaps are the expensive part.** §04's instruction is "bind to the shipped tokens, don't
+create new ones", and on the browser side that is already true — `--inet-space-2/4/5/6` resolve to
+4 / 8 / 12 / 16 today (`_variables.scss:559-563`). The graph engine has no such scale. It has at least eight
+independent private gap constants with no shared vocabulary and no gate awareness: `Legend.GAP = 4` and
+`Legend.BAND_GAP = 10` (`:1213-1214`), `LegendItem.GAP = 5` (`:309`), `LegendGroup.GAP = 2` (`:422`),
+`VGraph.GAP = 2` (`:1916`), `VisualObject.TEXT_GAP = 2` (`:36`), `RelationCoord.GAP = 4` (`:285`) and
+`GDefaults.TICK_MIN_GAP = 4` (`:109`). Binding §04 on the server is therefore not a sweep over existing
+tokens; it is introducing a spacing scale where none exists, in the one subsystem CSS cannot reach. Same
+shape as the slider whose appearance is defined twice.
+
+**The legend change carries its own warning, in the spec's own voice.** Dropping the legend panel's border
+and fill is "the one change with layout consequences" — it returns roughly 8–10px of horizontal room, so the
+plot's right edge and the legend column have to be re-measured at real render sizes rather than at the
+mockups' 1100×620. Legend padding is a separate path again: `LegendsDescriptor.getPadding()`, applied at
+`GraphGenerator.java:1697`, `:1776` and `:1811`.
+
+**One slice of §04 is already in flight.** Its title-lane-height rule — the lane being the greater of the
+type box and the strip — is the thing §04 itself flags as *not what shipped*, and it is what L' is
+reconciling. Do not build it twice.
+
+**Two things must come first.**
+
+1. **An audit**, on the corrections doc's own pattern. Precedent says it will move the numbers rather than
+   confirm them: the L' design found three corrections in the documents it implements, and a read surface of
+   111 sites where the source had costed eleven.
+2. **A measurement pass at render, not in a mock.** §04 says this itself, and the reason is that every mock
+   in the document draws the intended result, so none of them can show the defect. The tell is a plot with
+   too much air on the axis sides and comparatively little under the title.
+
+Then three or four sequenced commits: the card inset with the zeroed outer margin; the legend panel with its
+re-measurement; the interior gap scale; and an export parity pass on P6's scale, because every value here is
+server-rendered and shows up in PDF, PNG and Excel.
+
+**The risk, stated plainly: this reflows existing charts.** It must be mark-conditioned or it changes every
+saved dashboard on next open, which is the exact thing the seed mark was built to prevent. It is buildable
+now only because P4 supplied the read path — the same reason L' became startable.
+
+---
+
 ## Ready now
 
 Nothing below is blocked.
@@ -1202,7 +1289,8 @@ this file for no benefit. Cite by subject and re-resolve.
 | The modern strip no longer draws controls that do nothing | `f4e4c4498` |
 | **M-P6 — Revert (the per-dashboard mirror of Modernize), plus the `gate &&` term in `VizContext.of(VizMark)`, both `PlotDescriptor` seed booleans and `VSObjectChromeDefaults.resolveSeededCorner` all deleted in one commit** | `47521e72c` |
 | **Revert carries a chart's colours with the assembly** — the palette seeded in `seedChromeDefaults`, derived per-value colours marked and dropped, the two sheet-level colour caches cleared, the binding pane's Apply comparing against the reported tier state, and the value axis's per-column label gate removed. Five bug-fix rounds, six new test classes | `1b8eb3cea` |
-| **Card radius 12 → 6** — `CARD_CORNER_RADIUS` onto `--inet-radius-xl`, the top of the DOM radius scale | *this commit* |
+| **Card radius 12 → 6** — `CARD_CORNER_RADIUS` onto `--inet-radius-xl`, the top of the DOM radius scale | `f69751842` |
+| **L′ — the title lane height row**, plus the follow-the-default-density affordance for title and selection cell height. Five per-type `getTitleHeight()` delegations consult a mark-gated resolver, so all 111 read sites follow untouched, 46 of them painters; `TitleInfo` keeps its own getter, serialization and equality, which is what makes the row reversible. `getDefaultTitleHeight` renamed `getLegacyTitleHeight` so the calendar’s 36 is not later “corrected” into the row. Eight dialog services read and write the checkbox and their inference guards are deleted; a missing flag means no opinion, so unmarked content and stale clients keep the old comparison behaviour | *this commit* |
 
 **Why P2 landed as two commits.** `6db87680c` is a two-line guard in `AbstractVSAssembly`'s stamp plus its
 regression test: a mocked `Viewsheet` returns null from `getVSAssemblyInfo()`, which threw and was the sole

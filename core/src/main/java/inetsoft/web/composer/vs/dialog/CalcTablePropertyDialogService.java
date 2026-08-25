@@ -137,7 +137,11 @@ public class CalcTablePropertyDialogService {
       Dimension size = dialogService.getAssemblySize(calcTableAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(calcTableAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(calcTableAssemblyInfo, calcTableAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         calcTableAssemblyInfo.getVizMark() == null ? null :
+            !calcTableAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(calcTableAssembly.getContainer() != null);
 
       advPane.setShrink(calcTableAssemblyInfo.getShrinkValue());
@@ -372,9 +376,19 @@ public class CalcTablePropertyDialogService {
 
       dialogService.setAssemblySize(calcTableAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(calcTableAssemblyInfo, sizePositionPaneModel);
-      // see TitleInfo.isUserTitleHeight() for what this guard must become if the
-      // effective title height ever diverges from the stored one
-      if(sizePositionPaneModel.getTitleHeight() != calcTableAssemblyInfo.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != calcTableAssemblyInfo.getTitleHeightValue()) {
+            calcTableAssemblyInfo.setUserTitleHeight(true);
+            calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         calcTableAssemblyInfo.setUserTitleHeight(false);
+         calcTableAssemblyInfo.setTitleHeightValue(calcTableAssemblyInfo.getLegacyTitleHeight());
+      }
+      else {
          calcTableAssemblyInfo.setUserTitleHeight(true);
          calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }

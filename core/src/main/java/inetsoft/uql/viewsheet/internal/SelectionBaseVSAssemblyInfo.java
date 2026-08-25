@@ -298,7 +298,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -649,7 +649,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem, isSiteAdminImport);
 
-      titleInfo.parseXML(elem, getDefaultTitleHeight());
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
 
       Element node = Tool.getChildNodeByTagName(elem, "measureValue");
       measureValue.setDValue(Tool.getValue(node));

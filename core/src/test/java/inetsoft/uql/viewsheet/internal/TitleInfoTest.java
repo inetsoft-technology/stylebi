@@ -190,9 +190,9 @@ class TitleInfoTest {
 
    @Test
    void eachTypeDeclaresItsOwnDefaultTitleHeight() {
-      assertEquals(36, new CalendarVSAssemblyInfo().getDefaultTitleHeight(),
+      assertEquals(36, new CalendarVSAssemblyInfo().getLegacyTitleHeight(),
                    "calendar seeds 36 rather than the shared default");
-      assertEquals(AssetUtil.defh, new ChartVSAssemblyInfo().getDefaultTitleHeight(),
+      assertEquals(AssetUtil.defh, new ChartVSAssemblyInfo().getLegacyTitleHeight(),
                    "every other titled type uses the shared default");
    }
 
@@ -216,5 +216,26 @@ class TitleInfoTest {
 
       assertFalse(copy.isUserTitleHeight(),
                   "copying a default height must not manufacture author intent");
+   }
+
+   @Test
+   void titleHeightFlagMakesTwoTitleInfosUnequal() {
+      TitleInfo a = new TitleInfo();
+      TitleInfo b = new TitleInfo();
+      assertEquals(a, b, "identical to start with");
+
+      b.setUserTitleHeight(true);
+      assertNotEquals(a, b, "provenance is part of identity");
+   }
+
+   @Test
+   void titleHeightFlagPropagatesThroughCopyViewInfo() {
+      ChartVSAssemblyInfo target = new ChartVSAssemblyInfo();
+      ChartVSAssemblyInfo source = new ChartVSAssemblyInfo();
+      source.setUserTitleHeight(true);
+
+      assertFalse(target.isUserTitleHeight(), "clean before the copy");
+      target.copyViewInfo(source, false);
+      assertTrue(target.isUserTitleHeight(), "the flag alone must transfer");
    }
 }

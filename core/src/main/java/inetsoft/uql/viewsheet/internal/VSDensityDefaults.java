@@ -27,7 +27,9 @@ import inetsoft.uql.asset.internal.AssetUtil;
  *
  * The height matrix matches the browser-DOM density tokens in _viz-tokens.scss so the live
  * model, export, and non-assembly DOM surfaces agree. Dense equals AssetUtil.defh, so enabling
- * modern at the default mode reflows nothing.
+ * modern at the default mode reflows nothing for a type whose legacy default is AssetUtil.defh.
+ * A marked calendar is the exception - its legacy title lane has always been taller, so it
+ * shrinks to the dense height.
  */
 public final class VSDensityDefaults {
    private VSDensityDefaults() {
@@ -103,6 +105,25 @@ public final class VSDensityDefaults {
     */
    public static int titleHeight(VizContext ctx) {
       return ctx.modern ? titleHeightForMode(ctx.density) : AssetUtil.defh;
+   }
+
+   /**
+    * Title-lane height for one assembly: the density row when the assembly is marked, its author
+    * has not set a height, and the stored height is still the type's pre-density default;
+    * otherwise the stored height unchanged. The stored height is a parameter so a composer dialog
+    * can pass its design-time value and still get the substitution.
+    *
+    * The three cheap tests run before the context is built - VizContext reads the density
+    * property, and an unmarked or author-set assembly must not pay for that.
+    */
+   public static <T extends VSAssemblyInfo & TitledVSAssemblyInfo> int titleHeight(T info, int stored) {
+      if(info.getVizMark() == null || info.isUserTitleHeight() ||
+         stored != info.getLegacyTitleHeight())
+      {
+         return stored;
+      }
+
+      return titleHeight(VizContext.of(info));
    }
 
    /**
