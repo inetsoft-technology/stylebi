@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.UserVariable;
@@ -415,8 +416,40 @@ public class WorksheetReadService {
 
       DataRef attachedAttr = nga.getAttachedAttribute();
       SourceInfo attachedSource = nga.getAttachedSource();
-      String table = attachedSource != null ? attachedSource.getSource() : null;
-      String column = attachedAttr != null ? attachedAttr.getAttribute() : null;
+
+      // COLUMN_ATTACHED covers two different, mutually exclusive attachment kinds that share the
+      // same Java fields: a worksheet-table column (SourceInfo.ASSET, source = the worksheet
+      // assembly's own name) versus a datasource/logical-model or physical-table path (any other
+      // SourceInfo type). Reporting both under the same table/column fields would make a
+      // datasource-scoped group indistinguishable from a worksheet-table-attached one, even though
+      // no such worksheet table exists for it.
+      String table = null;
+      String column = null;
+      String datasource = null;
+      String logicalModel = null;
+      String sourceTable = null;
+      String attribute = null;
+
+      if(attachedSource != null && attachedSource.getType() == SourceInfo.ASSET) {
+         table = attachedSource.getSource();
+         column = attachedAttr != null ? attachedAttr.getAttribute() : null;
+      }
+      else if(attachedSource != null) {
+         datasource = attachedSource.getPrefix();
+
+         if(attachedSource.getType() == SourceInfo.MODEL) {
+            logicalModel = attachedSource.getSource();
+
+            if(attachedAttr instanceof ColumnRef cr && cr.getDataRef() instanceof AttributeRef ar) {
+               sourceTable = ar.getEntity();
+               attribute = ar.getAttribute();
+            }
+         }
+         else {
+            sourceTable = attachedSource.getSource();
+            attribute = attachedAttr != null ? attachedAttr.getAttribute() : null;
+         }
+      }
 
       NamedGroupInfo ngi = nga.getNamedGroupInfo();
       boolean groupOthers = ngi != null && ngi.getOthers() == XConstants.GROUP_OTHERS;
@@ -429,6 +462,7 @@ public class WorksheetReadService {
          for(String group : groups) {
             ConditionList conds = ngi.getGroupCondition(group);
             List<String> values = new ArrayList<>();
+            String operation = null;
 
             if(conds != null) {
                int size = conds.getConditionSize();
@@ -447,6 +481,10 @@ public class WorksheetReadService {
                   XCondition xc = item.getXCondition();
 
                   if(xc instanceof Condition c) {
+                     if(operation == null) {
+                        operation = groupMappingOperation(c);
+                     }
+
                      for(int v = 0; v < c.getValueCount(); v++) {
                         Object val = c.getValue(v);
                         values.add(val != null ? val.toString() : null);
@@ -455,11 +493,45 @@ public class WorksheetReadService {
                }
             }
 
-            mappings.add(new WorksheetModel.GroupMappingModel(group, values));
+            mappings.add(new WorksheetModel.GroupMappingModel(group, values, operation));
          }
       }
 
-      return new WorksheetModel.NamedGroupModel(name, table, column, mappings, groupOthers);
+      return new WorksheetModel.NamedGroupModel(
+         name, table, column, datasource, logicalModel, sourceTable, attribute, mappings,
+         groupOthers);
+   }
+
+   /**
+    * The inverse of {@link WorksheetMutationSupport#parseOperation}/{@code isNegatedOperation}/
+    * {@code isEqualInclusive} — recovers the {@code operation} string {@code add_named_group}
+    * would need to recreate this exact condition, so a group read back and then edited doesn't
+    * silently lose e.g. a {@code STARTING_WITH} match down to plain equality. Returns {@code null}
+    * (omitted on the wire) for an operation this vocabulary cannot express.
+    */
+   private String groupMappingOperation(Condition c) {
+      boolean negated = c.isNegated();
+
+      // Only EQUAL_TO/ONE_OF/NULL have a negated string in this vocabulary ("!=", "NOT_ONE_OF",
+      // "NOT_NULL"); the rest have no "NOT_..." counterpart add_named_group accepts. A negated
+      // LESS_THAN/GREATER_THAN/BETWEEN/STARTING_WITH/CONTAINS/LIKE is reachable here even though
+      // this tool never creates one -- a human can build one via the Composer's general condition
+      // editor (Condition.isNegatedChangeable() is unconditionally true) -- so reporting the
+      // positive string for a negated condition would silently flip its meaning if fed back into
+      // add_named_group/edit_named_group. Returning null (per this method's own contract) is
+      // correct there: it says "can't be expressed", not "not negated".
+      return switch(c.getOperation()) {
+         case XCondition.EQUAL_TO -> negated ? "NOT_EQUAL_TO" : "EQUAL_TO";
+         case XCondition.LESS_THAN -> negated ? null : c.isEqual() ? "LESS_THAN_OR_EQUAL" : "LESS_THAN";
+         case XCondition.GREATER_THAN -> negated ? null : c.isEqual() ? "GREATER_THAN_OR_EQUAL" : "GREATER_THAN";
+         case XCondition.BETWEEN -> negated ? null : "BETWEEN";
+         case XCondition.ONE_OF -> negated ? "NOT_ONE_OF" : "ONE_OF";
+         case XCondition.STARTING_WITH -> negated ? null : "STARTING_WITH";
+         case XCondition.CONTAINS -> negated ? null : "CONTAINS";
+         case XCondition.LIKE -> negated ? null : "LIKE";
+         case XCondition.NULL -> negated ? "NOT_NULL" : "NULL";
+         default -> null;
+      };
    }
 
    // -------------------------------------------------------------------------

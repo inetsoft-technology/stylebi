@@ -34,6 +34,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
 
@@ -121,9 +122,128 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * A named group mapping — group name to list of values that belong to that group.
+    * A named group mapping — group name to list of values that belong to that group, matched
+    * using {@code operation} (any operator accepted by {@link #parseOperation}, e.g.
+    * {@code "STARTING_WITH"}, {@code "!="}, {@code "ONE_OF"}; {@code null} defaults to
+    * {@code EQUAL_TO}, preserving the historical behavior of this record).
     */
-   public record GroupMapping(String name, java.util.List<String> values) {}
+   public record GroupMapping(String name, java.util.List<String> values, String operation) {
+      public GroupMapping(String name, java.util.List<String> values) {
+         this(name, values, null);
+      }
+   }
+
+   /**
+    * Builds the {@link ConditionList} for one named-group mapping, honoring the mapping's
+    * {@code operation} (any operator accepted by {@link #parseOperation}, defaulting to
+    * {@code EQUAL_TO} when omitted, matching this method's historical behavior).
+    *
+    * <p>{@code ONE_OF}/{@code NOT_ONE_OF} and {@code BETWEEN} test all of {@code m.values()}
+    * within a single {@link Condition}, matching how {@link Condition#evaluate} reads those
+    * operators — splitting them into OR'd single-value conditions the way the other operators
+    * below are handled would silently test only the first value. {@code NULL}/{@code NOT_NULL}
+    * take no value. Negated equality ({@code !=}/{@code NOT_EQUAL_TO}/{@code <>}) is routed
+    * through the same single-condition path as {@code NOT_ONE_OF} rather than per-value OR'd
+    * negation: {@code EQUAL_TO} only ever reads a condition's first value (see
+    * {@link Condition#evaluate}), so OR'ing several separately-negated single-value EQUAL_TO
+    * conditions together (e.g. {@code v != A OR v != B}) is a near-tautology — true for every
+    * {@code v} except one that somehow equals both {@code A} and {@code B} at once — instead of
+    * the intended "equal to none of these" ({@code NOT(v == A OR v == B)}, i.e. a negated
+    * {@code ONE_OF} over the same values). Every remaining operator (plain equality, comparisons,
+    * {@code STARTING_WITH}, {@code CONTAINS}, {@code LIKE}) only ever looks at its condition's
+    * first value, so each of {@code m.values()} becomes its own condition, OR'd together — e.g.
+    * {@code STARTING_WITH ["N", "S"]} means "starts with N or starts with S".</p>
+    *
+    * <p>Shared by {@code WorksheetEditService.Editor.addNamedGroup}/{@code editNamedGroup} (a
+    * grouping attached to a worksheet table's column) and
+    * {@code WorksheetAgentController.addDatasourceScopedNamedGroup} (a grouping scoped directly
+    * to a datasource/logical-model or physical-table attribute) — the condition-building logic is
+    * identical either way; only how {@code conditionRef}/{@code conditionType} were resolved
+    * differs.</p>
+    */
+   static ConditionList buildGroupConditionList(
+      String conditionType, DataRef conditionRef, GroupMapping m) throws PairingException
+   {
+      String operation = m.operation();
+      int op = parseOperation(operation);
+      boolean negate = isNegatedOperation(operation);
+      boolean equalInclusive = isEqualInclusive(operation);
+      ConditionList conds = new ConditionList();
+
+      if(op == XCondition.NULL) {
+         Condition c = new Condition(conditionType);
+         c.setOperation(op);
+         c.setNegated(negate);
+         conds.append(new ConditionItem(conditionRef, c, 0));
+         return conds;
+      }
+
+      boolean negatedEquality = op == XCondition.EQUAL_TO && negate;
+
+      if(op == XCondition.ONE_OF || negatedEquality) {
+         // Condition.evaluate() for ONE_OF/BETWEEN reads the raw values list directly (no
+         // per-value OR'ing like the fallback branch below), so an empty or wrong-sized list here
+         // is not "no values matched" -- it is a silently wrong condition. An empty ONE_OF matches
+         // nothing; a NEGATED empty ONE_OF (e.g. "!=" with no values) matches EVERYTHING.
+         if(m.values() == null || m.values().isEmpty()) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": operation \"" + operation +
+                  "\" requires at least one value.");
+         }
+
+         Condition c = new Condition(conditionType);
+         c.setOperation(XCondition.ONE_OF);
+         c.setNegated(negate);
+
+         for(String v : m.values()) {
+            c.addValue(v);
+         }
+
+         conds.append(new ConditionItem(conditionRef, c, 0));
+         return conds;
+      }
+
+      if(op == XCondition.BETWEEN) {
+         if(m.values() == null || m.values().size() != 2) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": BETWEEN requires exactly two values (low, high), got " +
+                  (m.values() == null ? 0 : m.values().size()) + ".");
+         }
+
+         Condition c = new Condition(conditionType);
+         c.setOperation(op);
+         c.setNegated(negate);
+
+         for(String v : m.values()) {
+            c.addValue(v);
+         }
+
+         conds.append(new ConditionItem(conditionRef, c, 0));
+         return conds;
+      }
+
+      for(int i = 0; i < m.values().size(); i++) {
+         if(i > 0) {
+            conds.append(new JunctionOperator(JunctionOperator.OR, 0));
+         }
+
+         Condition c = new Condition(conditionType);
+         c.setOperation(op);
+
+         if(equalInclusive) {
+            c.setEqual(true);
+         }
+
+         if(negate) {
+            c.setNegated(true);
+         }
+
+         c.addValue(m.values().get(i));
+         conds.append(new ConditionItem(conditionRef, c, 0));
+      }
+
+      return conds;
+   }
 
    // =========================================================================
    // Filter helpers
@@ -1401,7 +1521,7 @@ public final class WorksheetMutationSupport {
     * or "greater-than-or-equal" comparison, which requires {@link Condition#setEqual(boolean)}
     * to be set to {@code true} in addition to the base LESS_THAN / GREATER_THAN operation.
     */
-   private static boolean isEqualInclusive(String operation) {
+   static boolean isEqualInclusive(String operation) {
       if(operation == null) {
          return false;
       }
@@ -1412,7 +1532,7 @@ public final class WorksheetMutationSupport {
       };
    }
 
-   private static boolean isNegatedOperation(String operation) {
+   static boolean isNegatedOperation(String operation) {
       if(operation == null) {
          return false;
       }
