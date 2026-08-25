@@ -177,46 +177,8 @@ public class TitleInfo implements AssetObject {
    }
 
    /**
-    * Check whether the title height was set by the author rather than left at the default.
-    *
-    * <p>The property dialogs currently set this flag only when the incoming height differs
-    * from the stored {@link #getTitleHeightValue()}. If the displayed default height ever
-    * becomes density-derived rather than fixed, that guard must move from comparing against
-    * the stored height to comparing against the effective (density-derived) height. Two
-    * things follow from that change, not just one:
-    *
-    * <ol>
-    *   <li>the dialog guards' comparison must be rewritten to use the effective height; and</li>
-    *   <li>the flag must be made to propagate. {@link #equals(Object)} deliberately excludes
-    *       this flag, and each assembly info's {@code copyViewInfo} only transfers the whole
-    *       {@code TitleInfo} when {@code !Tool.equals(titleInfo, cinfo.titleInfo)}, so two
-    *       {@code TitleInfo}s differing only in this flag would not transfer. That cannot
-    *       happen under today's stored-height guard, because the guard only fires when the
-    *       height also changes. Under an effective-height guard it becomes routine: stored 20,
-    *       effective 26, the author types 20 — the flag would be set on the clone and silently
-    *       dropped on apply.</li>
-    * </ol>
-    *
-    * <p>What the stored-height guard does and does not capture. An author who changes the height
-    * to a value that happens to equal the default is captured, because the guard compares against
-    * the stored value rather than against the default — changing 25 to 20 fires it and the flag
-    * sticks. What cannot be captured is an author re-affirming a height already stored: typing 20
-    * when 20 is stored produces state identical to never touching the field, so "keep this height
-    * fixed" and "I did not touch it" arrive as the same input. It is read as the latter,
-    * deliberately, because treating a no-op edit as an assertion would mark every assembly whose
-    * dialog was ever opened.
-    *
-    * <p>An effective-height comparison narrows that further: an author could no longer pin the
-    * value the dialog is showing them, because typing it would be indistinguishable from accepting
-    * it. Resolving the ambiguity needs a signal the dialog does not carry — the title height is a
-    * plain integer field with no unset state — so it would take an explicit use-the-default
-    * affordance beside it, with this flag read from that directly rather than inferred from what
-    * changed.
-    *
-    * <p>The flag is also one-way for most types. The only path that clears it is the table
-    * reset-layout action, which exists on table infos alone, so a chart, calendar, selection list,
-    * selection tree or range slider that acquires the flag has no route back to tracking the
-    * default. The same affordance would close that.
+    * Whether the author set the title height rather than leaving it to follow the default
+    * density. Part of equals(), so a change to it alone still transfers through copyViewInfo.
     */
    public boolean isUserTitleHeight() {
       return userTitleHeight;
@@ -421,6 +383,7 @@ public class TitleInfo implements AssetObject {
          isTitleVisible() == info.isTitleVisible() &&
          Tool.equals(titleHeight, info.titleHeight) &&
          Tool.equals(getTitleHeight(), info.getTitleHeight()) &&
+         userTitleHeight == info.userTitleHeight &&
          Tool.equals(padding, info.padding);
    }
 

@@ -195,7 +195,10 @@ public class ChartPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(chartAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(chartAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(chartAssemblyInfo, chartAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         chartAssemblyInfo.getVizMark() == null ? null : !chartAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(chartAssembly.getContainer() != null);
       String[] dataRefList = getDataRefList(vsChartInfo, VSUtil.getCubeType(chartAssembly));
       tipCustomizeDialogModel.setDataRefList(dataRefList);
@@ -409,7 +412,19 @@ public class ChartPropertyDialogService {
       if(!viewsheet.isViewer()) {
          dialogService.setAssemblySize(assemblyInfo, sizePositionPaneModel);
          dialogService.setAssemblyPosition(assemblyInfo, sizePositionPaneModel);
-         if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+         Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+         if(followsDensity == null) {
+            if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+               assemblyInfo.setUserTitleHeight(true);
+               assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+            }
+         }
+         else if(followsDensity) {
+            assemblyInfo.setUserTitleHeight(false);
+            assemblyInfo.setTitleHeightValue(assemblyInfo.getLegacyTitleHeight());
+         }
+         else {
             assemblyInfo.setUserTitleHeight(true);
             assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
          }

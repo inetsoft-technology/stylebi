@@ -121,7 +121,11 @@ public class CrosstabPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(crosstabAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(crosstabAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setTitleHeight(
+         VSDensityDefaults.titleHeight(crosstabAssemblyInfo, crosstabAssemblyInfo.getTitleHeightValue()));
+      sizePositionPaneModel.setTitleHeightFollowsDensity(
+         crosstabAssemblyInfo.getVizMark() == null ? null :
+            !crosstabAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(crosstabAssembly.getContainer() != null);
 
       VSCrosstabInfo vsCrossTabInfo = crosstabAssemblyInfo.getVSCrosstabInfo();
@@ -295,7 +299,19 @@ public class CrosstabPropertyDialogService {
 
       dialogService.setAssemblySize(assemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(assemblyInfo, sizePositionPaneModel);
-      if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+      Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(sizePositionPaneModel.getTitleHeight() != assemblyInfo.getTitleHeightValue()) {
+            assemblyInfo.setUserTitleHeight(true);
+            assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         assemblyInfo.setUserTitleHeight(false);
+         assemblyInfo.setTitleHeightValue(assemblyInfo.getLegacyTitleHeight());
+      }
+      else {
          assemblyInfo.setUserTitleHeight(true);
          assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }

@@ -239,7 +239,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -1139,7 +1139,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       super.parseContents(elem, isSiteAdminImport);
 
       styleValue.setDValue(getContentsStr(elem, "style", null));
-      titleInfo.parseXML(elem, getDefaultTitleHeight());
+      titleInfo.parseXML(elem, getLegacyTitleHeight());
       Element node = Tool.getChildNodeByTagName(elem, "hyperlinkAttr");
 
       if(node != null) {

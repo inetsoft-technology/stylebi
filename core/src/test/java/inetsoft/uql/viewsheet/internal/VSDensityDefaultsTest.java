@@ -155,4 +155,74 @@ class VSDensityDefaultsTest {
       assertEquals(30, VSDensityDefaults.headerRowHeight(ctx));
       assertEquals(30, VSDensityDefaults.titleHeight(ctx));
    }
+
+   @Test
+   void titleHeightFollowsDensityForAMarkedDefaultAssembly() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      assertEquals(26, VSDensityDefaults.titleHeight(info, AssetUtil.defh));
+   }
+
+   @Test
+   void titleHeightResolvesEachDensityTier() {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight(info, AssetUtil.defh), "dense");
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      assertEquals(26, VSDensityDefaults.titleHeight(info, AssetUtil.defh), "compact");
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      assertEquals(30, VSDensityDefaults.titleHeight(info, AssetUtil.defh), "comfortable");
+   }
+
+   @Test
+   void titleHeightKeepsStoredWhenUnmarked() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight(info, AssetUtil.defh));
+   }
+
+   @Test
+   void titleHeightKeepsStoredWhenTheAuthorSetIt() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setUserTitleHeight(true);
+      assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight(info, AssetUtil.defh));
+   }
+
+   @Test
+   void titleHeightKeepsStoredWhenNotAtTheLegacyDefault() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      assertEquals(25, VSDensityDefaults.titleHeight(info, 25));
+   }
+
+   @Test
+   void titleHeightAdmitsTheCalendarAtItsOwnLegacyDefault() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      assertEquals(36, info.getLegacyTitleHeight(), "the calendar's legacy lane");
+      assertEquals(26, VSDensityDefaults.titleHeight(info, 36));
+   }
+
+   @Test
+   void titleHeightLeavesAnUnmarkedCalendarAlone() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+      assertEquals(36, VSDensityDefaults.titleHeight(info, 36));
+   }
+
+   @Test
+   void titleHeightShrinksAMarkedCalendarAtDense() {
+      // the one place dense stops equalling legacy: the calendar's legacy lane was never defh
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight(info, 36));
+   }
 }

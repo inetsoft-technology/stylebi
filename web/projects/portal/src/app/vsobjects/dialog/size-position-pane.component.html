@@ -74,6 +74,17 @@
                               (valueChange)="model.titleHeight = $event"
                               [invalid]="!!form.controls['titleHeight'].errors">
               </number-stepper>
+              @if (showTitleHeightFollow) {
+                <div class="form-check mt-1">
+                  <input type="checkbox" class="form-check-input" id="titleHeightFollowsDensity"
+                         [ngModel]="model.titleHeightFollowsDensity"
+                         (ngModelChange)="titleHeightFollowChanged($event)"
+                         [ngModelOptions]="{standalone: true}">
+                  <label class="form-check-label" for="titleHeightFollowsDensity">
+                    _#(composer.vs.followDefaultDensity)
+                  </label>
+                </div>
+              }
             </div>
           </div>
         }
@@ -85,6 +96,17 @@
                               (valueChange)="model.cellHeight = $event"
                               [invalid]="!!form.controls['cellHeight'].errors">
               </number-stepper>
+              @if (showCellHeightFollow) {
+                <div class="form-check mt-1">
+                  <input type="checkbox" class="form-check-input" id="cellHeightFollowsDensity"
+                         [ngModel]="model.cellHeightFollowsDensity"
+                         (ngModelChange)="cellHeightFollowChanged($event)"
+                         [ngModelOptions]="{standalone: true}">
+                  <label class="form-check-label" for="cellHeightFollowsDensity">
+                    _#(composer.vs.followDefaultDensity)
+                  </label>
+                </div>
+              }
             </div>
           </div>
         }
