@@ -71,7 +71,8 @@ class TabularSchemaExtractorTest {
       schema.getParams().forEach(p -> names.add(p.getName()));
 
       assertTrue(names.containsAll(Set.of("mode", "pageSize", "cursorField", "linkField",
-                                          "linkStyle", "relation", "detailed", "note", "hidden")),
+                                          "linkStyle", "relation", "scoped", "scope", "scopeName",
+                                          "detailed", "note", "hidden")),
                  "expected every @Property to be reported, got " + names);
    }
 
@@ -155,6 +156,21 @@ class TabularSchemaExtractorTest {
                  "a parameter whose setter is what makes it visible is not a gate");
    }
 
+   /**
+    * The outer half of a pair can be a boolean, and the matrix is keyed by the value's TEXT because
+    * it is published as JSON. Re-probing from that text has to recover the value itself: handed
+    * "true", a boolean setter's reflective invocation fails, {@code PropertyMeta.setValue} swallows
+    * it, and the probe would run with the outer axis still false — finding nothing, and looking
+    * exactly like there was nothing to find.
+    */
+   @Test
+   void aGateNeedingTwoValuesIsFoundWhenTheOuterOneIsABoolean() {
+      Map<String, List<String>> pair = extract().getDependencyMatrix().get("scoped & scope");
+
+      assertNotNull(pair, "scopeName is gated on scoped=true AND scope=NAMED");
+      assertEquals(List.of("scopeName"), pair.get("scoped=true & scope=NAMED"));
+   }
+
    @Test
    void aParameterThatDoesNotApplyIsNamed() {
       FixtureQuery query = new FixtureQuery();
@@ -194,6 +210,8 @@ class TabularSchemaExtractorTest {
 
    public enum LinkStyle { BODY, HEADER }
 
+   public enum Scope { ALL, NAMED }
+
    /**
     * A connector reduced to the structures under test.
     */
@@ -206,7 +224,10 @@ class TabularSchemaExtractorTest {
          @View2(value = "linkField", visibleMethod = "isLinkMode"),
          @View2(value = "linkStyle", visibleMethod = "isLinkMode"),
          @View2(value = "relation", visibleMethod = "isHeaderLink"),
+         @View2(value = "scope", visibleMethod = "isScoped"),
+         @View2(value = "scopeName", visibleMethod = "isNamedScope"),
       }),
+      @View1(value = "scoped"),
       @View1(value = "detailed"),
       @View1(vertical = true, type = ViewType.PANEL, visibleMethod = "isDetailVisible", elements = {
          @View2("note"),
@@ -273,6 +294,34 @@ class TabularSchemaExtractorTest {
          this.relation = relation;
       }
 
+      @Property(label = "Scoped")
+      public boolean isScoped() {
+         return scoped;
+      }
+
+      public void setScoped(boolean scoped) {
+         this.scoped = scoped;
+      }
+
+      @Property(label = "Scope")
+      @PropertyEditor(tags = { "ALL", "NAMED" })
+      public Scope getScope() {
+         return scope;
+      }
+
+      public void setScope(Scope scope) {
+         this.scope = scope;
+      }
+
+      @Property(label = "Scope Name")
+      public String getScopeName() {
+         return scopeName;
+      }
+
+      public void setScopeName(String scopeName) {
+         this.scopeName = scopeName;
+      }
+
       /** Its setter is what makes its own panel appear -- see the test that pins this. */
       @Property(label = "Detailed")
       public boolean isDetailed() {
@@ -315,6 +364,10 @@ class TabularSchemaExtractorTest {
          return isLinkMode() && linkStyle == LinkStyle.HEADER;
       }
 
+      public boolean isNamedScope() {
+         return scoped && scope == Scope.NAMED;
+      }
+
       public boolean isDetailVisible() {
          return !notes.isEmpty();
       }
@@ -327,6 +380,9 @@ class TabularSchemaExtractorTest {
       private String linkField;
       private LinkStyle linkStyle = LinkStyle.BODY;
       private String relation;
+      private boolean scoped;
+      private Scope scope = Scope.ALL;
+      private String scopeName;
       private boolean detailed;
       private String note;
       private String hidden;

@@ -270,7 +270,24 @@ public class TabularSchemaExtractor {
       axes.forEach(axis -> byName.put(axis.name, axis));
 
       for(Map.Entry<String, Map<String, List<String>>> outer : firstPass.entrySet()) {
+         Axis outerAxis = byName.get(outer.getKey());
+
+         if(outerAxis == null) {
+            continue;
+         }
+
          for(Map.Entry<String, List<String>> row : outer.getValue().entrySet()) {
+            // The matrix is keyed by the value's TEXT, because it is published as JSON. Setting a
+            // property needs the value itself: handed "true" for a boolean setter, the reflective
+            // invocation fails, PropertyMeta.setValue swallows it, and the probe runs with the
+            // outer axis still at its default -- so every gate under a boolean outer axis would be
+            // missed, silently and while looking like there was nothing to find.
+            Object outerValue = valueFor(outerAxis, row.getKey());
+
+            if(outerValue == null) {
+               continue;
+            }
+
             for(String gatedName : row.getValue()) {
                Axis inner = byName.get(gatedName);
 
@@ -282,7 +299,7 @@ public class TabularSchemaExtractor {
 
                for(Object value : inner.values) {
                   Map<String, Object> combo = new LinkedHashMap<>();
-                  combo.put(outer.getKey(), row.getKey());
+                  combo.put(outer.getKey(), outerValue);
                   combo.put(inner.name, value);
                   Probe result = probe(cls, dataSource, combo);
 
@@ -307,6 +324,25 @@ public class TabularSchemaExtractor {
             }
          }
       }
+   }
+
+   /**
+    * The axis value whose text is the given matrix key.
+    *
+    * <p>Matched by text rather than carried alongside because the matrix is what gets published,
+    * and giving its rows a second, object-valued shadow copy purely to re-probe them would be one
+    * more thing to keep in step.
+    *
+    * @return the value, or {@code null} if no value of this axis has that text.
+    */
+   private Object valueFor(Axis axis, String text) {
+      for(Object value : axis.values) {
+         if(String.valueOf(value).equals(text)) {
+            return value;
+         }
+      }
+
+      return null;
    }
 
    /**

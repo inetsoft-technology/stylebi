@@ -287,15 +287,12 @@ public class WizTabularController {
          }
 
          XDataSource dataSource = xrepository.getDataSource(path);
-         TabularQuerySchema schema =
-            new TabularSchemaExtractor().extract(query, dataSource == null ? null : dataSource.getType());
 
-         if(schema == null) {
-            throw new ResponseStatusException(
-               HttpStatus.BAD_REQUEST, "No query parameter contract is available for '" + path + "'.");
-         }
-
-         return schema;
+         // Not null-checked: this overload describes the instance it is handed and always answers.
+         // Only the one that resolves the query class itself can fail to produce a query, and that
+         // case is the guard above.
+         return new TabularSchemaExtractor()
+            .extract(query, dataSource == null ? null : dataSource.getType());
       }
       finally {
          endConnectorSession();
