@@ -340,29 +340,38 @@ public final class TabularEndpointBindingSupport {
    }
 
    /**
-    * Refuse an unbounded row limit on an endpoint that paginates. {@code isPaged()} is public but
+    * Refuse an unbounded row limit on a query that paginates. {@code isPaged()} is public but
     * not a {@code @Property}, so it is reached by name -- the same reflection
     * {@link #assertKnownEndpoint} uses for {@code getEndpoints}. A connector that does not answer
     * it is left alone rather than blocked: this check exists to stop a known-unbounded query, not
     * to reject an unfamiliar one.
+    *
+    * <p>Not only endpoints. Pagination is an ordinary property -- {@code setPaginationType} writes
+    * the spec that {@code isPaged()} reads, with nothing in between -- so a target kind addressed
+    * by its parameters rather than by an endpoint name can paginate just as readily. Which kinds
+    * are asked is {@code WorksheetTableService.rowCapRequiredFor}; what this needs to know is that
+    * {@code target} may be absent, since such a kind has no endpoint to name.</p>
     */
-   public static void requireRowCapWhenPaged(TabularQuery query, String endpoint, String dsName) {
+   public static void requireRowCapWhenPaged(TabularQuery query, String target, String dsName) {
+      // Built first so the message reads correctly for a kind that has no target: there is no
+      // endpoint to blame, and the data source is the whole of what can be pointed at.
+      String subject = target == null || target.isBlank()
+         ? "The query on '" + dsName + "'" : "Endpoint '" + target + "' of '" + dsName + "'";
       boolean paged;
 
       try {
          paged = (Boolean) query.getClass().getMethod("isPaged").invoke(query);
       }
       catch(Exception ex) {
-         LOG.debug("Could not determine whether endpoint '{}' of '{}' paginates; not requiring " +
-                   "a row cap", endpoint, dsName, ex);
+         LOG.debug("Could not determine whether {} paginates; not requiring a row cap", subject, ex);
          return;
       }
 
       if(paged) {
          throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' of '" + dsName + "' is paginated, so a row cap is " +
-            "required: without it every render of this table requests pages until the service " +
-            "runs out of data. Choose a row cap for the question being asked.");
+            subject + " is paginated, so a row cap is required: without it every render of this " +
+            "table requests pages until the service runs out of data. Choose a row cap for the " +
+            "question being asked.");
       }
    }
 

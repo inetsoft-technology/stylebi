@@ -1531,10 +1531,7 @@ public class WorksheetTableService {
       if(src.getMaxRows() != null && src.getMaxRows() > 0) {
          query.setMaxRows(src.getMaxRows());
       }
-      // Endpoints only. A local file is read whole in one pass — there are no pages to walk and no
-      // per-call bill — so demanding a row cap there would refuse a correct request for a cost that
-      // does not exist.
-      else if(TARGET_KIND_ENDPOINT.equals(targetKind)) {
+      else if(rowCapRequiredFor(targetKind)) {
          TabularEndpointBindingSupport.requireRowCapWhenPaged(query, src.getTarget(), dsName);
       }
 
@@ -2341,6 +2338,27 @@ public class WorksheetTableService {
             (cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage()),
             cause);
       }
+   }
+
+   /**
+   /**
+    * Whether a target kind has to justify building a table with no row cap.
+    *
+    * <p>Everything but a file. A local file is read whole in one pass — no pages to walk, no
+    * per-call bill — so demanding a cap there would refuse a correct request for a cost that does
+    * not exist. Every other kind can paginate, the query kind included: it addresses any connector
+    * at all, and pagination is set through a property like any other, reaching
+    * {@code paginationSpec} directly without passing through the endpoint machinery. A paginated
+    * query built without a cap pages to exhaustion on every render, which is the bill
+    * {@link TabularEndpointBindingSupport#requireRowCapWhenPaged} refuses to run up.</p>
+    *
+    * <p>Written as an exemption rather than a list on purpose. A kind added later is covered unless
+    * someone deliberately excuses it, and the two mistakes are not the same size: a wrong exemption
+    * is a metered API walked to the end on every render, a wrong inclusion is one clear message
+    * asking for a number.</p>
+    */
+   static boolean rowCapRequiredFor(String targetKind) {
+      return !TARGET_KIND_FILE.equals(targetKind);
    }
 
    /**
