@@ -289,7 +289,7 @@ public final class WorksheetMutationSupport {
       }
 
       for(String v : values) {
-         c.addValue(v);
+         c.addValue(conditionValue(dtype, v));
       }
 
       ConditionItem item = new ConditionItem(ref, c, 0);
@@ -1493,12 +1493,43 @@ public final class WorksheetMutationSupport {
       return XSchema.STRING;
    }
 
+   /**
+    * Turns one condition value into what the engine stores: a {@link UserVariable} for a
+    * {@code $(name)} reference, otherwise the value coerced to the column's type.
+    *
+    * <p>Without the first case a variable reference is destroyed on the way in. The condition is
+    * typed from the resolved column, so on a numeric column {@code "$(Floor)"} does not parse and
+    * lands as {@code 0.0} -- not even the variable's default. The filter still reads as valid and
+    * still returns rows, so a parameterised filter silently becomes a constant one.
+    *
+    * <p>{@code AbstractCondition.getObject(type, value, true)} is what the engine itself uses, and
+    * {@code Condition.toString} renders such a value back as {@code $(name)}, so the round-trip is
+    * the same one the Composer's own condition dialog performs.
+    */
+   private static Object conditionValue(String dtype, String value) {
+      if(value != null && value.startsWith("$(") && value.endsWith(")") && value.length() > 3) {
+         return AbstractCondition.getObject(dtype, value.substring(2, value.length() - 1), true);
+      }
+
+      return value;
+   }
+   /**
+    * Maps an operator token to its XCondition constant.
+    *
+    * <p>An absent operator still means equals -- callers such as add_named_group leave it out on
+    * purpose. An operator that was <i>supplied</i> and is not recognised is refused instead,
+    * because defaulting it to equals silently returns a different data set: a filter written as
+    * greater-than becomes an equality test, the call answers ok, and nothing on screen marks it.
+    */
    static int parseOperation(String operation) {
-      if(operation == null) {
+      if(operation == null || operation.isBlank()) {
          return XCondition.EQUAL_TO;
       }
 
       return switch(operation.toUpperCase().replace(' ', '_')) {
+         // "=" had no case of its own -- it reached EQUAL_TO through the default branch, which is
+         // exactly why that branch could not simply be turned into a refusal.
+         case "=", "EQUAL_TO", "EQUALS" -> XCondition.EQUAL_TO;
          case "!=", "NOT_EQUAL_TO", "<>" -> XCondition.EQUAL_TO; // negated via setNegated
          case "<", "LESS_THAN"           -> XCondition.LESS_THAN;
          case ">", "GREATER_THAN"        -> XCondition.GREATER_THAN;
@@ -1512,7 +1543,11 @@ public final class WorksheetMutationSupport {
          case "LIKE"                     -> XCondition.LIKE;
          case "NULL", "IS_NULL"          -> XCondition.NULL;
          case "NOT_NULL"                 -> XCondition.NULL;    // negated via setNegated
-         default                         -> XCondition.EQUAL_TO;
+         default -> throw new IllegalArgumentException(
+            "'" + operation + "' is not a condition operator. Accepted: =, !=, <, <=, >, >=, " +
+            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, NULL, NOT_NULL. Omit the " +
+            "operator entirely to mean equals -- an unrecognised one used to be applied as " +
+            "equals, which quietly returns a different data set.");
       };
    }
 

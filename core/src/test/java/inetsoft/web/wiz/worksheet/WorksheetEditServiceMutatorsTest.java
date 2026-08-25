@@ -23,6 +23,12 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionListWrapper;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
@@ -2328,5 +2334,89 @@ class WorksheetEditServiceMutatorsTest {
       svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "T", "kept", null, null));
 
       assertEquals("kept", ((TableAssembly) ws.getAssembly("T")).getDescription());
+   }
+
+   // =========================================================================
+   // Filter values and operators
+   // =========================================================================
+
+   private static Condition firstCondition(TableAssembly t) {
+      return (Condition) ((ConditionItem) t.getPreConditionList().getConditionList()
+         .getItem(0)).getXCondition();
+   }
+
+   /**
+    * The condition is typed from the resolved column, so on a numeric column a $(name) reference
+    * does not parse and used to land as 0.0 -- not even the variable's default. The filter still
+    * read as valid and still returned rows, so a parameterised filter silently became a constant.
+    */
+   @Test
+   void aVariableReferenceSurvivesAsAVariableNotAsZero() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ((ColumnRef) t.getColumnSelection().getAttribute("a")).setDataType(XSchema.DOUBLE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", ">", "$(Floor)"));
+
+      Object v = firstCondition(t).getValue(0);
+      assertInstanceOf(UserVariable.class, v, "a $(name) value must stay a variable");
+      assertEquals("Floor", ((UserVariable) v).getName());
+   }
+
+   @Test
+   void anOrdinaryValueIsStillCoercedToTheColumnType() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "hello"));
+
+      assertEquals("hello", firstCondition(t).getValue(0));
+   }
+
+   /**
+    * Defaulting an unrecognised operator to equals returns a different data set with nothing on
+    * screen marking it -- a greater-than quietly becomes an equality test.
+    */
+   @Test
+   void anUnrecognisedOperatorIsRefusedRatherThanAppliedAsEquals() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      Exception thrown = assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.addFilter("T", "a", "&gt;", "1")));
+
+      assertTrue(thrown.getMessage().contains("&gt;") ||
+                 thrown.getCause() != null && thrown.getCause().getMessage().contains("&gt;"),
+                 "the refusal must name the operator it rejected");
+      assertNull(t.getPreConditionList() == null ? null : firstConditionOrNull(t),
+                 "nothing may be written when the operator is refused");
+   }
+
+   private static Object firstConditionOrNull(TableAssembly t) {
+      ConditionListWrapper w = t.getPreConditionList();
+      return w == null || w.isEmpty() ? null : firstCondition(t);
+   }
+
+   /** An omitted operator still means equals -- add_named_group leaves it out on purpose. */
+   @Test
+   void anOmittedOperatorStillMeansEquals() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", null, "x"));
+
+      assertEquals(XCondition.EQUAL_TO, firstCondition(t).getOperation());
    }
 }
