@@ -76,7 +76,7 @@ public class PresentationFontMappingSettingsService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings() throws Exception {
-      SreeEnv.setProperty("pdf.font.mapping", "");
+      SreeEnv.resetProperty("pdf.font.mapping", false);
       SreeEnv.save();
    }
 }
