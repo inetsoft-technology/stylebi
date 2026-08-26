@@ -32,6 +32,10 @@ public class FreeHelper extends LabelHelper {
    public FreeHelper(VLabel label, VGraph vgraph) {
       super(label, vgraph);
 
+      // GTool/GImpl only exposes a read that takes a call-site default, and
+      // DefaultProperties.getProperty(key, def) returns that default without consulting the
+      // defaults layer, so the graph.textlayout.maxstep line in defaults.properties is not
+      // reachable from here. Keep the two values in sync -- PropertyDefaultsTest pins them.
       String maxstep = GTool.getProperty("graph.textlayout.maxstep", "1000");
 
       if(maxstep != null) {
