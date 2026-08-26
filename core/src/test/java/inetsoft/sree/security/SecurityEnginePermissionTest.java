@@ -45,8 +45,6 @@ import static org.mockito.Mockito.*;
  * SecurityEngine permission scenario table:
  *  [Basic allow]      security provider is unavailable                            -> allowed
  *  [Basic deny]       principal is null while a provider exists                   -> denied
- *  [Wiz delegation]   principal carries wiz="true", any resource type             -> allowed, provider untouched
- *  [Wiz gate]         principal carries wiz="yes" (not exactly "true")            -> provider decision returned
  *  [Login guard]      non-exempt resource with unauthenticated principal          -> SecurityException
  *  [Exempt path]      MY_DASHBOARDS skips login guard                             -> provider result returned
  *  [Fallback admin]   requested action denied but ADMIN granted                   -> allowed
@@ -126,75 +124,14 @@ class SecurityEnginePermissionTest {
       verifyNoInteractions(provider);
    }
 
-   // [Scenario: wiz delegation] a principal authenticated by WizServiceAuthenticationFilter (property
-   // wiz="true", set only after RSA JWT signature verification) bypasses the provider entirely, for
-   // every resource type -- StyleBI is the backend engine for wiz only, wiz's own Entitlements system
-   // is the single authority, so there is no per-type carve-out here.
-   // Setup: provider is not stubbed at all; if the bypass didn't short-circuit, the mock would return
-   // false and the assertion would fail, and verifyNoInteractions would catch it being called at all
-   @ParameterizedTest
-   @MethodSource("wizPrincipalResourceTypes")
-   void checkPermission_wizPrincipal_bypassesProviderForAnyResourceType(ResourceType resourceType)
-      throws Exception
-   {
-      SRPrincipal principal = new SRPrincipal(USER_ID);
-      principal.setProperty("wiz", "true");
-      SecurityProvider provider = mock(SecurityProvider.class);
-      setProvider(provider);
-
-      boolean allowed = engine.checkPermission(principal, resourceType, "*", ResourceAction.ACCESS);
-
-      assertTrue(allowed);
-      verifyNoInteractions(provider);
-   }
-
-   private static Stream<Arguments> wizPrincipalResourceTypes() {
-      return Stream.of(
-         // hierarchical, object-ACL resource type (worksheet)
-         Arguments.of(ResourceType.ASSET),
-         // capability-switch resource type checked throughout inetsoft.web.wiz
-         Arguments.of(ResourceType.VIEWSHEET),
-         // admin console resource type -- delegation is unconditional, no type is special-cased
-         Arguments.of(ResourceType.EM)
-      );
-   }
-
-   // [Scenario: wiz delegation, identity-keyed overload] the same bypass applies to the
-   // checkPermission(Principal, ResourceType, IdentityID, ResourceAction) overload
-   @Test
-   void checkPermission_wizPrincipalIdentityOverload_bypassesProvider() throws Exception {
-      SRPrincipal principal = new SRPrincipal(USER_ID);
-      principal.setProperty("wiz", "true");
-      SecurityProvider provider = mock(SecurityProvider.class);
-      setProvider(provider);
-
-      boolean allowed = engine.checkPermission(principal, ResourceType.SECURITY_ROLE,
-         new IdentityID("aa", "org1"), ResourceAction.ADMIN);
-
-      assertTrue(allowed);
-      verifyNoInteractions(provider);
-   }
-
-   // [Scenario: wiz gate] a stray property value that isn't exactly "true" must not bypass -- guards
-   // against a loose comparison accidentally trusting an unrelated property
-   // Setup: principal is otherwise logged in normally; provider denies both READ and ADMIN
-   @Test
-   void checkPermission_wizPropertyNotExactlyTrue_doesNotBypass() throws Exception {
-      SecurityProvider provider = mock(SecurityProvider.class);
-      setProvider(provider);
-      SRPrincipal principal = loggedInPrincipal(USER_ID, 11L);
-      principal.setProperty("wiz", "yes");
-
-      when(provider.checkPermission(principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
-         .thenReturn(false);
-      when(provider.checkPermission(principal, ResourceType.VIEWSHEET, "*", ResourceAction.ADMIN))
-         .thenReturn(false);
-
-      boolean allowed = engine.checkPermission(principal, ResourceType.VIEWSHEET, "*",
-         ResourceAction.ACCESS);
-
-      assertFalse(allowed);
-   }
+   // Wiz delegation itself is NOT tested here anymore -- it moved out of SecurityEngine entirely.
+   // A raw mock SecurityProvider (as used throughout this file) has no notion of the wiz property,
+   // so it can no longer prove anything about delegation. The real behavior now lives in
+   // CompositeSecurityProvider (via WizDelegatingCheckPermissionStrategy, wired in
+   // createCheckPermissionStrategy()) precisely so it also covers the many call sites that call
+   // SecurityProvider.checkPermission(...) directly and never go through SecurityEngine at all
+   // (DefaultAuthorizationFilter's EM access gate, ClusterController, etc.) -- see
+   // WizDelegatingCheckPermissionStrategyTest and CompositeSecurityProviderTest.
 
    // [Scenario: login guard / exempt path] unauthenticated principal handling depends on resource type
    // Setup: provider exists, principal is not cached as a logged-in user, and only exempt resource types bypass login validation

@@ -57,10 +57,11 @@ public class CompositeSecurityProvider extends AbstractSecurityProvider {
    private static CheckPermissionStrategy createCheckPermissionStrategy(SecurityProvider provider) {
       final String className =
          SreeEnv.getProperty(CheckPermissionStrategy.class.getName());
+      CheckPermissionStrategy strategy = null;
 
       if(className != null) {
          try {
-            return (CheckPermissionStrategy) Class.forName(className)
+            strategy = (CheckPermissionStrategy) Class.forName(className)
                .getConstructor(SecurityProvider.class)
                .newInstance(provider);
          }
@@ -69,7 +70,15 @@ public class CompositeSecurityProvider extends AbstractSecurityProvider {
          }
       }
 
-      return new DefaultCheckPermissionStrategy(provider);
+      if(strategy == null) {
+         strategy = new DefaultCheckPermissionStrategy(provider);
+      }
+
+      // StyleBI is a backend engine for wiz only (no direct/mixed usage is supported); wrapping
+      // here -- rather than only inside SecurityEngine.checkPermission -- is what makes the
+      // delegation reach every direct SecurityProvider.checkPermission(...) caller too, not just
+      // the ones that happen to go through SecurityEngine. See WizDelegatingCheckPermissionStrategy.
+      return new WizDelegatingCheckPermissionStrategy(strategy);
    }
 
    private static final Logger LOG =

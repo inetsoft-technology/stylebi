@@ -809,16 +809,6 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
          return false;
       }
 
-      // StyleBI is a backend engine for wiz only (no direct/mixed usage is supported); wiz's own
-      // Entitlements system is the single permission authority, so any request authenticated by
-      // WizServiceAuthenticationFilter (RSA-verified JWT, property set only after that check
-      // passes) is trusted unconditionally here, for every resource type.
-      if(principal instanceof SRPrincipal &&
-         "true".equals(((SRPrincipal) principal).getProperty("wiz")))
-      {
-         return true;
-      }
-
       // in EE, admin needs to manage the resources in user scope.
       // To access the resource, admin will create principal to fetch
       // resource properly. The principal is not authenticated. To support
@@ -991,13 +981,6 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
 
       if(principal == null) {
          return false;
-      }
-
-      // See the sibling String-resource overload above for why this is unconditional.
-      if(principal instanceof SRPrincipal &&
-         "true".equals(((SRPrincipal) principal).getProperty("wiz")))
-      {
-         return true;
       }
 
       // in EE, admin needs to manage the resources in user scope.
@@ -1456,7 +1439,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
       if(principal instanceof SRPrincipal) {
          SRPrincipal srPrincipal = (SRPrincipal) principal;
 
-         if(srPrincipal.isIgnoreLogin() || "true".equalsIgnoreCase(srPrincipal.getProperty("wiz"))) {
+         if(srPrincipal.isIgnoreLogin() || SRPrincipal.isWizPrincipal(srPrincipal)) {
             return true;
          }
 

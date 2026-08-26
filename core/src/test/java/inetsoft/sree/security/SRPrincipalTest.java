@@ -31,6 +31,8 @@ package inetsoft.sree.security;
  * [Externalizable: round-trip]   principal has arrays, properties, params, locale                   -> readExternal() restores all persisted fields
  * [XML: round-trip]              principal written as XML                                            -> parseXML() restores all XML fields
  * [XML: missing-required-tags]   XML omits any one of clientInfo/secureID/age/accessed/properties   -> parseXML() throws IOException naming the missing element
+ * [IsWizPrincipal: true]         SRPrincipal with wiz="true" property                                -> isWizPrincipal() true
+ * [IsWizPrincipal: false]        SRPrincipal with no/other wiz property, or a non-SRPrincipal         -> isWizPrincipal() false
  *
  */
 
@@ -80,6 +82,32 @@ class SRPrincipalTest {
          principal.setProperty("__internal__", "true");
 
          assertNull(principal.createUser());
+      }
+   }
+
+   // [IsWizPrincipal: true] property set to exactly "true" (any case) marks the principal as wiz
+   @Test
+   void isWizPrincipal_propertyTrue_returnsTrue() {
+      try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
+         SRPrincipal principal = newPrincipal();
+         principal.setProperty("wiz", "true");
+
+         assertTrue(SRPrincipal.isWizPrincipal(principal));
+      }
+   }
+
+   // [IsWizPrincipal: false] no property, a non-"true" value, or a non-SRPrincipal never qualifies
+   @Test
+   void isWizPrincipal_notMarked_returnsFalse() {
+      try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
+         SRPrincipal noProperty = newPrincipal();
+         SRPrincipal wrongValue = newPrincipal();
+         wrongValue.setProperty("wiz", "yes");
+
+         assertFalse(SRPrincipal.isWizPrincipal(noProperty));
+         assertFalse(SRPrincipal.isWizPrincipal(wrongValue));
+         assertFalse(SRPrincipal.isWizPrincipal(null));
+         assertFalse(SRPrincipal.isWizPrincipal(() -> "not-an-sr-principal"));
       }
    }
 
