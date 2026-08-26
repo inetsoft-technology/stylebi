@@ -17,15 +17,23 @@
  */
 package inetsoft.report.composition;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AbstractSheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -46,6 +54,7 @@ class RuntimeSheetTest {
    @AfterEach
    void restoreProperty() {
       SreeEnv.setProperty("viewsheet.heartbeat.timeout", saved);
+      OrganizationContextHolder.clear();
    }
 
    @Test
@@ -73,6 +82,178 @@ class RuntimeSheetTest {
       assertEquals(180000L, RuntimeSheet.getHeartbeatTimeout());
       SreeEnv.setProperty("viewsheet.heartbeat.timeout", "60000");
       assertEquals(180000L, RuntimeSheet.getHeartbeatTimeout());
+   }
+
+   @Test
+   void defaultMatchesTheDocumentedConstant() {
+      // the constant is the only place the default lives -- no viewsheet.heartbeat.timeout
+      // entry ships in defaults.properties -- so it doubles as the documented floor
+      assertEquals(180000L, RuntimeSheet.DEFAULT_HEARTBEAT_TIMEOUT);
+      assertEquals(RuntimeSheet.DEFAULT_HEARTBEAT_TIMEOUT, RuntimeSheet.getHeartbeatTimeout());
+   }
+
+   @Test
+   void clampWarnsNamingThePropertyTheValueAndTheFloor() {
+      // a value below the floor is read back from Settings > All Properties exactly as written
+      // while the behaviour stays at three minutes; without this warning nothing tells an
+      // operator that the value they shortened is not the one in force
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "60001");
+
+      List<ILoggingEvent> events = captureWarnings(RuntimeSheet::getHeartbeatTimeout);
+
+      assertEquals(1, events.size(), "the clamp must report itself exactly once");
+
+      ILoggingEvent event = events.get(0);
+      assertEquals(Level.WARN, event.getLevel(), "the clamp must be reported at WARN");
+
+      String message = event.getFormattedMessage();
+      assertTrue(message.contains("viewsheet.heartbeat.timeout"),
+                 "the warning must name the property so the cause is discoverable: " + message);
+      assertTrue(message.contains("60001"),
+                 "the warning must quote the configured value: " + message);
+      assertTrue(message.contains("180000"),
+                 "the warning must state the floor actually applied: " + message);
+   }
+
+   @Test
+   void invalidValueWarnsNamingThePropertyAndTheValue() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "3 minutes");
+
+      List<ILoggingEvent> events = captureWarnings(RuntimeSheet::getHeartbeatTimeout);
+
+      assertEquals(1, events.size(), "the fallback must report itself exactly once");
+
+      String message = events.get(0).getFormattedMessage();
+      assertTrue(message.contains("viewsheet.heartbeat.timeout"),
+                 "the warning must name the property: " + message);
+      assertTrue(message.contains("3 minutes"),
+                 "the warning must quote the offending value: " + message);
+   }
+
+   @Test
+   void repeatedReadsOfTheSameBadValueWarnOnce() {
+      // getHeartbeatTimeout() is reached from isTimeout(), which RecycleTask calls once per open
+      // sheet on every three-minute sweep, so warning on each read floods the log in proportion
+      // to the number of open sheets
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "not-a-number-either");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         RuntimeSheet.getHeartbeatTimeout();
+         RuntimeSheet.getHeartbeatTimeout();
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(1, events.size(),
+                   "the same bad value must be reported once, not once per read");
+   }
+
+   @Test
+   void correctingAndThenReintroducingABadValueWarnsAgain() {
+      // the suppression must not outlive the value it was suppressing: an operator who sets a
+      // bad value, sees the warning, corrects it, and later reverts to the same value is owed
+      // the warning a second time, since that revert is otherwise applied in total silence
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "reverted-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "600000");
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "reverted-bad-value");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "a value honoured in between must re-arm the warning");
+   }
+
+   @Test
+   void removingThePropertyAlsoReArmsTheWarning() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "removed-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", null);
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "removed-bad-value");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "deleting the property must re-arm the warning too");
+   }
+
+   @Test
+   void aDifferentBadValueWarnsAgain() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "first-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "second-bad-value");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "suppressing a repeat must not suppress a newly configured bad value");
+   }
+
+   @Test
+   void aSecondOrganizationWithTheSameBadValueIsStillWarnedAbout() {
+      // viewsheet.heartbeat.timeout is resolved through an inetsoft.org.<orgid>. override when
+      // one exists, and RecycleTask sweeps every open sheet of every organization in the same
+      // pass, so a suppression key that did not name the organization would let whichever one
+      // was swept first silence every other organization holding the same bad value
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "shared-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         OrganizationContextHolder.setCurrentOrgId("orga");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgb");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "each organization must be told about its own misconfiguration");
+   }
+
+   @Test
+   void oneOrganizationRepeatingItsBadValueStillWarnsOnce() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "per-org-bad-value");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         OrganizationContextHolder.setCurrentOrgId("orgc");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgd");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgc");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgd");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "keying on the organization must still suppress a repeat within one");
+   }
+
+   @Test
+   void correctingOneOrganizationDoesNotReArmAnother() {
+      SreeEnv.setProperty("viewsheet.heartbeat.timeout", "one-org-corrected");
+
+      List<ILoggingEvent> events = captureWarnings(() -> {
+         OrganizationContextHolder.setCurrentOrgId("orge");
+         RuntimeSheet.getHeartbeatTimeout();
+         OrganizationContextHolder.setCurrentOrgId("orgf");
+         RuntimeSheet.getHeartbeatTimeout();
+         // orge reads a usable value, which clears orge's state and must leave orgf's alone
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "600000");
+         OrganizationContextHolder.setCurrentOrgId("orge");
+         RuntimeSheet.getHeartbeatTimeout();
+         SreeEnv.setProperty("viewsheet.heartbeat.timeout", "one-org-corrected");
+         OrganizationContextHolder.setCurrentOrgId("orgf");
+         RuntimeSheet.getHeartbeatTimeout();
+      });
+
+      assertEquals(2, events.size(),
+                   "clearing one organization's suppression must not re-arm another's");
    }
 
    @Test
@@ -114,6 +295,26 @@ class RuntimeSheetTest {
       RuntimeSheet sheet = newSheet();
       sheet.setAccessed(System.currentTimeMillis());
       assertFalse(sheet.isTimeout());
+   }
+
+   /**
+    * Runs the given code with a capturing appender attached to the RuntimeSheet logger and
+    * returns what it logged. Each test uses a property value of its own, so the suppression
+    * state left behind by an earlier test cannot hide the first warning expected here.
+    */
+   private static List<ILoggingEvent> captureWarnings(Runnable body) {
+      Logger logger = (Logger) LoggerFactory.getLogger(RuntimeSheet.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         body.run();
+         return List.copyOf(appender.list);
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
    }
 
    private static RuntimeSheet newSheet() {
