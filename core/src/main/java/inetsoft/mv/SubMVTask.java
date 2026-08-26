@@ -181,7 +181,5 @@ public final class SubMVTask extends AbstractMapTask {
       //
    }
 
-
-
    private static final Logger LOG = LoggerFactory.getLogger(SubMVTask.class);
 }

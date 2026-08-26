@@ -341,7 +341,7 @@ public final class XJobStatus {
       if(!isSuccessful() && !isReady()) {
          // time out?
          if(!isCompleted()) {
-            complete(false, false, "The job has expired (" + wperiod + "): " + job.getXFile());
+            complete(false, false, "The job has expired (" + wperiod + "ms): " + job.getXFile());
          }
 
          throw new RuntimeException("Failed to execute job: " + job + ", reason: " + reason);
@@ -421,18 +421,20 @@ public final class XJobStatus {
          return;
       }
 
-      // the job is already done (it failed on another block, and its map tasks were
-      // cancelled). a cancelled task returns the rows it had scanned so far as a
-      // block that looks complete, so merging it here would feed truncated data to
-      // the reducer. state is volatile, so this sees the completing thread's write.
-      if(isCompleted()) {
-         return;
-      }
-
       String id = result.getXBlock();
       waitlock.lock();
 
       try {
+         // the job is already done (it failed on another block, and its map tasks were
+         // cancelled). a cancelled task returns the rows it had scanned so far as a block
+         // that looks complete, so merging it here would feed truncated data to the
+         // reducer. checked under waitlock, which complete() holds while it sets the
+         // state and cancels the reducer -- checking before acquiring it would leave a
+         // window where this passes and complete() then runs before the merge.
+         if(isCompleted()) {
+            return;
+         }
+
          // mark the block id as completed
          bset.remove(id);
          // mark the map task as completed
@@ -497,7 +499,7 @@ public final class XJobStatus {
 
       // check if the job is expired
       if(now - started > wperiod) {
-         complete(false, false, "The job has expired (" + wperiod + "): " + job.getXFile());
+         complete(false, false, "The job has expired (" + wperiod + "ms): " + job.getXFile());
          return true;
       }
 

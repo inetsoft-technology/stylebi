@@ -29,8 +29,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -181,6 +183,62 @@ class XJobStatusExpiredMapTaskTest {
          verify(reducer).cancel();
          verify(reducer, never()).complete(org.mockito.ArgumentMatchers.anyBoolean());
       }
+   }
+
+   /**
+    * complete() writes the state and cancels the reducer while holding waitlock, so a
+    * completion check made before acquiring that lock can pass and then merge into an
+    * already-cancelled reducer. Reproduced deterministically by holding waitlock on this
+    * thread while addResult() blocks on it, then completing the job through the same
+    * (reentrant) lock before releasing it.
+    */
+   @Test
+   void aResultBlockedOnTheLockWhenTheJobFailsIsNotMergedIntoTheReducer() throws Exception {
+      XJobStatus status = newStartedStatus();
+      XReduceTask reducer = mock(XReduceTask.class);
+      set(status, "reducer", reducer);
+      set(status, "bset", new java.util.HashSet<>(java.util.List.of("block-0")));
+
+      XMapResult result = mock(XMapResult.class);
+      when(result.getXBlock()).thenReturn("block-0");
+      when(result.getHost()).thenReturn("localhost");
+
+      Field waitlockField = XJobStatus.class.getDeclaredField("waitlock");
+      waitlockField.setAccessible(true);
+      java.util.concurrent.locks.Lock waitlock =
+         (java.util.concurrent.locks.Lock) waitlockField.get(status);
+
+      Thread adder = new Thread(() -> status.addResult(result), "addResult");
+      waitlock.lock();
+
+      try(MockedStatic<SreeEnv> sree = mockStatic(SreeEnv.class);
+          MockedStatic<XMapTaskPool> pool = mockStatic(XMapTaskPool.class))
+      {
+         adder.start();
+
+         // let it clear the pre-lock checks and park on waitlock, which this thread holds
+         long deadline = System.currentTimeMillis() + 5000;
+
+         while(adder.getState() != Thread.State.WAITING && System.currentTimeMillis() < deadline) {
+            Thread.yield();
+         }
+
+         assertEquals(Thread.State.WAITING, adder.getState(),
+                      "the result thread should be parked on waitlock");
+
+         // waitlock is reentrant, so the job can be failed without releasing it first
+         Method complete = XJobStatus.class.getDeclaredMethod(
+            "complete", boolean.class, boolean.class, String.class);
+         complete.setAccessible(true);
+         complete.invoke(status, false, false, "another block failed");
+      }
+      finally {
+         waitlock.unlock();
+      }
+
+      adder.join(5000);
+      assertFalse(adder.isAlive(), "the result thread should have finished");
+      verify(reducer, never()).add(result);
    }
 
    private static FSConfig expiringConfig() {
