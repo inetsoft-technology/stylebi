@@ -66,7 +66,14 @@ import java.util.Map;
  *   <li>{@code add_rotate} — {@code name}, {@code source}</li>
  *   <li>{@code add_unpivot} — {@code name}, {@code source}, {@code headerColumns}</li>
  *   <li>{@code add_date_range_column} — {@code table}, {@code column}, {@code dateOption}</li>
- *   <li>{@code add_numeric_range_column} — {@code table}, {@code column}, {@code boundaries}</li>
+ *   <li>{@code add_numeric_range_column} — {@code table}, {@code column}, {@code boundaries},
+ *       optional {@code labels} (one more entry than {@code boundaries})</li>
+ *   <li>{@code edit_date_range_column} — {@code table}, {@code column} (the existing range
+ *       column's own name), {@code dateOption}; the column is renamed to match, since its name
+ *       encodes its option (see {@code add_date_range_column})</li>
+ *   <li>{@code edit_numeric_range_column} — {@code table}, {@code column} (the existing range
+ *       column's own name), {@code boundaries}, optional {@code labels} (replaces any existing
+ *       labels; omitted/empty clears them back to the default auto-generated range text)</li>
  *   <li>{@code edit_cell} — {@code table}, {@code row}, {@code col}, {@code value}</li>
  *   <li>{@code insert_row} — {@code table}, {@code index}</li>
  *   <li>{@code delete_row} — {@code table}, {@code index}</li>
@@ -178,7 +185,7 @@ public record EditRequest(
    Integer headerColumns,
    /** Date grouping option for add_date_range_column. */
    String dateOption,
-   /** Numeric bucket boundaries for add_numeric_range_column. */
+   /** Numeric bucket boundaries for add_numeric_range_column / edit_numeric_range_column. */
    double[] boundaries,
    /** Datasource name for add_table (when provided, creates a PhysicalBoundTableAssembly). */
    String datasource,
@@ -312,11 +319,17 @@ public record EditRequest(
     * effect only once {@code groups} has at least 2 entries and {@code aggregates} at least 1;
     * with fewer, it is accepted but silently has no effect (same as the Composer dialog itself).
     */
-   Boolean crosstab
+   Boolean crosstab,
+   /**
+    * Optional custom bucket labels for add_numeric_range_column / edit_numeric_range_column —
+    * one more entry than {@code boundaries} (below the first, one between each pair, above the
+    * last). Omitted or empty keeps the engine's default auto-generated range text.
+    */
+   List<String> labels
 ) {
    /**
     * Compatibility constructor for callers built before {@code crosstab} was added —
-    * defaults it to {@code null} (treated as {@code false}).
+    * defaults {@code crosstab} and {@code labels} (added later, same reason) to {@code null}.
     */
    public EditRequest(
       String op, String table, String column, String name, String type, String newName,
@@ -344,6 +357,6 @@ public record EditRequest(
            value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
            groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
            sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
-           lookupTopLevelOnly, suffix, customLookups, null);
+           lookupTopLevelOnly, suffix, customLookups, null, null);
    }
 }

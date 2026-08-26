@@ -844,14 +844,20 @@ public class WorksheetEditService {
        * @param table      the assembly name
        * @param column     the source numeric column name
        * @param boundaries the bucket boundary values (e.g. [0, 50, 100])
+       * @param labels     optional custom bucket labels, one more than {@code boundaries}
+       *                   (e.g. 2 boundaries -> 3 labels: below, between, above). {@code null}
+       *                   or empty keeps the engine's default auto-generated range text.
        */
-      public void addNumericRangeColumn(String table, String column, double[] boundaries)
+      public void addNumericRangeColumn(String table, String column, double[] boundaries,
+                                         String[] labels)
          throws PairingException
       {
          if(boundaries == null || boundaries.length == 0) {
             throw new PairingException(
                "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
          }
+
+         validateLabelCount(boundaries, labels);
 
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
@@ -866,11 +872,186 @@ public class WorksheetEditService {
          NumericRangeRef rangeRef = new NumericRangeRef(column + "_range", baseRef);
          ValueRangeInfo info = new ValueRangeInfo();
          info.setValues(boundaries);
+         info.setLabels(labels);
          rangeRef.setValueRangeInfo(info);
 
          ColumnRef colRef = new ColumnRef(rangeRef);
          colRef.setDataType(XSchema.STRING);
          cs.addAttribute(colRef);
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Validates that a caller-supplied label array, if present, has exactly one more entry
+       * than there are boundaries — the count {@link NumericRangeRef#getExpression} and
+       * {@link NumericRangeRef#getScriptExpression} index into (bottom bucket + one per gap +
+       * top bucket) given the engine's fixed defaults of showing both the bottom and top
+       * buckets. A shorter array is not just cosmetically wrong: those methods index straight
+       * into it with no bounds check, so a mismatch throws {@code ArrayIndexOutOfBoundsException}
+       * deep inside expression generation instead of failing here with a clear message.
+       */
+      private static void validateLabelCount(double[] boundaries, String[] labels)
+         throws PairingException
+      {
+         if(labels == null || labels.length == 0) {
+            return;
+         }
+
+         int expected = boundaries.length + 1;
+
+         if(labels.length != expected) {
+            throw new PairingException(
+               "labels must have exactly " + expected + " entries for " + boundaries.length +
+               " boundaries (one below the first, one between each pair, one above the last) " +
+               "— got " + labels.length + ".");
+         }
+      }
+
+      /**
+       * Changes the grouping level of an existing date range column, in place. The column's
+       * name encodes its option (see {@link DateRangeRef#getName}), so it is renamed to match
+       * the new option — e.g. {@code "QuarterOfYear(Order Date)"} becomes
+       * {@code "MonthOfYear(Order Date)"} when {@code dateOption} changes from
+       * {@code QUARTER_OF_YEAR} to {@code MONTH_OF_YEAR}. Anything already bound to the old
+       * name is left pointing at nothing, the same as a manual {@code rename_column}.
+       *
+       * @param table      the assembly name
+       * @param column     the existing date range column's current name
+       * @param dateOption the new grouping option string (e.g. "YEAR", "QUARTER", "MONTH")
+       */
+      public void editDateRangeColumn(String table, String column, String dateOption)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+
+         if(!(unwrapped instanceof DateRangeRef dateRef)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a date range column. Use " +
+               "add_date_range_column to create one, or pass the range column's own name " +
+               "(e.g. \"QuarterOfYear(Order Date)\"), not its source date column.");
+         }
+
+         int option = parseDateOption(dateOption);
+         DataRef baseRef = dateRef.getDataRef();
+
+         if(baseRef == null) {
+            // Not reachable via add_date_range_column, which always constructs one with a
+            // non-null base ref — but falling back to dateRef.getAttribute() here (the range
+            // column's OWN name) would silently compute a wrong, nested name like
+            // "MonthOfYear(QuarterOfYear(orderDate))" instead of failing loud.
+            throw new PairingException(
+               "Column \"" + column + "\" has no source column reference and cannot be re-leveled.");
+         }
+
+         String baseAttr = baseRef.getAttribute();
+         String currentName = dateRef.getName();
+         String newName = DateRangeRef.getName(baseAttr, option);
+
+         // ColumnSelection enforces name-uniqueness only on addAttribute (a no-op add on
+         // collision); renaming an existing entry in place bypasses that check entirely, so a
+         // rename onto a name already held by another column (e.g. a second range column
+         // already added at the target option) would silently shadow it instead of failing.
+         if(!newName.equals(currentName)) {
+            DataRef existing = cs.getAttribute(newName);
+
+            if(existing != null && existing != ref) {
+               throw new PairingException(
+                  "Cannot change \"" + column + "\" to " + dateOption + " — table \"" + table +
+                  "\" already has a column named \"" + newName + "\". Remove or rename that " +
+                  "column first.");
+            }
+         }
+
+         dateRef.setDateOption(option);
+         dateRef.setName(newName);
+
+         // AbstractDataRef.hashCode() caches its result (chash) from getEntity()+getAttribute()
+         // at first use, and ColumnRef.getAttribute() delegates live to the wrapped ref's — so
+         // renaming dateRef changes what that hash SHOULD be without invalidating the wrapping
+         // ColumnRef's already-cached one. ColumnSelection's backing ListWithFastLookup uses
+         // that cached hashCode() for its O(1) addAttribute exclusivity check (rebuilt lazily by
+         // iterating current elements' hashCode(), so a per-element stale cache survives even a
+         // full rebuild). Left uninvalidated, a later add_date_range_column producing this same
+         // new name is not caught as a duplicate — confirmed empirically: without the reset
+         // below, two columns end up reporting the identical getName(). setDataRef() re-assigns
+         // the same ref purely to invalidate ColumnRef's own cname/chash, the same mechanism
+         // renameColumn's setAlias() already relies on for its own (narrower) case.
+         if(ref instanceof ColumnRef cr) {
+            cr.setDataRef(dateRef);
+         }
+
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Changes the bucket boundaries (and optionally the custom labels) of an existing
+       * numeric range column, in place. Unlike the date range column's name, a numeric range
+       * column's name ({@code column + "_range"}) does not encode its boundaries, so it is
+       * left unchanged.
+       *
+       * @param table      the assembly name
+       * @param column     the existing numeric range column's current name
+       * @param boundaries the new bucket boundary values (e.g. [0, 50, 100])
+       * @param labels     optional custom bucket labels, one more than {@code boundaries}. A
+       *                   {@code null}/empty array clears any custom labels back to the
+       *                   engine's default auto-generated range text — it does not preserve
+       *                   whatever labels the column already had, since there is no partial
+       *                   "leave labels alone" signal distinguishable from "clear them."
+       */
+      public void editNumericRangeColumn(String table, String column, double[] boundaries,
+                                          String[] labels)
+         throws PairingException
+      {
+         if(boundaries == null || boundaries.length == 0) {
+            throw new PairingException(
+               "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
+         }
+
+         validateLabelCount(boundaries, labels);
+
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+
+         if(!(unwrapped instanceof NumericRangeRef rangeRef)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a numeric range column. Use " +
+               "add_numeric_range_column to create one, or pass the range column's own name " +
+               "(e.g. \"Amount_range\"), not its source numeric column.");
+         }
+
+         // Mutate the existing ValueRangeInfo rather than replacing it wholesale: this tool
+         // only ever settles values/labels, but showBottomValue/showTopValue/inclusiveType are
+         // also user-settable (via the Composer's own Range Column dialog, or a future richer
+         // wiz op) and replacing the object outright would silently reset those three back to
+         // ValueRangeInfo's constructor defaults on every edit — an undocumented side effect
+         // for a tool whose whole contract is "boundaries and labels, nothing else."
+         ValueRangeInfo info = rangeRef.getValueRangeInfo();
+
+         if(info == null) {
+            info = new ValueRangeInfo();
+         }
+
+         info.setValues(boundaries);
+         // Unconditional, even when labels is null/empty: the javadoc above promises omitting
+         // labels clears any existing ones, and that contract must hold now that boundaries'
+         // sibling settings survive the edit.
+         info.setLabels(labels);
+         rangeRef.setValueRangeInfo(info);
          t.setColumnSelection(cs, false);
       }
 
