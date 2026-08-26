@@ -124,6 +124,15 @@ class SecurityEnginePermissionTest {
       verifyNoInteractions(provider);
    }
 
+   // Wiz delegation itself is NOT tested here anymore -- it moved out of SecurityEngine entirely.
+   // A raw mock SecurityProvider (as used throughout this file) has no notion of the wiz property,
+   // so it can no longer prove anything about delegation. The real behavior now lives in
+   // CompositeSecurityProvider (via WizDelegatingCheckPermissionStrategy, wired in
+   // createCheckPermissionStrategy()) precisely so it also covers the many call sites that call
+   // SecurityProvider.checkPermission(...) directly and never go through SecurityEngine at all
+   // (DefaultAuthorizationFilter's EM access gate, ClusterController, etc.) -- see
+   // WizDelegatingCheckPermissionStrategyTest and CompositeSecurityProviderTest.
+
    // [Scenario: login guard / exempt path] unauthenticated principal handling depends on resource type
    // Setup: provider exists, principal is not cached as a logged-in user, and only exempt resource types bypass login validation
    @ParameterizedTest
