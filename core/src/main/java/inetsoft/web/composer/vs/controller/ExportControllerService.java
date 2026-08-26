@@ -109,10 +109,9 @@ public class ExportControllerService {
 
       boolean embedded = "embed".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.attachment"))
          && !matchesAssetIdFormat;
-      // same rule as VSExportService.writeViewsheetExport() so the two export paths agree
-      String disposition = !rvs.isPreview() &&
-         FileFormatInfo.EXPORT_TYPE_PDF == format &&
-         embedded || print ? "inline" : "attachment";
+      // shared with VSExportService so the two export paths cannot disagree
+      String disposition =
+         VSExportService.getContentDisposition(format, rvs.isPreview(), embedded, print);
 
       String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + format;
       BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
