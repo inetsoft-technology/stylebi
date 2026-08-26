@@ -17,8 +17,8 @@
  */
 package inetsoft.util.script.graal;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.internal.FormUtil;
 import org.graalvm.polyglot.HostAccess;
 import java.time.Instant;
 import java.util.*;
@@ -279,8 +279,8 @@ public final class ScriptHostAccess {
          return false;
       }
 
-      // java.sql is permitted only when the FORM component is licensed (matches main).
-      if(fqcn.startsWith("java.sql") && isFormLicensed()) {
+      // java.sql is permitted only when form (data write-back) is enabled (matches main).
+      if(fqcn.startsWith("java.sql") && isFormEnabled()) {
          return true;
       }
 
@@ -361,12 +361,12 @@ public final class ScriptHostAccess {
       return false;
    }
 
-   private static boolean isFormLicensed() {
+   private static boolean isFormEnabled() {
       try {
-         return LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM);
+         return FormUtil.isFormEnabled();
       }
       catch(Throwable ignore) {
-         // LicenseManager may be unavailable outside a full server context (tests).
+         // SreeEnv may be unavailable outside a full server context (tests).
          return false;
       }
    }

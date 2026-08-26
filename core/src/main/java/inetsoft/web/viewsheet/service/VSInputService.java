@@ -25,7 +25,6 @@ import inetsoft.cluster.*;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.*;
 import inetsoft.sree.security.ResourceAction;
@@ -2658,7 +2657,7 @@ public class VSInputService {
    }
 
    private boolean hasFormScript(String script, String name) {
-      if(!LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+      if(!FormUtil.isFormEnabled()) {
          return false;
       }
 
