@@ -89,14 +89,6 @@ export class GuiTool {
       return document.body.classList.contains("viz-density-compact") ? "compact" : "dense";
    }
 
-   // Stands in for a lane-fit test: the 24px strip needs a 26px lane, and density selects the
-   // lane's default height, which only dense puts below that. A proxy, not the rule — the server
-   // does not yet vary title height by density, so every assembly reports the same lane today.
-   // Replaced by comparing the assembly's own title height once it does.
-   static isVizDensityAtLeastCompact(): boolean {
-      return GuiTool.vizDensityMode() !== "dense";
-   }
-
    // Must stay in sync with the base .mini-toolbar z-index in mini-toolbar.component.scss.
    // Used as a floor so the toolbar always outranks ordinary sibling assemblies, even when
    // its own assembly's server-assigned z-index is low.

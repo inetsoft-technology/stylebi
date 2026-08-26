@@ -54,7 +54,7 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { isAnchoredResident, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { anchoredLaneHeight, isAnchoredResident, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
 import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
@@ -466,7 +466,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    // abandon objectFormat positioning there (see VSSelection.topPosition) and put padding constants
    // in objectFormat.top/left instead, so the lane origin the anchored geometry assumes doesn't
    // exist. Chart and table objectFormat is rewritten to true coordinates in max mode, so anchoring
-   // still works for them there. isKebabResident below is the type+gate+density condition alone, without
+   // still works for them there. isKebabResident below is the type+gate+lane condition alone, without
    // this method's selection-max-mode exclusion — it is what keeps the kebab reachable on touch
    // once this method stops anchoring it.
    public isToolbarAnchored(object: VSObjectModel): boolean {
@@ -478,12 +478,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * whether it can currently be geometrically anchored to a title lane (isToolbarAnchored above).
     * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
     * max mode, where anchoring is off — there is no lane — but the type still carries the design.
-    * A lane too short to hold the strip opts out entirely, so this is false regardless of type —
-    * approximated by density for now, so dense alone. Such an assembly draws no chrome at all
-    * rather than falling back to the floating strip; that is enforced in the action layer, not here.
+    * A lane too short to hold the strip opts out entirely, measured by anchoredLaneHeight against
+    * ANCHORED_LANE_MIN. Such an assembly draws no chrome at all rather than falling back to the
+    * floating strip; that is enforced in the action layer, not here.
     */
    public isKebabResident(object: VSObjectModel): boolean {
-      return isAnchoredResident(object.objectType, object.vizModern);
+      return isAnchoredResident(object.objectType, object.vizModern, anchoredLaneHeight(object));
    }
 
    /**
@@ -566,41 +566,8 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     */
    public getAnchoredToolbarWidth(object: VSObjectModel): number {
       const chart = <VSChartModel> object;
-      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0)
-         - VSObjectContainer.rightEdgeReserve(object);
+      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0);
    }
-
-   /**
-    * The right inset the anchored pill gives up so it does not land on a control living at the
-    * content's right edge.
-    *
-    * With a title visible the strip sits in the title lane, which owns nothing, so this is zero.
-    * With the title hidden the strip overlays the first content row instead (spec §03 reserves no
-    * lane), and for the table family that row is the column header — whose last cell carries the
-    * sort control at right: 2px, width: 20px (base-table.scss .vs-header-cell-button-sort). The
-    * kebab landed exactly on it, and because the kebab button re-enables pointer events inside an
-    * otherwise pointer-events: none pill, it swallowed the click: the column could not be sorted at
-    * all while the strip was up.
-    *
-    * Keyed on the absence of a title rather than on a second assembly-type list. On a chart it
-    * costs 22px of empty plot corner and keeps one rule for the whole anchored set.
-    */
-   private static rightEdgeReserve(object: VSObjectModel): number {
-      // Exempt: the reserve is the table's sort control, which a selection cell has no equivalent
-      // of. A selection's right-edge occupant is the pending-Apply icon, which .pending-alert in
-      // vs-selection.component.scss offsets clear of the pill under the gate instead — reserving
-      // here too would make that CSS position depend on SORT_CONTROL_RESERVE below.
-      if(Tool.equalsIgnoreCase(object.objectType, "VSSelectionList") ||
-         Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"))
-      {
-         return 0;
-      }
-
-      return (<any> object).titleVisible === false ? VSObjectContainer.SORT_CONTROL_RESERVE : 0;
-   }
-
-   // 20px control + its 2px inset.
-   private static readonly SORT_CONTROL_RESERVE = 22;
 
    public getToolbarWidth(object: VSObjectModel): number {
       return this.miniToolbarService.getToolbarWidth(object, this.containerBounds,

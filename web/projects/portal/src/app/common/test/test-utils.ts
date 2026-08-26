@@ -349,6 +349,20 @@ export namespace TestUtils {
       }, createMockVSObjectModel("VSChart", name));
    }
 
+   /**
+    * Gives a mock model a visible title lane tall enough to hold the anchored mini-toolbar strip.
+    * The mock builders default titleVisible to false with a zero-height titleFormat, which resolves
+    * to no lane — so a fixture that means "this assembly is anchored" has to say so, and a fixture
+    * that forgets goes green for the wrong reason. Pass a height below ANCHORED_LANE_MIN for the
+    * short-lane case. Mutates and returns the model, so it wraps a builder call inline.
+    */
+   export function withTitleLane<T>(model: T, height: number = 30): T {
+      const titled = <any> model;
+      titled.titleVisible = true;
+      titled.titleFormat = Object.assign(titled.titleFormat || {}, {height: height});
+      return model;
+   }
+
    export function createMockVSCrosstabModel(name: string): VSCrosstabModel {
       return Object.assign({
          headerHeights: [],
