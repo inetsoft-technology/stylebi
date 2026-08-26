@@ -48,14 +48,25 @@ public class FreeHelper extends LabelHelper {
       if(maxstep != null) {
          try {
             // Properties.load() keeps trailing whitespace and parseInt does not trim it
-            maxval = Integer.parseInt(maxstep.trim());
-            fromProperty = true;
+            int parsed = Integer.parseInt(maxstep.trim());
+
+            // move() bails as soon as steps[n] > max_steps[n] and steps starts at 0, so a
+            // negative budget stops every free-moving label rather than freeing it. -1 reads
+            // as "unlimited" in other properties, making it a plausible typo with exactly
+            // the opposite of its intended effect.
+            if(parsed < 0) {
+               LOG.warn("Negative graph.textlayout.maxstep value \"{}\" would stop labels " +
+                           "from moving at all. Using 1000.", maxstep);
+            }
+            else {
+               maxval = parsed;
+               fromProperty = true;
+            }
          }
          catch(NumberFormatException ex) {
             // this runs once per label, so throwing would fail the whole chart render
             LOG.warn("Invalid graph.textlayout.maxstep value \"{}\", expected an integer. " +
                         "Using 1000.", maxstep);
-            maxval = 1000;
          }
       }
 

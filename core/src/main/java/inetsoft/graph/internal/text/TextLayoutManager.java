@@ -184,6 +184,7 @@ public class TextLayoutManager {
 
          if(helper.isMaxStepsFromProperty()) {
             int[] max = helper.getMaxSteps();
+            // getMaxSteps() is overridable and the loop below mutates in place
             steps = steps.clone();
 
             for(int i = 0; i < steps.length; i++) {
