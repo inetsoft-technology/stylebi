@@ -49,7 +49,13 @@ public class WorksheetTable {
    private PhysicalSource physicalSource;
    /** Explicit column selection for physical tables; null = include all columns. */
    private List<ColumnInfo> columns;
-   /** Expression columns (only valid on non-aggregated mirror tables). */
+   /**
+    * Expression (derived) columns. Honored on {@code physical table} and on a {@code mirror table}
+    * that does NOT aggregate. Not applied on an aggregating table, a {@code relational join table},
+    * or a {@code sql query table} (write the expression into {@code sqlExpression} instead);
+    * rejected outright on a {@code tabular table}. In every unsupported case the way to get a
+    * derived column is a mirror table over that table, in a later call.
+    */
    private List<ExpressionColumnInfo> expressionColumns;
    /** Structured window (analytic) function columns, e.g. ROW_NUMBER/RANK/NTILE/LAG/SUM OVER(...). */
    private List<WindowColumnInfo> windowColumns;
