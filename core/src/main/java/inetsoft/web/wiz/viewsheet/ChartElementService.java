@@ -29,6 +29,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.viewsheet.controller.chart.*;
 import inetsoft.web.viewsheet.event.chart.*;
@@ -152,16 +153,21 @@ public class ChartElementService {
     * Resizes the plot area, or resets it.
     *
     * <p>The ratio <em>scales the plot's minimum size</em> — {@code VGraphPair} applies it as
-    * {@code minPlotHeight *= heightRatio} — so above 1 enlarges the plot and makes the assembly
-    * scroll, 1 is the default, and below 1 lowers a minimum the plot already exceeds and so
-    * usually changes nothing visible.
+    * {@code minPlotHeight *= heightRatio} — so a large enough ratio enlarges the plot and makes
+    * the assembly scroll. <b>The threshold is the chart's own {@code initialRatio}, not 1</b>:
+    * {@code VGraphPair} re-derives the ratio only while {@code percent = ratio / initialRatio} is
+    * at least 1, so on a chart whose baseline is 2.75 a ratio of 2 is stored and inert.
+    *
+    * <p><b>The range is now enforced.</b> See {@link #requireRatioInRange} — it was enforced
+    * only by the Composer's resize slider, which this tool does not go through.
     *
     * <p>This was originally documented and validated as "the plot's share of the assembly, 0 to
     * 1", which is not what the underlying event does. Because the validation enforced that range,
     * the only values the tool accepted were the ones that do nothing — the tool returned success
     * and never changed a pixel.
     *
-    * @param ratio    scale for the plot's minimum size; above 1 enlarges it
+    * @param ratio    scale for the plot's minimum size; must be within the chart's own
+    *                 {@code initialRatio}..{@code max*Ratio} range
     * @param vertical true to resize the height, false the width
     */
    public void resizePlot(String sessionToken, Principal user, String assemblyName, Double ratio,
@@ -173,6 +179,13 @@ public class ChartElementService {
             " — it scales the plot's minimum size, so a value above 1 enlarges the plot and makes " +
             "it scroll, while 1 or less usually changes nothing visible. Got " + ratio +
             ". Pass reset:true to restore the default instead.");
+      }
+
+      // Resolved before the runtime is mutated, like legendEvent in setVisibility and for the
+      // same reason: the mutation checkpoints and broadcasts in a finally, so a refusal raised
+      // inside it would spend an undo step and a Composer refresh on a call that changed nothing.
+      if(!reset) {
+         requireRatioInRange(sessionToken, user, assemblyName, ratio, vertical);
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -337,6 +350,122 @@ public class ChartElementService {
       }
 
       return Map.of("maxWidthRatio", round(maxWidth), "maxHeightRatio", round(maxHeight));
+   }
+
+   /**
+    * Refuses a ratio outside the range the Composer's own resize slider can produce.
+    *
+    * <p><b>The range was enforced by a widget, not by the server.</b> The slider is drawn with
+    * {@code min=initialRatio} and {@code max=maxHorizontalResize/maxVerticalResize}
+    * (vs-chart.component.html), while {@link VSChartPlotResizeService} validates nothing at all -
+    * it writes whatever {@code sizeRatio} arrives. A person dragging that slider cannot leave the
+    * range, so this tool, which posts the event directly, was the first caller able to.
+    *
+    * <p>Both ends were reachable and neither was reported. <b>Below {@code initialRatio}</b> the
+    * write is stored and inert: {@code VGraphPair} re-derives the ratio only while
+    * {@code percent = ratio / initialRatio} is at least 1, so the call returned success and
+    * changed nothing - the silent-degradation shape {@link #readPlotSize} exists to make visible.
+    * <b>Above the maximum</b> it does take effect, but it lands the sheet in a state no Composer
+    * user can reach: past that point every axis unit already has a full unit of space, so a
+    * larger ratio only adds empty space.
+    *
+    * <p><b>Read through its own session read</b>, like {@link #legendEvent}, so a refusal costs no
+    * undo step - see the note at that method.
+    *
+    * <p>The maximum needs the laid-out graph, so a chart that has none - unbound, empty, still
+    * computing - is checked against the lower bound alone rather than being refused for a bound
+    * that cannot be computed. The lower bound never needs the graph: {@code initialRatio} is on
+    * the chart info.
+    *
+    * <p><b>This guards the agent path only.</b> {@code VSChartPlotResizeService} is still
+    * unvalidated. It is reachable today from here and from the slider, and both now bound it, so
+    * nothing out of range can be written - but any new caller added to that service must carry
+    * the same check or the gap reopens.
+    */
+   private void requireRatioInRange(String sessionToken, Principal user, String assemblyName,
+                                    double ratio, boolean vertical)
+      throws Exception
+   {
+      sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         VSChartInfo info = chart.getVSChartInfo();
+         // VSChartPlotResizeService applies one ratio to BOTH directions for these, dividing it by
+         // each direction's own initial ratio - so both bounds have to hold. Checking only the
+         // direction the caller named would let half of such a write through inert.
+         boolean square = GraphTypeUtil.isWordCloud(info) ||
+            info.getChartType() == GraphTypes.CHART_CIRCULAR;
+         boolean width = square || !vertical;
+         boolean height = square || vertical;
+
+         if(width) {
+            requireAtLeastInitial(ratio, info.getInitialWidthRatio(), "width");
+         }
+
+         if(height) {
+            requireAtLeastInitial(ratio, info.getInitialHeightRatio(), "height");
+         }
+
+         VGraph real = laidOutGraph(rvs, chart);
+
+         if(real != null) {
+            Map<String, Object> max = maxRatios(real, info);
+
+            if(width) {
+               requireAtMost(ratio, max.get("maxWidthRatio"), "width");
+            }
+
+            if(height) {
+               requireAtMost(ratio, max.get("maxHeightRatio"), "height");
+            }
+         }
+
+         return null;
+      });
+   }
+
+   /** The chart's laid-out graph, or null when there is none to measure. */
+   private static VGraph laidOutGraph(RuntimeViewsheet rvs, ChartVSAssembly chart)
+      throws Exception
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box == null) {
+         return null;
+      }
+
+      VGraphPair pair;
+      box.lockRead();
+
+      try {
+         pair = box.getVGraphPair(chart.getAbsoluteName());
+      }
+      finally {
+         box.unlockRead();
+      }
+
+      return pair == null ? null : pair.getRealSizeVGraph();
+   }
+
+   /** Below the baseline the write is accepted and inert, which is worse than a refusal. */
+   private static void requireAtLeastInitial(double ratio, double initial, String direction) {
+      if(ratio < initial) {
+         throw new IllegalArgumentException(
+            "resize_plot's 'ratio' of " + round(ratio) + " is below this chart's " + direction +
+            " baseline of " + round(initial) + ", so it would be stored and change nothing - the " +
+            "layout re-applies a resize only while ratio / baseline is at least 1. Pass at least " +
+            round(initial) + " to enlarge the plot, or reset:true to restore the default size.");
+      }
+   }
+
+   /** Past the maximum a resize only adds empty space, and no Composer user can get there. */
+   private static void requireAtMost(double ratio, Object max, String direction) {
+      if(max instanceof Number bound && ratio > bound.doubleValue()) {
+         throw new IllegalArgumentException(
+            "resize_plot's 'ratio' of " + round(ratio) + " is above this chart's " + direction +
+            " maximum of " + bound + ", which is as far as the Composer's own resize slider goes " +
+            "- every axis unit already has a full unit of space there, so a larger ratio only " +
+            "adds empty space. Pass " + bound + " or less.");
+      }
    }
 
    private static Map<String, Object> size(Rectangle2D bounds) {
