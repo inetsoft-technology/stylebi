@@ -19,6 +19,10 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.vs.dialog.HyperlinkDialogService;
@@ -28,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -88,7 +93,7 @@ class AssemblyHyperlinkServiceTest {
       h.service.set("tok", principal(), "Chart1", null, link("linkType", "none"), "");
 
       HyperlinkDialogModel posted = capture(h.links);
-      assertEquals(0, posted.getLinkType());
+      assertEquals(HyperlinkDialogService.NONE, posted.getLinkType());
       assertNull(posted.getWebLink(), "clearing the type must clear the destination with it");
    }
 
@@ -251,10 +256,409 @@ class AssemblyHyperlinkServiceTest {
       assertTrue(String.valueOf(types.get("linkTypes")).contains("viewsheet"));
    }
 
+   // ── list_hyperlink_targets ───────────────────────────────────────────────
+
+   private static final IdentityID OWNER = IdentityID.getIdentityIDFromKey("admin");
+
+   private static AssetEntry folderEntry(int scope, String path, IdentityID owner) {
+      return new AssetEntry(scope, AssetEntry.Type.REPOSITORY_FOLDER, path, owner);
+   }
+
+   private static AssetEntry vsEntry(int scope, String path, IdentityID owner) {
+      return new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, owner);
+   }
+
+   private static AssetEntry globalRoot() {
+      return folderEntry(AssetRepository.GLOBAL_SCOPE, "/", null);
+   }
+
+   private static AssetEntry userRoot() {
+      return folderEntry(AssetRepository.USER_SCOPE, "/", OWNER);
+   }
+
+   @SuppressWarnings("unchecked")
+   private static List<Map<String, Object>> targetsOf(Map<String, Object> result) {
+      return (List<Map<String, Object>>) result.get("targets");
+   }
+
+   @Test
+   void returnsGlobalScopeViewsheetsUnderTheRoot() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(false);
+      AssetEntry detail = vsEntry(AssetRepository.GLOBAL_SCOPE, "Detail", null);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ detail });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(1, targets.size());
+      assertEquals("Detail", targets.get(0).get("path"));
+      assertEquals(detail.toIdentifier(), targets.get(0).get("assetLinkId"));
+      assertEquals("global", targets.get(0).get("scope"));
+      assertEquals(false, result.get("truncated"));
+   }
+
+   @Test
+   void returnsUserScopeViewsheetsUnderTheRoot() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(globalRoot())).thenReturn(false);
+      when(h.repository.containsEntry(userRoot())).thenReturn(true);
+      AssetEntry mine = vsEntry(AssetRepository.USER_SCOPE, "MyReport", OWNER);
+      when(h.repository.getEntries(eq(userRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ mine });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(1, targets.size());
+      assertEquals("MyReport", targets.get(0).get("path"));
+      assertEquals("user", targets.get(0).get("scope"));
+   }
+
+   /**
+    * Deduping by name would hide exactly the ambiguity {@code assetLinkId} exists to resolve, so
+    * a name present in both scopes comes back twice.
+    */
+   @Test
+   void aNameInBothScopesIsReturnedOncePerScope() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(true);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ vsEntry(AssetRepository.GLOBAL_SCOPE, "Shared", null) });
+      when(h.repository.getEntries(eq(userRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ vsEntry(AssetRepository.USER_SCOPE, "Shared", OWNER) });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(2, targets.size());
+      assertTrue(targets.stream().anyMatch(t -> "global".equals(t.get("scope"))));
+      assertTrue(targets.stream().anyMatch(t -> "user".equals(t.get("scope"))));
+      assertTrue(targets.stream().allMatch(t -> "Shared".equals(t.get("path"))));
+   }
+
+   /** A folder that exists in only one scope is normal, so the other scope is skipped, not refused. */
+   @Test
+   void folderRestrictsToTheSubtreeAndIsSkippedInTheScopeThatLacksIt() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry globalFolder = folderEntry(AssetRepository.GLOBAL_SCOPE, "Reports", null);
+      AssetEntry userFolder = folderEntry(AssetRepository.USER_SCOPE, "Reports", OWNER);
+      when(h.repository.containsEntry(globalFolder)).thenReturn(true);
+      when(h.repository.containsEntry(userFolder)).thenReturn(false);
+      when(h.repository.getEntries(eq(globalFolder), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{
+            vsEntry(AssetRepository.GLOBAL_SCOPE, "Reports/Detail", null) });
+
+      Map<String, Object> result =
+         h.service.listLinkTargets("tok", principal(), "Reports", null, null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(1, targets.size());
+      assertEquals("Reports/Detail", targets.get(0).get("path"));
+      verify(h.repository, never()).getEntries(eq(userFolder), any(Principal.class), any(), any());
+   }
+
+   /** A match several levels deep is still found even though its containing folder's name does not match. */
+   @Test
+   void queryMatchesCaseInsensitivelyEvenNestedUnderANonMatchingFolder() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry misc = folderEntry(AssetRepository.GLOBAL_SCOPE, "Misc", null);
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(false);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ misc });
+      when(h.repository.getEntries(eq(misc), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{
+            vsEntry(AssetRepository.GLOBAL_SCOPE, "Misc/TargetVS", null) });
+
+      Map<String, Object> result =
+         h.service.listLinkTargets("tok", principal(), null, "target", null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(1, targets.size());
+      assertEquals("Misc/TargetVS", targets.get(0).get("path"));
+   }
+
+   @Test
+   void neverDescendsIntoAFolderNamedRecycleBin() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry recycleBin = folderEntry(AssetRepository.GLOBAL_SCOPE, "Recycle Bin", null);
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(false);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{
+            recycleBin, vsEntry(AssetRepository.GLOBAL_SCOPE, "Keep", null) });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(1, targets.size());
+      assertEquals("Keep", targets.get(0).get("path"));
+      verify(h.repository, never()).getEntries(eq(recycleBin), any(Principal.class), any(), any());
+   }
+
+   @Test
+   void limitTruncatesAndReportsTruncatedTrue() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(false);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{
+            vsEntry(AssetRepository.GLOBAL_SCOPE, "A", null),
+            vsEntry(AssetRepository.GLOBAL_SCOPE, "B", null) });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, 1);
+
+      assertEquals(1, targetsOf(result).size());
+      assertEquals(true, result.get("truncated"));
+   }
+
+   @Test
+   void aResultSetUnderTheLimitReportsTruncatedFalse() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(false);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ vsEntry(AssetRepository.GLOBAL_SCOPE, "A", null) });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, 200);
+
+      assertEquals(false, result.get("truncated"));
+   }
+
+   /**
+    * This is the test that actually enforces "this tool's output is a contract with the write
+    * path" -- every path this method returns must round-trip through {@code set} without hitting
+    * the "No viewsheet at ..." refusal {@code resolveViewsheetTarget} raises on a miss.
+    */
+   @Test
+   void everyReturnedPathRoundTripsThroughSetHyperlink() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      reset(h.repository);
+      AssetEntry viewsheet = vsEntry(AssetRepository.GLOBAL_SCOPE, "Reports/Detail", null);
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ viewsheet });
+      // What resolveViewsheetTarget itself checks to accept the path.
+      when(h.repository.containsEntry(viewsheet)).thenReturn(true);
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, null);
+      String path = (String) targetsOf(result).get(0).get("path");
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", path), ""));
+   }
+
+   /**
+    * A mock repository could hand back an entry of a type the selector was never meant to admit
+    * (a {@code WORKSHEET}, say); this confirms such an entry is excluded, and that the correct
+    * selector -- {@code REPOSITORY_FOLDER}/{@code VIEWSHEET} only -- is what was actually passed
+    * to {@code getEntries}, rather than a client-side type check standing in for it.
+    */
+   @Test
+   void nonFolderNonViewsheetEntriesAreExcludedAndTheSelectorIsPassedThrough() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(globalRoot())).thenReturn(true);
+      when(h.repository.containsEntry(userRoot())).thenReturn(false);
+      AssetEntry worksheet = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                            "SomeWorksheet", null);
+      when(h.repository.getEntries(eq(globalRoot()), any(Principal.class),
+                                   eq(ResourceAction.READ), any()))
+         .thenReturn(new AssetEntry[]{ worksheet,
+                                       vsEntry(AssetRepository.GLOBAL_SCOPE, "Keep", null) });
+
+      Map<String, Object> result = h.service.listLinkTargets("tok", principal(), null, null, null);
+
+      List<Map<String, Object>> targets = targetsOf(result);
+      assertEquals(1, targets.size());
+      assertEquals("Keep", targets.get(0).get("path"));
+      verify(h.repository).getEntries(eq(globalRoot()), any(Principal.class),
+                                      eq(ResourceAction.READ),
+                                      argThat(sel -> sel.matches(AssetEntry.Type.VIEWSHEET) &&
+                                                    sel.matches(AssetEntry.Type.REPOSITORY_FOLDER) &&
+                                                    !sel.matches(AssetEntry.Type.WORKSHEET)));
+   }
+
+   // ── regressions for the four hyperlink defects ────────────────────────
+
+   /**
+    * The read half of the sentinel mismatch. {@code LINK_TYPES} mapped {@code "none"} to 0, but
+    * the dialog service carries its own private {@code NONE = 9}, so a never-linked assembly --
+    * which is every assembly until someone links it -- reported itself as {@code "unknown(9)"}.
+    * That is the first thing a caller sees on any assembly, and it read as a bug in the tool.
+    */
+   @Test
+   void aNeverLinkedAssemblyReadsBackAsNoneNotAnUnknownConstant() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals("none", read.get("linkType"));
+   }
+
+   /** The token the read reports has to be the one {@link AssemblyHyperlinkService#set} accepts. */
+   @Test
+   void theNoneTokenRoundTripsBetweenReadAndWrite() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+      Harness h = harness(model);
+
+      Object token = h.service.read("tok", principal(), "Chart1", null).get("linkType");
+      h.service.set("tok", principal(), "Chart1", null, link("linkType", token), "");
+
+      assertEquals(HyperlinkDialogService.NONE, capture(h.links).getLinkType());
+   }
+
+   /**
+    * A cleared link must not keep its destination fields. Tooltip and target frame surviving a
+    * clear is what made a cleared link read differently from a never-linked one.
+    */
+   @Test
+   void clearingDropsTheTooltipAndTargetFrameToo() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setWebLink("https://old.example.com");
+      model.setTooltip("stale tooltip");
+      model.setTargetFrame("_blank");
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null, link("linkType", "none"), "");
+
+      HyperlinkDialogModel posted = capture(h.links);
+      assertNull(posted.getTooltip(), "a stale tooltip beside a cleared link reads wrong");
+      assertNull(posted.getTargetFrame());
+      assertNull(posted.getAssetLinkId());
+      assertNull(posted.getAssetLinkPath());
+   }
+
+   /**
+    * A viewsheet link is stored by {@code assetLinkId}, and nothing ever set it -- it reached
+    * {@code VSUtil.getBookmarks} as null and surfaced as a raw NPE. Asserting the link type alone
+    * would still pass with the id left null, which is exactly the state that crashed.
+    */
+   @Test
+   void aViewsheetLinkCarriesTheResolvedAssetIdNotJustThePath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail"), "");
+
+      HyperlinkDialogModel posted = capture(h.links);
+      assertNotNull(posted.getAssetLinkId(), "the id is the half getHyperlink actually stores");
+      assertEquals("Reports/Detail", posted.getAssetLinkPath(), "the path is the display half");
+   }
+
+   /**
+    * An explicit id short-circuits resolution, for a caller that already holds the identifier --
+    * the Composer's own dialog works that way, from its asset tree. {@code assetLinkPath} is still
+    * required, because it is the display half of the same link.
+    */
+   @Test
+   void anExplicitAssetLinkIdIsUsedVerbatimWithoutConsultingTheRepository() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                         "assetLinkId", "1^128^__NULL__^Reports/Detail"), "");
+
+      assertEquals("1^128^__NULL__^Reports/Detail", capture(h.links).getAssetLinkId());
+      verify(h.repository, never()).containsEntry(any());
+   }
+
+   /**
+    * <b>The assertion that matters most in this file.</b> Resolving the target inside
+    * {@code sessions.mutate} meant an unresolvable path threw with the model already half-written,
+    * leaving the assembly carrying {@code linkType=viewsheet} and a null destination -- worse than
+    * the refusal it was trying to report. Resolution now runs first, so nothing is mutated.
+    */
+   @Test
+   void anUnresolvablePathIsRefusedWithoutMutatingAnything() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any())).thenReturn(false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Gone"), ""));
+
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(h.links);
+      assertTrue(thrown.getMessage().contains("Reports/Gone"), "name the path that was not found");
+   }
+
+   /** The refusal names both scopes it looked in, so the caller knows where to put the sheet. */
+   @Test
+   void theRefusalNamesBothScopesItSearched() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any())).thenReturn(false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Gone"), ""));
+
+      assertTrue(thrown.getMessage().contains("global"), "name the global scope");
+      assertTrue(thrown.getMessage().contains("admin"), "name the caller's own scope");
+   }
+
+   /**
+    * The dialog service does not echo {@code colName} back into the model, so a caller that
+    * addressed a cell BY NAME read back null and could not confirm it had read the cell it wrote.
+    * Falling back to what was asked for is the honest answer.
+    */
+   @Test
+   void echoesBackTheColNameTheReadWasScopedTo() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      Map<String, Object> read = h.service.read(
+         "tok", principal(), "Table1",
+         new AssemblyHyperlinkService.Region(2, 1, "Sales", false, false, false, false));
+
+      assertEquals("Sales", read.get("colName"),
+                   "the model does not carry it; the name this read was scoped to is the answer");
+   }
+
+   /** The model's own value wins when it has one -- the fallback must not overwrite it. */
+   @Test
+   void theModelsOwnColNameTakesPrecedenceOverTheRequested() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setColName("Revenue");
+
+      Map<String, Object> read = harness(model).service.read(
+         "tok", principal(), "Table1",
+         new AssemblyHyperlinkService.Region(2, 1, "Sales", false, false, false, false));
+
+      assertEquals("Revenue", read.get("colName"));
+   }
+
+   /** No region, no name asked for, nothing to fall back to -- null, not a fabricated value. */
+   @Test
+   void reportsANullColNameWhenNoneWasAskedForOrCarried() throws Exception {
+      Map<String, Object> read = harness(new HyperlinkDialogModel())
+         .service.read("tok", principal(), "Chart1", null);
+
+      assertNull(read.get("colName"));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyHyperlinkService service, ViewsheetSessionService sessions,
-                          HyperlinkDialogService links) {}
+                          HyperlinkDialogService links, AssetRepository repository) {}
 
    private static HyperlinkDialogModel capture(HyperlinkDialogService links) throws Exception {
       ArgumentCaptor<HyperlinkDialogModel> captor =
@@ -271,9 +675,15 @@ class AssemblyHyperlinkServiceTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       HyperlinkDialogService links = mock(HyperlinkDialogService.class);
+      AssetRepository repository = mock(AssetRepository.class);
 
       try {
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+         when(rvs.getAssetRepository()).thenReturn(repository);
+         // A lenient default -- resolveViewsheetTarget's own tests below stub containsEntry
+         // precisely, but the write-path tests above (setsAViewsheetLink) only need resolution
+         // to succeed, not to exercise scope precedence, so any entry matches.
+         when(repository.containsEntry(any())).thenReturn(true);
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", null);
@@ -288,7 +698,8 @@ class AssemblyHyperlinkServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new Harness(new AssemblyHyperlinkService(sessions, links), sessions, links);
+      return new Harness(new AssemblyHyperlinkService(sessions, links), sessions, links,
+                         repository);
    }
 
    private static Principal principal() {

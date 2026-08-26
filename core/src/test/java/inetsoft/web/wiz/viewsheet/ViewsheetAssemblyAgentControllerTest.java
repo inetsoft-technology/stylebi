@@ -216,6 +216,25 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * {@code list_hyperlink_targets} — the query params are forwarded exactly as received and the
+    * service's return value passes through unchanged, matching every other read endpoint in this
+    * file.
+    */
+   @Test
+   void listHyperlinkTargetsDelegatesToTheService() throws Exception {
+      AssemblyHyperlinkService hyperlinkService = mock(AssemblyHyperlinkService.class);
+      Map<String, Object> expected = Map.of("targets", List.of(), "truncated", false);
+      when(hyperlinkService.listLinkTargets(eq("tok"), any(Principal.class), eq("Reports"),
+                                            eq("detail"), eq(50)))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(hyperlinkService);
+
+      assertSame(expected, controller.listHyperlinkTargets(
+         "tok", "Reports", "detail", 50, principal()));
+   }
+
+   /**
     * A refused patch (a bad key, or the {@code vsScriptPane} refusal) must surface as the same
     * named-field {@code IllegalArgumentException} the global {@code WizControllerErrorHandler}
     * turns into a 400 — never a bare 500 that reads as a server bug.
@@ -418,6 +437,42 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyPropertyService.class),
                                           propertyService,
                                           mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class));
+   }
+
+   /** Feature enabled, only {@code hyperlinkService} wired -- for the hyperlink-targets test. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      AssemblyHyperlinkService hyperlinkService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          hyperlinkService,
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
                                           mock(AssemblyConditionService.class),

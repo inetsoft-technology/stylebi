@@ -153,6 +153,15 @@ public class ChangeChartTypeService {
          handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
 
          if(ostackMeasures == nstackMeasures) {
+            // clearRuntime() above discarded the runtime aesthetic fields, and this is the only
+            // exit that does not go on to rebuild them -- every other path below reaches
+            // updateAssembly. Without this, setting a chart to the type it already has leaves its
+            // colour, shape and size bindings in the design-time info, where every read reports
+            // them, and absent from what renders: the chart draws as though nothing were bound to
+            // those channels, and stays that way until some later call happens to take the full
+            // path. Found by asserting a chart's current type, which is the cheapest no-op a
+            // caller can make and the most likely one to be made "just to be sure".
+            box.get().updateAssembly(chart.getAbsoluteName());
             return null;
          }
       }
@@ -166,8 +175,50 @@ public class ChangeChartTypeService {
          chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
       }
 
-      cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType,
-                                                         omulti, nmulti, ref, cinfo, false, desc).process();
+      try {
+         cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType, omulti, nmulti, ref,
+                                                            cinfo, false, desc)
+            .setStrictFieldPlacement(true)
+            .process();
+      }
+      catch(ChangeChartTypeProcessor.FieldPlacementException e) {
+         // ChangeChartTypeProcessor refuses a retype that has nowhere to put a bound field (a
+         // measure on colour heading for a pie, measures with no free aesthetic channel heading
+         // for a treemap) rather than destroying it silently. Three things have to happen here and
+         // none of them can be left to the caller.
+         //
+         // Caught by its own type, not by IllegalArgumentException: process() is a long chain and
+         // an unrelated argument failure anywhere in it would otherwise be rolled back silently
+         // and reported to the user as though it were a considered refusal.
+         //
+         // First, the refusal is not atomic on its own. It lands before any field is moved, but
+         // fixChartInfo() has already run by then and stamps the new type onto the live info when
+         // the two types share a ChartInfo class (bar -> pie), so the assembly is left claiming a
+         // type whose binding it never got. Restoring the clone taken at the top of this method is
+         // the only way to make the whole call a no-op, which is what a refusal has to be.
+         //
+         // Second, clearRuntime() ran above, before we knew the retype would be refused. Unwinding
+         // without updateAssembly() would leave the chart exactly as the same-type branch above
+         // used to: aesthetics reported by every read and absent from what renders.
+         //
+         // Third, composer services report failure by dispatching a MessageCommand, not by
+         // throwing -- see the permission refusal above. Doing the same here means the browser
+         // gets a dialog naming the field instead of a 500, and the agent tier gets a loud error
+         // for free: CapturingCommandDispatcher turns an ERROR command into a
+         // CommandErrorException. And like that refusal, the text is catalogued rather than a raw
+         // literal: the exception carries the key and its arguments so the dialog arrives in the
+         // user's own language.
+         chart.setVSAssemblyInfo(oinfo);
+         box.get().updateAssembly(chart.getAbsoluteName());
+
+         MessageCommand command = new MessageCommand();
+         command.setMessage(
+            Catalog.getCatalog().getString(e.getCatalogKey(), e.getArguments()));
+         command.setType(MessageCommand.Type.ERROR);
+         dispatcher.sendCommand(command);
+         return null;
+      }
+
       SourceInfo sourceInfo = ninfo.getSourceInfo();
       new ChangeChartProcessor().fixParetoSorting(cinfo);
 

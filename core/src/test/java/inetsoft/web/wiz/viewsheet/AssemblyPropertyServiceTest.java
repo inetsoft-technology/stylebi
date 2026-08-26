@@ -194,6 +194,24 @@ class AssemblyPropertyServiceTest {
                  "the valid key must not have been written before the bad one was found");
    }
 
+   /**
+    * The direct regression test for the reported defect: set_assembly_properties(Submit1,
+    * {shadow: true}) used to return a fake {@code {"ok":true}} and bump the write revision, but
+    * shadow was never applied -- SubmitPropertyDialogService never reads or writes it, so it
+    * always read back false. Now that PropertyAliases no longer registers shadow for submit,
+    * resolveForWrite's existing unknown-key refusal fires before anything is read or written.
+    */
+   @Test
+   void refusesShadowOnAnAssemblyTypeThatDoesNotApplyIt() {
+      AssemblyPropertyService service = serviceWith(mock(SubmitVSAssembly.class), null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Submit1", Map.of("shadow", true), ""));
+
+      assertTrue(thrown.getMessage().contains("shadow"), "must name the refused key: " + thrown.getMessage());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {

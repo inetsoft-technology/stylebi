@@ -21,7 +21,9 @@ package inetsoft.web.wiz.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -41,10 +43,9 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.PropertyMeta;
-import inetsoft.uql.tabular.RestParameter;
-import inetsoft.uql.tabular.RestParameters;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +60,9 @@ import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -194,6 +198,347 @@ public class WorksheetTableService {
       response.setWsId(worksheetEntry != null ? worksheetEntry.toIdentifier() : null);
       response.setTables(results);
       return response;
+   }
+
+   // ─── Probe: discover a tabular target's columns and sample rows, persisting nothing ───────
+
+   /**
+    * Open a throwaway worksheet runtime for a run of {@link #probeTable} calls.
+    *
+    * <p>{@code openTemporaryWorksheet} and {@code openWorksheet} are two different things:
+    * the latter opens a stored asset for editing, the former mints a pure runtime session that
+    * never touches {@code AssetRepository}. This path wants the second — an annotation pass reads
+    * a data source's files to describe them and must leave nothing behind, so there is no asset to
+    * create, no permission to delete one with, and no cleanup task to write.</p>
+    *
+    * <p>Opened once for a whole data source rather than per file, and CLOSED BY THE CALLER — a
+    * runtime session that is never closed is a leak, which is why {@link #closeProbeWorksheet}
+    * exists as its own call rather than being folded into the last probe.</p>
+    *
+    * <p>Sequential by construction: the returned runtime holds ONE {@code Worksheet}, which
+    * {@link #probeTable} mutates. Files of one data source must therefore be probed one at a time.
+    * That is a choice, not a limit — open a runtime per file to probe them in parallel, at the cost
+    * of that many live sessions.</p>
+    */
+   public String openProbeWorksheet(Principal user) throws Exception {
+      // The same action-level gate createTables applies, for the same reason: this opens a
+      // worksheet runtime, and the caller has to be allowed worksheets at all before it can.
+      checkWorksheetActionPermission(user);
+
+      return viewsheetService.openTemporaryWorksheet(user, null);
+   }
+
+   /**
+    * Build one table in the probe runtime, report what it holds, and take it back out.
+    *
+    * <p>WHY A WORKSHEET AT ALL, given a tabular query can answer its columns without one:
+    * {@code SelectableTabularQuery.getColumns()} needs no runtime, but SAMPLE ROWS do — only the
+    * runner that executes the query ever sees a row, and {@code buildTabularTable} is where
+    * {@code sampleRows} is wired onto the query. For a CSV that is not a nicety: a header row is
+    * often the entire column-name vocabulary a file has, so the values are most of what an
+    * annotation pass has to reason from. Replacing this with {@code createQuery + getColumns()}
+    * would look simpler and would halve what the annotation is written from.</p>
+    *
+    * <p>The assembly is removed on the way out. Each file is an independent question and none of
+    * them is being saved, so leaving them to pile up in the shared worksheet would only grow the
+    * runtime and slow every later probe's name resolution.</p>
+    *
+    * <p>A failure comes back as {@code success=false} with the reason, exactly as it does inside a
+    * {@code createTables} batch — the caller is an annotation loop walking a directory, and one
+    * unreadable file must not end the walk. It is also how a multi-sheet workbook reports its sheet
+    * names: {@code applyFileContract} refuses to guess and names them in the message.</p>
+    */
+   public WorksheetTableResponse probeTable(String runtimeId, WorksheetTable table, Principal user)
+      throws Exception
+   {
+      checkWorksheetActionPermission(user);
+
+      if(runtimeId == null || runtimeId.isBlank()) {
+         throw new IllegalArgumentException("runtimeId is required; open a probe worksheet first");
+      }
+
+      if(table == null) {
+         throw new IllegalArgumentException("table is required");
+      }
+
+      // Assigned rather than demanded. The name is an artifact of building an assembly and is
+      // discarded with it below, so making the caller invent one per file would be asking for a
+      // decision that has no consequence.
+      if(table.getTableName() == null || table.getTableName().isBlank()) {
+         table.setTableName("probe_" + PROBE_TABLE_SEQUENCE.incrementAndGet());
+      }
+
+      RuntimeWorksheet rws = viewsheetService.getWorksheet(runtimeId, user);
+      Worksheet worksheet = rws.getWorksheet();
+
+      try {
+         WorksheetTableResponse response = addOneTable(worksheet, table, user);
+         applySandboxSampleRows(worksheet, table, response, user);
+
+         return response;
+      }
+      catch(Exception e) {
+         return failure(table.getTableName(), rootMessage(e));
+      }
+      finally {
+         if(worksheet.getAssembly(table.getTableName()) != null) {
+            worksheet.removeAssembly(table.getTableName());
+         }
+      }
+   }
+
+   /**
+    * Sample a FILE target's rows by executing the table that was just built.
+    *
+    * <p>WHY THIS EXISTS AT ALL. The two target kinds discover their columns by opposite means, and
+    * the sampling mechanism was built for one of them. An endpoint has no column list until a
+    * request has been answered, so {@code EndpointJsonQueryRunner} — the only writer of
+    * {@code TabularQuery.setSampleRows} anywhere — takes the sample from that one unavoidable
+    * response. A file's columns come from {@code ServerFileQuery.loadColumns()} reading the header,
+    * which executes no query and involves no runner at all, so nothing ever fills the slot and
+    * {@link #applyResponseSampleRows} finds it empty every time. Left there, the probe worksheet
+    * would earn nothing: columns are obtainable with {@code createQuery + getColumns()} and no
+    * runtime whatever, and the sample was the entire reason for standing one up.</p>
+    *
+    * <p>WHY NOT IN THE CONNECTOR. The REST mechanism exists because a REST read is expensive —
+    * metered, paginated, one chance at it — so the sample has to ride along with the request that
+    * was already being paid for. A local file has no such constraint: executing the table once more
+    * after building it is cheap, and doing it HERE rather than in ServerFile means every future
+    * file-shaped connector (OneDrive) gets sampling with no connector code at all.</p>
+    *
+    * <p>WHY ONLY HERE, and not in {@code buildTabularTable}. This is the annotation probe, whose
+    * whole output is a description of the file. The user's own {@code createTables} must not run an
+    * extra query as a side effect of adding a table to a worksheet.</p>
+    *
+    * <p>A FAILURE IS NOT A FAILURE OF THE PROBE. The columns are already in hand and they are what
+    * the caller asked for; the values are the bonus. A corrupt row, a bad encoding, a timeout —
+    * each is logged and leaves the sample absent, and the probe still answers {@code success=true}
+    * with its column list.</p>
+    */
+   private void applySandboxSampleRows(Worksheet worksheet, WorksheetTable request,
+                                       WorksheetTableResponse response, Principal user)
+   {
+      // EVERY statement is inside the try, the deciding one included. This method is called from
+      // inside probeTable's own try, so anything that escaped here would be caught there and turn a
+      // successful probe into a failed one — throwing away the column list over a missing bonus.
+      // The inner catch is what makes that impossible, so nothing may sit outside it.
+      AssetQuerySandbox box = null;
+
+      try {
+         int limit = sandboxSampleLimit(request, response);
+
+         if(limit <= 0) {
+            return;
+         }
+
+         // One more than asked for, which is how "there was more" is learned: the extra row is the
+         // evidence, and it is dropped before the sample is reported. Without it a file of exactly
+         // "limit" rows and a file of ten thousand are indistinguishable in the answer.
+         int probe = limit + 1;
+
+         if(!(worksheet.getAssembly(request.getTableName()) instanceof TableAssembly table)) {
+            return;
+         }
+
+         // Bounds the CONNECTOR's read, not just what is copied out of the lens.
+         // TabularBoundQuery.merge pushes this onto the query as XQuery.rowlimit
+         // (PreAssetQuery.getDefinedMaxRows -> getMaxRows), and ServerFileRuntime's row loop tests
+         // exactly that: `while(node.next() && (maxRows <= 0 || getRowCount() <= maxRows))`. So a
+         // 200MB CSV stops after probe rows rather than being read to the end and then trimmed.
+         // Not restored: this assembly is removed in probeTable's finally and never persisted.
+         table.setMaxRows(probe);
+
+         // A FRESH sandbox, disposed here, rather than the runtime's own. getTableLens caches by
+         // (name, mode, aggregate, column-selection hash) and probeTable is a loop that reuses one
+         // table name across files — a directory of monthly exports with identical headers hashes
+         // identically, so the runtime's cache would answer February with January's rows. A private
+         // sandbox cannot have a stale entry. Mirrors probeExecutable, which builds its own for the
+         // same one-shot reason.
+         box = new AssetQuerySandbox(worksheet);
+         box.setBaseUser(user);
+
+         // RUNTIME_MODE, not the LIVE_MODE probeExecutable uses. LIVE samples input tables down to
+         // the sandbox's design-time cap (see WorksheetPreviewService), which is harmless when the
+         // only question is "did the query run" and wrong when the answer IS the values.
+         TableLens lens = box.getTableLens(request.getTableName(),
+                                           AssetQuerySandbox.RUNTIME_MODE);
+
+         if(lens == null) {
+            return;
+         }
+
+         List<Map<String, Object>> rows = readSampleRows(lens, probe);
+
+         if(rows.isEmpty()) {
+            return;
+         }
+
+         boolean truncated = rows.size() > limit;
+         response.setSampleRows(List.copyOf(truncated ? rows.subList(0, limit) : rows));
+
+         // Only when true, matching how the endpoint path reports it: a consumer reading values out
+         // of a sample has to tell "not in the file" from "not sampled".
+         if(truncated) {
+            response.setSampleRowsTruncated(true);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Could not sample rows for probe table '{}'; reporting its columns without them",
+                  request.getTableName(), ex);
+      }
+      finally {
+         // Caught separately because a finally block runs AFTER the catch above and would otherwise
+         // throw straight past it — the one way a sampling problem could still fail the probe.
+         if(box != null) {
+            try {
+               box.dispose();
+            }
+            catch(Exception ex) {
+               LOG.warn("Could not dispose the sampling sandbox for probe table '{}'",
+                        request.getTableName(), ex);
+            }
+         }
+      }
+   }
+
+   /**
+    * How many rows to sample for this probe, or 0 for none.
+    *
+    * <p>KEYED ON {@code targetKind == "file"}, which is what keeps the endpoint path untouched.
+    * Testing "the response has no sample yet" instead would look equivalent and is not: an endpoint
+    * whose first page came back empty also reports no sample, and re-executing to check would bill
+    * the customer a second time for a question already answered. The kind is the only signal that
+    * cannot be confused with an empty result.</p>
+    *
+    * <p>Opt-in, unchanged: {@code sampleRows} unset or 0 means none, so a caller that wanted only
+    * the column list runs exactly the work it ran before. {@code rest.sample.rows} is the
+    * deployment's ceiling on that decision and is honoured here too — it is the switch that stops
+    * sampled customer data leaving a tabular connector, and a deployment that set it to 0 must not
+    * be circumvented by a different kind of target reaching the same data. A value that is not a
+    * number yields no sample, which is the right way to be wrong about a knob governing customer
+    * data.</p>
+    */
+   static int sandboxSampleLimit(WorksheetTable request, WorksheetTableResponse response) {
+      if(request == null || response == null || !response.isSuccess() ||
+         response.getSampleRows() != null)
+      {
+         return 0;
+      }
+
+      WorksheetTable.TabularSource src = request.getTabularSource();
+
+      if(src == null || src.getSampleRows() == null || src.getSampleRows() <= 0) {
+         return 0;
+      }
+
+      String kind;
+
+      try {
+         kind = targetKindOf(src);
+      }
+      catch(RuntimeException ex) {
+         // A kind this build accepted cannot be invalid, but the predicate must be safe to ask
+         // about anything rather than throw out of a by-product step.
+         return 0;
+      }
+
+      // File only, and the query kind is deliberately not added to it. Sampling here means running
+      // the table a second time, which is free for a local file and is a second metered call for
+      // anything else; the query kind addresses any connector at all, so it cannot be assumed to be
+      // the free case. A connector whose runner samples its own response still reports rows through
+      // that path, exactly as an endpoint does.
+      if(!TARGET_KIND_FILE.equals(kind)) {
+         return 0;
+      }
+
+      int ceiling;
+
+      try {
+         ceiling = Integer.parseInt(SreeEnv.getProperty(
+            SAMPLE_ROWS_PROPERTY, Integer.toString(DEFAULT_SAMPLE_ROWS)));
+      }
+      catch(Exception ex) {
+         return 0;
+      }
+
+      return ceiling <= 0 ? 0 : Math.min(src.getSampleRows(), ceiling);
+   }
+
+   /**
+    * Copy at most {@code limit} data rows out of a lens, keyed by column name.
+    *
+    * <p>Row 0 is the header in StyleBI's {@code TableLens} convention, so data starts at 1. The read
+    * is bounded by {@code moreRows(row)} per row rather than by a row count taken up front: asking
+    * a lens how many rows it has forces the whole query to completion, which is the opposite of
+    * sampling.</p>
+    *
+    * <p>Keyed by name, and by the SAME name the {@code columns} list reports, so a consumer can pair
+    * the two without positional arithmetic. That also matches the endpoint path's rows, which are
+    * JSON objects keyed by the response's own field names.</p>
+    */
+   private static List<Map<String, Object>> readSampleRows(TableLens lens, int limit) {
+      int colCount = lens.getColCount();
+      String[] headers = new String[colCount];
+
+      for(int col = 0; col < colCount; col++) {
+         Object header = lens.getObject(0, col);
+         headers[col] = header != null ? header.toString() : "col" + col;
+      }
+
+      List<Map<String, Object>> rows = new ArrayList<>();
+
+      for(int row = 1; rows.size() < limit && lens.moreRows(row); row++) {
+         Map<String, Object> values = new LinkedHashMap<>();
+
+         for(int col = 0; col < colCount; col++) {
+            values.put(headers[col], toSampleCell(lens.getObject(row, col)));
+         }
+
+         rows.add(values);
+      }
+
+      return rows;
+   }
+
+   /**
+    * Reduce one cell to something Jackson can write and a consumer can read.
+    *
+    * <p>Deliberately identical to {@code WorksheetPreviewService.toJsonSafe}: both hand worksheet
+    * cell values to the same caller, and two rules for the same value would mean a date that is a
+    * string in one answer and an object in the other. Numbers, strings and booleans pass through as
+    * themselves; a date or {@code Temporal} becomes its {@code toString()} rather than a Jackson
+    * object graph or an epoch number nothing labels; {@code byte[]} becomes a marker because a
+    * base64 blob is never what a sample is read for.</p>
+    */
+   private static Object toSampleCell(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      if(value instanceof String || value instanceof Number || value instanceof Boolean) {
+         return value;
+      }
+
+      if(value instanceof java.util.Date || value instanceof java.time.temporal.Temporal) {
+         return value.toString();
+      }
+
+      if(value instanceof byte[]) {
+         return "(binary)";
+      }
+
+      return value.toString();
+   }
+
+   /** Release what {@link #openProbeWorksheet} opened. Nothing was persisted, so nothing is left. */
+   public void closeProbeWorksheet(String runtimeId, Principal user) throws Exception {
+      checkWorksheetActionPermission(user);
+
+      if(runtimeId == null || runtimeId.isBlank()) {
+         throw new IllegalArgumentException("runtimeId is required");
+      }
+
+      viewsheetService.closeWorksheet(runtimeId, user);
    }
 
    /**
@@ -1042,22 +1387,32 @@ public class WorksheetTableService {
    }
 
    /**
-    * Build a {@link TabularTableAssembly} bound to ONE endpoint of a SaaS/REST connector.
+    * Build a {@link TabularTableAssembly} bound to ONE target of a tabular connector — an endpoint
+    * of a SaaS/REST connector, or a file of a path-addressed one (ServerFile).
     *
     * <p>Follows the six steps {@code TabularQueryDialogService.setUpTable} takes, with the dialog's
     * {@code TabularView} round trip left out. The dialog needs a view because a human drives it; the
-    * two things a caller supplies here — which endpoint, and what its parameters are — are plain
+    * two things a caller supplies here — which target, and what its options are — are plain
     * annotated bean properties, so {@link TabularUtil#getPropertyMap} reaches them directly. That
     * also keeps {@code TabularUtil.callButtonMethods} out of the path, which is the only reader of
     * the {@code TabularUtil.sessionId} ThreadLocal — so unlike {@code WizTabularController}, this
     * path needs no connector session bound around it.</p>
     *
-    * <p>THIS METHOD SENDS A REAL REQUEST. {@code loadColumnSelection} is how the column list comes
+    * <p>THIS METHOD READS THE SOURCE. {@code loadColumnSelection} is how the column list comes
     * into existence — a tabular query has none until one response has been parsed
-    * ({@code TabularQuery.loadOutputColumns} runs it under {@code HINT_PREVIEW} at 100 rows). So the
-    * request is metered, and a failure there is a failure of the whole table. It is also why this
-    * type is left out of {@link #shouldProbe}: the probe would send a second request to answer a
-    * question the non-empty column check below already answers.</p>
+    * ({@code TabularQuery.loadOutputColumns} runs it under {@code HINT_PREVIEW} at 100 rows). On an
+    * endpoint that means a real, metered request; on a file it means opening and parsing the file's
+    * header. Either way a failure there is a failure of the whole table, which is why this type is
+    * left out of {@link #shouldProbe}: the probe would repeat the read to answer a question the
+    * non-empty column check below already answers.</p>
+    *
+    * <p>WHAT VARIES BY KIND is only the contract — which bean properties carry the target, which
+    * ones are required, and how a failure should be described. That is
+    * {@link #applyEndpointContract} / {@link #applyFileContract}; each returns a description of what
+    * it dialed, which is the one thing the shared half needs from it. Everything after that —
+    * the assembly, {@code setQuery}/{@code setSourceInfo}, {@code loadColumnSelection}, the
+    * empty-column check — is built on {@code TabularQuery}/{@code SelectableTabularQuery} and does
+    * not distinguish connectors at all.</p>
     */
    private AbstractTableAssembly buildTabularTable(Worksheet worksheet, WorksheetTable request)
       throws Exception
@@ -1069,8 +1424,19 @@ public class WorksheetTableService {
             "tabularSource.datasourcePath is required for tabular table");
       }
 
-      if(src.getEndpoint() == null || src.getEndpoint().isBlank()) {
-         throw new IllegalArgumentException("tabularSource.endpoint is required for tabular table");
+      String targetKind = targetKindOf(src);
+
+      // Not asked of the query kind, which has no separate target to name: there, the parameters
+      // ARE what is being addressed, and demanding a target as well would mean inventing a value
+      // for a field that nothing on that path reads.
+      if(!TARGET_KIND_QUERY.equals(targetKind) &&
+         (src.getTarget() == null || src.getTarget().isBlank()))
+      {
+         throw new IllegalArgumentException(
+            "tabularSource.target is required for tabular table — " +
+            (TARGET_KIND_FILE.equals(targetKind)
+               ? "the file path relative to the data source's root folder."
+               : "the connector's own name for the endpoint."));
       }
 
       // Meaningless in every direction: nothing on this path reads physicalSource, so a request
@@ -1144,9 +1510,19 @@ public class WorksheetTableService {
 
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
 
-      // Fills endpoint + parameters + parsing options, and returns the fully built URL suffix as
-      // proof that all of it landed. Throws with every problem named; see the method.
-      String suffix = applyEndpointContract(query, pmap, src);
+      // The one branch. Each side fills the properties its kind of target needs and returns a
+      // description of what it is about to read — a built URL suffix for an endpoint, a resolved
+      // path (and sheet) for a file — as proof that all of it landed, and as the only thing the
+      // empty-column failure below can name. Throws with every problem named; see the methods.
+      String probeDesc = switch(targetKind) {
+         case TARGET_KIND_ENDPOINT -> applyEndpointContract(query, pmap, src);
+         case TARGET_KIND_FILE -> applyFileContract(query, pmap, src);
+         case TARGET_KIND_QUERY -> applyQueryContract(query, pmap, src);
+         // Unreachable: targetKindOf refuses anything else. Present so a third kind added to the
+         // enum without a contract fails here rather than silently building an unconfigured query.
+         default -> throw new IllegalStateException(
+            "No tabular contract for targetKind \"" + targetKind + "\"");
+      };
 
       // Persisted on the query (XQuery.rowlimit, written as <maxrows>) rather than passed as a
       // HINT_MAX_ROWS hint: a hint bounds one execution, and what has to stay bounded is every
@@ -1155,8 +1531,8 @@ public class WorksheetTableService {
       if(src.getMaxRows() != null && src.getMaxRows() > 0) {
          query.setMaxRows(src.getMaxRows());
       }
-      else {
-         requireRowCapWhenPaged(query, src.getEndpoint(), dsName);
+      else if(rowCapRequiredFor(targetKind)) {
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(query, src.getTarget(), dsName);
       }
 
       // How many rows to report back, carried ON THE QUERY because the runner is the only place that
@@ -1191,11 +1567,30 @@ public class WorksheetTableService {
       ColumnSelection columns = table.getColumnSelection(false);
 
       if(columns == null || columns.getAttributeCount() == 0) {
-         throw new IllegalArgumentException(
-            "The request to endpoint '" + src.getEndpoint() + "' of '" + dsName +
-            "' returned no columns. URL suffix sent: " + suffix +
-            ". Check the parameter values and that the data source's credentials are valid; the " +
-            "underlying cause is in the server log for this request.");
+         // Worded per kind. The endpoint text names the URL suffix, which is the whole of what was
+         // sent and the first thing to check; repeating it for a file would hand whoever is
+         // debugging a URL that was never built and say nothing about the path, the sheet, or the
+         // delimiter — the three things that actually produce an empty parse.
+         if(TARGET_KIND_QUERY.equals(targetKind)) {
+            // Neither of the other two texts fits: there is no URL to re-read and no file to
+            // check. What was sent is the parameter set, so that is what is named back.
+            throw new IllegalArgumentException(
+               "The query on '" + dsName + "' returned no columns. Parameters sent: " + probeDesc +
+               ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
+               "one applies to the others, since one that does not is stored and never read — and " +
+               "that the data source's credentials are valid; the underlying cause is in the " +
+               "server log for this request.");
+         }
+
+         throw new IllegalArgumentException(TARGET_KIND_FILE.equals(targetKind)
+            ? "Reading " + probeDesc + " of '" + dsName + "' produced no columns. Check that the " +
+              "file exists at that path, is not empty, and that the parsing options in " +
+              "tabularSource.params match it (sheet name, delimiter, encoding, first row as " +
+              "header); the underlying cause is in the server log for this request."
+            : "The request to endpoint '" + src.getTarget() + "' of '" + dsName +
+              "' returned no columns. URL suffix sent: " + probeDesc +
+              ". Check the parameter values and that the data source's credentials are valid; the " +
+              "underlying cause is in the server log for this request.");
       }
 
       worksheet.addAssembly(table);
@@ -1204,21 +1599,14 @@ public class WorksheetTableService {
 
    /**
     * Set the endpoint and its parameter values on a tabular query, and return the URL suffix that
-    * results.
+    * results. Also applies {@code src}'s lookup chain, if any, once the base endpoint is set.
     *
-    * <p>ORDER IS NOT INTERCHANGEABLE. {@code getParameters()} derives the contract from the endpoint
-    * currently set on the bean ({@code EndpointQueryDelegate.createParameters} scans that endpoint's
-    * suffix template with {@code RestParameter.fromToken}), so setting the endpoint has to come
-    * first — reversed, the contract comes back empty and every supplied value is reported as
-    * unknown. Setting the endpoint also does more than record a name: the connector's
-    * {@code updatePagination} runs from inside the setter and is what establishes the pagination
-    * spec, the request method and the content type.</p>
-    *
-    * <p>NOTHING HERE TRUSTS THAT A WRITE HAPPENED. {@code PropertyMeta.setValue} reports a failed
-    * invocation with {@code LOG.error} and returns, and {@code createParameters} skips a token its
-    * parser rejects with a {@code LOG.warn}. Both are silent to the caller, and the observable
-    * result of either is a request that goes out narrower than the one that was asked for. So every
-    * write is checked, by read-back where possible and by the suffix at the end.</p>
+    * <p>Delegates the connector-agnostic reflection machinery to
+    * {@link TabularEndpointBindingSupport#applyEndpointContract}, which
+    * {@code WorksheetAgentController.addTabularTable} (the composer plugin's write path) shares —
+    * this method's own job is just translating {@code src} into that shared contract's plain
+    * parameters, plus the one check ({@code params} is the FILE contract's option bag, not this
+    * one) that has no equivalent on the plugin path, which has no file target at all.</p>
     *
     * @return the built URL suffix, with every parameter substituted.
     */
@@ -1227,198 +1615,786 @@ public class WorksheetTableService {
                                         WorksheetTable.TabularSource src)
       throws Exception
    {
-      PropertyMeta endpointProp = pmap.get("endpoint");
-
-      if(endpointProp == null) {
+      // Refused rather than ignored, same rule as an unknown parameter name below: params is the
+      // file contract's option bag, nothing on this path reads it, and dropping it would parse the
+      // caller's request differently from how they wrote it and report success.
+      if(src.getParams() != null && !src.getParams().isEmpty()) {
          throw new IllegalArgumentException(
-            "Data source '" + src.getDatasourcePath() + "' (type '" + query.getType() +
-            "') is tabular but not endpoint-based, so it has no endpoint to select. Only connectors " +
-            "that ship an endpoint catalogue can be used as a tabular table this way.");
+            "tabularSource.params applies to targetKind \"file\" only — an endpoint's values go in " +
+            "tabularSource.parameters, keyed by the endpoint's own parameter names.");
       }
 
-      String endpoint = src.getEndpoint().trim();
-      assertKnownEndpoint(query, endpoint, src.getDatasourcePath());
-      endpointProp.setValue(query, endpoint);
+      rejectQueryParams(src, TARGET_KIND_ENDPOINT, "tabularSource.parameters");
 
-      // Read back, because setValue swallows a failed invocation. Everything below derives from the
-      // endpoint being set, so an unnoticed failure here produces an empty contract and a null
-      // suffix, both of which are much harder to attribute than this line.
-      if(!endpoint.equals(endpointProp.getValue(query))) {
-         throw new IllegalStateException(
-            "Failed to select endpoint '" + endpoint + "' on the query for '" +
-            src.getDatasourcePath() + "'; see the server log for the reflection failure.");
+      String endpoint = src.getTarget().trim();
+      String suffix = TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, endpoint, src.getParameters(), src.getJsonPath(), src.getExpanded(),
+         src.getExpandedPath(), src.getDatasourcePath());
+
+      if(src.getLookup() != null && !src.getLookup().isEmpty()) {
+         TabularEndpointBindingSupport.applyLookupChain(query, pmap, src.getLookup(),
+            src.getLookupExpandArrays(), src.getLookupTopLevelOnly(), endpoint,
+            src.getDatasourcePath());
       }
 
-      // Read AFTER the endpoint is set, because that is when the connector's updatePagination has
-      // decided it. A POST endpoint is refused rather than attempted: the body it needs is carried
-      // on a private field of the connector's query and is only moved into the request body by
-      // populateRequestBodyTemplate, a dialog BUTTON method this property-based path never runs.
-      // Attempting one sends an empty body, which most APIs answer with a 400 and some with an
-      // unfiltered full result.
-      PropertyMeta requestTypeProp = pmap.get("requestType");
-
-      if(requestTypeProp != null && "POST".equals(requestTypeProp.getValue(query))) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' of '" + src.getDatasourcePath() + "' is a POST endpoint, " +
-            "which cannot be created this way yet: its request body comes from a template that only " +
-            "the connector's own dialog populates. Choose a GET endpoint.");
-      }
-
-      PropertyMeta paramProp = pmap.get("parameters");
-      Object contract = paramProp == null ? null : paramProp.getValue(query);
-
-      if(!(contract instanceof RestParameters params)) {
-         throw new IllegalStateException(
-            "Could not read the parameter contract for endpoint '" + endpoint + "' of '" +
-            src.getDatasourcePath() + "'.");
-      }
-
-      Map<String, String> supplied = src.getParameters() == null
-         ? new LinkedHashMap<>() : new LinkedHashMap<>(src.getParameters());
-      List<String> missing = new ArrayList<>();
-
-      for(RestParameter parameter : params.getParameters()) {
-         String value = supplied.remove(parameter.getName());
-
-         if(value != null && !value.isBlank()) {
-            parameter.setValue(value.trim());
-         }
-         else if(parameter.isRequired()) {
-            missing.add(parameter.getName());
-         }
-      }
-
-      // Every missing required name at once. SuffixTemplate.build() does raise a clear
-      // IllegalStateException for a missing required parameter, but only for the FIRST one it walks
-      // into, so a caller filling three of five would need three round trips to learn all of them —
-      // and every round trip past this point is a metered request.
-      if(!missing.isEmpty()) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' requires parameter(s) with no value supplied: " +
-            String.join(", ", missing) + ". Supply them; do not guess an identifier.");
-      }
-
-      // A name the endpoint does not declare is an error, not something to drop. Dropping it runs a
-      // DIFFERENT query than the one that was asked for and reports success — and the likeliest
-      // cause is a caller using another endpoint's contract, which no later step can detect.
-      if(!supplied.isEmpty()) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' has no parameter(s) named: " +
-            String.join(", ", supplied.keySet()) + ". Its parameters are: " +
-            params.getParameters().stream()
-               .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
-               .collect(Collectors.joining(", ")) + ".");
-      }
-
-      paramProp.setValue(query, params);
-      setOptionalProperty(pmap, query, "jsonPath", src.getJsonPath());
-      setOptionalProperty(pmap, query, "expanded", src.getExpanded());
-      setOptionalProperty(pmap, query, "expandedPath", src.getExpandedPath());
-
-      // The one end-to-end check, and the reason it is worth a line of its own: reading "suffix"
-      // back invokes the connector's getSuffix(), which rebuilds the URL from the endpoint template
-      // and the values just set. A null means one of the silent paths above fired after all — the
-      // endpoint name resolved to no template, or a parameter never made it onto the bean.
-      PropertyMeta suffixProp = pmap.get("suffix");
-      Object suffix = suffixProp == null ? null : suffixProp.getValue(query);
-
-      if(!(suffix instanceof String s) || s.isBlank()) {
-         throw new IllegalStateException(
-            "Endpoint '" + endpoint + "' of '" + src.getDatasourcePath() + "' produced no URL " +
-            "suffix after its parameters were set; see the server log.");
-      }
-
-      return s;
+      return suffix;
    }
 
    /**
-    * Refuse an unbounded row limit on an endpoint that paginates.
+    * The {@code targetKind} a tabular source asks for, normalized and checked.
     *
-    * <p>{@code XQuery.rowlimit} defaults to 0, meaning unlimited, and on a paginated connector that
-    * is not "read a lot" — it is "keep requesting pages until the service runs out", on every render
-    * of the table, against an API that bills per call. Neither obvious remedy is right: requiring a
-    * cap unconditionally makes a caller invent a number for an endpoint like {@code /v1/balance} that
-    * issues one request and returns one object, and defaulting silently trades a slow answer for a
-    * wrong one — a table that quietly returns 100 of 5000 rows answers "how many are there"
-    * incorrectly, with nothing in the response saying so.</p>
-    *
-    * <p>So the condition checked is the one that actually matters, and it is accurate by now:
-    * {@code setEndpoint} ran the connector's {@code updatePagination}, which is what establishes the
-    * pagination spec. {@code isPaged()} is public but not a {@code @Property}, so it is reached by
-    * name — the same reflection {@link #assertKnownEndpoint} uses for {@code getEndpoints}. A
-    * connector that does not answer it is left alone rather than blocked: this check exists to stop a
-    * known-unbounded query, not to reject an unfamiliar one.</p>
+    * <p>Absent means {@code "endpoint"}, because before {@code target} existed this object could
+    * express nothing else — a caller that does not mention a kind is a caller written against that
+    * shape, and answering anything else for it would change the meaning of a request already in
+    * flight. Case and surrounding space are forgiven; an unrecognized value is refused by name
+    * rather than falling through to a default, which would build a table against a contract nobody
+    * asked for and report success.</p>
     */
-   private void requireRowCapWhenPaged(TabularQuery query, String endpoint, String dsName) {
-      boolean paged;
+   private static String targetKindOf(WorksheetTable.TabularSource src) {
+      String kind = src.getTargetKind();
 
-      try {
-         paged = (Boolean) query.getClass().getMethod("isPaged").invoke(query);
-      }
-      catch(Exception ex) {
-         LOG.debug("Could not determine whether endpoint '{}' of '{}' paginates; not requiring a " +
-                   "row cap", endpoint, dsName, ex);
-         return;
+      if(kind == null || kind.isBlank()) {
+         return TARGET_KIND_ENDPOINT;
       }
 
-      if(paged) {
+      String normalized = kind.trim().toLowerCase();
+
+      if(!TARGET_KIND_ENDPOINT.equals(normalized) && !TARGET_KIND_FILE.equals(normalized) &&
+         !TARGET_KIND_QUERY.equals(normalized))
+      {
          throw new IllegalArgumentException(
-            "Endpoint '" + endpoint + "' of '" + dsName + "' is paginated, so tabularSource.maxRows " +
-            "is required: without it every render of this table requests pages until the service runs " +
-            "out of data. Choose a row cap for the question being asked.");
+            "tabularSource.targetKind must be \"" + TARGET_KIND_ENDPOINT + "\", \"" +
+            TARGET_KIND_FILE + "\" or \"" + TARGET_KIND_QUERY + "\", got \"" + kind + "\".");
       }
+
+      return normalized;
    }
 
-   /** Set a property only when a value was supplied, leaving the connector's default otherwise. */
-   private void setOptionalProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
-                                    String name, Object value)
+   /**
+    * Configure a tabular query from the connector's own declared parameters, and return a
+    * description of what it will run.
+    *
+    * <p>THE GENERAL CONTRACT, where {@link #applyEndpointContract} and {@link #applyFileContract}
+    * are two special ones. Those two know in advance which properties matter — an endpoint name and
+    * its URL tokens, a file path and its parsing options — which is what makes them short, and also
+    * what makes them apply to two kinds of connector out of the many StyleBI ships. A document
+    * store, a cloud analytics API and a search index have neither an endpoint nor a file, and no
+    * amount of either contract binds one. This one takes the names from the connector instead, so
+    * it fits whatever the connector declares. The two older kinds are untouched and keep their own
+    * contracts; this is where they are headed, not something they now go through.</p>
+    *
+    * <p>THREE CHECKS, and each exists because the failure it catches is invisible. A name the
+    * connector does not declare would be dropped, and the query would run without whatever it was
+    * meant to say. A value the bean refuses would leave the connector's DEFAULT in place — not
+    * null, the previous value — because {@code PropertyMeta.setValue} reports a failed invocation
+    * with {@code LOG.error} and returns normally; that is why the setter is invoked directly here
+    * instead, so the failure is one. And a parameter that does not apply to the rest of what was
+    * sent is stored and never read — an offset written under link-following pagination changes
+    * nothing, and the answer comes back looking like the first page of a correct result.</p>
+    *
+    * <p>THE THIRD IS A WARNING, NOT A REFUSAL. Applicability is decided by running the connector's
+    * own visibility methods, and those answer for the form, which is a narrower question than
+    * whether the runner reads the property. A connector is free to read something its form hides.
+    * Refusing on that basis would block correct requests, so the request proceeds and the finding
+    * is logged.</p>
+    *
+    * @return a description of the parameters that were set.
+    */
+   private String applyQueryContract(TabularQuery query,
+                                     Map<String, PropertyMeta> pmap,
+                                     WorksheetTable.TabularSource src)
+      throws Exception
    {
-      PropertyMeta prop = value == null ? null : pmap.get(name);
+      Map<String, Object> requested = src.getQueryParams();
 
-      if(prop != null) {
-         prop.setValue(query, value);
+      if(requested == null || requested.isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.queryParams is required for targetKind \"" + TARGET_KIND_QUERY +
+            "\" — it is the whole of what addresses the data. Ask " +
+            "GET /api/wiz/tabular/query-schema for the names this data source accepts.");
+      }
+
+      rejectForeignFields(src);
+
+      List<String> applied = new ArrayList<>();
+
+      for(Map.Entry<String, Object> entry : requested.entrySet()) {
+         String name = entry.getKey();
+         PropertyMeta prop = pmap.get(name);
+
+         if(prop == null) {
+            // Named rather than counted, and answered with the alternatives: the caller is working
+            // from a schema, and the useful reply to a name that is not in it is the set that is.
+            throw new IllegalArgumentException(
+               "'" + name + "' is not a parameter of data source '" + src.getDatasourcePath() +
+               "'. It accepts: " + String.join(", ", new TreeSet<>(pmap.keySet())) + ".");
+         }
+
+         // NOT PropertyMeta.setValue. That swallows a failed invocation with LOG.error and
+         // returns, leaving the PREVIOUS value in place -- so a rejected value is indistinguishable
+         // from an accepted one for any property with a non-null default, which is most of them.
+         // Reading the property back afterwards does not close that gap either: the old value comes
+         // back non-null and looks like a successful write. Invoking the setter directly is what
+         // makes a failure a failure, and it is what the file contract above does for the same
+         // reason.
+         invokeWriteMethod(prop, query, coerceParam(prop, name, text(entry.getValue()), "Parameter"));
+
+         applied.add(name + "=" + describe(prop, prop.getValue(query)));
+      }
+
+      warnInapplicable(query, requested.keySet(), src);
+
+      return String.join(", ", applied);
+   }
+
+   /**
+    * Refuse the older kinds' fields on a query-kind request.
+    *
+    * <p>They address the same properties by other names, so accepting both would let one request
+    * carry two answers for one parameter and silently keep whichever ran last. Refused rather than
+    * merged, in the same spirit as the endpoint/file contracts refusing each other's fields.
+    */
+   // Package-private so the test that pins the rejections can call it, the way shouldProbe is.
+   void rejectForeignFields(WorksheetTable.TabularSource src) {
+      if(src.getParameters() != null && !src.getParameters().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.parameters applies to targetKind \"" + TARGET_KIND_ENDPOINT +
+            "\" only — for \"" + TARGET_KIND_QUERY + "\", put every value in queryParams.");
+      }
+
+      if(src.getParams() != null && !src.getParams().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.params applies to targetKind \"" + TARGET_KIND_FILE +
+            "\" only — for \"" + TARGET_KIND_QUERY + "\", put every value in queryParams.");
+      }
+
+      // These three are endpoint-kind shorthands for properties this contract addresses by their
+      // own names. Only applyEndpointContract reads them, so on a query request they would be
+      // accepted and then ignored -- and if the caller ALSO named them in queryParams, one request
+      // would carry two answers for one property with no way to tell which won.
+      if(src.getJsonPath() != null || src.getExpanded() != null || src.getExpandedPath() != null) {
+         throw new IllegalArgumentException(
+            "tabularSource.jsonPath/expanded/expandedPath apply to targetKind \"" +
+            TARGET_KIND_ENDPOINT + "\" only — for \"" + TARGET_KIND_QUERY +
+            "\", set those properties by name in queryParams.");
+      }
+
+      // The lookup chain is addressed by endpoint NAME at each level, which is the one thing this
+      // kind does not have -- it is why a query request has no target either. A connector that
+      // chains lookups through properties sets them like any other property, in queryParams.
+      if(src.getLookup() != null && !src.getLookup().isEmpty() ||
+         src.getLookupExpandArrays() != null || src.getLookupTopLevelOnly() != null)
+      {
+         throw new IllegalArgumentException(
+            "tabularSource.lookup/lookupExpandArrays/lookupTopLevelOnly apply to targetKind \"" +
+            TARGET_KIND_ENDPOINT + "\" only — each level names an endpoint, and \"" +
+            TARGET_KIND_QUERY + "\" addresses the data by parameter instead.");
+      }
+
+      // Nothing on this path reads it, so a target here names something that will not be used.
+      if(src.getTarget() != null && !src.getTarget().isBlank()) {
+         throw new IllegalArgumentException(
+            "tabularSource.target does not apply to targetKind \"" + TARGET_KIND_QUERY +
+            "\" — queryParams is what addresses the data.");
       }
    }
 
    /**
-    * Fail on an unknown endpoint name, listing what the connector does offer.
+    * Refuse a query-kind parameter map on a request that is not query-kind.
     *
-    * <p>Without this the name simply resolves to no suffix template and the failure surfaces as
-    * "produced no URL suffix", which does not say that the name was wrong. The tags method is
-    * reached by name because the interface declaring it lives in the connector plugin and is not
-    * visible from core; each row it returns is {@code {label, name}}.</p>
+    * <p>The mirror of {@link #rejectForeignFields}, and the half that field points at. Only
+    * {@code applyQueryContract} reads {@code queryParams}, so on either older kind the whole map
+    * would be dropped and the table would build and report success having ignored everything the
+    * caller put in it -- a request half-migrated between kinds, or one that named the wrong kind,
+    * looking exactly like a request that worked.</p>
+    *
+    * @param instead the field this kind expects the values in, named so the message says where to
+    *                move them rather than only what is wrong.
     */
-   private void assertKnownEndpoint(TabularQuery query, String endpoint, String dsName) {
-      String[][] endpoints;
-
-      try {
-         endpoints = (String[][]) query.getClass().getMethod("getEndpoints").invoke(query);
+   void rejectQueryParams(WorksheetTable.TabularSource src, String kind, String instead) {
+      if(src.getQueryParams() != null && !src.getQueryParams().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.queryParams applies to targetKind \"" + TARGET_KIND_QUERY +
+            "\" only — for \"" + kind + "\", put the values in " + instead + ".");
       }
-      catch(Exception ex) {
-         // Not fatal: a connector without this method still works, and applyEndpointContract's
-         // suffix check catches a bad name — just with a vaguer message.
-         LOG.debug("Could not list endpoints for '{}'; skipping the name check", dsName, ex);
-         return;
+   }
+
+   /**
+    * Log the parameters that were set but do not apply to the rest of the request.
+    *
+    * <p>Kept out of the response deliberately. {@code WorksheetTableResponse} reports success and a
+    * column list, and a table that built correctly must not come back looking like it failed; the
+    * caller that wants to know beforehand asks the schema, whose dependency matrix says which
+    * parameters each choice turns on.</p>
+    */
+   private void warnInapplicable(TabularQuery query, Set<String> names,
+                                 WorksheetTable.TabularSource src)
+   {
+      Set<String> inapplicable = new TabularSchemaExtractor().findInapplicable(query, names);
+
+      if(!inapplicable.isEmpty()) {
+         LOG.warn("Tabular query on '{}' was given parameters that do not apply to the rest of " +
+                     "the request and will not be read: {}. See the dependency matrix in " +
+                     "GET /api/wiz/tabular/query-schema for what each choice turns on.",
+                  src.getDatasourcePath(), String.join(", ", inapplicable));
+      }
+   }
+
+   /**
+    * A JSON value as the text {@link #coerceParam} converts.
+    *
+    * <p>Jackson hands back an {@code Integer} for {@code 100} and a {@code String} for
+    * {@code "100"}, and the property behind either may be an {@code int}, an enum or a string. Going
+    * through text is what lets one conversion serve all of those, and it is the conversion the file
+    * contract already uses; the alternative is a second one that has to agree with it forever.</p>
+    *
+    * <p>A composite arrives as a list or a map and is passed through as its own text, which
+    * {@code coerceParam} then refuses by name. That is deliberate: a composite half-built from a
+    * map is exactly the silent wrong answer this contract exists to prevent, so it is refused
+    * rather than approximated.</p>
+    */
+   private static String text(Object value) {
+      return value == null ? null : String.valueOf(value);
+   }
+
+   /**
+    * A value as it should appear in a message — and never a secret.
+    *
+    * <p>What is built here is joined into {@code probeDesc}, which is embedded verbatim in the
+    * exception thrown when a query returns no columns. Zero columns is an ordinary failure — wrong
+    * filter, expired credential — and {@code WizControllerErrorHandler} turns the exception into a
+    * response, so a connector declaring an API key as a query parameter would have it printed to
+    * the caller and into the log. The two sibling contracts cannot leak this way because neither
+    * returns raw property values: the endpoint one returns a URL suffix and the file one a path.</p>
+    */
+   private static String describe(PropertyMeta prop, Object value) {
+      if(prop != null && prop.getProperty() != null && prop.getProperty().password()) {
+         // Reported as set rather than omitted: whether a secret was supplied at all is exactly
+         // what someone reading this message needs to know.
+         return value == null ? "null" : "***";
       }
 
-      if(endpoints == null) {
-         return;
+      if(value == null) {
+         return "null";
       }
 
-      List<String> names = new ArrayList<>();
+      return value instanceof String ? "'" + value + "'" : String.valueOf(value);
+   }
 
-      for(String[] tag : endpoints) {
-         if(tag != null && tag.length > 1 && tag[1] != null) {
-            names.add(tag[1]);
+   /**
+    * Point a path-addressed tabular query at one file, apply its parsing options, and return a
+    * description of what it will read.
+    *
+    * <p>The counterpart of {@link #applyEndpointContract} — same job, different contract. What the
+    * two share is the mechanism underneath ({@link TabularUtil#getPropertyMap} plus
+    * {@link PropertyMeta}); what differs is which properties carry the target, which values are
+    * legal, and what a failure has to say. Nothing about a URL, a parameter template or pagination
+    * applies here, and nothing about a sheet name or a delimiter applies there.</p>
+    *
+    * <p>NOTHING HERE TRUSTS THAT A WRITE HAPPENED, for the same reason the endpoint contract does
+    * not: {@code PropertyMeta.setValue} reports a failed invocation with {@code LOG.error} and
+    * returns, so a mistyped option would silently leave the connector's default in place and parse
+    * the file differently from what was asked. The write methods are therefore invoked directly, so
+    * a reflection failure throws, and the file itself is read back afterwards.</p>
+    *
+    * @return a human description of the resolved target, e.g. {@code file '2024/q1.csv'} or
+    *         {@code file '2024/sales.xlsx' sheet 'Q1'}.
+    */
+   private String applyFileContract(TabularQuery query,
+                                    Map<String, PropertyMeta> pmap,
+                                    WorksheetTable.TabularSource src)
+      throws Exception
+   {
+      String dsName = src.getDatasourcePath();
+
+      // Refused rather than ignored, the mirror of the params rejection on the endpoint side. These
+      // four describe the shape of a JSON response; a file has no response and no row path, so
+      // accepting them would answer a request that cannot be honored.
+      if(src.getParameters() != null && !src.getParameters().isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.parameters applies to targetKind \"" + TARGET_KIND_ENDPOINT + "\" only " +
+            "— a file's parsing options go in tabularSource.params.");
+      }
+
+      if(src.getJsonPath() != null || src.getExpanded() != null || src.getExpandedPath() != null) {
+         throw new IllegalArgumentException(
+            "tabularSource.jsonPath/expanded/expandedPath apply to targetKind \"" +
+            TARGET_KIND_ENDPOINT + "\" only — they describe a JSON response, and a file has none.");
+      }
+
+      rejectQueryParams(src, TARGET_KIND_FILE, "tabularSource.params");
+
+      PropertyMeta fileProp = fileTargetProperty(pmap, query, dsName);
+
+      // "path" or "path#sheet". Split on the LAST '#' so a file whose own name contains one still
+      // resolves; the sheet suffix is the same identity the annotation stores for the table, so
+      // accepting it here is what keeps the stored name and the bindable name the same string.
+      String rawTarget = src.getTarget().trim();
+      int hash = rawTarget.lastIndexOf('#');
+      String relativePath = hash < 0 ? rawTarget : rawTarget.substring(0, hash).trim();
+      String sheetFromTarget = hash < 0 ? null : rawTarget.substring(hash + 1).trim();
+
+      if(relativePath.isEmpty()) {
+         throw new IllegalArgumentException(
+            "tabularSource.target names no file: \"" + rawTarget + "\".");
+      }
+
+      File file = resolveTargetFile(query, relativePath, dsName);
+      invokeWriteMethod(fileProp, query, file);
+
+      // Read back, because the getter rebuilds the path from what the setter actually stored (the
+      // setter relativizes against the data source's root folder, so a failed or misresolved write
+      // shows up here and nowhere else). Everything below — the Excel test, the sheet list, the
+      // column read — derives from the file being set.
+      Object readBack = fileProp.getValue(query);
+
+      if(!(readBack instanceof File actual) ||
+         !actual.getCanonicalPath().equals(file.getCanonicalPath()))
+      {
+         throw new IllegalStateException(
+            "Failed to point '" + dsName + "' at file '" + relativePath + "' (resolved to " +
+            file.getPath() + ", read back as " + readBack + "); see the server log for the " +
+            "reflection failure.");
+      }
+
+      // Applied BEFORE the sheet is resolved: excelSheet is itself one of these, and the resolution
+      // below has to see whichever value the caller supplied.
+      applyFileParams(query, pmap, src, fileProp.getName(), dsName);
+
+      String sheet = resolveExcelSheet(query, pmap, src, sheetFromTarget, relativePath, dsName);
+
+      return "file '" + relativePath + "'" + (sheet == null ? "" : " sheet '" + sheet + "'");
+   }
+
+   /**
+    * The bean property that names the file, and the check that this connector has one at all.
+    *
+    * <p>Resolved by TYPE rather than hard-coded to ServerFile's {@code fileFolder}: a file target is
+    * a {@code java.io.File} property, which is exactly what {@code TabularUtil.getEditorType} keys
+    * its {@code FILE} editor on, so the next path-addressed connector needs no change here. The
+    * name is still preferred when present, so a connector carrying two File properties resolves the
+    * same way the composer dialog does rather than by declaration order.</p>
+    */
+   private PropertyMeta fileTargetProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
+                                           String dsName)
+   {
+      List<PropertyMeta> fileProps = new ArrayList<>();
+
+      for(PropertyMeta prop : pmap.values()) {
+         if(isFileProperty(prop)) {
+            fileProps.add(prop);
          }
       }
 
-      if(!names.isEmpty() && !names.contains(endpoint)) {
-         List<String> sample = names.stream().sorted().limit(20).toList();
+      if(fileProps.isEmpty()) {
          throw new IllegalArgumentException(
-            "Data source '" + dsName + "' has no endpoint named '" + endpoint + "'. It has " +
-            names.size() + " endpoint(s), for example: " + String.join(", ", sample) + ".");
+            "Data source '" + dsName + "' (type '" + query.getType() + "') is tabular but not " +
+            "file-based, so it has no file to select. Use targetKind \"" + TARGET_KIND_ENDPOINT +
+            "\" for a connector that ships an endpoint catalogue.");
       }
+
+      for(PropertyMeta prop : fileProps) {
+         if(FILE_TARGET_PROPERTY.equals(prop.getName())) {
+            return prop;
+         }
+      }
+
+      if(fileProps.size() > 1) {
+         throw new IllegalStateException(
+            "Data source '" + dsName + "' (type '" + query.getType() + "') declares " +
+            fileProps.size() + " file properties and none named \"" + FILE_TARGET_PROPERTY +
+            "\", so which one tabularSource.target means is ambiguous.");
+      }
+
+      return fileProps.get(0);
+   }
+
+   private static boolean isFileProperty(PropertyMeta prop) {
+      Method setter = prop.getDescriptor().getWriteMethod();
+
+      return setter != null && setter.getParameterCount() == 1 &&
+         File.class.isAssignableFrom(setter.getParameterTypes()[0]);
+   }
+
+   /**
+    * Resolve {@code target} against the connector's root folder, refusing anything that leaves it.
+    *
+    * <p>The root folder IS the grant — a {@code ServerFileDataSource} authorizes one directory and
+    * nothing above it — so an absolute path or a {@code ".."} segment is not a path this method can
+    * resolve leniently; it is a request to read outside what the data source gives access to. Both
+    * are refused by shape, and the resolved path is then checked against the root canonically as
+    * well, because a symlink inside the root satisfies the shape check and still points out.</p>
+    *
+    * <p>{@code getRootFolder()} is reached by name for the same reason {@code getEndpoints} is: the
+    * class declaring it lives in the connector plugin and is not visible from core. A connector that
+    * does not answer it is left to resolve the path itself rather than blocked.</p>
+    */
+   private File resolveTargetFile(TabularQuery query, String relativePath, String dsName)
+      throws Exception
+   {
+      String normalized = relativePath.replace('\\', '/');
+
+      if(new File(normalized).isAbsolute() || normalized.startsWith("/") ||
+         normalized.matches("^[A-Za-z]:.*"))
+      {
+         throw new IllegalArgumentException(
+            "tabularSource.target must be relative to the data source's root folder, not an " +
+            "absolute path: '" + relativePath + "'.");
+      }
+
+      for(String segment : normalized.split("/")) {
+         if("..".equals(segment)) {
+            throw new IllegalArgumentException(
+               "tabularSource.target must not contain '..': '" + relativePath + "'. The data " +
+               "source's root folder is the whole of what it grants access to.");
+         }
+      }
+
+      String root = (String) callQueryMethod(query, "getRootFolder", dsName);
+      File file = root == null || root.isBlank()
+         ? new File(normalized) : new File(root, normalized);
+
+      if(root != null && !root.isBlank()) {
+         String rootPath = new File(root).getCanonicalPath();
+         String filePath = file.getCanonicalPath();
+
+         if(!filePath.equals(rootPath) && !filePath.startsWith(rootPath + File.separator)) {
+            throw new IllegalArgumentException(
+               "tabularSource.target resolves outside the data source's root folder: '" +
+               relativePath + "'.");
+         }
+      }
+
+      // Answered here rather than left to surface as "produced no columns", which is the same
+      // message an empty file and a bad delimiter produce and says nothing about which of the three
+      // it was.
+      if(!file.exists()) {
+         throw new IllegalArgumentException(
+            "Data source '" + dsName + "' has no file at '" + relativePath + "'. Browse the data " +
+            "source to see what it holds; the path is relative to its root folder.");
+      }
+
+      return file;
+   }
+
+   /**
+    * Write the caller's parsing options onto the query, refusing any the connector does not declare.
+    *
+    * <p>Validated against {@code pmap} rather than a fixed list of ServerFile's option names, so the
+    * next path-addressed connector's options work without a change here and its caller still gets
+    * told what it does accept. Unknown names are an error rather than something to drop, for the
+    * same reason an unknown endpoint parameter is: a dropped option parses the file DIFFERENTLY —
+    * a wrong delimiter yields one column, a wrong sheet yields another table's data — and reports
+    * success either way.</p>
+    */
+   private void applyFileParams(TabularQuery query, Map<String, PropertyMeta> pmap,
+                                WorksheetTable.TabularSource src, String targetPropertyName,
+                                String dsName)
+      throws Exception
+   {
+      Map<String, String> params = src.getParams();
+
+      if(params == null || params.isEmpty()) {
+         return;
+      }
+
+      for(Map.Entry<String, String> entry : params.entrySet()) {
+         String name = entry.getKey() == null ? null : entry.getKey().trim();
+         PropertyMeta prop = name == null ? null : pmap.get(name);
+
+         if(prop == null || isFileProperty(prop) || "columns".equals(name)) {
+            throw new IllegalArgumentException(
+               "Data source '" + dsName + "' has no parsing option named '" + entry.getKey() +
+               "'. Its options are: " + optionNames(pmap, targetPropertyName) +
+               ". The file itself goes in tabularSource.target, not here.");
+         }
+
+         invokeWriteMethod(prop, query, coerceParam(prop, name, entry.getValue()));
+      }
+   }
+
+   /** The option names a file-based connector accepts, target and column list excluded. */
+   private static String optionNames(Map<String, PropertyMeta> pmap, String targetPropertyName) {
+      return pmap.values().stream()
+         .map(PropertyMeta::getName)
+         .filter(name -> !name.equals(targetPropertyName) && !"columns".equals(name))
+         .sorted()
+         .collect(Collectors.joining(", "));
+   }
+
+   /**
+    * Convert one option's text to the type its setter takes.
+    *
+    * <p>Every value arrives as a string because {@code params} is a flat string map — the shape a
+    * caller can actually produce without knowing the connector's Java types. A value the setter's
+    * type cannot hold is refused with both the option name and what it expected, rather than
+    * silently becoming {@code 0} or {@code false}, which is what an unchecked conversion would
+    * write for "one" or "yes".</p>
+    */
+   private static Object coerceParam(PropertyMeta prop, String name, String raw) {
+      return coerceParam(prop, name, raw, "Parsing option");
+   }
+
+   /**
+    * The same conversion for a caller that is not supplying parsing options.
+    *
+    * <p>Only the noun in the messages differs. The query contract sends a whole query rather than a
+    * file's parsing options, so "Parsing option 'suffix'" would name the wrong thing; which
+    * conversions are legal is identical, and duplicating the method to change one word is how the
+    * two would drift apart.</p>
+    */
+   private static Object coerceParam(PropertyMeta prop, String name, String raw, String noun) {
+      Class<?> type = prop.getDescriptor().getWriteMethod().getParameterTypes()[0];
+
+      if(raw == null) {
+         if(type.isPrimitive()) {
+            throw new IllegalArgumentException(
+               noun + " '" + name + "' has no value, and it cannot be cleared: it is a " +
+               type.getSimpleName() + ".");
+         }
+
+         return null;
+      }
+
+      String value = raw.trim();
+
+      try {
+         if(type == String.class) {
+            // Not trimmed: a delimiter of " " is a legitimate value, and it is the only option
+            // whose whole meaning can be whitespace.
+            return raw;
+         }
+         else if(type == boolean.class || type == Boolean.class) {
+            if(!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
+               throw new NumberFormatException(value);
+            }
+
+            return Boolean.valueOf(value);
+         }
+         else if(type == int.class || type == Integer.class) {
+            return Integer.valueOf(value);
+         }
+         else if(type == long.class || type == Long.class) {
+            return Long.valueOf(value);
+         }
+         else if(type == short.class || type == Short.class) {
+            return Short.valueOf(value);
+         }
+         else if(type == double.class || type == Double.class) {
+            return Double.valueOf(value);
+         }
+         else if(type == float.class || type == Float.class) {
+            return Float.valueOf(value);
+         }
+         else if(type == char.class || type == Character.class) {
+            return value.isEmpty() ? ' ' : value.charAt(0);
+         }
+         else if(type.isEnum()) {
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            Object constant = Enum.valueOf((Class<Enum>) type, value);
+
+            return constant;
+         }
+      }
+      catch(IllegalArgumentException ex) {
+         // Enum.valueOf throws this for a constant that does not exist, and it is worth naming the
+         // ones that do: a caller working from the schema has the list, and one that guessed does
+         // not.
+         String expected = type.isEnum()
+            ? "one of " + Arrays.toString(type.getEnumConstants()) : "a " + type.getSimpleName();
+
+         throw new IllegalArgumentException(
+            noun + " '" + name + "' expects " + expected + ", got \"" + raw + "\".");
+      }
+
+      throw new IllegalArgumentException(
+         noun + " '" + name + "' is a " + type.getSimpleName() +
+         ", which cannot be supplied as text.");
+   }
+
+   /**
+    * Settle which sheet of a workbook to read, and refuse to guess when the answer matters.
+    *
+    * <p>ServerFile's own default is the first sheet ({@code ServerFileUtil.getColumnDefinition}
+    * falls back to {@code getExcelSheetNames()[0]}), which is deterministic but silent — a
+    * three-sheet workbook builds a table from sheet one and reports success, and nothing in the
+    * result says the other two exist. That is the wrong answer for an annotation pass, whose whole
+    * job is to enumerate what can be bound. So an unqualified multi-sheet workbook FAILS, carrying
+    * the sheet names, which is the same "fail with what was missing, refill, retry" shape an
+    * endpoint's missing required parameter has.</p>
+    *
+    * <p>A single-sheet workbook is not ambiguous and is left to the connector's default: there is
+    * nothing for the caller to choose, and demanding a choice would refuse a correct request.</p>
+    *
+    * <p>{@code isExcel} and {@code getExcelSheetNames} are reached by name — the connector plugin is
+    * not visible from core. A connector answering neither is left alone rather than blocked; this
+    * exists to stop a silent wrong sheet, not to reject an unfamiliar connector.</p>
+    *
+    * @return the sheet that will be read, or {@code null} when the target is not a workbook.
+    */
+   private String resolveExcelSheet(TabularQuery query, Map<String, PropertyMeta> pmap,
+                                    WorksheetTable.TabularSource src, String sheetFromTarget,
+                                    String relativePath, String dsName)
+      throws Exception
+   {
+      PropertyMeta sheetProp = pmap.get(EXCEL_SHEET_PROPERTY);
+      Object excel = callQueryMethod(query, "isExcel", dsName);
+
+      if(sheetProp == null || !(excel instanceof Boolean isExcel)) {
+         if(sheetFromTarget != null) {
+            throw new IllegalArgumentException(
+               "Data source '" + dsName + "' has no sheet selection, so the \"#" + sheetFromTarget +
+               "\" suffix on tabularSource.target cannot be honored.");
+         }
+
+         return null;
+      }
+
+      // The '#' suffix and params.excelSheet name the same thing. Both is fine when they agree —
+      // a caller that echoes the stored identity into both is not making a mistake — and refused
+      // when they do not, because one of the two would have to be discarded silently.
+      String supplied = sheetFromTarget;
+      String fromParams = src.getParams() == null ? null : src.getParams().get(EXCEL_SHEET_PROPERTY);
+
+      if(fromParams != null && !fromParams.isBlank()) {
+         if(supplied != null && !supplied.isEmpty() && !supplied.equals(fromParams.trim())) {
+            throw new IllegalArgumentException(
+               "tabularSource.target names sheet '" + supplied + "' and tabularSource.params names " +
+               "sheet '" + fromParams.trim() + "'. Supply one of them.");
+         }
+
+         supplied = fromParams.trim();
+      }
+
+      if(!isExcel) {
+         if(supplied != null && !supplied.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'" + relativePath + "' of '" + dsName + "' is not a workbook, so it has no sheet " +
+               "'" + supplied + "' to select.");
+         }
+
+         return null;
+      }
+
+      // Written through the property rather than left in params, so a sheet that arrived on the
+      // target suffix reaches the query the same way one supplied in params does.
+      if(supplied != null && !supplied.isEmpty()) {
+         invokeWriteMethod(sheetProp, query, supplied);
+      }
+
+      List<String> sheets = excelSheetNames(query, dsName);
+
+      if(sheets.isEmpty()) {
+         // The connector could not list them (an unreadable or malformed workbook). Not fatal here:
+         // the column read below fails with the real reason, and inventing one now would hide it.
+         return supplied;
+      }
+
+      if(supplied == null || supplied.isEmpty()) {
+         if(sheets.size() > 1) {
+            throw new IllegalArgumentException(
+               "'" + relativePath + "' of '" + dsName + "' has " + sheets.size() + " sheets, so " +
+               "one has to be named: " + String.join(", ", sheets) + ". Put it in " +
+               "tabularSource.params.excelSheet, or suffix tabularSource.target with \"#<sheet>\".");
+         }
+
+         // getExcelSheetNames() sets the query's sheet to the only one as a side effect, so the
+         // query is already pointed at it; reported back so the caller sees which one it was.
+         return sheets.get(0);
+      }
+
+      if(!sheets.contains(supplied)) {
+         throw new IllegalArgumentException(
+            "'" + relativePath + "' of '" + dsName + "' has no sheet named '" + supplied +
+            "'. Its sheets are: " + String.join(", ", sheets) + ".");
+      }
+
+      return supplied;
+   }
+
+   /** The workbook's sheet names, blanks dropped — the connector answers {@code [""]} for a miss. */
+   private List<String> excelSheetNames(TabularQuery query, String dsName) {
+      Object names = callQueryMethod(query, "getExcelSheetNames", dsName);
+      List<String> sheets = new ArrayList<>();
+
+      if(names instanceof String[] array) {
+         for(String name : array) {
+            if(name != null && !name.isBlank()) {
+               sheets.add(name);
+            }
+         }
+      }
+
+      return sheets;
+   }
+
+   /**
+    * Invoke a connector method core cannot see the declaring type of.
+    *
+    * <p>Same reflection {@link #assertKnownEndpoint} and {@link #requireRowCapWhenPaged} use, and
+    * the same stance on failure: a connector that does not answer is left alone rather than blocked,
+    * because these calls sharpen an error message or a default — none of them is the check that
+    * makes the build correct.</p>
+    */
+   private static Object callQueryMethod(TabularQuery query, String method, String dsName) {
+      try {
+         return query.getClass().getMethod(method).invoke(query);
+      }
+      catch(Exception ex) {
+         LOG.debug("Could not call {}() on the query for '{}'", method, dsName, ex);
+         return null;
+      }
+   }
+
+   /**
+    * Write a property through its setter directly, so a failed write throws.
+    *
+    * <p>{@code PropertyMeta.setValue} swallows the invocation failure with a {@code LOG.error},
+    * which on this path would leave the connector's default in place and parse the file differently
+    * from what was asked, reporting success. The endpoint contract answers that by reading the URL
+    * suffix back at the end; a file contract has no equivalent single readable summary, so the
+    * writes themselves are made loud instead.</p>
+    */
+   private static void invokeWriteMethod(PropertyMeta prop, Object bean, Object value)
+      throws Exception
+   {
+      try {
+         prop.getDescriptor().getWriteMethod().invoke(bean, value);
+      }
+      catch(InvocationTargetException ex) {
+         Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+
+         // The value is redacted when the property is a secret. This message reaches the caller
+         // through WizControllerErrorHandler, and a setter that rejects a password would otherwise
+         // print it on the way out.
+         String shown = prop.getProperty() != null && prop.getProperty().password()
+            ? "***" : String.valueOf(value);
+
+         throw new IllegalArgumentException(
+            "Setting '" + prop.getName() + "' to \"" + shown + "\" failed: " +
+            (cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage()),
+            cause);
+      }
+   }
+
+   /**
+    * Whether a target kind has to justify building a table with no row cap.
+    *
+    * <p>Everything but a file. A local file is read whole in one pass — no pages to walk, no
+    * per-call bill — so demanding a cap there would refuse a correct request for a cost that does
+    * not exist. Every other kind can paginate, the query kind included: it addresses any connector
+    * at all, and pagination is set through a property like any other, reaching
+    * {@code paginationSpec} directly without passing through the endpoint machinery. A paginated
+    * query built without a cap pages to exhaustion on every render, which is the bill
+    * {@link TabularEndpointBindingSupport#requireRowCapWhenPaged} refuses to run up.</p>
+    *
+    * <p>Written as an exemption rather than a list on purpose. A kind added later is covered unless
+    * someone deliberately excuses it, and the two mistakes are not the same size: a wrong exemption
+    * is a metered API walked to the end on every render, a wrong inclusion is one clear message
+    * asking for a number.</p>
+    */
+   static boolean rowCapRequiredFor(String targetKind) {
+      return !TARGET_KIND_FILE.equals(targetKind);
    }
 
    /**
@@ -2864,6 +3840,33 @@ public class WorksheetTableService {
       int nl = msg.indexOf('\n');
       return nl > 0 ? msg.substring(0, nl) : msg;
    }
+
+   /** Names probe tables the caller did not name; the assembly is removed before the next one. */
+   private static final java.util.concurrent.atomic.AtomicLong PROBE_TABLE_SEQUENCE =
+      new java.util.concurrent.atomic.AtomicLong();
+
+   /**
+    * The deployment ceiling on sampled rows, shared with the endpoint path
+    * ({@code EndpointJsonQueryRunner}). Named for REST because that is where sampling started; it
+    * governs sampled customer data leaving ANY tabular connector, and 0 switches it off entirely.
+    */
+   private static final String SAMPLE_ROWS_PROPERTY = "rest.sample.rows";
+   /** What {@code rest.sample.rows} defaults to — {@code JsonRowSampler.DEFAULT_MAX_ROWS}. */
+   private static final int DEFAULT_SAMPLE_ROWS = 20;
+
+   /** {@code tabularSource.targetKind} for a SaaS/REST connector's endpoint. */
+   private static final String TARGET_KIND_ENDPOINT = "endpoint";
+   /** {@code tabularSource.targetKind} for a path-addressed connector's file. */
+   private static final String TARGET_KIND_FILE = "file";
+   /**
+    * {@code tabularSource.targetKind} for any connector, addressed through its own declared
+    * parameters rather than through a target the two older kinds recognize.
+    */
+   private static final String TARGET_KIND_QUERY = "query";
+   /** ServerFile's name for the property that carries the file; preferred when a connector has it. */
+   private static final String FILE_TARGET_PROPERTY = "fileFolder";
+   /** The property a workbook's sheet is selected through. */
+   private static final String EXCEL_SHEET_PROPERTY = "excelSheet";
 
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetTableService.class);
 }

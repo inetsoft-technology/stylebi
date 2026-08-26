@@ -114,9 +114,35 @@ public class CSVLoaderTest {
    }
 
    /**
+    * Bug: a column's format/type is decided from only the sampled (typeRows) rows. A
+    * later row past that scan window that only partially matches the cached format
+    * (e.g. "50%" against the plain-number format cached for "100.5"/"200.5") was
+    * silently accepted as a wrong value (50.0) instead of falling through to the
+    * type-specific numeric fallback (0.5).
+    */
+   @Test
+   public void percentRowBeyondScanWindowNotSilentlyMisparsed() throws Exception {
+      List<String> types = new ArrayList<>();
+      XSwappableTable table = readColumn("rate",
+         new String[]{ "100.5", "200.5", "50%" }, types, 2);
+
+      Assertions.assertEquals(XSchema.DOUBLE, types.get(0));
+      Assertions.assertEquals(100.5, ((Number) table.getObject(1, 0)).doubleValue(), 0.001);
+      Assertions.assertEquals(200.5, ((Number) table.getObject(2, 0)).doubleValue(), 0.001);
+      Assertions.assertEquals(0.5, ((Number) table.getObject(3, 0)).doubleValue(), 0.001);
+   }
+
+   /**
     * Read a single column csv file, the returned table has the header in row 0.
     */
    private XSwappableTable readColumn(String header, String[] values, List<String> types)
+      throws Exception
+   {
+      return readColumn(header, values, types, 50000);
+   }
+
+   private XSwappableTable readColumn(String header, String[] values, List<String> types,
+                                       int typeRows)
       throws Exception
    {
       StringBuilder content = new StringBuilder(header).append('\n');
@@ -129,7 +155,7 @@ public class CSVLoaderTest {
                               content.toString().getBytes(StandardCharsets.UTF_8)).toFile();
 
       return CSVLoader.readCSV(file, "UTF-8", true, ",", true, false, new HashMap<>(), types,
-                               true, null, 50000, 0, -1, new DateParseInfo());
+                               true, null, typeRows, 0, -1, new DateParseInfo());
    }
 
    @TempDir

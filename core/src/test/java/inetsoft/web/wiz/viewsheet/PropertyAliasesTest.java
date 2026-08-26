@@ -17,6 +17,9 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
+import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -279,5 +282,160 @@ class PropertyAliasesTest {
    @Test
    void refusesAPropertyThatBelongsToADifferentType() {
       assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolve("text", "min"));
+   }
+
+   // ── 'enabled' points at the live field, not the Editable flag ─────────────
+
+   /**
+    * {@code basicGeneralPaneModel.enabled} is the Editable flag wearing the wrong name — its own
+    * setter is declared {@code setEnabled(boolean editable)} — and nothing in the tree ever writes
+    * it. Aliased there, {@code enabled} reported success, wrote a field no one reads, and always
+    * read back false. The live switch is {@code GeneralPropPaneModel.enabled}, one level up.
+    *
+    * <p>The registry's own invariant test cannot catch this: both paths resolve on the model, so a
+    * write to either "works". Only the level is wrong, which is why it needs naming explicitly.
+    */
+   @Test
+   void enabledResolvesToTheGeneralPropPaneFieldNotTheEditableFlagBelowIt() {
+      assertEquals("textGeneralPaneModel.outputGeneralPaneModel.generalPropPaneModel.enabled",
+                   PropertyAliases.resolve("text", "enabled"),
+                   "an output assembly nests generalPropPaneModel one level deeper");
+      assertEquals("chartGeneralPaneModel.generalPropPaneModel.enabled",
+                   PropertyAliases.resolve("chart", "enabled"),
+                   "a data assembly holds generalPropPaneModel directly");
+   }
+
+   @Test
+   void enabledIsNotTheBasicGeneralPaneEnabled() {
+      for(String type : java.util.List.of("text", "chart", "gauge", "image", "table")) {
+         assertFalse(PropertyAliases.resolve(type, "enabled").endsWith("basicGeneralPaneModel.enabled"),
+                     type + " must not alias enabled onto the Editable flag");
+      }
+   }
+
+   /** {@code visible} is the sibling that genuinely does live on the basic pane. */
+   @Test
+   void visibleStillResolvesOntoTheBasicGeneralPane() {
+      assertTrue(PropertyAliases.resolve("chart", "visible").endsWith("basicGeneralPaneModel.visible"));
+   }
+
+   // ── 'shadow' is only real for the outputGeneral() family ──────────────────
+
+   /**
+    * shadow is only ever applied back to the real assembly by gauge/text/image's dialog services
+    * (VSFloatable.isShadow() is consulted only for OutputVSAssemblyInfo/ShapeVSAssemblyInfo). The
+    * dataGeneral() family (chart, table, crosstab, submit, the selection/input types, ...)
+    * inherits an unused field from the class hierarchy that no dialog service or renderer ever
+    * reads -- aliasing it there let set_assembly_properties(Submit1, {shadow: true}) return a
+    * fake {"ok":true} that always read back false.
+    */
+   @Test
+   void shadowIsOnlyAliasedForTheOutputAssemblyTypesThatApplyIt() {
+      for(String type : java.util.List.of("gauge", "text", "image")) {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("shadow"),
+                    type + " should expose 'shadow'");
+      }
+
+      for(String type : java.util.List.of("submit", "chart", "table", "crosstab", "selectionlist")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("shadow"),
+                     type + " should not expose 'shadow' -- it is never applied to the real assembly");
+      }
+   }
+
+   /** Guards against over-correcting: the 3 genuinely-working cases must not regress. */
+   @Test
+   void shadowRoundTripsOnEveryOutputAssembly() {
+      assertShadowRoundTrips("gauge", new GaugePropertyDialogModel());
+      assertShadowRoundTrips("text", new TextPropertyDialogModel());
+      assertShadowRoundTrips("image", ImagePropertyDialogModel.builder().build());
+   }
+
+   private static void assertShadowRoundTrips(String type, Object model) {
+      String path = PropertyAliases.resolve(type, "shadow");
+      model = PropertyPath.set(model, path, true);
+
+      assertEquals(true, PropertyPath.get(model, path), type + "'s shadow should round-trip");
+   }
+
+   // ── the chart line pane's read-only capability flags ──────────────────────
+   //
+   // These report whether the chart TYPE offers a control. ChartLinePaneModel recomputes each one
+   // from the chart type on every read and updateChartLinePaneModel writes none of them, so a
+   // write could not survive even in principle -- it reported success and changed nothing.
+
+   @Test
+   void refusesToWriteEveryChartReadOnlyCapabilityFlag() {
+      for(String flag : java.util.List.of("gridLineVisible", "innerLineVisible", "trendLineVisible",
+                                          "facetGridVisible", "facetGridEnabled",
+                                          "projectForwardEnabled", "lineTabVisible"))
+      {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite("chart", flag),
+            flag + " is recomputed on every read, so a write to it cannot survive");
+
+         assertTrue(thrown.getMessage().contains(flag), "name the flag: " + flag);
+         assertTrue(thrown.getMessage().contains("read-only"), "say why, for " + flag);
+         assertTrue(thrown.getMessage().contains("set_chart_type"),
+                    "say what to do instead, for " + flag);
+      }
+   }
+
+   /** The raw-path escape hatch must not reach a refused flag under a different spelling. */
+   @Test
+   void refusesAChartReadOnlyFlagEvenAsARawDottedPath() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("chart", "chartLinePaneModel.gridLineVisible"));
+
+      assertTrue(thrown.getMessage().contains("gridLineVisible"));
+   }
+
+   /**
+    * The boundary that matters: {@code facetGrid} is the real setting and applies, so only the
+    * flag saying whether its control appears is refused. Refusing both would have removed a
+    * working property.
+    */
+   @Test
+   void facetGridItselfStaysWritable() {
+      assertEquals("chartLinePaneModel.facetGrid",
+                   PropertyAliases.resolveForWrite("chart", "facetGrid"));
+   }
+
+   @Test
+   void theRealLinePaneSettingsStayWritable() {
+      for(String alias : java.util.List.of("trendLineType", "trendLineStyle", "trendLineColor",
+                                           "projectForward", "facetGridColor"))
+      {
+         assertEquals("chartLinePaneModel." + alias,
+                      PropertyAliases.resolveForWrite("chart", alias),
+                      alias + " is a real setting, not a capability flag");
+      }
+   }
+
+   /**
+    * {@code projectForwardEnabled} is exposed readable on purpose: it is the gate that explains
+    * why {@code projectForward} reads back 0. Readable and refused on write is the whole point,
+    * so both halves are asserted together.
+    */
+   @Test
+   void projectForwardEnabledIsReadableButNotWritable() {
+      assertEquals("chartLinePaneModel.projectForwardEnabled",
+                   PropertyAliases.resolve("chart", "projectForwardEnabled"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("chart", "projectForwardEnabled"));
+   }
+
+   /**
+    * The refusal is keyed on the assembly type, not on the leaf name alone. The very leaf that is
+    * refused on a chart has to pass on a type that has no chart line pane -- otherwise the check
+    * would be vetoing a name it knows nothing about, on models where it means something else.
+    */
+   @Test
+   void theChartRefusalDoesNotReachAnotherAssemblyType() {
+      assertEquals("chartLinePaneModel.gridLineVisible",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET,
+                                                   "chartLinePaneModel.gridLineVisible"),
+                   "refused on 'chart', but nothing to refuse on a viewsheet");
    }
 }

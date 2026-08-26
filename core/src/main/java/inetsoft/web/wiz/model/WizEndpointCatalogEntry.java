@@ -37,6 +37,18 @@ import java.util.List;
  *
  * @param description what the endpoint is for. Null for the entries nobody has described yet, and
  *                    for the ones deliberately left blank because the vendor has withdrawn them.
+ * @param responseSchema the response structure the connector's maintainer declared for this
+ *                       endpoint, straight out of {@code endpoints.json}. Null means the endpoint
+ *                       has not been curated, which is equivalent to not having declared one.
+ *                       This record is the ONLY channel this value has into wiz.
+ *
+ *                       <p>Typed as {@code Object} rather than {@code Map<String, Object>} for the
+ *                       same reason as {@code AbstractEndpoint.getResponseSchema}: the
+ *                       representation allows an array at the root, and binding that to a
+ *                       {@code Map} would be a type mismatch on a known property that
+ *                       {@code ignoreUnknown} cannot excuse, which
+ *                       {@link inetsoft.web.wiz.service.EndpointCatalogReader} would surface as an
+ *                       {@code IOException} for the whole connector.</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WizEndpointCatalogEntry(
@@ -44,6 +56,7 @@ public record WizEndpointCatalogEntry(
    String description,
    String suffix,
    Boolean paged,
-   List<WizEndpointLookup> lookups)
+   List<WizEndpointLookup> lookups,
+   Object responseSchema)
 {
 }

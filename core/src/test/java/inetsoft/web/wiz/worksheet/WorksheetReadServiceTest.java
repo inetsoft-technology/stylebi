@@ -18,14 +18,24 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.internal.binding.BaseField;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.wiz.pairing.TestWorksheets;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.*;
 
+import java.awt.Point;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -493,5 +503,248 @@ class WorksheetReadServiceTest {
       assertEquals("entry alias", p.alias());
       assertEquals("entry description", p.description());
       assertFalse(p.dataSource());
+   }
+
+   // The write tools set description, maxRows, distinct, mode and position, and none of them came
+   // back in the model -- so a caller could not tell a working write from a dropped one. That is
+   // what left L1 case 1.19 unable to round-trip and 1.16 unable to verify a position at all.
+
+   @Test
+   void reportsTheTablePropertiesTheWriteToolsSet() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      t.setDescription("what this table is for");
+      t.setMaxRows(25);
+      t.setDistinct(true);
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel m = tableNamed(read(ws), "T");
+
+      assertEquals("what this table is for", m.description());
+      assertEquals(Integer.valueOf(25), m.maxRows());
+      assertTrue(m.distinct());
+   }
+
+   /**
+    * -1 is how the assembly stores "unlimited", and reporting it verbatim would read back as a
+    * real limit of -1. 0 is the same unlimited, not a limit of zero rows -- the engine applies a
+    * limit only when it is positive -- so everything {@code <= 0} reports null.
+    *
+    * <p>What this asserts holds only with no global cap configured, which is this suite's state:
+    * getMaxRows() runs the stored value through Util.getQueryLocalRuntimeMaxrow, so with
+    * query.runtime.maxrow or an organization row limit set, a table stored as unlimited reports
+    * that cap instead of null. The read is deliberately the effective limit -- the Composer's own
+    * dialog shows the same number -- so this is the documented behaviour, not a gap. Asserting the
+    * capped case would mean mutating global state from a unit test; it is verifiable on a
+    * configured server.
+    */
+   @Test
+   void anUnlimitedRowLimitIsReportedAsNullRatherThanMinusOne() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      t.setMaxRows(-1);
+      ws.addAssembly(t);
+
+      assertNull(tableNamed(read(ws), "T").maxRows());
+   }
+
+   @Test
+   void reportsThePixelOffsetSoAPositionWriteCanBeVerified() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      t.setPixelOffset(new Point(120, 340));
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel m = tableNamed(read(ws), "T");
+
+      assertEquals(Integer.valueOf(120), m.x());
+      assertEquals(Integer.valueOf(340), m.y());
+   }
+
+   /**
+    * Mode has no field of its own -- set_table_mode writes liveData, runtime and editMode per mode,
+    * so the read derives it from the same three. It reports the state the table is in, which is not
+    * always the word that was written: see tableMode's own note.
+    */
+   @Test
+   void derivesTheDisplayModeFromTheFlagsSetTableModeWrites() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      ws.addAssembly(t);
+
+      t.setEditMode(true);
+      assertEquals("edit", tableNamed(read(ws), "T").mode());
+
+      t.setEditMode(false);
+      t.setLiveData(true);
+      t.setRuntime(true);
+      assertEquals("live", tableNamed(read(ws), "T").mode());
+
+      t.setRuntime(false);
+      assertEquals("detail", tableNamed(read(ws), "T").mode());
+
+      t.setLiveData(false);
+      assertEquals("full", tableNamed(read(ws), "T").mode());
+   }
+
+   /** Both directions, since a one-sided assertion would pass against a hardcoded {@code false}. */
+   @Test
+   void reportsWhetherTheTableIsExposedToViewsheets() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "col");
+      ws.addAssembly(t);
+
+      t.setVisibleTable(true);
+      assertTrue(tableNamed(read(ws), "T").visibleInViewsheet());
+
+      t.setVisibleTable(false);
+      assertFalse(tableNamed(read(ws), "T").visibleInViewsheet());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Named groups (Bug #76097 review follow-up)
+   // ---------------------------------------------------------------------------
+
+   private static DefaultNamedGroupAssembly namedGroup(
+      Worksheet ws, String name, SourceInfo attachedSource, DataRef attachedAttribute,
+      String groupName, WorksheetMutationSupport.GroupMapping mapping) throws Exception
+   {
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      DataRef conditionRef = attachedAttribute != null ? attachedAttribute
+         : new BaseField("this");
+      ngi.setGroupCondition(groupName,
+         WorksheetMutationSupport.buildGroupConditionList(XSchema.STRING, conditionRef, mapping));
+
+      DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
+      assembly.setNamedGroupInfo(ngi);
+
+      if(attachedAttribute != null) {
+         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(attachedSource);
+         assembly.setAttachedAttribute(attachedAttribute);
+      }
+      else {
+         assembly.setAttachedType(AttachedAssembly.DATA_TYPE_ATTACHED);
+         assembly.setAttachedDataType(XSchema.STRING);
+      }
+
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   private static WorksheetModel.NamedGroupModel namedGroupNamed(WorksheetModel m, String name) {
+      return m.namedGroups().stream().filter(g -> name.equals(g.name())).findFirst().orElseThrow();
+   }
+
+   @Test
+   void readsWorksheetTableAttachedGroupAsTableColumnNotDatasourceScoped() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "State"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo attachedSource = new SourceInfo(SourceInfo.ASSET, null, "Customer1");
+      namedGroup(ws, "StateNGroup", attachedSource, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("N"), "STARTING_WITH"));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "StateNGroup");
+      assertEquals("Customer1", ng.table());
+      assertEquals("State", ng.column());
+      assertNull(ng.datasource());
+      assertNull(ng.logicalModel());
+      assertNull(ng.sourceTable());
+      assertNull(ng.attribute());
+      assertEquals("STARTING_WITH", ng.groupMappings().get(0).operation());
+   }
+
+   @Test
+   void readsLogicalModelScopedGroupAsDatasourceNotTableColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef("Customer", "State"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo attachedSource = new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model");
+      namedGroup(ws, "State N Group", attachedSource, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("NJ", "NY", "NV")));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "State N Group");
+      assertNull(ng.table());
+      assertNull(ng.column());
+      assertEquals("Examples/Orders", ng.datasource());
+      assertEquals("Order Model", ng.logicalModel());
+      assertEquals("Customer", ng.sourceTable());
+      assertEquals("State", ng.attribute());
+      // No operation given at creation -- must round-trip as explicit equality, not be silently
+      // omitted (which would look identical to "couldn't be determined").
+      assertEquals("EQUAL_TO", ng.groupMappings().get(0).operation());
+   }
+
+   @Test
+   void readsPhysicalTableScopedGroupAsDatasourceWithNoLogicalModel() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "STATE"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo attachedSource = new SourceInfo(SourceInfo.PHYSICAL_TABLE, "MyDatasource", "SA.CUSTOMERS");
+      namedGroup(ws, "PhysGroup", attachedSource, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("N"), "STARTING_WITH"));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "PhysGroup");
+      assertNull(ng.table());
+      assertNull(ng.column());
+      assertEquals("MyDatasource", ng.datasource());
+      assertNull(ng.logicalModel());
+      assertEquals("SA.CUSTOMERS", ng.sourceTable());
+      assertEquals("STATE", ng.attribute());
+   }
+
+   @Test
+   void readsNegatedEqualityOperationOnStandaloneGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      namedGroup(ws, "NotNYNJ", null, null, "NotNYNJ",
+         new WorksheetMutationSupport.GroupMapping("NotNYNJ", List.of("NY", "NJ"), "!="));
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "NotNYNJ");
+      assertNull(ng.table());
+      assertNull(ng.datasource());
+      assertEquals("NOT_ONE_OF", ng.groupMappings().get(0).operation());
+   }
+
+   /**
+    * PR #4765 review follow-up: {@code add_named_group}'s own vocabulary can never create a
+    * negated {@code STARTING_WITH}/{@code CONTAINS}/{@code LIKE}/{@code BETWEEN}/comparison (there
+    * is no {@code NOT_STARTING_WITH} etc.), but a human can, via the Composer's general condition
+    * editor ({@code Condition.isNegatedChangeable()} is unconditionally {@code true}) -- and
+    * {@code readNamedGroup} runs over every {@code DefaultNamedGroupAssembly} in the worksheet,
+    * not just wizard-created ones. Reporting the positive string for such a condition would
+    * silently flip its meaning if read back and fed into add_named_group/edit_named_group, so
+    * {@code operation} must come back {@code null} ("can't be expressed") rather than
+    * {@code "STARTING_WITH"}.
+    */
+   @Test
+   void readsNullOperationForNegatedStartingWithBeyondThisVocabulary() {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "State"));
+      col.setDataType(XSchema.STRING);
+
+      Condition c = new Condition(XSchema.STRING);
+      c.setOperation(XCondition.STARTING_WITH);
+      c.setNegated(true);
+      c.addValue("N");
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(col, c, 0));
+
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      ngi.setGroupCondition("NotN", conds);
+
+      DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, "HumanMadeGroup");
+      assembly.setNamedGroupInfo(ngi);
+      assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      assembly.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, "Customer1"));
+      assembly.setAttachedAttribute(col);
+      ws.addAssembly(assembly);
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "HumanMadeGroup");
+      assertNull(ng.groupMappings().get(0).operation(),
+         "a negated STARTING_WITH has no round-trippable operation string and must not be " +
+            "reported as the plain positive one");
    }
 }

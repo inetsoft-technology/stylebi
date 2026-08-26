@@ -1265,6 +1265,7 @@ public class MetadataApiService {
       }
 
       List<OsiRelationship> relationships = buildRelationships(metaDataProvider, tables);
+      populatePrimaryKeys(metaDataProvider, tables);
 
       DatasourceTablesResponse response = new DatasourceTablesResponse();
       response.setTables(tables);
@@ -1687,6 +1688,62 @@ public class MetadataApiService {
       }
 
       return new ArrayList<>(relMap.values());
+   }
+
+   /**
+    * Populate each table's primary key columns, one JDBC catalog round trip per table -- same
+    * cost class as the per-table KEYRELATION query buildRelationships already issues.
+    */
+   static void populatePrimaryKeys(DefaultMetaDataProvider metaDataProvider,
+                                    List<DatabaseTableInfo> tables)
+   {
+      for(DatabaseTableInfo table : tables) {
+         XNode query = new XNode(table.getTable());
+
+         if(table.getCatalog() != null) {
+            query.setAttribute("catalog", table.getCatalog());
+         }
+
+         if(table.getSchema() != null) {
+            query.setAttribute("schema", table.getSchema());
+         }
+
+         List<String> primaryKeyColumns = new ArrayList<>();
+
+         try {
+            XNode pkResult = metaDataProvider.getPrimaryKeys(query);
+            collectPrimaryKeyColumnNames(pkResult, primaryKeyColumns);
+         }
+         catch(Exception e) {
+            log.warn("Failed to get primary keys for table '{}'", table.getTable(), e);
+         }
+
+         table.setPrimaryKeyColumns(primaryKeyColumns);
+      }
+   }
+
+   /**
+    * JDBCHandler.getPrimaryKeys builds one unnamed XNode per key-column row, so for a composite
+    * (2+ column) primary key, XNode.addChild's own duplicate-name detection (every unnamed node
+    * defaults to the same name) merges them into a single XSequenceNode child instead of leaving
+    * them as separate top-level children -- the same quirk XUtil.isPrimaryKey already works
+    * around. Unwrap one level so every key column is collected regardless of key width.
+    */
+   private static void collectPrimaryKeyColumnNames(XNode pkResult, List<String> out) {
+      for(int i = 0; i < pkResult.getChildCount(); i++) {
+         XNode keyNode = pkResult.getChild(i);
+
+         if(keyNode instanceof XSequenceNode) {
+            collectPrimaryKeyColumnNames(keyNode, out);
+            continue;
+         }
+
+         String pkColumnName = (String) keyNode.getAttribute("pkColumnName");
+
+         if(!Tool.isEmptyString(pkColumnName)) {
+            out.add(pkColumnName);
+         }
+      }
    }
 
    private void collectLeafNodes(XNode node, List<XNode> leaves) {

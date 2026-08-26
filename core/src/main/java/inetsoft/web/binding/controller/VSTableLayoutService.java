@@ -442,8 +442,10 @@ public class VSTableLayoutService {
       TableLayout layout = info.getTableLayout();
       String[] names = layout.getCellNames(true);
       TableCellBinding bind = getBindingFromLayout(layout, row, col);
+      CellBindingInfo cinfo = createCellBinding(bind);
+      cinfo.setRuntimeName(layout.getRuntimeCellName(bind));
 
-      return createCellBinding(bind);
+      return cinfo;
    }
 
    public GetTableLayoutCommand createTableLayoutCommand(RuntimeViewsheet rvs,

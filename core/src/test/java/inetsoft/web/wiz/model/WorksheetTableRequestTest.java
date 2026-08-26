@@ -142,4 +142,62 @@ class WorksheetTableRequestTest {
       assertEquals("RANGE", output.at("/windowColumns/0/frame/mode").asText());
       assertEquals("day", output.at("/windowColumns/0/frame/offsetUnit").asText());
    }
+
+   // ─── tabularSource: the generalized target ────────────────────────────────
+
+   /**
+    * The field names are the contract with wiz-services, which builds this object. Bound here
+    * rather than left to the service tests because a rename that Jackson simply ignores produces a
+    * null target and an "is required" error, with nothing saying the caller spelled it differently.
+    */
+   @Test
+   void tabularFileTargetBinds() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      WorksheetTable t = mapper.readValue(
+         """
+         { "tableType": "tabular table",
+           "tabularSource": {
+             "datasourcePath": "Files/Sales",
+             "targetKind": "file",
+             "target": "2024/sales.xlsx#Q1",
+             "params": { "firstRowHeader": "true", "delimiter": ";" },
+             "sampleRows": 5
+           } }
+         """,
+         WorksheetTable.class);
+
+      WorksheetTable.TabularSource src = t.getTabularSource();
+      assertEquals("file", src.getTargetKind());
+      assertEquals("2024/sales.xlsx#Q1", src.getTarget());
+      assertEquals("true", src.getParams().get("firstRowHeader"));
+      assertEquals(";", src.getParams().get("delimiter"));
+      assertEquals(5, src.getSampleRows());
+   }
+
+   /**
+    * {@code endpoint} was this field's name before a file could be named through it, and it named
+    * the same thing. Kept as an alias so a caller written against that shape still binds rather
+    * than failing with "target is required" over a value it did supply.
+    */
+   @Test
+   void tabularEndpointBindsAsTargetUnderItsOldName() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      WorksheetTable t = mapper.readValue(
+         """
+         { "tableType": "tabular table",
+           "tabularSource": { "datasourcePath": "SaaS/Stripe", "endpoint": "Charges",
+                              "parameters": { "limit": "100" } } }
+         """,
+         WorksheetTable.class);
+
+      WorksheetTable.TabularSource src = t.getTabularSource();
+      assertEquals("Charges", src.getTarget());
+      // Absent, not defaulted on the model: buildTabularTable reads an absent kind as "endpoint",
+      // which is where that rule belongs — the model only reports what arrived.
+      assertNull(src.getTargetKind());
+      assertEquals("100", src.getParameters().get("limit"));
+      assertNull(src.getParams());
+   }
 }

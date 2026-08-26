@@ -89,6 +89,29 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param aggregates         group-by / aggregate info; {@code null} when none is set
     * @param sorts              sort directives; empty when none
     * @param primary            {@code true} if this is the worksheet's primary assembly
+    * @param description        the table's own description; {@code null} when unset
+    * @param maxRows            the row limit in effect, or {@code null} when there is none. This
+    *                           is the <em>effective</em> limit, not the stored one: the assembly
+    *                           folds {@code query.runtime.maxrow} and the organization row limit
+    *                           into it, so on a capped server this can be smaller than the number
+    *                           written, and a table stored as unlimited reports the cap. It is the
+    *                           same value the Composer's table-properties dialog shows. Anything
+    *                           {@code <= 0} is no limit at all — the engine applies one only when
+    *                           it is positive — and all of those report {@code null}, so {@code 0}
+    *                           is not a limit of zero rows.
+    * @param distinct           whether the table returns only distinct rows
+    * @param visibleInViewsheet whether the table is exposed to viewsheets bound to this sheet
+    * @param mode               the table's display mode — {@code live}, {@code full},
+    *                           {@code detail} or {@code edit} — derived from the same three flags
+    *                           {@code set_table_mode} writes, since no single field stores it.
+    *                           {@code set_table_mode} also accepts {@code default}, which is not
+    *                           a state of its own and so never appears here: the writer resolves
+    *                           it to live for an embedded table and metadata for a bound one, and
+    *                           it reads back as {@code detail} or {@code full} accordingly
+    * @param x                  the assembly's horizontal pixel offset on the worksheet canvas;
+    *                           {@code null} only if the assembly carries no offset at all
+    * @param y                  the assembly's vertical pixel offset on the worksheet canvas;
+    *                           {@code null} only if the assembly carries no offset at all
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
@@ -105,7 +128,14 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<FilterModel> rankingConditions,
       AggregateModel aggregates,
       List<SortModel> sorts,
-      boolean primary
+      boolean primary,
+      String description,
+      Integer maxRows,
+      boolean distinct,
+      boolean visibleInViewsheet,
+      String mode,
+      Integer x,
+      Integer y
    ) {}
 
    /**
@@ -177,9 +207,13 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *
     * @param groups     group-by dimensions
     * @param aggregates measure aggregate definitions
+    * @param crosstab   whether the table is displayed as a crosstab (row/column headers)
+    *                   rather than a flat grouped table — set via set_group_aggregate's
+    *                   {@code crosstab} option
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
-   public record AggregateModel(List<GroupModel> groups, List<AggregateRefModel> aggregates) {
+   public record AggregateModel(
+      List<GroupModel> groups, List<AggregateRefModel> aggregates, boolean crosstab) {
 
       /**
        * A single group-by dimension.
@@ -227,17 +261,29 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
    /**
     * A named group assembly in the worksheet.
     *
-    * @param name          assembly name
-    * @param table         the source table the grouping is attached to
-    * @param column        the column the grouping is attached to
+    * @param name        assembly name
+    * @param table       worksheet table this group is attached to via {@code table}+{@code column}
+    *                    (mutually exclusive with {@code datasource} — never both non-null)
+    * @param column      column on {@code table} (see {@code table})
+    * @param datasource  datasource this group is scoped to via the datasource-scoped mode
+    *                    (mutually exclusive with {@code table} — never both non-null)
+    * @param logicalModel logical model name within {@code datasource}, when scoped to a logical-model
+    *                     entity attribute rather than a physical table column
+    * @param sourceTable entity name (when {@code logicalModel} is present) or physical table name,
+    *                    within {@code datasource}
+    * @param attribute   attribute/column name within {@code sourceTable}
     * @param groupMappings list of group name to values mappings
-    * @param groupOthers   {@code true} if unmapped values are grouped as "Others"
+    * @param groupOthers {@code true} if unmapped values are grouped as "Others"
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record NamedGroupModel(
       String name,
       String table,
       String column,
+      String datasource,
+      String logicalModel,
+      String sourceTable,
+      String attribute,
       List<GroupMappingModel> groupMappings,
       boolean groupOthers
    ) {}
@@ -247,7 +293,10 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *
     * @param groupName the name of the group
     * @param values    the values assigned to this group
+    * @param operation how {@code values} is matched — any operator {@code add_named_group}'s
+    *                  {@code operation} accepts (e.g. {@code STARTING_WITH}), or {@code null} when
+    *                  it could not be determined from the underlying condition
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
-   public record GroupMappingModel(String groupName, List<String> values) {}
+   public record GroupMappingModel(String groupName, List<String> values, String operation) {}
 }

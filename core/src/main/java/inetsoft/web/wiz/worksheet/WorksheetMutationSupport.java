@@ -34,6 +34,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
 
@@ -121,30 +122,146 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * A named group mapping — group name to list of values that belong to that group.
+    * A named group mapping — group name to list of values that belong to that group, matched
+    * using {@code operation} (any operator accepted by {@link #parseOperation}, e.g.
+    * {@code "STARTING_WITH"}, {@code "!="}, {@code "ONE_OF"}; {@code null} defaults to
+    * {@code EQUAL_TO}, preserving the historical behavior of this record).
     */
-   public record GroupMapping(String name, java.util.List<String> values) {}
+   public record GroupMapping(String name, java.util.List<String> values, String operation) {
+      public GroupMapping(String name, java.util.List<String> values) {
+         this(name, values, null);
+      }
+   }
+
+   /**
+    * Builds the {@link ConditionList} for one named-group mapping, honoring the mapping's
+    * {@code operation} (any operator accepted by {@link #parseOperation}, defaulting to
+    * {@code EQUAL_TO} when omitted, matching this method's historical behavior).
+    *
+    * <p>{@code ONE_OF}/{@code NOT_ONE_OF} and {@code BETWEEN} test all of {@code m.values()}
+    * within a single {@link Condition}, matching how {@link Condition#evaluate} reads those
+    * operators — splitting them into OR'd single-value conditions the way the other operators
+    * below are handled would silently test only the first value. {@code NULL}/{@code NOT_NULL}
+    * take no value. Negated equality ({@code !=}/{@code NOT_EQUAL_TO}/{@code <>}) is routed
+    * through the same single-condition path as {@code NOT_ONE_OF} rather than per-value OR'd
+    * negation: {@code EQUAL_TO} only ever reads a condition's first value (see
+    * {@link Condition#evaluate}), so OR'ing several separately-negated single-value EQUAL_TO
+    * conditions together (e.g. {@code v != A OR v != B}) is a near-tautology — true for every
+    * {@code v} except one that somehow equals both {@code A} and {@code B} at once — instead of
+    * the intended "equal to none of these" ({@code NOT(v == A OR v == B)}, i.e. a negated
+    * {@code ONE_OF} over the same values). Every remaining operator (plain equality, comparisons,
+    * {@code STARTING_WITH}, {@code CONTAINS}, {@code LIKE}) only ever looks at its condition's
+    * first value, so each of {@code m.values()} becomes its own condition, OR'd together — e.g.
+    * {@code STARTING_WITH ["N", "S"]} means "starts with N or starts with S".</p>
+    *
+    * <p>Shared by {@code WorksheetEditService.Editor.addNamedGroup}/{@code editNamedGroup} (a
+    * grouping attached to a worksheet table's column) and
+    * {@code WorksheetAgentController.addDatasourceScopedNamedGroup} (a grouping scoped directly
+    * to a datasource/logical-model or physical-table attribute) — the condition-building logic is
+    * identical either way; only how {@code conditionRef}/{@code conditionType} were resolved
+    * differs.</p>
+    */
+   static ConditionList buildGroupConditionList(
+      String conditionType, DataRef conditionRef, GroupMapping m) throws PairingException
+   {
+      String operation = m.operation();
+      int op = parseOperation(operation);
+      boolean negate = isNegatedOperation(operation);
+      boolean equalInclusive = isEqualInclusive(operation);
+      ConditionList conds = new ConditionList();
+
+      if(op == XCondition.NULL) {
+         Condition c = new Condition(conditionType);
+         c.setOperation(op);
+         c.setNegated(negate);
+         conds.append(new ConditionItem(conditionRef, c, 0));
+         return conds;
+      }
+
+      boolean negatedEquality = op == XCondition.EQUAL_TO && negate;
+
+      if(op == XCondition.ONE_OF || negatedEquality) {
+         // Condition.evaluate() for ONE_OF/BETWEEN reads the raw values list directly (no
+         // per-value OR'ing like the fallback branch below), so an empty or wrong-sized list here
+         // is not "no values matched" -- it is a silently wrong condition. An empty ONE_OF matches
+         // nothing; a NEGATED empty ONE_OF (e.g. "!=" with no values) matches EVERYTHING.
+         if(m.values() == null || m.values().isEmpty()) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": operation \"" + operation +
+                  "\" requires at least one value.");
+         }
+
+         Condition c = new Condition(conditionType);
+         c.setOperation(XCondition.ONE_OF);
+         c.setNegated(negate);
+
+         for(String v : m.values()) {
+            c.addValue(v);
+         }
+
+         conds.append(new ConditionItem(conditionRef, c, 0));
+         return conds;
+      }
+
+      if(op == XCondition.BETWEEN) {
+         if(m.values() == null || m.values().size() != 2) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": BETWEEN requires exactly two values (low, high), got " +
+                  (m.values() == null ? 0 : m.values().size()) + ".");
+         }
+
+         Condition c = new Condition(conditionType);
+         c.setOperation(op);
+         c.setNegated(negate);
+
+         for(String v : m.values()) {
+            c.addValue(v);
+         }
+
+         conds.append(new ConditionItem(conditionRef, c, 0));
+         return conds;
+      }
+
+      for(int i = 0; i < m.values().size(); i++) {
+         if(i > 0) {
+            conds.append(new JunctionOperator(JunctionOperator.OR, 0));
+         }
+
+         Condition c = new Condition(conditionType);
+         c.setOperation(op);
+
+         if(equalInclusive) {
+            c.setEqual(true);
+         }
+
+         if(negate) {
+            c.setNegated(true);
+         }
+
+         c.addValue(m.values().get(i));
+         conds.append(new ConditionItem(conditionRef, c, 0));
+      }
+
+      return conds;
+   }
 
    // =========================================================================
    // Filter helpers
    // =========================================================================
 
    /**
-    * Builds a simple equality pre-condition and appends it (AND-joined) to the
-    * table's existing pre-condition list.
+    * Builds a pre-condition and appends it (AND-joined) to the table's existing
+    * pre-condition list.
     *
-    * <p>Only a single {@code operation} string is currently recognised:
-    * <ul>
-    *   <li>{@code "="} or {@code "EQUAL_TO"} — equality (default)</li>
-    *   <li>{@code "!="} or {@code "NOT_EQUAL_TO"} — not-equal</li>
-    *   <li>{@code "<"} or {@code "LESS_THAN"} — less-than</li>
-    *   <li>{@code ">"} or {@code "GREATER_THAN"} — greater-than</li>
-    * </ul>
-    * Unrecognised strings fall back to equality.</p>
+    * <p>{@link #parseOperation} owns the operator vocabulary and is the single place it is
+    * written down -- deliberately not restated here, since the copy that used to live in this
+    * javadoc listed four of the fifteen forms and said unrecognised strings fell back to
+    * equality, which is the defect parseOperation now refuses. An <i>absent</i> operator still
+    * means equality; a supplied one that is not recognised throws.</p>
     *
     * @param t         the table assembly to mutate
     * @param field     the column name to filter on
-    * @param operation the comparison operator (see above)
+    * @param operation the comparison operator; see {@link #parseOperation} for the accepted forms
     * @param values    one or more literal string values
     */
    public static void addFilter(TableAssembly t, String field,
@@ -169,7 +286,7 @@ public final class WorksheetMutationSupport {
       }
 
       for(String v : values) {
-         c.addValue(v);
+         c.addValue(conditionValue(dtype, v));
       }
 
       ConditionItem item = new ConditionItem(ref, c, 0);
@@ -281,6 +398,28 @@ public final class WorksheetMutationSupport {
     */
    public static void applyAggregateInfo(TableAssembly t, List<GroupSpec> groups,
                                          List<AggregateSpec> aggregates)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
+      applyAggregateInfo(t, groups, aggregates, false);
+   }
+
+   /**
+    * Builds and sets a new {@link AggregateInfo} on the table from the supplied
+    * group and aggregate specs, optionally in crosstab mode — the same "Switch to
+    * Crosstab" toggle as the Composer's own Group and Aggregate dialog.
+    *
+    * @param t          the table assembly to mutate
+    * @param groups     group-by column specs (name, plus optional date grouping level);
+    *                   {@code null} is treated as empty
+    * @param aggregates aggregate measures to apply; {@code null} is treated as empty
+    * @param crosstab   {@code true} to display the result as a crosstab (row/column
+    *                   headers) rather than a flat grouped table. {@link AggregateInfo#isCrosstab}
+    *                   only reports {@code true} back once the table has at least 2 groups and 1
+    *                   aggregate — with fewer, this is accepted but silently has no visible
+    *                   effect, matching the Composer dialog's own {@code setCrosstab} call
+    */
+   public static void applyAggregateInfo(TableAssembly t, List<GroupSpec> groups,
+                                         List<AggregateSpec> aggregates, boolean crosstab)
       throws inetsoft.web.wiz.pairing.PairingException
    {
       // Callers (e.g. WorksheetAgentController) may pass a null groups or aggregates
@@ -591,6 +730,7 @@ public final class WorksheetMutationSupport {
       // a rename_column alias on an aggregated column survives re-aggregation.
       t.setProperty(AGGREGATE_OUTPUT_ALIASES,
                     appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
+      ainfo.setCrosstab(crosstab);
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
    }
@@ -748,6 +888,17 @@ public final class WorksheetMutationSupport {
     * property (AggregateInfo of unknown provenance, e.g. set through the Composer UI)
     * every aggregate alias is cleared, preferring a loud unresolved-column failure over
     * a silently wrong chained aggregate.</p>
+    *
+    * <p>The alias is cleared on the column selection by name as well as on the
+    * AggregateInfo's own ref, because the two are only the same object until something
+    * clones the AggregateInfo and installs the copy. A preview does exactly that --
+    * {@code WorksheetPreviewService} snapshots and restores the AggregateInfo around
+    * RUNTIME_MODE execution, since {@code replaceVariables} rewrites it in place -- and
+    * {@link AggregateInfo#clone()} deep-clones every DataRef. Clearing only the
+    * AggregateInfo's ref then nulls an alias nothing reads, and the column the model
+    * reports keeps a name like {@code SUM_REVENUE} over un-aggregated rows for good.
+    * Live-confirmed 2026-08-25 (L2 Finding 20): the alias survived a clear only when a
+    * preview had run in between.</p>
     */
    private static void clearAggregateAliases(TableAssembly t) {
       AggregateInfo old = t.getAggregateInfo();
@@ -766,11 +917,40 @@ public final class WorksheetMutationSupport {
       Set<String> ownAliases = recorded == null ? null :
          new HashSet<>(Arrays.asList(recorded.split("\n", -1)));
 
+      ColumnSelection cs = t.getColumnSelection(false);
+
       for(int i = 0; i < old.getAggregateCount(); i++) {
          AggregateRef ar = old.getAggregate(i);
 
          if(ar.getDataRef() instanceof ColumnRef cr &&
             (ownAliases == null || ownAliases.contains(cr.getAlias())))
+         {
+            String alias = cr.getAlias();
+            cr.setAlias(null);
+            clearAliasInSelection(cs, cr, alias);
+         }
+      }
+   }
+
+   /**
+    * Clears {@code alias} from the column selection's own ref for the same base column.
+    *
+    * <p>A no-op in the ordinary case, where the column selection holds the very ref just
+    * cleared. It earns its place when the two have been separated by a clone -- matching
+    * on the base attribute AND the exact alias, so it cannot reach a different column
+    * that merely shares one of the two.</p>
+    */
+   private static void clearAliasInSelection(ColumnSelection cs, ColumnRef cleared,
+                                             String alias)
+   {
+      if(cs == null || alias == null || alias.isEmpty()) {
+         return;
+      }
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr && cr != cleared &&
+            alias.equals(cr.getAlias()) &&
+            Objects.equals(cr.getAttribute(), cleared.getAttribute()))
          {
             cr.setAlias(null);
          }
@@ -1153,13 +1333,14 @@ public final class WorksheetMutationSupport {
 
             if(spec.values() != null) {
                for(String v : spec.values()) {
-                  // $(varName) syntax maps to a UserVariable reference.
-                  if(v != null && v.startsWith("$(") && v.endsWith(")")) {
-                     c.addValue(new UserVariable(v.substring(2, v.length() - 1)));
-                  }
-                  else {
-                     c.addValue(v);
-                  }
+                  // Shared with addFilter rather than parsed a second time here. The local copy
+                  // had no lower bound on the name, so "$()" became a variable named "" -- one
+                  // nothing can ever resolve, reported as ok. Typing was NOT the difference,
+                  // though the bare constructor reads as though it would be: Condition.addValue
+                  // routes every value through convertType, whose UserVariable branch
+                  // (Condition:2129-2149) sets the type node from the condition's own type, so
+                  // the variable was typed from the column either way.
+                  c.addValue(conditionValue(dtype, v));
                }
             }
 
@@ -1248,6 +1429,25 @@ public final class WorksheetMutationSupport {
       cl.append(new ConditionItem(ref, rc, 0));
       t.setRankingConditionList(cl);
    }
+
+   /**
+    * Describes one hand-authored "Join With" lookup level for a GENERIC/CUSTOM REST-JSON
+    * datasource's {@code add_table} binding (see {@code TabularEndpointBindingSupport
+    * #applyCustomLookupChain}), as opposed to {@code lookup} (a named connector's pre-built
+    * lookup chain, selected by endpoint name only).
+    *
+    * @param url          URL template for this level. Must contain the literal placeholder
+    *                     {@code {paramN}} (1-indexed by this level's position in the chain,
+    *                     e.g. {@code {param1}} for the first level) so the id extracted via
+    *                     {@code jsonPath}/{@code key} from the PARENT level's row lands in the
+    *                     request StyleBI issues for this level.
+    * @param jsonPath     selects the parent row's array/entity to iterate for this level.
+    * @param key          extracts each item's id from that {@code jsonPath}.
+    * @param ignoreBaseUrl {@code true} if {@code url} is a full URL rather than a suffix
+    *                     appended to the datasource's base URL; omit/{@code null} for
+    *                     {@code false}.
+    */
+   public record CustomLookupSpec(String url, String jsonPath, String key, Boolean ignoreBaseUrl) {}
 
    // =========================================================================
    // Internal helpers
@@ -1373,12 +1573,44 @@ public final class WorksheetMutationSupport {
       return XSchema.STRING;
    }
 
+   /**
+    * Turns one condition value into what the engine stores: a {@link UserVariable} for a
+    * {@code $(name)} reference, otherwise the value coerced to the column's type.
+    *
+    * <p>Without the first case a variable reference is destroyed on the way in. The condition is
+    * typed from the resolved column, so on a numeric column {@code "$(Floor)"} does not parse and
+    * lands as {@code 0.0} -- not even the variable's default. The filter still reads as valid and
+    * still returns rows, so a parameterised filter silently becomes a constant one.
+    *
+    * <p>{@code AbstractCondition.getObject(type, value, true)} is what the engine itself uses, and
+    * {@code Condition.toString} renders such a value back as {@code $(name)}, so the round-trip is
+    * the same one the Composer's own condition dialog performs.
+    */
+   private static Object conditionValue(String dtype, String value) {
+      if(value != null && value.startsWith("$(") && value.endsWith(")") && value.length() > 3) {
+         return AbstractCondition.getObject(dtype, value.substring(2, value.length() - 1), true);
+      }
+
+      return value;
+   }
+
+   /**
+    * Maps an operator token to its XCondition constant.
+    *
+    * <p>An absent operator still means equals -- callers such as add_named_group leave it out on
+    * purpose. An operator that was <i>supplied</i> and is not recognised is refused instead,
+    * because defaulting it to equals silently returns a different data set: a filter written as
+    * greater-than becomes an equality test, the call answers ok, and nothing on screen marks it.
+    */
    static int parseOperation(String operation) {
-      if(operation == null) {
+      if(operation == null || operation.isBlank()) {
          return XCondition.EQUAL_TO;
       }
 
       return switch(operation.toUpperCase().replace(' ', '_')) {
+         // "=" had no case of its own -- it reached EQUAL_TO through the default branch, which is
+         // exactly why that branch could not simply be turned into a refusal.
+         case "=", "EQUAL_TO", "EQUALS" -> XCondition.EQUAL_TO;
          case "!=", "NOT_EQUAL_TO", "<>" -> XCondition.EQUAL_TO; // negated via setNegated
          case "<", "LESS_THAN"           -> XCondition.LESS_THAN;
          case ">", "GREATER_THAN"        -> XCondition.GREATER_THAN;
@@ -1392,7 +1624,11 @@ public final class WorksheetMutationSupport {
          case "LIKE"                     -> XCondition.LIKE;
          case "NULL", "IS_NULL"          -> XCondition.NULL;
          case "NOT_NULL"                 -> XCondition.NULL;    // negated via setNegated
-         default                         -> XCondition.EQUAL_TO;
+         default -> throw new IllegalArgumentException(
+            "'" + operation + "' is not a condition operator. Accepted: =, !=, <, <=, >, >=, " +
+            "BETWEEN, ONE_OF, NOT_ONE_OF, STARTING_WITH, CONTAINS, LIKE, NULL, NOT_NULL. Omit the " +
+            "operator entirely to mean equals -- an unrecognised one used to be applied as " +
+            "equals, which quietly returns a different data set.");
       };
    }
 
@@ -1401,7 +1637,7 @@ public final class WorksheetMutationSupport {
     * or "greater-than-or-equal" comparison, which requires {@link Condition#setEqual(boolean)}
     * to be set to {@code true} in addition to the base LESS_THAN / GREATER_THAN operation.
     */
-   private static boolean isEqualInclusive(String operation) {
+   static boolean isEqualInclusive(String operation) {
       if(operation == null) {
          return false;
       }
@@ -1412,7 +1648,7 @@ public final class WorksheetMutationSupport {
       };
    }
 
-   private static boolean isNegatedOperation(String operation) {
+   static boolean isNegatedOperation(String operation) {
       if(operation == null) {
          return false;
       }

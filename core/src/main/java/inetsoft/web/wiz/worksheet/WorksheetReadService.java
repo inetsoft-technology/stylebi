@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.UserVariable;
@@ -28,6 +29,7 @@ import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.springframework.stereotype.Service;
 
+import java.awt.Point;
 import java.util.*;
 
 /**
@@ -117,11 +119,21 @@ public class WorksheetReadService {
       WorksheetModel.AggregateModel aggregates = readAggregates(t);
       List<WorksheetModel.SortModel> sorts = readSorts(t);
 
+      Point offset = t.getPixelOffset();
+      int maxRows = t.getMaxRows();
+
       return new WorksheetModel.TableModel(
          name, type, columns, joins,
          readSources(t), readConcatType(t), readConcatCompatible(t), readAutoUpdate(t),
          preConditions, postConditions, rankingConditions,
-         aggregates, sorts, primary);
+         aggregates, sorts, primary,
+         t.getDescription(),
+         // Anything <= 0 is "no limit" -- the engine applies one only when it is positive -- so
+         // -1 and 0 both report null rather than reading back as a limit of -1 or of zero rows.
+         // Note this is the effective limit, capped by query.runtime.maxrow; see TableModel.
+         maxRows <= 0 ? null : maxRows,
+         t.isDistinct(), t.isVisibleTable(), tableMode(t),
+         offset == null ? null : offset.x, offset == null ? null : offset.y);
    }
 
    // -------------------------------------------------------------------------
@@ -264,6 +276,41 @@ public class WorksheetReadService {
       return t instanceof MirrorTableAssembly mirror ? mirror.isAutoUpdate() : null;
    }
 
+   /**
+    * The table's display mode, in four of the five words {@code set_table_mode} accepts --
+    * {@code live}, {@code full}, {@code detail} and {@code edit}. The fifth, {@code default},
+    * is not a state and never appears here; see the note below.
+    *
+    * <p>No field stores it: the mode is a combination of {@code liveData}, {@code runtime} and
+    * {@code editMode}, and {@code set_table_mode} writes all three per mode. Deriving it here is
+    * what lets a caller read back what it just set — without this, the write is verifiable only by
+    * its side effects, which is what left case 1.19 unable to round-trip.
+    *
+    * <p>Checked in the order the writer distinguishes them: {@code edit} owns editMode, and among
+    * the live modes only {@code live} sets runtime, so live-without-runtime reads as
+    * {@code detail}.
+    *
+    * <p><b>This reports the resulting state, not the word that was written, and the two can
+    * differ.</b> {@code set_table_mode("live")} sets runtime from {@code isRuntimeSelected()},
+    * so on a table whose runtime selection is off it lands in the same state as
+    * {@code "detail"} and reads back as {@code detail}. Likewise {@code "default"} is not a
+    * state of its own — the writer resolves it to live for an embedded table and metadata for a
+    * bound one — so it reads back as {@code detail} or {@code full}. Neither is a lost write;
+    * both are the mode the table is actually in. A caller wanting to confirm a specific word was
+    * honoured should compare states, not strings.
+    */
+   private String tableMode(TableAssembly t) {
+      if(t.isEditMode()) {
+         return "edit";
+      }
+
+      if(t.isLiveData()) {
+         return t.isRuntime() ? "live" : "detail";
+      }
+
+      return "full";
+   }
+
    private String tableType(TableAssembly t) {
       // The snapshot check MUST stay ahead of the EmbeddedTableAssembly branch:
       // SnapshotEmbeddedTableAssembly extends it, so reordering these two silently
@@ -369,8 +416,40 @@ public class WorksheetReadService {
 
       DataRef attachedAttr = nga.getAttachedAttribute();
       SourceInfo attachedSource = nga.getAttachedSource();
-      String table = attachedSource != null ? attachedSource.getSource() : null;
-      String column = attachedAttr != null ? attachedAttr.getAttribute() : null;
+
+      // COLUMN_ATTACHED covers two different, mutually exclusive attachment kinds that share the
+      // same Java fields: a worksheet-table column (SourceInfo.ASSET, source = the worksheet
+      // assembly's own name) versus a datasource/logical-model or physical-table path (any other
+      // SourceInfo type). Reporting both under the same table/column fields would make a
+      // datasource-scoped group indistinguishable from a worksheet-table-attached one, even though
+      // no such worksheet table exists for it.
+      String table = null;
+      String column = null;
+      String datasource = null;
+      String logicalModel = null;
+      String sourceTable = null;
+      String attribute = null;
+
+      if(attachedSource != null && attachedSource.getType() == SourceInfo.ASSET) {
+         table = attachedSource.getSource();
+         column = attachedAttr != null ? attachedAttr.getAttribute() : null;
+      }
+      else if(attachedSource != null) {
+         datasource = attachedSource.getPrefix();
+
+         if(attachedSource.getType() == SourceInfo.MODEL) {
+            logicalModel = attachedSource.getSource();
+
+            if(attachedAttr instanceof ColumnRef cr && cr.getDataRef() instanceof AttributeRef ar) {
+               sourceTable = ar.getEntity();
+               attribute = ar.getAttribute();
+            }
+         }
+         else {
+            sourceTable = attachedSource.getSource();
+            attribute = attachedAttr != null ? attachedAttr.getAttribute() : null;
+         }
+      }
 
       NamedGroupInfo ngi = nga.getNamedGroupInfo();
       boolean groupOthers = ngi != null && ngi.getOthers() == XConstants.GROUP_OTHERS;
@@ -383,6 +462,7 @@ public class WorksheetReadService {
          for(String group : groups) {
             ConditionList conds = ngi.getGroupCondition(group);
             List<String> values = new ArrayList<>();
+            String operation = null;
 
             if(conds != null) {
                int size = conds.getConditionSize();
@@ -401,6 +481,10 @@ public class WorksheetReadService {
                   XCondition xc = item.getXCondition();
 
                   if(xc instanceof Condition c) {
+                     if(operation == null) {
+                        operation = groupMappingOperation(c);
+                     }
+
                      for(int v = 0; v < c.getValueCount(); v++) {
                         Object val = c.getValue(v);
                         values.add(val != null ? val.toString() : null);
@@ -409,11 +493,45 @@ public class WorksheetReadService {
                }
             }
 
-            mappings.add(new WorksheetModel.GroupMappingModel(group, values));
+            mappings.add(new WorksheetModel.GroupMappingModel(group, values, operation));
          }
       }
 
-      return new WorksheetModel.NamedGroupModel(name, table, column, mappings, groupOthers);
+      return new WorksheetModel.NamedGroupModel(
+         name, table, column, datasource, logicalModel, sourceTable, attribute, mappings,
+         groupOthers);
+   }
+
+   /**
+    * The inverse of {@link WorksheetMutationSupport#parseOperation}/{@code isNegatedOperation}/
+    * {@code isEqualInclusive} — recovers the {@code operation} string {@code add_named_group}
+    * would need to recreate this exact condition, so a group read back and then edited doesn't
+    * silently lose e.g. a {@code STARTING_WITH} match down to plain equality. Returns {@code null}
+    * (omitted on the wire) for an operation this vocabulary cannot express.
+    */
+   private String groupMappingOperation(Condition c) {
+      boolean negated = c.isNegated();
+
+      // Only EQUAL_TO/ONE_OF/NULL have a negated string in this vocabulary ("!=", "NOT_ONE_OF",
+      // "NOT_NULL"); the rest have no "NOT_..." counterpart add_named_group accepts. A negated
+      // LESS_THAN/GREATER_THAN/BETWEEN/STARTING_WITH/CONTAINS/LIKE is reachable here even though
+      // this tool never creates one -- a human can build one via the Composer's general condition
+      // editor (Condition.isNegatedChangeable() is unconditionally true) -- so reporting the
+      // positive string for a negated condition would silently flip its meaning if fed back into
+      // add_named_group/edit_named_group. Returning null (per this method's own contract) is
+      // correct there: it says "can't be expressed", not "not negated".
+      return switch(c.getOperation()) {
+         case XCondition.EQUAL_TO -> negated ? "NOT_EQUAL_TO" : "EQUAL_TO";
+         case XCondition.LESS_THAN -> negated ? null : c.isEqual() ? "LESS_THAN_OR_EQUAL" : "LESS_THAN";
+         case XCondition.GREATER_THAN -> negated ? null : c.isEqual() ? "GREATER_THAN_OR_EQUAL" : "GREATER_THAN";
+         case XCondition.BETWEEN -> negated ? null : "BETWEEN";
+         case XCondition.ONE_OF -> negated ? "NOT_ONE_OF" : "ONE_OF";
+         case XCondition.STARTING_WITH -> negated ? null : "STARTING_WITH";
+         case XCondition.CONTAINS -> negated ? null : "CONTAINS";
+         case XCondition.LIKE -> negated ? null : "LIKE";
+         case XCondition.NULL -> negated ? "NOT_NULL" : "NULL";
+         default -> null;
+      };
    }
 
    // -------------------------------------------------------------------------
@@ -588,7 +706,7 @@ public class WorksheetReadService {
          aggregates.add(readAggregateRef(ar));
       }
 
-      return new WorksheetModel.AggregateModel(groups, aggregates);
+      return new WorksheetModel.AggregateModel(groups, aggregates, info.isCrosstab());
    }
 
    private WorksheetModel.AggregateModel.AggregateRefModel readAggregateRef(AggregateRef ar) {

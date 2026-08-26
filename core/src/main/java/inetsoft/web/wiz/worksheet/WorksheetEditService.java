@@ -487,7 +487,28 @@ public class WorksheetEditService {
                                     List<WorksheetMutationSupport.AggregateSpec> aggregates)
          throws PairingException
       {
-         WorksheetMutationSupport.applyAggregateInfo(requireTable(table), groups, aggregates);
+         setGroupAggregate(table, groups, aggregates, false);
+      }
+
+      /**
+       * Builds and sets a new {@link AggregateInfo} on the named table.
+       *
+       * @param table      the assembly name
+       * @param groups     group-by column specs (name, plus optional date grouping level)
+       * @param aggregates aggregate measures to apply
+       * @param crosstab   {@code true} to display the result as a crosstab (row/column
+       *                   headers) rather than a flat grouped table — the Composer's own
+       *                   Group and Aggregate dialog "Switch to Crosstab" toggle. Takes visible
+       *                   effect only once {@code groups} has at least 2 entries and
+       *                   {@code aggregates} at least 1 — see {@link AggregateInfo#isCrosstab}
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void setGroupAggregate(String table, List<WorksheetMutationSupport.GroupSpec> groups,
+                                    List<WorksheetMutationSupport.AggregateSpec> aggregates,
+                                    boolean crosstab)
+         throws PairingException
+      {
+         WorksheetMutationSupport.applyAggregateInfo(requireTable(table), groups, aggregates, crosstab);
       }
 
       // -----------------------------------------------------------------------
@@ -574,6 +595,10 @@ public class WorksheetEditService {
                           List<String> leftKeys, List<String> rightKeys)
          throws PairingException, SecurityException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Join requires a name.");
+         }
+
          if("CROSS".equalsIgnoreCase(joinType)) {
             addCrossJoin(name, leftTable, rightTable);
             return;
@@ -650,8 +675,13 @@ public class WorksheetEditService {
        *
        * @param name    the assembly name
        * @param columns the column names to include in the private column selection
+       * @throws PairingException if {@code name} is missing or blank
        */
-      public void addTable(String name, String... columns) {
+      public void addTable(String name, String... columns) throws PairingException {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Table requires a name.");
+         }
+
          EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
          ColumnSelection cs = new ColumnSelection();
 
@@ -1504,14 +1534,47 @@ public class WorksheetEditService {
        * @param distinct    distinct flag, or {@code null} to leave unchanged
        * @throws PairingException if the table is not found
        */
-      public void setTableProperties(String table, String alias, String description,
+      /**
+       * Applies the table properties, renaming the table when {@code newName} is given.
+       *
+       * <p>A worksheet table has no display name separate from its name -- the field exists on
+       * {@code AssetEntry}, {@code ColumnRef} and {@code WorksheetInfo}, on no {@code TableAssembly}
+       * -- so setting one is a rename. That is the shape the Composer's own table-properties dialog
+       * already has: {@code TablePropertyDialogModel} carries {@code newName}/{@code oldName} beside
+       * description, maxRows and distinct, and its service applies the properties and then renames
+       * through {@code refreshAssembly}. This used to accept an {@code alias} argument and drop it
+       * behind a comment, returning success while changing nothing.
+       *
+       * <p><b>The rename runs first, so a failure leaves everything untouched.</b> Renaming can fail
+       * on a name already in use, and applying the other properties before finding that out would
+       * half-write the patch -- the outcome this service refuses everywhere else. The remaining
+       * setters cannot fail, so ordering it this way makes the whole call all-or-nothing.
+       */
+      public void setTableProperties(String table, String newName, String description,
                                       Integer maxRows, Boolean distinct)
          throws PairingException
       {
-         TableAssembly t = requireTable(table);
+         // Resolved before the rename so an unknown table is reported against the name the caller
+         // passed, not against a name that does not exist yet.
+         requireTable(table);
+         String name = table;
 
-         // Table-level alias is not supported in the worksheet assembly model.
-         // Column-level aliases are set via rename_column instead.
+         if(newName != null && !newName.equals(table)) {
+            // Worksheet.renameAssembly checks only that the old name exists and the new one is
+            // free -- a blank name passes both and leaves a table nothing can address afterwards.
+            // Guarded here rather than only in the plugin, since this endpoint is reachable
+            // without it.
+            if(newName.trim().isEmpty()) {
+               throw new PairingException(
+                  "Cannot rename  + table +  to a blank name. Omit newName to leave the name " +
+                  "alone; a blank one would be accepted and leave the table unaddressable.");
+            }
+
+            renameTable(table, newName);
+            name = newName;
+         }
+
+         TableAssembly t = requireTable(name);
 
          if(description != null) {
             t.setDescription(description);
@@ -1541,6 +1604,10 @@ public class WorksheetEditService {
       public void addCrossJoin(String name, String leftTable, String rightTable)
          throws PairingException, SecurityException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Cross join requires a name.");
+         }
+
          requirePermission(ResourceType.CROSS_JOIN);
          TableAssembly left  = requireTable(leftTable);
          TableAssembly right = requireTable(rightTable);
@@ -1569,6 +1636,10 @@ public class WorksheetEditService {
        * @throws PairingException if fewer than two tables are given or a source is not found
        */
       public void addMergeJoin(String name, String[] tableNames) throws PairingException {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Merge join requires a name.");
+         }
+
          if(tableNames == null || tableNames.length < 2) {
             throw new PairingException("Merge join requires at least 2 tables.");
          }
@@ -1604,12 +1675,21 @@ public class WorksheetEditService {
        * @param table       the assembly name
        * @param columnOrder ordered list of column names defining the new order.
        *                    Columns not mentioned are appended at the end.
-       * @throws PairingException if the table is not found
+       * @throws PairingException if the table is not found, or if the table is a crosstab
+       *                    (column order there is controlled by the row/column groups, not
+       *                    the column selection — this mirrors the Composer UI, which disables
+       *                    "Reorder Table Columns" for crosstab tables)
        */
       public void reorderColumns(String table, List<String> columnOrder)
          throws PairingException
       {
          TableAssembly t = requireTable(table);
+         AggregateInfo aggInfo = t.getAggregateInfo();
+
+         if(aggInfo != null && aggInfo.isCrosstab()) {
+            throw new PairingException("Cannot reorder columns on a crosstab table: " + table);
+         }
+
          ColumnSelection cs = t.getColumnSelection(false);
 
          // Bare attribute names that occur more than once (e.g. "ID" from both a
@@ -1777,6 +1857,10 @@ public class WorksheetEditService {
                                 List<WorksheetMutationSupport.GroupMapping> mappings,
                                 boolean groupOthers) throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Named group requires a name.");
+         }
+
          if((table == null) != (column == null)) {
             throw new PairingException(
                "table and column must both be specified, or both omitted for a standalone grouping");
@@ -1809,25 +1893,10 @@ public class WorksheetEditService {
             ? XConstants.GROUP_OTHERS
             : XConstants.LEAVE_OTHERS);
 
-         // Build condition lists from simple value mappings.
-         // Each group maps to a ONE_OF condition on the column.
          if(mappings != null) {
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
-               ConditionList conds = new ConditionList();
-
-               for(int i = 0; i < m.values().size(); i++) {
-                  if(i > 0) {
-                     JunctionOperator junc = new JunctionOperator(JunctionOperator.OR, 0);
-                     conds.append(junc);
-                  }
-
-                  Condition c = new Condition(conditionType);
-                  c.setOperation(XCondition.EQUAL_TO);
-                  c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(conditionRef, c, 0));
-               }
-
-               ngi.setGroupCondition(m.name(), conds);
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
             }
          }
 
@@ -2130,21 +2199,8 @@ public class WorksheetEditService {
             DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
-               ConditionList conds = new ConditionList();
-
-               for(int i = 0; i < m.values().size(); i++) {
-                  if(i > 0) {
-                     JunctionOperator junc = new JunctionOperator(JunctionOperator.OR, 0);
-                     conds.append(junc);
-                  }
-
-                  Condition c = new Condition(conditionType);
-                  c.setOperation(XCondition.EQUAL_TO);
-                  c.addValue(m.values().get(i));
-                  conds.append(new ConditionItem(conditionRef, c, 0));
-               }
-
-               ngi.setGroupCondition(m.name(), conds);
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m));
             }
          }
 

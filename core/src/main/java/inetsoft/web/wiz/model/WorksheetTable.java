@@ -176,25 +176,83 @@ public class WorksheetTable {
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class TabularSource {
       private String datasourcePath;
-      private String endpoint;
+      private String targetKind;
+      private String target;
+      private Map<String, String> params;
       private Map<String, String> parameters;
+      private Map<String, Object> queryParams;
       private String jsonPath;
       private Boolean expanded;
       private String expandedPath;
       private Integer maxRows;
       private Integer sampleRows;
+      private List<String> lookup;
+      private Boolean lookupExpandArrays;
+      private Boolean lookupTopLevelOnly;
 
       /** Full repository path of the connector INSTANCE, e.g. "SaaS/Stripe Prod". */
       public String getDatasourcePath() { return datasourcePath; }
       public void setDatasourcePath(String datasourcePath) { this.datasourcePath = datasourcePath; }
 
       /**
-       * The connector's own name for the endpoint, e.g. "Charges". Matched exactly against the
-       * connector's endpoint map, which is keyed by that name and rejects duplicates
-       * ({@code EndpointJsonQuery.Endpoints.toMap}).
+       * Which KIND of thing {@link #getTarget()} names, and therefore which contract the rest of
+       * this object has to satisfy:
+       *
+       * <ul>
+       *   <li>{@code "endpoint"} — a SaaS/REST connector's endpoint. {@code target} is the endpoint
+       *       name and {@code parameters}/{@code jsonPath}/{@code expanded}/{@code expandedPath}
+       *       apply.</li>
+       *   <li>{@code "file"} — a path-addressed connector's file (ServerFile today). {@code target}
+       *       is the path RELATIVE to the connector's root folder, optionally suffixed
+       *       {@code "#<sheet>"} for a workbook, and {@code params} carries the parsing options.</li>
+       * </ul>
+       *
+       * <p>Omitted means {@code "endpoint"}. That is not a default chosen for convenience: endpoint
+       * was the only kind this object could express before {@code target} existed, so a request
+       * that does not mention a kind cannot mean anything else. Matched case-insensitively; an
+       * unrecognized value is refused by name rather than falling through to one of the two, which
+       * would build a table against a contract the caller did not ask for.</p>
        */
-      public String getEndpoint() { return endpoint; }
-      public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+      public String getTargetKind() { return targetKind; }
+      public void setTargetKind(String targetKind) { this.targetKind = targetKind; }
+
+      /**
+       * WHAT to bind, read according to {@link #getTargetKind()}.
+       *
+       * <p>For {@code "endpoint"}: the connector's own name for the endpoint, e.g. {@code "Charges"}.
+       * Matched exactly against the connector's endpoint map, which is keyed by that name and
+       * rejects duplicates ({@code EndpointJsonQuery.Endpoints.toMap}).</p>
+       *
+       * <p>For {@code "file"}: the path relative to the connector's root folder, e.g.
+       * {@code "2024/q1.csv"} — never absolute, and never containing {@code ".."}, because the root
+       * folder is the whole of what the data source grants access to. A workbook may name its sheet
+       * with a {@code "#"} suffix ({@code "2024/sales.xlsx#Q1"}), which is the same identity the
+       * annotation stores for the table, so the two cannot drift apart.</p>
+       *
+       * <p>{@code endpoint} is accepted as an alias so a caller written against the pre-generalized
+       * shape still binds — it named the same thing.</p>
+       */
+      @JsonAlias("endpoint")
+      public String getTarget() { return target; }
+      public void setTarget(String target) { this.target = target; }
+
+      /**
+       * Connector parsing options for {@code targetKind == "file"}, by the connector's own property
+       * name — {@code excelSheet}, {@code encoding}, {@code delimiter}, {@code tab},
+       * {@code headerColumnCount}, {@code firstRowHeader}, {@code removeQuotation},
+       * {@code unpivotData} for ServerFile. Omitted keys keep the connector's own default, which is
+       * a working default for a well-formed CSV.
+       *
+       * <p>Validated against the connector's declared properties rather than a fixed list, so a
+       * name the connector does not have is refused with the names it does have — the same stance
+       * {@code parameters} takes for an endpoint, and for the same reason: a dropped option parses
+       * the file DIFFERENTLY and still reports success.</p>
+       *
+       * <p>Distinct from {@link #getParameters()}, which carries URL-suffix values for an endpoint.
+       * The two are never both applicable, and supplying the wrong one for the kind is refused.</p>
+       */
+      public Map<String, String> getParams() { return params; }
+      public void setParams(Map<String, String> params) { this.params = params; }
 
       /**
        * Values by parameter NAME — the name part of a <code>{...}</code> token in the endpoint's URL
@@ -204,6 +262,29 @@ public class WorksheetTable {
        */
       public Map<String, String> getParameters() { return parameters; }
       public void setParameters(Map<String, String> parameters) { this.parameters = parameters; }
+
+      /**
+       * The whole query, by the connector's own property names, for {@code targetKind == "query"}.
+       *
+       * <p>Where {@link #getParams()} and {@link #getParameters()} each carry one slice of one kind
+       * of connector, this carries all of any connector: the names and the values come from the
+       * parameter contract {@code GET /api/wiz/tabular/query-schema} publishes for this data source,
+       * which is derived from the connector's own {@code @Property} declarations. That is what lets
+       * a connector with neither endpoints nor files — a document store, a cloud analytics API, a
+       * search index — be bound at all, and it is where the two older kinds are headed. Until they
+       * move they are untouched and keep their own contracts.</p>
+       *
+       * <p>TYPED, unlike the two older maps. A parameter can be a number, a flag, or one of a fixed
+       * set of names, and the schema says which. Declaring everything a string would put the
+       * conversion in the caller and, worse, make a wrong guess indistinguishable from a value the
+       * connector chose to ignore.</p>
+       *
+       * <p>Three things are checked before the query runs, because each of them otherwise fails
+       * quietly: a name the connector does not declare, a value that does not reach the bean, and a
+       * parameter that does not apply to the rest of what was sent.</p>
+       */
+      public Map<String, Object> getQueryParams() { return queryParams; }
+      public void setQueryParams(Map<String, Object> queryParams) { this.queryParams = queryParams; }
 
       /** JSON path to the row array, e.g. "$.data[*]". Null keeps the connector's default. */
       public String getJsonPath() { return jsonPath; }
@@ -237,6 +318,36 @@ public class WorksheetTable {
        */
       public Integer getSampleRows() { return sampleRows; }
       public void setSampleRows(Integer sampleRows) { this.sampleRows = sampleRows; }
+
+      /**
+       * Ordered "Join With" lookup chain to graft onto the endpoint named by {@link #getTarget()}
+       * (only meaningful for {@code targetKind == "endpoint"}), one pre-built connector lookup
+       * name per nesting level, e.g. {@code ["Issue Event"]}, or
+       * {@code ["Repositories", "Contributors"]} for a two-level chain. Each name must be one of
+       * the CURRENT position's valid choices, which the connector's own endpoint catalogue
+       * declares. Max depth 5.
+       */
+      public List<String> getLookup() { return lookup; }
+      public void setLookup(List<String> lookup) { this.lookup = lookup; }
+
+      /**
+       * Only meaningful with {@link #getLookup()}: whether the LAST lookup's matched array
+       * expands into extra rows. Null keeps the connector's own default ({@code true}).
+       */
+      public Boolean getLookupExpandArrays() { return lookupExpandArrays; }
+      public void setLookupExpandArrays(Boolean lookupExpandArrays) {
+         this.lookupExpandArrays = lookupExpandArrays;
+      }
+
+      /**
+       * Only meaningful with {@link #getLookup()} and {@link #getLookupExpandArrays()}: whether
+       * only the top-level array is expanded. Null keeps the connector's own default
+       * ({@code true}).
+       */
+      public Boolean getLookupTopLevelOnly() { return lookupTopLevelOnly; }
+      public void setLookupTopLevelOnly(Boolean lookupTopLevelOnly) {
+         this.lookupTopLevelOnly = lookupTopLevelOnly;
+      }
    }
 
    // ─── Nested: column info ─────────────────────────────────────────────────

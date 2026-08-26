@@ -38,12 +38,19 @@ import java.util.Map;
  *   <li>{@code add_filter} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code remove_filter} — {@code table}, {@code field}</li>
  *   <li>{@code set_group_aggregate} — {@code table}, {@code groups} (each a column name or
- *       {@code {field, dateLevel}}), {@code aggregates}</li>
+ *       {@code {field, dateLevel}}), {@code aggregates}, optional {@code crosstab} (true =
+ *       display as a crosstab, matching the Group and Aggregate dialog's "Switch to
+ *       Crosstab" toggle; defaults to false). Per
+ *       {@link inetsoft.uql.asset.AggregateInfo#isCrosstab}, the
+ *       request is accepted either way but the crosstab actually takes effect only with at
+ *       least 2 {@code groups} and at least 1 {@code aggregates} entry — fewer than that and
+ *       the table silently reads back as a non-crosstab table on the next read, with no
+ *       error from this call.</li>
  *   <li>{@code add_expression_column} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
  *   <li>{@code remove_join} — {@code name}</li>
- *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model)</li>
+ *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys}</li>
@@ -63,15 +70,23 @@ import java.util.Map;
  *   <li>{@code edit_cell} — {@code table}, {@code row}, {@code col}, {@code value}</li>
  *   <li>{@code insert_row} — {@code table}, {@code index}</li>
  *   <li>{@code delete_row} — {@code table}, {@code index}</li>
- *   <li>{@code set_table_properties} — {@code table}, {@code alias}, {@code description}, {@code maxRows}, {@code distinct}</li>
+ *   <li>{@code set_table_properties} — {@code table}; any of {@code newName} (or {@code alias},
+ *       its accepted spelling), {@code description}, {@code maxRows}, {@code distinct}</li>
  *   <li>{@code add_cross_join} — {@code name}, {@code leftTable}, {@code rightTable}</li>
  *   <li>{@code add_merge_join} — {@code name}, {@code tables}</li>
  *   <li>{@code reorder_columns} — {@code table}, {@code columnOrder}</li>
  *   <li>{@code add_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to add)</li>
  *   <li>{@code remove_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to remove)</li>
- *   <li>{@code add_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}; either
- *       {@code table} + {@code column} (attach to a column) or {@code type} (standalone grouping,
- *       matched by data type; defaults to {@code "string"})</li>
+ *   <li>{@code add_named_group} — {@code name}, {@code groupMappings} (each mapping's
+ *       {@code operation} is any operator accepted by
+ *       {@link WorksheetMutationSupport#parseOperation}, e.g. {@code "STARTING_WITH"};
+ *       defaults to {@code EQUAL_TO} when omitted), {@code groupOthers}; exactly one of:
+ *       {@code table} + {@code column} (attach to a column on an existing worksheet table);
+ *       {@code datasource} + {@code sourceTable} + {@code attribute} (+ optional
+ *       {@code logicalModel}, or {@code schema}/{@code catalog} for a physical table) to scope
+ *       directly to a datasource/logical-model or physical-table path, matching what a human
+ *       produces via the Composer's own "Add Grouping" dialog; or {@code type} (standalone
+ *       grouping, matched by data type; defaults to {@code "string"})</li>
  *   <li>{@code set_column_description} — {@code table}, {@code column}, {@code description}</li>
  *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value)</li>
  *   <li>{@code set_mirror_auto_update} — {@code table}, {@code visible} (true=auto-update on, false=off)</li>
@@ -82,7 +97,8 @@ import java.util.Map;
  *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue}</li>
  *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
  *   <li>{@code delete_variable} — {@code name}</li>
- *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}</li>
+ *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings} (see {@code add_named_group}
+ *       for the {@code operation} field), {@code groupOthers}</li>
  *   <li>{@code edit_sql_query} — {@code table}, {@code expression} (new SQL string)</li>
  *   <li>{@code update_mirror} — {@code table}</li>
  *   <li>{@code set_table_mode} — {@code table}, {@code mode} ({@code "live"}, {@code "default"}, {@code "full"}, {@code "detail"}, {@code "edit"})</li>
@@ -108,7 +124,12 @@ public record EditRequest(
    String name,
    /** Data type string, e.g. {@code "string"}, {@code "integer"} (add_column, add_expression_column). */
    String type,
-   /** New alias for rename_column. */
+   /**
+    * The new name for a rename: the column's for {@code rename_column}, the table's for
+    * {@code set_table_properties} -- where it is a rename because a worksheet table has no display
+    * name of its own, the same shape as the Composer's table-properties dialog, whose model carries
+    * {@code newName}/{@code oldName} beside the other properties.
+    */
    String newName,
    /** Column name for filter / sort operations. */
    String field,
@@ -179,7 +200,11 @@ public record EditRequest(
    String value,
    /** Row index for insert_row / delete_row (0-based data row). */
    Integer index,
-   /** Table alias for set_table_properties. */
+   /**
+    * Accepted spelling of {@code newName} for {@code set_table_properties}, kept because callers
+    * reach for it. A worksheet table has no display name apart from its name, so setting an alias
+    * is a rename; {@code newName} wins when both are given.
+    */
    String alias,
    /** Table description for set_table_properties. */
    String description,
@@ -208,5 +233,117 @@ public record EditRequest(
    /** True = insert before index, false = append after index (insert_column). */
    Boolean insert,
    /** New order of subtable names for reorder_concat_subtables. */
-   List<String> subtables
-) {}
+   List<String> subtables,
+   /**
+    * Entity name (when {@code logicalModel} is given) or physical table name (otherwise) for
+    * add_named_group, when scoping the grouping directly to a datasource path — matching what a
+    * human produces via the Composer's own "Add Grouping" dialog ("Only For") — instead of
+    * attaching to a column on an existing worksheet table. Requires {@code datasource} and
+    * {@code attribute}; mutually exclusive with {@code table}/{@code column} and {@code type}.
+    */
+   String sourceTable,
+   /**
+    * Attribute/column name within {@code sourceTable} for add_named_group's datasource-scoped
+    * mode (see {@code sourceTable}).
+    */
+   String attribute,
+   /**
+    * Endpoint name for add_table when binding a NAMED REST/JSON connector's pre-built endpoint
+    * catalogue (see {@code list_endpoint_lookups}) — a pre-built endpoint from that connector's
+    * own catalogue. When provided, {@code datasource} must name a tabular/REST datasource with
+    * an endpoint catalogue, {@code table} is used as the NEW worksheet table's name (not a
+    * physical table path — an endpoint has no physical path), and {@code schema}/{@code catalog}/
+    * {@code logicalModel}/{@code suffix} must be absent.
+    */
+   String endpoint,
+   /**
+    * Parameter values for {@code endpoint}, keyed by the endpoint's own parameter name (e.g.
+    * {@code {"owner": "inetsoft-technology", "repo": "stylebi"}} for GitHub's
+    * {@code Repository Issue Events}). Only meaningful with {@code endpoint} set; a name the
+    * endpoint does not declare is rejected rather than dropped, and a required parameter with no
+    * supplied value is rejected rather than guessed. Not yet supported on the generic/custom
+    * {@code suffix} path -- see {@code suffix}'s own doc comment.
+    */
+   Map<String, String> parameters,
+   /**
+    * Ordered "Join With" lookup chain to graft onto {@code endpoint}, one pre-built connector
+    * lookup name per nesting level (e.g. {@code ["Issue Event"]}, or
+    * {@code ["Repositories", "Contributors"]} for a two-level chain). Each name must be one of
+    * the CURRENT position's valid choices — {@code list_endpoint_lookups} reports them. Max
+    * depth 5. Only for add_table with {@code endpoint} set; authoring a brand-new lookup a
+    * connector does not already ship uses {@code customLookups} instead.
+    */
+   List<String> lookup,
+   /**
+    * Only meaningful with {@code lookup}: whether the LAST lookup's matched array expands into
+    * extra rows. Omit to keep the connector's own default ({@code true}).
+    */
+   Boolean lookupExpandArrays,
+   /**
+    * Only meaningful with {@code lookup} and {@code lookupExpandArrays}: whether only the
+    * top-level array is expanded. Omit to keep the connector's own default ({@code true}).
+    */
+   Boolean lookupTopLevelOnly,
+   /**
+    * URL suffix template for add_table on a GENERIC/CUSTOM REST-JSON datasource (one with no
+    * predefined endpoint catalogue — see {@code list_endpoint_lookups}' {@code hasEndpointCatalog}
+    * flag). Mutually exclusive with {@code endpoint}; use exactly one of the two. Unlike
+    * {@code endpoint}, this path has no declared parameter contract to validate against, so
+    * {@code parameters} does not apply here -- any {@code {name}} placeholder must already be
+    * filled in {@code suffix} itself.
+    */
+   String suffix,
+   /**
+    * Ordered custom "Join With" lookup chain for a GENERIC/CUSTOM REST-JSON datasource's
+    * {@code suffix}-defined endpoint. Unlike {@code lookup} (named-connector chains, by name),
+    * each entry here hand-authors one level: {@code url} (must contain the literal placeholder
+    * {@code {param1}} for level 0, {@code {param2}} for level 1, etc. — 1-indexed by position —
+    * to receive the id extracted from the parent row), {@code jsonPath} (selects the parent
+    * row's array/entity to iterate), {@code key} (extracts each item's id from that
+    * {@code jsonPath}), {@code ignoreBaseUrl} (true if {@code url} is a full URL rather than a
+    * suffix appended to the datasource's base URL). Max 5 entries. Only valid together with
+    * {@code suffix}.
+    */
+   List<WorksheetMutationSupport.CustomLookupSpec> customLookups,
+   /**
+    * {@code true} to display set_group_aggregate's result as a crosstab (row/column
+    * headers) rather than a flat grouped table — the Composer's own Group and Aggregate
+    * dialog "Switch to Crosstab" toggle. Defaults to {@code false} when omitted. Takes visible
+    * effect only once {@code groups} has at least 2 entries and {@code aggregates} at least 1;
+    * with fewer, it is accepted but silently has no effect (same as the Composer dialog itself).
+    */
+   Boolean crosstab
+) {
+   /**
+    * Compatibility constructor for callers built before {@code crosstab} was added —
+    * defaults it to {@code null} (treated as {@code false}).
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, String> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, null);
+   }
+}

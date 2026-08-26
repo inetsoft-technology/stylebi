@@ -476,11 +476,11 @@ class WizDatabaseControllerSecurityTest {
       doReturn(String.class).when(fixture.uqlConfig).getClass("Rest.Stripe", "plugin.StripeQuery");
       when(fixture.endpointCatalogReader.read(String.class)).thenReturn(new WizEndpointCatalog(
          List.of(new WizEndpointCatalogEntry("Charges", "Payment attempts.", "/v1/charges",
-                                             Boolean.TRUE, List.of()),
-                 new WizEndpointCatalogEntry("SKUs", null, "/v1/skus", null, List.of()),
+                                             Boolean.TRUE, List.of(), null),
+                 new WizEndpointCatalogEntry("SKUs", null, "/v1/skus", null, List.of(), null),
                  // Whitespace is not a description: nothing can be retrieved by it, so counting it
                  // as described would promise the ingest more than it can index.
-                 new WizEndpointCatalogEntry("Plans", "   ", "/v1/plans", null, List.of()))));
+                 new WizEndpointCatalogEntry("Plans", "   ", "/v1/plans", null, List.of(), null))));
 
       List<WizEndpointCatalogType> types = fixture.controller.getEndpointCatalogTypes();
 

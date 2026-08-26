@@ -38,6 +38,10 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.tabular.PropertyMeta;
+import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -54,6 +58,7 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
@@ -206,6 +211,45 @@ public class WorksheetAgentController {
    {
       requireEnabled();
 
+      // add_table with endpoint (named connector) or suffix (generic/custom REST-JSON) binds a
+      // TabularTableAssembly instead of a physical table or logical-model entity. Checked before
+      // every other add_table branch below so its own contradiction errors fire first -- in
+      // particular before the plain "add_table with a datasource" branch, which would otherwise
+      // route a request carrying both datasource and endpoint/suffix into addBoundTable.
+      if("add_table".equals(req.op()) &&
+         ((req.endpoint() != null && !req.endpoint().isBlank()) ||
+          (req.suffix() != null && !req.suffix().isBlank())))
+      {
+         boolean hasEndpoint = req.endpoint() != null && !req.endpoint().isBlank();
+         boolean hasSuffix = req.suffix() != null && !req.suffix().isBlank();
+
+         if(hasEndpoint && hasSuffix) {
+            throw new PairingException("add_table cannot carry both endpoint and suffix -- " +
+               "choose the named-connector form (endpoint) or the custom form (suffix), not both.");
+         }
+
+         if(req.datasource() == null || req.datasource().isBlank()) {
+            throw new PairingException(
+               "datasource is required when " + (hasEndpoint ? "endpoint" : "suffix") +
+               " is specified.");
+         }
+
+         if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
+            throw new PairingException("add_table cannot carry both " +
+               (hasEndpoint ? "endpoint" : "suffix") + " and logicalModel -- choose one.");
+         }
+
+         if(req.schema() != null || req.catalog() != null) {
+            throw new PairingException("add_table cannot carry schema/catalog together with " +
+               (hasEndpoint ? "endpoint" : "suffix") + " -- those name a physical table; " +
+               (hasEndpoint ? "an endpoint" : "a custom REST-JSON suffix") +
+               " has no schema/catalog.");
+         }
+
+         addTabularTable(sessionToken, req, user);
+         return;
+      }
+
       // add_table with logicalModel requires datasource.
       if("add_table".equals(req.op()) && req.logicalModel() != null
          && !req.logicalModel().isBlank()
@@ -226,6 +270,47 @@ public class WorksheetAgentController {
             addBoundTable(sessionToken, req, user);
          }
          return;
+      }
+
+      // add_named_group with a datasource scopes "Only For" directly to a datasource/logical-model
+      // or physical-table path -- matching what a human produces via the Composer's own "Add
+      // Grouping" dialog -- rather than attaching to a column on an existing worksheet table.
+      // Needs the same permission checks + XLogicalModel/JDBC metadata lookups as add_table, so it
+      // is dispatched here rather than through the plain Editor.
+      if("add_named_group".equals(req.op()) && req.datasource() != null
+         && !req.datasource().isBlank())
+      {
+         if(req.table() != null || req.column() != null || req.type() != null) {
+            throw new PairingException(
+               "add_named_group: datasource is mutually exclusive with table/column and type.");
+         }
+
+         if(req.sourceTable() == null || req.sourceTable().isBlank()) {
+            throw new PairingException(
+               "sourceTable is required when datasource is specified for add_named_group.");
+         }
+
+         if(req.attribute() == null || req.attribute().isBlank()) {
+            throw new PairingException(
+               "attribute is required when datasource is specified for add_named_group.");
+         }
+
+         addDatasourceScopedNamedGroup(sessionToken, req, user);
+         return;
+      }
+
+      // add_named_group's datasource-scoped fields require 'datasource' -- without this guard,
+      // a caller that supplies sourceTable/attribute/logicalModel/schema/catalog but omits (or
+      // blanks) datasource would silently fall through to the plain Editor.addNamedGroup(table,
+      // column, type, ...) below with table/column/type all null, creating a standalone
+      // string-typed grouping and discarding what the caller actually asked for, with no error.
+      if("add_named_group".equals(req.op()) &&
+         (req.sourceTable() != null || req.attribute() != null || req.logicalModel() != null ||
+            req.schema() != null || req.catalog() != null))
+      {
+         throw new PairingException(
+            "add_named_group: sourceTable/attribute/logicalModel/schema/catalog require " +
+               "'datasource' to be set.");
       }
 
       // set_variable_values needs AssetQuerySandbox, not just Editor.
@@ -373,23 +458,7 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
-         // Position below existing assemblies.
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
@@ -478,25 +547,332 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
+   }
+
+   /**
+    * Create a {@link TabularTableAssembly} bound either to a named REST/JSON connector's
+    * pre-built endpoint (+ optional pre-built lookup chain), or to a generic/custom REST-JSON
+    * datasource's hand-authored URL suffix (+ optional hand-authored custom lookup chain).
+    *
+    * <p>A datasource resolves to exactly one {@code TabularQuery} concrete class via
+    * {@link TabularUtil#createQuery}, never both shapes for the same datasource -- so which of
+    * the two this method builds is decided by which property the RESOLVED query class actually
+    * exposes ({@code pmap.get("endpoint")}), cross-checked against which field the CALLER
+    * supplied, rather than trusting the caller's field choice alone: setting {@code suffix}
+    * directly on a named connector's query is a silent no-op (its suffix is derived from
+    * {@code endpoint} instead), so a caller confusing the two forms is refused here rather than
+    * silently building a table against a contract nobody asked for.</p>
+    *
+    * <p>Shares {@link TabularEndpointBindingSupport} with
+    * {@link WorksheetTableService#buildTabularTable} (the wiz-services {@code /ws/table} write
+    * path), which already builds the same kind of {@code TabularTableAssembly} from its own
+    * {@code TabularSource} request shape.</p>
+    */
+   private void addTabularTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String dsName = req.datasource();
+
+      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, user)) {
+         throw new PairingException("Access denied: no READ permission on datasource " + dsName);
+      }
+
+      XDataSource dataSource = xrepository.getDataSource(dsName);
+
+      if(dataSource == null) {
+         throw new PairingException("Data source not found: " + dsName);
+      }
+
+      if(!(dataSource instanceof TabularDataSource)) {
+         throw new PairingException("'" + dsName + "' is a " + dataSource.getType() +
+            " data source, not a tabular/REST one, so it has no endpoints to call. Use " +
+            "datasource+schema+table for a physical table, or datasource+logicalModel for a " +
+            "logical model entity.");
+      }
+
+      TabularQuery query = TabularUtil.createQuery(dsName);
+
+      if(query == null) {
+         throw new PairingException("Could not create a query for data source '" + dsName +
+            "' -- its connector plugin may not be loaded.");
+      }
+
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      boolean namedConnector = pmap.get("endpoint") != null;
+      String suffix;
+
+      if(req.endpoint() != null && !req.endpoint().isBlank()) {
+         if(!namedConnector) {
+            throw new PairingException("'" + dsName + "' has no predefined endpoint catalogue " +
+               "-- use suffix (+ optional customLookups) instead of endpoint.");
+         }
+
+         suffix = TabularEndpointBindingSupport.applyEndpointContract(query, pmap, req.endpoint(),
+            req.parameters(), null, null, null, dsName);
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.endpoint(), dsName);
+
+         if(req.lookup() != null && !req.lookup().isEmpty()) {
+            TabularEndpointBindingSupport.applyLookupChain(query, pmap, req.lookup(),
+               req.lookupExpandArrays(), req.lookupTopLevelOnly(), req.endpoint(), dsName);
+         }
+      }
+      else {
+         if(namedConnector) {
+            throw new PairingException("'" + dsName + "' has a predefined endpoint catalogue -- " +
+               "use endpoint (+ optional lookup) instead of suffix; see list_endpoint_lookups.");
+         }
+
+         suffix = TabularEndpointBindingSupport.applyCustomSuffix(query, pmap, req.suffix(), null,
+            dsName);
+         TabularEndpointBindingSupport.requireRowCapWhenPaged(query, req.suffix(), dsName);
+
+         if(req.customLookups() != null && !req.customLookups().isEmpty()) {
+            TabularEndpointBindingSupport.applyCustomLookupChain(query, pmap, req.customLookups(),
+               dsName);
+         }
+      }
+
+      String tableName = req.table();
+
+      if(tableName == null || tableName.isBlank()) {
+         throw new PairingException("table (the desired worksheet table name) is required for " +
+            "add_table with endpoint/suffix.");
+      }
+
+      String target = namedConnector ? req.endpoint() : req.suffix();
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String assemblyName = AssetUtil.getNextName(ws, AssetUtil.normalizeTable(tableName));
+         TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
+         TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
+         info.setQuery(query);
+         info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, dsName, dsName));
+
+         positionBelowExisting(ws, assembly);
+         ws.addAssembly(assembly);
+
+         // The live HTTP call -- same call TabularQueryDialogService.setUpTable and
+         // WorksheetTableService.buildTabularTable both make; a tabular query has no columns
+         // until one response has been parsed.
+         assembly.loadColumnSelection(new VariableTable(), true, null);
+
+         ColumnSelection columns = assembly.getColumnSelection(false);
+
+         if(columns == null || columns.getAttributeCount() == 0) {
+            // Mirrors WorksheetTableService.buildTabularTable's empty-column check -- without this
+            // the assembly persists with zero columns and the agent is told "success" for a table
+            // nothing can bind to.
+            throw new PairingException("The request to '" + target + "' of '" + dsName +
+               "' returned no columns. URL suffix sent: " + suffix + ". Check the parameter " +
+               "values and datasource credentials -- see the server log for the cause.");
+         }
+
+         return null;
+      });
+   }
+
+   /**
+    * Creates a {@link DefaultNamedGroupAssembly} scoped directly to a datasource/logical-model
+    * or physical-table attribute -- exactly what a human produces via the Composer's own "Add
+    * Grouping" dialog ("Only For" + "Attribute"), independent of any worksheet table. See
+    * {@code GroupingAssemblyDialogService#setGroupingAssemblyDialogProperties} for the
+    * human-driven equivalent this mirrors, and {@link #addLogicalModelTable}/{@link
+    * #addBoundTable} for the permission-check and metadata-lookup patterns reused here.
+    *
+    * <p>This is a different, orthogonal mode from the {@code table}+{@code column} attached
+    * grouping in {@code WorksheetEditService.Editor#addNamedGroup}: that mode intentionally
+    * records {@code attachedSource} as the worksheet table's own name -- a convention {@code
+    * CalcTableService}/{@code FieldRefFactory} rely on to resolve a chart/table/crosstab/
+    * calc-table's {@code field.namedGroup} binding -- so a grouping created here is not
+    * resolvable through that same binding-time matching, and is not attached to any worksheet
+    * table at all.</p>
+    */
+   private void addDatasourceScopedNamedGroup(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+      String logicalModelName = req.logicalModel();
+      String sourceTableName = req.sourceTable();
+      String attributeName = req.attribute();
+      String name = req.name();
+
+      SourceInfo sinfo;
+      DataRef ref;
+
+      if(logicalModelName != null && !logicalModelName.isBlank()) {
+         // Mirrors addLogicalModelTable's permission checks and XLogicalModel/XEntity lookup.
+         if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+            throw new PairingException(
+               "Access denied: no READ permission on datasource " + datasourceName);
+         }
+
+         XDataModel dataModel = dataSourceService.getDataModel(datasourceName);
+
+         if(dataModel == null) {
+            throw new PairingException("No data model found for datasource: " + datasourceName);
+         }
+
+         XLogicalModel lm = dataModel.getLogicalModel(logicalModelName);
+
+         if(lm == null) {
+            throw new PairingException("Logical model not found: " + logicalModelName
+               + " (datasource=" + datasourceName + ")");
+         }
+
+         AssetEntry modelEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+            AssetEntry.Type.LOGIC_MODEL, datasourceName + "/" + logicalModelName, null);
+         modelEntry = dataSourceService.getModelAssetEntry(modelEntry);
+
+         if(modelEntry == null ||
+            !dataSourceService.checkPermission(modelEntry, ResourceAction.READ, user))
+         {
+            throw new PairingException("Access denied: no READ permission on logical model "
+               + logicalModelName + " (datasource=" + datasourceName + ")");
+         }
+
+         XEntity entity = lm.getEntity(sourceTableName);
+
+         if(entity == null) {
+            throw new PairingException("Entity not found: " + sourceTableName
+               + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName + ")");
+         }
+
+         XAttribute attr = entity.getAttribute(attributeName);
+
+         if(attr == null) {
+            throw new PairingException("Attribute not found: " + attributeName
+               + " (entity=" + sourceTableName + ", logicalModel=" + logicalModelName + ")");
+         }
+
+         sinfo = new SourceInfo(SourceInfo.MODEL, datasourceName, logicalModelName);
+         AttributeRef attributeRef = new AttributeRef(sourceTableName, attr.getName());
+         ColumnRef cref = new ColumnRef(attributeRef);
+
+         if(attr.getDataType() != null) {
+            cref.setDataType(attr.getDataType());
+         }
+
+         ref = cref;
+      }
+      else {
+         // Mirrors addBoundTable's permission checks and JDBC metadata lookup.
+         if(!securityEngine.checkPermission(user, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS)) {
+            throw new SecurityException(
+               Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden"));
+         }
+
+         if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+            throw new PairingException(
+               "Access denied: no READ permission on datasource " + datasourceName);
+         }
+
+         JDBCDataSource jdbcDs = metadataApiService.getJDBCDatasource(datasourceName);
+         XNode tableMetaData = metadataApiService.getTableMetaData(
+            jdbcDs, req.catalog(), req.schema(), sourceTableName);
+
+         if(tableMetaData == null) {
+            throw new PairingException("Table not found: " + sourceTableName +
+               " (datasource=" + datasourceName +
+               ", schema=" + req.schema() +
+               ", catalog=" + req.catalog() + ")");
+         }
+
+         String qname = inetsoft.uql.jdbc.util.SQLTypes.getSQLTypes(jdbcDs)
+            .getQualifiedName(tableMetaData, jdbcDs);
+         String tableType = (String) tableMetaData.getAttribute("type");
+
+         inetsoft.web.wiz.model.DatabaseTableMeta tableMeta =
+            metadataApiService.getTableDetails(datasourceName, sourceTableName,
+               req.catalog(), req.schema(), user);
+
+         inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta colMeta = null;
+
+         for(inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta cm : tableMeta.getColumns()) {
+            if(attributeName.equals(cm.getName())) {
+               colMeta = cm;
+               break;
+            }
+         }
+
+         if(colMeta == null) {
+            throw new PairingException("Column not found: " + attributeName +
+               " (table=" + sourceTableName + ", datasource=" + datasourceName + ")");
+         }
+
+         SourceInfo physSinfo = new SourceInfo(SourceInfo.PHYSICAL_TABLE, datasourceName, qname);
+         physSinfo.setProperty(SourceInfo.SCHEMA, req.schema());
+         physSinfo.setProperty(SourceInfo.CATALOG, req.catalog());
+         physSinfo.setProperty(SourceInfo.TABLE_TYPE, tableType);
+         sinfo = physSinfo;
+
+         AttributeRef attributeRef = new AttributeRef(null, colMeta.getName());
+         ColumnRef cref = new ColumnRef(attributeRef);
+
+         if(colMeta.getType() != null) {
+            cref.setDataType(colMeta.getType());
+         }
+
+         ref = cref;
+      }
+
+      String conditionType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
+      List<WorksheetMutationSupport.GroupMapping> mappings = req.groupMappings();
+      boolean groupOthers = req.groupOthers() != null && req.groupOthers();
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+
+         NamedGroupInfo ngi = new NamedGroupInfo();
+         ngi.setOthers(groupOthers ? XConstants.GROUP_OTHERS : XConstants.LEAVE_OTHERS);
+
+         if(mappings != null) {
+            for(WorksheetMutationSupport.GroupMapping m : mappings) {
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m));
+            }
+         }
+
+         DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
+         assembly.setNamedGroupInfo(ngi);
+         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(sinfo);
+         assembly.setAttachedAttribute(ref);
+
+         positionBelowExisting(ws, assembly);
+         ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Positions a newly-created assembly below every existing one on the canvas, left-aligned at
+    * the same column every other agent-created assembly starts at. Shared by every {@code add_*}
+    * op that builds its own assembly directly (rather than going through {@code Editor}, which
+    * has its own {@code placeAssembly}): {@link #addBoundTable}, {@link #addLogicalModelTable},
+    * {@link #addDatasourceScopedNamedGroup}, and {@code addSqlQuery}.
+    */
+   private static void positionBelowExisting(Worksheet ws, AbstractWSAssembly assembly) {
+      int maxY = 0;
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(!(a instanceof AbstractWSAssembly wa)) {
+            continue;
+         }
+
+         Point p = wa.getPixelOffset();
+         Dimension d = wa.getPixelSize();
+
+         if(p != null && d != null) {
+            maxY = Math.max(maxY, p.y + d.height);
+         }
+      }
+
+      assembly.setPixelOffset(new Point(25, maxY + 40));
    }
 
    /**
@@ -608,14 +984,14 @@ public class WorksheetAgentController {
    public record ImportCsvRequest(String name, String csv, String encoding, String delimiter,
                                   Boolean delimiterTab, Boolean detectType,
                                   Boolean firstRowAsHeader, Boolean removeQuotes,
-                                  Boolean unpivot, Integer headerCols)
+                                  Boolean unpivot, Integer headerCols, String replaceTable)
    {
       /**
        * The common case: text plus an optional name, every setting left to its default. Spelling
-       * out eight nulls at each call site would bury which ones a caller actually meant to set.
+       * out nine nulls at each call site would bury which ones a caller actually meant to set.
        */
       public ImportCsvRequest(String name, String csv) {
-         this(name, csv, null, null, null, null, null, null, null, null);
+         this(name, csv, null, null, null, null, null, null, null, null, null);
       }
    }
    public record ImportCsvResponse(String tableName, int rows, int columns) {}
@@ -759,7 +1135,7 @@ public class WorksheetAgentController {
       byte[] bytes = body.csv().getBytes(StandardCharsets.UTF_8);
       checkImportFileSize(bytes.length, "CSV");
 
-      return importCsvBytes(sessionToken, user, body.name(), bytes, settings);
+      return importCsvBytes(sessionToken, user, body.name(), body.replaceTable(), bytes, settings);
    }
 
    /**
@@ -784,6 +1160,7 @@ public class WorksheetAgentController {
                                           @RequestParam(required = false) Boolean removeQuotes,
                                           @RequestParam(required = false) Boolean unpivot,
                                           @RequestParam(required = false) Integer headerCols,
+                                          @RequestParam(required = false) String replaceTable,
                                           Principal user) throws Exception
    {
       requireEnabled();
@@ -798,7 +1175,7 @@ public class WorksheetAgentController {
       CsvSettings settings = csvSettings(encoding, delimiter, delimiterTab, detectType,
                                          firstRowAsHeader, removeQuotes, unpivot, headerCols);
 
-      return importCsvBytes(sessionToken, user, name, file.getBytes(), settings);
+      return importCsvBytes(sessionToken, user, name, replaceTable, file.getBytes(), settings);
    }
 
    /**
@@ -817,9 +1194,11 @@ public class WorksheetAgentController {
     * snapshot, so turning this into a snapshot would quietly remove the only workaround there is.
     */
    private ImportCsvResponse importCsvBytes(String sessionToken, Principal user, String name,
-                                            byte[] bytes, CsvSettings settings)
+                                            String replaceTable, byte[] bytes, CsvSettings settings)
       throws Exception
    {
+      requireNotBothNameAndReplaceTarget(name, replaceTable);
+
       // The product's cache directory rather than java.io.tmpdir: the bytes are the caller's data,
       // and the system temp dir is shared with whatever else runs on the host, at whatever
       // permissions the umask gives. This is the same convention the import dialog's own file
@@ -876,13 +1255,31 @@ public class WorksheetAgentController {
             table = new XEmbeddedTable(types.toArray(new String[0]), loaded);
          }
 
-         return createEmbeddedTable(sessionToken, user, name, table,
-                                    table.getRowCount(), table.getColCount());
+         return replaceTable != null && !replaceTable.isBlank()
+            ? replaceEmbeddedTable(sessionToken, user, replaceTable, table,
+                                   table.getRowCount(), table.getColCount())
+            : createEmbeddedTable(sessionToken, user, name, table,
+                                  table.getRowCount(), table.getColCount());
       }
       finally {
          if(!temp.delete()) {
             temp.deleteOnExit();
          }
+      }
+   }
+
+   /**
+    * A caller meaning to create a new table has no use for {@code replaceTable}, and a caller
+    * meaning to replace one has no use for {@code name} -- the replaced table keeps its existing
+    * name. Refused up front rather than silently picking one, the same way csv/filePath
+    * exclusivity is refused on the plugin side.
+    */
+   private void requireNotBothNameAndReplaceTarget(String name, String replaceTable) {
+      if(name != null && !name.isBlank() && replaceTable != null && !replaceTable.isBlank()) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Provide either name (to create a new table) or replaceTable (to replace an " +
+            "existing table's data in place), not both.");
       }
    }
 
@@ -914,19 +1311,22 @@ public class WorksheetAgentController {
                                         @RequestParam(required = false) String fileType,
                                         @RequestParam(required = false) String sheet,
                                         @RequestParam(required = false) String name,
+                                        @RequestParam(required = false) String replaceTable,
                                         Principal user) throws Exception
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
 
-      LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}",
+      LOG.debug("importExcel: file={}, size={}, fileType={}, sheet={}, name={}, replaceTable={}",
                 file != null ? sanitizeForLog(file.getOriginalFilename()) : null,
                 file != null ? file.getSize() : null, sanitizeForLog(fileType),
-                sanitizeForLog(sheet), sanitizeForLog(name));
+                sanitizeForLog(sheet), sanitizeForLog(name), sanitizeForLog(replaceTable));
 
       if(file == null || file.isEmpty()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required");
       }
+
+      requireNotBothNameAndReplaceTarget(name, replaceTable);
 
       boolean xls = "XLS".equalsIgnoreCase(fileType);
       boolean xlsx = "XLSX".equalsIgnoreCase(fileType);
@@ -1033,7 +1433,10 @@ public class WorksheetAgentController {
       int nrows = dataRows.size();
       Object[][] data = dataRows.toArray(new Object[0][]);
 
-      return createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
+      return replaceTable != null && !replaceTable.isBlank()
+         ? replaceEmbeddedTable(sessionToken, user, replaceTable,
+                                new XEmbeddedTable(types, data), nrows, ncols)
+         : createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
    }
 
    private void checkImportFileSize(long size, String what) {
@@ -1128,6 +1531,101 @@ public class WorksheetAgentController {
    }
 
    /**
+    * Replaces the data of an existing {@link EmbeddedTableAssembly} in place -- the same
+    * assembly object keeps its name, position, size, and (when the new file has the same
+    * columns) its column selection, so joins, filters and bindings built on top of the table
+    * keep working after the swap. Mirrors the {@code !isNewTable} branch of
+    * {@link inetsoft.web.composer.ws.dialog.ImportCSVDialogService#importCSV}, which is what the
+    * Composer's own "Import Data File" dialog uses to re-import over a table you already have.
+    *
+    * <p>Two things that branch does are intentionally not ported: reusing the old columns' types
+    * as a hint for the new parse ({@code oldTypes}), and the lower 10,000-row / 1,000-column cap
+    * the dialog applies only when replacing a plain (non-snapshot) embedded table. Both require
+    * resolving the target assembly before the file is parsed, which would mean duplicating the
+    * session/runtime lookup {@link WorksheetEditService#applyOnRuntime} already does here; the
+    * agent's own table-creation path has neither of those refinements today either, so skipping
+    * them is a gap to close later, not a regression.
+    *
+    * <p>Also not ported: the dialog's {@code syncDataTypes} call, which re-types a
+    * {@link SnapshotEmbeddedTableAssembly}'s dependent joins and needs a
+    * {@link inetsoft.web.viewsheet.service.CommandDispatcher} this REST endpoint has none of.
+    * {@link WorksheetEditService#applyOnRuntime} already reloads every table in the sheet after
+    * this mutation returns, which covers a plain {@link EmbeddedTableAssembly}'s dependents -- the
+    * only kind of table this agent ever creates or replaces. Nor is
+    * {@code SnapshotEmbeddedTableAssembly#setOriginalSTable} -- it takes the raw
+    * {@code XSwappableTable} the dialog still has in hand at that point, which this method, taking
+    * only the already-built {@link XEmbeddedTable}, has no equivalent of. Replacing a table that
+    * happens to be a snapshot (created by the dialog rather than this agent) still lands the new
+    * data via {@code setEmbeddedData} below; only {@code getOriginalTable()}'s bookkeeping of the
+    * pre-replace import is left stale.
+    *
+    * @throws PairingException if {@code tableName} does not name an existing embedded table --
+    *                          unlike the dialog, which silently does nothing in that case, an
+    *                          agent call needs a loud error to act on
+    */
+   private ImportCsvResponse replaceEmbeddedTable(String sessionToken, Principal user,
+                                                   String tableName, XEmbeddedTable table,
+                                                   int nrows, int ncols)
+      throws Exception
+   {
+      return editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(tableName);
+
+         if(!(a instanceof EmbeddedTableAssembly assembly)) {
+            throw new PairingException(
+               "No embedded table named '" + tableName + "' exists in this worksheet to " +
+               "replace. Omit replaceTable (optionally passing name) to create a new table " +
+               "instead.");
+         }
+
+         // Only reset the column selection -- and therefore anything bound to it -- when the
+         // shape actually changed; otherwise every join/filter/binding on this table survives
+         // the swap untouched, which is the entire point of replacing rather than recreating.
+         if(!isSameColumns(assembly.getColumnSelection(false), table)) {
+            assembly.setColumnSelection(new ColumnSelection(), false);
+            assembly.setAggregate(assembly.getAggregateInfo() != null &&
+                                     !assembly.getAggregateInfo().isEmpty());
+         }
+
+         assembly.setEmbeddedData(table);
+         assembly.refreshColumnType(table);
+
+         try {
+            AssetEventUtil.initColumnSelection(rws, assembly);
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to initialize column selection: " + e.getMessage());
+         }
+
+         return new ImportCsvResponse(tableName, nrows - 1, ncols);
+      });
+   }
+
+   /**
+    * Whether newly imported data has exactly the existing table's columns, by name and order.
+    * Ported from the private helper of the same name and logic in
+    * {@link inetsoft.web.composer.ws.dialog.ImportCSVDialogService}: it decides whether
+    * {@link #replaceEmbeddedTable} can leave the column selection alone or must reset it because
+    * the shape changed underneath it.
+    */
+   private static boolean isSameColumns(ColumnSelection cols, XEmbeddedTable table) {
+      if(cols.getAttributeCount() != table.getColCount()) {
+         return false;
+      }
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         ColumnRef col = (ColumnRef) cols.getAttribute(i);
+
+         if(!Objects.equals(table.getObject(0, i), col.getDataRef().getName())) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Close the agent session.  Always succeeds (no feature-gate check) so the agent can
     * clean up even when the flag is toggled off mid-session.
     *
@@ -1219,7 +1717,8 @@ public class WorksheetAgentController {
                                             .map(a -> new WorksheetMutationSupport.AggregateSpec(
                                                 a.field(), a.formula(), a.alias()))
                                             .toList()
-                                        : List.of());
+                                        : List.of(),
+                                     Boolean.TRUE.equals(req.crosstab()));
          case "add_expression_column" -> {
             if(req.name() == null || req.name().isBlank()) {
                throw new PairingException("name is required for add_expression_column.");
@@ -1299,8 +1798,19 @@ public class WorksheetAgentController {
             editor.deleteRow(req.table(), req.index());
          }
          case "set_table_properties" ->
+            // 'alias' is accepted as a spelling of 'newName' rather than dropped: a worksheet table
+            // has no display name apart from its name, so an alias request is a rename request. It
+            // used to be discarded behind a comment while the call returned success.
+            //
+            // This looks redundant, because the only client of this endpoint is the composer plugin
+            // and that already normalises name/alias to newName before sending. It is here for the
+            // version it CANNOT normalise: a plugin bundle predating that change sends alias alone,
+            // and dist/bin.js ships inside the repo, so a server can outrun the bundle running
+            // against it. Drop this fallback and that pairing silently stops renaming again --
+            // which is the whole defect this op was fixed for.
             editor.setTableProperties(
-               req.table(), req.alias(), req.description(), req.maxRows(), req.distinct());
+               req.table(), req.newName() != null ? req.newName() : req.alias(),
+               req.description(), req.maxRows(), req.distinct());
          case "add_cross_join" ->
             editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
          case "add_merge_join" ->
@@ -2224,23 +2734,7 @@ public class WorksheetAgentController {
          info.setSourceInfo(new SourceInfo(
             SourceInfo.PHYSICAL_TABLE, body.datasource(), body.datasource()));
 
-         // Position below existing assemblies.
-         int maxY = 0;
-
-         for(Assembly a : ws.getAssemblies()) {
-            if(!(a instanceof AbstractWSAssembly wa)) {
-               continue;
-            }
-
-            Point p = wa.getPixelOffset();
-            Dimension d = wa.getPixelSize();
-
-            if(p != null && d != null) {
-               maxY = Math.max(maxY, p.y + d.height);
-            }
-         }
-
-         assembly.setPixelOffset(new Point(25, maxY + 40));
+         positionBelowExisting(ws, assembly);
          assembly.setSQLEdited(true);
 
          // Populate columns from the parsed SQL or by executing the query.

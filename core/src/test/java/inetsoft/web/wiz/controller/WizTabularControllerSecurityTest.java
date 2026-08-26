@@ -29,6 +29,7 @@ import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.request.WizTabularCreateRequest;
+import inetsoft.web.wiz.service.WorksheetTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -89,8 +90,34 @@ class WizTabularControllerSecurityTest {
                 "/api/wiz/tabular/refresh",
                 "/api/wiz/tabular/create",
                 "/api/wiz/tabular/update",
-                "/api/wiz/tabular/check-duplicate"),
+                "/api/wiz/tabular/check-duplicate",
+                "/api/wiz/tabular/browse",
+                "/api/wiz/tabular/probe/open",
+                "/api/wiz/tabular/probe/table",
+                "/api/wiz/tabular/probe/close",
+                "/api/wiz/tabular/query-schema"),
          new HashSet<>(mappedPaths()));
+   }
+
+   /**
+    * The one endpoint here gated on READ rather than WRITE, and the gate has to be checked for the
+    * same reason the others are: it is an annotation, so no behavioural test in this package
+    * exercises it.
+    *
+    * <p>READ is the right level and the difference from {@code /tabular/definition} next to it is
+    * deliberate. That one returns the stored definition, credentials included, so it demands the
+    * permission that could already overwrite them. This returns the connector's SHAPE — parameter
+    * names, types, labels, which parameters apply when — and no value the user configured, so
+    * demanding WRITE would refuse a caller who may legitimately read the data source. Weakening it
+    * further, to no gate at all, would expose which data sources exist to anyone who can guess a
+    * path.</p>
+    */
+   @Test
+   void tabularQuerySchemaIsGatedOnReadWithAWiredPermissionPath() throws Exception {
+      Method method = WizTabularController.class.getDeclaredMethod(
+         "getQuerySchema", String.class, Principal.class);
+
+      assertGateOnPathParameter(method, ResourceAction.READ);
    }
 
    @Test
@@ -272,6 +299,15 @@ class WizTabularControllerSecurityTest {
     * looks correct in a diff, but {@code SecuredAspect} then has no resource to check.
     */
    private static void assertWriteGateOnPathParameter(Method method) {
+      assertGateOnPathParameter(method, ResourceAction.WRITE);
+   }
+
+   /**
+    * The same assertion for a handler gated on something other than WRITE. Which action is right is
+    * the handler's own question — see the test that calls this — but the wiring is not, and it is
+    * the wiring this catches.
+    */
+   private static void assertGateOnPathParameter(Method method, ResourceAction action) {
       Secured secured = method.getAnnotation(Secured.class);
       assertNotNull(secured, method.getName() + " must carry @Secured");
       assertEquals(1, secured.value().length,
@@ -280,10 +316,11 @@ class WizTabularControllerSecurityTest {
       RequiredPermission permission = secured.value()[0];
       assertEquals(ResourceType.DATA_SOURCE, permission.resourceType(),
                    method.getName() + " must be gated on the data source, not another resource");
-      assertArrayEquals(new ResourceAction[]{ ResourceAction.WRITE }, permission.actions(),
-                        method.getName() + " must require WRITE: a tabular definition carries the " +
-                           "connector's own credentials, which is the editor's business and not a " +
-                           "data reader's");
+      assertArrayEquals(new ResourceAction[]{ action }, permission.actions(),
+                        method.getName() + " must require " + action + ": a handler that returns " +
+                           "the connector's credentials is the editor's business and not a data " +
+                           "reader's, and one that returns only its shape must not demand the " +
+                           "permission that could overwrite it");
       assertEquals("", permission.resource(),
                    method.getName() + " must resolve its resource from the request path, not a " +
                       "fixed resource name");
@@ -357,12 +394,14 @@ class WizTabularControllerSecurityTest {
          // The update path refuses anything that is not tabular, so the stored source has to be one
          // for every test whose subject is something else.
          when(xrepository.getDataSource(anyString())).thenReturn(mock(TabularDataSource.class));
-         controller = new WizTabularController(datasourcesService, securityEngine, xrepository);
+         controller = new WizTabularController(datasourcesService, securityEngine, xrepository,
+                                               worksheetTableService);
       }
 
       final DatasourcesService datasourcesService = mock(DatasourcesService.class);
       final SecurityEngine securityEngine = mock(SecurityEngine.class);
       final XRepository xrepository = mock(XRepository.class);
+      final WorksheetTableService worksheetTableService = mock(WorksheetTableService.class);
       final Principal principal = mock(Principal.class);
       final WizTabularController controller;
    }

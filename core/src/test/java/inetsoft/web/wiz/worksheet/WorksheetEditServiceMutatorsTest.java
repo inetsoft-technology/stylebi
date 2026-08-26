@@ -23,6 +23,12 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionListWrapper;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
@@ -316,6 +322,32 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void setGroupAggregateCrosstabTogglesAggregateInfo() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)), true));
+      assertTrue(t.getAggregateInfo().isCrosstab());
+
+      // Switching back off must clear it again, matching the Composer dialog's own toggle.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)), false));
+      assertFalse(t.getAggregateInfo().isCrosstab());
+
+      // The 3-arg overload (no explicit crosstab) must default to false.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+      assertFalse(t.getAggregateInfo().isCrosstab());
+   }
+
+   @Test
    void renameAliasSurvivesReAggregation() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
@@ -342,6 +374,134 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(base, "the renamed column must still resolve by its alias");
       assertEquals("revenue", base.getAlias(),
          "a rename_column alias on an aggregated column must survive re-aggregation");
+   }
+
+   /** Finds a column by its base attribute name, which an alias on it would otherwise shadow. */
+   private static ColumnRef columnByAttribute(TableAssembly t, String attribute) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr && attribute.equals(cr.getAttribute())) {
+            return cr;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * A preview between the aggregate and the clear used to strand the output alias for good.
+    *
+    * <p>clearAggregateAliases nulls the alias on the ColumnRef inside the OLD AggregateInfo, which
+    * is normally the very object the column selection holds. WorksheetPreviewService snapshots and
+    * restores the AggregateInfo around RUNTIME_MODE execution -- necessary, since
+    * AbstractTableAssembly.replaceVariables rewrites it in place -- and AggregateInfo.clone()
+    * deep-clones every DataRef. Afterwards the two are separate objects, so the clear nulled an
+    * alias nothing reads and the column the model reports kept a name like "total" over
+    * un-aggregated rows. Live-confirmed 2026-08-25 (L2 Finding 20): the alias survived a clear only
+    * when a preview had run in between. The clone here is that preview, reduced to the one step
+    * that matters.
+    */
+   @Test
+   void aggregateAliasIsClearedEvenAfterTheAggregateInfoHasBeenCloned() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+      assertEquals("total", columnByAttribute(t, "amount").getAlias(),
+         "precondition: the aggregate labelled its output column");
+
+      // What a preview does: execute against a cloned AggregateInfo, then install the clone.
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      ColumnRef base = columnByAttribute(t, "amount");
+      assertNotNull(base, "the raw column must still be there after the clear");
+      assertNull(base.getAlias(),
+         "an aggregate output alias must not outlive the aggregate that created it");
+   }
+
+   /** Same separation, but the second call re-aggregates rather than clearing outright. */
+   @Test
+   void aggregateAliasIsClearedOnReAggregationAfterTheAggregateInfoHasBeenCloned()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      // Chaining on the prior output alias must still fail loud: that refusal is only correct
+      // because the alias is gone, and it was reachable again once a clone stranded it.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", groups("store"),
+               List.of(new WorksheetMutationSupport.AggregateSpec("total", "AVG", "avg_total")))));
+      assertTrue(ex.getMessage().contains("total"));
+      assertNull(columnByAttribute(t, "amount").getAlias(),
+         "the prior output alias must be gone even though the AggregateInfo was cloned");
+   }
+
+   /** The negative control: the clear must not reach a deliberate rename_column alias. */
+   @Test
+   void renameAliasSurvivesAClearAfterTheAggregateInfoHasBeenCloned() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      assertEquals("revenue", columnByAttribute(t, "amount").getAlias(),
+         "a rename_column alias must survive a clear that follows a preview");
+   }
+
+   /**
+    * The clear now reaches into the column selection by name, so it has to be narrow: matching on
+    * the alias alone would strip an unrelated column that happens to carry the same one.
+    */
+   @Test
+   void clearingAnAggregateAliasLeavesAnotherColumnCarryingTheSameAliasAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+
+      // Set by hand rather than through renameColumn, which would refuse the collision -- the
+      // point is that the sweep is bounded by the base attribute, not that this state is reachable.
+      columnByAttribute(t, "store").setAlias("total");
+      t.setAggregateInfo((AggregateInfo) t.getAggregateInfo().clone());
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(), List.of()));
+
+      assertNull(columnByAttribute(t, "amount").getAlias(), "the aggregated column loses its alias");
+      assertEquals("total", columnByAttribute(t, "store").getAlias(),
+         "a different column sharing the alias must be left alone");
    }
 
    @Test
@@ -1831,6 +1991,32 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(reordered.containsAttribute(orderId), "Orders.ID must survive reordering");
    }
 
+   @Test
+   void reorderColumnsRefusedOnCrosstabTable() throws Exception {
+      // Bug #76082: the Composer UI disables "Reorder Table Columns" for a crosstab
+      // table (ws-details-pane.component.ts#isSupportChangeColumnOrder), because column
+      // layout there is driven by the row/column groups, not the column selection order.
+      // reorderColumns() had no equivalent guard, so it silently dropped names that don't
+      // match a static column (e.g. a pivoted value like "2024") and returned success.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "orderDate", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            groups("orderDate", "employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+      t.getAggregateInfo().setCrosstab(true);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.reorderColumns("T", List.of("2024", "employee"))));
+      assertTrue(ex.getMessage().contains("crosstab"), "Unexpected message: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("T"), "Unexpected message: " + ex.getMessage());
+   }
+
    // =========================================================================
    // Cell/row edits: snapshot write protection
    // =========================================================================
@@ -2220,5 +2406,302 @@ class WorksheetEditServiceMutatorsTest {
       svc.apply("TOK", agent, ed -> ed.setMirrorAutoUpdate("M", false));
 
       assertFalse(mirror.isAutoUpdate());
+   }
+
+   // =========================================================================
+   // set_table_properties -- renaming is a table property
+   // =========================================================================
+
+   // A worksheet table has no display name apart from its name, so setting one is a rename. This
+   // used to take an "alias" argument and drop it behind a comment, returning success unchanged.
+
+   @Test
+   void setTablePropertiesRenamesTheTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "Scores", null, null, null));
+
+      assertNotNull(ws.getAssembly("Scores"));
+      assertNull(ws.getAssembly("T"));
+   }
+
+   @Test
+   void setTablePropertiesAppliesTheOtherFieldsToTheRenamedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+                ed -> ed.setTableProperties("T", "Scores", "the description", 25, true));
+
+      TableAssembly renamed = (TableAssembly) ws.getAssembly("Scores");
+      assertEquals("the description", renamed.getDescription());
+      assertEquals(25, renamed.getMaxRows());
+      assertTrue(renamed.isDistinct());
+   }
+
+   /**
+    * The rename runs first precisely so this holds: a name already in use fails the whole call and
+    * leaves the other fields alone, rather than half-writing the patch.
+    */
+   @Test
+   void aRenameOntoAnExistingNameChangesNothingAtAll() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      TableAssembly other = TestWorksheets.nonEmbeddedTableWithColumns(ws, "Taken", "a");
+      ws.addAssembly(t);
+      ws.addAssembly(other);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.setTableProperties("T", "Taken", "should not land", 9, true)));
+
+      TableAssembly untouched = (TableAssembly) ws.getAssembly("T");
+      assertNotNull(untouched, "the table must keep its original name");
+      assertNull(untouched.getDescription(), "no property may be applied when the rename fails");
+   }
+
+   @Test
+   void omittingTheNameLeavesItAloneAndStillAppliesTheRest() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", null, "just a note", null, null));
+
+      assertNotNull(ws.getAssembly("T"));
+      assertEquals("just a note", ((TableAssembly) ws.getAssembly("T")).getDescription());
+   }
+
+   /**
+    * Worksheet.renameAssembly checks only that the old name exists and the new one is free, so a
+    * blank name passes both of its guards and leaves a table nothing can address afterwards.
+    */
+   @Test
+   void aBlankNameIsRefusedRatherThanLeavingTheTableUnaddressable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.setTableProperties("T", "   ", "should not land", null, null)));
+
+      assertNotNull(ws.getAssembly("T"), "the table keeps its name");
+      assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
+                 "nothing else in the patch may be applied either");
+   }
+
+   /** Passing the name it already has is a no-op rename, not a collision with itself. */
+   @Test
+   void passingTheSameNameIsNotTreatedAsACollision() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableProperties("T", "T", "kept", null, null));
+
+      assertEquals("kept", ((TableAssembly) ws.getAssembly("T")).getDescription());
+   }
+
+   // =========================================================================
+   // Filter values and operators
+   // =========================================================================
+
+   private static Condition firstCondition(TableAssembly t) {
+      return (Condition) ((ConditionItem) t.getPreConditionList().getConditionList()
+         .getItem(0)).getXCondition();
+   }
+
+   /**
+    * The condition is typed from the resolved column, so on a numeric column a $(name) reference
+    * does not parse and used to land as 0.0 -- not even the variable's default. The filter still
+    * read as valid and still returned rows, so a parameterised filter silently became a constant.
+    */
+   @Test
+   void aVariableReferenceSurvivesAsAVariableNotAsZero() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ((ColumnRef) t.getColumnSelection().getAttribute("a")).setDataType(XSchema.DOUBLE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", ">", "$(Floor)"));
+
+      Object v = firstCondition(t).getValue(0);
+      assertInstanceOf(UserVariable.class, v, "a $(name) value must stay a variable");
+      assertEquals("Floor", ((UserVariable) v).getName());
+   }
+
+   /** One condition through set_conditions, so the $(name) handling can be compared to addFilter's. */
+   private static void setOneCondition(WorksheetEditService svc, Principal agent, String value)
+      throws Exception
+   {
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", ">", List.of(value), false, null), null, 0))));
+   }
+
+   /** A $(name) through set_conditions must stay a variable, typed from its column. */
+   @Test
+   void aVariableThroughSetConditionsCarriesItsColumnType() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ((ColumnRef) t.getColumnSelection().getAttribute("a")).setDataType(XSchema.DOUBLE);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      setOneCondition(svc, agent, "$(Floor)");
+
+      Object v = firstCondition(t).getValue(0);
+      assertInstanceOf(UserVariable.class, v, "a $(name) value must stay a variable");
+      assertEquals("Floor", ((UserVariable) v).getName());
+      // Passes on either side of the shared-helper change, and pinned for that reason: the
+      // refactor must not alter the type a variable arrives with. Typing was never the defect,
+      // and the reason is not the bare constructor -- which does leave the declaration-site
+      // StringType default (UserVariable:689) -- but Condition.addValue, which routes every value
+      // through convertType, whose `else if(val instanceof UserVariable)` branch
+      // (Condition:2129-2149) sets the type node from the condition's OWN type. The variable was
+      // therefore typed from the column by the time it was stored, whichever way it was built.
+      // Measured rather than reasoned: with this file's fix reverted and the sibling "$()" test
+      // failing as the canary that the revert had compiled, the type still read "double".
+      assertEquals(XSchema.DOUBLE, ((UserVariable) v).getTypeNode().getType(),
+         "the variable must carry the column's type, as it does through add_filter");
+   }
+
+   /**
+    * The real difference between the two paths: set_conditions had no lower bound on the name, so
+    * "$()" became a variable named "" -- one nothing can ever resolve, accepted without complaint.
+    */
+   @Test
+   void anEmptyVariableNameIsNotTreatedAsAVariableThroughSetConditions() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      setOneCondition(svc, agent, "$()");
+
+      assertEquals("$()", firstCondition(t).getValue(0),
+         "an empty name is a literal, not a variable nothing can ever resolve");
+   }
+
+   /** The non-variable path must be untouched: a plain value still arrives as itself. */
+   @Test
+   void anOrdinaryValueThroughSetConditionsIsUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      setOneCondition(svc, agent, "hello");
+
+      assertEquals("hello", firstCondition(t).getValue(0));
+   }
+
+   @Test
+   void anOrdinaryValueIsStillCoercedToTheColumnType() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "hello"));
+
+      assertEquals("hello", firstCondition(t).getValue(0));
+   }
+
+   /**
+    * Defaulting an unrecognised operator to equals returns a different data set with nothing on
+    * screen marking it -- "gt", a shape a caller reaches for when it does not know the vocabulary,
+    * used to become an equality test. Not spelled ">": that always had its own case and never
+    * reached the default branch, so it could not demonstrate this at all.
+    */
+   @Test
+   void anUnrecognisedOperatorIsRefusedRatherThanAppliedAsEquals() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      Exception thrown = assertThrows(Exception.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.addFilter("T", "a", "gt", "1")));
+
+      assertTrue(thrown.getMessage().contains("gt") ||
+                 thrown.getCause() != null && thrown.getCause().getMessage().contains("gt"),
+                 "the refusal must name the operator it rejected");
+      assertNull(t.getPreConditionList() == null ? null : firstConditionOrNull(t),
+                 "nothing may be written when the operator is refused");
+   }
+
+   /**
+    * The refusal exists so a caller can self-correct from it, which only works if it offers
+    * everything the parser takes. LIKE was accepted by the switch and absent from the message, and
+    * nothing caught it because nothing tied the two together -- this does, in both directions.
+    */
+   @Test
+   void everyAcceptedOperatorIsOfferedByTheRefusalMessage() {
+      String message = assertThrows(IllegalArgumentException.class,
+         () -> WorksheetMutationSupport.parseOperation("nonsense")).getMessage();
+
+      for(String op : List.of("=", "!=", "<", "<=", ">", ">=", "BETWEEN", "ONE_OF", "NOT_ONE_OF",
+                              "STARTING_WITH", "CONTAINS", "LIKE", "NULL", "NOT_NULL"))
+      {
+         assertDoesNotThrow(() -> WorksheetMutationSupport.parseOperation(op),
+                            op + " must be a recognised operator");
+         assertTrue(message.contains(op),
+                    "the refusal must offer " + op + " -- a caller reading it to self-correct "
+                    + "cannot discover an operator the message leaves out");
+      }
+   }
+
+   /**
+    * "Absent" has to include whitespace, not just null. add_named_group omits the operator on
+    * purpose and the contract says an absent one means equals, so a blank string reaching the
+    * refusal would break a caller that had done nothing wrong.
+    */
+   @Test
+   void aBlankOperatorStillMeansEquals() {
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation("   "));
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(""));
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation(null));
+   }
+
+   private static Object firstConditionOrNull(TableAssembly t) {
+      ConditionListWrapper w = t.getPreConditionList();
+      return w == null || w.isEmpty() ? null : firstCondition(t);
+   }
+
+   /** An omitted operator still means equals -- add_named_group leaves it out on purpose. */
+   @Test
+   void anOmittedOperatorStillMeansEquals() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", null, "x"));
+
+      assertEquals(XCondition.EQUAL_TO, firstCondition(t).getOperation());
    }
 }

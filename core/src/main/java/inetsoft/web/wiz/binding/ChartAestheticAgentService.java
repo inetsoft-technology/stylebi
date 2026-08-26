@@ -34,8 +34,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Chart aesthetic mutations: channel field bindings and visual frames.
@@ -85,7 +88,8 @@ public class ChartAestheticAgentService {
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
          ChartAestheticMutator.setField(
-            model, name, field, relationChart, rvs, chart.getSourceInfo(), refModelService);
+            model, name, field, relationChart, rvs, chart.getSourceInfo(), refModelService,
+            perMeasureFrameChannels(chart));
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -103,7 +107,7 @@ public class ChartAestheticAgentService {
       String name = AestheticChannels.requireFieldChannel(channel, relationChart, sizeSupported);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
-            model -> ChartAestheticMutator.clearField(model, name, relationChart));
+            (chart, model) -> ChartAestheticMutator.clearField(model, name, relationChart));
    }
 
    public void setFrame(String sessionToken, Principal user, String assemblyName, String channel,
@@ -113,7 +117,8 @@ public class ChartAestheticAgentService {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
-            model -> ChartAestheticMutator.setFrame(model, name, frame, relationChart));
+            (chart, model) -> ChartAestheticMutator.setFrame(
+               model, name, frame, relationChart, perMeasureFrameChannels(chart)));
    }
 
    /** Reads the channels without opening a checkpoint. */
@@ -123,7 +128,58 @@ public class ChartAestheticAgentService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ChartVSAssembly chart = requireChart(rvs, assemblyName);
       return ChartAestheticMutator.describe((ChartBindingModel) binding.createModel(chart),
-                                            isRelationChart(chart));
+                                            isRelationChart(chart),
+                                            perMeasureFrameChannels(chart));
+   }
+
+   /**
+    * The frame channels this chart renders from each measure's own frame property rather than
+    * from the chart-level one.
+    *
+    * <p>Asked of the real {@code VSChartInfo} rather than derived from the chart type, because the
+    * answer is not a function of the type alone: {@code RadarVSChartInfo.supportsShapeFieldFrame()}
+    * consults the plot descriptor (a point radar answers true where a line radar answers false).
+    * The three predicates are exactly the ones {@code VSFrameVisitor}'s strategies call, mapped to
+    * channels the way those strategies map them — {@code VSLineFrameStrategy} and
+    * {@code VSTextureFrameStrategy} both defer to {@code supportsShapeFieldFrame()}.
+    *
+    * <p>A chart with no binding yet has no info and no measures either, so the empty set is right
+    * for it: nothing is rendered per measure when there are no measures.
+    *
+    * <p>Note that answering true is not the same as "the measures are on X or Y" — a Gantt chart
+    * answers true for all three and keeps its measures on start/milestone. Which refs the frame is
+    * then written to is {@code ChartAestheticMutator.aggregates}' job, and it mirrors
+    * {@code VSFrameVisitor.getAggregates()} for exactly that reason.
+    *
+    * <p>Package-private rather than private so {@code ChartAestheticAgentServiceTest} can pin the
+    * mapping directly. It is the linchpin of the write/read agreement in
+    * {@code ChartAestheticMutator}, and its whole reason for asking the info rather than deriving
+    * from the type is a case (point radar vs. line radar) that no caller can reach by accident.
+    */
+   static Collection<String> perMeasureFrameChannels(ChartVSAssembly chart) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+
+      if(info == null) {
+         return Set.of();
+      }
+
+      Set<String> channels = new LinkedHashSet<>();
+
+      if(info.supportsColorFieldFrame()) {
+         channels.add("color");
+      }
+
+      if(info.supportsShapeFieldFrame()) {
+         channels.add("shape");
+         channels.add("line");
+         channels.add("texture");
+      }
+
+      if(info.supportsSizeFieldFrame()) {
+         channels.add("size");
+      }
+
+      return channels;
    }
 
    /**
@@ -176,13 +232,14 @@ public class ChartAestheticAgentService {
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,
-                      String linkUri, java.util.function.Consumer<ChartBindingModel> mutation)
+                      String linkUri,
+                      java.util.function.BiConsumer<ChartVSAssembly, ChartBindingModel> mutation)
       throws Exception
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
-         mutation.accept(model);
+         mutation.accept(chart, model);
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);

@@ -77,9 +77,37 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
    }
 
    /**
-    * {@code description} is deliberately excluded here and from {@link #hashCode()}: rewording an
-    * endpoint does not make it a different endpoint, and folding it in would make identity depend
-    * on prose that is expected to be revised.
+    * The structure this endpoint's response has, as declared here rather than derived from a live
+    * response. Optional, and absent from most {@code endpoints.json} files.
+    *
+    * <p>Declared as a bare {@code Object} on purpose, and NOT as a {@code Map}. Nothing in this
+    * connector reads it: the field exists so that the loader's mapper, which rejects unknown
+    * properties and whose failure {@code Endpoints.load} turns into an EMPTY endpoint map, can bind
+    * a file that carries the key. The consumer is the wiz catalogue (see
+    * {@code WizEndpointCatalogEntry}), which parses the tree itself.</p>
+    *
+    * <p>A {@code Map} would not do. The representation allows an array at the root -- an API whose
+    * response body IS a bare array -- and binding that to a {@code Map} is a type mismatch on a
+    * KNOWN property, which no ignore-unknown setting excuses. {@code Object} binds any JSON and
+    * serializes back verbatim, so the representation can evolve without touching Java.</p>
+    *
+    * <p>Deliberately excluded from {@link #equals} and {@link #hashCode()}, for the same reason
+    * {@code description} is: restating what an endpoint returns does not make it a different
+    * endpoint.</p>
+    */
+   public Object getResponseSchema() {
+      return responseSchema;
+   }
+
+   public void setResponseSchema(Object responseSchema) {
+      this.responseSchema = responseSchema;
+   }
+
+   /**
+    * {@code description} and {@code responseSchema} are deliberately excluded here and from
+    * {@link #hashCode()}: rewording an endpoint, or declaring what it returns, does not make it a
+    * different endpoint, and folding either in would make identity depend on prose or a structure
+    * that is expected to be revised.
     */
    @Override
    public boolean equals(Object o) {
@@ -102,4 +130,5 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
    private String suffix;
    private boolean paged;
    private List<JsonLookupEndpoint> lookups = Collections.emptyList();
+   private Object responseSchema;
 }

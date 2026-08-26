@@ -18,10 +18,13 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.binding.AssetNamedGroupInfo;
+import inetsoft.report.internal.binding.SummaryAttr;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.AttachedAssembly;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.NamedGroupInfo;
@@ -730,6 +733,12 @@ class TableBindingMutatorTest {
     * TableBindingMutator#moveField} to reapply a whole shelf has no runtime context, so a field
     * carrying {@code namedGroup} through that path is left unresolved rather than throwing --
     * the same, pre-existing gap as before this class learned to resolve named groups at all.
+    *
+    * <p>This is about calling the plain, no-context {@code setShelf} directly (still a real,
+    * documented gap for a caller that has no context to give it) -- not the defect the
+    * addField/removeField/moveField tests below cover, which is that those three ALREADY HAVE
+    * {@code rvs}/{@code source}/{@code refModelService} in scope (via
+    * {@code TableBindingService}) but were routing through this no-context overload anyway.
     */
    @Test
    void theThreeArgSetShelfLeavesANamedGroupUnresolved() {
@@ -739,5 +748,125 @@ class TableBindingMutatorTest {
                                    List.of(dimWithNamedGroup("REGION", "Coastal")));
 
       assertNull(model.getRows().get(0).getNamedGroupInfo());
+   }
+
+   // ── addField/removeField/moveField must not drop an unrelated field's resolved
+   // ── named group when they reapply the whole shelf (L6 reopened) ──────────────
+   //
+   // Uses the repository-registered ("predefined") named group shape, not the worksheet-local
+   // Expert one setShelfResolvesAWorksheetLocalNamedGroupAndForcesSortSpecific above uses:
+   // FieldRefFactory.resolveNamedGroupInfo's EXPERT_NAMEDGROUP_INFO branch never calls
+   // NamedGroupInfoModel.setName(...), so a re-read of the model after the FIRST setShelf
+   // reconstructs a FieldRef with namedGroup()==null regardless of rvs -- a separate,
+   // pre-existing round-trip gap, not the addField/removeField/moveField defect these tests
+   // target. The ASSET_NAMEDGROUP_INFO_REF branch does set the name, so it round-trips and
+   // isolates the one thing under test here: whether rvs/source/refModelService actually reach
+   // setShelf on a second call.
+
+   private record NamedGroupFixture(CrosstabBindingModel model, RuntimeViewsheet rvs,
+                                    DataRefModelFactoryService refModelService) {}
+
+   /**
+    * A crosstab with "REGION" already bound to a repository-registered "Tiers" named group on
+    * rows, plus an unrelated second field, "Category", also on rows. Must run inside the
+    * caller's {@code MockedStatic<AssetUtil>}/{@code MockedStatic<SummaryAttr>} scope.
+    */
+   private static NamedGroupFixture crosstabWithRegionBoundToARegisteredNamedGroupAndCategory(
+      MockedStatic<AssetUtil> assetUtil, MockedStatic<SummaryAttr> summaryAttr) throws Exception
+   {
+      AssetRepository rep = mock(AssetRepository.class);
+      assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(rep);
+
+      AssetNamedGroupInfo tiers = mock(AssetNamedGroupInfo.class);
+      when(tiers.getName()).thenReturn("Tiers");
+      summaryAttr.when(() -> SummaryAttr.getAssetNamedGroupInfos(any(), eq(rep), isNull()))
+         .thenReturn(new AssetNamedGroupInfo[]{ tiers });
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      RuntimeViewsheet rvs = rvsWithWorksheet(ws);
+      DataRefModelFactoryService refModelService = refModelService();
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dimWithNamedGroup("REGION", "Tiers"), dim("Category")),
+         rvs, QUERY1_SOURCE, refModelService);
+
+      return new NamedGroupFixture(model, rvs, refModelService);
+   }
+
+   private static BDimensionRefModel regionOn(CrosstabBindingModel model) {
+      return model.getRows().stream()
+         .filter(r -> "REGION".equals(r.getColumnValue()))
+         .findFirst()
+         .orElseThrow();
+   }
+
+   @Test
+   void addFieldPreservesAnAlreadyResolvedNamedGroupOnAnotherFieldOnTheSameShelf()
+      throws Exception
+   {
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<SummaryAttr> summaryAttr = mockStatic(SummaryAttr.class))
+      {
+         NamedGroupFixture fx =
+            crosstabWithRegionBoundToARegisteredNamedGroupAndCategory(assetUtil, summaryAttr);
+
+         TableBindingMutator.addField(fx.model(), "rows", dim("Year"), null,
+                                      fx.rvs(), QUERY1_SOURCE, fx.refModelService());
+
+         BDimensionRefModel region = regionOn(fx.model());
+         assertEquals(XConstants.SORT_SPECIFIC, region.getOrder());
+         assertNotNull(region.getNamedGroupInfo(),
+            "an unrelated addField on the same shelf must not drop REGION's resolved named " +
+            "group");
+         assertEquals("Tiers", region.getNamedGroupInfo().getName());
+      }
+   }
+
+   @Test
+   void removeFieldPreservesAnAlreadyResolvedNamedGroupOnAnotherFieldOnTheSameShelf()
+      throws Exception
+   {
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<SummaryAttr> summaryAttr = mockStatic(SummaryAttr.class))
+      {
+         NamedGroupFixture fx =
+            crosstabWithRegionBoundToARegisteredNamedGroupAndCategory(assetUtil, summaryAttr);
+
+         TableBindingMutator.removeField(fx.model(), "rows", "Category",
+                                         fx.rvs(), QUERY1_SOURCE, fx.refModelService());
+
+         assertEquals(1, fx.model().getRows().size());
+         BDimensionRefModel region = regionOn(fx.model());
+         assertEquals(XConstants.SORT_SPECIFIC, region.getOrder());
+         assertNotNull(region.getNamedGroupInfo(),
+            "an unrelated removeField on the same shelf must not drop REGION's resolved " +
+            "named group");
+         assertEquals("Tiers", region.getNamedGroupInfo().getName());
+      }
+   }
+
+   @Test
+   void moveFieldPreservesAnAlreadyResolvedNamedGroupOnAnotherFieldOnTheSameShelf()
+      throws Exception
+   {
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+          MockedStatic<SummaryAttr> summaryAttr = mockStatic(SummaryAttr.class))
+      {
+         NamedGroupFixture fx =
+            crosstabWithRegionBoundToARegisteredNamedGroupAndCategory(assetUtil, summaryAttr);
+
+         TableBindingMutator.moveField(fx.model(), "rows", "cols", "Category", null,
+                                       fx.rvs(), QUERY1_SOURCE, fx.refModelService());
+
+         assertEquals(1, fx.model().getRows().size(), "only REGION should remain on rows");
+         BDimensionRefModel region = regionOn(fx.model());
+         assertEquals(XConstants.SORT_SPECIFIC, region.getOrder());
+         assertNotNull(region.getNamedGroupInfo(),
+            "moving an unrelated field off the same shelf must not drop REGION's resolved " +
+            "named group");
+         assertEquals("Tiers", region.getNamedGroupInfo().getName());
+      }
    }
 }
