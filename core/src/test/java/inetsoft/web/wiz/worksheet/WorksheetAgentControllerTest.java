@@ -37,6 +37,7 @@ import inetsoft.uql.erm.XEntity;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
@@ -840,11 +841,11 @@ class WorksheetAgentControllerTest {
    }
 
    @Test
-   void editAddVariableWiresValuesLabelsAndMultipleSelection() throws Exception {
+   void editAddVariableWiresChoicesThrough() throws Exception {
       // Regression for Bug #76328: add_variable/edit_variable had no way to populate
-      // UserVariable.setValues()/setChoices() (the Composer's own Variable dialog
-      // "Values" picker). Verifies the edit-dispatch add_variable path wires 'values',
-      // 'labels', and 'multipleSelection' all the way through to the created variable.
+      // UserVariable.setValues()/setChoices()/setDisplayStyle() (the Composer's own Variable
+      // dialog "Values" picker). Verifies the edit-dispatch add_variable path wires 'choices'
+      // all the way through to the created variable.
       Principal agent = TestPrincipals.user("alice", "host-org");
       Worksheet ws = new Worksheet();
 
@@ -863,6 +864,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
+      WorksheetMutationSupport.VariableChoicesSpec choices =
+         new WorksheetMutationSupport.VariableChoicesSpec(
+            List.of("1", "5", "10"), List.of("One", "Five", "Ten"), null, null, null, "list");
+
       EditRequest req = new EditRequest(
          "add_variable",              // op
          null,                        // table
@@ -872,7 +877,7 @@ class WorksheetAgentControllerTest {
          null,                        // newName
          null,                        // field
          null,                        // operation
-         List.of("1", "5", "10"),     // values
+         null,                        // values
          null,                        // direction
          null,                        // groups
          null,                        // aggregates
@@ -893,8 +898,8 @@ class WorksheetAgentControllerTest {
                                                       // lookupExpandArrays, lookupTopLevelOnly,
                                                       // suffix, customLookups
          null,                        // crosstab
-         List.of("One", "Five", "Ten"), // labels
-         true                         // multipleSelection
+         null,                        // labels
+         choices                      // choices
       );
 
       ctrl.edit("TOK-AVC", req, agent);
@@ -906,6 +911,7 @@ class WorksheetAgentControllerTest {
       assertArrayEquals(new Object[] {1, 5, 10}, var.getValues(),
          "values must be typed to the variable's data type (Integer), not raw strings");
       assertTrue(var.isMultipleSelection());
+      assertEquals(UserVariable.LIST, var.getDisplayStyle());
    }
 
    // ---------------------------------------------------------------------------

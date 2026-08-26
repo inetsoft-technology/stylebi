@@ -39,6 +39,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
@@ -1391,6 +1393,20 @@ class WorksheetEditServiceMutatorsTest {
       return assembly;
    }
 
+   private static WorksheetMutationSupport.VariableChoicesSpec embeddedChoices(
+      List<String> values, List<String> labels, String displayStyle)
+   {
+      return new WorksheetMutationSupport.VariableChoicesSpec(
+         values, labels, null, null, null, displayStyle);
+   }
+
+   private static WorksheetMutationSupport.VariableChoicesSpec queryChoices(
+      String table, String labelColumn, String valueColumn, String displayStyle)
+   {
+      return new WorksheetMutationSupport.VariableChoicesSpec(
+         null, null, table, labelColumn, valueColumn, displayStyle);
+   }
+
    @Test
    void editVariableSetsTypedChoicesAndValues() throws Exception {
       Worksheet ws = new Worksheet();
@@ -1400,13 +1416,15 @@ class WorksheetEditServiceMutatorsTest {
 
       svc.apply("TOK", agent, ed ->
          ed.editVariable("topN", null, null, null,
-            List.of("1", "5", "10"), List.of("One", "Five", "Ten"), false));
+            embeddedChoices(List.of("1", "5", "10"), List.of("One", "Five", "Ten"), null)));
 
       AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("topN")).getVariable();
       assertArrayEquals(new Object[] {"One", "Five", "Ten"}, updated.getChoices());
       assertArrayEquals(new Object[] {1, 5, 10}, updated.getValues(),
          "values must be typed to the variable's data type (Integer), not raw strings");
-      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle());
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle(),
+         "no explicit displayStyle should default to a single-select combobox");
+      assertFalse(updated.isMultipleSelection());
    }
 
    @Test
@@ -1417,26 +1435,64 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed ->
-         ed.editVariable("region", null, null, null, List.of("East", "West"), null, null));
+         ed.editVariable("region", null, null, null,
+            embeddedChoices(List.of("East", "West"), null, null)));
 
       AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
       assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices());
       assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
    }
 
-   @Test
-   void editVariableEnablesMultipleSelection() throws Exception {
+   @ParameterizedTest
+   @CsvSource({
+      "list, true",
+      "checkboxes, false",
+      "radio, false",
+      "combobox, false",
+   })
+   void editVariableAppliesExplicitDisplayStyle(String style, boolean expectMultiple)
+      throws Exception
+   {
+      // Mirrors VariableAssemblyDialogService.convertModelToAssetVariable: multipleSelection
+      // is only ever derived from displayStyle == LIST, never from CHECKBOXES -- even though
+      // checkboxes are inherently multi-valued in the UI, isMultipleSelection() itself is not
+      // where that is expressed. Matching that exactly keeps this tool's output identical to
+      // what a human produces through the Composer's own Variable dialog.
       Worksheet ws = new Worksheet();
       variableAssembly(ws, "region", XSchema.STRING);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed ->
-         ed.editVariable("region", null, null, null, List.of("East", "West"), null, true));
+         ed.editVariable("region", null, null, null,
+            embeddedChoices(List.of("East", "West"), null, style)));
 
       AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
-      assertTrue(updated.isMultipleSelection());
-      assertEquals(UserVariable.LIST, updated.getDisplayStyle());
+      assertEquals(expectMultiple, updated.isMultipleSelection());
+   }
+
+   @Test
+   void editVariableTogglingDisplayStyleAloneUpdatesExistingPicker() throws Exception {
+      // An explicit displayStyle must take effect even when neither 'values' nor 'table' is
+      // resupplied this call -- e.g. switching an existing combobox to a checkbox list without
+      // touching its value list.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      assembly.getVariable().setDisplayStyle(UserVariable.COMBOBOX);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            new WorksheetMutationSupport.VariableChoicesSpec(
+               null, null, null, null, null, "checkboxes")));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals(UserVariable.CHECKBOXES, updated.getDisplayStyle());
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices(),
+         "toggling style alone must not disturb the existing value list");
    }
 
    @Test
@@ -1449,15 +1505,16 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed ->
-         ed.editVariable("region", null, null, null, List.of(), null, null));
+         ed.editVariable("region", null, null, null, embeddedChoices(List.of(), null, null)));
 
       AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
       assertNull(updated.getChoices());
       assertNull(updated.getValues());
+      assertEquals(UserVariable.NONE, updated.getDisplayStyle());
    }
 
    @Test
-   void editVariableOmittingValuesLeavesExistingChoicesUnchanged() throws Exception {
+   void editVariableOmittingChoicesLeavesExistingPickerUnchanged() throws Exception {
       Worksheet ws = new Worksheet();
       DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
       assembly.getVariable().setChoices(new Object[] {"East", "West"});
@@ -1466,7 +1523,7 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed ->
-         ed.editVariable("region", null, "New Label", null, null, null, null));
+         ed.editVariable("region", null, "New Label", null, null));
 
       AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
       assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices());
@@ -1483,8 +1540,184 @@ class WorksheetEditServiceMutatorsTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
          svc.apply("TOK", agent, ed ->
             ed.editVariable("region", null, null, null,
-               List.of("East", "West"), List.of("Only one"), null)));
+               embeddedChoices(List.of("East", "West"), List.of("Only one"), null))));
       assertTrue(ex.getMessage().contains("labels"));
+   }
+
+   @Test
+   void editVariableRejectsUnknownDisplayStyle() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("East", "West"), null, "dropdown"))));
+      assertTrue(ex.getMessage().contains("dropdown"));
+   }
+
+   @Test
+   void editVariableRejectsUnknownDisplayStyleWithoutMutatingExistingChoices() throws Exception {
+      // applyOnRuntime mutates the live worksheet with no rollback on a thrown exception, so a
+      // validation failure discovered only after values/table were already applied would leave
+      // the variable half-updated. displayStyle must be parsed before any mutation.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      assembly.getVariable().setDisplayStyle(UserVariable.COMBOBOX);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("North", "South"), null, "dropdown"))));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices(),
+         "a rejected displayStyle must not leave the new (unvalidated) values committed");
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableRejectsMismatchedLabelsLengthWithoutMutatingExistingQuerySource()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId");
+      ws.addAssembly(t);
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setTableName("Regions");
+      assembly.getVariable().setLabelAttribute(t.getColumnSelection().getAttribute("RegionName"));
+      assembly.getVariable().setValueAttribute(t.getColumnSelection().getAttribute("RegionId"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               embeddedChoices(List.of("East", "West"), List.of("Only one"), null))));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals("Regions", updated.getTableName(),
+         "a rejected labels/values mismatch must not clear the existing query source");
+      assertNotNull(updated.getLabelAttribute());
+      assertNotNull(updated.getValueAttribute());
+   }
+
+   @Test
+   void editVariableRejectsBothValuesAndTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId"));
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               new WorksheetMutationSupport.VariableChoicesSpec(
+                  List.of("East", "West"), null, "Regions", "RegionName", "RegionId", null))));
+      assertTrue(ex.getMessage().contains("mutually exclusive"));
+   }
+
+   @Test
+   void editVariableSwitchesToQuerySource() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId");
+      ws.addAssembly(t);
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            queryChoices("Regions", "RegionName", "RegionId", "combobox")));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals("Regions", updated.getTableName());
+      assertNotNull(updated.getLabelAttribute());
+      assertEquals("RegionName", updated.getLabelAttribute().getAttribute());
+      assertNotNull(updated.getValueAttribute());
+      assertEquals("RegionId", updated.getValueAttribute().getAttribute());
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableSwitchingToQuerySourceClearsEmbeddedList() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId"));
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            queryChoices("Regions", "RegionName", "RegionId", null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertNull(updated.getChoices(),
+         "switching to query mode must clear the leftover embedded list");
+      assertNull(updated.getValues());
+   }
+
+   @Test
+   void editVariableSwitchingToEmbeddedClearsQuerySource() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId");
+      ws.addAssembly(t);
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setTableName("Regions");
+      assembly.getVariable().setLabelAttribute(t.getColumnSelection().getAttribute("RegionName"));
+      assembly.getVariable().setValueAttribute(t.getColumnSelection().getAttribute("RegionId"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null,
+            embeddedChoices(List.of("East", "West"), null, null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertNull(updated.getTableName(),
+         "switching to embedded mode must clear the leftover query source");
+      assertNull(updated.getLabelAttribute());
+      assertNull(updated.getValueAttribute());
+   }
+
+   @Test
+   void editVariableRejectsQueryModeMissingValueColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "Regions", "RegionName", "RegionId"));
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               queryChoices("Regions", "RegionName", null, null))));
+      assertTrue(ex.getMessage().contains("valueColumn"));
+   }
+
+   @Test
+   void editVariableRejectsQueryModeUnknownTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               queryChoices("NoSuchTable", "RegionName", "RegionId", null))));
+      assertTrue(ex.getMessage().contains("NoSuchTable"));
    }
 
    // =========================================================================

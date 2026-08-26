@@ -102,10 +102,9 @@ import java.util.Map;
  *   <li>{@code duplicate_assembly} — {@code table} (source), {@code name} (new name)</li>
  *   <li>{@code set_primary_assembly} — {@code table}</li>
  *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue};
- *       optional {@code values} (enumerated picker values — empty clears it, matching the
- *       Composer's own Variable dialog "Values"; omitted leaves it unchanged), optional
- *       {@code labels} (display labels parallel to {@code values}; defaults to {@code values}
- *       themselves), optional {@code multipleSelection} (checkbox/multi-select vs single-select)</li>
+ *       optional {@code choices} (the enumerated "Values" picker — embedded list or query
+ *       source, plus display style — matching the Composer's own Variable dialog; {@code null}
+ *       leaves it unchanged, see {@link WorksheetMutationSupport.VariableChoicesSpec})</li>
  *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
  *   <li>{@code delete_variable} — {@code name}</li>
  *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings} (see {@code add_named_group}
@@ -146,10 +145,7 @@ public record EditRequest(
    String field,
    /** Comparison operator for add_filter, e.g. {@code "="}, {@code "!="}. */
    String operation,
-   /**
-    * Literal values for add_filter / edit_condition. Also doubles as the enumerated picker
-    * values for edit_variable (see {@code labels} and {@code multipleSelection}).
-    */
+   /** Literal values for add_filter / edit_condition. */
    List<String> values,
    /** Sort direction — {@code "ASC"} or {@code "DESC"} — for set_sort. */
    String direction,
@@ -331,16 +327,14 @@ public record EditRequest(
     * Optional custom bucket labels for add_numeric_range_column / edit_numeric_range_column —
     * one more entry than {@code boundaries} (below the first, one between each pair, above the
     * last). Omitted or empty keeps the engine's default auto-generated range text.
-    *
-    * <p>Also doubles as the display labels parallel to {@code values} for edit_variable
-    * (one-to-one with {@code values}, not the numeric-range "one more entry" shape above).
     */
    List<String> labels,
    /**
-    * {@code true} for a checkbox/multi-select enumerated picker, {@code false} for a
-    * single-select combobox, for edit_variable. Omit to leave unchanged.
+    * The variable's enumerated "Values" picker for edit_variable — either an embedded list or
+    * a query against an existing worksheet table's columns. {@code null} leaves it unchanged.
+    * See {@link WorksheetMutationSupport.VariableChoicesSpec}.
     */
-   Boolean multipleSelection
+   WorksheetMutationSupport.VariableChoicesSpec choices
 ) {
    /**
     * Compatibility constructor for callers built before {@code crosstab} was added —
@@ -376,7 +370,7 @@ public record EditRequest(
    }
 
    /**
-    * Compatibility constructor for callers built before {@code multipleSelection} was added —
+    * Compatibility constructor for callers built before {@code choices} was added —
     * defaults it to {@code null}.
     */
    public EditRequest(

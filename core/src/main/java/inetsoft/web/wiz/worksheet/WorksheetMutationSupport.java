@@ -1440,69 +1440,190 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * Populates a variable's enumerated value list — the "Values" picker in the Composer's own
-    * Variable dialog — from parallel {@code values}/{@code labels} lists, matching
-    * {@link UserVariable#setValues}/{@link UserVariable#setChoices}. Mirrors
+    * Describes a variable's enumerated "Values" picker. The Composer's own Variable dialog
+    * offers two mutually exclusive ways to populate it: a fixed embedded list ({@code values},
+    * optionally paired with {@code labels}), or a query against an existing worksheet table's
+    * columns ({@code table} + {@code labelColumn} + {@code valueColumn}). Specifying both
+    * {@code values} and {@code table} in the same spec is rejected rather than silently
+    * preferring one.
+    *
+    * @param values       embedded picker values; empty clears the picker back to free-form,
+    *                     {@code null} leaves any existing embedded list untouched. Mutually
+    *                     exclusive with {@code table}.
+    * @param labels       display labels parallel to {@code values}; must be the same length
+    *                     if given, otherwise {@code values} double as their own labels
+    * @param table        worksheet table supplying picker rows (query mode); {@code null}
+    *                     leaves any existing query source untouched. Mutually exclusive with
+    *                     {@code values}.
+    * @param labelColumn  column on {@code table} supplying each row's display label; required
+    *                     when {@code table} is given
+    * @param valueColumn  column on {@code table} supplying each row's underlying value;
+    *                     required when {@code table} is given
+    * @param displayStyle {@code "none"}, {@code "combobox"}, {@code "list"}, {@code "radio"},
+    *                     or {@code "checkboxes"} — matches the Composer's own picker style
+    *                     choices. {@code null} leaves the existing style untouched unless
+    *                     {@code values} or {@code table} was also given this call, in which
+    *                     case it defaults to {@code "combobox"}.
+    */
+   public record VariableChoicesSpec(List<String> values, List<String> labels, String table,
+                                     String labelColumn, String valueColumn,
+                                     String displayStyle) {}
+
+   /**
+    * Populates a variable's enumerated value list from a {@link VariableChoicesSpec}, matching
+    * {@link UserVariable#setValues}/{@link UserVariable#setChoices} (embedded mode) or
+    * {@link AssetVariable#setTableName}/{@link AssetVariable#setLabelAttribute}/
+    * {@link AssetVariable#setValueAttribute} (query mode). Mirrors
     * {@code VariableAssemblyDialogService.convertModelToAssetVariable}, the Composer dialog's
     * own implementation of the same conversion.
-    *
-    * <p>{@code values} empty clears any existing enumeration (reverts the variable to a
-    * free-form value); {@code null} leaves the existing enumeration untouched. When
-    * {@code labels} is null/empty, {@code values} double as their own display labels.
     *
     * <p>Also sets {@link AssetVariable#setDisplayStyle}: unlike the base
     * {@link UserVariable#getDisplayStyle}, {@link AssetVariable} does not auto-derive its
     * display style from whether choices/values are present, it only returns whatever was last
     * explicitly stored — so a picker populated without this would carry values the Composer's
-    * own Variable UI never renders a control for. Style is recomputed whenever either
-    * {@code values} or {@code multipleSelection} is touched this call, so toggling one without
-    * resupplying the other still leaves the style consistent with the current state.
+    * own Variable UI never renders a control for.
     *
-    * @param var    the variable to populate; if its type node is already set, that determines
-    *               how each entry in {@code values} is typed, otherwise entries are typed as
-    *               {@link XSchema#STRING}
-    * @param values raw enumerated values, or {@code null} to leave unchanged
-    * @param labels display labels parallel to {@code values}; must be the same length if given
-    * @param multipleSelection {@code true} for a checkbox/multi-select picker, {@code false}
-    *               for a single-select combobox, or {@code null} to leave unchanged
+    * @param ws   the worksheet {@code spec.table()} is resolved against (query mode only)
+    * @param var  the variable to populate; if its type node is already set, that determines
+    *             how each entry in embedded {@code values} is typed, otherwise entries are
+    *             typed as {@link XSchema#STRING}
+    * @param spec the picker to apply, or {@code null} to leave the variable's picker untouched
     */
-   public static void applyVariableChoices(AssetVariable var, List<String> values,
-                                           List<String> labels, Boolean multipleSelection)
+   public static void applyVariableChoices(Worksheet ws, AssetVariable var,
+                                           VariableChoicesSpec spec)
    {
-      if(multipleSelection != null) {
-         var.setMultipleSelection(multipleSelection);
+      if(spec == null) {
+         return;
       }
 
-      if(values != null) {
-         if(values.isEmpty()) {
-            var.setChoices(null);
-            var.setValues(null);
-         }
-         else {
-            if(labels != null && !labels.isEmpty() && labels.size() != values.size()) {
-               throw new IllegalArgumentException(
-                  "'labels' must have the same number of entries as 'values' (" +
-                  values.size() + "), got " + labels.size() + ".");
-            }
+      boolean hasValues = spec.values() != null;
+      boolean hasTable = spec.table() != null;
 
-            List<String> effectiveLabels = labels != null && !labels.isEmpty() ? labels : values;
-            String type = var.getTypeNode() != null ? var.getTypeNode().getType() : XSchema.STRING;
-
-            // UserVariable defaults sortValue to true, which silently re-sorts choices/values
-            // alphabetically by label the moment both arrays are set -- discarding the caller's
-            // intended order with no error. VariableAssemblyDialogService (the Composer's own
-            // Variable dialog) always disables it for the same reason; match that here.
-            var.setSortValue(false);
-            var.setChoices(effectiveLabels.toArray());
-            var.setValues(values.stream().map(v -> Tool.getData(type, v)).toArray());
-         }
+      if(hasValues && hasTable) {
+         throw new IllegalArgumentException(
+            "'values' and 'table' are mutually exclusive ways to populate a variable's " +
+            "picker -- specify one or the other, not both.");
       }
 
-      if(values != null || multipleSelection != null) {
-         var.setDisplayStyle(var.getChoices() != null && var.getValues() != null
-            ? (var.isMultipleSelection() ? UserVariable.LIST : UserVariable.COMBOBOX)
-            : UserVariable.NONE);
+      // Parsed up front, before any mutation below: applyOnRuntime mutates the live worksheet
+      // directly with no rollback on a thrown exception (see WorksheetEditService.apply), so an
+      // invalid displayStyle discovered only after values/table were already applied would
+      // leave the variable half-updated -- state committed, call still reported as failed.
+      Integer explicitStyle = spec.displayStyle() != null
+         ? parseVariableDisplayStyle(spec.displayStyle()) : null;
+
+      if(hasValues) {
+         applyEmbeddedVariableChoices(var, spec.values(), spec.labels());
       }
+      else if(hasTable) {
+         applyQueryVariableChoices(ws, var, spec.table(), spec.labelColumn(), spec.valueColumn());
+      }
+
+      if(explicitStyle != null) {
+         var.setDisplayStyle(explicitStyle);
+         var.setMultipleSelection(explicitStyle == UserVariable.LIST);
+      }
+      else if(hasValues || hasTable) {
+         // A picker source was (re)supplied but no explicit style was given -- default to a
+         // single-select combobox unless the source ended up empty (no picker at all), which
+         // must read back as NONE or the Composer UI shows a combobox with nothing in it.
+         boolean hasPicker = var.getTableName() != null ||
+            var.getChoices() != null && var.getValues() != null;
+         var.setDisplayStyle(hasPicker ? UserVariable.COMBOBOX : UserVariable.NONE);
+         var.setMultipleSelection(false);
+      }
+   }
+
+   private static void applyEmbeddedVariableChoices(AssetVariable var, List<String> values,
+                                                     List<String> labels)
+   {
+      // Validated before any mutation below -- see the comment on applyVariableChoices'
+      // displayStyle parse for why a validation failure must never land after a partial write.
+      if(!values.isEmpty() && labels != null && !labels.isEmpty() &&
+         labels.size() != values.size())
+      {
+         throw new IllegalArgumentException(
+            "'labels' must have the same number of entries as 'values' (" + values.size() +
+            "), got " + labels.size() + ".");
+      }
+
+      // Switching to embedded mode must clear any leftover query-mode source -- otherwise
+      // AssetVariable carries both a non-null tableName AND populated choices/values, and the
+      // Composer's own read path (VariableAssemblyDialogService) treats a non-null tableName as
+      // query mode unconditionally, silently ignoring the embedded list this call just set.
+      var.setTableName(null);
+      var.setLabelAttribute(null);
+      var.setValueAttribute(null);
+
+      if(values.isEmpty()) {
+         var.setChoices(null);
+         var.setValues(null);
+         return;
+      }
+
+      List<String> effectiveLabels = labels != null && !labels.isEmpty() ? labels : values;
+      String type = var.getTypeNode() != null ? var.getTypeNode().getType() : XSchema.STRING;
+
+      // UserVariable defaults sortValue to true, which silently re-sorts choices/values
+      // alphabetically by label the moment both arrays are set -- discarding the caller's
+      // intended order with no error. VariableAssemblyDialogService (the Composer's own
+      // Variable dialog) always disables it for the same reason; match that here.
+      var.setSortValue(false);
+      var.setChoices(effectiveLabels.toArray());
+      var.setValues(values.stream().map(v -> Tool.getData(type, v)).toArray());
+   }
+
+   private static void applyQueryVariableChoices(Worksheet ws, AssetVariable var, String table,
+                                                  String labelColumn, String valueColumn)
+   {
+      if(labelColumn == null || valueColumn == null) {
+         throw new IllegalArgumentException(
+            "'labelColumn' and 'valueColumn' are both required when 'table' is given.");
+      }
+
+      Assembly a = ws.getAssembly(table);
+
+      if(!(a instanceof TableAssembly t)) {
+         throw new IllegalArgumentException("Worksheet table not found: " + table);
+      }
+
+      DataRef labelRef = resolveField(t, labelColumn);
+      DataRef valueRef = resolveField(t, valueColumn);
+
+      if(labelRef == null) {
+         throw new IllegalArgumentException(
+            "'labelColumn' not found on table '" + table + "': " + labelColumn);
+      }
+
+      if(valueRef == null) {
+         throw new IllegalArgumentException(
+            "'valueColumn' not found on table '" + table + "': " + valueColumn);
+      }
+
+      // Switching to query mode must clear any leftover embedded list for the same reason
+      // applyEmbeddedVariableChoices clears the table name -- the two sources are mutually
+      // exclusive in how the Composer's own dialog reads a variable back.
+      var.setChoices(null);
+      var.setValues(null);
+      var.setTableName(table);
+      var.setLabelAttribute(labelRef);
+      var.setValueAttribute(valueRef);
+   }
+
+   /**
+    * Maps a display-style token to its {@link UserVariable} constant.
+    */
+   private static int parseVariableDisplayStyle(String style) {
+      return switch(style.toLowerCase()) {
+         case "none" -> UserVariable.NONE;
+         case "combobox" -> UserVariable.COMBOBOX;
+         case "list" -> UserVariable.LIST;
+         case "radio", "radio_buttons" -> UserVariable.RADIO_BUTTONS;
+         case "checkboxes" -> UserVariable.CHECKBOXES;
+         default -> throw new IllegalArgumentException(
+            "'" + style + "' is not a display style. Accepted: none, combobox, list, radio, " +
+            "checkboxes.");
+      };
    }
 
    /**
