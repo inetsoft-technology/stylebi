@@ -208,10 +208,29 @@ public class AdminPropertyCatalog {
     * secret value read through this path leaves the host in a way the ordinary EM properties page
     * never does.
     *
-    * <p>Two independent tests, unioned. A name matches case-insensitively when it contains
-    * {@code password}, {@code secret} or {@code credential}, ends with {@code .key}, or starts
-    * with {@code license.}; and {@link #isEncryptedCredential} matches the properties whose
-    * <b>writer</b> encrypts them.
+    * <p>Two independent tests, unioned, then a name-shape exception list subtracted. A name
+    * matches case-insensitively when it contains {@code password}, {@code secret} or
+    * {@code credential}, ends with {@code .key}, or starts with {@code license.}; and
+    * {@link #isEncryptedCredential} matches the properties whose <b>writer</b> encrypts them.
+    * {@link #CONFIRMED_NOT_SECRET} then removes the specific names the shape test catches for the
+    * wrong reason - verified individually, the same way {@link #ENCRYPTED_CREDENTIALS} is, rather
+    * than by loosening the shared pattern:
+    *
+    * <ul>
+    *   <li>{@code enable.changepassword} - a boolean feature flag read with a plain
+    *       {@code SreeEnv.getProperty} ({@code SUtil}). It matches only because it contains the
+    *       substring {@code password}; it holds no credential value at all.</li>
+    *   <li>{@code sso.rsa.public.key} - the PUBLIC half of the SSO RSA keypair, written with a
+    *       plain {@code SreeEnv.setProperty} ({@code LocalPasswordEncryption}). Its sibling
+    *       {@code sso.rsa.private.key} is the actual secret and is deliberately left out of this
+    *       list, so it still matches on both {@code .key} and nothing else masking it.</li>
+    *   <li>{@code google.maps.key} - a Google Maps API key, read and written with plain
+    *       {@code SreeEnv.getProperty}/{@code setProperty} ({@code WebMapSettingsService},
+    *       {@code GoogleMapsService}). Google Maps keys are ordinarily restricted by HTTP referrer
+    *       rather than treated as a bearer credential, and nothing in this codebase encrypts it -
+    *       arguable, but the writer gives no reason to treat it as more sensitive than any other
+    *       configuration string.</li>
+    * </ul>
     *
     * <p><b>The writer half is why this is a union and not a pattern.</b> The name test alone
     * returned four genuine credentials in the clear (Redmine #76006):
@@ -248,6 +267,11 @@ public class AdminPropertyCatalog {
       }
 
       String lower = baseName.toLowerCase();
+
+      if(CONFIRMED_NOT_SECRET.contains(lower)) {
+         return false;
+      }
+
       return isEncryptedCredential(lower) ||
          lower.contains("password") || lower.contains("secret") ||
          lower.contains("credential") || lower.endsWith(".key") || lower.startsWith("license.");
@@ -360,6 +384,14 @@ public class AdminPropertyCatalog {
       "openid.client.secret", "stylebi.google.openid.client.secret",
       "mail.smtp.pass", "mail.smtp.clientsecret", "mail.smtp.accesstoken",
       "mail.smtp.refreshtoken", "log.fluentd.security.sharedkey");
+
+   /**
+    * Names the shape test in {@link #isSecret} catches for the wrong reason - each verified
+    * against its writer, per the javadoc on {@link #isSecret}. Not a general escape hatch: adding
+    * a name here means its plain-text writer was checked, not that the name merely "looks" safe.
+    */
+   private static final Set<String> CONFIRMED_NOT_SECRET = Set.of(
+      "enable.changepassword", "sso.rsa.public.key", "google.maps.key");
 
    private static final String RESOURCE = "admin-property-catalog.json";
    private final List<CatalogEntry> entries;

@@ -216,17 +216,43 @@ class AdminPropertyCatalogTest {
 
    @Test
    void keepsWithholdingSecretNamesThatNoWriterEncrypts() {
-      // The union must not have narrowed to the allow-list. Fifteen of the sixteen names isSecret
-      // withheld before #76006 are written by nothing that encrypts, so the writer test alone
-      // would have unmasked them all in order to close the four above.
+      // The union must not have narrowed to the allow-list. Fourteen of the sixteen names
+      // isSecret withheld before #76006 are written by nothing that encrypts, so the writer test
+      // alone would have unmasked them all in order to close the four above. (The sixteenth,
+      // enable.changepassword, moved to CONFIRMED_NOT_SECRET below - see the item-4 fix.)
       for(String name : new String[] { "license.key", "jwt.signing.key", "password.encryption.key",
-                                       "sso.rsa.private.key", "log.fluentd.security.password",
-                                       "enable.changepassword" })
+                                       "sso.rsa.private.key", "log.fluentd.security.password" })
       {
          assertFalse(AdminPropertyCatalog.isEncryptedCredential(name),
                      name + ": nothing encrypts this on write, so only the name test can cover it");
          assertTrue(AdminPropertyCatalog.isSecret(name), name + " must stay withheld");
       }
+   }
+
+   @Test
+   void unmasksConfirmedFalsePositivesTheShapeTestCaughtForTheWrongReason() {
+      // Known gap 4 (plugin/admin/README.md): the name-shape test over-matched these three.
+      // Each was individually verified against its writer/reader before being carved out, the
+      // same way ENCRYPTED_CREDENTIALS is verified - narrowing the shared pattern instead would
+      // risk unmasking an unrelated property that happens to share its shape.
+      for(String name : new String[] { "enable.changepassword", "sso.rsa.public.key",
+                                       "google.maps.key" })
+      {
+         assertFalse(AdminPropertyCatalog.isSecret(name),
+                     name + " is not a credential and must be readable through admin-chat");
+      }
+
+      // sso.rsa.public.key's PRIVATE counterpart must still be withheld - the exception list
+      // must name the exact false positive, not loosen the .key suffix test generally.
+      assertTrue(AdminPropertyCatalog.isSecret("sso.rsa.private.key"),
+                 "sso.rsa.private.key is the actual secret and must stay withheld");
+   }
+
+   @Test
+   void unmasksAConfirmedFalsePositiveWhateverCasingTheCallerUses() {
+      assertFalse(AdminPropertyCatalog.isSecret("Enable.ChangePassword"));
+      assertFalse(AdminPropertyCatalog.isSecret("SSO.RSA.Public.Key"));
+      assertFalse(AdminPropertyCatalog.isSecret("Google.Maps.Key"));
    }
 
    @Test
