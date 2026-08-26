@@ -23,6 +23,9 @@ import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.visual.VOText;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.awt.geom.*;
 
 /**
@@ -35,13 +38,29 @@ public class FreeHelper extends LabelHelper {
       // GTool/GImpl only exposes a read that takes a call-site default, and
       // DefaultProperties.getProperty(key, def) returns that default without consulting the
       // defaults layer, so the graph.textlayout.maxstep line in defaults.properties is not
-      // reachable from here. Keep the two values in sync -- PropertyDefaultsTest pins them.
-      String maxstep = GTool.getProperty("graph.textlayout.maxstep", "1000");
+      // reachable from here. A null default therefore distinguishes a value the operator set
+      // from an unset property, which is what isMaxStepsFromProperty() reports. Keep the
+      // fallback in sync with defaults.properties -- PropertyDefaultsTest pins them.
+      String maxstep = GTool.getProperty("graph.textlayout.maxstep", null);
+      boolean fromProperty = false;
+      int maxval = 1000;
 
       if(maxstep != null) {
-         int maxval = Integer.parseInt(maxstep);
-         max_steps = new int[] {maxval, maxval, maxval, maxval};
+         try {
+            // Properties.load() keeps trailing whitespace and parseInt does not trim it
+            maxval = Integer.parseInt(maxstep.trim());
+            fromProperty = true;
+         }
+         catch(NumberFormatException ex) {
+            // this runs once per label, so throwing would fail the whole chart render
+            LOG.warn("Invalid graph.textlayout.maxstep value \"{}\", expected an integer. " +
+                        "Using 1000.", maxstep);
+            maxval = 1000;
+         }
       }
+
+      maxStepsFromProperty = fromProperty;
+      max_steps = new int[] {maxval, maxval, maxval, maxval};
    }
 
    /**
@@ -49,6 +68,16 @@ public class FreeHelper extends LabelHelper {
     */
    public void setMaxSteps(int[] max) {
       this.max_steps = max;
+   }
+
+   /**
+    * Check if graph.textlayout.maxstep supplied the budget this helper was constructed with.
+    * A caller that narrows the budget per coordinate should bound its own value by that one
+    * rather than replace it, so that the property caps label movement as its name says.
+    * (76291)
+    */
+   public boolean isMaxStepsFromProperty() {
+      return maxStepsFromProperty;
    }
 
    /**
@@ -484,7 +513,10 @@ public class FreeHelper extends LabelHelper {
    private short[] steps = {(short) 0, (short) 0, (short) 0, (short) 0};
    private double[] edgedists = {0,  0,  0,  0};
    private int[] max_steps;
+   private final boolean maxStepsFromProperty;
    private boolean inPlot = true;
    private boolean outside = false;
    private int sameLocDir = 3; // direction (down) to move if two labels fall on exact same point
+
+   private static final Logger LOG = LoggerFactory.getLogger(FreeHelper.class);
 }
