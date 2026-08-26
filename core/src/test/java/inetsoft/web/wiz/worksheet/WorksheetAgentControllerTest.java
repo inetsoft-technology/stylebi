@@ -515,7 +515,8 @@ class WorksheetAgentControllerTest {
          null,                  // lookupTopLevelOnly
          null,                  // suffix
          null,                  // customLookups
-         true                   // crosstab
+         true,                  // crosstab
+         null                   // labels
       );
 
       WorksheetAgentController ctrl = controller(featureOn(),

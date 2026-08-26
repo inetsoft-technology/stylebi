@@ -1778,7 +1778,13 @@ public class WorksheetAgentController {
          case "add_date_range_column" ->
             editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "add_numeric_range_column" ->
-            editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries());
+            editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries(),
+               req.labels() != null ? req.labels().toArray(new String[0]) : null);
+         case "edit_date_range_column" ->
+            editor.editDateRangeColumn(req.table(), req.column(), req.dateOption());
+         case "edit_numeric_range_column" ->
+            editor.editNumericRangeColumn(req.table(), req.column(), req.boundaries(),
+               req.labels() != null ? req.labels().toArray(new String[0]) : null);
          case "edit_cell" -> {
             if(req.row() == null || req.col() == null) {
                throw new PairingException("edit_cell requires 'row' and 'col' fields");

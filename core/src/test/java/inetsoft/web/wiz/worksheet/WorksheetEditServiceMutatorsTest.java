@@ -753,6 +753,263 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(cs.getAttribute("orderDate"));
    }
 
+   // =========================================================================
+   // editDateRangeColumn / editNumericRangeColumn (Bug #76084)
+   // =========================================================================
+
+   @Test
+   void editDateRangeColumnChangesOptionAndRenamesInPlace() throws Exception {
+      // The reported bug: an AI agent asked to change "QuarterOfYear(Order Date)" to a
+      // month-level grouping had no edit tool, so it deleted and re-added the column
+      // instead of updating it in place. This is the in-place path that must exist instead.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("QuarterOfYear(orderDate)"),
+                 "old option's name must be gone — the column was renamed, not duplicated");
+      DataRef edited = cs.getAttribute("MonthOfYear(orderDate)");
+      assertNotNull(edited, "renamed column must exist under the new option's name");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertInstanceOf(DateRangeRef.class, unwrapped);
+      assertEquals(DateRangeRef.MONTH_OF_YEAR_PART, ((DateRangeRef) unwrapped).getDateOption());
+      assertNotNull(cs.getAttribute("orderDate"), "source date column must be untouched");
+      assertEquals(1, cs.stream().filter(r -> r instanceof ColumnRef cr &&
+         cr.getDataRef() instanceof DateRangeRef).count(),
+         "must not leave a stray duplicate column behind");
+   }
+
+   @Test
+   void editDateRangeColumnFailsLoudOnNonRangeColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // "orderDate" is the raw source column, not a range column derived from it.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editDateRangeColumn("T", "orderDate", "MONTH")));
+      assertTrue(ex.getMessage().contains("not a date range column"));
+   }
+
+   @Test
+   void editDateRangeColumnFailsLoudOnMissingColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editDateRangeColumn("T", "Nope(orderDate)", "MONTH")));
+      assertTrue(ex.getMessage().contains("Column not found"));
+   }
+
+   @Test
+   void editDateRangeColumnFailsLoudOnRenameCollision() throws Exception {
+      // Two range columns already exist at different options (QUARTER_OF_YEAR and
+      // MONTH_OF_YEAR). Editing the first to also become MONTH_OF_YEAR would rename it onto
+      // the second's name — must be refused, not silently shadow the other column.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "MONTH_OF_YEAR"));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR")));
+      assertTrue(ex.getMessage().contains("MonthOfYear(orderDate)"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNotNull(cs.getAttribute("QuarterOfYear(orderDate)"), "refused edit must leave the original untouched");
+      DataRef stillMonth = cs.getAttribute("MonthOfYear(orderDate)");
+      assertNotNull(stillMonth, "the pre-existing MonthOfYear column must survive, not be shadowed");
+      assertEquals(2, cs.stream().filter(r -> r instanceof ColumnRef cr &&
+         cr.getDataRef() instanceof DateRangeRef).count(),
+         "still exactly two distinct range columns — no shadowing duplicate");
+   }
+
+   @Test
+   void editDateRangeColumnAllowsNoOpWhenOptionUnchanged() throws Exception {
+      // dateOption resolving to the SAME name as the column already has must not trip the
+      // new collision guard against itself.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "QUARTER_OF_YEAR"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNotNull(cs.getAttribute("QuarterOfYear(orderDate)"));
+   }
+
+   @Test
+   void editNumericRangeColumnChangesBoundariesWithoutRenaming() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 0, 50, 100 }, null));
+      svc.apply("TOK", agent, ed ->
+         ed.editNumericRangeColumn("T", "amount_range", new double[] { 0, 25, 75, 150 }, null));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("amount_range");
+      assertNotNull(edited, "column name must be unchanged — boundaries alone don't rename it");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertInstanceOf(NumericRangeRef.class, unwrapped);
+      assertArrayEquals(new double[] { 0, 25, 75, 150 },
+         ((NumericRangeRef) unwrapped).getValueRangeInfo().getValues());
+   }
+
+   @Test
+   void editNumericRangeColumnFailsLoudOnEmptyBoundaries() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 0, 50, 100 }, null));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "amount_range", new double[0], null)));
+      assertTrue(ex.getMessage().contains("boundaries must be a non-empty array"));
+   }
+
+   @Test
+   void editNumericRangeColumnFailsLoudOnNonRangeColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "amount", new double[] { 0, 50 }, null)));
+      assertTrue(ex.getMessage().contains("not a numeric range column"));
+   }
+
+   // =========================================================================
+   // Custom bucket labels on numeric range columns (Bug #75942)
+   // =========================================================================
+
+   @Test
+   void addNumericRangeColumnAppliesCustomLabels() throws Exception {
+      // The reported bug: asked for boundaries 10000/50000 labeled "Below standard" /
+      // "Meets standard" / "Good", the AI said this required a formula column even though
+      // the Composer's own Range Column dialog already supports it — ValueRangeInfo.labels.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+         new double[] { 10000, 50000 },
+         new String[] { "Below standard", "Meets standard", "Good" }));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef added = cs.getAttribute("total_range");
+      assertNotNull(added);
+      DataRef unwrapped = added instanceof ColumnRef cr ? cr.getDataRef() : added;
+      assertInstanceOf(NumericRangeRef.class, unwrapped);
+      assertArrayEquals(new String[] { "Below standard", "Meets standard", "Good" },
+         ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels());
+      // The label ordering claim itself, not just that setLabels was called: ask the
+      // generated script expression which label applies below the first boundary, and
+      // confirm it is the bottom label, not the top or middle one.
+      assertTrue(((NumericRangeRef) unwrapped).getScriptExpression().contains("\"Below standard\""));
+   }
+
+   @Test
+   void addNumericRangeColumnFailsLoudOnWrongLabelCount() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // 2 boundaries need 3 labels (below, between, above); only 2 given.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+            new double[] { 10000, 50000 }, new String[] { "Low", "High" })));
+      assertTrue(ex.getMessage().contains("exactly 3 entries"));
+      assertTrue(ex.getMessage().contains("got 2"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      assertNull(cs.getAttribute("total_range"), "refused add must not leave a half-built column");
+   }
+
+   @Test
+   void addNumericRangeColumnAllowsOmittedLabels() throws Exception {
+      // null/empty labels must not be misread as "wrong count" — it means "no custom labels".
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addNumericRangeColumn("T", "total", new double[] { 10000, 50000 }, null));
+      svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "total_range",
+         new double[] { 10000, 50000 }, new String[0]));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("total_range");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertEquals(0, ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels().length);
+   }
+
+   @Test
+   void editNumericRangeColumnFailsLoudOnWrongLabelCountAndLeavesColumnUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+         new double[] { 10000, 50000 }, new String[] { "Below standard", "Meets standard", "Good" }));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editNumericRangeColumn("T", "total_range",
+            new double[] { 10000, 30000, 50000 }, new String[] { "Below standard", "Meets standard", "Good" })));
+      assertTrue(ex.getMessage().contains("exactly 4 entries"));
+
+      // Refused edit must leave the original boundaries/labels untouched.
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef unwrapped = ((ColumnRef) cs.getAttribute("total_range")).getDataRef();
+      assertArrayEquals(new double[] { 10000, 50000 },
+         ((NumericRangeRef) unwrapped).getValueRangeInfo().getValues());
+   }
+
    @Test
    void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
       Worksheet ws = new Worksheet();

@@ -844,14 +844,20 @@ public class WorksheetEditService {
        * @param table      the assembly name
        * @param column     the source numeric column name
        * @param boundaries the bucket boundary values (e.g. [0, 50, 100])
+       * @param labels     optional custom bucket labels, one more than {@code boundaries}
+       *                   (e.g. 2 boundaries -> 3 labels: below, between, above). {@code null}
+       *                   or empty keeps the engine's default auto-generated range text.
        */
-      public void addNumericRangeColumn(String table, String column, double[] boundaries)
+      public void addNumericRangeColumn(String table, String column, double[] boundaries,
+                                         String[] labels)
          throws PairingException
       {
          if(boundaries == null || boundaries.length == 0) {
             throw new PairingException(
                "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
          }
+
+         validateLabelCount(boundaries, labels);
 
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
@@ -866,11 +872,146 @@ public class WorksheetEditService {
          NumericRangeRef rangeRef = new NumericRangeRef(column + "_range", baseRef);
          ValueRangeInfo info = new ValueRangeInfo();
          info.setValues(boundaries);
+         info.setLabels(labels);
          rangeRef.setValueRangeInfo(info);
 
          ColumnRef colRef = new ColumnRef(rangeRef);
          colRef.setDataType(XSchema.STRING);
          cs.addAttribute(colRef);
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Validates that a caller-supplied label array, if present, has exactly one more entry
+       * than there are boundaries — the count {@link NumericRangeRef#getExpression} and
+       * {@link NumericRangeRef#getScriptExpression} index into (bottom bucket + one per gap +
+       * top bucket) given the engine's fixed defaults of showing both the bottom and top
+       * buckets. A shorter array is not just cosmetically wrong: those methods index straight
+       * into it with no bounds check, so a mismatch throws {@code ArrayIndexOutOfBoundsException}
+       * deep inside expression generation instead of failing here with a clear message.
+       */
+      private static void validateLabelCount(double[] boundaries, String[] labels)
+         throws PairingException
+      {
+         if(labels == null || labels.length == 0) {
+            return;
+         }
+
+         int expected = boundaries.length + 1;
+
+         if(labels.length != expected) {
+            throw new PairingException(
+               "labels must have exactly " + expected + " entries for " + boundaries.length +
+               " boundaries (one below the first, one between each pair, one above the last) " +
+               "— got " + labels.length + ".");
+         }
+      }
+
+      /**
+       * Changes the grouping level of an existing date range column, in place. The column's
+       * name encodes its option (see {@link DateRangeRef#getName}), so it is renamed to match
+       * the new option — e.g. {@code "QuarterOfYear(Order Date)"} becomes
+       * {@code "MonthOfYear(Order Date)"} when {@code dateOption} changes from
+       * {@code QUARTER_OF_YEAR} to {@code MONTH_OF_YEAR}. Anything already bound to the old
+       * name is left pointing at nothing, the same as a manual {@code rename_column}.
+       *
+       * @param table      the assembly name
+       * @param column     the existing date range column's current name
+       * @param dateOption the new grouping option string (e.g. "YEAR", "QUARTER", "MONTH")
+       */
+      public void editDateRangeColumn(String table, String column, String dateOption)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+
+         if(!(unwrapped instanceof DateRangeRef dateRef)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a date range column. Use " +
+               "add_date_range_column to create one, or pass the range column's own name " +
+               "(e.g. \"QuarterOfYear(Order Date)\"), not its source date column.");
+         }
+
+         int option = parseDateOption(dateOption);
+         DataRef baseRef = dateRef.getDataRef();
+         String baseAttr = baseRef != null ? baseRef.getAttribute() : dateRef.getAttribute();
+         String currentName = dateRef.getName();
+         String newName = DateRangeRef.getName(baseAttr, option);
+
+         // ColumnSelection enforces name-uniqueness only on addAttribute (a no-op add on
+         // collision); renaming an existing entry in place bypasses that check entirely, so a
+         // rename onto a name already held by another column (e.g. a second range column
+         // already added at the target option) would silently shadow it instead of failing.
+         if(!newName.equals(currentName)) {
+            DataRef existing = cs.getAttribute(newName);
+
+            if(existing != null && existing != ref) {
+               throw new PairingException(
+                  "Cannot change \"" + column + "\" to " + dateOption + " — table \"" + table +
+                  "\" already has a column named \"" + newName + "\". Remove or rename that " +
+                  "column first.");
+            }
+         }
+
+         dateRef.setDateOption(option);
+         dateRef.setName(newName);
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Changes the bucket boundaries (and optionally the custom labels) of an existing
+       * numeric range column, in place. Unlike the date range column's name, a numeric range
+       * column's name ({@code column + "_range"}) does not encode its boundaries, so it is
+       * left unchanged.
+       *
+       * @param table      the assembly name
+       * @param column     the existing numeric range column's current name
+       * @param boundaries the new bucket boundary values (e.g. [0, 50, 100])
+       * @param labels     optional custom bucket labels, one more than {@code boundaries}. A
+       *                   {@code null}/empty array clears any custom labels back to the
+       *                   engine's default auto-generated range text — it does not preserve
+       *                   whatever labels the column already had, since there is no partial
+       *                   "leave labels alone" signal distinguishable from "clear them."
+       */
+      public void editNumericRangeColumn(String table, String column, double[] boundaries,
+                                          String[] labels)
+         throws PairingException
+      {
+         if(boundaries == null || boundaries.length == 0) {
+            throw new PairingException(
+               "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
+         }
+
+         validateLabelCount(boundaries, labels);
+
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+
+         if(!(unwrapped instanceof NumericRangeRef rangeRef)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a numeric range column. Use " +
+               "add_numeric_range_column to create one, or pass the range column's own name " +
+               "(e.g. \"Amount_range\"), not its source numeric column.");
+         }
+
+         ValueRangeInfo info = new ValueRangeInfo();
+         info.setValues(boundaries);
+         info.setLabels(labels);
+         rangeRef.setValueRangeInfo(info);
          t.setColumnSelection(cs, false);
       }
 
