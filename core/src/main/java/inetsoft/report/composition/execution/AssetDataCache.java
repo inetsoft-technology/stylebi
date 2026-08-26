@@ -841,7 +841,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          data = null;
       }
 
-      if(data != null && (!"true".equals(SreeEnv.getProperty("mv.debug")))) {
+      if(data != null) {
          final String tableName = table == null ? "null" : table.getAbsoluteName();
          LOG.debug("Using cached result set: {} rows: {}", tableName, data.getRowCount());
       }

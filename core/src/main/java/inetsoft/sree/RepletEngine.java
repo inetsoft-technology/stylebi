@@ -18,6 +18,7 @@
 package inetsoft.sree;
 
 import inetsoft.mv.*;
+import inetsoft.mv.fs.FSService;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.filter.DefaultComparer;
 import inetsoft.report.internal.LicenseException;
@@ -1543,7 +1544,7 @@ public class RepletEngine extends AbstractAssetEngine
       writeLock.lock();
 
       try {
-         if("false".equals(SreeEnv.getProperty("fs.desktop"))) {
+         if(!FSService.getConfig().isDesktop()) {
             if(oentry.isRepositoryFolder()) {
                throw new MessageException(catalog.getString(
                        "common.invalidEntry", oentry));
