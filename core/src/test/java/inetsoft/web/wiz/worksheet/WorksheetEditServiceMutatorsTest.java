@@ -1720,6 +1720,116 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("NoSuchTable"));
    }
 
+   @Test
+   void editVariableRejectsCircularQuerySourceViaRankingCondition() throws Exception {
+      // Confirmed live: mirroring a table whose own ranking condition reads $(TopN), then
+      // pointing $(TopN)'s own picker at that mirror, silently built a circular dependency --
+      // computing the picker's values would require the variable's value first.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(TopN)", "TOP_N", false));
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "AllSalesMirror", allSales);
+      ws.addAssembly(mirror);
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("TopN", null, null, null,
+               queryChoices("AllSalesMirror", "Total", "Total", null))));
+      assertTrue(ex.getMessage().contains("circular"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("AllSales"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("TopN"), ex.getMessage());
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("TopN")).getVariable();
+      assertNull(updated.getTableName(), "a rejected circular source must not be applied");
+   }
+
+   @Test
+   void editVariableRejectsCircularQuerySourceThroughTransitiveMirrorChain() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(TopN)", "TOP_N", false));
+      MirrorTableAssembly mirror1 = new MirrorTableAssembly(ws, "M1", allSales);
+      ws.addAssembly(mirror1);
+      MirrorTableAssembly mirror2 = new MirrorTableAssembly(ws, "M2", mirror1);
+      ws.addAssembly(mirror2);
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // The cycle is two mirror-hops away from M2 -- proves the dependency walk is transitive,
+      // not just a check of the immediately-named table.
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("TopN", null, null, null,
+               queryChoices("M2", "Total", "Total", null))));
+   }
+
+   @Test
+   void editVariableRejectsCircularQuerySourceViaFilterCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Region");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.addFilter(allSales, "Region", "=", "$(Region)");
+      variableAssembly(ws, "Region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("Region", null, null, null,
+               queryChoices("AllSales", "Region", "Region", null))));
+      assertTrue(ex.getMessage().contains("circular"), ex.getMessage());
+   }
+
+   @Test
+   void editVariableAllowsQuerySourceFromIndependentCopy() throws Exception {
+      // Mirrors the live scenario's actual fix: an independent copy (not a mirror) with no
+      // conditions of its own has no dependency on the filtered/ranked table at all.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(TopN)", "TOP_N", false));
+      EmbeddedTableAssembly copy = TestWorksheets.tableWithColumns(ws, "AllSalesValues", "Total");
+      ws.addAssembly(copy);
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("TopN", null, null, null,
+            queryChoices("AllSalesValues", "Total", "Total", null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("TopN")).getVariable();
+      assertEquals("AllSalesValues", updated.getTableName());
+   }
+
+   @Test
+   void editVariableAllowsQuerySourceReferencingADifferentVariable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly allSales = TestWorksheets.tableWithColumns(ws, "AllSales", "Total");
+      ws.addAssembly(allSales);
+      WorksheetMutationSupport.setRanking(allSales,
+         new WorksheetMutationSupport.RankingSpec("Total", "$(OtherVar)", "TOP_N", false));
+      variableAssembly(ws, "TopN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("TopN", null, null, null,
+            queryChoices("AllSales", "Total", "Total", null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("TopN")).getVariable();
+      assertEquals("AllSales", updated.getTableName());
+   }
+
    // =========================================================================
    // Expression column test
    // =========================================================================

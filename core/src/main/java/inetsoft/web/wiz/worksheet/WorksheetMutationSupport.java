@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
@@ -1600,6 +1601,8 @@ public final class WorksheetMutationSupport {
             "'valueColumn' not found on table '" + table + "': " + valueColumn);
       }
 
+      checkNoCircularVariableDependency(ws, var, t);
+
       // Switching to query mode must clear any leftover embedded list for the same reason
       // applyEmbeddedVariableChoices clears the table name -- the two sources are mutually
       // exclusive in how the Composer's own dialog reads a variable back.
@@ -1608,6 +1611,77 @@ public final class WorksheetMutationSupport {
       var.setTableName(table);
       var.setLabelAttribute(labelRef);
       var.setValueAttribute(valueRef);
+   }
+
+   /**
+    * Rejects a query-mode picker source that would create a circular dependency:
+    * {@code table} (or anything it depends on -- mirrors, joins, concatenations, recursively,
+    * via {@link AssetUtil#getDependedAssemblies}) carrying a filter or ranking condition that
+    * reads {@code $(var.getName())}. Computing the picker's own values would then require the
+    * variable's value first, which is exactly what the picker exists to supply.
+    *
+    * <p>Confirmed live (2026-08-26): mirroring a table whose own ranking condition read
+    * {@code $(TopN)}, then pointing {@code $(TopN)}'s picker at that mirror, silently built
+    * this cycle -- a query-mode variable picker is a worksheet-chat-only capability with no
+    * Composer dialog equivalent to catch it by construction, so it needs its own guard here.
+    */
+   private static void checkNoCircularVariableDependency(Worksheet ws, AssetVariable var,
+                                                          TableAssembly table)
+   {
+      String varName = var.getName();
+      Assembly[] deps = AssetUtil.getDependedAssemblies(ws, table, true);
+
+      for(Assembly a : deps) {
+         if(!(a instanceof TableAssembly t)) {
+            continue;
+         }
+
+         boolean referenced = referencesVariable(t.getPreConditionList(), varName) ||
+            referencesVariable(t.getPostConditionList(), varName) ||
+            referencesVariable(t.getRankingConditionList(), varName);
+
+         if(referenced) {
+            String via = t == table ? "" : " (depended on by '" + table.getName() + "')";
+            throw new IllegalArgumentException(
+               "'table' creates a circular dependency: '" + t.getName() + "'" + via +
+               " has a condition that reads $(" + varName + ") -- computing the picker's own " +
+               "values would require the variable's value first. Point the picker at a table " +
+               "that does not depend on this variable, e.g. an independent copy with its own " +
+               "conditions cleared, not a mirror of the filtered table.");
+         }
+      }
+   }
+
+   /**
+    * {@code true} if any condition in {@code wrapper} reads {@code $(varName)}.
+    */
+   private static boolean referencesVariable(ConditionListWrapper wrapper, String varName) {
+      if(wrapper == null || wrapper.isEmpty()) {
+         return false;
+      }
+
+      int size = wrapper.getConditionSize();
+
+      for(int i = 0; i < size; i++) {
+         if(!wrapper.isConditionItem(i)) {
+            continue;
+         }
+
+         ConditionItem item = wrapper.getConditionItem(i);
+         XCondition xc = item == null ? null : item.getXCondition();
+
+         if(xc == null) {
+            continue;
+         }
+
+         for(UserVariable uvar : xc.getAllVariables()) {
+            if(varName.equals(uvar.getName())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
