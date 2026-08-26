@@ -28,6 +28,7 @@ import { Tool } from "../../../../../shared/util/tool";
 import { ConditionItemPane } from "./condition-item-pane.component";
 import { ConditionOperationPipe } from "./condition-operation.pipe";
 import { ConditionValuePipe } from "./condition-value.pipe";
+import { CustomSelectComponent, CustomSelectOption } from "../custom-select/custom-select.component";
 
 export interface ClauseRow {
    conjLabel: string;
@@ -42,10 +43,15 @@ export interface ClauseRow {
     selector: "simple-condition-pane",
     templateUrl: "simple-condition-pane.component.html",
     styleUrls: ["simple-condition-pane.component.scss"],
-    imports: [FormsModule, ConditionItemPane, ConditionOperationPipe]
+    imports: [FormsModule, ConditionItemPane, ConditionOperationPipe, CustomSelectComponent]
 })
 export class SimpleConditionPane implements OnInit {
    public ConditionOperation = ConditionOperation;
+
+   readonly joinOptions: CustomSelectOption<"and" | "or">[] = [
+      { value: "and", label: "_#(js:And)" },
+      { value: "or", label: "_#(js:Or)" }
+   ];
 
    @Input() subqueryTables: SubqueryTable[];
    @Input() fields: DataRef[];

@@ -123,16 +123,10 @@
                             </custom-select>
                           }
                           @if (param.type === 'ListParameter') {
-                            <select class="form-control" [(ngModel)]="param.values" multiple size="6">
-                              @for (val of param.choicesValue; track $index; let i = $index) {
-                                <option [value]="val">
-                                  {{param.choicesLabel[i]}}
-                                </option>
-                              }
-                              @if (param.dataTruncated) {
-                                <option disabled>(_#(data.truncated))</option>
-                              }
-                            </select>
+                            <generic-multi-select-list class="w-100" [labels]="param.choicesLabel"
+                              [values]="param.choicesValue" [(selected)]="param.values"
+                              [dataTruncated]="param.dataTruncated">
+                            </generic-multi-select-list>
                           }
                           @if (!(param.type === 'ChoiceParameter' && !param.choicesValue)) {
                             <label>{{!!param.alias ? param.alias : param.name}}</label>

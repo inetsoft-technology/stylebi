@@ -1,0 +1,33 @@
+<!--
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<div class="selectable-list generic-multi-select-list">
+  @for (_label of labels; track $index; let _i = $index) {
+    <div class="unhighlightable generic-multi-select-list__item"
+      (click)="toggle(values[_i])" [class.selected]="isSelected(values[_i])"
+      [class.fade]="disabled">
+      <input type="checkbox" class="form-check-input generic-multi-select-list__checkbox"
+        tabindex="-1" [checked]="isSelected(values[_i])" [disabled]="disabled">
+      <span class="generic-multi-select-list__label">{{_label}}</span>
+    </div>
+  }
+  @if (dataTruncated) {
+    <div class="unhighlightable generic-multi-select-list__item generic-multi-select-list__item--disabled">
+      (_#(data.truncated))
+    </div>
+  }
+</div>

@@ -24,17 +24,10 @@
     </custom-select>
   }
   @case (StyleType.LIST) {
-    <select multiple class="form-control"
-      [ngModel]="value" (ngModelChange)="change($event)">
-      @for (_label of labels; track _label; let i = $index) {
-        <option
-          [value]="values[i]">{{_label}}
-        </option>
-      }
-      @if (dataTruncated) {
-        <option disabled>(_#(data.truncated))</option>
-      }
-    </select>
+    <generic-multi-select-list [labels]="labels" [values]="values"
+      [selected]="value" [dataTruncated]="dataTruncated"
+      (selectedChange)="change($event)">
+    </generic-multi-select-list>
   }
   @case (StyleType.RADIO_BUTTONS) {
     <div class="container-fluid">

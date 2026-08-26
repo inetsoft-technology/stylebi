@@ -75,7 +75,7 @@ export function makeMocks() {
       },
       chatService: {
          isChatOngoing: vi.fn(() => false),
-         openSession: vi.fn(),
+         openSession: vi.fn(() => of({type: "success", message: ""})),
       },
       dropdownObserver: {
          onDropdownOpened: vi.fn(),

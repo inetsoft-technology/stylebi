@@ -18,6 +18,7 @@
 import { Component, Input, EventEmitter, Output, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
+import { GenericMultiSelectList } from "../../generic-selectable-list/generic-multi-select-list.component";
 
 enum StyleType {
    /**
@@ -42,7 +43,7 @@ enum StyleType {
     selector: "variable-collection-selector",
     templateUrl: "variable-collection-selector.component.html",
     imports: [
-    FormsModule, CustomSelectComponent]
+    FormsModule, CustomSelectComponent, GenericMultiSelectList]
 })
 export class VariableCollectionSelector implements OnInit {
    @Input() style: number;

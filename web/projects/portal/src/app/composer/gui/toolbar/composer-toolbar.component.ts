@@ -1577,7 +1577,8 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    }
 
    openSession(): void {
-      this.chatService.openSession(this.sheet.id, this.sheet.runtimeId);
+      this.chatService.openSession(this.sheet.id, this.sheet.runtimeId)
+         .subscribe(notification => this.notify(notification));
    }
 
    getMergeMenuToolbarActions(): ToolbarActionGroup[] {
