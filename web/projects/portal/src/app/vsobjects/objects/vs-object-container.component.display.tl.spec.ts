@@ -33,6 +33,7 @@
  *   Group 11  isActivePopComponent — active pop component, self and grouped-child cases
  */
 
+import { TestUtils } from "../../common/test/test-utils";
 import {
    makeComponent,
    makeVSObject,
@@ -412,6 +413,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       obj.paddingTop = 6;
       obj.paddingLeft = 4;
       obj.paddingRight = 8;
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
       return Object.assign(obj, overrides);
    };
 
@@ -478,6 +481,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vizModern: true,
          objectFormat: makeObjectFormat({ top: 0, left: 30, width: 400, height: 200 }),
       });
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.getToolbarLeft(obj, 0)).toBe(30);
@@ -525,6 +530,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
@@ -547,6 +554,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.maxMode = true;
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
@@ -554,27 +563,6 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
-   });
-
-   // With the title hidden the strip overlays the column header row, whose last cell carries the
-   // sort control at right: 2px, width: 20px (base-table.scss). The kebab landed exactly on it and
-   // ate the click, so the column could not be sorted at all. The lane box gives that footprint up
-   // so the pill right-aligns clear of it.
-   it("reserves the sort control's footprint when the title is hidden", () => {
-      const { comp } = makeComponent({
-         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
-      });
-      comp.containerRef = scrollless;
-      const obj: any = makeVSObject({
-         objectType: "VSTable",
-         vizModern: true,
-         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
-      });
-      obj.titleVisible = false;
-      comp.vsInfo = makeVsInfo([obj]);
-
-      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600 - 22);
-      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600 - 22);
    });
 
    it("reserves nothing when a title lane exists", () => {
@@ -593,10 +581,25 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
 
-   // The reserve's whole purpose is the table's .vs-header-cell-button-sort, which a selection cell
-   // has no equivalent of. A selection's right-edge occupant is the pending-Apply icon, and the
-   // gated .pending-alert offset moves that clear of the pill instead — so the pill is flush here
-   // in both title states, and the CSS offset stays one value rather than two.
+   it("reserves nothing for a title-hidden table", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         vizModern: true,
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.titleVisible = false;
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
+   });
+
+   // A selection cell never had a table-style reserve to give up: a selection's right-edge occupant
+   // is the pending-Apply icon, and the gated .pending-alert offset moves that clear of the pill
+   // instead — so the pill is flush here in both title states.
    it("reserves nothing for a title-hidden selection list", () => {
       const { comp } = makeComponent({
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
@@ -642,6 +645,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
@@ -656,11 +661,12 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
       comp.containerRef = scrollless;
-      const obj: any = makeVSObject({
+      // Lane tall enough to anchor, so max mode is the only thing left to exclude it.
+      const obj: any = TestUtils.withTitleLane(makeVSObject({
          objectType: "VSSelectionList",
          vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
-      });
+      }));
       obj.maxMode = true;
       comp.vsInfo = makeVsInfo([obj]);
 
@@ -682,6 +688,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
       });
       obj.maxMode = true;
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(false);
@@ -721,27 +729,28 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
       comp.containerRef = scrollless;
-      const obj: any = makeVSObject({
+      // Lane tall enough to anchor, so the type guard is the only thing left to exclude it.
+      const obj: any = TestUtils.withTitleLane(makeVSObject({
          objectType: "VSCalendar",
          vizModern: true,
          objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
-      });
+      }));
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(false);
    });
 });
 
-describe("Group 12 — isKebabResident: anchoring is a compact-and-above affordance", () => {
+describe("Group 12 — isKebabResident: anchoring is a lane-height affordance", () => {
    afterEach(() => {
       document.body.classList.remove(
          "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
    });
 
-   it("does not anchor an anchored-type assembly under dense", () => {
-      document.body.classList.add("viz-density-dense");
+   it("does not anchor an anchored-type assembly whose lane is too short for the strip", () => {
       const { comp } = makeComponent();
-      const obj = makeVSObject({ objectType: "VSChart", vizModern: true });
+      const obj = TestUtils.withTitleLane(
+         makeVSObject({ objectType: "VSChart", vizModern: true }), 20);
 
       expect(comp.isKebabResident(obj)).toBe(false);
    });
@@ -749,7 +758,9 @@ describe("Group 12 — isKebabResident: anchoring is a compact-and-above afforda
    it("anchors the same assembly under compact", () => {
       document.body.classList.add("viz-density-compact");
       const { comp } = makeComponent();
-      const obj = makeVSObject({ objectType: "VSChart", vizModern: true });
+      const obj: any = makeVSObject({ objectType: "VSChart", vizModern: true });
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 26 };
 
       expect(comp.isKebabResident(obj)).toBe(true);
    });

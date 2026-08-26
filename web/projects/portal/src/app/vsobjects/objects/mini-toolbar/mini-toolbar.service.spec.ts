@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+import { anchoredLaneHeight, isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
    from "./mini-toolbar.service";
 
 // The rollout boundary, asserted explicitly rather than left implied. Each family slice moves types
@@ -57,87 +57,87 @@ describe("isAnchoredAssemblyType", () => {
    });
 });
 
-// The single source of truth VSObjectContainerComponent.isKebabResident and AbstractVSActions.
-// resident both delegate to, so the two cannot drift apart the way they once did (resident stayed
-// true under dense after the container started opting out).
 describe("isAnchoredResident", () => {
-   afterEach(() => {
-      document.body.classList.remove(
-         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   it("is false when the modern gate is off, regardless of lane", () => {
+      expect(isAnchoredResident("VSChart", false, 30)).toBe(false);
    });
 
-   it("is false when the modern gate is off, regardless of type", () => {
-      expect(isAnchoredResident("VSChart", false)).toBe(false);
+   it("is false for a type outside the anchored set, however tall its lane", () => {
+      expect(isAnchoredResident("VSCalendar", true, 30)).toBe(false);
    });
 
-   it("is false under dense, even for an anchored type with the gate on", () => {
-      document.body.classList.add("viz-density-dense");
-      expect(isAnchoredResident("VSChart", true)).toBe(false);
+   it("is false at the dense lane, which cannot hold the strip", () => {
+      expect(isAnchoredResident("VSChart", true, 20)).toBe(false);
    });
 
-   it("is true under compact and comfortable, for an anchored type with the gate on", () => {
-      document.body.classList.add("viz-density-compact");
-      expect(isAnchoredResident("VSChart", true)).toBe(true);
-      document.body.classList.remove("viz-density-compact");
-      document.body.classList.add("viz-density-comfortable");
-      expect(isAnchoredResident("VSChart", true)).toBe(true);
+   it("is true at the compact and comfortable lanes", () => {
+      expect(isAnchoredResident("VSChart", true, 26)).toBe(true);
+      expect(isAnchoredResident("VSChart", true, 30)).toBe(true);
    });
 
-   it("is false under compact for a type outside the anchored set", () => {
-      document.body.classList.add("viz-density-compact");
-      expect(isAnchoredResident("VSCalendar", true)).toBe(false);
+   // the compact lane IS the threshold, so a pixel either side decides it and nothing else does
+   it("switches on exactly at the threshold", () => {
+      expect(isAnchoredResident("VSChart", true, 23)).toBe(false);
+      expect(isAnchoredResident("VSChart", true, 24)).toBe(true);
+      expect(isAnchoredResident("VSChart", true, 25)).toBe(true);
+   });
+
+   it("anchors a lane that holds the strip exactly, and one pixel over", () => {
+      expect(isAnchoredResident("VSChart", true, 24)).toBe(true);
+      expect(isAnchoredResident("VSChart", true, 25)).toBe(true);
+   });
+
+   it("is false at a zero lane, which is what a hidden title resolves to", () => {
+      expect(isAnchoredResident("VSChart", true, 0)).toBe(false);
    });
 });
 
-// The other half of the density split. Deliberately not the negation of isAnchoredResident: dense
-// removes chrome from anchored types only, so the two predicates are both false for a calendar
-// under compact and both false for anything with the gate off.
+// The other half of the split. Deliberately not the negation of isAnchoredResident: negation would be
+// true for every non-anchored type and every gate-off assembly, stripping toolbars that ship today.
 describe("isAnchoredChromeSuppressed", () => {
-   afterEach(() => {
-      document.body.classList.remove(
-         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
+   it("is true for an anchored type whose lane cannot hold the strip", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", true, 20)).toBe(true);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 23)).toBe(true);
    });
 
-   it("is true under dense for an anchored type with the gate on", () => {
-      document.body.classList.add("viz-density-dense");
-      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(true);
-      expect(isAnchoredChromeSuppressed("VSSelectionList", true)).toBe(true);
+   it("is true at a zero lane, which is what a hidden title resolves to", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", true, 0)).toBe(true);
    });
 
-   it("treats a bare density as dense, matching the token fallback", () => {
-      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(true);
+   it("is false once the lane holds the strip", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", true, 24)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 30)).toBe(false);
    });
 
-   it("is false when the modern gate is off, so gate-off output is untouched", () => {
-      document.body.classList.add("viz-density-dense");
-      expect(isAnchoredChromeSuppressed("VSChart", false)).toBe(false);
+   it("is false with the gate off, so a legacy assembly keeps its toolbar", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", false, 20)).toBe(false);
    });
 
-   it("is false under compact and comfortable", () => {
-      document.body.classList.add("viz-density-compact");
-      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(false);
-      document.body.classList.remove("viz-density-compact");
-      document.body.classList.add("viz-density-comfortable");
-      expect(isAnchoredChromeSuppressed("VSChart", true)).toBe(false);
+   it("is false for a type outside the anchored set, so its toolbar is untouched", () => {
+      expect(isAnchoredChromeSuppressed("VSCalendar", true, 20)).toBe(false);
+   });
+});
+
+describe("anchoredLaneHeight", () => {
+   it("is the title format height when the title is visible", () => {
+      expect(anchoredLaneHeight(<any> {titleVisible: true, titleFormat: {height: 26}})).toBe(26);
    });
 
-   it("is false under dense for a type outside the anchored set", () => {
-      document.body.classList.add("viz-density-dense");
-      expect(isAnchoredChromeSuppressed("VSCalendar", true)).toBe(false);
-      expect(isAnchoredChromeSuppressed("VSRangeSlider", true)).toBe(false);
+   it("is zero when the title is hidden, whatever the format says", () => {
+      expect(anchoredLaneHeight(<any> {titleVisible: false, titleFormat: {height: 30}})).toBe(0);
    });
 
-   it("is never true at the same time as isAnchoredResident", () => {
-      for(const density of ["viz-density-dense", "viz-density-compact", "viz-density-comfortable"]) {
-         document.body.classList.add(density);
+   it("is zero for a model with no title lane at all", () => {
+      expect(anchoredLaneHeight(<any> {})).toBe(0);
+   });
 
-         for(const type of ["VSChart", "VSSelectionList", "VSCalendar"]) {
-            expect(isAnchoredResident(type, true) && isAnchoredChromeSuppressed(type, true))
-               .toBe(false);
-         }
+   it("is zero when titleVisible is absent, which is a model with no lane to anchor into", () => {
+      expect(anchoredLaneHeight(<any> {titleFormat: {height: 30}})).toBe(0);
+   });
 
-         document.body.classList.remove(density);
-      }
+   it("rounds a fractional lane, which the composer's drag path produces at zoom", () => {
+      expect(anchoredLaneHeight(<any> {titleVisible: true, titleFormat: {height: 25.97}})).toBe(26);
+      expect(anchoredLaneHeight(<any> {titleVisible: true, titleFormat: {height: 25.4}})).toBe(25);
    });
 });
 

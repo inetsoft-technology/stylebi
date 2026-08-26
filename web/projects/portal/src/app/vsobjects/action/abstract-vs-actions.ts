@@ -24,7 +24,7 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
    from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
 
@@ -140,7 +140,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    // rollout boundary in mini-toolbar.service.ts, so the two cannot drift apart. Deleted together
    // with it when the last family slice lands.
    private get resident(): boolean {
-      return isAnchoredResident(this.model.objectType, this.model.vizModern);
+      return isAnchoredResident(this.model.objectType, this.model.vizModern,
+                                anchoredLaneHeight(this.model));
    }
 
    /**
@@ -219,7 +220,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // An anchored type reaches the same rung by the lane rather than the card: a lane too short
       // to host a control draws none. Checked separately because resident is already false in that
       // case, which skips the height test below.
-      if(isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern) ||
+      if(isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern,
+                                    anchoredLaneHeight(this.model)) ||
          (modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR))
       {
          ToolbarActionsHandler.copyActions([], this.showing);
