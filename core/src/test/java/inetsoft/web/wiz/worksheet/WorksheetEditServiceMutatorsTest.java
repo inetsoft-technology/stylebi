@@ -868,6 +868,48 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void editDateRangeColumnRenameDoesNotLeaveStaleHashForLaterAdd() throws Exception {
+      // Regression test for a real bug caught in code review (not a hypothetical): the
+      // ColumnRef wrapping a DateRangeRef caches its hashCode() (AbstractDataRef.chash) on
+      // first use, from getEntity()+getAttribute() — and ColumnSelection's backing
+      // ListWithFastLookup uses that cached hashCode() for add_date_range_column's O(1)
+      // addAttribute exclusivity check (rebuilt lazily by iterating elements' hashCode(), so a
+      // per-element stale cache survives even a full map rebuild). Renaming dateRef in place
+      // without resetting that cache left a later add_date_range_column, whose generated name
+      // happened to collide with the just-renamed column, undetected — silently producing two
+      // columns both reporting getName() == "MonthOfYear(orderDate)". Empirically confirmed
+      // both that the bug existed (bare rename: 2 columns) and that WorksheetEditService's
+      // fix (ColumnRef#setDataRef to force cname/chash invalidation) resolves it (1 column).
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      // A second, distinct add exercises addAttribute's exclusivity check (and so builds
+      // ListWithFastLookup's indexOfs cache) the same way any real multi-column worksheet
+      // would before the edit below ever runs.
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total", new double[] { 0, 1 }, null));
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
+
+      // Reaches the exact name the rename above just produced.
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "MONTH_OF_YEAR"));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      long monthColumns = cs.stream()
+         .filter(r -> "MonthOfYear(orderDate)".equals(r.getName()))
+         .count();
+      assertEquals(1, monthColumns,
+         "add_date_range_column must refuse (no-op) rather than duplicate a name the edit just produced");
+      assertEquals(4, cs.getAttributeCount(),
+         "the colliding add must be a no-op — no net column added");
+   }
+
+   @Test
    void editNumericRangeColumnChangesBoundariesWithoutRenaming() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
@@ -886,6 +928,42 @@ class WorksheetEditServiceMutatorsTest {
       assertInstanceOf(NumericRangeRef.class, unwrapped);
       assertArrayEquals(new double[] { 0, 25, 75, 150 },
          ((NumericRangeRef) unwrapped).getValueRangeInfo().getValues());
+   }
+
+   @Test
+   void editNumericRangeColumnPreservesShowBottomTopAndInclusiveType() throws Exception {
+      // Regression test from code review: showBottomValue/showTopValue/inclusiveType are also
+      // user-settable (the Composer's own Range Column dialog exposes them) but this tool only
+      // ever takes boundaries/labels — replacing the ValueRangeInfo outright instead of mutating
+      // the existing one would silently reset those three back to constructor defaults on every
+      // edit, discarding a customization this tool was never asked to touch.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 0, 50, 100 }, null));
+
+      // Simulate a customization made through some other path (the Composer's Range Column
+      // dialog, in practice) that this tool never exposes a way to set itself.
+      ColumnRef added = (ColumnRef) t.getColumnSelection(false).getAttribute("amount_range");
+      NumericRangeRef addedRef = (NumericRangeRef) added.getDataRef();
+      addedRef.getValueRangeInfo().setShowBottomValue(false);
+      addedRef.getValueRangeInfo().setShowTopValue(false);
+      addedRef.getValueRangeInfo().setInclusiveType(InclusiveType.UPPER);
+
+      svc.apply("TOK", agent, ed ->
+         ed.editNumericRangeColumn("T", "amount_range", new double[] { 0, 25, 75, 150 }, null));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("amount_range");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      ValueRangeInfo info = ((NumericRangeRef) unwrapped).getValueRangeInfo();
+      assertArrayEquals(new double[] { 0, 25, 75, 150 }, info.getValues());
+      assertFalse(info.isShowBottomValue(), "edit must not reset showBottomValue to its default");
+      assertFalse(info.isShowTopValue(), "edit must not reset showTopValue to its default");
+      assertEquals(InclusiveType.UPPER, info.getInclusiveType(), "edit must not reset inclusiveType to its default");
    }
 
    @Test
@@ -985,6 +1063,32 @@ class WorksheetEditServiceMutatorsTest {
       DataRef edited = cs.getAttribute("total_range");
       DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
       assertEquals(0, ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels().length);
+   }
+
+   @Test
+   void editNumericRangeColumnOmittingLabelsClearsPreExistingOnes() throws Exception {
+      // Regression test from code review (stylebi-wiz PR #1857): the tool description claims
+      // omitting `labels` on an edit clears any PRE-EXISTING custom labels, distinct from
+      // addNumericRangeColumnAllowsOmittedLabels above, which only exercises a column that never
+      // had labels to begin with. Must hold even after editNumericRangeColumn started mutating
+      // the existing ValueRangeInfo (to preserve showBottomValue/showTopValue/inclusiveType)
+      // instead of always replacing it — labels must still not be one of the preserved fields.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total", "other");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addNumericRangeColumn("T", "total",
+         new double[] { 10000, 50000 }, new String[] { "Below standard", "Meets standard", "Good" }));
+      svc.apply("TOK", agent, ed ->
+         ed.editNumericRangeColumn("T", "total_range", new double[] { 10000, 50000 }, null));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef edited = cs.getAttribute("total_range");
+      DataRef unwrapped = edited instanceof ColumnRef cr ? cr.getDataRef() : edited;
+      assertEquals(0, ((NumericRangeRef) unwrapped).getValueRangeInfo().getLabels().length,
+         "omitting labels on an edit must clear the column's previously-set custom labels");
    }
 
    @Test

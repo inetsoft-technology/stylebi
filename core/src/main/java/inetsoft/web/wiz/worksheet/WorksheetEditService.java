@@ -941,7 +941,17 @@ public class WorksheetEditService {
 
          int option = parseDateOption(dateOption);
          DataRef baseRef = dateRef.getDataRef();
-         String baseAttr = baseRef != null ? baseRef.getAttribute() : dateRef.getAttribute();
+
+         if(baseRef == null) {
+            // Not reachable via add_date_range_column, which always constructs one with a
+            // non-null base ref — but falling back to dateRef.getAttribute() here (the range
+            // column's OWN name) would silently compute a wrong, nested name like
+            // "MonthOfYear(QuarterOfYear(orderDate))" instead of failing loud.
+            throw new PairingException(
+               "Column \"" + column + "\" has no source column reference and cannot be re-leveled.");
+         }
+
+         String baseAttr = baseRef.getAttribute();
          String currentName = dateRef.getName();
          String newName = DateRangeRef.getName(baseAttr, option);
 
@@ -962,6 +972,22 @@ public class WorksheetEditService {
 
          dateRef.setDateOption(option);
          dateRef.setName(newName);
+
+         // AbstractDataRef.hashCode() caches its result (chash) from getEntity()+getAttribute()
+         // at first use, and ColumnRef.getAttribute() delegates live to the wrapped ref's — so
+         // renaming dateRef changes what that hash SHOULD be without invalidating the wrapping
+         // ColumnRef's already-cached one. ColumnSelection's backing ListWithFastLookup uses
+         // that cached hashCode() for its O(1) addAttribute exclusivity check (rebuilt lazily by
+         // iterating current elements' hashCode(), so a per-element stale cache survives even a
+         // full rebuild). Left uninvalidated, a later add_date_range_column producing this same
+         // new name is not caught as a duplicate — confirmed empirically: without the reset
+         // below, two columns end up reporting the identical getName(). setDataRef() re-assigns
+         // the same ref purely to invalidate ColumnRef's own cname/chash, the same mechanism
+         // renameColumn's setAlias() already relies on for its own (narrower) case.
+         if(ref instanceof ColumnRef cr) {
+            cr.setDataRef(dateRef);
+         }
+
          t.setColumnSelection(cs, false);
       }
 
@@ -1008,8 +1034,22 @@ public class WorksheetEditService {
                "(e.g. \"Amount_range\"), not its source numeric column.");
          }
 
-         ValueRangeInfo info = new ValueRangeInfo();
+         // Mutate the existing ValueRangeInfo rather than replacing it wholesale: this tool
+         // only ever settles values/labels, but showBottomValue/showTopValue/inclusiveType are
+         // also user-settable (via the Composer's own Range Column dialog, or a future richer
+         // wiz op) and replacing the object outright would silently reset those three back to
+         // ValueRangeInfo's constructor defaults on every edit — an undocumented side effect
+         // for a tool whose whole contract is "boundaries and labels, nothing else."
+         ValueRangeInfo info = rangeRef.getValueRangeInfo();
+
+         if(info == null) {
+            info = new ValueRangeInfo();
+         }
+
          info.setValues(boundaries);
+         // Unconditional, even when labels is null/empty: the javadoc above promises omitting
+         // labels clears any existing ones, and that contract must hold now that boundaries'
+         // sibling settings survive the edit.
          info.setLabels(labels);
          rangeRef.setValueRangeInfo(info);
          t.setColumnSelection(cs, false);
