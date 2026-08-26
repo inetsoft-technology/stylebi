@@ -1287,8 +1287,11 @@ public class WorksheetTableService {
          table.setColumnSelection(cs);
       }
 
-      // Expression columns are only meaningful on non-aggregated mirror tables;
-      // log a warning but don't fail if someone passes them here.
+      // Applied here, not ignored — a physical table takes derived columns: its column selection
+      // was just built from the source's real columns, so an expression over them resolves.
+      // The cases that do NOT take derived columns each say so at their own build site: an
+      // aggregated table (buildMirrorTable), a relational join table (buildJoinTable), a sql query
+      // table (buildSqlTable), and a tabular table (buildTabularTable, which rejects outright).
       applyExpressionColumns(table, request.getExpressionColumns());
       applyWindowColumns(table, request.getWindowColumns());
 
@@ -1301,6 +1304,10 @@ public class WorksheetTableService {
     * database verbatim, so window functions, CTEs, non-equi joins and any dialect-specific SQL
     * work — unlike the physical/mirror/join model, whose generated SQL can't express them.
     * Other tables can mirror/join the result by name.
+    * <p>
+    * {@code expressionColumns} are not applied to this type on purpose: the whole point of the type
+    * is that the caller's SQL runs verbatim, so a derived column is written into
+    * {@code sqlExpression} itself as another SELECT item, where the database computes it.
     */
    private AbstractTableAssembly buildSqlTable(Worksheet worksheet, WorksheetTable request)
       throws Exception
@@ -1637,7 +1644,11 @@ public class WorksheetTableService {
       MirrorTableAssembly mirror =
          new MirrorTableAssembly(worksheet, request.getTableName(), baseAssembly);
 
-      // Expression columns are only valid when there is no aggregation.
+      // Deriving and aggregating are mutually exclusive on ONE assembly: once groups/aggregates
+      // are applied, the row-level column selection an expression evaluates against is gone. So
+      // expressionColumns/windowColumns are dropped here when this mirror aggregates, rather than
+      // applied to something that can't evaluate them. To get both, use two assemblies: aggregate
+      // on this one, then mirror THIS table in a later call and put the derived columns there.
       boolean hasAggregation = request.getAggregateInfo() != null &&
          ((request.getAggregateInfo().getGroups() != null && !request.getAggregateInfo().getGroups().isEmpty()) ||
           (request.getAggregateInfo().getAggregates() != null && !request.getAggregateInfo().getAggregates().isEmpty()));
@@ -1651,6 +1662,12 @@ public class WorksheetTableService {
       return mirror;
    }
 
+   /**
+    * Build a {@link RelationalJoinTableAssembly}. A join table exists to express the join and
+    * nothing more: {@code expressionColumns} / {@code windowColumns} are deliberately not applied
+    * to it. A derived column over joined data belongs on a mirror table over this join, created in
+    * a later call.
+    */
    private AbstractTableAssembly buildJoinTable(Worksheet worksheet,
                                                 WorksheetTable request)
       throws Exception
