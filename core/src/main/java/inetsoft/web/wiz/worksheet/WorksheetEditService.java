@@ -595,6 +595,10 @@ public class WorksheetEditService {
                           List<String> leftKeys, List<String> rightKeys)
          throws PairingException, SecurityException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Join requires a name.");
+         }
+
          if("CROSS".equalsIgnoreCase(joinType)) {
             addCrossJoin(name, leftTable, rightTable);
             return;
@@ -671,8 +675,13 @@ public class WorksheetEditService {
        *
        * @param name    the assembly name
        * @param columns the column names to include in the private column selection
+       * @throws PairingException if {@code name} is missing or blank
        */
-      public void addTable(String name, String... columns) {
+      public void addTable(String name, String... columns) throws PairingException {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Table requires a name.");
+         }
+
          EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
          ColumnSelection cs = new ColumnSelection();
 
@@ -1595,6 +1604,10 @@ public class WorksheetEditService {
       public void addCrossJoin(String name, String leftTable, String rightTable)
          throws PairingException, SecurityException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Cross join requires a name.");
+         }
+
          requirePermission(ResourceType.CROSS_JOIN);
          TableAssembly left  = requireTable(leftTable);
          TableAssembly right = requireTable(rightTable);
@@ -1623,6 +1636,10 @@ public class WorksheetEditService {
        * @throws PairingException if fewer than two tables are given or a source is not found
        */
       public void addMergeJoin(String name, String[] tableNames) throws PairingException {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Merge join requires a name.");
+         }
+
          if(tableNames == null || tableNames.length < 2) {
             throw new PairingException("Merge join requires at least 2 tables.");
          }
@@ -1840,6 +1857,10 @@ public class WorksheetEditService {
                                 List<WorksheetMutationSupport.GroupMapping> mappings,
                                 boolean groupOthers) throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("Named group requires a name.");
+         }
+
          if((table == null) != (column == null)) {
             throw new PairingException(
                "table and column must both be specified, or both omitted for a standalone grouping");
