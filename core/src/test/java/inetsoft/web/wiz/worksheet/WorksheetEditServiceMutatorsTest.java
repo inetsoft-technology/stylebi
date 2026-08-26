@@ -1545,6 +1545,59 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void editVariableRejectsInvalidChoicesWithoutApplyingLabelTypeOrDefaultValue()
+      throws Exception
+   {
+      // Reviewer-caught regression: editVariable applied label/type/defaultValue directly to
+      // the LIVE AssetVariable before validating choices, so a rejected call (here: mismatched
+      // labels/values lengths) still left those earlier field changes committed on the live
+      // worksheet even though the whole call reported failure. editVariable now edits a scratch
+      // copy and only publishes it once every field -- including choices -- has validated.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setAlias("Original Label");
+      // setTypeNode (inside variableAssembly's setup) auto-creates a placeholder value node
+      // whenever none exists yet, so the baseline here is that placeholder, not null -- capture
+      // it by reference to prove the rejected call didn't replace it with a new one.
+      Object originalValueNode = assembly.getVariable().getValueNode();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", "integer", "New Label", "5",
+               embeddedChoices(List.of("East", "West"), List.of("Only one"), null))));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertEquals("Original Label", updated.getAlias(),
+         "a rejected call must not leave 'label' applied");
+      assertEquals(XSchema.STRING, updated.getTypeNode().getType(),
+         "a rejected call must not leave 'type' applied");
+      assertSame(originalValueNode, updated.getValueNode(),
+         "a rejected call must not leave 'defaultValue' applied");
+   }
+
+   @Test
+   void editVariableRejectsUnparsableEmbeddedValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "topN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Tool.getData("integer", "abc") silently returns null rather than throwing -- editVariable
+      // must reject this itself instead of writing a null value whose label ("abc") and
+      // underlying value end up silently out of sync.
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("topN", null, null, null,
+               embeddedChoices(List.of("5", "abc"), null, null))));
+      assertTrue(ex.getMessage().contains("abc"), ex.getMessage());
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("topN")).getVariable();
+      assertNull(updated.getChoices(), "a rejected value must not leave a partial picker applied");
+   }
+
+   @Test
    void editVariableRejectsUnknownDisplayStyle() throws Exception {
       Worksheet ws = new Worksheet();
       variableAssembly(ws, "region", XSchema.STRING);

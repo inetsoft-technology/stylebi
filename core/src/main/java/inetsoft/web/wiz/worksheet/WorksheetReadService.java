@@ -647,6 +647,24 @@ public class WorksheetReadService {
    }
 
    private List<String> extractValues(XCondition xc) {
+      if(xc instanceof RankingCondition rc) {
+         // RankingCondition.getN() carries the ranking's row count, which -- since Bug #75950
+         // -- can itself be a "$(variableName)" reference (a raw String, or a UserVariable if
+         // this condition round-tripped through XML). Surfacing it here, the same way a filter
+         // condition's values are surfaced, is what lets rename_variable/delete_variable's
+         // findVariableReferences scan (stylebi-wiz's worksheetTools.ts) actually see it --
+         // without this, that scan finds every $(name) EXCEPT one used only as a ranking count,
+         // and rename/delete reports no dangling references while leaving a live one behind.
+         Object n = rc.getN();
+
+         if(n == null) {
+            return Collections.emptyList();
+         }
+
+         return Collections.singletonList(
+            n instanceof UserVariable uvar ? "$(" + uvar.getName() + ")" : n.toString());
+      }
+
       if(!(xc instanceof Condition c)) {
          return Collections.emptyList();
       }

@@ -1548,6 +1548,25 @@ public final class WorksheetMutationSupport {
             "), got " + labels.size() + ".");
       }
 
+      String type = var.getTypeNode() != null ? var.getTypeNode().getType() : XSchema.STRING;
+      Object[] typedValues = new Object[values.size()];
+
+      for(int i = 0; i < values.size(); i++) {
+         String v = values.get(i);
+         Object typed = Tool.getData(type, v);
+
+         // Tool.getData silently returns null for an entry that doesn't parse as 'type' (e.g.
+         // "abc" for an integer variable) instead of throwing -- fail loud here instead,
+         // matching every other validation in this method, rather than writing a value whose
+         // label ('v') and underlying null value end up silently out of sync.
+         if(typed == null && v != null && !v.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'values' entry \"" + v + "\" is not a valid " + type + " value.");
+         }
+
+         typedValues[i] = typed;
+      }
+
       // Switching to embedded mode must clear any leftover query-mode source -- otherwise
       // AssetVariable carries both a non-null tableName AND populated choices/values, and the
       // Composer's own read path (VariableAssemblyDialogService) treats a non-null tableName as
@@ -1563,7 +1582,6 @@ public final class WorksheetMutationSupport {
       }
 
       List<String> effectiveLabels = labels != null && !labels.isEmpty() ? labels : values;
-      String type = var.getTypeNode() != null ? var.getTypeNode().getType() : XSchema.STRING;
 
       // UserVariable defaults sortValue to true, which silently re-sorts choices/values
       // alphabetically by label the moment both arrays are set -- discarding the caller's
@@ -1571,7 +1589,7 @@ public final class WorksheetMutationSupport {
       // Variable dialog) always disables it for the same reason; match that here.
       var.setSortValue(false);
       var.setChoices(effectiveLabels.toArray());
-      var.setValues(values.stream().map(v -> Tool.getData(type, v)).toArray());
+      var.setValues(typedValues);
    }
 
    private static void applyQueryVariableChoices(Worksheet ws, AssetVariable var, String table,
