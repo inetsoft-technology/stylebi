@@ -294,6 +294,81 @@ class ChartRegionResolverTest {
    }
 
    /**
+    * <b>The node aesthetic's own name.</b> A relation chart binds its node colour on
+    * {@code node-color}, and {@code get_chart_aesthetics} reports the field there - but the
+    * legend's {@code aestheticType} is a plain {@code Color}, the same value its edge legend
+    * carries. So a caller naming what it bound was being refused, and the channel this class
+    * reported back for the legend was one that did not address it.
+    */
+   @Test
+   void takesNodeColorToMeanTheNodeLegendAndNotTheEdgeOne() {
+      ChartRegionResolver.Legends legends = relationLegends();
+
+      assertEquals("Customer:Region",
+                   ChartRegionResolver.requireLegendField(legends, "node-color").field(),
+                   "the node flag says which of the two colour legends was meant");
+      assertEquals("node-color", legends.legends().get(0).channel(),
+                   "and the name it resolves by is the one reported for it");
+      assertEquals("color", legends.legends().get(1).channel(),
+                   "while the edge legend keeps the plain channel");
+      assertEquals("node-size",
+                   new ChartRegionResolver.LegendTarget("Sales", "Size", List.of(), true).channel(),
+                   "size is the other node channel there is");
+   }
+
+   /**
+    * The mis-resolution narrowing exists to prevent: folding {@code node-color} onto
+    * {@code color} would have hidden an <em>edge</em> legend on a chart with no node aesthetic at
+    * all, and reported success naming the node one.
+    */
+   @Test
+   void refusesNodeColorOnAChartWhoseOnlyColourLegendIsTheEdgeOne() {
+      ChartRegionResolver.Legends legends = new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget("Sales", "Color", List.of(), false)), true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegendField(legends, "node-color"));
+
+      assertTrue(thrown.getMessage().contains("no 'node-color' legend"), "name what was asked for");
+      assertTrue(thrown.getMessage().contains("Sales"), "and the legend it does have");
+   }
+
+   /** Narrowing costs nothing when there is only the node legend to narrow to. */
+   @Test
+   void resolvesNodeColorWhenTheNodeLegendIsTheOnlyColourOne() {
+      ChartRegionResolver.Legends legends = new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget("Customer:Region", "Color", List.of(), true)),
+         true);
+
+      assertEquals("Customer:Region",
+                   ChartRegionResolver.requireLegendField(legends, "node-color").field());
+      assertEquals("Customer:Region",
+                   ChartRegionResolver.requireLegendField(legends, "NodeColor").field(),
+                   "forgiving about the dash and the case, like every other target here");
+      assertEquals("Customer:Region",
+                   ChartRegionResolver.requireLegendField(legends, "color").field(),
+                   "and plain colour still reaches it - there is one colour legend and no other " +
+                   "thing that could have been meant");
+   }
+
+   /**
+    * Plain {@code color} stays permissive rather than being narrowed the other way: with both
+    * legends bound it says nothing about which, so it is refused with both named - the same
+    * ruling two edge legends of one channel already get.
+    */
+   @Test
+   void plainColourIsStillAmbiguousWhenTheChartHasBothANodeAndAnEdgeLegend() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegendField(relationLegends(), "color"));
+
+      assertTrue(thrown.getMessage().contains("more than one"), "say why it cannot be resolved");
+      assertTrue(thrown.getMessage().contains("node-color"),
+                 "and offer the name that does resolve it");
+   }
+
+   /**
     * The finding this whole path exists for: a target the chart has never heard of did not no-op,
     * it hid the chart's real legends and reported success naming the one asked for. So an
     * unknown field has to be refused, not passed through.
@@ -353,6 +428,14 @@ class ChartRegionResolverTest {
       assertThrows(IllegalArgumentException.class,
                    () -> ChartRegionResolver.requireLegendField(legends, ""),
                    "and the unnamed one is reachable by no target at all");
+   }
+
+   /** A relation chart's two colour legends: the node aesthetic and the edge one. */
+   private static ChartRegionResolver.Legends relationLegends() {
+      return new ChartRegionResolver.Legends(
+         List.of(new ChartRegionResolver.LegendTarget("Customer:Region", "Color", List.of(), true),
+                 new ChartRegionResolver.LegendTarget("Sales", "Color", List.of(), false)),
+         true);
    }
 
    private static ChartRegionResolver.Legends twoLegends() {
