@@ -54,6 +54,7 @@ import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.util.Catalog;
 import inetsoft.util.FileSystemService;
 import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -1997,15 +1998,23 @@ public class WorksheetAgentController {
                "Access denied: no READ permission on datasource " + dsName);
          }
 
-         UniformSQL sql = (UniformSQL) info.getQuery().getSQLDefinition();
+         // Work on a scratch clone of the live query (JDBCQuery.clone() deep-clones its
+         // SQLDefinition too) so a rejected edit -- parse failure, or the dependency check
+         // further down -- never mutates the assembly's persisted query or column selection.
+         // Mirrors SQLQueryDialogService, which builds an entirely new JDBCQuery for the same
+         // reason and only assigns it to the live info once the edit is accepted.
+         JDBCQuery scratchQuery = info.getQuery().clone();
+         UniformSQL sql = (UniformSQL) scratchQuery.getSQLDefinition();
 
          if(sql == null) {
             sql = new UniformSQL();
-            JDBCDataSource ds = (JDBCDataSource) info.getQuery().getDataSource();
+            JDBCDataSource ds = (JDBCDataSource) scratchQuery.getDataSource();
 
             if(ds != null) {
                sql.setDataSource(ds);
             }
+
+            scratchQuery.setSQLDefinition(sql);
          }
 
          // setSQLString() with parseSQL=true fires an async parse on a background thread
@@ -2030,9 +2039,6 @@ public class WorksheetAgentController {
             throw new PairingException("SQL parsing was interrupted.");
          }
 
-         info.getQuery().setSQLDefinition(sql);
-         sqlTable.setSQLEdited(true);
-
          // initColumnSelection does NOT work for SQL-edited assemblies (returns empty
          // selection). Use the same path as addSqlQuery / SQLQueryDialogService:
          // fixUniformSQLInfo expands SELECT *, then getColumnSelection reads result metadata.
@@ -2040,9 +2046,9 @@ public class WorksheetAgentController {
             new DefaultMetaDataProvider(xrepository).getSession();
          JDBCUtil.fixUniformSQLInfo(
             sql, xrepository, metaSession,
-            (JDBCDataSource) info.getQuery().getDataSource());
+            (JDBCDataSource) scratchQuery.getDataSource());
          ColumnSelection columns = queryManagerService.getColumnSelection(
-            info.getQuery(), new VariableTable(), sqlTable, metaSession, null);
+            scratchQuery, new VariableTable(), sqlTable, metaSession, null);
 
          if(columns == null || columns.getAttributeCount() == 0) {
             throw new PairingException(
@@ -2051,10 +2057,56 @@ public class WorksheetAgentController {
 
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
+
+         // Refuse an edit that drops or renames a column a dependent join/composite table
+         // still keys on -- mirrors SQLQueryDialogService's guard for the human-driven SQL
+         // Query dialog, which reverts rather than applying such an edit. Everything above
+         // this point ran against scratchQuery/sql (clones), so nothing has been committed
+         // to the live assembly yet, and this throws before anything is.
+         assertSqlEditAllowsColumnRemoval(ws, sqlTable, sqlTable.getColumnSelection(), columns);
+
+         info.getQuery().setSQLDefinition(sql);
+         sqlTable.setSQLEdited(true);
          sqlTable.setColumnSelection(columns);
          WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
          return null;
       });
+   }
+
+   /**
+    * Refuses a SQL edit that would drop or rename a column a dependent join/composite table
+    * still keys on. Mirrors {@code SQLQueryDialogService}'s equivalent check for the
+    * human-driven SQL Query dialog, translated into a thrown {@link PairingException} instead
+    * of a reverted {@code MessageCommand} -- the wiz plugin has no dialog to revert back into.
+    *
+    * @param ws         the worksheet, for walking dependents
+    * @param assembly   the SQL-bound table whose column selection is about to change
+    * @param oldColumns the table's column selection before the edit
+    * @param newColumns the column selection the new SQL would produce
+    * @throws PairingException naming the first old column that is both absent from
+    *                          {@code newColumns} and still used by a dependent
+    */
+   private static void assertSqlEditAllowsColumnRemoval(Worksheet ws, TableAssembly assembly,
+                                                         ColumnSelection oldColumns,
+                                                         ColumnSelection newColumns)
+      throws PairingException
+   {
+      if(oldColumns == null) {
+         return;
+      }
+
+      ColumnSelection safeNewColumns = newColumns != null ? newColumns : new ColumnSelection();
+
+      for(int i = 0; i < oldColumns.getAttributeCount(); i++) {
+         ColumnRef attribute = (ColumnRef) oldColumns.getAttribute(i);
+
+         if(!safeNewColumns.containsAttribute(attribute) &&
+            !WorksheetControllerService.allowsDeletion(ws, assembly, attribute))
+         {
+            throw new PairingException(Catalog.getCatalog().getString(
+               "common.columnDependency", attribute.getAttribute()));
+         }
+      }
    }
 
    // ---------------------------------------------------------------------------

@@ -38,6 +38,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import java.awt.Point;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.wiz.pairing.*;
 import org.slf4j.Logger;
@@ -300,7 +301,8 @@ public class WorksheetEditService {
        *
        * @param table the assembly name
        * @param col   the column attribute name to remove
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          a dependent join/composite table still uses this column
        */
       public void removeColumn(String table, String col) throws PairingException {
          TableAssembly t = requireTable(table);
@@ -309,6 +311,13 @@ public class WorksheetEditService {
 
          if(toRemove != null) {
             WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
+
+            if(toRemove instanceof ColumnRef cr &&
+               !WorksheetControllerService.allowsDeletion(ws, t, cr))
+            {
+               throw new PairingException(Catalog.getCatalog().getString(
+                  "common.columnDependency", col));
+            }
 
             // For embedded tables, also remove the data column from XEmbeddedTable.
             // Snapshots are excluded, and not just as an optimization: the guard above lets
@@ -425,7 +434,8 @@ public class WorksheetEditService {
        * @param table   the assembly name
        * @param col     the column attribute name to rename
        * @param newName the new alias
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          a dependent join/composite table still uses this column
        */
       public void renameColumn(String table, String col, String newName) throws PairingException {
          TableAssembly t = requireTable(table);
@@ -433,6 +443,11 @@ public class WorksheetEditService {
          DataRef existing = cs.getAttribute(col);
 
          if(existing instanceof ColumnRef cr) {
+            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
+               throw new PairingException(Catalog.getCatalog().getString(
+                  "common.columnDependency", col));
+            }
+
             cr.setAlias(newName);
          }
       }
@@ -1304,7 +1319,9 @@ public class WorksheetEditService {
        * @param table   the assembly name
        * @param col     the column attribute name
        * @param visible {@code true} to show, {@code false} to hide
-       * @throws PairingException if the table or column is not found
+       * @throws PairingException if the table or column is not found, or if hiding would
+       *                          break a dependent join/composite table that still uses
+       *                          this column
        */
       public void setColumnVisibility(String table, String col, boolean visible)
          throws PairingException
@@ -1315,6 +1332,11 @@ public class WorksheetEditService {
 
          if(!(ref instanceof ColumnRef cr)) {
             throw new PairingException("Column not found: " + col);
+         }
+
+         if(cr.isVisible() && !visible && !WorksheetControllerService.allowsDeletion(ws, t, cr)) {
+            throw new PairingException(Catalog.getCatalog().getString(
+               "common.columnDependency", col));
          }
 
          cr.setVisible(visible);

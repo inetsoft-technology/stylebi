@@ -1523,6 +1523,97 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // Column-dependency guard tests (Redmine #75968)
+   //
+   // The Composer UI has always refused to hide/remove/rename a column a dependent
+   // join still keys on (SetColumnVisibleService / DeleteColumnsService / RenameColumnService,
+   // via WorksheetControllerService#allowsDeletion). The wiz plugin's Editor skipped that
+   // check entirely, letting an agent silently break a join. These tests lock in the fix.
+   // =========================================================================
+
+   @Test
+   void removeColumnRefusesAJoinKeyStillUsedByADependentJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "id")));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("id"),
+         "the join key must survive the refusal");
+   }
+
+   @Test
+   void removeColumnStillWorksOnAColumnNotUsedByTheJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null);
+         ed.removeColumn("L", "name");
+      });
+
+      assertNull(left.getColumnSelection(false).getAttribute("name"),
+         "a column the join doesn't key on must still be removable");
+   }
+
+   @Test
+   void setColumnVisibilityRefusesHidingAJoinKeyStillUsedByADependentJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setColumnVisibility("L", "id", false)));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      ColumnRef idRef = (ColumnRef) left.getColumnSelection(false).getAttribute("id");
+      assertTrue(idRef.isVisible(), "the join key must remain visible after the refusal");
+   }
+
+   @Test
+   void renameColumnRefusesRenamingAJoinKeyStillUsedByADependentJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.renameColumn("L", "id", "renamedId")));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      ColumnRef idRef = (ColumnRef) left.getColumnSelection(false).getAttribute("id");
+      assertNull(idRef.getAlias(), "the join key must not be renamed by the refused edit");
+   }
+
+   // =========================================================================
    // Edit-in-place tests
    // =========================================================================
 
