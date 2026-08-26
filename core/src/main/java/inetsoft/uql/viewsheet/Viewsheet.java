@@ -3687,6 +3687,14 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * @return a new map that contains the fixed mappings for the specified column
     */
    public Map<String, Color> getDimensionColors(String column) {
+      // A frame with no field has no column to key the fixed mappings by, so there is nothing to
+      // look up. Answered as "none" rather than left to NPE in getAttribute: every caller here
+      // reads the name off a VisualFrameModel, and one built outside the Composer's own factories
+      // may not carry it.
+      if(column == null) {
+         return new HashMap<>();
+      }
+
       // add delimiter at the end so that we don't match the wrong column
       final String columnNameKey = getAttribute(column, false) + COLUMN_DELIMITER;
 
@@ -3719,6 +3727,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * @param dimensionColors the dimension value -> color map
     */
    public void setDimensionColors(String column, Map<String, Color> dimensionColors) {
+      // No column, nothing to key the mappings by -- see getDimensionColors. Storing them under a
+      // fabricated key would be worse than dropping them: nothing would ever read them back, and
+      // they would still shadow the real column's entries on the next removeIf.
+      if(column == null) {
+         return;
+      }
+
       final String columnNameKey = getAttribute(column, false) + COLUMN_DELIMITER;
 
       final Function<Map.Entry<String, Color>, String> mapKey =

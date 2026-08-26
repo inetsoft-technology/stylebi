@@ -1026,7 +1026,17 @@ public class GraphUtil {
                continue;
             }
 
-            temp = (StaticColorFrameWrapper) ((ChartAggregateRef) vref.get(i)).getColorFrameWrapper();
+            // Only a static per-measure colour has a default to fix. A measure carrying any other
+            // colour frame is drawn by that frame, so there is nothing here to give it and the
+            // cast this replaces was a ClassCastException that stopped the chart rendering
+            // entirely.
+            if(!(((ChartAggregateRef) vref.get(i)).getColorFrameWrapper()
+                    instanceof StaticColorFrameWrapper staticWrapper))
+            {
+               continue;
+            }
+
+            temp = staticWrapper;
             int idx = getColorIndex(usedColors, clrs, i);
             usedColors.add(clrs[idx]);
             temp.setDefaultColor(clrs[idx]);
@@ -1053,7 +1063,6 @@ public class GraphUtil {
             ChartAggregateRef aref = (ChartAggregateRef) arefs[i];
             boolean sameRef = Tool.equals(aref, movedRef);
             sameRef = sameRef && aref.equalsContent(movedRef);
-            frame = (StaticColorFrameWrapper) aref.getColorFrameWrapper();
 
             if(ref != null && aref.getFullName().equals(ref.getFullName())) {
                aggrIdx = i;
@@ -1068,6 +1077,16 @@ public class GraphUtil {
                continue;
             }
 
+            // Only a measure drawn by a static colour occupies one of the palette's colours. Any
+            // other frame draws its own, so it takes nothing out of the running -- and the cast
+            // this replaces was a ClassCastException that stopped the chart rendering entirely
+            // rather than merely picking a duplicate.
+            if(!(aref.getColorFrameWrapper() instanceof StaticColorFrameWrapper staticWrapper)) {
+               continue;
+            }
+
+            frame = staticWrapper;
+
             if(frame.getUserColor() != null) {
                usedColors.add(frame.getColor());
             }
@@ -1077,7 +1096,13 @@ public class GraphUtil {
          }
       }
 
-      frame = (StaticColorFrameWrapper) ref.getColorFrameWrapper();
+      // The measure being fixed is drawn by its own non-static frame, so it has no default colour
+      // to hand it and nothing to deduplicate.
+      if(!(ref.getColorFrameWrapper() instanceof StaticColorFrameWrapper target)) {
+         return;
+      }
+
+      frame = target;
 
       if(usedColors.isEmpty() && frame.getColor().equals(OLD_COLOR_PALETTE_DEFAULT_COLOR)) {
          return;

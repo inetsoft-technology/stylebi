@@ -358,4 +358,44 @@ class ChartAestheticAgentServiceTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   /**
+    * frameTypes was a hard-coded four — static, categorical, gradient, palette — from the one
+    * endpoint whose job is to stop an agent guessing. It named eleven fewer types than
+    * VisualFrameAliases builds, and implied the answer does not depend on the channel when
+    * gradient exists only for colour and linear only for size and line.
+    */
+   @Test
+   void optionsReportsFrameTypesPerChannelFromTheBuilderItself() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Map<String, Object> options = service.options();
+      @SuppressWarnings("unchecked")
+      Map<String, Object> byChannel = (Map<String, Object>) options.get("frameTypesByChannel");
+
+      for(String channel : AestheticChannels.SUPPORTED_FRAME_CHANNELS) {
+         assertEquals(VisualFrameAliases.typeNames(channel), byChannel.get(channel),
+                      "the reported types for " + channel + " must be the builder's own");
+      }
+
+      assertEquals(VisualFrameAliases.typeNames("color"), byChannel.get("node-color"));
+      assertEquals(VisualFrameAliases.typeNames("size"), byChannel.get("node-size"));
+   }
+
+   @Test
+   void optionsFrameTypesIsTheUnionAcrossChannels() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      @SuppressWarnings("unchecked")
+      List<String> types = (List<String>) service.options().get("frameTypes");
+
+      assertTrue(types.containsAll(List.of("heat", "linear", "grid", "triangle", "rainbow")),
+                 "types the builder accepts but the old hard-coded list refused: " + types);
+      assertTrue(types.containsAll(List.of("static", "categorical", "gradient", "palette")),
+                 "and the four it did report are still there: " + types);
+   }
 }
