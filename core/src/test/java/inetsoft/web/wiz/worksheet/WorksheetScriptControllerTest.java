@@ -267,7 +267,7 @@ class WorksheetScriptControllerTest {
             agent));
 
       assertTrue(ex.getMessage().contains("open its expression editor"), ex.getMessage());
-      assertFalse(ex.getMessage().contains("require-script-pane"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("require.script.pane"), ex.getMessage());
    }
 
    @Test
@@ -285,7 +285,7 @@ class WorksheetScriptControllerTest {
          () -> stack.controller().writeScript(TOKEN, req, agent));
 
       assertTrue(ex.getMessage().contains("open its condition editor"), ex.getMessage());
-      assertFalse(ex.getMessage().contains("require-script-pane"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("require.script.pane"), ex.getMessage());
 
       // The refusal must have happened before the real op ran -- the table stays untouched.
       assertNull(findCondition(t, "region"));

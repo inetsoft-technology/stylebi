@@ -47,6 +47,9 @@ package inetsoft.web.admin.general;
  *      The guard is scoped to pruning only - a failure in the write itself still fails.
  */
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
@@ -59,6 +62,9 @@ import inetsoft.util.config.KeyValueConfig;
 import inetsoft.web.admin.general.model.BackupDataModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -66,6 +72,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -329,5 +336,91 @@ class DataSpaceSettingsServiceTest {
 
       assertNull(result.path());
       assertTrue(result.status().contains("Failed"));
+   }
+
+   // [G9] an unparsable ai.snapshot.count falls back to the default of 10 rather than throwing
+   // or disabling pruning
+   @Test
+   void aiSnapshotPruning_unparsableCountFallsBackToTheDefault() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("ten");
+      // 11 files against the default of 10 -> exactly one deletion proves the fallback value,
+      // which neither "throws" nor "disables pruning" would produce.
+      List<String> zips = new ArrayList<>();
+
+      for(int i = 1; i <= 11; i++) {
+         zips.add("admin-" + i + "-202601" + String.format("%02d", i) + ".zip");
+      }
+
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(zips);
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-11").aiSnapshot(true).build());
+
+      verify(externalStorageService, times(1)).delete(anyString());
+      verify(externalStorageService).delete("ai-snapshots" + File.separator + zips.get(0));
+   }
+
+   // [G9] the warning is half the fix: without it the fallback is silent, and how many snapshots
+   // survive cleanup is not something an operator would notice on their own
+   @Test
+   void aiSnapshotPruning_unparsableCountWarnsNamingThePropertyAndTheValue() throws Exception {
+      ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+         org.slf4j.LoggerFactory.getLogger(DataSpaceSettingsService.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("ten");
+         when(externalStorageService.listFiles("ai-snapshots"))
+            .thenReturn(List.of("admin-1-20260101.zip"));
+
+         service.doBackup(
+            BackupDataModel.builder().dataspace("admin-chg-12").aiSnapshot(true).build());
+
+         List<ILoggingEvent> warnings = appender.list.stream()
+            .filter(e -> e.getLevel() == Level.WARN)
+            .filter(e -> e.getFormattedMessage().contains("ai.snapshot.count"))
+            .toList();
+
+         assertEquals(1, warnings.size(), "the fallback must report itself exactly once");
+         assertTrue(warnings.get(0).getFormattedMessage().contains("ten"),
+                    "the warning must quote the offending value: "
+                       + warnings.get(0).getFormattedMessage());
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
+   // [G9] the normal unconfigured case must stay silent -- a warning on every backup would
+   // train operators to ignore it
+   @ParameterizedTest
+   @NullSource
+   @ValueSource(strings = { "", "   " })
+   void aiSnapshotPruning_absentOrBlankCountDoesNotWarn(String countProp) throws Exception {
+      // Blank has to count as absent, not as unparsable: PropertiesEngine.setProperty removes a
+      // property only when the value is null, so clearing the field in EM rather than deleting
+      // the row stores "" -- and parseInt("") throws, which would warn on every single backup.
+      ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+         org.slf4j.LoggerFactory.getLogger(DataSpaceSettingsService.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn(countProp);
+         when(externalStorageService.listFiles("ai-snapshots"))
+            .thenReturn(List.of("admin-1-20260101.zip"));
+
+         service.doBackup(
+            BackupDataModel.builder().dataspace("admin-chg-13").aiSnapshot(true).build());
+
+         assertTrue(appender.list.stream()
+                       .noneMatch(e -> e.getFormattedMessage().contains("ai.snapshot.count")),
+                    "an unconfigured or emptied ai.snapshot.count must not warn");
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
    }
 }

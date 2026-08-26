@@ -424,7 +424,7 @@ public class ViewsheetAgentController {
    /**
     * Enforces {@link PaneScopeService} for {@code target} against the joined session.
     *
-    * <p>Reads {@code wiz.agent.script.require-script-pane} fresh from {@code SreeEnv} on every
+    * <p>Reads {@code wiz.agent.script.require.script.pane} fresh from {@code SreeEnv} on every
     * call (never cached) so the strict posture can be toggled by an administrator without a
     * restart, mirroring {@link #requireEnabled}'s own {@link SheetAgentFeature#isEnabled} call.
     */

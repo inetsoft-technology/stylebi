@@ -44,7 +44,7 @@ import java.util.Set;
  *       it is checked whether the target is expression-level or viewsheet-level. Weakening this
  *       when strict posture is off would mean a session minted for one chart's script could edit
  *       another chart's, which defeats the reason pane scoping exists at all.</li>
- *   <li><b>The opt-in strict posture</b> ({@code wiz.agent.script.require-script-pane}). Off by
+ *   <li><b>The opt-in strict posture</b> ({@code wiz.agent.script.require.script.pane}). Off by
  *       default. When on, it additionally refuses the four viewsheet-level kinds
  *       ({@code viewsheetOnInit}/{@code viewsheetOnLoad}/{@code assemblyMain}/
  *       {@code assemblyOnClick}) too, requiring every action to come from a pane-scoped
@@ -52,7 +52,7 @@ import java.util.Set;
  * </ul>
  *
  * <p>{@code strict} is supplied by the caller rather than read here — the controller reads the
- * {@code wiz.agent.script.require-script-pane} property fresh from {@code SreeEnv} on every
+ * {@code wiz.agent.script.require.script.pane} property fresh from {@code SreeEnv} on every
  * request (mirroring {@link inetsoft.web.wiz.pairing.SheetAgentFeature}), so an administrator
  * flipping the posture takes effect immediately, and this class stays a plain, easily-tested
  * function of its inputs rather than a stateful singleton with its own environment dependency.</p>
@@ -289,8 +289,16 @@ public class PaneScopeService {
       };
    }
 
-   /** Off-by-default property name; see the class javadoc. Read by the controller, not here. */
-   public static final String STRICT_FLAG = "wiz.agent.script.require-script-pane";
+   /**
+    * Off-by-default property name; see the class javadoc. Read by the controller, not here.
+    *
+    * <p>Dots only, no hyphens. {@code StorageInitializer.setProperties} maps an
+    * {@code INETSOFTENV_*} variable to a property name by lowercasing and replacing every
+    * {@code _} with {@code .}, so a hyphenated name cannot be set by environment variable at
+    * all -- it would be reachable only from Settings &gt; All Properties, unlike every other
+    * property.
+    */
+   public static final String STRICT_FLAG = "wiz.agent.script.require.script.pane";
 
    /** The dialog-sibling family {@link #matchesGrant} treats as one grant; see its javadoc. */
    private static final Set<ScriptTarget.Kind> ASSEMBLY_SCRIPT_FAMILY =
