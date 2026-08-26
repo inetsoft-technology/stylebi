@@ -20,7 +20,6 @@ package inetsoft.mv.fs;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -277,24 +276,6 @@ public final class FSService {
       public int getExpired() {
          String val = SreeEnv.getProperty("fs.map.expired");
          return val != null ? Integer.parseInt(val) : 10 * 60 * 60000;
-      }
-
-      // @temp larryl, this should be merged with MVClusterUtil.getWorkDir
-      @Override
-      public String getWorkDir(String node) {
-         String val = SreeEnv.getProperty("mv.data.directory");
-
-         if(val == null) { // backward compatibility (< 12.2)
-            // always localhost
-            val = SreeEnv.getProperty("fs.workdir." + node);
-         }
-
-         if(val == null) {
-            String home = ConfigurationContext.getContext().getHome();
-            val = (home == null ? "/usr" : home) + "/bs";
-         }
-
-         return val;
       }
 
       private Set<FSConfigObserver> observers = new HashSet<>();

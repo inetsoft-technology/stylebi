@@ -45,10 +45,4 @@ public interface FSConfig {
     * Get the expired period for a map task.
     */
    int getExpired();
-
-   /**
-    * Get the work directory for the specified data node. The directory will
-    * be used to store block files.
-    */
-   String getWorkDir(String node);
 }
