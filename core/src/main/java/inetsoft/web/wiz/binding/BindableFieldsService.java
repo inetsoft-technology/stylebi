@@ -34,6 +34,8 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 
 /**
@@ -67,10 +69,10 @@ public class BindableFieldsService {
       throws Exception
    {
       String source = null;
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
 
       if(assembly != null) {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
-         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
          VSAssembly target = vs == null ? null : vs.getAssembly(assembly);
 
          if(target == null) {
@@ -83,12 +85,15 @@ public class BindableFieldsService {
          source = sourceNameOf(target);
       }
 
+      String model = logicalModelName(vs);
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
       if(root != null) {
-         collect(root, tables, null);
+         collect(root, tables, model);
       }
+
+      tables = merged(tables);
 
       return assembly == null ? tables : marked(tables, source);
    }
@@ -113,6 +118,66 @@ public class BindableFieldsService {
     * is accurate: nothing is live, and that is exactly the state where a shelf write would be
     * accepted and render nothing.
     */
+   /**
+    * The logical model every group in the tree belongs to, or null when the viewsheet is not built
+    * on one.
+    *
+    * <p>This is what makes the two listings agree. A logical model has one source """ + D + """ its own name,
+    * which is what {@code SourceInfo.getSource} stores and the only value {@code set_chart_source}
+    * accepts """ + D + """ while its entities are groups inside it. The chart-scoped binding tree has no node
+    * for the model, so its entity folders used to be reported as separate source tables: names no
+    * {@code set_*_source} tool accepts, which a shelf write would nonetheless store as the
+    * assembly's source, leaving a chart whose source is not a source and which therefore never
+    * produced a graph. It also meant a correctly bound chart matched none of them and read back as
+    * having no source at all.
+    */
+   private static String logicalModelName(Viewsheet vs) {
+      AssetEntry base = vs == null ? null : vs.getBaseEntry();
+
+      if(base == null || !base.isLogicModel()) {
+         return null;
+      }
+
+      String named = base.getProperty("source");
+
+      return named != null && !named.isBlank() ? named : base.getName();
+   }
+
+   /**
+    * Groups that resolved to the same source are one table, not one per tree node.
+    *
+    * <p>{@link #collect} emits a table per group it finds, so a model whose entities all resolve to
+    * the model's name would otherwise come back as five tables of the same name.
+    */
+   private static List<BindableTable> merged(List<BindableTable> tables) {
+      Map<String, BindableTable> byName = new LinkedHashMap<>();
+
+      for(BindableTable table : tables) {
+         String key = table.name() == null ? "" : table.name().toLowerCase();
+         BindableTable seen = byName.get(key);
+
+         if(seen == null) {
+            byName.put(key, table);
+            continue;
+         }
+
+         List<BindableField> fields = new ArrayList<>(seen.fields());
+
+         for(BindableField field : table.fields()) {
+            boolean known = fields.stream().anyMatch(
+               f -> f.column() != null && f.column().equalsIgnoreCase(field.column()));
+
+            if(!known) {
+               fields.add(field);
+            }
+         }
+
+         byName.put(key, new BindableTable(seen.name(), seen.current(), fields));
+      }
+
+      return new ArrayList<>(byName.values());
+   }
+
    private static List<BindableTable> marked(List<BindableTable> tables, String source) {
       List<BindableTable> out = new ArrayList<>(tables.size());
 
@@ -141,7 +206,7 @@ public class BindableFieldsService {
    private void collect(TreeNodeModel node, List<BindableTable> tables, String sourceName) {
       if(isTable(node)) {
          List<BindableField> fields = new ArrayList<>();
-         gather(node, fields);
+         gather(node, fields, sourceName, null);
 
          if(!fields.isEmpty()) {
             tables.add(new BindableTable(node.label(), null, fields));
@@ -154,7 +219,7 @@ public class BindableFieldsService {
 
       for(TreeNodeModel child : node.children()) {
          if(isColumn(child)) {
-            direct.add(fieldOf(child));
+            direct.add(fieldOf(child, null));
          }
          else {
             collect(child, tables, sourceName);
@@ -171,13 +236,25 @@ public class BindableFieldsService {
    }
 
    /** Every column at or below this node, however deeply the Composer nests them. */
-   private void gather(TreeNodeModel node, List<BindableField> out) {
+   /**
+    * @param model  the logical model this subtree belongs to, or null when it does not belong to
+    *               one. Only inside a model is a folder an entity whose label prefixes a column.
+    * @param entity the entity folder currently being descended, or null at the top.
+    */
+   private void gather(TreeNodeModel node, List<BindableField> out, String model, String entity) {
       for(TreeNodeModel child : node.children()) {
          if(isColumn(child)) {
-            out.add(fieldOf(child));
+            out.add(fieldOf(child, entity));
          }
          else {
-            gather(child, out);
+            // Inside a logical model a folder is an entity, and its label is the prefix the
+            // binding tools require: they accept "Customer:Region" and refuse a bare "Region",
+            // which is what this listing handed back before — ambiguously, since Address, City,
+            // Company, Region, State and Zip each occur under more than one entity of the sample
+            // model. The chart-scoped tree already labels its columns with the prefix; only this
+            // one, which reaches the model node itself, does not. Left alone outside a model,
+            // where a folder is just a folder and prefixing would invent a name.
+            gather(child, out, model, model != null && isFolder(child) ? child.label() : entity);
          }
       }
    }
@@ -234,8 +311,15 @@ public class BindableFieldsService {
          entry.getType() == AssetEntry.Type.FOLDER;
    }
 
-   private BindableField fieldOf(TreeNodeModel node) {
-      return new BindableField(node.label(), dataTypeOf(node), roleOf(node));
+   private BindableField fieldOf(TreeNodeModel node, String entity) {
+      String column = node.label();
+
+      // Already prefixed on the chart-scoped tree, so this is not applied twice.
+      if(entity != null && column != null && !column.contains(":")) {
+         column = entity + ":" + column;
+      }
+
+      return new BindableField(column, dataTypeOf(node), roleOf(node));
    }
 
    /** Whether this node IS a source table, as opposed to a folder grouping one's columns. */
