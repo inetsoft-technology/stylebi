@@ -1320,6 +1320,173 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals("orderNumber", ref.getAttribute());
    }
 
+   @Test
+   void setRankingAcceptsVariableBinding() throws Exception {
+      // Regression for Bug #75950: 'n' used to be hardcoded to a plain int, so a
+      // Top-N count could never be bound to a worksheet variable the way filter
+      // condition values support $(name). RankingCondition.setN(Object) already
+      // supported it -- the gap was purely in how RankingSpec carried the value.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", "$(topN)", "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      RankingCondition rc = (RankingCondition) cl.getConditionItem(0).getXCondition();
+      assertTrue(Condition.isVariable(rc.getN()) || rc.getN() instanceof UserVariable,
+         "n should round-trip as a variable reference, got: " + rc.getN());
+      UserVariable[] vars = rc.getAllVariables();
+      assertEquals(1, vars.length);
+      assertEquals("topN", vars[0].getName());
+   }
+
+   @Test
+   void setRankingAcceptsNumericStringForN() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("T",
+            new WorksheetMutationSupport.RankingSpec("total", "5", "TOP_N", false)));
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      RankingCondition rc = (RankingCondition) cl.getConditionItem(0).getXCondition();
+      assertEquals(5, rc.getN());
+   }
+
+   @Test
+   void setRankingRejectsInvalidN() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "employee", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setRanking("T",
+               new WorksheetMutationSupport.RankingSpec("total", "not-a-number", "TOP_N", false))));
+      assertTrue(ex.getMessage().contains("not-a-number"),
+         "error should name the rejected value, got: " + ex.getMessage());
+   }
+
+   // =========================================================================
+   // Variable choices tests (Bug #76328)
+   // =========================================================================
+
+   private static DefaultVariableAssembly variableAssembly(Worksheet ws, String name, String type) {
+      AssetVariable var = new AssetVariable(name);
+      var.setTypeNode(XSchema.createPrimitiveType(type));
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+      return assembly;
+   }
+
+   @Test
+   void editVariableSetsTypedChoicesAndValues() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "topN", XSchema.INTEGER);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("topN", null, null, null,
+            List.of("1", "5", "10"), List.of("One", "Five", "Ten"), false));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("topN")).getVariable();
+      assertArrayEquals(new Object[] {"One", "Five", "Ten"}, updated.getChoices());
+      assertArrayEquals(new Object[] {1, 5, 10}, updated.getValues(),
+         "values must be typed to the variable's data type (Integer), not raw strings");
+      assertEquals(UserVariable.COMBOBOX, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableDefaultsLabelsToValuesWhenOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null, List.of("East", "West"), null, null));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices());
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
+   }
+
+   @Test
+   void editVariableEnablesMultipleSelection() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null, List.of("East", "West"), null, true));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertTrue(updated.isMultipleSelection());
+      assertEquals(UserVariable.LIST, updated.getDisplayStyle());
+   }
+
+   @Test
+   void editVariableEmptyValuesClearsExistingChoices() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, null, null, List.of(), null, null));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertNull(updated.getChoices());
+      assertNull(updated.getValues());
+   }
+
+   @Test
+   void editVariableOmittingValuesLeavesExistingChoicesUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly assembly = variableAssembly(ws, "region", XSchema.STRING);
+      assembly.getVariable().setChoices(new Object[] {"East", "West"});
+      assembly.getVariable().setValues(new Object[] {"East", "West"});
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("region", null, "New Label", null, null, null, null));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("region")).getVariable();
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getChoices());
+      assertArrayEquals(new Object[] {"East", "West"}, updated.getValues());
+   }
+
+   @Test
+   void editVariableRejectsMismatchedLabelsLength() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "region", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("region", null, null, null,
+               List.of("East", "West"), List.of("Only one"), null)));
+      assertTrue(ex.getMessage().contains("labels"));
+   }
+
    // =========================================================================
    // Expression column test
    // =========================================================================

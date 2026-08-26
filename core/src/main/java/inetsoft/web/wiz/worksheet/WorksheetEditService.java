@@ -2260,9 +2260,18 @@ public class WorksheetEditService {
        * @param type         new data type, or {@code null} to leave unchanged
        * @param label        new display label, or {@code null} to leave unchanged
        * @param defaultValue new default value, or {@code null} to leave unchanged
+       * @param values       enumerated picker values ("Values" in the Composer's own Variable
+       *                     dialog) — empty clears it back to free-form, {@code null} leaves it
+       *                     unchanged
+       * @param labels       display labels parallel to {@code values}; defaults to
+       *                     {@code values} themselves when {@code null}/empty
+       * @param multipleSelection {@code true} for a checkbox/multi-select picker, {@code false}
+       *                     for a single-select combobox, or {@code null} to leave unchanged
        * @throws PairingException if the assembly is not found or not a variable
        */
-      public void editVariable(String name, String type, String label, String defaultValue)
+      public void editVariable(String name, String type, String label, String defaultValue,
+                               List<String> values, List<String> labels,
+                               Boolean multipleSelection)
          throws PairingException
       {
          Assembly a = ws.getAssembly(name);
@@ -2305,6 +2314,8 @@ public class WorksheetEditService {
                var.setValueNode(valueNode);
             }
          }
+
+         WorksheetMutationSupport.applyVariableChoices(var, values, labels, multipleSelection);
       }
 
       /**

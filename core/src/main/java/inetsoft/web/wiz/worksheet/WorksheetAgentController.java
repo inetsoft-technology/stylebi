@@ -1846,7 +1846,8 @@ public class WorksheetAgentController {
          case "set_primary_assembly" ->
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
-            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue());
+            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue(),
+                                req.values(), req.labels(), req.multipleSelection());
          case "rename_variable" ->
             editor.renameVariable(req.name(), req.newName());
          case "delete_variable" ->
@@ -2421,17 +2422,26 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         createVariable(ws, varName, req.type(), req.label(), req.defaultValue());
+         createVariable(ws, varName, req.type(), req.label(), req.defaultValue(),
+                        req.values(), req.labels(), req.multipleSelection());
          return null;
       });
    }
 
    /**
     * Shared helper that creates a {@link DefaultVariableAssembly} with the given
-    * name, type, label, and default value.
+    * name, type, label, default value, and (optional) enumerated value list.
+    *
+    * @param values enumerated picker values ("Values" in the Composer's own Variable
+    *               dialog), or {@code null}/empty to leave the variable free-form
+    * @param labels display labels parallel to {@code values}; defaults to {@code values}
+    *               themselves when {@code null}/empty
+    * @param multipleSelection {@code true} for a checkbox/multi-select picker, {@code false}
+    *               (or {@code null}) for a single-select combobox
     */
-   private void createVariable(Worksheet ws, String name, String type,
-                               String label, String defaultValue)
+   private void createVariable(Worksheet ws, String name, String type, String label,
+                               String defaultValue, List<String> values, List<String> labels,
+                               Boolean multipleSelection)
       throws PairingException
    {
       if(ws.getAssembly(name) != null) {
@@ -2480,6 +2490,8 @@ public class WorksheetAgentController {
             var.setValueNode(valueNode);
          }
       }
+
+      WorksheetMutationSupport.applyVariableChoices(var, values, labels, multipleSelection);
 
       DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
       assembly.setVariable(var);
@@ -2585,8 +2597,17 @@ public class WorksheetAgentController {
    // Variables endpoint
    // ---------------------------------------------------------------------------
 
-   public record VariableRequest(String name, String type, String label,
-                                 String defaultValue) {}
+   /**
+    * @param values enumerated picker values ("Values" in the Composer's own Variable dialog),
+    *               or {@code null}/empty for a free-form value
+    * @param labels display labels parallel to {@code values}; defaults to {@code values}
+    *               themselves when {@code null}/empty
+    * @param multipleSelection {@code true} for a checkbox/multi-select picker, {@code false}
+    *               (or {@code null}) for a single-select combobox
+    */
+   public record VariableRequest(String name, String type, String label, String defaultValue,
+                                 List<String> values, List<String> labels,
+                                 Boolean multipleSelection) {}
 
    /**
     * Add a user variable to the worksheet.
@@ -2605,7 +2626,8 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue());
+         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
+                        body.values(), body.labels(), body.multipleSelection());
          return null;
       });
    }

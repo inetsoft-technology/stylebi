@@ -34,6 +34,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
@@ -1366,7 +1367,10 @@ public final class WorksheetMutationSupport {
     * Describes a ranking condition.
     *
     * @param field     column to rank — a group/dimension column or an aggregate column
-    * @param n         number of rows (top/bottom N)
+    * @param n         number of rows (top/bottom N) — an {@link Integer}, a numeric
+    *                  {@link String}, or a {@code "$(variableName)"} reference to bind the
+    *                  count to a worksheet variable (same syntax filter condition values
+    *                  support). See {@link RankingCondition#setN}.
     * @param operation {@code "TOP_N"} or {@code "BOTTOM_N"}
     * @param groupOthers {@code true} to group remaining rows as "Others"
     * @param of        optional aggregate column to rank {@code field} by (e.g. {@code field}
@@ -1375,13 +1379,13 @@ public final class WorksheetMutationSupport {
     *                  ranking-condition editor. Only meaningful when {@code field} is a group
     *                  column; omit when {@code field} is itself the aggregate to rank by.
     */
-   public record RankingSpec(String field, int n, String operation,
+   public record RankingSpec(String field, Object n, String operation,
                              boolean groupOthers, String of) {
       /**
        * Compact form for callers that don't need {@code of} (e.g. ranking directly by an
        * aggregate or group column with no separate "of" value).
        */
-      public RankingSpec(String field, int n, String operation, boolean groupOthers) {
+      public RankingSpec(String field, Object n, String operation, boolean groupOthers) {
          this(field, n, operation, groupOthers, null);
       }
    }
@@ -1414,7 +1418,12 @@ public final class WorksheetMutationSupport {
 
       inetsoft.uql.asset.RankingCondition rc = new inetsoft.uql.asset.RankingCondition();
       rc.setOperation(op);
-      rc.setN(spec.n());
+
+      if(!rc.setN(spec.n())) {
+         throw new IllegalArgumentException(
+            "'n' must be an integer or a \"$(variableName)\" reference, got: " + spec.n());
+      }
+
       rc.setGroupOthers(spec.groupOthers());
 
       if(spec.of() != null && !spec.of().isBlank()) {
@@ -1428,6 +1437,72 @@ public final class WorksheetMutationSupport {
       ConditionList cl = new ConditionList();
       cl.append(new ConditionItem(ref, rc, 0));
       t.setRankingConditionList(cl);
+   }
+
+   /**
+    * Populates a variable's enumerated value list — the "Values" picker in the Composer's own
+    * Variable dialog — from parallel {@code values}/{@code labels} lists, matching
+    * {@link UserVariable#setValues}/{@link UserVariable#setChoices}. Mirrors
+    * {@code VariableAssemblyDialogService.convertModelToAssetVariable}, the Composer dialog's
+    * own implementation of the same conversion.
+    *
+    * <p>{@code values} empty clears any existing enumeration (reverts the variable to a
+    * free-form value); {@code null} leaves the existing enumeration untouched. When
+    * {@code labels} is null/empty, {@code values} double as their own display labels.
+    *
+    * <p>Also sets {@link AssetVariable#setDisplayStyle}: unlike the base
+    * {@link UserVariable#getDisplayStyle}, {@link AssetVariable} does not auto-derive its
+    * display style from whether choices/values are present, it only returns whatever was last
+    * explicitly stored — so a picker populated without this would carry values the Composer's
+    * own Variable UI never renders a control for. Style is recomputed whenever either
+    * {@code values} or {@code multipleSelection} is touched this call, so toggling one without
+    * resupplying the other still leaves the style consistent with the current state.
+    *
+    * @param var    the variable to populate; if its type node is already set, that determines
+    *               how each entry in {@code values} is typed, otherwise entries are typed as
+    *               {@link XSchema#STRING}
+    * @param values raw enumerated values, or {@code null} to leave unchanged
+    * @param labels display labels parallel to {@code values}; must be the same length if given
+    * @param multipleSelection {@code true} for a checkbox/multi-select picker, {@code false}
+    *               for a single-select combobox, or {@code null} to leave unchanged
+    */
+   public static void applyVariableChoices(AssetVariable var, List<String> values,
+                                           List<String> labels, Boolean multipleSelection)
+   {
+      if(multipleSelection != null) {
+         var.setMultipleSelection(multipleSelection);
+      }
+
+      if(values != null) {
+         if(values.isEmpty()) {
+            var.setChoices(null);
+            var.setValues(null);
+         }
+         else {
+            if(labels != null && !labels.isEmpty() && labels.size() != values.size()) {
+               throw new IllegalArgumentException(
+                  "'labels' must have the same number of entries as 'values' (" +
+                  values.size() + "), got " + labels.size() + ".");
+            }
+
+            List<String> effectiveLabels = labels != null && !labels.isEmpty() ? labels : values;
+            String type = var.getTypeNode() != null ? var.getTypeNode().getType() : XSchema.STRING;
+
+            // UserVariable defaults sortValue to true, which silently re-sorts choices/values
+            // alphabetically by label the moment both arrays are set -- discarding the caller's
+            // intended order with no error. VariableAssemblyDialogService (the Composer's own
+            // Variable dialog) always disables it for the same reason; match that here.
+            var.setSortValue(false);
+            var.setChoices(effectiveLabels.toArray());
+            var.setValues(values.stream().map(v -> Tool.getData(type, v)).toArray());
+         }
+      }
+
+      if(values != null || multipleSelection != null) {
+         var.setDisplayStyle(var.getChoices() != null && var.getValues() != null
+            ? (var.isMultipleSelection() ? UserVariable.LIST : UserVariable.COMBOBOX)
+            : UserVariable.NONE);
+      }
    }
 
    /**
