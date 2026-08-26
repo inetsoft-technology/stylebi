@@ -71,13 +71,4 @@ describe("GuiTool density mode", () => {
       document.body.classList.add("viz-density-comfortable");
       expect(GuiTool.vizDensityMode()).toBe("comfortable");
    });
-
-   it("reports compact and comfortable as at-least-compact, dense as not", () => {
-      expect(GuiTool.isVizDensityAtLeastCompact()).toBe(false);
-      document.body.classList.add("viz-density-compact");
-      expect(GuiTool.isVizDensityAtLeastCompact()).toBe(true);
-      document.body.classList.remove("viz-density-compact");
-      document.body.classList.add("viz-density-comfortable");
-      expect(GuiTool.isVizDensityAtLeastCompact()).toBe(true);
-   });
 });

@@ -50,11 +50,15 @@ describe("AbstractVSActions", () => {
    // AbstractVSActions.resident/isAnchoredChromeSuppressed read model.vizModern rather than the
    // global gate, so each helper below takes it as an explicit parameter instead of reading a body
    // class the test toggles to simulate the gate.
-   function actionsFor(width: number, height: number, vizModern: boolean): ChartActions {
+   function actionsFor(width: number, height: number, vizModern: boolean,
+                       laneHeight: number = 30): ChartActions
+   {
       const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new ChartActions(model, popService, composerContext, false, null, null,
          miniToolbarService);
    }
@@ -62,11 +66,15 @@ describe("AbstractVSActions", () => {
    // A non-chart concrete subclass, for the "gate + cap is chart-only" tests. Constructor
    // parameter order differs from ChartActions (popService is positional 6th here, not 2nd) —
    // verified against calendar-actions.ts rather than assumed.
-   function calendarActionsFor(width: number, height: number, vizModern: boolean): CalendarActions {
+   function calendarActionsFor(width: number, height: number, vizModern: boolean,
+                               laneHeight: number = 30): CalendarActions
+   {
       const model: VSCalendarModel = TestUtils.createMockVSCalendarModel("Calendar1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new CalendarActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
@@ -74,11 +82,15 @@ describe("AbstractVSActions", () => {
    // A table concrete subclass, for the rollout's first family. Constructor parameter order differs
    // again from both ChartActions and CalendarActions: popService is positional 6th and
    // miniToolbarService 7th — verified against table-actions.ts rather than assumed.
-   function tableActionsFor(width: number, height: number, vizModern: boolean): TableActions {
+   function tableActionsFor(width: number, height: number, vizModern: boolean,
+                            laneHeight: number = 30): TableActions
+   {
       const model: VSTableModel = TestUtils.createMockVSTableModel("Table1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new TableActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
@@ -86,46 +98,58 @@ describe("AbstractVSActions", () => {
    // The selection family. Same constructor order as TableActions and CalendarActions —
    // popService positional 6th, miniToolbarService 7th — verified against selection-list-actions.ts
    // and selection-tree-actions.ts rather than assumed.
-   function selectionListActionsFor(width: number, height: number, vizModern: boolean): SelectionListActions {
+   function selectionListActionsFor(width: number, height: number, vizModern: boolean,
+                                    laneHeight: number = 30): SelectionListActions
+   {
       const model: VSSelectionListModel = TestUtils.createMockVSSelectionListModel("SelectionList1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new SelectionListActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
-   function selectionTreeActionsFor(width: number, height: number, vizModern: boolean): SelectionTreeActions {
+   function selectionTreeActionsFor(width: number, height: number, vizModern: boolean,
+                                    laneHeight: number = 30): SelectionTreeActions
+   {
       const model: VSSelectionTreeModel = TestUtils.createMockVSSelectionTreeModel("SelectionTree1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new SelectionTreeActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
    // The remaining two anchored table-family types, for the kebabOnly negative assertions only.
-   function crosstabActionsFor(width: number, height: number, vizModern: boolean): CrosstabActions {
+   function crosstabActionsFor(width: number, height: number, vizModern: boolean,
+                               laneHeight: number = 30): CrosstabActions
+   {
       const model: VSCrosstabModel = TestUtils.createMockVSCrosstabModel("Crosstab1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new CrosstabActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
 
-   function calcTableActionsFor(width: number, height: number, vizModern: boolean): CalcTableActions {
+   function calcTableActionsFor(width: number, height: number, vizModern: boolean,
+                              laneHeight: number = 30): CalcTableActions
+   {
       const model: VSCalcTableModel = TestUtils.createMockVSCalcTableModel("CalcTable1");
       model.objectFormat.width = width;
       model.objectFormat.height = height;
       model.vizModern = vizModern;
+      (<any> model).titleVisible = true;
+      (<any> model).titleFormat = {height: laneHeight};
       return new CalcTableActions(model, composerContext, false, null, null, popService,
          miniToolbarService);
    }
-
-   afterEach(() => {
-      document.body.classList.remove("viz-density-compact", "viz-density-dense");
-   });
 
    it("keeps the dismissal off the toolbar under the gate", () => {
       document.body.classList.add("viz-density-compact");
@@ -206,7 +230,6 @@ describe("AbstractVSActions", () => {
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       it("puts the first three stable actions and the kebab on a wide strip", () => {
-         document.body.classList.add("viz-density-compact");
          const actions = actionsFor(2000, 400, true);
 
          // actionsFor() builds a composer context, where Edit leads the Edit/Properties pair, so
@@ -219,13 +242,14 @@ describe("AbstractVSActions", () => {
       });
 
       it("keeps all three when exactly three action buttons are available", () => {
-         document.body.classList.add("viz-density-compact");
          // Viewer with the mock model's enableAdhoc=false: chart edit is not visible, leaving
          // exactly three action buttons plus the "menu actions" wrapper.
          const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
          model.objectFormat.width = 2000;
          model.objectFormat.height = 400;
          model.vizModern = true;
+         (<any> model).titleVisible = true;
+         (<any> model).titleFormat = {height: 30};
          const actions = new ChartActions(model, popService, ViewerContextProviderFactory(false),
             false, null, null, miniToolbarService);
 
@@ -235,11 +259,12 @@ describe("AbstractVSActions", () => {
       });
 
       it("still overflows the wrapper into a non-empty kebab when fewer than three real actions are available", () => {
-         document.body.classList.add("viz-density-compact");
          const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
          model.objectFormat.width = 2000;
          model.objectFormat.height = 400;
          model.vizModern = true;
+         (<any> model).titleVisible = true;
+         (<any> model).titleFormat = {height: 30};
          model.actionNames = ["Properties"];
          const actions = new ChartActions(model, popService, ViewerContextProviderFactory(false),
             false, null, null, miniToolbarService);
@@ -256,7 +281,6 @@ describe("AbstractVSActions", () => {
       });
 
       it("gives up action buttons before the kebab when width binds below the cap", () => {
-         document.body.classList.add("viz-density-compact");
          const actions = actionsFor(120, 400, true);
          const showing = ids(actions.showingActions);
 
@@ -267,19 +291,16 @@ describe("AbstractVSActions", () => {
       });
 
       it("still leaves only the kebab between the floor and 56px", () => {
-         document.body.classList.add("viz-density-compact");
          expect(ids(actionsFor(2000, 40, true).showingActions)).toEqual(["more actions"]);
       });
 
       it("still removes all chrome below the 32px floor", () => {
-         document.body.classList.add("viz-density-compact");
          expect(ids(actionsFor(2000, 24, true).showingActions)).toEqual([]);
       });
    });
 
    describe("kebab residency", () => {
       it("keeps a kebab at 40px where no action buttons fit", () => {
-         document.body.classList.add("viz-density-compact");
          const ids = actionsFor(400, 40, true).showingActions
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
@@ -287,7 +308,6 @@ describe("AbstractVSActions", () => {
       });
 
       it("removes all chrome below 32px", () => {
-         document.body.classList.add("viz-density-compact");
          const ids = actionsFor(400, 24, true).showingActions
             .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
@@ -295,7 +315,6 @@ describe("AbstractVSActions", () => {
       });
 
       it("still appends a kebab rather than throwing when every toolbar action is suppressed", () => {
-         document.body.classList.add("viz-density-compact");
          // actionNames suppression is only honored by isActionVisibleInViewer() in viewer/preview
          // mode (composer ignores it), so this needs a viewer context to actually zero out every
          // action rather than the shared composer-context actionsFor() helper.
@@ -303,6 +322,8 @@ describe("AbstractVSActions", () => {
          model.objectFormat.width = 400;
          model.objectFormat.height = 200;
          model.vizModern = true;
+         (<any> model).titleVisible = true;
+         (<any> model).titleFormat = {height: 30};
          // Suppress every named chart toolbar/menu action so both groups end up with zero
          // visible actions — the scenario that leaves ToolbarActionsHandler.copyActions()
          // with nothing to append the kebab onto without the this.showing.length===0 guard.
@@ -576,12 +597,15 @@ describe("AbstractVSActions", () => {
       // enableAdhoc=false keeps table edit hidden regardless of context. This isolates the two
       // real actions (open-max-mode, export) the probe found with nothing selected.
       function viewerTableActionsFor(width: number, height: number, vizModern: boolean,
-                                      configure?: (model: VSTableModel) => void): TableActions
+                                      configure?: (model: VSTableModel) => void,
+                                      laneHeight: number = 30): TableActions
       {
          const model: VSTableModel = TestUtils.createMockVSTableModel("Table1");
          model.objectFormat.width = width;
          model.objectFormat.height = height;
          model.vizModern = vizModern;
+         (<any> model).titleVisible = true;
+         (<any> model).titleFormat = {height: laneHeight};
 
          if(configure) {
             configure(model);
@@ -592,7 +616,6 @@ describe("AbstractVSActions", () => {
       }
 
       it("shows exactly the two real actions plus a non-empty kebab with nothing selected", () => {
-         document.body.classList.add("viz-density-compact");
          const actions = viewerTableActionsFor(2000, 400, true);
 
          expect(ids(actions.showingActions)).toEqual(
@@ -602,7 +625,6 @@ describe("AbstractVSActions", () => {
       });
 
       it("shows three real actions plus a non-empty kebab with a cell selected", () => {
-         document.body.classList.add("viz-density-compact");
          // showDetailsVisible needs summary && selectedData.size > 0 && !form (isActionVisibleInViewer
          // is unconditionally true here since viewer=false/preview=false in ViewerContextProviderFactory(false)).
          const actions = viewerTableActionsFor(2000, 400, true, model => {
@@ -616,7 +638,6 @@ describe("AbstractVSActions", () => {
       });
 
       it("still overflows the chart's wrapper unchanged (3 real actions, budget 4)", () => {
-         document.body.classList.add("viz-density-compact");
          const actions = actionsFor(2000, 400, true);
 
          expect(ids(actions.showingActions)).toEqual(
@@ -632,7 +653,6 @@ describe("AbstractVSActions", () => {
          // "cap the budget to the total visible count" fix gets wrong: with the wrapper gone the
          // total visible count equals realActions (2), and a budget of exactly 2 would force one of
          // the two real actions into the kebab. This asserts both stay on the strip.
-         document.body.classList.add("viz-density-compact");
          const actions = viewerTableActionsFor(2000, 400, true, model => {
             model.actionNames = ["Menu Actions"];
          });
@@ -672,21 +692,18 @@ describe("AbstractVSActions", () => {
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       it("allows no action-button slots at any width under the gate", () => {
-         document.body.classList.add("viz-density-compact");
          expect(selectionListActionsFor(150, 200, true).allowedActionsNum()).toBe(0);
          expect(selectionListActionsFor(400, 200, true).allowedActionsNum()).toBe(0);
          expect(selectionListActionsFor(800, 200, true).allowedActionsNum()).toBe(0);
       });
 
       it("renders the kebab and nothing else at any width under the gate", () => {
-         document.body.classList.add("viz-density-compact");
          expect(ids(selectionListActionsFor(150, 200, true).showingActions)).toEqual(["more actions"]);
          expect(ids(selectionListActionsFor(400, 200, true).showingActions)).toEqual(["more actions"]);
          expect(ids(selectionListActionsFor(800, 200, true).showingActions)).toEqual(["more actions"]);
       });
 
       it("treats the tree the same as the list", () => {
-         document.body.classList.add("viz-density-compact");
          expect(selectionTreeActionsFor(400, 200, true).allowedActionsNum()).toBe(0);
          expect(ids(selectionTreeActionsFor(400, 200, true).showingActions)).toEqual(["more actions"]);
       });
@@ -700,7 +717,6 @@ describe("AbstractVSActions", () => {
       // renders. Leaving the menu nested behind a "More" row would cost three taps to reach what
       // the strip exists to put one tap away.
       it("flattens the kebab into one panel with no wrapper row", () => {
-         document.body.classList.add("viz-density-compact");
          const more = ids(selectionListActionsFor(400, 200, true).getMoreActions());
 
          expect(more).not.toContain("menu actions");
@@ -709,7 +725,6 @@ describe("AbstractVSActions", () => {
       });
 
       it("still removes all chrome below the 32px control floor", () => {
-         document.body.classList.add("viz-density-compact");
          expect(ids(selectionListActionsFor(400, 24, true).showingActions)).toEqual([]);
       });
 
@@ -717,11 +732,12 @@ describe("AbstractVSActions", () => {
       // exactly for that reason. A fresh id would put Maximize in the kebab twice, in adjacent
       // groups.
       it("shows one Maximize row in the flattened kebab, not two", () => {
-         document.body.classList.add("viz-density-compact");
          const model = TestUtils.createMockVSSelectionListModel("SelectionList1");
          model.objectFormat.width = 400;
          model.objectFormat.height = 200;
          model.vizModern = true;
+         (<any> model).titleVisible = true;
+         (<any> model).titleFormat = {height: 30};
          const actions = new SelectionListActions(model, ViewerContextProviderFactory(false),
             false, null, null, popService, miniToolbarService);
          const ids = actions.getMoreActions()
@@ -742,37 +758,32 @@ describe("AbstractVSActions", () => {
    // visibility (chart properties-toolbar; the hide-mini-toolbar dismissal moving into the menu) is
    // not part of this and stays in effect at every density, dense included — only resident's own
    // callers change.
-   describe("density gate: dense draws no chrome for an anchored type", () => {
+   describe("lane gate: a lane too short for the strip draws no chrome", () => {
       const ids = (groups: any[]) =>
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
-      it("draws nothing at all under dense, at a card height that is otherwise ample", () => {
-         document.body.classList.add("viz-density-dense");
-         expect(ids(actionsFor(2000, 400, true).showingActions)).toEqual([]);
+      it("draws nothing at all at the dense lane, at a card height that is otherwise ample", () => {
+         expect(ids(actionsFor(2000, 400, true, 20).showingActions)).toEqual([]);
       });
 
       it("draws nothing for the selection family either, kebab included", () => {
-         document.body.classList.add("viz-density-dense");
-         expect(ids(selectionListActionsFor(800, 200, true).showingActions)).toEqual([]);
+         expect(ids(selectionListActionsFor(800, 200, true, 20).showingActions)).toEqual([]);
       });
 
-      it("leaves a non-anchored type alone under dense", () => {
-         document.body.classList.add("viz-density-dense");
+      it("leaves a non-anchored type alone at the dense lane", () => {
          // Calendar is outside ANCHORED_ASSEMBLY_TYPES, so the lane rule does not reach it. Guards
          // against the suppression being written as !isAnchoredResident, which would catch every
          // non-anchored type and strip toolbars that ship today.
-         expect(ids(calendarActionsFor(2000, 400, true).showingActions).length).toBeGreaterThan(0);
+         expect(ids(calendarActionsFor(2000, 400, true, 20).showingActions).length).toBeGreaterThan(0);
       });
 
-      it("leaves an anchored type alone under dense when the gate is off", () => {
-         document.body.classList.add("viz-density-dense");
-         expect(ids(actionsFor(2000, 400, false).showingActions).length).toBeGreaterThan(0);
+      it("leaves an anchored type alone when the gate is off", () => {
+         expect(ids(actionsFor(2000, 400, false, 20).showingActions).length).toBeGreaterThan(0);
       });
 
-      it("returns to the capped resident strip once density moves back to compact", () => {
-         document.body.classList.add("viz-density-compact");
-         expect(actionsFor(2000, 400, true).allowedActionsNum()).toBe(4);
-         expect(ids(actionsFor(2000, 400, true).showingActions).length).toBeGreaterThan(0);
+      it("returns to the capped resident strip once the lane widens to compact", () => {
+         expect(actionsFor(2000, 400, true, 26).allowedActionsNum()).toBe(4);
+         expect(ids(actionsFor(2000, 400, true, 26).showingActions).length).toBeGreaterThan(0);
       });
    });
 
@@ -885,7 +896,8 @@ describe("AbstractVSActions", () => {
             acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
 
       function wizardChartActions(): ChartActions {
-         const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+         const model: VSChartModel = TestUtils.withTitleLane(
+            TestUtils.createMockVSChartModel("Chart1"));
          model.objectFormat.width = 400;
          model.objectFormat.height = 200;
          model.vizModern = true;

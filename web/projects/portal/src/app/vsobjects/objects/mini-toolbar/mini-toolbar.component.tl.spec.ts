@@ -385,7 +385,9 @@ describe("MiniToolbar rendered - three action buttons plus the kebab under the g
 
    async function renderChartStrip(width: number, height: number) {
       document.body.classList.add("viz-density-compact");
-      const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+      // createMockVSChartModel declares no title lane, and without one nothing is anchored at all.
+      const model: VSChartModel = TestUtils.withTitleLane(
+         TestUtils.createMockVSChartModel("Chart1"));
       model.vizModern = true;
       model.objectFormat.width = width;
       model.objectFormat.height = height;
@@ -410,15 +412,19 @@ describe("MiniToolbar rendered - three action buttons plus the kebab under the g
       expect(root.querySelectorAll(".mini-toolbar-kebab").length).toBe(1);
       // Identified by icon rather than title: labels are _#(js:...) resource keys that the i18n
       // step substitutes at build time, not in this environment. These three icons are the ones
-      // ChartActions gives show-data / open-max-mode / properties-toolbar, in stable-first order.
+      // ChartActions gives show-data / open-max-mode / edit, in stable-first order, for the
+      // composer context renderChartStrip builds: stableFirst orders the Edit/Properties pair as
+      // [edit, propertiesToolbar] in the composer, because Edit is the composer's primary action.
+      // Properties is visible too, but lands fourth and so is what the cap of three pushes into
+      // the kebab (asserted by id in abstract-vs-actions.spec.ts, which covers the viewer's
+      // reversed order too). None of the three depends on the title lane.
       const icons = Array.from(root.querySelectorAll<HTMLElement>(
          ".mini-toolbar-button-group button:not(.mini-toolbar-kebab) i"))
          .map(i => i.className);
 
       expect(icons[0]).toContain("show-summary-icon");
       expect(icons[1]).toContain("expand-icon");
-      // The regression's actual casualty: chart properties-toolbar, an entire task's deliverable.
-      expect(icons[2]).toContain("setting-icon");
+      expect(icons[2]).toContain("edit-icon");
    });
 
    it("renders the kebab alone between the 32px floor and 56px", async () => {

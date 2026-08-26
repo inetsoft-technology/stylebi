@@ -207,6 +207,38 @@ the assembly, the resolvers do not.
 
 ---
 
+### 1.5 §10.2's stated precondition is wrong about the glyph, and the seamless strip is cheaper than it claims
+
+**Added 2026-08-25, found while scoping L″.**
+
+**What the doc says.** `Chart Card Spec v3.dc.html` §10.2 specifies the seamless in-lane strip — two glyph
+tones derived from the card background's luminance, "replacing the white bordered box" — and records one
+implementation precondition: *"the glyph is an `<img>` today, which color cannot tint."*
+
+**What the code says.** The mini-toolbar renders its glyphs as icon-class elements, not images:
+`mini-toolbar.component.html:48` is `<i [class]="icon + ' icon-size-small'" aria-hidden="true"></i>`, and
+`:72` is the same shape for the kebab. There is no `<img>` in the component's template.
+
+**Effect on the plan.** If those classes resolve through the icon font — which the `_icon-alias.scss`
+`@extend .icon-size-small` pattern suggests — then `color` tints them and §10.2's blocker does not exist,
+making the seamless strip **cheaper** than the doc implies rather than harder. **Confirm which before
+planning it:** an icon font renders the glyph as `::before` `content` and inherits `color`; a
+background-image sprite does not, and would need a mask or an inline SVG to tint. That single check is the
+difference between a CSS-only change and one that touches the icon system.
+
+**What is genuinely true in §10.2, and worth keeping.** The reason for the rule is structural rather than
+aesthetic — §02: *"The card background is author-set, so the strip cannot carry a fixed treatment."* And the
+scope is narrower than "the toolbar is seamless": it applies to the **in-lane** strip only. The overlaid
+strip on a title-hidden assembly keeps its own surface (§03, §04), and the nav bar keeps `--inet-shadow-low`
+deliberately, "so it reads as deliberately floating rather than as a strip anchoring forgot" (§02).
+
+**What ships today is the thing being replaced.** `mini-toolbar.component.scss:25-33` gives
+`.mini-toolbar-container` a `--inet-shell-surface-default` fill, a 1px `--inet-default-border-color` border
+and a `--inet-radius-xl` radius — unconditionally, so the anchored in-lane strip draws the white bordered
+box as well as the overlaid one. Tracked on the roadmap's "Ready now" table.
+
+---
+
 ## 2. Staleness
 
 Not errors. The docs were accurate when written.

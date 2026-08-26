@@ -222,7 +222,8 @@
 
 // Kebab pill is ~40px (18px glyph + 4px icon padding + 16px btn-sm padding + 2px border), not
 // --inet-control-height-md (a min-width floor the content exceeds, so it can't size this).
-:host-context(.viz-modern) .pending-alert:not(.left) {
+// `.top` is `!model.titleVisible` — no title lane, so no strip to clear and nothing to inset past.
+:host-context(.viz-modern) .pending-alert:not(.left):not(.top) {
   right: 48px;
 }
 
