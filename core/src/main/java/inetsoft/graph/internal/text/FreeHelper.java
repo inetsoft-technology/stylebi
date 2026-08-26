@@ -27,6 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.geom.*;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Free movement labels.
@@ -55,8 +57,8 @@ public class FreeHelper extends LabelHelper {
             // as "unlimited" in other properties, making it a plausible typo with exactly
             // the opposite of its intended effect.
             if(parsed < 0) {
-               LOG.warn("Negative graph.textlayout.maxstep value \"{}\" would stop labels " +
-                           "from moving at all. Using 1000.", maxstep);
+               warnOnce(maxstep, "Negative graph.textlayout.maxstep value \"{}\" would stop " +
+                           "labels from moving at all. Using 1000.");
             }
             else {
                maxval = parsed;
@@ -65,13 +67,24 @@ public class FreeHelper extends LabelHelper {
          }
          catch(NumberFormatException ex) {
             // this runs once per label, so throwing would fail the whole chart render
-            LOG.warn("Invalid graph.textlayout.maxstep value \"{}\", expected an integer. " +
-                        "Using 1000.", maxstep);
+            warnOnce(maxstep, "Invalid graph.textlayout.maxstep value \"{}\", expected an " +
+                        "integer. Using 1000.");
          }
       }
 
       maxStepsFromProperty = fromProperty;
       max_steps = new int[] {maxval, maxval, maxval, maxval};
+   }
+
+   /**
+    * Warn at most once for each bad graph.textlayout.maxstep value. The constructor runs
+    * once per label, so warning unconditionally would repeat for every label on a chart and
+    * again on every refresh of it.
+    */
+   private static void warnOnce(String value, String message) {
+      if(loggedBadMaxSteps.add(value)) {
+         LOG.warn(message, value);
+      }
    }
 
    /**
@@ -529,5 +542,6 @@ public class FreeHelper extends LabelHelper {
    private boolean outside = false;
    private int sameLocDir = 3; // direction (down) to move if two labels fall on exact same point
 
+   private static final Set<String> loggedBadMaxSteps = ConcurrentHashMap.newKeySet();
    private static final Logger LOG = LoggerFactory.getLogger(FreeHelper.class);
 }
